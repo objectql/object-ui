@@ -85,8 +85,12 @@ describe('NodePalette search & filtering', () => {
     }
     expect(screen.queryByText('Data')).toBeNull();
     expect(screen.queryByText('Logic')).toBeNull();
-    // Item labels come from the (server-merged) items, not i18n — unchanged.
-    expect(screen.getByText('Create record')).toBeTruthy();
+    // Built-in node types are localized (the zh label wins over the English
+    // fixture label); plugin / unknown types fall back to their descriptor
+    // label so they stay readable.
+    expect(screen.getByText('创建记录')).toBeTruthy();
+    expect(screen.queryByText('Create record')).toBeNull();
+    expect(screen.getByText('HTTP Call')).toBeTruthy(); // plugin.http → fallback
   });
 
   it('filters across all categories and hides empty sections', async () => {

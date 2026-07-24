@@ -28,7 +28,7 @@ import type {
   MetadataClient,
   MetadataAuditEntry,
 } from '@object-ui/data-objectstack';
-import { t, type SupportedLocale } from './i18n';
+import { t, translateConsoleValue, type SupportedLocale } from './i18n';
 
 export interface AuditPanelProps {
   type: string;
@@ -44,7 +44,7 @@ function fmtTime(iso: string): string {
   return d.toLocaleString();
 }
 
-function outcomeBadge(outcome: MetadataAuditEntry['outcome']) {
+function outcomeBadge(outcome: MetadataAuditEntry['outcome'], locale?: SupportedLocale | string) {
   const map: Record<MetadataAuditEntry['outcome'], {
     label: string;
     cls: string;
@@ -72,7 +72,7 @@ function outcomeBadge(outcome: MetadataAuditEntry['outcome']) {
       className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${v.cls}`}
     >
       <v.Icon className="h-3 w-3" />
-      {v.label}
+      {translateConsoleValue('outcome', v.label, locale)}
     </span>
   );
 }
@@ -183,14 +183,14 @@ export function AuditPanel({
                   <td className="px-2 py-1.5">{ev.actor}</td>
                   <td className="px-2 py-1.5">
                     <Badge variant="outline" className="text-[10px]">
-                      {ev.operation}
+                      {translateConsoleValue('op', ev.operation, locale)}
                     </Badge>
                   </td>
-                  <td className="px-2 py-1.5">{outcomeBadge(ev.outcome)}</td>
+                  <td className="px-2 py-1.5">{outcomeBadge(ev.outcome, locale)}</td>
                   <td className="px-2 py-1.5">
                     {ev.lockState && ev.lockState !== 'none' ? (
                       <span className="font-mono text-[11px]">
-                        {ev.lockState}
+                        {translateConsoleValue('lock', ev.lockState, locale)}
                         {ev.lockOverridden ? ' *' : ''}
                       </span>
                     ) : (

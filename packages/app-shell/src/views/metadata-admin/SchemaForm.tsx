@@ -57,7 +57,7 @@ import {
 } from '@object-ui/components';
 import { evaluatePredicate } from './predicate';
 import { WIDGETS, type WidgetContext } from './widgets';
-import { useMetadataLocale, t, tFormat, translateValidationMessage } from './i18n';
+import { useMetadataLocale, t, tFormat, translateValidationMessage, translateEnumOption, translateSchemaFieldLabel, translateSchemaFieldHelp } from './i18n';
 
 type JsonSchema = Record<string, any>;
 
@@ -840,8 +840,17 @@ function FieldRow({
   formData?: Record<string, unknown>;
   onChange: (v: unknown) => void;
 }) {
-  const label = (fieldSpec?.label as string | undefined) || (schema?.title as string) || prettify(name);
-  const description = (fieldSpec?.helpText as string | undefined) || (schema?.description as string | undefined);
+  const locale = useMetadataLocale();
+  // A curated client `fieldSpec.label` always wins; otherwise localize the raw
+  // schema title/description for known generic field names (e.g. the flow
+  // edge/node sub-forms), falling back to the schema's own English text.
+  const label =
+    (fieldSpec?.label as string | undefined) ||
+    translateSchemaFieldLabel(name, schema?.title as string | undefined, locale) ||
+    prettify(name);
+  const description =
+    (fieldSpec?.helpText as string | undefined) ||
+    translateSchemaFieldHelp(name, schema?.description as string | undefined, locale);
   const id = `mdf-${name}`;
 
   // Auto-infer widget from fieldSpec.type or schema
@@ -899,6 +908,7 @@ function FieldRow({
         </div>
         <FieldControl
           id={id}
+          fieldName={name}
           schema={schema}
           value={value}
           onChange={onChange}
@@ -930,6 +940,7 @@ function FieldRow({
       </div>
       <FieldControl
         id={id}
+        fieldName={name}
         schema={schema}
         value={value}
         onChange={onChange}
@@ -953,6 +964,7 @@ function FieldRow({
 
 function FieldControl({
   id,
+  fieldName,
   schema,
   value,
   onChange,
@@ -963,6 +975,8 @@ function FieldControl({
   formData,
 }: {
   id: string;
+  /** Machine field name — keys enum-option localization (e.g. flow `type`). */
+  fieldName?: string;
   schema: JsonSchema;
   value: unknown;
   onChange: (v: unknown) => void;
@@ -1190,7 +1204,7 @@ function FieldControl({
         <SelectContent>
           {enumValues.map((opt) => (
             <SelectItem key={String(opt)} value={String(opt)}>
-              {String(opt)}
+              {translateEnumOption(fieldName ?? '', String(opt), locale)}
             </SelectItem>
           ))}
         </SelectContent>
@@ -1537,6 +1551,7 @@ function RepeaterField({
                       <td key={s.field} className="p-1.5">
                         <FieldControl
                           id={`rep-${idx}-${s.field}`}
+                          fieldName={s.field}
                           schema={sub}
                           value={row?.[s.field]}
                           readOnly={readOnly || s.readonly}

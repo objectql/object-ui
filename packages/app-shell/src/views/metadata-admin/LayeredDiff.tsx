@@ -29,7 +29,7 @@ import {
 import { Badge, Switch } from '@object-ui/components';
 import { cn } from '@object-ui/components';
 import type { MetadataLayered } from '@object-ui/data-objectstack';
-import { t, tFormat, type SupportedLocale } from './i18n';
+import { t, tFormat, translateConsoleValue, type SupportedLocale } from './i18n';
 
 export interface LayeredDiffProps {
   layered: MetadataLayered<Record<string, unknown>> | null;
@@ -186,25 +186,25 @@ export function LayeredDiff({ layered, loading, locale }: LayeredDiffProps) {
         <TabsTrigger value="code">
           {t('engine.layers.code', locale)}
           <Badge variant="outline" className="ml-1.5 text-[10px]">
-            artifact
+            {translateConsoleValue('layer', 'artifact', locale)}
           </Badge>
         </TabsTrigger>
         <TabsTrigger value="overlay">
           {t('engine.layers.overlay', locale)}
           {hasOverlay ? (
             <Badge className="ml-1.5 text-[10px] bg-emerald-600 text-emerald-50">
-              {layered.overlayScope ?? 'set'}
+              {layered.overlayScope ?? translateConsoleValue('layer', 'set', locale)}
             </Badge>
           ) : (
             <Badge variant="outline" className="ml-1.5 text-[10px] text-muted-foreground">
-              none
+              {translateConsoleValue('layer', 'none', locale)}
             </Badge>
           )}
         </TabsTrigger>
         <TabsTrigger value="effective">
           {t('engine.layers.effective', locale)}
           <Badge variant="outline" className="ml-1.5 text-[10px]">
-            merged
+            {translateConsoleValue('layer', 'merged', locale)}
           </Badge>
         </TabsTrigger>
       </TabsList>

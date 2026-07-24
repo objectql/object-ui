@@ -43,12 +43,12 @@ function str(v: unknown): string | undefined {
 }
 
 /** Brace error (error) else unknown-ref (warning, when `roots` given) for one CEL value. */
-function checkCel(value: unknown, roots: Set<string> | null): { level: DiagnosticLevel; message: string } | null {
+function checkCel(value: unknown, roots: Set<string> | null, locale?: string): { level: DiagnosticLevel; message: string } | null {
   const issue = validateExpressionClient('predicate', value);
   if (issue) return { level: 'error', message: issue.message };
   if (roots && roots.size > 0) {
     const unknown = findUnknownRefs(value, 'predicate', roots);
-    if (unknown.length > 0) return { level: 'warning', message: describeUnknownRefs(unknown) };
+    if (unknown.length > 0) return { level: 'warning', message: describeUnknownRefs(unknown, locale) };
   }
   return null;
 }
@@ -58,7 +58,7 @@ function checkCel(value: unknown, roots: Set<string> | null): { level: Diagnosti
  * Pure: no network — the trigger object's fields are not expanded (root-only
  * scope), which is why the start node is excluded from the ref check.
  */
-export function flowExpressionProblems(draft: Record<string, unknown>): ExprProblem[] {
+export function flowExpressionProblems(draft: Record<string, unknown>, locale?: string): ExprProblem[] {
   const nodes = asArray(draft.nodes).map(asRecord);
   const edges = asArray(draft.edges).map(asRecord);
   const startId = str(nodes.find((n) => str(n.type) === 'start')?.id);
@@ -74,7 +74,7 @@ export function flowExpressionProblems(draft: Record<string, unknown>): ExprProb
 
     for (const field of fieldsForNodeType(type)) {
       if (field.kind === 'expression' && field.refMode !== 'template') {
-        const hit = checkCel(getFieldValue(node, field), roots);
+        const hit = checkCel(getFieldValue(node, field), roots, locale);
         if (hit) out.push({ target: { kind: 'node', nodeId }, level: hit.level, message: hit.message });
       } else if (field.kind === 'objectList' && field.columns) {
         const exprCols = field.columns.filter((c) => c.kind === 'expression');
@@ -83,7 +83,7 @@ export function flowExpressionProblems(draft: Record<string, unknown>): ExprProb
           const r = asRecord(row);
           const rowLabel = str(r.label);
           for (const col of exprCols) {
-            const hit = checkCel(r[col.key], roots);
+            const hit = checkCel(r[col.key], roots, locale);
             if (hit) {
               const prefix = rowLabel || col.label;
               out.push({ target: { kind: 'node', nodeId }, level: hit.level, message: prefix ? `${prefix}: ${hit.message}` : hit.message });
@@ -99,7 +99,7 @@ export function flowExpressionProblems(draft: Record<string, unknown>): ExprProb
     const target = str(edge.target);
     if (!source || !target || edge.isDefault === true) continue;
     const roots = source === startId ? null : scopeRoots(resolveFlowScope(draft, source).refs);
-    const hit = checkCel(edge.condition, roots);
+    const hit = checkCel(edge.condition, roots, locale);
     if (hit) out.push({ target: { kind: 'edge', source, target }, level: hit.level, message: hit.message });
   }
 

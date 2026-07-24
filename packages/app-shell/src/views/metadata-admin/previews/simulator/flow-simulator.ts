@@ -62,14 +62,17 @@ export class FlowSimulator {
     traversedEdgeIds: [],
   };
 
-  constructor(nodes: SimNode[], edges: SimEdge[]) {
+  private readonly locale?: string;
+
+  constructor(nodes: SimNode[], edges: SimEdge[], locale?: string) {
     for (const n of nodes) this.nodes.set(n.id, n);
     this.edges = edges;
+    this.locale = locale;
   }
 
   /** Validate + seed variables and queue the entry node. Returns the validation. */
   reset(seedVariables: Record<string, unknown> = {}, mocks: MockResults = {}) {
-    const validation = validateFlowDraft([...this.nodes.values()], this.edges);
+    const validation = validateFlowDraft([...this.nodes.values()], this.edges, this.locale);
     this.mocks = mocks;
     this.seq = 0;
     this.state = {

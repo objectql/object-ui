@@ -32,12 +32,14 @@ import {
 } from './_shared';
 import {
   fieldsForNodeType,
+  localizeFlowFields,
   isFieldVisible,
   getFieldValue,
   configKeyOf,
   FLOW_NODE_TYPE_OPTIONS,
   type FlowConfigField,
 } from './flow-node-config';
+import { translateNodeLabel } from '../i18n';
 import { jsonSchemaToFlowFields } from './json-schema-to-fields';
 import { applyDecisionBranches, syncDecisionEdgesByOrder, withBranchTargets } from './flow-decision-edges';
 import { useActionConfigSchemas } from '../previews/useFlowNodePalette';
@@ -138,8 +140,11 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
   const fields = React.useMemo(() => {
     const schema = node?.type ? configSchemas[node.type] : undefined;
     const serverFields = schema !== undefined ? jsonSchemaToFlowFields(schema) : null;
-    return serverFields ?? fieldsForNodeType(node?.type);
-  }, [configSchemas, node?.type]);
+    const resolved = serverFields ?? fieldsForNodeType(node?.type);
+    // Localize both the hardcoded table and the engine-published configSchema
+    // fields (they share field ids for built-in nodes); no-op for English.
+    return localizeFlowFields(node?.type, resolved, locale);
+  }, [configSchemas, node?.type, locale]);
   const config = asConfig(node);
   const visibleFields = fields.filter((f) => isFieldVisible(f, node, fields));
 
@@ -304,7 +309,7 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
       <InspectorSelectField
         label={t('engine.inspector.flowNode.type', locale)}
         value={node.type}
-        options={typeOptions.map((v) => ({ value: v, label: v }))}
+        options={typeOptions.map((v) => ({ value: v, label: translateNodeLabel(v, locale, v) }))}
         onCommit={(v) => patchNode({ type: v })}
         disabled={readOnly}
       />

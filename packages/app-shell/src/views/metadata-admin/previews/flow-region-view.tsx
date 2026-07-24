@@ -32,6 +32,26 @@ import {
 } from './flow-canvas-layout';
 import { NodeTypeIcon, nodeTone } from './flow-canvas-parts';
 import { REGION_BLOCK_PAD, REGION_GAP, REGION_LABEL_H } from './flow-region-metrics';
+import { t as tr, tFormat } from '../i18n';
+
+/**
+ * Localized header for a nested region. `extractRegions` (a pure, i18n-free
+ * layout helper) bakes English structural fallbacks — so translate those here,
+ * at render, keyed off the stable region `key`. A user-supplied `parallel`
+ * branch name (anything other than the `Branch N` auto-label) is author content
+ * and passes through untouched.
+ */
+function displayRegionLabel(region: LabeledRegion, locale?: string): string | undefined {
+  const { key, label } = region;
+  if (key === 'try') return tr('engine.flowRegion.try', locale);
+  if (key === 'catch') return tr('engine.flowRegion.catch', locale);
+  const m = /^branch-(\d+)$/.exec(key);
+  if (m) {
+    const n = Number(m[1]) + 1;
+    if (label === `Branch ${n}`) return tFormat('engine.flowRegion.branchN', locale, { n });
+  }
+  return label;
+}
 
 /**
  * Node box inside a region — a compact echo of `NodeCard`. Read-only by default
@@ -167,6 +187,7 @@ export function FlowRegionView({
   maxWidth,
   selected,
   onSelectNode,
+  locale,
 }: {
   regions: LabeledRegion[];
   maxWidth: number;
@@ -174,24 +195,28 @@ export function FlowRegionView({
   selected?: { regionKey: string; nodeId: string } | null;
   /** Selecting a nested node, tagged with its region key (for the container path). */
   onSelectNode?: (regionKey: string, node: FlowNode) => void;
+  /** UI locale for the region header labels. */
+  locale?: string;
 }) {
   // #2670: every dimension in this height stack is an explicit px from
   // flow-region-metrics so the layout height PREDICTOR matches the DOM exactly
   // (rem-based Tailwind spacing and font-metric line-heights would drift).
   return (
     <div className="flex flex-col" style={{ gap: REGION_GAP }}>
-      {regions.map((region) => (
+      {regions.map((region) => {
+        const label = displayRegionLabel(region, locale);
+        return (
         <div
           key={region.key}
           className="rounded-md border border-dashed border-border/60 bg-muted/20"
           style={{ padding: REGION_BLOCK_PAD }}
         >
-          {region.label && (
+          {label && (
             <div
               className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground/80"
               style={{ height: REGION_LABEL_H, lineHeight: '12px', paddingBottom: 4 }}
             >
-              {region.label}
+              {label}
             </div>
           )}
           <RegionCanvas
@@ -201,7 +226,8 @@ export function FlowRegionView({
             onSelectNode={onSelectNode ? (node) => onSelectNode(region.key, node) : undefined}
           />
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

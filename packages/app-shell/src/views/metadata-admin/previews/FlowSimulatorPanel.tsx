@@ -10,6 +10,7 @@
 import * as React from 'react';
 import { Play, StepForward, RotateCcw, ChevronRight, AlertTriangle, CircleAlert, Plus, Trash2 } from 'lucide-react';
 import { Button, Input, Label, cn } from '@object-ui/components';
+import { t as tr, tFormat } from '../i18n';
 import { FlowSimulator } from './simulator/flow-simulator';
 import { ScreenPreview } from './ScreenPreview';
 import type { FlowValidation, SimEdge, SimNode, SimState, SimStep } from './simulator/flow-sim-types';
@@ -25,6 +26,8 @@ export interface FlowSimulatorPanelProps {
   nodes: SimNode[];
   edges: SimEdge[];
   variables: FlowVariableDecl[];
+  /** UI locale for the panel's labels and hints. */
+  locale?: string;
   onRunStateChange?: (s: { activeNodeId: string | null; visitedNodeIds: string[]; traversedEdgeIds: string[] } | null) => void;
 }
 
@@ -88,7 +91,7 @@ const STATUS_TONE: Record<SimStep['status'], string> = {
   error: 'bg-rose-100 text-rose-700',
 };
 
-export function FlowSimulatorPanel({ nodes, edges, variables, onRunStateChange }: FlowSimulatorPanelProps) {
+export function FlowSimulatorPanel({ nodes, edges, variables, locale, onRunStateChange }: FlowSimulatorPanelProps) {
   const simRef = React.useRef<FlowSimulator | null>(null);
   const [snapshot, setSnapshot] = React.useState<SimState | null>(null);
   const [validation, setValidation] = React.useState<FlowValidation | null>(null);
@@ -144,11 +147,11 @@ export function FlowSimulatorPanel({ nodes, edges, variables, onRunStateChange }
   }, [mocks]);
 
   const reset = React.useCallback(() => {
-    const sim = new FlowSimulator(nodes, edges);
+    const sim = new FlowSimulator(nodes, edges, locale);
     simRef.current = sim;
     setValidation(sim.reset(buildSeed(), buildMocks()));
     sync();
-  }, [nodes, edges, buildSeed, buildMocks, sync]);
+  }, [nodes, edges, buildSeed, buildMocks, sync, locale]);
 
   const ensure = React.useCallback(() => {
     if (!simRef.current) reset();
@@ -225,10 +228,10 @@ export function FlowSimulatorPanel({ nodes, edges, variables, onRunStateChange }
     <div className="flex h-full flex-col text-xs">
       <div className="flex items-center gap-1.5 border-b bg-muted/30 px-3 py-2">
         <Button size="sm" className="h-7 gap-1 px-2" onClick={onRun} disabled={blocked}>
-          <Play className="h-3.5 w-3.5" /> Run
+          <Play className="h-3.5 w-3.5" /> {tr('engine.flowSim.run', locale)}
         </Button>
         <Button size="sm" variant="outline" className="h-7 gap-1 px-2" onClick={onStep} disabled={blocked || status === 'done' || status === 'error'}>
-          <StepForward className="h-3.5 w-3.5" /> Step
+          <StepForward className="h-3.5 w-3.5" /> {tr('engine.flowSim.step', locale)}
         </Button>
         {status === 'paused' &&
           (approvalPause && approvalPause.decisions.length > 0 ? (
@@ -240,7 +243,7 @@ export function FlowSimulatorPanel({ nodes, edges, variables, onRunStateChange }
                   variant="outline"
                   className="h-7 gap-1 px-2 capitalize"
                   onClick={() => onDecision(d)}
-                  title={`Resume down the "${d}" branch`}
+                  title={tFormat('engine.flowSim.resumeBranch', locale, { branch: d })}
                 >
                   <ChevronRight className="h-3.5 w-3.5" /> {d}
                 </Button>
@@ -248,14 +251,14 @@ export function FlowSimulatorPanel({ nodes, edges, variables, onRunStateChange }
             </div>
           ) : (
             <Button size="sm" variant="outline" className="h-7 gap-1 px-2" onClick={onResume}>
-              <ChevronRight className="h-3.5 w-3.5" /> Continue
+              <ChevronRight className="h-3.5 w-3.5" /> {tr('engine.flowSim.continue', locale)}
             </Button>
           ))}
         <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-muted-foreground" onClick={onReset}>
-          <RotateCcw className="h-3.5 w-3.5" /> Reset
+          <RotateCcw className="h-3.5 w-3.5" /> {tr('engine.flowSim.reset', locale)}
         </Button>
         <span className={cn('ml-auto rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase', STATUS_TONE[status === 'idle' || status === 'running' ? 'ok' : (status as SimStep['status'])] ?? 'bg-muted')}>
-          {status}
+          {tr(`engine.flowSim.status.${status}`, locale)}
         </span>
       </div>
 
@@ -281,7 +284,7 @@ export function FlowSimulatorPanel({ nodes, edges, variables, onRunStateChange }
         {/* Paused at a screen — render the end-user form the runtime would show. */}
         {screenPause && (
           <section className="space-y-1.5">
-            <div className="font-medium text-muted-foreground">Screen</div>
+            <div className="font-medium text-muted-foreground">{tr('engine.flowSim.screen', locale)}</div>
             <ScreenPreview node={screenPause.node} variables={screenPause.variables} />
           </section>
         )}
@@ -289,14 +292,14 @@ export function FlowSimulatorPanel({ nodes, edges, variables, onRunStateChange }
         {/* Seed inputs */}
         {inputs.length > 0 && (
           <section className="space-y-1.5">
-            <div className="font-medium text-muted-foreground">Inputs</div>
+            <div className="font-medium text-muted-foreground">{tr('engine.flowSim.inputs', locale)}</div>
             {inputs.map((v) => (
               <div key={v.name} className="flex items-center gap-2">
                 <Label className="w-24 shrink-0 truncate font-mono text-[11px]" title={v.name}>{v.name}</Label>
                 <Input
                   value={seed[v.name] ?? (v.defaultValue != null ? String(v.defaultValue) : '')}
                   onChange={(e) => setSeed((p) => ({ ...p, [v.name]: e.target.value }))}
-                  placeholder={v.type ?? 'value'}
+                  placeholder={v.type ?? tr('engine.flowSim.valuePlaceholder', locale)}
                   className="h-7 flex-1 text-xs"
                 />
               </div>
@@ -308,38 +311,38 @@ export function FlowSimulatorPanel({ nodes, edges, variables, onRunStateChange }
             declared input cannot reach (e.g. a computed value a decision reads). */}
         <section className="space-y-1.5">
           <div className="flex items-center gap-1.5 font-medium text-muted-foreground">
-            <span>Set variables</span>
+            <span>{tr('engine.flowSim.setVariables', locale)}</span>
             <button
               type="button"
               className="ml-auto inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[10px] hover:bg-muted/50"
               onClick={() => setScratch((p) => [...p, { k: '', v: '' }])}
             >
-              <Plus className="h-3 w-3" /> Add
+              <Plus className="h-3 w-3" /> {tr('engine.flowSim.add', locale)}
             </button>
           </div>
           {scratch.length === 0 ? (
-            <div className="italic text-muted-foreground">Override or inject any variable (wins over inputs and mocks at start).</div>
+            <div className="italic text-muted-foreground">{tr('engine.flowSim.setVariablesHint', locale)}</div>
           ) : (
             scratch.map((row, i) => (
               <div key={i} className="flex items-center gap-1.5">
                 <Input
                   value={row.k}
                   onChange={(e) => setScratch((p) => p.map((r, j) => (j === i ? { ...r, k: e.target.value } : r)))}
-                  placeholder="name"
+                  placeholder={tr('engine.flowSim.namePlaceholder', locale)}
                   className="h-7 w-24 shrink-0 font-mono text-[11px]"
                 />
                 <span className="text-muted-foreground">=</span>
                 <Input
                   value={row.v}
                   onChange={(e) => setScratch((p) => p.map((r, j) => (j === i ? { ...r, v: e.target.value } : r)))}
-                  placeholder="value"
+                  placeholder={tr('engine.flowSim.valuePlaceholder', locale)}
                   className="h-7 flex-1 text-xs"
                 />
                 <button
                   type="button"
                   className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted/50 hover:text-rose-600"
                   onClick={() => setScratch((p) => p.filter((_, j) => j !== i))}
-                  aria-label="Remove variable"
+                  aria-label={tr('engine.flowSim.removeVariable', locale)}
                 >
                   <Trash2 className="h-3 w-3" />
                 </button>
@@ -351,7 +354,7 @@ export function FlowSimulatorPanel({ nodes, edges, variables, onRunStateChange }
         {/* Per-node mock outputs — what each mocked side effect "returns". */}
         {mockNodes.length > 0 && (
           <section className="space-y-1.5">
-            <div className="font-medium text-muted-foreground">Mock outputs</div>
+            <div className="font-medium text-muted-foreground">{tr('engine.flowSim.mockOutputs', locale)}</div>
             {mockNodes.map((m) => (
               <div key={m.id} className="space-y-0.5">
                 <Label className="flex items-baseline gap-1.5 text-[11px]" title={m.id}>
@@ -364,7 +367,7 @@ export function FlowSimulatorPanel({ nodes, edges, variables, onRunStateChange }
                 <Input
                   value={mocks[m.id] ?? ''}
                   onChange={(e) => setMocks((p) => ({ ...p, [m.id]: e.target.value }))}
-                  placeholder={m.type === 'script' && m.outputs.length ? `{ "${m.outputs[0]}": … }` : 'mocked result (JSON)'}
+                  placeholder={m.type === 'script' && m.outputs.length ? `{ "${m.outputs[0]}": … }` : tr('engine.flowSim.mockPlaceholder', locale)}
                   className="h-7 w-full font-mono text-[11px]"
                 />
               </div>
@@ -375,9 +378,9 @@ export function FlowSimulatorPanel({ nodes, edges, variables, onRunStateChange }
         {/* Variable watch */}
         {snapshot && (
           <section className="space-y-1.5">
-            <div className="font-medium text-muted-foreground">Variables</div>
+            <div className="font-medium text-muted-foreground">{tr('engine.flowSim.variables', locale)}</div>
             {Object.keys(snapshot.variables).length === 0 ? (
-              <div className="italic text-muted-foreground">No variables set.</div>
+              <div className="italic text-muted-foreground">{tr('engine.flowSim.noVars', locale)}</div>
             ) : (
               <ul className="space-y-1">
                 {Object.entries(snapshot.variables).map(([k, val]) => (
@@ -396,7 +399,7 @@ export function FlowSimulatorPanel({ nodes, edges, variables, onRunStateChange }
         {/* Step timeline */}
         {snapshot && snapshot.steps.length > 0 && (
           <section className="space-y-1.5">
-            <div className="font-medium text-muted-foreground">Timeline</div>
+            <div className="font-medium text-muted-foreground">{tr('engine.flowSim.timeline', locale)}</div>
             <ol className="space-y-1">
               {snapshot.steps.map((s) => (
                 <li key={s.seq} className="rounded border bg-background p-1.5">
@@ -436,7 +439,7 @@ export function FlowSimulatorPanel({ nodes, edges, variables, onRunStateChange }
         )}
 
         {!snapshot && !blocked && (
-          <p className="italic text-muted-foreground">Press Run to simulate, or Step to walk node by node. Side effects are mocked — no backend is called.</p>
+          <p className="italic text-muted-foreground">{tr('engine.flowSim.idleHint', locale)}</p>
         )}
       </div>
     </div>

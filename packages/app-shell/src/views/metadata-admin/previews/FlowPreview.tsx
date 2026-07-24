@@ -34,8 +34,9 @@ import {
 import type { MetadataPreviewProps } from '../preview-registry';
 import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell';
 import { uniqueId, appendArray } from '../inspectors/_shared';
-import { t as tr } from '../i18n';
+import { t as tr, translateFlowMeta } from '../i18n';
 import { FlowCanvas } from './FlowCanvas';
+import { defaultNodeLabel } from './flow-canvas-parts';
 import { edgeKey } from './flow-canvas-layout';
 import { NESTED_NODE_KIND, parseNestedNodeId, encodeNestedNodeId } from '../inspectors/flow-nested-selection';
 import { FlowSimulatorPanel } from './FlowSimulatorPanel';
@@ -108,8 +109,8 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
   // per-element badges, the red error ring/stroke, and the Problems panel.
   // Recomputed from the live draft so they all clear as the author fixes each issue.
   const problems = React.useMemo<FlowProblem[]>(
-    () => buildFlowProblems({ nodes, edges, serverDiagnostics: diagnostics, variables }),
-    [nodes, edges, diagnostics, d.variables],
+    () => buildFlowProblems({ nodes, edges, serverDiagnostics: diagnostics, variables, locale }),
+    [nodes, edges, diagnostics, d.variables, locale],
   );
   const errorCount = problems.filter((p) => p.level === 'error').length;
   // Red error ring/stroke derived from the same list (errors only; a cycle
@@ -144,11 +145,11 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
     // A flow's first node is its trigger — seed a `start` node (not a generic
     // `task`) so the canvas opens on the canonical entry point and the author
     // adds subsequent steps from there.
-    const newNode: FlowNode = { id: uniqueId('node', existingIds), type: 'start', label: 'Start' };
+    const newNode: FlowNode = { id: uniqueId('node', existingIds), type: 'start', label: defaultNodeLabel('start', locale) };
     const next = appendArray(nodes, newNode);
     onPatch!({ nodes: next });
     onSelectionChange?.({ kind: 'node', id: newNode.id, label: newNode.label || newNode.id });
-  }, [canEdit, nodes, onPatch, onSelectionChange]);
+  }, [canEdit, nodes, onPatch, onSelectionChange, locale]);
 
   // Run history needs the published flow name (the engine keys runs by it).
   const flowName = typeof d.name === 'string' && d.name ? d.name : '';
@@ -173,7 +174,7 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
             </button>
           </div>
         ) : (
-          <PreviewMessage>Add nodes in the Form tab to see the flow preview.</PreviewMessage>
+          <PreviewMessage>{tr('engine.flowPreview.emptyHint', locale)}</PreviewMessage>
         )}
       </PreviewShell>
     );
@@ -181,7 +182,7 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
 
   return (
     <PreviewShell hint={`flow · ${nodes.length} node${nodes.length === 1 ? '' : 's'}`}>
-      <PreviewErrorBoundary fallbackHint="One of the flow nodes or edges is malformed.">
+      <PreviewErrorBoundary fallbackHint={tr('engine.flowPreview.malformed', locale)}>
         <div className={
           'grid gap-0 h-full min-h-[440px] ' +
           (showDebug || showVars || showRuns || showProblems ? 'lg:grid-cols-[1fr_240px]' : 'grid-cols-1')
@@ -189,11 +190,11 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
           {/* Visual canvas */}
           <div className="flex flex-col min-w-0 min-h-0">
             <div className="rounded-none border-b bg-muted/30 px-3 py-2 text-xs flex flex-wrap items-center gap-x-4 gap-y-1">
-              <Pill icon={Zap} label="Trigger" value={flowType} />
-              <Pill icon={CircleDot} label="Status" value={status} tone={status === 'active' ? 'green' : status === 'draft' ? 'gray' : 'amber'} />
-              <Pill icon={Settings2} label="Run as" value={runAs} />
+              <Pill icon={Zap} label={tr('engine.flowPreview.pill.trigger', locale)} value={translateFlowMeta('type', flowType, locale)} />
+              <Pill icon={CircleDot} label={tr('engine.flowPreview.pill.status', locale)} value={translateFlowMeta('status', status, locale)} tone={status === 'active' ? 'green' : status === 'draft' ? 'gray' : 'amber'} />
+              <Pill icon={Settings2} label={tr('engine.flowPreview.pill.runAs', locale)} value={translateFlowMeta('runAs', runAs, locale)} />
               {version && <Pill label="v" value={version} />}
-              {errorStrategy && <Pill icon={GitBranch} label="On error" value={errorStrategy} />}
+              {errorStrategy && <Pill icon={GitBranch} label={tr('engine.flowPreview.pill.onError', locale)} value={translateFlowMeta('onError', errorStrategy, locale)} />}
               <div className="ml-auto flex items-center gap-1.5">
                 {!showDebug && !showRuns && !showProblems && (
                   <button
@@ -205,9 +206,9 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
                         ? 'border-violet-500 bg-violet-50 text-violet-700'
                         : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground')
                     }
-                    title={showVars ? 'Hide variables panel' : 'Show variables panel'}
+                    title={tr(showVars ? 'engine.flowPreview.hideVars' : 'engine.flowPreview.showVars', locale)}
                   >
-                    <PanelRight className="h-3 w-3" /> Variables
+                    <PanelRight className="h-3 w-3" /> {tr('engine.flowPreview.variables', locale)}
                   </button>
                 )}
                 {flowName && (
@@ -224,9 +225,9 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
                         ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
                         : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground')
                     }
-                    title="Run history from the automation engine"
+                    title={tr('engine.flowPreview.runsTitle', locale)}
                   >
-                    <History className="h-3 w-3" /> Runs
+                    <History className="h-3 w-3" /> {tr('engine.flowPreview.runs', locale)}
                   </button>
                 )}
                 <button
@@ -242,9 +243,9 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
                       ? 'border-rose-500 bg-rose-50 text-rose-700'
                       : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground')
                   }
-                  title="Validation problems"
+                  title={tr('engine.flowPreview.problemsTitle', locale)}
                 >
-                  <AlertCircle className="h-3 w-3" /> Problems
+                  <AlertCircle className="h-3 w-3" /> {tr('engine.flowPreview.problems', locale)}
                   {problems.length > 0 && (
                     <span
                       className={
@@ -270,7 +271,7 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
                       : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground')
                   }
                 >
-                  <Bug className="h-3 w-3" /> Debug
+                  <Bug className="h-3 w-3" /> {tr('engine.flowPreview.debug', locale)}
                 </button>
               </div>
             </div>
@@ -325,6 +326,7 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
                 problems={problems}
                 selectedKey={selectedKey}
                 onSelectProblem={handleSelectProblem}
+                locale={locale}
               />
             </div>
           ) : showDebug ? (
@@ -333,20 +335,21 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
                 nodes={nodes}
                 edges={edges}
                 variables={variables}
+                locale={locale}
                 onRunStateChange={setRunHL}
               />
             </div>
           ) : showRuns && flowName ? (
             <div className="border-l bg-muted/20">
-              <FlowRunsPanel flowName={flowName} />
+              <FlowRunsPanel flowName={flowName} locale={locale} />
             </div>
           ) : showVars ? (
             <div className="border-l bg-muted/20 p-3 text-xs space-y-2">
             <div className="flex items-center gap-1.5 font-medium text-muted-foreground">
-              <Variable className="h-3 w-3" /> Variables
+              <Variable className="h-3 w-3" /> {tr('engine.flowPreview.variables', locale)}
             </div>
             {variables.length === 0 ? (
-              <div className="text-muted-foreground italic">No variables declared.</div>
+              <div className="text-muted-foreground italic">{tr('engine.flowPreview.noVars', locale)}</div>
             ) : (
               <ul className="space-y-1.5">
                 {variables.map((v, i) => (

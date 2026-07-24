@@ -219,7 +219,7 @@ export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, 
       )}
       {!exprIssue && unknownRefs.length > 0 && (
         <p className="text-[11px] leading-snug text-amber-600 dark:text-amber-400" role="note">
-          {describeUnknownRefs(unknownRefs)}
+          {describeUnknownRefs(unknownRefs, locale)}
         </p>
       )}
       {field.help && !exprIssue && unknownRefs.length === 0 && (

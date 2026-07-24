@@ -20,6 +20,7 @@ import * as React from 'react';
 import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Clock, Loader2, PauseCircle, RefreshCw, SkipForward } from 'lucide-react';
 import { cn } from '@object-ui/components';
 import { apiBase } from './useFlowNodePalette';
+import { t as tr, tFormat } from '../i18n';
 
 /** An error on a run/step. The engine sends the run-level `error` as a plain
  *  string (`ExecutionLog.error`) while a step-level error is a `{code,message}`
@@ -120,18 +121,22 @@ export function buildStepTree(steps: RunStep[]): StepTreeNode[] {
  * carry a zero-based `iteration` surfaced 1-based; `try`/`catch` carry only the
  * region kind. Returns `null` for a top-level step (no region grouping).
  */
-export function regionLabel(step: RunStep): string | null {
+export function regionLabel(step: RunStep, locale?: string): string | null {
   const { regionKind, iteration } = step;
   if (!regionKind) return null;
   switch (regionKind) {
     case 'loop-body':
-      return iteration == null ? 'Iteration' : `Iteration ${iteration + 1}`;
+      return iteration == null
+        ? tr('engine.flowRuns.iteration', locale)
+        : tFormat('engine.flowRuns.iterationN', locale, { n: iteration + 1 });
     case 'parallel-branch':
-      return iteration == null ? 'Branch' : `Branch ${iteration + 1}`;
+      return iteration == null
+        ? tr('engine.flowRuns.branch', locale)
+        : tFormat('engine.flowRuns.branchN', locale, { n: iteration + 1 });
     case 'try':
-      return 'Try';
+      return tr('engine.flowRuns.try', locale);
     case 'catch':
-      return 'Catch';
+      return tr('engine.flowRuns.catch', locale);
     default:
       return iteration == null ? regionKind : `${regionKind} ${iteration + 1}`;
   }
@@ -145,13 +150,13 @@ function regionSignature(step: RunStep): string {
 
 /** Split a container's children into consecutive runs that share a region label
  *  (an iteration, a branch, a try/catch handler), so each gets one header. */
-function groupChildren(children: StepTreeNode[]): { label: string | null; items: StepTreeNode[] }[] {
+function groupChildren(children: StepTreeNode[], locale?: string): { label: string | null; items: StepTreeNode[] }[] {
   const groups: { label: string | null; items: StepTreeNode[] }[] = [];
   let sig: string | undefined;
   for (const child of children) {
     const s = regionSignature(child.step);
     if (groups.length === 0 || s !== sig) {
-      groups.push({ label: regionLabel(child.step), items: [child] });
+      groups.push({ label: regionLabel(child.step, locale), items: [child] });
       sig = s;
     } else {
       groups[groups.length - 1].items.push(child);
@@ -178,16 +183,20 @@ export async function fetchFlowRuns(flowName: string, signal?: AbortSignal): Pro
   }
 }
 
-const STATUS_META: Record<string, { icon: React.ComponentType<{ className?: string }>; cls: string; label: string }> = {
-  completed: { icon: CheckCircle2, cls: 'text-emerald-600 dark:text-emerald-400', label: 'Completed' },
-  failed: { icon: AlertCircle, cls: 'text-rose-600 dark:text-rose-400', label: 'Failed' },
-  paused: { icon: PauseCircle, cls: 'text-amber-600 dark:text-amber-400', label: 'Paused' },
-  running: { icon: Loader2, cls: 'text-sky-600 dark:text-sky-400', label: 'Running' },
-  cancelled: { icon: SkipForward, cls: 'text-muted-foreground', label: 'Cancelled' },
+const STATUS_META: Record<string, { icon: React.ComponentType<{ className?: string }>; cls: string; labelKey: string }> = {
+  completed: { icon: CheckCircle2, cls: 'text-emerald-600 dark:text-emerald-400', labelKey: 'engine.flowRuns.status.completed' },
+  failed: { icon: AlertCircle, cls: 'text-rose-600 dark:text-rose-400', labelKey: 'engine.flowRuns.status.failed' },
+  paused: { icon: PauseCircle, cls: 'text-amber-600 dark:text-amber-400', labelKey: 'engine.flowRuns.status.paused' },
+  running: { icon: Loader2, cls: 'text-sky-600 dark:text-sky-400', labelKey: 'engine.flowRuns.status.running' },
+  cancelled: { icon: SkipForward, cls: 'text-muted-foreground', labelKey: 'engine.flowRuns.status.cancelled' },
 };
 
-function statusMeta(status: string) {
-  return STATUS_META[status] ?? { icon: Clock, cls: 'text-muted-foreground', label: status };
+/** Resolve a run status to its icon, tone and localized label. Unknown statuses
+ *  fall back to the raw status string (no key). */
+function statusMeta(status: string, locale?: string) {
+  const meta = STATUS_META[status];
+  if (meta) return { icon: meta.icon, cls: meta.cls, label: tr(meta.labelKey, locale) };
+  return { icon: Clock, cls: 'text-muted-foreground', label: status };
 }
 
 function fmtTime(iso?: string): string {
@@ -245,8 +254,8 @@ function RegionHeader({ label, depth }: { label: string; depth: number }) {
 
 /** Render a step and, nested beneath it, its structured-region body steps —
  *  grouped by iteration / branch / handler (#1505). Recurses for nested regions. */
-function StepNode({ node, depth }: { node: StepTreeNode; depth: number }) {
-  const groups = node.children.length > 0 ? groupChildren(node.children) : [];
+function StepNode({ node, depth, locale }: { node: StepTreeNode; depth: number; locale?: string }) {
+  const groups = node.children.length > 0 ? groupChildren(node.children, locale) : [];
   return (
     <>
       <StepRow step={node.step} depth={depth} />
@@ -258,6 +267,7 @@ function StepNode({ node, depth }: { node: StepTreeNode; depth: number }) {
               key={`${child.step.nodeId}#${ci}`}
               node={child}
               depth={g.label != null ? depth + 2 : depth + 1}
+              locale={locale}
             />
           ))}
         </React.Fragment>
@@ -266,9 +276,9 @@ function StepNode({ node, depth }: { node: StepTreeNode; depth: number }) {
   );
 }
 
-function RunRow({ run }: { run: FlowRun }) {
+function RunRow({ run, locale }: { run: FlowRun; locale?: string }) {
   const [open, setOpen] = React.useState(false);
-  const meta = statusMeta(run.status);
+  const meta = statusMeta(run.status, locale);
   const Icon = meta.icon;
   const steps = Array.isArray(run.steps) ? run.steps : [];
   const runErr = errorText(run.error);
@@ -304,11 +314,11 @@ function RunRow({ run }: { run: FlowRun }) {
             <div className="pb-1 text-[10px] text-rose-600">{runErr}</div>
           )}
           {steps.length === 0 ? (
-            <div className="text-[10px] italic text-muted-foreground">No step log recorded.</div>
+            <div className="text-[10px] italic text-muted-foreground">{tr('engine.flowRuns.noSteps', locale)}</div>
           ) : (
             <ul>
               {buildStepTree(steps).map((node, i) => (
-                <StepNode key={`${node.step.nodeId}#${i}`} node={node} depth={0} />
+                <StepNode key={`${node.step.nodeId}#${i}`} node={node} depth={0} locale={locale} />
               ))}
             </ul>
           )}
@@ -318,7 +328,7 @@ function RunRow({ run }: { run: FlowRun }) {
   );
 }
 
-export function FlowRunsPanel({ flowName }: { flowName: string }) {
+export function FlowRunsPanel({ flowName, locale }: { flowName: string; locale?: string }) {
   const [runs, setRuns] = React.useState<FlowRun[]>([]);
   const [state, setState] = React.useState<LoadState>('loading');
   const [reloadKey, setReloadKey] = React.useState(0);
@@ -345,12 +355,12 @@ export function FlowRunsPanel({ flowName }: { flowName: string }) {
   return (
     <div className="flex h-full flex-col p-3 text-xs">
       <div className="flex items-center gap-1.5 pb-2 font-medium text-muted-foreground">
-        <Clock className="h-3 w-3" /> Runs
+        <Clock className="h-3 w-3" /> {tr('engine.flowRuns.title', locale)}
         <button
           type="button"
           onClick={() => setReloadKey((k) => k + 1)}
-          title="Refresh run history"
-          aria-label="Refresh run history"
+          title={tr('engine.flowRuns.refresh', locale)}
+          aria-label={tr('engine.flowRuns.refresh', locale)}
           className="ml-auto rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
         >
           <RefreshCw className={cn('h-3 w-3', state === 'loading' && 'animate-spin')} />
@@ -358,14 +368,14 @@ export function FlowRunsPanel({ flowName }: { flowName: string }) {
       </div>
       {state === 'unavailable' ? (
         <div className="italic text-muted-foreground">
-          Run history unavailable — the automation engine is offline or this flow hasn’t been published.
+          {tr('engine.flowRuns.unavailable', locale)}
         </div>
       ) : state === 'ready' && runs.length === 0 ? (
-        <div className="italic text-muted-foreground">No runs yet.</div>
+        <div className="italic text-muted-foreground">{tr('engine.flowRuns.empty', locale)}</div>
       ) : (
         <ul className="min-h-0 flex-1 space-y-1.5 overflow-y-auto">
           {runs.map((r) => (
-            <RunRow key={r.id} run={r} />
+            <RunRow key={r.id} run={r} locale={locale} />
           ))}
         </ul>
       )}

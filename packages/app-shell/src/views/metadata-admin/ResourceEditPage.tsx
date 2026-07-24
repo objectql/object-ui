@@ -2422,7 +2422,7 @@ function MetadataResourceEditPageImpl({
             </SheetDescription>
           </SheetHeader>
           <div className="flex-1 min-h-0 overflow-auto p-4">
-            <ReferencesPanel refs={refs} loading={refsLoading} />
+            <ReferencesPanel refs={refs} loading={refsLoading} locale={locale} />
           </div>
         </SheetContent>
       </Sheet>
@@ -2468,6 +2468,7 @@ function MetadataResourceEditPageImpl({
                 type={type}
                 name={name}
                 client={client}
+                locale={locale}
                 onRollback={() => setReloadKey((k) => k + 1)}
                 rollbackLabel={t('engine.edit.rollback', locale)}
                 rollbackConfirm={(version) =>
@@ -2526,11 +2527,10 @@ function MetadataResourceEditPageImpl({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-amber-600" />
-              Destructive change detected
+              {t('engine.edit.destructiveTitle', locale)}
             </DialogTitle>
             <DialogDescription>
-              The framework refused this save because it would drop or narrow
-              data already in use. Review the issues and confirm to override.
+              {t('engine.edit.destructiveDesc', locale)}
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[300px] overflow-auto space-y-2 my-2">
@@ -2549,14 +2549,14 @@ function MetadataResourceEditPageImpl({
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDestructiveIssues(null)}>
-              Cancel
+              {t('engine.cancel', locale)}
             </Button>
             <Button
               variant="destructive"
               onClick={() => doSave(true)}
               disabled={saving}
             >
-              {saving ? 'Forcing…' : 'Force save'}
+              {saving ? t('engine.edit.forcing', locale) : t('engine.edit.forceSave', locale)}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2568,23 +2568,25 @@ function MetadataResourceEditPageImpl({
 function ReferencesPanel({
   refs,
   loading,
+  locale,
 }: {
   refs: MetadataReference[] | null;
   loading: boolean;
+  locale?: string;
 }) {
   if (loading || refs == null) {
     return (
       <div className="text-sm text-muted-foreground flex items-center gap-2">
-        <Loader2 className="h-4 w-4 animate-spin" /> Scanning references…
+        <Loader2 className="h-4 w-4 animate-spin" /> {t('engine.edit.refsScanning', locale)}
       </div>
     );
   }
   if (refs.length === 0) {
     return (
       <Empty>
-        <EmptyTitle>No references found</EmptyTitle>
+        <EmptyTitle>{t('engine.edit.refsEmptyTitle', locale)}</EmptyTitle>
         <EmptyDescription>
-          Nothing in the metadata graph points at this item. Safe to delete.
+          {t('engine.edit.refsEmptyDesc', locale)}
         </EmptyDescription>
       </Empty>
     );

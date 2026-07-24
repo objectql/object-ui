@@ -14,12 +14,15 @@ import * as React from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle2, CircleDot, GitBranch } from 'lucide-react';
 import { cn } from '@object-ui/components';
 import type { FlowProblem } from './flow-problems';
+import { t as tr } from '../i18n';
 
 export interface ProblemsPanelProps {
   problems: FlowProblem[];
   /** Selected element key (`node:<id>` or an edge's `edgeKey`) to highlight matching rows. */
   selectedKey?: string | null;
   onSelectProblem: (problem: FlowProblem) => void;
+  /** UI locale for the panel chrome. */
+  locale?: string;
 }
 
 function targetLabel(p: FlowProblem): string {
@@ -28,14 +31,14 @@ function targetLabel(p: FlowProblem): string {
   return 'flow';
 }
 
-export function ProblemsPanel({ problems, selectedKey, onSelectProblem }: ProblemsPanelProps) {
+export function ProblemsPanel({ problems, selectedKey, onSelectProblem, locale }: ProblemsPanelProps) {
   const errorCount = problems.filter((p) => p.level === 'error').length;
   const warningCount = problems.length - errorCount;
 
   return (
     <div className="flex h-full flex-col text-xs">
       <div className="flex items-center gap-2 border-b px-3 py-2 font-medium text-muted-foreground">
-        <span>Problems</span>
+        <span>{tr('engine.flowProblems.title', locale)}</span>
         {errorCount > 0 && (
           <span className="inline-flex items-center gap-1 text-destructive">
             <AlertCircle className="h-3 w-3" /> {errorCount}
@@ -50,7 +53,7 @@ export function ProblemsPanel({ problems, selectedKey, onSelectProblem }: Proble
       {problems.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-1.5 p-4 text-center text-muted-foreground">
           <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-          <span>No problems — this flow is structurally valid.</span>
+          <span>{tr('engine.flowProblems.empty', locale)}</span>
         </div>
       ) : (
         <ul className="flex-1 overflow-auto p-1.5">
@@ -89,8 +92,8 @@ export function ProblemsPanel({ problems, selectedKey, onSelectProblem }: Proble
                     <span className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
                       <TargetIcon className="h-2.5 w-2.5 shrink-0" />
                       <span className="truncate font-mono">{targetLabel(p)}</span>
-                      {p.source === 'server' && <span className="uppercase tracking-wide">· schema</span>}
-                      {p.source === 'expression' && <span className="uppercase tracking-wide">· expression</span>}
+                      {p.source === 'server' && <span className="uppercase tracking-wide">· {tr('engine.flowProblems.sourceSchema', locale)}</span>}
+                      {p.source === 'expression' && <span className="uppercase tracking-wide">· {tr('engine.flowProblems.sourceExpression', locale)}</span>}
                     </span>
                   </span>
                 </button>

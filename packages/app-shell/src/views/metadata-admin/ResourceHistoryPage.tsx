@@ -21,6 +21,7 @@ import { ArrowLeft, RefreshCw, Loader2, RotateCcw } from 'lucide-react';
 import { Button } from '@object-ui/components';
 import { Badge } from '@object-ui/components';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
+import { t, translateConsoleValue, useMetadataLocale } from './i18n';
 import { PageShell } from './PageShell';
 import {
   useMetadataClient,
@@ -59,6 +60,7 @@ export function MetadataResourceHistoryPage({
   const name = nameProp ?? params.name ?? '';
   const navigate = useNavigate();
   const client = useMetadataClient();
+  const locale = useMetadataLocale();
   const { entries } = useMetadataTypes(client);
   const entry: RichMetadataTypeEntry | undefined = entries.find((t) => t.type === type);
 
@@ -69,8 +71,8 @@ export function MetadataResourceHistoryPage({
     <PageShell
       entry={entry ?? { type, label: type }}
       itemName={name}
-      subtitle="Version history"
-      stats={[{ label: 'Events', value: eventCount }]}
+      subtitle={t('engine.edit.historySubtitle', locale)}
+      stats={[{ label: t('engine.edit.historyEvents', locale), value: eventCount }]}
       actions={
         <>
           <Button
@@ -98,6 +100,7 @@ export function MetadataResourceHistoryPage({
           refreshKey={refreshKey}
           onCount={setEventCount}
           client={client}
+          locale={locale}
           onRollback={() => setRefreshKey((k) => k + 1)}
         />
       </div>
@@ -123,12 +126,15 @@ export function HistoryPanel({
   onRollback,
   rollbackConfirm,
   rollbackLabel,
+  locale,
 }: {
   type: string;
   name: string;
   refreshKey?: number;
   onCount?: (n: number) => void;
   client: ReturnType<typeof useMetadataClient>;
+  /** UI locale for the operation badges. */
+  locale?: string;
   /** Called after a successful rollback so the parent can refresh. */
   onRollback?: (version: number) => void;
   /** Confirmation message — defaults to a literal English string. */
@@ -206,10 +212,9 @@ export function HistoryPanel({
       )}
       {!loading && !error && events.length === 0 && (
         <Empty>
-          <EmptyTitle>No history yet</EmptyTitle>
+          <EmptyTitle>{t('engine.edit.historyEmptyTitle', locale)}</EmptyTitle>
           <EmptyDescription>
-            This item has never been edited via an overlay. The first save
-            will create the initial history record.
+            {t('engine.edit.historyEmptyDesc', locale)}
           </EmptyDescription>
         </Empty>
       )}
@@ -261,7 +266,7 @@ export function HistoryPanel({
                                   : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100')
                         }
                       >
-                        {String(op)}
+                        {translateConsoleValue('op', String(op), locale)}
                       </Badge>
                     )}
                     {ev.actor && (

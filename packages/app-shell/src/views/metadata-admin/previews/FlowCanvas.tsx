@@ -25,7 +25,7 @@ import * as React from 'react';
 import { AlertCircle, AlertTriangle, Maximize2, Plus, ZoomIn, ZoomOut } from 'lucide-react';
 import { cn } from '@object-ui/components';
 import { uniqueId, appendArray, spliceArray } from '../inspectors/_shared';
-import { t as tr } from '../i18n';
+import { t as tr, tFormat } from '../i18n';
 import {
   computeLayoutWithGeometry,
   NODE_W,
@@ -254,7 +254,7 @@ export function FlowCanvas({
       if (!onPatch) return;
       const existing = nodes.map((n) => n.id).filter(Boolean) as string[];
       const id = uniqueId('node', existing);
-      const label = type === 'end' ? 'End' : defaultNodeLabel(type);
+      const label = defaultNodeLabel(type, locale);
       // Only an explicit `at` pins a manual position. A `from`-append is left
       // unpinned so the layered auto-layout slots it below its parent and
       // spaces it horizontally among siblings — pinning it directly under the
@@ -294,7 +294,7 @@ export function FlowCanvas({
       onSelect(newNode);
       setPaletteOpen(false);
     },
-    [edges, nodes, onPatch, onSelect, positionOf],
+    [edges, nodes, onPatch, onSelect, positionOf, locale],
   );
 
   /** Split edge A→B by inserting a new node N: A→N (keeps guard) + N→B. */
@@ -311,7 +311,7 @@ export function FlowCanvas({
       const newNode: FlowNode = {
         id,
         type,
-        label: defaultNodeLabel(type),
+        label: defaultNodeLabel(type, locale),
         ...defaultNodeExtras(type),
         ui: { x: at.x, y: at.y },
       };
@@ -326,7 +326,7 @@ export function FlowCanvas({
       onPatch({ nodes: appendArray(nodes, newNode), edges: appendArray(nextEdges, secondSegment) });
       onSelect(newNode);
     },
-    [edges, nodes, onPatch, onSelect, positionOf],
+    [edges, nodes, onPatch, onSelect, positionOf, locale],
   );
 
   /**
@@ -346,7 +346,7 @@ export function FlowCanvas({
       const waitNode: FlowNode = {
         id: waitId,
         type: 'wait',
-        label: 'Awaiting Revision',
+        label: tr('engine.flowCanvas.awaitingRevision', locale),
         // Signal-flavored wait: the submitter's resubmit signal resumes the run.
         waitEventConfig: { eventType: 'signal', signalName: 'revision', onTimeout: 'fail' },
       };
@@ -361,7 +361,7 @@ export function FlowCanvas({
       });
       onSelect(waitNode);
     },
-    [edges, nodes, onPatch, onSelect],
+    [edges, nodes, onPatch, onSelect, locale],
   );
 
   // Approval nodes that already declare a `revise` out-edge — used to hide the
@@ -556,7 +556,7 @@ export function FlowCanvas({
                 disabled={!clickable}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={clickable ? (e) => { e.stopPropagation(); onRevealProblem!(p); } : undefined}
-                title={clickable ? 'Reveal on canvas' : undefined}
+                title={clickable ? tr('engine.flowCanvas.reveal', locale) : undefined}
                 className={cn(
                   'flex w-full items-start gap-1.5 rounded-lg border border-destructive/40 bg-destructive/10 px-2.5 py-1.5 text-left text-[11px] leading-snug text-destructive shadow-sm backdrop-blur-sm transition-colors',
                   clickable && 'cursor-pointer hover:border-destructive/60 hover:bg-destructive/20',
@@ -568,7 +568,7 @@ export function FlowCanvas({
             );
           })}
           {bannerErrors.length > 3 && (
-            <div className="px-2.5 text-[10px] text-destructive/80">+{bannerErrors.length - 3} more…</div>
+            <div className="px-2.5 text-[10px] text-destructive/80">{tFormat('engine.flowCanvas.moreErrors', locale, { count: bannerErrors.length - 3 })}</div>
           )}
         </div>
       )}
@@ -594,8 +594,8 @@ export function FlowCanvas({
         <div className="flex items-center rounded-lg border bg-background/90 shadow-sm backdrop-blur-sm">
           <button
             type="button"
-            title="Zoom out"
-            aria-label="Zoom out"
+            title={tr('engine.flowCanvas.zoomOut', locale)}
+            aria-label={tr('engine.flowCanvas.zoomOut', locale)}
             onClick={() => setZoom((z) => clampZoom(z - 0.15))}
             className="inline-flex h-7 w-7 items-center justify-center text-muted-foreground hover:text-foreground"
           >
@@ -606,8 +606,8 @@ export function FlowCanvas({
           </span>
           <button
             type="button"
-            title="Zoom in"
-            aria-label="Zoom in"
+            title={tr('engine.flowCanvas.zoomIn', locale)}
+            aria-label={tr('engine.flowCanvas.zoomIn', locale)}
             onClick={() => setZoom((z) => clampZoom(z + 0.15))}
             className="inline-flex h-7 w-7 items-center justify-center text-muted-foreground hover:text-foreground"
           >
@@ -615,8 +615,8 @@ export function FlowCanvas({
           </button>
           <button
             type="button"
-            title="Fit to view"
-            aria-label="Fit to view"
+            title={tr('engine.flowCanvas.fit', locale)}
+            aria-label={tr('engine.flowCanvas.fit', locale)}
             onClick={fitToView}
             className="inline-flex h-7 w-7 items-center justify-center border-l text-muted-foreground hover:text-foreground"
           >
@@ -630,7 +630,7 @@ export function FlowCanvas({
         ref={viewportRef}
         tabIndex={0}
         role="application"
-        aria-label="Flow canvas"
+        aria-label={tr('engine.flowCanvas.canvas', locale)}
         onKeyDown={onKeyDown}
         onPointerDown={onBgPointerDown}
         onPointerMove={(e) => {
@@ -843,8 +843,8 @@ export function FlowCanvas({
                     >
                       <button
                         type="button"
-                        title="Insert node here"
-                        aria-label="Insert node here"
+                        title={tr('engine.flowCanvas.insertNode', locale)}
+                        aria-label={tr('engine.flowCanvas.insertNode', locale)}
                         onPointerDown={(e) => e.stopPropagation()}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -868,6 +868,7 @@ export function FlowCanvas({
               <NodeCard
                 key={node.id}
                 id={node.id}
+                locale={locale}
                 type={node.type}
                 label={node.label || node.id}
                 summary={nodeSummary(node)}

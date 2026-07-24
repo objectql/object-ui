@@ -48,7 +48,7 @@ import {
   CommandItem,
   CommandList,
 } from '@object-ui/components';
-import { t as tr } from '../i18n';
+import { t as tr, translateNodeLabel, translateNodeHint } from '../i18n';
 import { NODE_W, NODE_H, type Point, type LabeledRegion, type FlowNode } from './flow-canvas-layout';
 import { FlowRegionView } from './flow-region-view';
 import { EXPANDED_REGION_MAX_W, NODE_REGION_GAP, REGION_PANEL_PAD } from './flow-region-metrics';
@@ -348,14 +348,22 @@ export const NODE_PALETTE: PaletteItem[] = [
   { type: 'end', label: 'End', hint: 'Terminate the flow', category: 'Flow' },
 ];
 
-/** Human-friendly default label for a newly created node of `type`. */
-export function defaultNodeLabel(type: string): string {
+/**
+ * Human-friendly default label for a newly created node of `type`. Localized
+ * for the active locale so a node added from the (localized) palette gets a
+ * matching default label — e.g. picking 创建记录 under zh-CN seeds the node
+ * label 创建记录, not "Create record". English (no locale) is unchanged, so
+ * programmatic / test callers keep the English default.
+ */
+export function defaultNodeLabel(type: string, locale?: string): string {
   const item = NODE_PALETTE.find((p) => p.type === type);
-  if (item) return item.label;
-  return type
-    .split('_')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
+  const english = item
+    ? item.label
+    : type
+        .split('_')
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+  return translateNodeLabel(type, locale, english);
 }
 
 /**
@@ -389,6 +397,8 @@ export function defaultNodeExtras(type: string): Record<string, unknown> {
 
 export interface NodeCardProps {
   id: string;
+  /** UI locale for the card's affordance tooltips. */
+  locale?: string;
   type: string;
   label: string;
   summary?: string;
@@ -453,6 +463,7 @@ export interface NodeCardProps {
  */
 export function NodeCard({
   id,
+  locale,
   type,
   label,
   summary,
@@ -555,8 +566,8 @@ export function NodeCard({
         // layout can never disagree.
         <button
           type="button"
-          aria-label={expanded ? 'Collapse nested regions' : 'Expand nested regions'}
-          title={expanded ? 'Collapse nested regions' : 'Expand nested regions'}
+          aria-label={tr(expanded ? 'engine.flowCanvas.collapseRegions' : 'engine.flowCanvas.expandRegions', locale)}
+          title={tr(expanded ? 'engine.flowCanvas.collapseRegions' : 'engine.flowCanvas.expandRegions', locale)}
           aria-expanded={!!expanded}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
@@ -581,6 +592,7 @@ export function NodeCard({
             maxWidth={EXPANDED_REGION_MAX_W}
             selected={selectedNestedNode}
             onSelectNode={onSelectNestedNode}
+            locale={locale}
           />
         </div>
       )}
@@ -605,8 +617,8 @@ export function NodeCard({
       {editable && type !== 'end' && (
         <button
           type="button"
-          title="Add connected node"
-          aria-label="Add connected node"
+          title={tr('engine.flowCanvas.addConnected', locale)}
+          aria-label={tr('engine.flowCanvas.addConnected', locale)}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
@@ -623,8 +635,8 @@ export function NodeCard({
       {onAddReviseLoop && (
         <button
           type="button"
-          title="Add revision loop (send back for revision)"
-          aria-label="Add revision loop"
+          title={tr('engine.flowCanvas.addReviseLoop', locale)}
+          aria-label={tr('engine.flowCanvas.addReviseLoopShort', locale)}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
@@ -701,9 +713,13 @@ export function NodePalette({ locale, items = NODE_PALETTE, onPick, open, onOpen
       (i) =>
         i.label.toLowerCase().includes(query) ||
         (i.hint ?? '').toLowerCase().includes(query) ||
-        i.type.toLowerCase().includes(query),
+        i.type.toLowerCase().includes(query) ||
+        // Also match the localized label/hint so a zh-CN author can search in
+        // Chinese (the display strings differ from the English `label`).
+        translateNodeLabel(i.type, locale, i.label).toLowerCase().includes(query) ||
+        (translateNodeHint(i.type, locale, i.hint) ?? '').toLowerCase().includes(query),
     );
-  }, [items, query]);
+  }, [items, query, locale]);
 
   // Bucket items by category (falling back to the type's inferred category, so
   // engine-only / plugin nodes still land in a sensible section), then render
@@ -736,6 +752,10 @@ export function NodePalette({ locale, items = NODE_PALETTE, onPick, open, onOpen
 
   const renderItem = (item: PaletteItem, recent?: boolean) => {
     const tone = nodeTone(item.type);
+    // Localize the built-in node types; server/plugin descriptors keep their
+    // own (server-authoritative) label/hint via the fallback.
+    const label = translateNodeLabel(item.type, locale, item.label);
+    const hint = translateNodeHint(item.type, locale, item.hint);
     return (
       <CommandItem
         key={recent ? `recent:${item.type}` : item.type}
@@ -748,8 +768,8 @@ export function NodePalette({ locale, items = NODE_PALETTE, onPick, open, onOpen
           <NodeTypeIcon type={item.type} className={cn('h-[15px] w-[15px]', tone.icon)} />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-medium">{item.label}</div>
-          {item.hint && <div className="truncate text-[11px] text-muted-foreground">{item.hint}</div>}
+          <div className="truncate text-[13px] font-medium">{label}</div>
+          {hint && <div className="truncate text-[11px] text-muted-foreground">{hint}</div>}
         </div>
       </CommandItem>
     );

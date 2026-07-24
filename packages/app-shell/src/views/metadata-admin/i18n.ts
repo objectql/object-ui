@@ -538,6 +538,128 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.flowPalette.category.human': 'Human',
   'engine.flowPalette.category.integration': 'Integration',
   'engine.flowPalette.category.flow': 'Flow',
+  // Flow canvas chrome — toolbar, node affordances, banner (FlowCanvas /
+  // flow-canvas-parts). Node-type labels/hints live in the strings table too
+  // (engine.flowNode.*) but are resolved via translateNodeLabel/Hint so the
+  // server descriptor stays the source of truth in English.
+  'engine.flowCanvas.zoomOut': 'Zoom out',
+  'engine.flowCanvas.zoomIn': 'Zoom in',
+  'engine.flowCanvas.fit': 'Fit to view',
+  'engine.flowCanvas.canvas': 'Flow canvas',
+  'engine.flowCanvas.reveal': 'Reveal on canvas',
+  'engine.flowCanvas.moreErrors': '+{count} more…',
+  'engine.flowCanvas.insertNode': 'Insert node here',
+  'engine.flowCanvas.addConnected': 'Add connected node',
+  'engine.flowCanvas.addReviseLoop': 'Add revision loop (send back for revision)',
+  'engine.flowCanvas.addReviseLoopShort': 'Add revision loop',
+  'engine.flowCanvas.awaitingRevision': 'Awaiting Revision',
+  'engine.flowCanvas.collapseRegions': 'Collapse nested regions',
+  'engine.flowCanvas.expandRegions': 'Expand nested regions',
+  // Nested structured-region tray headers (FlowRegionView / extractRegions).
+  'engine.flowRegion.branchN': 'Branch {n}',
+  'engine.flowRegion.try': 'Try',
+  'engine.flowRegion.catch': 'Catch',
+  // Flow preview header — pills, panel toggles, empty states (FlowPreview).
+  'engine.flowPreview.emptyHint': 'Add nodes in the Form tab to see the flow preview.',
+  'engine.flowPreview.malformed': 'One of the flow nodes or edges is malformed.',
+  'engine.flowPreview.pill.trigger': 'Trigger',
+  'engine.flowPreview.pill.status': 'Status',
+  'engine.flowPreview.pill.runAs': 'Run as',
+  'engine.flowPreview.pill.onError': 'On error',
+  'engine.flowPreview.showVars': 'Show variables panel',
+  'engine.flowPreview.hideVars': 'Hide variables panel',
+  'engine.flowPreview.variables': 'Variables',
+  'engine.flowPreview.noVars': 'No variables declared.',
+  'engine.flowPreview.runsTitle': 'Run history from the automation engine',
+  'engine.flowPreview.runs': 'Runs',
+  'engine.flowPreview.problemsTitle': 'Validation problems',
+  'engine.flowPreview.problems': 'Problems',
+  'engine.flowPreview.debug': 'Debug',
+  // Flow run-history panel (FlowRunsPanel).
+  'engine.flowRuns.title': 'Runs',
+  'engine.flowRuns.refresh': 'Refresh run history',
+  'engine.flowRuns.unavailable':
+    'Run history unavailable — the automation engine is offline or this flow hasn’t been published.',
+  'engine.flowRuns.empty': 'No runs yet.',
+  'engine.flowRuns.noSteps': 'No step log recorded.',
+  'engine.flowRuns.iteration': 'Iteration',
+  'engine.flowRuns.iterationN': 'Iteration {n}',
+  'engine.flowRuns.branch': 'Branch',
+  'engine.flowRuns.branchN': 'Branch {n}',
+  'engine.flowRuns.try': 'Try',
+  'engine.flowRuns.catch': 'Catch',
+  'engine.flowRuns.status.completed': 'Completed',
+  'engine.flowRuns.status.failed': 'Failed',
+  'engine.flowRuns.status.paused': 'Paused',
+  'engine.flowRuns.status.running': 'Running',
+  'engine.flowRuns.status.cancelled': 'Cancelled',
+  // Flow debug simulator (FlowSimulatorPanel).
+  'engine.flowSim.run': 'Run',
+  'engine.flowSim.step': 'Step',
+  'engine.flowSim.continue': 'Continue',
+  'engine.flowSim.reset': 'Reset',
+  'engine.flowSim.add': 'Add',
+  'engine.flowSim.resumeBranch': 'Resume down the “{branch}” branch',
+  'engine.flowSim.screen': 'Screen',
+  'engine.flowSim.inputs': 'Inputs',
+  'engine.flowSim.setVariables': 'Set variables',
+  'engine.flowSim.setVariablesHint': 'Override or inject any variable (wins over inputs and mocks at start).',
+  'engine.flowSim.mockOutputs': 'Mock outputs',
+  'engine.flowSim.mockPlaceholder': 'mocked result (JSON)',
+  'engine.flowSim.variables': 'Variables',
+  'engine.flowSim.noVars': 'No variables set.',
+  'engine.flowSim.timeline': 'Timeline',
+  'engine.flowSim.namePlaceholder': 'name',
+  'engine.flowSim.valuePlaceholder': 'value',
+  'engine.flowSim.removeVariable': 'Remove variable',
+  'engine.flowSim.idleHint':
+    'Press Run to simulate, or Step to walk node by node. Side effects are mocked — no backend is called.',
+  'engine.flowSim.status.idle': 'idle',
+  'engine.flowSim.status.running': 'running',
+  'engine.flowSim.status.paused': 'paused',
+  'engine.flowSim.status.done': 'done',
+  'engine.flowSim.status.error': 'error',
+  // Structural flow validation (flow-sim-validate) — canvas banner, Problems
+  // panel, and the debug simulator.
+  'engine.flowValidate.nodeMissingId': 'A node is missing an id.',
+  'engine.flowValidate.duplicateNodeId': 'Duplicate node id "{id}".',
+  'engine.flowValidate.edgeSourceMissing': 'Edge source "{source}" does not exist.',
+  'engine.flowValidate.edgeTargetMissing': 'Edge target "{target}" does not exist.',
+  'engine.flowValidate.startHasIncoming': 'Start node has an incoming edge.',
+  'engine.flowValidate.multipleStart': 'Flow has {count} start nodes; expected one.',
+  'engine.flowValidate.noStartUsingRoot': 'No "start" node; using the only root node as the entry.',
+  'engine.flowValidate.noEntry': 'No entry node (every node has an incoming edge — the graph is fully cyclic).',
+  'engine.flowValidate.ambiguousEntry': 'Cannot determine a single entry node ({count} candidates). Add a "start" node.',
+  'engine.flowValidate.decisionMultipleDefaults': 'Decision "{id}" has {count} default branches.',
+  'engine.flowValidate.decisionNoBranches': 'Decision "{id}" has no outgoing branches.',
+  'engine.flowValidate.decisionNoDefault': 'Decision "{id}" has no default branch; it may dead-end when no condition matches.',
+  'engine.flowValidate.nodeUnreachable': 'Node "{id}" is unreachable from the entry.',
+  'engine.flowValidate.cycleDetected': 'Cycle detected ({cycle}). Mark the connection that closes the loop as a back-edge (Connection type → Back-edge) to declare an intentional revise/rework loop.',
+  // Unknown-reference (scope) warnings (flow-ref-check) — Problems panel + the
+  // inline expression-field warnings.
+  'engine.flowRef.unknownWithSuggestion': 'Unknown reference `{token}` — did you mean `{suggestion}`?',
+  'engine.flowRef.notInScope': '`{token}` is not a reference in scope at this step.',
+  'engine.flowRef.notInScopeMulti': 'Not in scope: {tokens}.',
+  // Problems panel (ProblemsPanel).
+  'engine.flowProblems.title': 'Problems',
+  'engine.flowProblems.empty': 'No problems — this flow is structurally valid.',
+  'engine.flowProblems.sourceSchema': 'schema',
+  'engine.flowProblems.sourceExpression': 'expression',
+  // References side panel (ResourceEditPage) empty state.
+  'engine.edit.refsScanning': 'Scanning references…',
+  'engine.edit.refsEmptyTitle': 'No references found',
+  'engine.edit.refsEmptyDesc': 'Nothing in the metadata graph points at this item. Safe to delete.',
+  // Destructive-change (force save) dialog (ResourceEditPage).
+  'engine.edit.destructiveTitle': 'Destructive change detected',
+  'engine.edit.destructiveDesc':
+    'The framework refused this save because it would drop or narrow data already in use. Review the issues and confirm to override.',
+  'engine.edit.forcing': 'Forcing…',
+  // History page / panel (ResourceHistoryPage).
+  'engine.edit.historySubtitle': 'Version history',
+  'engine.edit.historyEvents': 'Events',
+  'engine.edit.historyEmptyTitle': 'No history yet',
+  'engine.edit.historyEmptyDesc':
+    'This item has never been edited via an overlay. The first save will create the initial history record.',
   // Reorder buttons (used in InspectorShell header)
   'engine.inspector.reorder.up': 'Move up',
   'engine.inspector.reorder.down': 'Move down',
@@ -1914,6 +2036,168 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.flowPalette.category.human': '人工',
   'engine.flowPalette.category.integration': '集成',
   'engine.flowPalette.category.flow': '流程',
+  // Flow node types — resolved by translateNodeLabel/Hint. Present only in the
+  // zh table: for English the palette falls back to the engine descriptor's
+  // own name/description (the server-authoritative label), so built-in nodes
+  // read Chinese under zh-CN while plugin/unknown nodes gracefully fall back.
+  'engine.flowNode.start.label': '开始',
+  'engine.flowNode.create_record.label': '创建记录',
+  'engine.flowNode.create_record.hint': '向对象中插入一条新记录',
+  'engine.flowNode.http_request.label': 'HTTP 请求',
+  'engine.flowNode.map.label': '逐项映射',
+  'engine.flowNode.map.hint': '对集合逐项运行子流程(可暂停)',
+  'engine.flowNode.update_record.label': '更新记录',
+  'engine.flowNode.update_record.hint': '更新匹配条件的记录',
+  'engine.flowNode.get_record.label': '查询记录',
+  'engine.flowNode.get_record.hint': '从对象中查询记录',
+  'engine.flowNode.delete_record.label': '删除记录',
+  'engine.flowNode.delete_record.hint': '删除匹配条件的记录',
+  'engine.flowNode.decision.label': '条件分支',
+  'engine.flowNode.decision.hint': '根据条件分支执行',
+  'engine.flowNode.loop.label': '循环',
+  'engine.flowNode.loop.hint': '遍历集合',
+  'engine.flowNode.assignment.label': '设置变量',
+  'engine.flowNode.assignment.hint': '为流程变量赋值',
+  'engine.flowNode.parallel.label': '并行',
+  'engine.flowNode.parallel.hint': '并发执行多个分支,结束时汇合',
+  'engine.flowNode.try_catch.label': '异常捕获',
+  'engine.flowNode.try_catch.hint': '用错误处理与重试保护步骤',
+  'engine.flowNode.approval.label': '审批',
+  'engine.flowNode.approval.hint': '暂停等待人工决策',
+  'engine.flowNode.screen.label': '交互页面',
+  'engine.flowNode.screen.hint': '收集用户输入',
+  'engine.flowNode.http.label': 'HTTP 请求',
+  'engine.flowNode.http.hint': '调用外部 API',
+  'engine.flowNode.connector_action.label': '连接器',
+  'engine.flowNode.connector_action.hint': '执行集成动作',
+  'engine.flowNode.notify.label': '通知',
+  'engine.flowNode.notify.hint': '向用户发送外发通知',
+  'engine.flowNode.script.label': '脚本',
+  'engine.flowNode.script.hint': '运行自定义代码',
+  'engine.flowNode.subflow.label': '子流程',
+  'engine.flowNode.subflow.hint': '调用其他流程',
+  'engine.flowNode.wait.label': '等待',
+  'engine.flowNode.wait.hint': '等待事件或定时器',
+  'engine.flowNode.end.label': '结束',
+  'engine.flowNode.end.hint': '终止流程',
+  // Flow canvas chrome — toolbar, node affordances, banner.
+  'engine.flowCanvas.zoomOut': '缩小',
+  'engine.flowCanvas.zoomIn': '放大',
+  'engine.flowCanvas.fit': '适应视图',
+  'engine.flowCanvas.canvas': '流程画布',
+  'engine.flowCanvas.reveal': '在画布中定位',
+  'engine.flowCanvas.moreErrors': '还有 {count} 项…',
+  'engine.flowCanvas.insertNode': '在此处插入节点',
+  'engine.flowCanvas.addConnected': '添加后继节点',
+  'engine.flowCanvas.addReviseLoop': '添加退回修订环(退回重新修订)',
+  'engine.flowCanvas.addReviseLoopShort': '添加退回修订环',
+  'engine.flowCanvas.awaitingRevision': '等待修订',
+  'engine.flowCanvas.collapseRegions': '折叠嵌套区域',
+  'engine.flowCanvas.expandRegions': '展开嵌套区域',
+  // Nested structured-region tray headers.
+  'engine.flowRegion.branchN': '分支 {n}',
+  'engine.flowRegion.try': '尝试',
+  'engine.flowRegion.catch': '捕获',
+  // Flow preview header — pills, panel toggles, empty states.
+  'engine.flowPreview.emptyHint': '在“表单”标签页中添加节点即可查看流程预览。',
+  'engine.flowPreview.malformed': '某个流程节点或连线的格式有误。',
+  'engine.flowPreview.pill.trigger': '触发',
+  'engine.flowPreview.pill.status': '状态',
+  'engine.flowPreview.pill.runAs': '运行身份',
+  'engine.flowPreview.pill.onError': '出错时',
+  'engine.flowPreview.showVars': '显示变量面板',
+  'engine.flowPreview.hideVars': '隐藏变量面板',
+  'engine.flowPreview.variables': '变量',
+  'engine.flowPreview.noVars': '未声明变量。',
+  'engine.flowPreview.runsTitle': '来自自动化引擎的运行历史',
+  'engine.flowPreview.runs': '运行',
+  'engine.flowPreview.problemsTitle': '校验问题',
+  'engine.flowPreview.problems': '问题',
+  'engine.flowPreview.debug': '调试',
+  // Flow run-history panel.
+  'engine.flowRuns.title': '运行',
+  'engine.flowRuns.refresh': '刷新运行历史',
+  'engine.flowRuns.unavailable': '运行历史不可用 —— 自动化引擎已离线,或此流程尚未发布。',
+  'engine.flowRuns.empty': '暂无运行记录。',
+  'engine.flowRuns.noSteps': '未记录步骤日志。',
+  'engine.flowRuns.iteration': '迭代',
+  'engine.flowRuns.iterationN': '第 {n} 次迭代',
+  'engine.flowRuns.branch': '分支',
+  'engine.flowRuns.branchN': '分支 {n}',
+  'engine.flowRuns.try': '尝试',
+  'engine.flowRuns.catch': '捕获',
+  'engine.flowRuns.status.completed': '已完成',
+  'engine.flowRuns.status.failed': '失败',
+  'engine.flowRuns.status.paused': '已暂停',
+  'engine.flowRuns.status.running': '运行中',
+  'engine.flowRuns.status.cancelled': '已取消',
+  // Flow debug simulator.
+  'engine.flowSim.run': '运行',
+  'engine.flowSim.step': '单步',
+  'engine.flowSim.continue': '继续',
+  'engine.flowSim.reset': '重置',
+  'engine.flowSim.add': '添加',
+  'engine.flowSim.resumeBranch': '沿“{branch}”分支继续',
+  'engine.flowSim.screen': '交互页面',
+  'engine.flowSim.inputs': '输入',
+  'engine.flowSim.setVariables': '设置变量',
+  'engine.flowSim.setVariablesHint': '覆盖或注入任意变量(启动时优先于输入与模拟值)。',
+  'engine.flowSim.mockOutputs': '模拟输出',
+  'engine.flowSim.mockPlaceholder': '模拟结果(JSON)',
+  'engine.flowSim.variables': '变量',
+  'engine.flowSim.noVars': '未设置变量。',
+  'engine.flowSim.timeline': '时间线',
+  'engine.flowSim.namePlaceholder': '名称',
+  'engine.flowSim.valuePlaceholder': '值',
+  'engine.flowSim.removeVariable': '删除变量',
+  'engine.flowSim.idleHint': '点击“运行”进行模拟,或用“单步”逐节点执行。副作用均为模拟 —— 不会调用后端。',
+  'engine.flowSim.status.idle': '空闲',
+  'engine.flowSim.status.running': '运行中',
+  'engine.flowSim.status.paused': '已暂停',
+  'engine.flowSim.status.done': '完成',
+  'engine.flowSim.status.error': '错误',
+  // 连线(edge)Type 枚举值 —— 属性表单里的 SchemaForm 下拉(与画布连线检查器一致)。
+  'engine.enum.type.default': '普通',
+  'engine.enum.type.conditional': '条件',
+  'engine.enum.type.fault': '故障(错误路径)',
+  'engine.enum.type.back': '回边(退回修改环)',
+  // 流程结构校验(flow-sim-validate)—— 画布横幅、问题面板、调试模拟器。
+  'engine.flowValidate.nodeMissingId': '有节点缺少 id。',
+  'engine.flowValidate.duplicateNodeId': '重复的节点 id “{id}”。',
+  'engine.flowValidate.edgeSourceMissing': '连线的源节点 “{source}” 不存在。',
+  'engine.flowValidate.edgeTargetMissing': '连线的目标节点 “{target}” 不存在。',
+  'engine.flowValidate.startHasIncoming': '开始节点存在入边。',
+  'engine.flowValidate.multipleStart': '流程有 {count} 个开始节点;应只有一个。',
+  'engine.flowValidate.noStartUsingRoot': '没有“开始”节点;以唯一的根节点作为入口。',
+  'engine.flowValidate.noEntry': '没有入口节点(每个节点都有入边 —— 整个图是全环状)。',
+  'engine.flowValidate.ambiguousEntry': '无法确定唯一入口节点(有 {count} 个候选)。请添加一个“开始”节点。',
+  'engine.flowValidate.decisionMultipleDefaults': '条件分支 “{id}” 有 {count} 个默认分支。',
+  'engine.flowValidate.decisionNoBranches': '条件分支 “{id}” 没有出向分支。',
+  'engine.flowValidate.decisionNoDefault': '条件分支 “{id}” 没有默认分支;当无条件匹配时可能走入死路。',
+  'engine.flowValidate.nodeUnreachable': '节点 “{id}” 从入口不可达。',
+  'engine.flowValidate.cycleDetected': '检测到环({cycle})。将闭合该环的连线标记为回边(连接类型 → 回边)以声明这是有意的退回 / 返工环。',
+  // 未知引用(作用域)告警(flow-ref-check)—— 问题面板 + 表达式字段内联提示。
+  'engine.flowRef.unknownWithSuggestion': '未知引用 `{token}` —— 是否想用 `{suggestion}`?',
+  'engine.flowRef.notInScope': '`{token}` 在当前步骤的作用域中不是有效引用。',
+  'engine.flowRef.notInScopeMulti': '不在作用域内:{tokens}。',
+  // 问题面板(ProblemsPanel)。
+  'engine.flowProblems.title': '问题',
+  'engine.flowProblems.empty': '没有问题 —— 该流程结构有效。',
+  'engine.flowProblems.sourceSchema': '架构',
+  'engine.flowProblems.sourceExpression': '表达式',
+  // 引用关系侧栏(ResourceEditPage)空态。
+  'engine.edit.refsScanning': '正在扫描引用…',
+  'engine.edit.refsEmptyTitle': '未找到引用',
+  'engine.edit.refsEmptyDesc': '元数据图中没有任何项指向它,可以安全删除。',
+  // 破坏性变更(强制保存)对话框(ResourceEditPage)。
+  'engine.edit.destructiveTitle': '检测到破坏性变更',
+  'engine.edit.destructiveDesc': '框架拒绝了本次保存,因为它会丢弃或收窄正在使用的数据。请检查这些问题并确认以强制覆盖。',
+  'engine.edit.forcing': '强制保存中…',
+  // 历史页 / 面板(ResourceHistoryPage)。
+  'engine.edit.historySubtitle': '版本历史',
+  'engine.edit.historyEvents': '事件',
+  'engine.edit.historyEmptyTitle': '暂无历史',
+  'engine.edit.historyEmptyDesc': '此项从未通过覆盖层编辑过。首次保存将创建初始历史记录。',
   // Reorder buttons
   'engine.inspector.reorder.up': '上移',
   'engine.inspector.reorder.down': '下移',
@@ -2888,6 +3172,288 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.appNav.itemOther': '项',
 };
 
+/** Whether a locale resolves to Chinese (the only non-English catalog). */
+export function isZhLocale(locale?: SupportedLocale | string): boolean {
+  return (locale ?? '').toLowerCase().startsWith('zh');
+}
+
+/** zh-CN overrides for one flow-node config field. English is the fallback. */
+interface FlowFieldZh {
+  label?: string;
+  help?: string;
+  /** select option value → zh label. */
+  opts?: Record<string, string>;
+  /** objectList column key → zh label (+ nested option labels). */
+  cols?: Record<string, { label?: string; opts?: Record<string, string> }>;
+}
+
+/**
+ * zh-CN translations for the flow node inspector's config fields, keyed by the
+ * canonical node type then the field `id`. Consumed by
+ * `localizeFlowFields` (flow-node-config) at render, which overlays these onto
+ * the English field table AND the engine-published `configSchema` fields (they
+ * share field ids for built-in nodes). Any field/option absent here falls back
+ * to its English label, so plugin nodes stay readable. Placeholders (example
+ * literals like cron strings / URLs) are intentionally left in English.
+ */
+const FLOW_FIELD_ZH: Record<string, Record<string, FlowFieldZh>> = {
+  start: {
+    triggerType: {
+      label: '触发方式',
+      help: '流程何时启动。记录触发在数据变更时触发;定时触发按 cron 触发。',
+      opts: {
+        'record-after-create': '记录创建后',
+        'record-after-update': '记录更新后',
+        'record-before-update': '记录更新前',
+        'record-after-delete': '记录删除后',
+        'record-change': '记录变更(任意)',
+        schedule: '定时(cron)',
+        time_relative: '相对时间(日期扫描)',
+        manual: '手动 / 自动启动',
+        webhook: 'Webhook / API',
+        event: '平台事件',
+      },
+    },
+    objectName: { label: '对象', help: '记录 / 定时扫描触发的目标对象。' },
+    condition: {
+      label: '进入条件',
+      help: 'CEL 表达式 —— 仅当其为 true 时流程才运行(相对时间扫描时对每条匹配记录做门控)。留空则每次事件都运行。',
+    },
+    'schedule.expression': {
+      label: 'Cron 表达式',
+      help: 'Cron 表达式 —— 流程运行的时刻。相对时间扫描留空默认每日。',
+    },
+    'timeRelative.object': { label: '扫描对象', help: '每次运行被扫描的对象。' },
+    'timeRelative.dateField': { label: '日期字段', help: '与今天比较的日期 / 日期时间字段。' },
+    'timeRelative.withinDays': {
+      label: '天数范围内',
+      help: '范围模式:当日期在今天前后 N 天内时触发(负值 = 逾期回溯)。若用偏移天数则留空。',
+    },
+    'timeRelative.offsetDays': {
+      label: '偏移天数',
+      help: '偏移模式:当日期恰好等于今天 + 各偏移量时触发(如 60、30、7)。若用天数范围则留空。',
+    },
+    'timeRelative.filter': { label: '附加筛选', help: '与日期窗口做 AND 的可选筛选(如 status = active)。' },
+    'timeRelative.maxRecords': { label: '每次最多记录数', help: '每次扫描启动的记录数上限(默认 1000)。' },
+    criteria: { label: '进入条件(旧)', help: '旧字段 —— 建议使用“进入条件”(condition)。' },
+  },
+  end: {
+    outcome: { label: '结果' },
+    outputVariable: { label: '输出变量' },
+  },
+  decision: {
+    conditions: {
+      label: '分支',
+      help: '每个分支包含标签、CEL 表达式和目标节点。表达式为 “true” 的分支即默认 / else 路径。选择目标会接线该分支的出边(创建或更新),清空则断开该边。',
+      cols: { label: { label: '标签' }, expression: { label: '表达式' }, target: { label: '目标节点' } },
+    },
+    condition: { label: '单一条件', help: '旧的单分支条件(CEL)。建议使用上方“分支”;每条边的条件也可写在出边上。' },
+  },
+  assignment: {
+    assignments: { label: '赋值', help: '设置变量:每个键为一个变量,值为表达式或字面量。' },
+  },
+  loop: {
+    collection: { label: '集合', help: '解析为待遍历项的表达式。' },
+    iteratorVariable: { label: '当前项变量', help: '存放当前项的循环变量。' },
+    indexVariable: { label: '索引变量', help: '存放当前索引的可选循环变量。' },
+    maxIterations: { label: '最大迭代次数' },
+  },
+  map: {
+    collection: { label: '集合', help: '解析为待逐项处理数组的表达式。' },
+    flowName: { label: '每项子流程', help: '为每一项运行的子流程 —— 它可以暂停(如审批)。' },
+    iteratorVariable: { label: '当前项变量' },
+    itemObject: { label: '项对象', help: '当项为记录时,它们所属的对象(将每项暴露为子流程的记录)。' },
+    outputVariable: { label: '输出变量', help: '各项子流程的输出,按顺序收集。' },
+  },
+  create_record: {
+    objectName: { label: '对象' },
+    fields: { label: '字段值', help: '写入新记录的字段值。' },
+    outputVariable: { label: '输出变量' },
+  },
+  update_record: {
+    objectName: { label: '对象' },
+    filter: { label: '筛选', help: '标识待更新记录的字段 / 值对(如 id → {recordId})。' },
+    fields: { label: '字段值', help: '要写入的字段值。' },
+  },
+  delete_record: {
+    objectName: { label: '对象' },
+    filter: { label: '筛选', help: '标识待删除记录的字段 / 值对。' },
+  },
+  get_record: {
+    objectName: { label: '对象' },
+    filter: { label: '筛选', help: '待匹配的字段 / 值对(如 status → active)。像 {"$ne": null} 这样的运算符值会被保留。' },
+    limit: { label: '数量上限' },
+    outputVariable: { label: '输出变量' },
+  },
+  http_request: {
+    method: { label: '方法' },
+    url: { label: 'URL' },
+    headers: { label: '请求头', help: '请求头(如 Authorization、Content-Type)。' },
+    body: { label: '请求体', help: '请求负载(JSON 或表达式)。' },
+    outputVariable: { label: '输出变量' },
+    durable: { label: '持久化(异步)', help: '通过持久化队列即发即忘(异步投递)。' },
+    signingSecret: { label: '签名密钥', help: 'HMAC-SHA256 密钥 → 写入 X-Objectstack 签名请求头。' },
+    timeoutMs: { label: '超时(毫秒)' },
+  },
+  script: {
+    actionType: {
+      label: '动作类型',
+      help: '本步骤如何运行。原始脚本保持为“代码”。',
+      opts: { code: '代码', email: '邮件', sms: '短信', notification: '通知' },
+    },
+    template: { label: '模板', help: '消息模板 id。' },
+    recipients: { label: '收件人', help: '每行一个收件人(用户 id、字段引用或地址)。' },
+    variables: { label: '模板变量', help: '注入模板的值。' },
+    script: { label: '代码', help: '脚本主体(JS/TS)。' },
+    outputVariables: { label: '输出变量', help: '此脚本写回的变量名。' },
+    timeoutMs: { label: '超时(毫秒)' },
+  },
+  screen: {
+    title: { label: '标题', help: '显示在页面上方的标题。' },
+    description: { label: '描述', help: '正文文本。会插值 {var} 引用(如 {approval_path})。' },
+    fields: {
+      label: '字段',
+      help: '此页面收集的输入字段。留空则为纯消息页面。',
+      cols: {
+        name: { label: '名称' },
+        label: { label: '标签' },
+        type: { label: '类型' },
+        required: { label: '必填' },
+        visibleWhen: { label: '显示条件' },
+      },
+    },
+    waitForInput: {
+      label: '等待输入',
+      help: '即使没有字段也暂停以展示此页面(消息 / 确认)。无字段且关闭此项则为服务端直通。',
+    },
+    objectName: { label: '对象表单', help: '渲染该对象完整的新建 / 编辑表单(含主从),而非扁平字段列表。' },
+    idVariable: { label: '保存记录变量', help: '仅对象表单:绑定到已保存记录 id 的变量,供后续步骤使用。' },
+    mode: { label: '表单模式', help: '仅对象表单。', opts: { create: '新建', edit: '编辑' } },
+    defaults: { label: '表单默认值', help: '仅对象表单:预填值(如 account → {account_id})。' },
+  },
+  approval: {
+    approvers: {
+      label: '审批人',
+      help: '谁可以处理此步骤。为节点的出边打上 “approve” 和 “reject” 标签。',
+      cols: {
+        type: {
+          label: '类型',
+          opts: {
+            user: '用户',
+            position: '岗位',
+            org_membership_level: '组织成员(所有者 / 管理员 / 成员)',
+            team: '团队',
+            department: '部门',
+            manager: '上级',
+            field: '字段',
+            queue: '队列',
+          },
+        },
+        value: { label: '值' },
+        group: { label: '分组' },
+      },
+    },
+    behavior: {
+      label: '审批方式',
+      help: '多个审批人如何组合。任何一个拒绝在所有模式下都是否决。',
+      opts: {
+        first_response: '首个响应生效',
+        unanimous: '全员通过',
+        quorum: '法定人数(N 选 M)',
+        per_group: '分组会签(每组签核)',
+      },
+    },
+    minApprovals: { label: '最少审批数', help: '所需审批数 —— quorum 为总数,per_group 为每组。服务端会做钳制以防死锁。' },
+    lockRecord: { label: '锁定记录', help: '此节点待处理期间锁定触发记录,禁止编辑。' },
+    approvalStatusField: {
+      label: '状态字段',
+      help: '将请求状态(待审 / 通过 / 拒绝)镜像到的业务对象字段。应为只读。',
+    },
+    'escalation.enabled': { label: 'SLA 升级', help: '在超时内未做决策时升级。' },
+    'escalation.timeoutHours': { label: '超时(小时)' },
+    'escalation.action': {
+      label: '超时动作',
+      opts: { notify: '通知', reassign: '改派', auto_approve: '自动通过', auto_reject: '自动拒绝' },
+    },
+    'escalation.escalateTo': { label: '升级至' },
+    'escalation.notifySubmitter': { label: '通知提交人' },
+    maxRevisions: {
+      label: '最多退回次数',
+      help: '请求自动拒绝前的最多退回修订次数(0 表示禁用退回)。需要一条 “revise” 出边才生效。',
+    },
+  },
+  wait: {
+    'waitEventConfig.eventType': {
+      label: '等待类型',
+      opts: { timer: '定时器', signal: '信号', webhook: 'Webhook', manual: '手动', condition: '条件' },
+    },
+    'waitEventConfig.timerDuration': { label: '时长', help: 'ISO 8601 时长(如 PT1H、P3D)。' },
+    'waitEventConfig.signalName': { label: '信号名称' },
+    'waitEventConfig.timeoutMs': { label: '超时(毫秒)' },
+    'waitEventConfig.onTimeout': { label: '超时时', opts: { fail: '失败', continue: '继续' } },
+  },
+  subflow: {
+    flowName: { label: '流程' },
+    input: { label: '输入映射', help: '传给子流程输入变量的值。' },
+    outputVariable: { label: '输出变量' },
+    timeoutMs: { label: '超时(毫秒)' },
+  },
+  connector_action: {
+    // Client field ids carry the `connectorConfig.` block prefix; the engine's
+    // published configSchema uses flat ids — cover both so on/offline match.
+    'connectorConfig.connectorId': { label: '连接器' },
+    'connectorConfig.actionId': { label: '动作' },
+    'connectorConfig.input': { label: '输入', help: '连接器动作的映射输入。' },
+    connectorId: { label: '连接器', help: '已注册的连接器名称。' },
+    actionId: { label: '动作', help: '连接器声明的动作标识。' },
+    input: { label: '输入', help: '连接器动作的映射输入。' },
+    timeoutMs: { label: '超时(毫秒)' },
+  },
+  try_catch: {
+    errorVariable: { label: '错误变量', help: '在 catch 区域内绑定所捕获错误的变量。' },
+    retry: { label: '重试' },
+  },
+  // notify has no client field table (offline → Advanced JSON); these localize
+  // the engine-published configSchema fields shown when online.
+  notify: {
+    recipients: { label: '收件人', help: '接收通知的用户 id / 受众。' },
+    title: { label: '标题', help: '通知标题(别名:subject)。' },
+    message: { label: '内容', help: '通知正文(别名:body)。' },
+    channels: { label: '渠道', help: '扇出投递的渠道(默认站内)。' },
+    topic: { label: '主题', help: '事件主题(默认 "notify")。' },
+    severity: { label: '级别', help: 'info | warning | critical' },
+    sourceObject: { label: '来源对象', help: '通知所关联记录的对象名。' },
+    sourceId: { label: '来源记录', help: '通知链接到的记录 id。' },
+    actorId: { label: '触发用户', help: '引发该事件的用户 id。' },
+    url: { label: '链接 URL', help: '显式的点击跳转 URL;覆盖默认值。' },
+    payload: { label: '附加数据', help: '合并进模板输入的额外数据。' },
+  },
+  boundary_event: {
+    'boundaryConfig.attachedToNodeId': { label: '附加到', help: '此边界事件所监视的宿主节点。' },
+    'boundaryConfig.eventType': {
+      label: '事件类型',
+      opts: { error: '错误', timer: '定时器', signal: '信号', cancel: '取消' },
+    },
+    'boundaryConfig.interrupting': { label: '中断', help: '此事件触发时取消宿主活动。' },
+    'boundaryConfig.errorCode': { label: '错误码' },
+    'boundaryConfig.timerDuration': { label: '时长' },
+    'boundaryConfig.signalName': { label: '信号名称' },
+  },
+  legacy_action: {
+    action: { label: '动作' },
+    objectName: { label: '对象' },
+    recordId: { label: '记录' },
+    params: { label: '参数', help: '动作输入。值会自动定型:3 → 数字,true → 布尔。' },
+    fields: { label: '字段值' },
+    outputVariable: { label: '输出变量' },
+  },
+};
+
+/** zh-CN overrides for a flow config field, or `undefined` for an unknown one. */
+export function flowFieldZh(type: string, id: string): FlowFieldZh | undefined {
+  return FLOW_FIELD_ZH[type]?.[id];
+}
+
 function pickTable(
   locale: SupportedLocale | string | undefined,
 ): { types: Record<string, string>; domains: Record<string, string>; strings: Record<string, string> } {
@@ -2918,6 +3484,196 @@ export function translateMetadataDomain(
   locale?: SupportedLocale | string,
 ): string {
   return pickTable(locale).domains[domain] ?? domain;
+}
+
+/**
+ * Localized display label for a flow node type (palette + node cards).
+ *
+ * Mirrors {@link translateMetadataType}: the locale table wins for built-in
+ * node types (so they read Chinese under zh-CN), while the caller-supplied
+ * `fallback` — typically the engine descriptor's server-authoritative `name`,
+ * or the hardcoded NODE_PALETTE label offline — covers plugin / unknown types
+ * and the English locale (whose table intentionally carries no `flowNode.*`
+ * keys, keeping the server descriptor authoritative in English).
+ */
+export function translateNodeLabel(
+  type: string,
+  locale?: SupportedLocale | string,
+  fallback?: string,
+): string {
+  const localized = pickTable(locale).strings[`engine.flowNode.${type}.label`];
+  if (localized) return localized;
+  return fallback ?? type;
+}
+
+/** Localized one-line hint for a flow node type. See {@link translateNodeLabel}. */
+export function translateNodeHint(
+  type: string,
+  locale?: SupportedLocale | string,
+  fallback?: string,
+): string | undefined {
+  const localized = pickTable(locale).strings[`engine.flowNode.${type}.hint`];
+  if (localized) return localized;
+  return fallback;
+}
+
+/**
+ * zh-CN labels for the flow-level meta values shown in the canvas header pills
+ * (trigger type / status / run-as / on-error). Keyed by pill kind → raw value.
+ * English is a no-op (raw value shown), and any value not listed here falls
+ * back to its raw form — so this never hides an unexpected value.
+ */
+const FLOW_META_ZH: Record<string, Record<string, string>> = {
+  type: {
+    autolaunched: '自动启动',
+    record_change: '记录变更',
+    schedule: '定时',
+    time_relative: '相对时间',
+    screen: '交互页面',
+    api: 'API',
+    manual: '手动',
+    webhook: 'Webhook',
+    event: '平台事件',
+  },
+  status: { active: '启用', draft: '草稿', inactive: '停用' },
+  runAs: { user: '用户', system: '系统', owner: '记录所有者' },
+  onError: { stop: '停止', continue: '继续', rollback: '回滚', retry: '重试', fail: '失败' },
+};
+
+/** Localized display for a flow-level meta value (header pills). English = raw. */
+export function translateFlowMeta(
+  kind: 'type' | 'status' | 'runAs' | 'onError',
+  value: string,
+  locale?: SupportedLocale | string,
+): string {
+  if (!isZhLocale(locale)) return value;
+  return FLOW_META_ZH[kind]?.[value] ?? value;
+}
+
+/**
+ * zh-CN labels for the metadata-editor side panels' raw enum-ish values —
+ * History operation badges, Audit operation/outcome/lock-state, and the Layered
+ * diff tab badges. Shared by every metadata type (not flow-specific). English
+ * (and any value not listed) shows the raw value, so unknown ops never break.
+ */
+const CONSOLE_VALUE_ZH: Record<string, Record<string, string>> = {
+  op: {
+    create: '创建',
+    update: '更新',
+    delete: '删除',
+    tombstone: '已删除',
+    publish: '发布',
+    revert: '回滚',
+    save: '保存',
+    restore: '恢复',
+    rollback: '回滚',
+  },
+  outcome: { allowed: '允许', denied: '拒绝', forced: '强制' },
+  lock: { draft: '草稿', locked: '已锁定', published: '已发布', none: '无' },
+  layer: { artifact: '工件', none: '无', merged: '合并', set: '已设', overlay: '覆盖' },
+};
+
+/** Localized label for a metadata-editor side-panel value (English = raw). */
+export function translateConsoleValue(
+  group: 'op' | 'outcome' | 'lock' | 'layer',
+  value: string,
+  locale?: SupportedLocale | string,
+): string {
+  if (!isZhLocale(locale)) return value;
+  return CONSOLE_VALUE_ZH[group]?.[value] ?? value;
+}
+
+/** Schema-form enum field names that reuse the flow header meta value maps. */
+const ENUM_FIELD_TO_META: Record<string, keyof typeof FLOW_META_ZH> = {
+  type: 'type',
+  status: 'status',
+  runAs: 'runAs',
+  run_as: 'runAs',
+};
+
+/**
+ * Localized label for a raw JSON-Schema enum option in the metadata SchemaForm
+ * (e.g. the flow `type` picker: `autolaunched` → 自动启动). Keyed by field name
+ * so it's unambiguous; English (and any value not translated) shows the raw
+ * value, so unknown enums across the 27 metadata types are never hidden. Reuses
+ * {@link FLOW_META_ZH} for type/status/runAs, plus an `engine.enum.<field>.<value>`
+ * strings-table extension point for anything else.
+ */
+export function translateEnumOption(
+  fieldName: string,
+  value: string,
+  locale?: SupportedLocale | string,
+): string {
+  if (!isZhLocale(locale)) return value;
+  const kind = ENUM_FIELD_TO_META[fieldName];
+  if (kind && FLOW_META_ZH[kind]?.[value]) return FLOW_META_ZH[kind][value];
+  const direct = pickTable(locale).strings[`engine.enum.${fieldName}.${value}`];
+  if (direct) return direct;
+  // A `type` field can also hold a flow-NODE type (the node sub-form's type
+  // picker) — reuse the node label table so create_record → 创建记录 etc.
+  if (fieldName === 'type') {
+    const nodeLabel = pickTable(locale).strings[`engine.flowNode.${value}.label`];
+    if (nodeLabel) return nodeLabel;
+  }
+  return value;
+}
+
+/**
+ * Generic zh-CN labels for raw JSON-Schema fields the metadata SchemaForm
+ * renders without a client `fieldSpec.label` — chiefly the flow edge/node
+ * sub-forms (Source / Target / Condition / …). Names here have one unambiguous
+ * meaning across metadata types, so the zh label is universally correct; English
+ * (and any name not listed) keeps the schema's own title. Applied only as a
+ * fallback UNDER `fieldSpec.label`, so curated top-level forms are untouched.
+ */
+const SCHEMA_FIELD_LABEL_ZH: Record<string, string> = {
+  id: 'ID',
+  name: '名称',
+  label: '标签',
+  type: '类型',
+  description: '描述',
+  source: '源节点',
+  target: '目标节点',
+  condition: '条件',
+  isDefault: '默认',
+  nodes: '节点',
+  edges: '连线',
+  config: '配置',
+  outputVariable: '输出变量',
+};
+
+/** zh-CN help text for the unambiguous (edge-specific) raw schema fields. */
+const SCHEMA_FIELD_HELP_ZH: Record<string, string> = {
+  source: '源节点 ID',
+  target: '目标节点 ID',
+  condition: '用于分支的 CEL 布尔表达式',
+  isDefault: '当没有其他条件匹配时,将此连线标记为默认路径',
+};
+
+/** Localized label for a raw schema field (falls back to the schema title). */
+export function translateSchemaFieldLabel(
+  name: string,
+  fallback: string | undefined,
+  locale?: SupportedLocale | string,
+): string | undefined {
+  if (isZhLocale(locale)) {
+    const v = SCHEMA_FIELD_LABEL_ZH[name];
+    if (v) return v;
+  }
+  return fallback;
+}
+
+/** Localized help for a raw schema field (falls back to the schema description). */
+export function translateSchemaFieldHelp(
+  name: string,
+  fallback: string | undefined,
+  locale?: SupportedLocale | string,
+): string | undefined {
+  if (isZhLocale(locale)) {
+    const v = SCHEMA_FIELD_HELP_ZH[name];
+    if (v) return v;
+  }
+  return fallback;
 }
 
 export function t(key: string, locale?: SupportedLocale | string): string {

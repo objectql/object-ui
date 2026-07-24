@@ -141,6 +141,8 @@ export interface BuildFlowProblemsArgs {
   serverDiagnostics?: ServerDiagnostic[];
   /** Declared flow variables — needed to resolve scope for the expression check. */
   variables?: unknown[];
+  /** UI locale for the structural-validation messages. */
+  locale?: string;
 }
 
 /**
@@ -148,10 +150,10 @@ export interface BuildFlowProblemsArgs {
  * diagnostics. Errors are listed before warnings; within a level each source
  * keeps its own emit order (structural before server).
  */
-export function buildFlowProblems({ nodes, edges, serverDiagnostics, variables }: BuildFlowProblemsArgs): FlowProblem[] {
+export function buildFlowProblems({ nodes, edges, serverDiagnostics, variables, locale }: BuildFlowProblemsArgs): FlowProblem[] {
   const problems: FlowProblem[] = [];
 
-  const v = validateFlowDraft(nodes as unknown as SimNode[], edges as unknown as SimEdge[]);
+  const v = validateFlowDraft(nodes as unknown as SimNode[], edges as unknown as SimEdge[], locale);
   const pushStructural = (level: DiagnosticLevel, list: Diagnostic[]) => {
     list.forEach((diag, i) => {
       const { target, highlight } = structuralMapping(diag, edges);
@@ -182,7 +184,7 @@ export function buildFlowProblems({ nodes, edges, serverDiagnostics, variables }
 
   // Client-side EXPRESSION issues (ADR-0032 braces + scope-aware unknown refs),
   // resolved onto node / edge targets — see flow-expr-problems.
-  flowExpressionProblems({ nodes, edges, variables: variables ?? [] }).forEach((ep, i) => {
+  flowExpressionProblems({ nodes, edges, variables: variables ?? [] }, locale).forEach((ep, i) => {
     const target: FlowProblemTarget =
       ep.target.kind === 'edge'
         ? {

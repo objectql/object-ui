@@ -24,6 +24,7 @@
 
 import type { ExprFieldRole } from './expression-validate';
 import type { ScopeRef } from './flow-scope';
+import { tFormat } from '../i18n';
 
 /** CEL keywords / literals that are never flow references. */
 const CEL_RESERVED = new Set(['true', 'false', 'null', 'in']);
@@ -129,13 +130,13 @@ export function findUnknownRefs(source: unknown, role: ExprFieldRole, knownRoots
 }
 
 /** Build a one-line inspector warning from unknown refs (shared by the field
- *  and edge inspectors). */
-export function describeUnknownRefs(unknown: ReadonlyArray<UnknownRef>): string {
+ *  and edge inspectors). Localized; English (no locale) is the fallback. */
+export function describeUnknownRefs(unknown: ReadonlyArray<UnknownRef>, locale?: string): string {
   if (unknown.length === 1) {
     const u = unknown[0];
     return u.suggestion
-      ? `Unknown reference \`${u.token}\` — did you mean \`${u.suggestion}\`?`
-      : `\`${u.token}\` is not a reference in scope at this step.`;
+      ? tFormat('engine.flowRef.unknownWithSuggestion', locale, { token: u.token, suggestion: u.suggestion })
+      : tFormat('engine.flowRef.notInScope', locale, { token: u.token });
   }
-  return `Not in scope: ${unknown.map((u) => `\`${u.token}\``).join(', ')}.`;
+  return tFormat('engine.flowRef.notInScopeMulti', locale, { tokens: unknown.map((u) => `\`${u.token}\``).join(', ') });
 }

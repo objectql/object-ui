@@ -13,6 +13,7 @@
 
 import { ExpressionEvaluator } from '@object-ui/core';
 import type { Diagnostic, FlowValidation, SimEdge, SimNode } from './flow-sim-types';
+import { t as tr, tFormat } from '../../i18n';
 
 const edgeCondString = (c: SimEdge['condition']): string | undefined =>
   typeof c === 'string' ? c : undefined;
@@ -93,7 +94,7 @@ export function findCycle(nodeIds: string[], edges: SimEdge[]): string[] | null 
 }
 
 /** Static structural checks; `errors` block Run, `warnings` are advisory. */
-export function validateFlowDraft(nodes: SimNode[], edges: SimEdge[]): FlowValidation {
+export function validateFlowDraft(nodes: SimNode[], edges: SimEdge[], locale?: string): FlowValidation {
   const errors: Diagnostic[] = [];
   const warnings: Diagnostic[] = [];
 
@@ -101,10 +102,10 @@ export function validateFlowDraft(nodes: SimNode[], edges: SimEdge[]): FlowValid
   const idSet = new Set<string>();
   for (const id of ids) {
     if (!id) {
-      errors.push({ level: 'error', message: 'A node is missing an id.' });
+      errors.push({ level: 'error', message: tr('engine.flowValidate.nodeMissingId', locale) });
       continue;
     }
-    if (idSet.has(id)) errors.push({ level: 'error', nodeId: id, message: `Duplicate node id "${id}".` });
+    if (idSet.has(id)) errors.push({ level: 'error', nodeId: id, message: tFormat('engine.flowValidate.duplicateNodeId', locale, { id }) });
     idSet.add(id);
   }
 
@@ -112,9 +113,9 @@ export function validateFlowDraft(nodes: SimNode[], edges: SimEdge[]): FlowValid
     // Attach the endpoints so a dangling-edge error can badge the offending
     // connection on the canvas (not just appear as a flow-level message).
     if (!idSet.has(e.source))
-      errors.push({ level: 'error', edge: { source: e.source, target: e.target }, message: `Edge source "${e.source}" does not exist.` });
+      errors.push({ level: 'error', edge: { source: e.source, target: e.target }, message: tFormat('engine.flowValidate.edgeSourceMissing', locale, { source: e.source }) });
     if (!idSet.has(e.target))
-      errors.push({ level: 'error', edge: { source: e.source, target: e.target }, message: `Edge target "${e.target}" does not exist.` });
+      errors.push({ level: 'error', edge: { source: e.source, target: e.target }, message: tFormat('engine.flowValidate.edgeTargetMissing', locale, { target: e.target }) });
   }
 
   // Entry resolution: prefer an explicit `start` node, else a node with no
@@ -127,17 +128,17 @@ export function validateFlowDraft(nodes: SimNode[], edges: SimEdge[]): FlowValid
   if (startNodes.length === 1) {
     startNodeId = startNodes[0].id;
     if (incoming.has(startNodeId)) {
-      warnings.push({ level: 'warning', nodeId: startNodeId, message: 'Start node has an incoming edge.' });
+      warnings.push({ level: 'warning', nodeId: startNodeId, message: tr('engine.flowValidate.startHasIncoming', locale) });
     }
   } else if (startNodes.length > 1) {
-    errors.push({ level: 'error', message: `Flow has ${startNodes.length} start nodes; expected one.` });
+    errors.push({ level: 'error', message: tFormat('engine.flowValidate.multipleStart', locale, { count: startNodes.length }) });
   } else if (roots.length === 1) {
     startNodeId = roots[0].id;
-    warnings.push({ level: 'warning', nodeId: startNodeId, message: 'No "start" node; using the only root node as the entry.' });
+    warnings.push({ level: 'warning', nodeId: startNodeId, message: tr('engine.flowValidate.noStartUsingRoot', locale) });
   } else if (roots.length === 0) {
-    errors.push({ level: 'error', message: 'No entry node (every node has an incoming edge — the graph is fully cyclic).' });
+    errors.push({ level: 'error', message: tr('engine.flowValidate.noEntry', locale) });
   } else {
-    errors.push({ level: 'error', message: `Cannot determine a single entry node (${roots.length} candidates). Add a "start" node.` });
+    errors.push({ level: 'error', message: tFormat('engine.flowValidate.ambiguousEntry', locale, { count: roots.length }) });
   }
 
   // Per-decision: at most one default; warn on missing default (possible dead end).
@@ -146,12 +147,12 @@ export function validateFlowDraft(nodes: SimNode[], edges: SimEdge[]): FlowValid
     const out = edges.filter((e) => e.source === n.id);
     const defaults = out.filter((e) => e.isDefault);
     if (defaults.length > 1) {
-      errors.push({ level: 'error', nodeId: n.id, message: `Decision "${n.id}" has ${defaults.length} default branches.` });
+      errors.push({ level: 'error', nodeId: n.id, message: tFormat('engine.flowValidate.decisionMultipleDefaults', locale, { id: n.id, count: defaults.length }) });
     }
     if (out.length === 0) {
-      warnings.push({ level: 'warning', nodeId: n.id, message: `Decision "${n.id}" has no outgoing branches.` });
+      warnings.push({ level: 'warning', nodeId: n.id, message: tFormat('engine.flowValidate.decisionNoBranches', locale, { id: n.id }) });
     } else if (defaults.length === 0 && out.every((e) => edgeCondString(e.condition))) {
-      warnings.push({ level: 'warning', nodeId: n.id, message: `Decision "${n.id}" has no default branch; it may dead-end when no condition matches.` });
+      warnings.push({ level: 'warning', nodeId: n.id, message: tFormat('engine.flowValidate.decisionNoDefault', locale, { id: n.id }) });
     }
   }
 
@@ -170,7 +171,7 @@ export function validateFlowDraft(nodes: SimNode[], edges: SimEdge[]): FlowValid
     }
     for (const n of nodes) {
       if (!reachable.has(n.id)) {
-        warnings.push({ level: 'warning', nodeId: n.id, message: `Node "${n.id}" is unreachable from the entry.` });
+        warnings.push({ level: 'warning', nodeId: n.id, message: tFormat('engine.flowValidate.nodeUnreachable', locale, { id: n.id }) });
       }
     }
   }
@@ -187,7 +188,7 @@ export function validateFlowDraft(nodes: SimNode[], edges: SimEdge[]): FlowValid
       level: 'error',
       nodeId: cycle[0],
       cycle,
-      message: `Cycle detected (${cycle.join(' → ')}). Mark the connection that closes the loop as a back-edge (Connection type → Back-edge) to declare an intentional revise/rework loop.`,
+      message: tFormat('engine.flowValidate.cycleDetected', locale, { cycle: cycle.join(' → ') }),
     });
   }
 

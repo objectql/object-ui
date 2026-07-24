@@ -248,7 +248,7 @@ export function FlowEdgeInspector({ selection, draft, onPatch, onClearSelection,
           : findUnknownRefs(conditionText(edge.condition), 'predicate', scopeRoots(scopeGroups.flatMap((g) => g.refs)));
         return unknown.length > 0 ? (
           <p className="text-[11px] leading-snug text-amber-600 dark:text-amber-400" role="note">
-            {describeUnknownRefs(unknown)}
+            {describeUnknownRefs(unknown, locale)}
           </p>
         ) : null;
       })()}

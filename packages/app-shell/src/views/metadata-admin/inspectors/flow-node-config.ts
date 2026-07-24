@@ -22,7 +22,14 @@
  * `textarea` (script code, request body) and `keyValue` for flat object maps
  * (e.g. record field values, connector input). Deeply nested / array values
  * still fall back to the optional Advanced block.
+ *
+ * The field labels/help/options here are English (the source of truth). A zh-CN
+ * overlay lives in `../i18n` (FLOW_FIELD_ZH) and is applied at render by
+ * {@link localizeFlowFields} — which also localizes the engine-published
+ * `configSchema` fields, since built-in nodes share the same field ids.
  */
+
+import { flowFieldZh, isZhLocale } from '../i18n';
 
 export type FlowConfigFieldKind =
   | 'text'
@@ -757,6 +764,57 @@ export function fieldsForNodeType(type?: string): FlowConfigField[] {
   if (!type) return [];
   const canonical = TYPE_ALIASES[type] ?? type;
   return FLOW_NODE_CONFIG[canonical] ?? [];
+}
+
+/** Overlay a column's zh label / option labels (English is the fallback). */
+function localizeColumn(
+  col: FlowConfigColumn,
+  cz: { label?: string; opts?: Record<string, string> } | undefined,
+): FlowConfigColumn {
+  if (!cz) return col;
+  const out: FlowConfigColumn = { ...col };
+  if (cz.label) out.label = cz.label;
+  if (col.options && cz.opts) {
+    out.options = col.options.map((o) => ({ ...o, label: cz.opts![o.value] ?? o.label }));
+  }
+  return out;
+}
+
+/** Overlay a field's zh label / help / option / column labels. The raw node
+ *  type wins over its alias, so a type with its OWN server field set (e.g.
+ *  `notify`, which aliases to `connector_action` for the offline client fields)
+ *  still gets its own translations. */
+function localizeField(rawType: string, canonicalType: string, field: FlowConfigField): FlowConfigField {
+  const z = flowFieldZh(rawType, field.id) ?? flowFieldZh(canonicalType, field.id);
+  if (!z) return field;
+  const out: FlowConfigField = { ...field };
+  if (z.label) out.label = z.label;
+  if (z.help) out.help = z.help;
+  if (field.options && z.opts) {
+    out.options = field.options.map((o) => ({ ...o, label: z.opts![o.value] ?? o.label }));
+  }
+  if (field.columns && z.cols) {
+    out.columns = field.columns.map((c) => localizeColumn(c, z.cols![c.key]));
+  }
+  return out;
+}
+
+/**
+ * Localize a resolved flow-field list for the active locale. English is a
+ * no-op (the table is authored in English); for zh-CN each field's label /
+ * help / options / column labels are overlaid from `FLOW_FIELD_ZH`, falling
+ * back to English for any field not covered (e.g. plugin nodes). Keyed by the
+ * canonical node type so it works for both the hardcoded table and the
+ * engine-published `configSchema` fields (which share field ids).
+ */
+export function localizeFlowFields(
+  type: string | undefined,
+  fields: FlowConfigField[],
+  locale?: string,
+): FlowConfigField[] {
+  if (!type || !isZhLocale(locale)) return fields;
+  const canonical = TYPE_ALIASES[type] ?? type;
+  return fields.map((f) => localizeField(type, canonical, f));
 }
 
 /** Read the current value at a field's node path, falling back to `fallbackPath`. */
