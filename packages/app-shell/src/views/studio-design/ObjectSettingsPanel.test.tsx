@@ -105,7 +105,9 @@ describe('ObjectSettingsPanel — capabilities (enable.*, framework#2707/#2727)'
     expect((screen.getByTestId('cap-feeds') as HTMLInputElement).checked).toBe(true);
     expect((screen.getByTestId('cap-activities') as HTMLInputElement).checked).toBe(true);
     expect((screen.getByTestId('cap-clone') as HTMLInputElement).checked).toBe(true);
-    // Dead flags must NOT be offered (Studio only exposes enforced switches).
+    // trash/mru no longer exist in the spec (removed, framework#2377 — a
+    // rendered toggle would author a key the strict schema rejects);
+    // searchable is live but not yet surfaced here.
     expect(screen.queryByTestId('cap-searchable')).toBeNull();
     expect(screen.queryByTestId('cap-trash')).toBeNull();
     expect(screen.queryByTestId('cap-mru')).toBeNull();

@@ -29,8 +29,10 @@
  *     switches. Only LIVE flags are exposed (every toggle is enforced at
  *     runtime — writer gates, 403s, or UI surfaces): trackHistory & files
  *     are opt-IN (spec default false), feeds/activities/clone are opt-OUT
- *     (spec default true, explicit false disables). Dead flags
- *     (searchable/trash/mru) are deliberately NOT rendered.
+ *     (spec default true, explicit false disables). `trash`/`mru` were
+ *     REMOVED from the spec (framework#2377 — ObjectCapabilities is now
+ *     .strict(), authoring them is a parse error); `searchable` is LIVE
+ *     (global-search opt-out) but not yet surfaced here.
  */
 
 import React from 'react';
