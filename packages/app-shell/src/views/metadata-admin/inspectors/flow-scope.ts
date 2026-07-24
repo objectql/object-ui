@@ -86,7 +86,6 @@ const RECORD_TRIGGER_TYPES = new Set([
   'record-before-write',
   'record-before-update',
   'record-after-delete',
-  'record-change',
 ]);
 /** Trigger types that carry a meaningful `previous` snapshot of the record.
  *  `record-*-write` fires on update too, so `previous` is offered (empty on the
@@ -96,7 +95,6 @@ const PREVIOUS_TRIGGER_TYPES = new Set([
   'record-before-update',
   'record-after-write',
   'record-before-write',
-  'record-change',
 ]);
 
 function asArray(v: unknown): unknown[] {

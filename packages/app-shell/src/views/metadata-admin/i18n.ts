@@ -3213,7 +3213,6 @@ const FLOW_FIELD_ZH: Record<string, Record<string, FlowFieldZh>> = {
         'record-after-write': '记录创建或更新后',
         'record-before-update': '记录更新前',
         'record-after-delete': '记录删除后',
-        'record-change': '记录变更(任意)',
         schedule: '定时(cron)',
         time_relative: '相对时间(日期扫描)',
         manual: '手动 / 自动启动',

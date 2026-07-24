@@ -28,6 +28,14 @@ describe('start node trigger-field gating (#5)', () => {
     expect(isFieldVisible(condition, node, fields)).toBe(true);
   });
 
+  it('does NOT offer the never-firing `record-change` bare-noun option (#3427)', () => {
+    // The runtime routes `record-change` to the record-change trigger, which maps
+    // it to no hook — it never fires. Removed so the designer can't author a
+    // silently-dead flow; the `os validate` lint flags any hand-written one.
+    const triggerType = fields.find((f) => f.id === 'triggerType')!;
+    expect(triggerType.options?.some((o) => o.value === 'record-change')).toBe(false);
+  });
+
   it('shows for a schedule trigger too', () => {
     const node = { id: 'start', type: 'start', config: { triggerType: 'schedule' } };
     expect(isFieldVisible(objectName, node, fields)).toBe(true);
