@@ -313,11 +313,20 @@ ComponentRegistry.register('form',
       disabled = false,
     } = schema;
 
-    // Initialize react-hook-form
+    // Initialize react-hook-form. `shouldFocusError: false` because RHF's
+    // native focus-on-error only works for fields whose registered ref is a
+    // focusable native input — it silently no-ops for custom widgets
+    // (lookup / select / master-detail), which is exactly the #2793 case. We
+    // own the scroll+focus explicitly in the onInvalid handler below so it
+    // works for every field type and follows visual order.
     const form = useForm({
       defaultValues,
       mode: validationMode,
+      shouldFocusError: false,
     });
+
+    // Scoped to this form so the error-scroll query never reaches a sibling form.
+    const formRef = React.useRef<HTMLFormElement>(null);
 
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const [submitError, setSubmitError] = React.useState<string | null>(null);
@@ -575,6 +584,30 @@ ComponentRegistry.register('form',
       const MAX = 3;
       const fieldsText = labels.slice(0, MAX).join('、') + (labels.length > MAX ? '…' : '');
       toast.error(t('validation.formInvalid', { fields: fieldsText }));
+
+      // #2793: the toast alone still leaves the user hunting — in a long form
+      // the offending field is off-screen. Scroll the FIRST errored field into
+      // view (in declared/visual order, not RHF's error-key order) and focus a
+      // focusable control inside it. The field wrapper carries `data-field`
+      // (FormItem); works for custom widgets that RHF's own focus can't reach.
+      const errored = new Set(names);
+      const firstName =
+        (fields as FormFieldConfig[])
+          .map((f) => f?.name)
+          .find((n): n is string => Boolean(n) && errored.has(n as string)) ?? names[0];
+      const root: ParentNode = formRef.current ?? document;
+      const escaped =
+        typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+          ? CSS.escape(firstName)
+          : firstName.replace(/["\\]/g, '\\$&');
+      const target = root.querySelector<HTMLElement>(`[data-field="${escaped}"]`);
+      if (target) {
+        target.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+        const focusable = target.querySelector<HTMLElement>(
+          'input:not([type="hidden"]), select, textarea, button, [tabindex]:not([tabindex="-1"]), [contenteditable="true"]',
+        );
+        focusable?.focus?.({ preventScroll: true });
+      }
     });
 
     // Handle cancel
@@ -645,9 +678,10 @@ ComponentRegistry.register('form',
 
     return (
       <Form {...form}>
-        <form 
-            onSubmit={handleSubmit} 
-            className={className} 
+        <form
+            ref={formRef}
+            onSubmit={handleSubmit}
+            className={className}
             {...formProps}
             // Apply designer props
             data-obj-id={dataObjId}
