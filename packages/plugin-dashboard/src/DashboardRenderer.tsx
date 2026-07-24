@@ -775,13 +775,18 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
         return <Fragment key={widgetKey}>{renderedNode}</Fragment>;
     };
 
+    // The spec-canonical dashboard display name is `label` (@objectstack/spec
+    // DashboardSchema); `title` is the legacy objectui spelling. Read both so
+    // spec-compliant dashboards get their header title (framework#1878/#1891;
+    // mirrors the DashboardGridLayout fallback from #2666).
+    const headerTitle = schema.title || schema.label;
     const headerSection = schema.header && (
       <div className="col-span-full mb-4">
-        {!hideHeaderText && schema.header.showTitle !== false && schema.title && (
+        {!hideHeaderText && schema.header.showTitle !== false && headerTitle && (
           <h2 className="text-lg font-semibold tracking-tight">
             {dashName
-              ? dashboardLabel({ name: dashName, label: resolveLabel(schema.title) })
-              : resolveLabel(schema.title)}
+              ? dashboardLabel({ name: dashName, label: resolveLabel(headerTitle) })
+              : resolveLabel(headerTitle)}
           </h2>
         )}
         {!hideHeaderText && schema.header.showDescription !== false && schema.description && (
