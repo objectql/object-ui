@@ -82,10 +82,12 @@ import {
   AlertCircle,
   CheckSquare,
   Search,
+  ArrowUpDown,
   Copy,
   X,
   ExternalLink,
   User as UserIcon,
+  Workflow,
   ChevronLeft,
   ChevronRight,
   Send,
@@ -159,6 +161,38 @@ function submitterDisplay(r: ApprovalRequestRow): string {
 function approverDisplay(a: string, r: ApprovalRequestRow): string {
   return r.pending_approver_names?.[a] || formatIdentity(a);
 }
+/**
+ * Dedupe the pending-approver chips by display label (#2762 P1-2): a person
+ * who fills more than one approver slot showed up as N identical chips. Collapse
+ * them to one chip carrying a count, preserving first-seen order; the tooltip
+ * keeps every underlying id so the raw slots stay inspectable.
+ */
+function approverChips(r: ApprovalRequestRow): Array<{ label: string; count: number; title: string }> {
+  const order: string[] = [];
+  const byLabel = new Map<string, { label: string; count: number; title: string }>();
+  for (const a of r.pending_approvers || []) {
+    const label = approverDisplay(a, r);
+    const seen = byLabel.get(label);
+    if (seen) {
+      seen.count += 1;
+      if (a && !seen.title.split(', ').includes(a)) seen.title += `, ${a}`;
+    } else {
+      byLabel.set(label, { label, count: 1, title: a || label });
+      order.push(label);
+    }
+  }
+  return order.map((l) => byLabel.get(l)!);
+}
+/**
+ * A request with no human submitter — flow- or system-initiated (#2762 P1-4).
+ * These rows have an empty `submitter_id` or a synthetic `flow:` / `system:`
+ * actor, and rendering a bare person icon + "—" reads as missing data.
+ */
+function isSystemSubmitter(r: ApprovalRequestRow): boolean {
+  if (r.submitter_name) return false;
+  const id = (r.submitter_id || '').trim();
+  return !id || id.startsWith('flow:') || id.startsWith('system:');
+}
 /** Object subtitle: schema label when resolved, else the machine name. */
 function objectDisplay(r: ApprovalRequestRow): string {
   return r.object_label || r.object_name;
@@ -197,7 +231,12 @@ const PAYLOAD_SYSTEM_KEYS = new Set([
 ]);
 
 function prettifyKey(k: string): string {
-  return k.split('_').filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  const tokens = k.split('_').filter(Boolean);
+  // Drop a trailing `id` token so a resolved lookup key reads as its subject —
+  // `owner_id` → "Owner", not the awkward "Owner Id" (#2762 P2). Keep at least
+  // one token (a bare `id` is already dropped as a system key upstream).
+  if (tokens.length > 1 && tokens[tokens.length - 1].toLowerCase() === 'id') tokens.pop();
+  return tokens.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
 function formatPayloadValue(key: string, v: unknown): string {
@@ -244,6 +283,36 @@ function payloadSummary(
     if (out.length >= max) break;
   }
   return out;
+}
+
+/**
+ * Amount-like keys worth surfacing in the queue so a reviewer can triage
+ * without opening each request (#2762 P1-3). Deliberately narrow — a decision
+ * turns on the amount/total/budget, not on every numeric field.
+ */
+const AMOUNT_KEY_RE = /(amount|total|price|value|cost|sum|budget|salary|fee|revenue|balance|金额|总额|价格|费用|预算|金额)/i;
+
+/**
+ * The one decision-relevant numeric field (amount/total/…) of the snapshot,
+ * for the inline list display and amount sort. Prefers the server-formatted
+ * `payload_display` value (currency, etc.) but always keeps the raw number for
+ * ordering. Null when the snapshot has no such field.
+ */
+function decisionAmountEntry(
+  r: ApprovalRequestRow,
+): { label: string; value: number; display: string } | null {
+  const payload = r.payload;
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+  for (const [k, v] of Object.entries(payload as Record<string, unknown>)) {
+    if (PAYLOAD_SYSTEM_KEYS.has(k)) continue;
+    if (!AMOUNT_KEY_RE.test(k)) continue;
+    const num = typeof v === 'number'
+      ? v
+      : (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v)) ? Number(v) : null);
+    if (num == null || !Number.isFinite(num)) continue;
+    return { label: prettifyKey(k), value: num, display: r.payload_display?.[k] ?? num.toLocaleString() };
+  }
+  return null;
 }
 
 export function ApprovalsInboxPage() {
@@ -389,6 +458,10 @@ export function ApprovalsInboxPage() {
   const [processFilter, setProcessFilter] = useState<string>('all');
   const [objectFilter, setObjectFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  // Client-side ordering of the visible rows (#2762 P1-3). Default keeps the
+  // server's newest-first; the others let a reviewer triage by wait time or by
+  // the decision-relevant amount.
+  const [sortKey, setSortKey] = useState<'recent' | 'oldest' | 'amount'>('recent');
 
   // Bulk selection (only meaningful on "pending" tab where the user can act)
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
@@ -648,10 +721,10 @@ export function ApprovalsInboxPage() {
     return Array.from(set).sort();
   }, [rows]);
 
-  /** Client-side filtered rows shown in table. */
+  /** Client-side filtered + sorted rows shown in table. */
   const filteredRows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return rows.filter(r => {
+    const matched = rows.filter(r => {
       if (processFilter !== 'all' && processLabel(r) !== processFilter) return false;
       if (objectFilter !== 'all' && r.object_name !== objectFilter) return false;
       if (statusFilter !== 'all' && r.status !== statusFilter) return false;
@@ -667,7 +740,25 @@ export function ApprovalsInboxPage() {
       ].filter(Boolean).join(' ').toLowerCase();
       return hay.includes(q);
     });
-  }, [rows, query, processFilter, objectFilter, statusFilter, tab]);
+    if (sortKey === 'recent') return matched; // server order is already newest-first
+    const sorted = [...matched];
+    if (sortKey === 'amount') {
+      // Highest amount first; rows without a detectable amount sink to the
+      // bottom (keeping their relative newest-first order).
+      sorted.sort((a, b) => {
+        const av = decisionAmountEntry(a)?.value;
+        const bv = decisionAmountEntry(b)?.value;
+        if (av == null && bv == null) return 0;
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        return bv - av;
+      });
+    } else {
+      // Oldest first — flip the newest-first submitted timestamp.
+      sorted.sort((a, b) => (submittedAt(a) || '').localeCompare(submittedAt(b) || ''));
+    }
+    return sorted;
+  }, [rows, query, processFilter, objectFilter, statusFilter, tab, sortKey]);
   /** Position of the open request within the visible list (drawer prev/next). */
   const drawerIndex = useMemo(
     () => (selectedId ? filteredRows.findIndex(r => r.id === selectedId) : -1),
@@ -876,6 +967,7 @@ export function ApprovalsInboxPage() {
     setProcessFilter('all');
     setObjectFilter('all');
     setQuery('');
+    setSortKey('recent');
     setFocusIndex(-1);
   };
 
@@ -898,6 +990,9 @@ export function ApprovalsInboxPage() {
   }
 
   function RecordCell({ r }: { r: ApprovalRequestRow }) {
+    // Surface the decision-relevant amount inline so a reviewer can triage the
+    // queue without opening each request (#2762 P1-3).
+    const amount = decisionAmountEntry(r);
     return (
       <div className="min-w-0">
         <Link
@@ -909,7 +1004,14 @@ export function ApprovalsInboxPage() {
           <span className="truncate">{r.record_title || formatIdentity(r.record_id)}</span>
           <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
         </Link>
-        <div className="text-xs text-muted-foreground truncate">{objectDisplay(r)}</div>
+        <div className="text-xs text-muted-foreground truncate">
+          {objectDisplay(r)}
+          {amount && (
+            <span className="ml-1.5 font-medium text-foreground" title={`${amount.label}: ${amount.display}`}>
+              · {amount.display}
+            </span>
+          )}
+        </div>
       </div>
     );
   }
@@ -1047,6 +1149,19 @@ export function ApprovalsInboxPage() {
                   </SelectContent>
                 </Select>
               )}
+              {/* Triage ordering (#2762 P1-3): newest by default, or by wait
+                  time / decision amount. */}
+              <Select value={sortKey} onValueChange={(v) => setSortKey(v as typeof sortKey)}>
+                <SelectTrigger className="h-8 w-auto min-w-[120px] text-sm">
+                  <ArrowUpDown className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
+                  <SelectValue placeholder={tr('sortBy', 'Sort')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="recent">{tr('sortRecent', 'Newest first')}</SelectItem>
+                  <SelectItem value="oldest">{tr('sortOldest', 'Oldest first')}</SelectItem>
+                  <SelectItem value="amount">{tr('sortAmount', 'Amount (high→low)')}</SelectItem>
+                </SelectContent>
+              </Select>
               {hasFilters && (
                 <span className="text-xs text-muted-foreground">
                   {tr('filterCount', '{{shown}} of {{total}}', { shown: filteredRows.length, total: rows.length })}
@@ -1211,10 +1326,19 @@ export function ApprovalsInboxPage() {
                           <TableCell><RequestCell r={r} /></TableCell>
                           <TableCell><RecordCell r={r} /></TableCell>
                           <TableCell>
-                            <div className="flex items-center gap-1.5 text-sm">
-                              <UserIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                              <span className="truncate" title={r.submitter_id || ''}>{submitterDisplay(r)}</span>
-                            </div>
+                            {isSystemSubmitter(r) ? (
+                              // Flow-/system-initiated: name the origin instead of a
+                              // bare person icon + "—" (#2762 P1-4).
+                              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                                <Workflow className="h-3.5 w-3.5 shrink-0" />
+                                <span className="truncate italic">{tr('flowOrigin', 'Flow-initiated')}</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5 text-sm">
+                                <UserIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                <span className="truncate" title={r.submitter_id || ''}>{submitterDisplay(r)}</span>
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell><StatusBadge status={r.status} /></TableCell>
                           <TableCell
@@ -1254,11 +1378,23 @@ export function ApprovalsInboxPage() {
                       <div className="text-sm truncate">
                         {r.record_title || formatIdentity(r.record_id)}
                         <span className="text-muted-foreground text-xs ml-1.5">{objectDisplay(r)}</span>
+                        {(() => {
+                          const amount = decisionAmountEntry(r);
+                          return amount ? (
+                            <span className="text-xs ml-1.5 font-medium" title={amount.label}>· {amount.display}</span>
+                          ) : null;
+                        })()}
                       </div>
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span className="inline-flex items-center gap-1 truncate">
-                          <UserIcon className="h-3 w-3" />{submitterDisplay(r)}
-                        </span>
+                        {isSystemSubmitter(r) ? (
+                          <span className="inline-flex items-center gap-1 truncate italic">
+                            <Workflow className="h-3 w-3" />{tr('flowOrigin', 'Flow-initiated')}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 truncate">
+                            <UserIcon className="h-3 w-3" />{submitterDisplay(r)}
+                          </span>
+                        )}
                         <span className={cn('inline-flex items-center gap-1 whitespace-nowrap', agingClass(r))}>
                           <Clock className="h-3 w-3" />{formatRelative(submittedAt(r))}
                         </span>
@@ -1437,8 +1573,17 @@ export function ApprovalsInboxPage() {
                     </div>
                     <div className="text-right text-xs text-muted-foreground shrink-0">
                       <div className="inline-flex items-center gap-1">
-                        <UserIcon className="h-3 w-3" />
-                        <span title={selected.submitter_id || ''}>{submitterDisplay(selected)}</span>
+                        {isSystemSubmitter(selected) ? (
+                          <>
+                            <Workflow className="h-3 w-3" />
+                            <span className="italic">{tr('flowOrigin', 'Flow-initiated')}</span>
+                          </>
+                        ) : (
+                          <>
+                            <UserIcon className="h-3 w-3" />
+                            <span title={selected.submitter_id || ''}>{submitterDisplay(selected)}</span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1537,9 +1682,12 @@ export function ApprovalsInboxPage() {
                         {tr('waitingOn', 'Waiting on')}
                       </div>
                       <div className="flex flex-wrap gap-1">
-                        {(selected.pending_approvers || []).map((a, i) => (
-                          <Badge key={i} variant="outline" className="text-[11px]" title={a}>
-                            {approverDisplay(a, selected)}
+                        {approverChips(selected).map((chip) => (
+                          <Badge key={chip.label} variant="outline" className="text-[11px]" title={chip.title}>
+                            {chip.label}
+                            {chip.count > 1 && (
+                              <span className="ml-1 text-muted-foreground">×{chip.count}</span>
+                            )}
                           </Badge>
                         ))}
                       </div>

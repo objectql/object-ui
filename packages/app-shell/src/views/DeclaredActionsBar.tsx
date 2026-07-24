@@ -153,9 +153,17 @@ const DeclaredActionButton: React.FC<{
   if ((action as any).visible && !isVisible) return null;
 
   const iconName = typeof (action as any).icon === 'string' ? (action as any).icon as string : undefined;
-  const variant = (action as any).variant === 'primary'
+  // Map the spec's action `variant` enum (primary|secondary|danger|ghost|link)
+  // onto the Button's variants. `primary` → the filled default, `danger` →
+  // `destructive` (the two names the enum and the Button component spell
+  // differently); the rest pass through, and an undeclared variant stays
+  // `outline` so a plain declared action still reads as a secondary button.
+  const declaredVariant = (action as any).variant;
+  const variant = declaredVariant === 'primary'
     ? 'default'
-    : ((action as any).variant || 'outline');
+    : declaredVariant === 'danger'
+      ? 'destructive'
+      : (declaredVariant || 'outline');
   const fallbackLabel = action.label || action.name || '';
   const label = action.name ? actionLabel(objectName, action.name, fallbackLabel) : fallbackLabel;
 

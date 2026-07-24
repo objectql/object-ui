@@ -172,6 +172,29 @@ describe('DeclaredActionsBar', () => {
     expect(dispatch.params).toEqual({ _rowRecord: REQUEST });
   });
 
+  it('maps the spec action `variant` onto Button variants', () => {
+    render(
+      <DeclaredActionsBar
+        objectName="sys_approval_request"
+        record={REQUEST}
+        location="record_section"
+        actions={[
+          { name: 'a_primary', type: 'api', label: 'P', target: '/x', locations: ['record_section'], variant: 'primary' },
+          { name: 'a_danger', type: 'api', label: 'D', target: '/x', locations: ['record_section'], variant: 'danger' },
+          { name: 'a_plain', type: 'api', label: 'N', target: '/x', locations: ['record_section'] },
+          { name: 'a_ghost', type: 'api', label: 'G', target: '/x', locations: ['record_section'], variant: 'ghost' },
+        ] as any}
+      />,
+    );
+    // primary → the filled default; danger → destructive (the two names the
+    // spec enum and Button component spell differently); undeclared → outline;
+    // the rest pass through unchanged.
+    expect(screen.getByTestId('declared-action-a_primary')).toHaveAttribute('variant', 'default');
+    expect(screen.getByTestId('declared-action-a_danger')).toHaveAttribute('variant', 'destructive');
+    expect(screen.getByTestId('declared-action-a_plain')).toHaveAttribute('variant', 'outline');
+    expect(screen.getByTestId('declared-action-a_ghost')).toHaveAttribute('variant', 'ghost');
+  });
+
   it('renders a labeled divider only when actions are present', () => {
     render(
       <DeclaredActionsBar
