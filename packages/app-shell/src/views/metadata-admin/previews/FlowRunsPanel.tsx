@@ -9,7 +9,9 @@
  * a `parallel` branch, or a `try`/`catch` handler — are nested under their
  * container node and grouped by iteration / branch (#1505), so authors can see
  * where a run paused or failed *and which iteration did it*, without leaving the
- * Studio.
+ * Studio. A step may also carry advisory `warnings` (#3407) — e.g. a write to a
+ * `readonly` field the data layer legally stripped — rendered amber beneath the
+ * step without demoting its `success` status.
  *
  * Degrades like the palette fetch: offline / plugin-absent / older backend →
  * a quiet "history unavailable" note, never an error state that blocks the
@@ -17,7 +19,7 @@
  */
 
 import * as React from 'react';
-import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Clock, Loader2, PauseCircle, RefreshCw, SkipForward } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Clock, Loader2, PauseCircle, RefreshCw, SkipForward } from 'lucide-react';
 import { cn } from '@object-ui/components';
 import { apiBase } from './useFlowNodePalette';
 import { t as tr, tFormat } from '../i18n';
@@ -43,6 +45,12 @@ interface RunStep {
   iteration?: number;
   /** Region kind the step ran in: `loop-body` | `parallel-branch` | `try` | `catch`. */
   regionKind?: string;
+  // #3407: advisory warnings the engine attaches to an otherwise-successful step
+  // — e.g. an `update_record` whose write to a `readonly` / `readonlyWhen` field
+  // was legally stripped by the data layer. The step still `success`es (the strip
+  // is legitimate semantics); the warning is the only signal the intended write
+  // didn't land, which the server-side WARN log never surfaced in the run trace.
+  warnings?: string[];
 }
 
 /** A step plus the region body steps that ran under it — the execution tree the
@@ -220,20 +228,44 @@ function StepRow({ step, depth = 0 }: { step: RunStep; depth?: number }) {
         ? 'text-rose-600 dark:text-rose-400'
         : 'text-muted-foreground';
   const stepErr = errorText(step.error);
+  // #3407: advisory warnings are amber and never recolor the status — a step
+  // that legally stripped a write is still a `success`, just not silent. The
+  // status badge keeps its tone; the ⚠ marker and the amber sub-lines below
+  // carry the "your write didn't fully land" signal.
+  const warnings = Array.isArray(step.warnings)
+    ? step.warnings.filter((w): w is string => typeof w === 'string' && w.length > 0)
+    : [];
   return (
-    <li className="flex items-baseline gap-1.5 py-0.5" style={depth ? { paddingLeft: depth * 12 } : undefined}>
-      <span className={cn('shrink-0 text-[9px] font-semibold uppercase', cls)}>{step.status}</span>
-      <span className="truncate font-mono text-[10px]" title={step.nodeId}>{step.nodeId}</span>
-      {step.nodeType && <span className="shrink-0 text-[9px] uppercase text-muted-foreground">{step.nodeType}</span>}
-      {fmtDuration(step.durationMs) && (
-        <span className="ml-auto shrink-0 text-[9px] text-muted-foreground">{fmtDuration(step.durationMs)}</span>
-      )}
-      {stepErr && (
-        <span className="min-w-0 truncate text-[9px] text-rose-600" title={stepErr}>
-          {stepErr}
-        </span>
-      )}
-    </li>
+    <>
+      <li className="flex items-baseline gap-1.5 py-0.5" style={depth ? { paddingLeft: depth * 12 } : undefined}>
+        <span className={cn('shrink-0 text-[9px] font-semibold uppercase', cls)}>{step.status}</span>
+        <span className="truncate font-mono text-[10px]" title={step.nodeId}>{step.nodeId}</span>
+        {step.nodeType && <span className="shrink-0 text-[9px] uppercase text-muted-foreground">{step.nodeType}</span>}
+        {warnings.length > 0 && (
+          <AlertTriangle aria-hidden className="h-2.5 w-2.5 shrink-0 text-amber-600 dark:text-amber-400" />
+        )}
+        {fmtDuration(step.durationMs) && (
+          <span className="ml-auto shrink-0 text-[9px] text-muted-foreground">{fmtDuration(step.durationMs)}</span>
+        )}
+        {stepErr && (
+          <span className="min-w-0 truncate text-[9px] text-rose-600" title={stepErr}>
+            {stepErr}
+          </span>
+        )}
+      </li>
+      {warnings.map((w, i) => (
+        <li
+          key={i}
+          className="flex items-baseline gap-1 py-0.5 text-amber-700 dark:text-amber-400"
+          style={{ paddingLeft: (depth + 1) * 12 }}
+        >
+          <AlertTriangle aria-hidden className="h-2.5 w-2.5 shrink-0 self-center" />
+          <span className="min-w-0 break-words text-[9px]" title={w}>
+            {w}
+          </span>
+        </li>
+      ))}
+    </>
   );
 }
 

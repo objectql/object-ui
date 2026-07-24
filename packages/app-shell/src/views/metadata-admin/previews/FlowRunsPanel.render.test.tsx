@@ -77,4 +77,39 @@ describe('FlowRunsPanel (render)', () => {
     expect(screen.getByText('each_order')).toBeTruthy();
     expect(screen.getAllByText('charge')).toHaveLength(2);
   });
+
+  // #3407: a step that legally stripped a write (readonly / readonlyWhen) is
+  // reported by the engine as `success` + a step `warnings[]`. The panel must
+  // surface the warning text — the whole point of the fix is that the dropped
+  // write is no longer silent — without demoting the step out of `success`.
+  it('renders step warnings amber while the step stays success', async () => {
+    const WARN_RUN = {
+      id: 'run_warn_01',
+      status: 'completed',
+      startedAt: '2026-07-04T13:51:13.000Z',
+      durationMs: 8,
+      trigger: { type: 'manual' },
+      steps: [
+        {
+          nodeId: 'stamp_approval',
+          nodeType: 'update_record',
+          status: 'success',
+          warnings: ["update_record(crm_opportunity): field 'approval_status' is read-only — write ignored"],
+        },
+      ],
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ success: true, data: { runs: [WARN_RUN] } }), { status: 200 })),
+    );
+
+    render(<FlowRunsPanel flowName="approval_flow" />);
+    fireEvent.click(await screen.findByRole('button', { expanded: false }));
+
+    // The warning text reaches the DOM (pre-fix it only existed in server logs).
+    expect(await screen.findByText(/approval_status.*read-only/)).toBeTruthy();
+    // The step keeps its success status — the strip is legal, not a failure.
+    expect(screen.getByText('success')).toBeTruthy();
+    expect(screen.queryByText('failure')).toBeNull();
+  });
 });
