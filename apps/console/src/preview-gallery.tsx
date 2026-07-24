@@ -85,11 +85,14 @@ const ORDER = [
  * designers in that locale so i18n coverage can be eyeballed / browser-tested
  * without wiring the full console LocaleSwitcher. Defaults to English.
  */
-function galleryLocale(): string {
+function galleryLocale(): 'en-US' | 'zh-CN' {
   if (typeof window === 'undefined') return 'en-US';
   const q = new URLSearchParams(window.location.search).get('locale');
   const h = window.location.hash.match(/locale=([a-zA-Z-]+)/)?.[1];
-  return q ?? h ?? 'en-US';
+  const raw = q ?? h ?? '';
+  // Normalize to the metadata-admin SupportedLocale union so it satisfies the
+  // typed `locale` prop on the previews/inspectors.
+  return /^zh/i.test(raw) ? 'zh-CN' : 'en-US';
 }
 
 function DesignerCard({ type }: { type: string }) {
