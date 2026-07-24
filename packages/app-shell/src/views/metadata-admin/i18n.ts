@@ -3210,6 +3210,7 @@ const FLOW_FIELD_ZH: Record<string, Record<string, FlowFieldZh>> = {
       opts: {
         'record-after-create': '记录创建后',
         'record-after-update': '记录更新后',
+        'record-after-write': '记录创建或更新后',
         'record-before-update': '记录更新前',
         'record-after-delete': '记录删除后',
         'record-change': '记录变更(任意)',

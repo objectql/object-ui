@@ -20,6 +20,14 @@ describe('start node trigger-field gating (#5)', () => {
     expect(isFieldVisible(condition, node, fields)).toBe(true);
   });
 
+  it('offers a "created or updated" (record-after-write) option and shows the record fields for it (#3427)', () => {
+    const triggerType = fields.find((f) => f.id === 'triggerType')!;
+    expect(triggerType.options?.some((o) => o.value === 'record-after-write')).toBe(true);
+    const node = { id: 'start', type: 'start', config: { triggerType: 'record-after-write' } };
+    expect(isFieldVisible(objectName, node, fields)).toBe(true);
+    expect(isFieldVisible(condition, node, fields)).toBe(true);
+  });
+
   it('shows for a schedule trigger too', () => {
     const node = { id: 'start', type: 'start', config: { triggerType: 'schedule' } };
     expect(isFieldVisible(objectName, node, fields)).toBe(true);

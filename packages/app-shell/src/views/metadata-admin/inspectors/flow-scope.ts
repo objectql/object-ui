@@ -82,14 +82,20 @@ interface FlowEdgeLike {
 const RECORD_TRIGGER_TYPES = new Set([
   'record-after-create',
   'record-after-update',
+  'record-after-write', // create OR update (#3427)
+  'record-before-write',
   'record-before-update',
   'record-after-delete',
   'record-change',
 ]);
-/** Trigger types that carry a meaningful `previous` snapshot of the record. */
+/** Trigger types that carry a meaningful `previous` snapshot of the record.
+ *  `record-*-write` fires on update too, so `previous` is offered (empty on the
+ *  create leg — `previous == null` is how authors branch on which happened). */
 const PREVIOUS_TRIGGER_TYPES = new Set([
   'record-after-update',
   'record-before-update',
+  'record-after-write',
+  'record-before-write',
   'record-change',
 ]);
 

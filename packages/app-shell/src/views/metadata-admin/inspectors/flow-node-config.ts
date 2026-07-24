@@ -247,6 +247,7 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
       options: [
         { value: 'record-after-create', label: 'Record created' },
         { value: 'record-after-update', label: 'Record updated' },
+        { value: 'record-after-write', label: 'Record created or updated' },
         { value: 'record-before-update', label: 'Record before update' },
         { value: 'record-after-delete', label: 'Record deleted' },
         { value: 'record-change', label: 'Record changed (any)' },
@@ -261,12 +262,12 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
       ref: { kind: 'object' },
       placeholder: 'crm_lead',
       help: 'Target object for record / scheduled-scan triggers.',
-      showWhen: { field: 'triggerType', equals: ['record-after-create', 'record-after-update', 'record-before-update', 'record-after-delete', 'record-change', 'schedule', 'webhook', 'event'] },
+      showWhen: { field: 'triggerType', equals: ['record-after-create', 'record-after-update', 'record-after-write', 'record-before-update', 'record-after-delete', 'record-change', 'schedule', 'webhook', 'event'] },
     }),
     cfg('condition', 'Entry condition', 'expression', {
       placeholder: 'status == "qualifying" && previous.status != "qualifying"',
-      help: 'CEL predicate — the flow runs only when this is true (for time-relative sweeps it gates each matched record). Leave empty to run on every event.',
-      showWhen: { field: 'triggerType', equals: ['record-after-create', 'record-after-update', 'record-before-update', 'record-after-delete', 'record-change', 'schedule', 'time_relative', 'webhook', 'event'] },
+      help: 'CEL predicate — the flow runs only when this is true (for time-relative sweeps it gates each matched record). Leave empty to run on every event. On a "created or updated" trigger, `previous == null` selects the create path.',
+      showWhen: { field: 'triggerType', equals: ['record-after-create', 'record-after-update', 'record-after-write', 'record-before-update', 'record-after-delete', 'record-change', 'schedule', 'time_relative', 'webhook', 'event'] },
     }),
     // Schedule descriptor — author the canonical nested `config.schedule` object
     // the runtime actually reads (resolveTriggerBinding → normalizeSchedule). This

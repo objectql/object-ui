@@ -133,6 +133,16 @@ describe('resolveFlowScope — graph-aware in-scope references', () => {
     expect(groupTokens(resolveFlowScope(create, 'decide'), 'trigger')).not.toContain('previous');
   });
 
+  it('offers `record` and `previous` for a create-or-update (record-after-write) trigger (#3427)', () => {
+    // A write trigger fires on update too, so `previous` must be offered — it is
+    // how an author branches create vs update (`previous == null`).
+    const write = { ...draft, nodes: [{ id: 'start', type: 'start', config: { triggerType: 'record-after-write', objectName: 'crm_lead' } }, ...draft.nodes.slice(1)] };
+    const scope = resolveFlowScope(write, 'decide');
+    expect(groupTokens(scope, 'trigger')).toContain('record');
+    expect(groupTokens(scope, 'trigger')).toContain('previous');
+    expect(scope.trigger).toEqual({ objectName: 'crm_lead', fieldPrefix: 'record.', includePrevious: true });
+  });
+
   it('de-dupes a name that is both a declared variable and an upstream output', () => {
     // `lead_score` is declared AND assigned upstream — it should appear once.
     const scope = resolveFlowScope(draft, 'decide');
