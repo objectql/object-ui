@@ -54,6 +54,14 @@ export interface ApprovalRequestRow {
   object_label?: string;
   /** Display names for user-id entries in `pending_approvers` (id → name). */
   pending_approver_names?: Record<string, string>;
+  /**
+   * Group membership of each still-pending approver, `per_group` (会签) requests
+   * only (objectui#2807): approver id → the group key(s) it fills, e.g.
+   * `{ u_devadmin: ['finance', 'legal'] }`. Lets the drawer label each "waiting
+   * on" chip with its group. Absent for non-`per_group` behaviors and for slots
+   * whose group was unnamed.
+   */
+  pending_approver_groups?: Record<string, string[]>;
   /** Display values for lookup fields in `payload` (field key → record title). */
   payload_display?: Record<string, string>;
   /** SLA deadline (`created_at + escalation.timeoutHours`), display-only. */

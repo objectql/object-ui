@@ -161,27 +161,39 @@ function submitterDisplay(r: ApprovalRequestRow): string {
 function approverDisplay(a: string, r: ApprovalRequestRow): string {
   return r.pending_approver_names?.[a] || formatIdentity(a);
 }
+/** The group(s) a pending approver represents (会签), joined for display. */
+function approverGroup(a: string, r: ApprovalRequestRow): string | undefined {
+  const gs = r.pending_approver_groups?.[a];
+  return gs && gs.length ? gs.join(' / ') : undefined;
+}
 /**
- * Dedupe the pending-approver chips by display label (#2762 P1-2): a person
- * who fills more than one approver slot showed up as N identical chips. Collapse
- * them to one chip carrying a count, preserving first-seen order; the tooltip
- * keeps every underlying id so the raw slots stay inspectable.
+ * Collapse the pending-approver chips (#2762 P1-2), now keyed by (name, group)
+ * so 会签 comprehension is preserved (objectui#2807): the same person filling
+ * two *different* groups stays two labeled chips (finance / legal), while a
+ * person filling one group twice collapses to a single chip with a count. When
+ * no group data is present (non-`per_group`, or an older backend) the key is the
+ * name alone, degrading to the plain dedupe + count. First-seen order is kept;
+ * the tooltip keeps every underlying id so the raw slots stay inspectable.
  */
-function approverChips(r: ApprovalRequestRow): Array<{ label: string; count: number; title: string }> {
+function approverChips(
+  r: ApprovalRequestRow,
+): Array<{ label: string; group?: string; count: number; title: string }> {
   const order: string[] = [];
-  const byLabel = new Map<string, { label: string; count: number; title: string }>();
+  const byKey = new Map<string, { label: string; group?: string; count: number; title: string }>();
   for (const a of r.pending_approvers || []) {
     const label = approverDisplay(a, r);
-    const seen = byLabel.get(label);
+    const group = approverGroup(a, r);
+    const key = group ? `${label} ${group}` : label;
+    const seen = byKey.get(key);
     if (seen) {
       seen.count += 1;
       if (a && !seen.title.split(', ').includes(a)) seen.title += `, ${a}`;
     } else {
-      byLabel.set(label, { label, count: 1, title: a || label });
-      order.push(label);
+      byKey.set(key, { label, group, count: 1, title: a || label });
+      order.push(key);
     }
   }
-  return order.map((l) => byLabel.get(l)!);
+  return order.map((k) => byKey.get(k)!);
 }
 /**
  * A request with no human submitter — flow- or system-initiated (#2762 P1-4).
@@ -1707,9 +1719,13 @@ export function ApprovalsInboxPage() {
                         {tr('waitingOn', 'Waiting on')}
                       </div>
                       <div className="flex flex-wrap gap-1">
-                        {approverChips(selected).map((chip) => (
-                          <Badge key={chip.label} variant="outline" className="text-[11px]" title={chip.title}>
+                        {approverChips(selected).map((chip, i) => (
+                          <Badge key={`${chip.label}-${chip.group ?? ''}-${i}`} variant="outline" className="text-[11px]" title={chip.title}>
                             {chip.label}
+                            {chip.group && (
+                              // 会签 group this slot represents (objectui#2807).
+                              <span className="ml-1 text-muted-foreground">· {chip.group}</span>
+                            )}
                             {chip.count > 1 && (
                               <span className="ml-1 text-muted-foreground">×{chip.count}</span>
                             )}
