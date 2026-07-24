@@ -416,6 +416,7 @@ const en = {
     deleteColumn: 'Delete column',
     noCards: 'No cards',
     cardTitlePlaceholder: 'Enter card title...',
+    uncategorized: 'Uncategorized',
   },
   timeline: {
     bucket: {

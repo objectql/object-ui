@@ -10,8 +10,98 @@ import React, { Suspense } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import { useSchemaContext } from '@object-ui/react';
 import { Skeleton } from '@object-ui/components';
+import { createSafeTranslation } from '@object-ui/i18n';
 import type { KanbanConditionalFormattingRule } from '@object-ui/types';
 import { ObjectKanban } from './ObjectKanban';
+
+/**
+ * Sentinel column id for records whose `groupBy` value matches no declared
+ * column (a status the board doesn't render, an edited/removed picklist
+ * option, imported legacy data, or an empty value). Before #2792 these were
+ * accumulated during bucketing and then silently dropped — the board looked
+ * empty while the list footer still counted the rows. They now surface in a
+ * trailing "Uncategorized" lane so no record is invisible and the visible
+ * card total reconciles with the record count. Exported so the drag handler
+ * can refuse to persist this non-option value as a real status.
+ */
+export const KANBAN_UNCOLUMNED_ID = '__uncolumned__';
+
+const useUncolumnedT = createSafeTranslation(
+  { 'kanban.uncategorized': 'Uncategorized' },
+  'kanban.uncategorized',
+);
+
+/**
+ * The single place flat `data` + `groupBy` is bucketed into per-column card
+ * arrays. Kept pure (title passed in, not translated here) so it can be unit
+ * tested directly — see index.bucket.test.ts. Records whose group value maps
+ * to no declared column land in a trailing `KANBAN_UNCOLUMNED_ID` lane
+ * instead of being dropped (#2792).
+ */
+export function bucketCardsIntoColumns(
+  columns: Array<any>,
+  data: Array<any> | undefined,
+  groupBy: string | undefined,
+  coverImageField: string | undefined,
+  uncolumnedTitle: string,
+): Array<any> {
+  const mapCoverImage = (item: any) => {
+    if (!coverImageField) return item;
+    const imgValue = item[coverImageField];
+    if (!imgValue) return item;
+    const coverImage = typeof imgValue === 'string' ? imgValue : imgValue?.url;
+    return coverImage ? { ...item, coverImage } : item;
+  };
+
+  // No flat data / grouping key: return columns as-is (cover-mapped).
+  if (!data || !groupBy || !Array.isArray(data)) {
+    return columns.map((col: any) => ({
+      ...col,
+      cards: (col.cards || []).map(mapCoverImage),
+    }));
+  }
+
+  // Build label→id mapping so data values (labels like "In Progress") match
+  // column IDs (option values like "in_progress").
+  const labelToColumnId: Record<string, string> = {};
+  columns.forEach((col: any) => {
+    if (col.id) labelToColumnId[String(col.id).toLowerCase()] = col.id;
+    if (col.title) labelToColumnId[String(col.title).toLowerCase()] = col.id;
+  });
+
+  // 1. Group data by key, normalizing via label→id mapping.
+  const groups = data.reduce((acc, item) => {
+    const rawKey = String(item[groupBy] ?? '');
+    const key = labelToColumnId[rawKey.toLowerCase()] ?? rawKey;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(mapCoverImage(item));
+    return acc;
+  }, {} as Record<string, any[]>);
+
+  // 2. Inject into declared columns.
+  const mapped = columns.map((col: any) => ({
+    ...col,
+    cards: [
+      ...(col.cards || []).map(mapCoverImage), // Preserve static cards
+      ...(groups[col.id] || []),               // Add dynamic cards
+    ],
+  }));
+
+  // 3. Catch records whose group key matched no column (#2792). Without this
+  // they sit in `groups` and are dropped — `groups[col.id]` never reads a key
+  // that isn't a column id — so the board silently loses rows the list footer
+  // still counts. Surface them in a trailing "Uncategorized" lane; dragging
+  // one out to a real column repairs its status (the drag handler refuses to
+  // persist a move INTO here).
+  const knownIds = new Set(columns.map((col: any) => col.id));
+  const uncolumnedCards = Object.keys(groups)
+    .filter((key) => !knownIds.has(key))
+    .flatMap((key) => groups[key]);
+  if (uncolumnedCards.length > 0) {
+    mapped.push({ id: KANBAN_UNCOLUMNED_ID, title: uncolumnedTitle, cards: uncolumnedCards });
+  }
+  return mapped;
+}
 
 // Export types for external use
 export type { KanbanSchema, KanbanCard, KanbanColumn, CardTemplate, ColumnWidthConfig, InlineFieldDefinition } from './types';
@@ -57,54 +147,19 @@ export interface KanbanRendererProps {
  * This wrapper handles lazy loading internally using React.Suspense
  */
 export const KanbanRenderer: React.FC<KanbanRendererProps> = ({ schema }) => {
-  // ⚡️ Adapter: Map flat 'data' + 'groupBy' to nested 'cards' structure
-  const processedColumns = React.useMemo(() => {
-    const { columns = [], data, groupBy, coverImageField } = schema;
-    
-    // Helper to map cover image field onto cards
-    const mapCoverImage = (item: any) => {
-      if (!coverImageField) return item;
-      const imgValue = item[coverImageField];
-      if (!imgValue) return item;
-      const coverImage = typeof imgValue === 'string' ? imgValue : imgValue?.url;
-      return coverImage ? { ...item, coverImage } : item;
-    };
-    
-    // If we have flat data and a grouping key, distribute items into columns
-    if (data && groupBy && Array.isArray(data)) {
-      // Build label→id mapping so data values (labels like "In Progress")
-      // match column IDs (option values like "in_progress")
-      const labelToColumnId: Record<string, string> = {};
-      columns.forEach((col: any) => {
-        if (col.id) labelToColumnId[String(col.id).toLowerCase()] = col.id;
-        if (col.title) labelToColumnId[String(col.title).toLowerCase()] = col.id;
-      });
-
-      // 1. Group data by key, normalizing via label→id mapping
-      const groups = data.reduce((acc, item) => {
-        const rawKey = String(item[groupBy] ?? '');
-        const key = labelToColumnId[rawKey.toLowerCase()] ?? rawKey;
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(mapCoverImage(item));
-        return acc;
-      }, {} as Record<string, any[]>);
-
-      // 2. Inject into columns
-      return columns.map((col: any) => ({
-        ...col,
-        cards: [
-           ...(col.cards || []).map(mapCoverImage),     // Preserve static cards
-           ...(groups[col.id] || []) // Add dynamic cards
-        ]
-      }));
-    }
-    
-    // Default: Return columns as-is, mapping cover images
-    return columns.map((col: any) => ({
-      ...col,
-      cards: (col.cards || []).map(mapCoverImage),
-    }));
-  }, [schema]);
+  const { t } = useUncolumnedT();
+  // ⚡️ Adapter: Map flat 'data' + 'groupBy' to nested 'cards' structure.
+  const processedColumns = React.useMemo(
+    () =>
+      bucketCardsIntoColumns(
+        schema.columns ?? [],
+        schema.data,
+        schema.groupBy,
+        schema.coverImageField,
+        t('kanban.uncategorized'),
+      ),
+    [schema, t],
+  );
 
   return (
     <Suspense fallback={<Skeleton className="w-full h-[600px]" />}>

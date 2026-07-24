@@ -20,7 +20,7 @@ import { toast } from '@object-ui/components';
 import { RecordDetailDrawer, deriveRecordPageHref } from '@object-ui/plugin-detail';
 import { extractRecords, buildExpandFields, getRecordDisplayName } from '@object-ui/core';
 import { getBadgeColorClasses, getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
-import { KanbanRenderer } from './index';
+import { KanbanRenderer, KANBAN_UNCOLUMNED_ID } from './index';
 import { KanbanSchema } from './types';
 
 /**
@@ -521,6 +521,11 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
       const groupBy = schema.groupBy;
       const objectName = schema.objectName;
       if (!groupBy || fromColumnId === toColumnId) return;
+      // #2792: the "Uncategorized" lane is a display bucket, not a real option.
+      // Dragging a card OUT of it into a real column repairs the record's
+      // status (handled below); dropping one IN would write the sentinel id as
+      // a bogus status, so refuse to persist that direction.
+      if (toColumnId === KANBAN_UNCOLUMNED_ID) return;
 
       // Optimistic local update so the card visibly stays in the new column.
       // Skipped when data is owned by a parent (ListView) — the parent's

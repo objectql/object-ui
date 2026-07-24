@@ -91,6 +91,7 @@ const heavyDomTests = [
   'packages/plugin-dashboard/src/__tests__/DashboardRenderer.filters.test.tsx',
   'packages/plugin-dashboard/src/__tests__/DashboardRenderer.legacyRetired.test.tsx',
   'packages/plugin-kanban/src/registration.test.tsx',
+  'packages/plugin-kanban/src/KanbanRenderer.uncolumned.test.tsx',
 ];
 
 export default defineConfig({

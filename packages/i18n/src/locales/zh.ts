@@ -492,6 +492,7 @@ const zh = {
     deleteColumn: '删除列',
     noCards: '暂无卡片',
     cardTitlePlaceholder: '输入卡片标题...',
+    uncategorized: '未分类',
   },
   timeline: {
     bucket: {
