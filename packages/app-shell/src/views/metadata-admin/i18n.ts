@@ -1356,6 +1356,9 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.settings.capActivities': 'Activity timeline (activities)',
   'engine.studio.settings.capActivitiesDesc':
     'Mirrors create/update/delete into the record timeline. Off = no timeline rows for this object (the compliance audit log is unaffected).',
+  'engine.studio.settings.capSearchable': 'Global search (searchable)',
+  'engine.studio.settings.capSearchableDesc':
+    "Include this object's records in cross-object global search. Off = records no longer appear in global search results. Which fields match is configured per-object via searchableFields, not here.",
   'engine.studio.settings.capClone': 'Cloning (clone)',
   'engine.studio.settings.capCloneDesc':
     'Allow duplicating records from the record page / API. Off = the clone endpoint returns 403 for this object.',
@@ -2887,6 +2890,9 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.settings.capActivities': '活动时间线(activities)',
   'engine.studio.settings.capActivitiesDesc':
     '将创建/更新/删除镜像到记录时间线。关闭后该对象不再产生时间线记录(合规审计日志不受影响)。',
+  'engine.studio.settings.capSearchable': '全局搜索(searchable)',
+  'engine.studio.settings.capSearchableDesc':
+    '将该对象的记录纳入跨对象全局搜索。关闭后记录不再出现在全局搜索结果中。匹配哪些字段由对象的 searchableFields 配置,与此开关无关。',
   'engine.studio.settings.capClone': '克隆(clone)',
   'engine.studio.settings.capCloneDesc':
     '允许从记录页/API 复制记录。关闭后克隆接口对该对象返回 403。',

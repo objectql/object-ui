@@ -104,19 +104,19 @@ describe('ObjectSettingsPanel — capabilities (enable.*, framework#2707/#2727)'
     // …opt-out flags default ON.
     expect((screen.getByTestId('cap-feeds') as HTMLInputElement).checked).toBe(true);
     expect((screen.getByTestId('cap-activities') as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByTestId('cap-searchable') as HTMLInputElement).checked).toBe(true);
     expect((screen.getByTestId('cap-clone') as HTMLInputElement).checked).toBe(true);
     // trash/mru no longer exist in the spec (removed, framework#2377 — a
-    // rendered toggle would author a key the strict schema rejects);
-    // searchable is live but not yet surfaced here.
-    expect(screen.queryByTestId('cap-searchable')).toBeNull();
+    // rendered toggle would author a key the strict schema rejects).
     expect(screen.queryByTestId('cap-trash')).toBeNull();
     expect(screen.queryByTestId('cap-mru')).toBeNull();
   });
 
   it('reflects authored values (explicit false on an opt-out, true on an opt-in)', () => {
-    renderPanel({ ...baseDraft, enable: { feeds: false, files: true } });
+    renderPanel({ ...baseDraft, enable: { feeds: false, files: true, searchable: false } });
     expect((screen.getByTestId('cap-feeds') as HTMLInputElement).checked).toBe(false);
     expect((screen.getByTestId('cap-files') as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByTestId('cap-searchable') as HTMLInputElement).checked).toBe(false);
     // Untouched flags keep their effective defaults.
     expect((screen.getByTestId('cap-activities') as HTMLInputElement).checked).toBe(true);
   });

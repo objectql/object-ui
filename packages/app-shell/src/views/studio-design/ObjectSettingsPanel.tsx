@@ -31,8 +31,7 @@
  *     are opt-IN (spec default false), feeds/activities/clone are opt-OUT
  *     (spec default true, explicit false disables). `trash`/`mru` were
  *     REMOVED from the spec (framework#2377 — ObjectCapabilities is now
- *     .strict(), authoring them is a parse error); `searchable` is LIVE
- *     (global-search opt-out) but not yet surfaced here.
+ *     .strict(), authoring them is a parse error).
  */
 
 import React from 'react';
@@ -87,8 +86,8 @@ export function ObjectSettingsPanel({
   // Capabilities (`enable.*`, framework#2707/#2727). Checked = the flag's
   // EFFECTIVE runtime value; toggling writes an explicit boolean into the
   // enable block (preserving sibling keys). trackHistory/files are opt-in
-  // (=== true enables); feeds/activities/clone are opt-out (only an explicit
-  // false disables).
+  // (=== true enables); searchable/feeds/activities/clone are opt-out (only
+  // an explicit false disables).
   const enable = (draft.enable && typeof draft.enable === 'object' ? draft.enable : {}) as Record<string, unknown>;
   const patchEnable = (key: string, value: boolean) => onPatch({ enable: { ...enable, [key]: value } });
   const CAPABILITIES: Array<{ key: string; optIn: boolean; labelKey: string; descKey: string }> = [
@@ -96,6 +95,7 @@ export function ObjectSettingsPanel({
     { key: 'files',        optIn: true,  labelKey: 'engine.studio.settings.capFiles',        descKey: 'engine.studio.settings.capFilesDesc' },
     { key: 'feeds',        optIn: false, labelKey: 'engine.studio.settings.capFeeds',        descKey: 'engine.studio.settings.capFeedsDesc' },
     { key: 'activities',   optIn: false, labelKey: 'engine.studio.settings.capActivities',   descKey: 'engine.studio.settings.capActivitiesDesc' },
+    { key: 'searchable',   optIn: false, labelKey: 'engine.studio.settings.capSearchable',   descKey: 'engine.studio.settings.capSearchableDesc' },
     { key: 'clone',        optIn: false, labelKey: 'engine.studio.settings.capClone',        descKey: 'engine.studio.settings.capCloneDesc' },
   ];
 
