@@ -268,11 +268,13 @@ function payloadSummary(
   payload: unknown,
   display?: Record<string, string>,
   max = 6,
+  excludeKey?: string,
 ): Array<[string, string]> {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return [];
   const out: Array<[string, string]> = [];
   for (const [k, v] of Object.entries(payload as Record<string, unknown>)) {
     if (PAYLOAD_SYSTEM_KEYS.has(k)) continue;
+    if (excludeKey && k === excludeKey) continue; // shown as the lead amount
     if (v == null || typeof v === 'object') continue;
     if (String(v).trim() === '') continue;
     const resolved = display?.[k];
@@ -300,7 +302,7 @@ const AMOUNT_KEY_RE = /(amount|total|price|value|cost|sum|budget|salary|fee|reve
  */
 function decisionAmountEntry(
   r: ApprovalRequestRow,
-): { label: string; value: number; display: string } | null {
+): { key: string; label: string; value: number; display: string } | null {
   const payload = r.payload;
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
   for (const [k, v] of Object.entries(payload as Record<string, unknown>)) {
@@ -310,7 +312,7 @@ function decisionAmountEntry(
       ? v
       : (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v)) ? Number(v) : null);
     if (num == null || !Number.isFinite(num)) continue;
-    return { label: prettifyKey(k), value: num, display: r.payload_display?.[k] ?? num.toLocaleString() };
+    return { key: k, label: prettifyKey(k), value: num, display: r.payload_display?.[k] ?? num.toLocaleString() };
   }
   return null;
 }
@@ -1294,12 +1296,17 @@ export function ApprovalsInboxPage() {
                             />
                           </TableHead>
                         )}
-                        <TableHead>{tr('colRequest', 'Request')}</TableHead>
-                        <TableHead>{tr('colRecord', 'Record')}</TableHead>
-                        <TableHead>{tr('colRequester', 'Requester')}</TableHead>
-                        {/* min-width keeps the status pill on one line (#2762 P0-1) */}
-                        <TableHead className="min-w-[96px] whitespace-nowrap">{tr('colStatus', 'Status')}</TableHead>
-                        <TableHead>{tr('colWaiting', 'Submitted')}</TableHead>
+                        {/* Column widths rebalanced (#2762 P2): the Record is the
+                            primary content so it gets the widest share, the
+                            Request a moderate one, and Status/Submitted fixed
+                            widths so they never crowd — instead of the browser
+                            spreading five auto columns evenly and leaving 审批事项
+                            over-wide next to a cramped 状态. */}
+                        <TableHead className="w-[22%]">{tr('colRequest', 'Request')}</TableHead>
+                        <TableHead className="w-[30%]">{tr('colRecord', 'Record')}</TableHead>
+                        <TableHead className="w-[16%]">{tr('colRequester', 'Requester')}</TableHead>
+                        <TableHead className="w-[110px] min-w-[96px] whitespace-nowrap">{tr('colStatus', 'Status')}</TableHead>
+                        <TableHead className="w-[132px]">{tr('colWaiting', 'Submitted')}</TableHead>
                         <TableHead className="w-20" aria-label={tr('colActions', 'Actions')} />
                       </TableRow>
                     </TableHeader>
@@ -1558,6 +1565,13 @@ export function ApprovalsInboxPage() {
               </div>
 
               {/* Business summary card */}
+              {(() => {
+              // Decision-critical amount leads the card (#2762 P2) — a filled
+              // figure at the top instead of a value buried bottom-right in the
+              // generic field grid. Excluded from that grid below so it shows once.
+              const drawerAmount = decisionAmountEntry(selected);
+              const summary = payloadSummary(selected.payload, selected.payload_display, 6, drawerAmount?.key);
+              return (
               <Card>
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
@@ -1587,9 +1601,17 @@ export function ApprovalsInboxPage() {
                       </div>
                     </div>
                   </div>
-                  {payloadSummary(selected.payload, selected.payload_display).length > 0 && (
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm border-t pt-3">
-                      {payloadSummary(selected.payload, selected.payload_display).map(([k, v]) => (
+                  {drawerAmount && (
+                    <div className="border-t pt-3">
+                      <div className="text-[11px] text-muted-foreground">{drawerAmount.label}</div>
+                      <div className="text-xl font-semibold tabular-nums" title={drawerAmount.display}>
+                        {drawerAmount.display}
+                      </div>
+                    </div>
+                  )}
+                  {summary.length > 0 && (
+                    <div className={cn('grid grid-cols-2 gap-x-4 gap-y-2 text-sm', !drawerAmount && 'border-t pt-3')}>
+                      {summary.map(([k, v]) => (
                         <div key={k} className="min-w-0">
                           <div className="text-[11px] text-muted-foreground">{k}</div>
                           <div className="truncate" title={v}>{v}</div>
@@ -1695,6 +1717,8 @@ export function ApprovalsInboxPage() {
                   )}
                 </CardContent>
               </Card>
+              );
+              })()}
 
               {(selected.flow_steps?.length ?? 0) > 1 && (
                 <div className="flex items-center px-1" aria-label={tr('stepProgress', 'Approval steps')}>
