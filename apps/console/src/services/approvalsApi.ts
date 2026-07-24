@@ -83,6 +83,14 @@ export interface ApprovalRequestRow {
     can_act: boolean;
     /** The caller submitted this request. */
     is_submitter: boolean;
+    /**
+     * framework#3424 — the caller is a platform/tenant admin who may OVERRIDE a
+     * stuck pending request (approve / reject / reassign it) despite holding no
+     * approver slot: the recovery path for an approval routed to an unstaffed
+     * position, which would otherwise lock the record forever. Optional so a
+     * response from an older backend (no `can_override`) reads as `false`.
+     */
+    can_override?: boolean;
   };
   /** ADR-0044 revision round on this (run, node): absent/1 = first round. */
   round?: number;

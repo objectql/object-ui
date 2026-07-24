@@ -686,11 +686,14 @@ export function ApprovalsInboxPage() {
   // so the hint never contradicts the buttons — it already reflects position/
   // team approver resolution, which the client identity heuristic below can't.
   // The heuristic stays as a fallback for a backend that predates `viewer`.
-  // No actor-override branch: the admin "act as" escape hatch retired with the
-  // composer (cloud#861 enterprise act-as is the successor).
+  // framework#3424: a platform/tenant admin may OVERRIDE a stuck request (one
+  // routed to an unstaffed position) even holding no slot — `viewer.can_override`
+  // mirrors the server's decision authz, so the hint and the approve/reject/
+  // reassign buttons (which OR in `can_override`) stay consistent. This is a
+  // privileged recovery path, not the retired per-request "act as" composer.
   const canApproveReject = useMemo(() => {
     if (!selected || selected.status !== 'pending') return false;
-    if (selected.viewer) return selected.viewer.can_act;
+    if (selected.viewer) return selected.viewer.can_act || !!selected.viewer.can_override;
     const pending = new Set(selected.pending_approvers || []);
     return identities.some(id => pending.has(id));
   }, [selected, identities]);
