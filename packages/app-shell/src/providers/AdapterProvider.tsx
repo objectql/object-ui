@@ -8,12 +8,29 @@
  */
 
 import { useState, useEffect, type ReactNode } from 'react';
-import { ObjectStackAdapter } from '@object-ui/data-objectstack';
+import { toast } from 'sonner';
+import { ObjectStackAdapter, type WriteWarningEvent } from '@object-ui/data-objectstack';
 import { createAuthenticatedFetch } from '@object-ui/auth';
 import { AdapterCtx } from '@object-ui/react';
 import { installSettleSignalGlobal, withSettleSignal } from '../observability/settleSignal';
 
 export { useAdapter } from '@object-ui/react';
+
+/**
+ * Turn a write-warning (framework #3431/#3455) into a human toast. The write
+ * SUCCEEDED — some caller-supplied fields were legally stripped (read-only /
+ * locked by state), so we tell the user rather than let it pass silently.
+ */
+function toastWriteWarning(ev: WriteWarningEvent): void {
+  const fields = Array.from(new Set(ev.droppedFields.flatMap((d) => d.fields)));
+  if (fields.length === 0) return;
+  const list = fields.join(', ');
+  const description =
+    fields.length === 1
+      ? `The read-only field “${list}” could not be changed and was not saved.`
+      : `${fields.length} read-only fields could not be changed and were not saved: ${list}.`;
+  toast.warning('Some fields were not saved', { description });
+}
 
 interface AdapterProviderProps {
   children: ReactNode;
@@ -35,6 +52,7 @@ export function AdapterProvider({ children, adapter: externalAdapter }: AdapterP
     }
 
     let cancelled = false;
+    let unsubscribeWriteWarning: (() => void) | undefined;
 
     // Expose window.__objectui.{pendingRequests,idle,whenIdle} so an automated
     // (AI) browser driver has one "is the app settled?" predicate (ADR-0054 C5).
@@ -52,6 +70,10 @@ export function AdapterProvider({ children, adapter: externalAdapter }: AdapterP
           cache: { maxSize: 50, ttl: 300_000 },
         });
 
+        // Surface silently-stripped write fields (#3431/#3455) as a toast so a
+        // read-only value the user typed doesn't just vanish on save.
+        unsubscribeWriteWarning = a.onWriteWarning(toastWriteWarning);
+
         await a.connect();
 
         if (!cancelled) {
@@ -65,7 +87,10 @@ export function AdapterProvider({ children, adapter: externalAdapter }: AdapterP
     }
 
     init();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      unsubscribeWriteWarning?.();
+    };
   }, [externalAdapter]);
 
   return (

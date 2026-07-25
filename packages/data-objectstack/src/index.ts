@@ -379,6 +379,36 @@ export type ConnectionStateListener = (event: ConnectionStateEvent) => void;
  */
 export type BatchProgressListener = (event: BatchProgressEvent) => void;
 
+/**
+ * One server-reported write-strip: caller-supplied fields the backend LEGALLY
+ * removed from a write before persisting (a non-system caller cannot seed a
+ * `readonly` field, a `readonlyWhen` predicate locked it, etc.). Mirrors the
+ * framework `DroppedFieldsEvent` (spec `DroppedFieldsEventSchema`) structurally
+ * so we don't pin a client type version — `reason` is kept as a widened string
+ * for forward-compatibility with reasons added server-side.
+ */
+export interface DroppedFieldsEvent {
+  object: string;
+  fields: string[];
+  reason: string;
+}
+
+/**
+ * Emitted after a create/update whose response carried `droppedFields`
+ * (framework #3431/#3455). The write SUCCEEDED — this is a warning that some
+ * supplied fields never landed, so the UI can tell the user rather than let it
+ * pass silently. Subscribe via {@link ObjectStackAdapter.onWriteWarning}.
+ */
+export interface WriteWarningEvent {
+  operation: 'create' | 'update';
+  resource: string;
+  id?: string | number;
+  droppedFields: DroppedFieldsEvent[];
+}
+
+/** Event listener type for write-warning (dropped-fields) events. */
+export type WriteWarningListener = (event: WriteWarningEvent) => void;
+
 // Re-export FileUploadResult from types for consumers
 export type { FileUploadResult } from '@object-ui/types';
 
@@ -470,6 +500,11 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   // calendar) auto-refresh — the interface ListView relies on to reflect
   // inline-edit "Save All" writes without a manual reload.
   private mutationListeners = new Set<(event: MutationEvent<T>) => void>();
+
+  // Subscribers registered via onWriteWarning(). Emitted after a create/update
+  // whose response carried `droppedFields` (framework #3431/#3455) so the app
+  // shell can surface a toast instead of the strip passing silently.
+  private writeWarningListeners = new Set<WriteWarningListener>();
 
   constructor(config: {
     baseUrl: string;
@@ -902,10 +937,59 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     };
   }
 
+  /**
+   * Notify all write-warning subscribers. Isolated like {@link emitMutation}: a
+   * throwing listener must not break the write or starve the others.
+   */
+  private emitWriteWarning(event: WriteWarningEvent): void {
+    for (const listener of this.writeWarningListeners) {
+      try {
+        listener(event);
+      } catch (err) {
+        console.warn('ObjectStackAdapter: write-warning listener error', err);
+      }
+    }
+  }
+
+  /**
+   * Read `droppedFields` off a create/update response (framework #3431/#3455)
+   * and, when present, notify write-warning subscribers. Tolerant of a client
+   * whose response type predates `droppedFields`: the field is read structurally
+   * and validated, so an older client (or a backend that never drops) is a no-op.
+   */
+  private notifyDroppedFields(
+    operation: 'create' | 'update',
+    resource: string,
+    result: unknown,
+    id?: string | number,
+  ): void {
+    const dropped = (result as { droppedFields?: unknown } | null | undefined)?.droppedFields;
+    if (!Array.isArray(dropped) || dropped.length === 0) return;
+    const droppedFields = dropped.filter(
+      (e): e is DroppedFieldsEvent =>
+        !!e && typeof e === 'object' && Array.isArray((e as DroppedFieldsEvent).fields) && (e as DroppedFieldsEvent).fields.length > 0,
+    );
+    if (droppedFields.length === 0) return;
+    this.emitWriteWarning({ operation, resource, ...(id !== undefined ? { id } : {}), droppedFields });
+  }
+
+  /**
+   * Subscribe to write-warning events (a create/update dropped caller-supplied
+   * fields — #3431/#3455). Returns an unsubscribe function. The app shell uses
+   * this to toast the user; the write itself already succeeded.
+   */
+  onWriteWarning(callback: WriteWarningListener): () => void {
+    this.writeWarningListeners.add(callback);
+    return () => {
+      this.writeWarningListeners.delete(callback);
+    };
+  }
+
   async create(resource: string, data: Partial<T>): Promise<T> {
     await this.connect();
     const result = await this.client.data.create<T>(resource, data);
     this.emitMutation({ type: 'create', resource, record: { ...result.record } });
+    this.notifyDroppedFields('create', resource, result, (result.record as { id?: string | number } | undefined)?.id);
     return result.record;
   }
 
@@ -935,6 +1019,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         opts?.ifMatch ? { ifMatch: opts.ifMatch } : undefined,
       );
       this.emitMutation({ type: 'update', resource, id, record: { ...result.record } });
+      this.notifyDroppedFields('update', resource, result, id);
       return result.record;
     } catch (err) {
       throw normaliseClientError(err);
