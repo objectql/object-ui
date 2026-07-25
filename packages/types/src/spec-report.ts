@@ -43,18 +43,12 @@
 import type {
   Report as SpecReportType_,
   ReportInput as SpecReportInputType_,
-  ReportColumn as SpecReportColumnType_,
-  ReportColumnInput as SpecReportColumnInputType_,
-  ReportGrouping as SpecReportGroupingType_,
-  ReportGroupingInput as SpecReportGroupingInputType_,
   ReportChart as SpecReportChartType_,
   ReportChartInput as SpecReportChartInputType_,
 } from '@objectstack/spec/ui';
 
 import {
   ReportSchema as SpecReportSchema_,
-  ReportColumnSchema as SpecReportColumnSchema_,
-  ReportGroupingSchema as SpecReportGroupingSchema_,
   ReportChartSchema as SpecReportChartSchema_,
   ReportType as SpecReportTypeEnum_,
   Report as SpecReportFactory_,
@@ -66,10 +60,6 @@ import {
 
 export type SpecReport = SpecReportType_;
 export type SpecReportInput = SpecReportInputType_;
-export type SpecReportColumn = SpecReportColumnType_;
-export type SpecReportColumnInput = SpecReportColumnInputType_;
-export type SpecReportGrouping = SpecReportGroupingType_;
-export type SpecReportGroupingInput = SpecReportGroupingInputType_;
 export type SpecReportChart = SpecReportChartType_;
 export type SpecReportChartInput = SpecReportChartInputType_;
 
@@ -103,8 +93,6 @@ export type SpecReportDateGranularity = 'day' | 'week' | 'month' | 'quarter' | '
 // ---------------------------------------------------------------------------
 
 export const SpecReportSchema = SpecReportSchema_;
-export const SpecReportColumnSchema = SpecReportColumnSchema_;
-export const SpecReportGroupingSchema = SpecReportGroupingSchema_;
 export const SpecReportChartSchema = SpecReportChartSchema_;
 export const SpecReportTypeEnum = SpecReportTypeEnum_;
 

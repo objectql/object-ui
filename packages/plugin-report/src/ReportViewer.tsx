@@ -9,7 +9,6 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Badge, Skeleton } from '@object-ui/components';
 import { SchemaRenderer } from '@object-ui/react';
-import { ComponentRegistry } from '@object-ui/core';
 import type { ReportViewerSchema, ReportSection, ReportExportFormat, ReportField, ReportGroupBy } from '@object-ui/types';
 import { Download, Printer, RefreshCw } from 'lucide-react';
 import { exportReport } from './ReportExportEngine';
@@ -298,52 +297,6 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({ schema, onRefresh })
                           </CardContent>
                         </Card>
                       ))}
-                  </div>
-                )}
-
-                {section.type === 'chart' && section.chart && (
-                  <div className="min-h-[300px]">
-                    {(() => {
-                      // 1. Determine Component Type
-                      // If explicit 'type' is missing, but 'chartType' exists (e.g. "line"), infer 'chart'
-                      let type = section.chart.type;
-                      const hasChartType = !!section.chart.chartType; 
-                      
-                      // If no strict type but has chartType, assume 'chart' generic renderer
-                      if (!type && hasChartType) {
-                        type = 'chart';
-                      }
-                      
-                      // Fallback validation: If resolved type is not registered, try 'chart'
-                      const isRegistered = type && !!ComponentRegistry.get(type);
-                      if (!isRegistered) {
-                         // Even if 'line' was somehow passed as type, fallback to 'chart'
-                         type = 'chart';
-                      }
-
-                      // 2. Data Adapter (Report Schema -> Chart Component Schema)
-                      // The generic 'chart' component needs mapped props (xAxisKey, series)
-                      // whereas Report schema uses (xAxisField, yAxisFields)
-                      const isGenericChart = type === 'chart';
-                      const adapterProps = isGenericChart ? {
-                        xAxisKey: section.chart.xAxisKey || section.chart.xAxisField || 'name',
-                        series: section.chart.series || (section.chart.yAxisFields ? section.chart.yAxisFields.map((f: any) => ({ dataKey: f })) : []),
-                        // Ensure chartType is passed if we are using the generic renderer
-                        chartType: section.chart.chartType || 'bar',
-                      } : {};
-
-                      // 3. Construct Safe Schema
-                      const safeSchema = {
-                        ...section.chart,
-                        type,
-                        ...adapterProps,
-                        data: data || section.chart.data,
-                        // Force explicit height to preventing Recharts "height(-1)" error
-                        className: section.chart.className || 'w-full h-[350px]'
-                      };
-
-                      return <SchemaRenderer schema={safeSchema} />;
-                    })()}
                   </div>
                 )}
 

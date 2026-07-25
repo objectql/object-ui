@@ -1,8 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
 import { useParams } from 'react-router-dom';
-const ReportViewer = lazy(() =>
-  import('@object-ui/plugin-report').then((m) => ({ default: m.ReportViewer })),
-);
 const ReportRenderer = lazy(() =>
   import('@object-ui/plugin-report').then((m) => ({ default: m.ReportRenderer })),
 );
@@ -20,7 +17,7 @@ import { useAdapter } from '../providers/AdapterProvider';
 import { useMetadataClient } from './metadata-admin/useMetadata';
 import { persistRuntimeMetadata } from './runtime-metadata-persistence';
 import { useIsWorkspaceAdmin } from '@object-ui/auth';
-import type { DataSource, ReportViewerSchema } from '@object-ui/types';
+import type { DataSource } from '@object-ui/types';
 import type { DatasetDrillArgs } from '@object-ui/plugin-report';
 import { DrillDownDrawer } from '@object-ui/plugin-dashboard';
 import { DrillNavigationProvider } from '@object-ui/react';
@@ -64,7 +61,6 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
 
   // State for report runtime data
   const [reportRuntimeData, setReportRuntimeData] = useState<any[]>([]);
-  const [dataLoading, setDataLoading] = useState(false);
 
   // Drill-through (ADR-0021 D2): clicking an aggregated row/cell opens the
   // underlying records in an in-place drawer (peek without leaving the report),
@@ -272,7 +268,6 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
     // If report has a dataSource config, fetch data using it
     if (dataFetchSource.dataSource) {
       const fetchDataFromSource = async () => {
-        setDataLoading(true);
         try {
           // Use the dataSource configuration to fetch data
           const resource = dataFetchSource.dataSource.object || dataFetchSource.dataSource.resource;
@@ -292,8 +287,6 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
         } catch (error) {
           console.error('ReportView: Failed to load data from dataSource', error);
           setReportRuntimeData([]);
-        } finally {
-          setDataLoading(false);
         }
       };
 
@@ -304,7 +297,6 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
     // If report has an objectName, fetch data from that object
     if (dataFetchSource.objectName) {
       const fetchDataFromObject = async () => {
-        setDataLoading(true);
         try {
           const result = await dataSource.find(dataFetchSource.objectName, {
             $filter: dataFetchSource.filters,
@@ -316,8 +308,6 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
         } catch (error) {
           console.error('ReportView: Failed to load data from objectName', error);
           setReportRuntimeData([]);
-        } finally {
-          setDataLoading(false);
         }
       };
 
@@ -368,172 +358,14 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
     );
   }
 
-  // Wrap the report definition in the ReportViewer schema
-  // The ReportViewer expects a schema property which is of type ReportViewerSchema
-  // That schema has a 'report' property which is the actual report definition (ReportSchema)
-  // Map @objectstack/spec report format to @object-ui/types ReportSchema:
-  //   - 'label' → 'title'
-  //   - 'columns' (with 'field') → 'fields' (with 'name') + auto-generate 'sections'
-  //   - Hydrate type/options/referenceTo from the bound object's field metadata
-  //     so the type-aware cell renderer can show select badges, lookup links,
-  //     boolean ✓/✗, email/url/phone links, etc. instead of raw values.
-  const mapReportForViewer = (src: any) => {
-    const mapped: any = { ...src };
-    if (!mapped.title && mapped.label) {
-      mapped.title = mapped.label;
-    }
-
-    // Build a lookup of object-field metadata to hydrate column type info.
-    const objName = mapped.objectName || mapped.dataSource?.object || mapped.dataSource?.resource;
-    const objDef = objName ? objects?.find((o: any) => o.name === objName) : null;
-    const objFieldsArr: any[] = Array.isArray(objDef?.fields)
-      ? objDef.fields
-      : objDef?.fields
-        ? Object.entries(objDef.fields).map(([name, def]: [string, any]) => ({ name, ...def }))
-        : [];
-    const objFieldMap: Record<string, any> = {};
-    for (const f of objFieldsArr) {
-      if (f && f.name) objFieldMap[f.name] = f;
-    }
-
-    const hydrate = (col: any): any => {
-      const name = col.name || col.field;
-      const meta = name ? objFieldMap[name] : undefined;
-      if (!meta) return col;
-      // Author-provided values win; only fill in what's missing.
-      const out = { ...col };
-      if (out.type === undefined && meta.type !== undefined) out.type = meta.type;
-      if (out.options === undefined && Array.isArray(meta.options)) out.options = meta.options;
-      if (out.referenceTo === undefined) {
-        // Metadata-store object defs key the lookup target as `reference`
-        // (string, ObjectStack convention); `reference_to` covers normalized /
-        // ObjectUI-authored defs (#2407 / PR #2587).
-        const ref =
-          meta.reference_to ||
-          meta.referenceTo ||
-          (typeof meta.reference === 'string' ? meta.reference : meta.reference?.to) ||
-          meta.target;
-        if (ref) out.referenceTo = ref;
-      }
-      if (out.label === undefined && meta.label) out.label = meta.label;
-      return out;
-    };
-
-    // Map spec 'columns' (field/label/aggregate) → ReportSchema 'fields' (name/label/aggregation)
-    if (!mapped.fields && Array.isArray(mapped.columns)) {
-      mapped.fields = mapped.columns.map((col: any) => {
-        const hydrated = hydrate(col);
-        return {
-          name: hydrated.field || hydrated.name,
-          label: hydrated.label,
-          type: hydrated.type,
-          options: hydrated.options,
-          referenceTo: hydrated.referenceTo,
-          format: hydrated.format,
-          renderAs: hydrated.renderAs,
-          colorMap: hydrated.colorMap,
-          ...(hydrated.aggregate ? { aggregation: hydrated.aggregate, showInSummary: true } : {}),
-        };
-      });
-    } else if (Array.isArray(mapped.fields)) {
-      mapped.fields = mapped.fields.map(hydrate);
-    }
-    // Always regenerate sections from current fields so that live config
-    // changes (e.g. field picker updates) are immediately reflected in
-    // the preview.  This fixes the linkage bug where config panel edits
-    // did not update the rendered report.
-    if (mapped.fields && Array.isArray(mapped.fields) && mapped.fields.length > 0) {
-      const hasSummaryFields = mapped.fields.some((f: any) => f.showInSummary || f.aggregation);
-      // Spec key is `type`; legacy renderer used `reportType`. Accept either.
-      const reportType = mapped.type || mapped.reportType || 'tabular';
-      const sections: any[] = [];
-      if (reportType === 'summary' || hasSummaryFields) {
-        sections.push({ type: 'summary', title: 'Key Metrics' });
-      }
-      sections.push({
-        type: 'table',
-        title: 'Details',
-        columns: mapped.fields.map((f: any) => ({
-          name: f.name,
-          label: f.label,
-          type: f.type,
-          options: f.options,
-          referenceTo: f.referenceTo,
-          format: f.format,
-          renderAs: f.renderAs,
-          colorMap: f.colorMap,
-        })),
-      });
-      // Generate chart section from chart config if configured.
-      // Spec keys: type / xAxis / yAxis. Legacy: chartType / xAxisField / yAxisFields[0].
-      const chartCfg = mapped.chart || mapped.chartConfig;
-      const chartTypeVal = chartCfg?.type || chartCfg?.chartType;
-      if (chartTypeVal) {
-        const xField = chartCfg.xAxis || chartCfg.xAxisField;
-        const yField = chartCfg.yAxis || chartCfg.yAxisFields?.[0];
-        sections.push({
-          type: 'chart',
-          title: 'Chart',
-          chart: {
-            type: 'chart',
-            chartType: chartTypeVal,
-            xAxisField: xField,
-            yAxisFields: yField ? [yField] : chartCfg.yAxisFields,
-          },
-        });
-      }
-      // Preserve any user-defined chart sections from the original schema
-      if (Array.isArray(src.sections)) {
-        const chartSections = src.sections.filter((s: any) => s.type === 'chart' && !chartTypeVal);
-        sections.push(...chartSections);
-      }
-      mapped.sections = sections;
-    } else if (!mapped.sections) {
-      // No fields and no sections — leave empty
-      mapped.sections = [];
-    }
-    return mapped;
-  };
-
   // Use live-edited schema for preview (persists after closing panel until metadata refreshes)
   const previewReport = editSchema || reportData;
-  // Route any object-backed spec report (matrix/joined/tabular/summary) through
-  // the spec ReportRenderer dispatcher. It handles aggregation, charts, KPIs
-  // and drill protocol end-to-end. The legacy ReportViewer is only used as a
-  // last resort for fully-legacy schemas that lack `objectName` (e.g. inline
-  // `fields` + `data` arrays from older app code).
-  // ADR-0021 single-form: a report bound to a semantic-layer `dataset` (no
-  // `objectName`/`columns`) still routes through the spec ReportRenderer, which
-  // dispatches it to the dataset path (queryDataset + grouped table / joined
-  // blocks). Without this it would fall to the legacy ReportViewer, which has no
-  // data source to fetch from → a blank page.
-  const isDatasetBound = Boolean(
-    previewReport &&
-      (typeof previewReport.dataset === 'string' ||
-        (previewReport.type === 'joined' &&
-          Array.isArray(previewReport.blocks) &&
-          previewReport.blocks.some((b: any) => typeof b?.dataset === 'string'))),
-  );
-  const useSpecRenderer = isDatasetBound || Boolean(
-    previewReport &&
-      previewReport.objectName &&
-      (previewReport.type === 'matrix' ||
-        previewReport.type === 'joined' ||
-        previewReport.type === 'summary' ||
-        previewReport.type === 'tabular' ||
-        previewReport.type === undefined ||
-        (Array.isArray(previewReport.groupingsAcross) && previewReport.groupingsAcross.length > 0) ||
-        Array.isArray(previewReport.columns)),
-  );
-  const reportForViewer = mapReportForViewer(previewReport);
-  const viewerSchema: ReportViewerSchema = {
-      type: 'report-viewer',
-      report: reportForViewer, // The report definition
-      data: reportRuntimeData, // Runtime data fetched from the data source
-      showToolbar: true,
-      allowExport: true,
-      loading: dataLoading, // Loading state for data fetching
-  };
+  // Every report renders through the spec ReportRenderer dispatcher: it routes
+  // dataset-bound reports to DatasetReportRenderer (aggregation, charts, KPIs,
+  // drill protocol end-to-end), bridges stored pre-9.0 spec JSON to the
+  // presentation viewer, and falls back to LegacyReportRenderer for pre-spec
+  // `{ data, columns }` shapes. `reportRuntimeData` feeds the bridge/legacy
+  // paths; DatasetReportRenderer fetches its own rows via `useDatasetRows`.
 
   return (
     <DrillNavigationProvider value={{ openRecordList }}>
@@ -564,13 +396,9 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
          <div className="flex-1 min-w-0 overflow-auto p-4 sm:p-6 lg:p-8 bg-muted/5">
              <div className="w-full shadow-sm border rounded-lg sm:rounded-xl bg-background overflow-hidden min-h-150">
                  <Suspense fallback={<div className="p-8 text-sm text-muted-foreground">{t('common.loading', { defaultValue: 'Loading…' })}</div>}>
-                   {useSpecRenderer ? (
-                     <div className="p-4 sm:p-6">
-                       <ReportRenderer schema={previewReport} dataSource={dataSource as any} rows={reportRuntimeData} onDrill={handleDatasetDrill} />
-                     </div>
-                   ) : (
-                     <ReportViewer schema={viewerSchema} />
-                   )}
+                   <div className="p-4 sm:p-6">
+                     <ReportRenderer schema={previewReport} dataSource={dataSource as any} rows={reportRuntimeData} onDrill={handleDatasetDrill} />
+                   </div>
                  </Suspense>
              </div>
          </div>

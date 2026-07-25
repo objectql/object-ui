@@ -691,10 +691,6 @@ export type {
 // ---------------------------------------------------------------------------
 export type {
   SpecReportInput,
-  SpecReportColumn,
-  SpecReportColumnInput,
-  SpecReportGrouping,
-  SpecReportGroupingInput,
   SpecReportChart,
   SpecReportChartInput,
   SpecReportTypeName,
@@ -708,8 +704,6 @@ export type {
 
 export {
   SpecReportSchema,
-  SpecReportColumnSchema,
-  SpecReportGroupingSchema,
   SpecReportChartSchema,
   SpecReportTypeEnum,
   SpecReport,
