@@ -51,6 +51,25 @@ describe('assembleImportRequest', () => {
     expect(req.runAutomations).toBe(true);
     expect(req.skipBlankMatchKey).toBe(true);
   });
+
+  // framework #3479 — the "historical import" toggle. Sent only when on, so a
+  // normal import carries no flag and the server keeps enforcing the FSM.
+  it('sends treatAsHistorical:true only when the option is on', () => {
+    const on = assembleImportRequest(rows, { ...baseOpts, treatAsHistorical: true });
+    expect(on.treatAsHistorical).toBe(true);
+
+    const off = assembleImportRequest(rows, { ...baseOpts, treatAsHistorical: false });
+    expect(off).not.toHaveProperty('treatAsHistorical');
+
+    const omitted = assembleImportRequest(rows, baseOpts);
+    expect(omitted).not.toHaveProperty('treatAsHistorical');
+  });
+
+  it('sends treatAsHistorical through the named-mapping path too', () => {
+    const req = assembleImportRequest(rows, { ...baseOpts, mappingName: 'my-map', treatAsHistorical: true });
+    expect(req.mappingName).toBe('my-map');
+    expect(req.treatAsHistorical).toBe(true);
+  });
 });
 
 describe('formatDryRunError', () => {

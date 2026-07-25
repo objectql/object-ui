@@ -819,6 +819,10 @@ export interface ImportRequestOptions {
   matchFields?: string[];
   /** Fire triggers/hooks for each imported row (off by default for bulk). */
   runAutomations?: boolean;
+  /** Import as established historical facts: skip the `state_machine` rule so
+   *  mid-lifecycle rows (already-closed tickets, closed_won deals) aren't rejected
+   *  by `initialStates` (framework #3479). @default false */
+  treatAsHistorical?: boolean;
   /** Trim leading/trailing whitespace from string cells. @default true */
   trimWhitespace?: boolean;
   /** Strings treated as null/blank besides the empty string. */

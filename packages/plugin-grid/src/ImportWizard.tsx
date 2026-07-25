@@ -120,6 +120,8 @@ const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.import.needMatchFields': 'Select at least one field to match on.',
   'grid.import.optCreateOptions': 'Keep unknown option values',
   'grid.import.optRunAutomations': 'Run automations & triggers',
+  'grid.import.optTreatHistorical': 'Import as historical data',
+  'grid.import.optTreatHistoricalHint': '(skip state-machine checks so already-completed records import as-is)',
   'grid.import.optSkipBlankKey': 'Skip rows with a blank match value',
   'grid.import.optBackground': 'Import in the background',
   'grid.import.optBackgroundHint': '(runs as an undoable job)',
@@ -516,6 +518,7 @@ function assembleImportRequest(
     matchFields: string[];
     createMissingOptions: boolean;
     runAutomations: boolean;
+    treatAsHistorical?: boolean;
     skipBlankMatchKey: boolean;
     dryRun?: boolean;
     /** When set, the server resolves this registered mapping and owns the
@@ -532,6 +535,7 @@ function assembleImportRequest(
       rows,
       mappingName: opts.mappingName,
       runAutomations: opts.runAutomations,
+      ...(opts.treatAsHistorical ? { treatAsHistorical: true } : {}),
       ...(opts.dryRun ? { dryRun: true } : {}),
     };
   }
@@ -542,6 +546,7 @@ function assembleImportRequest(
     ...(opts.writeMode !== 'insert' ? { matchFields: opts.matchFields } : {}),
     createMissingOptions: opts.createMissingOptions,
     runAutomations: opts.runAutomations,
+    ...(opts.treatAsHistorical ? { treatAsHistorical: true } : {}),
     skipBlankMatchKey: opts.skipBlankMatchKey,
     ...(opts.dryRun ? { dryRun: true } : {}),
   };
@@ -1228,6 +1233,8 @@ const ImportOptions: React.FC<{
   onCreateMissingOptions: (v: boolean) => void;
   runAutomations: boolean;
   onRunAutomations: (v: boolean) => void;
+  treatAsHistorical: boolean;
+  onTreatAsHistorical: (v: boolean) => void;
   skipBlankMatchKey: boolean;
   onSkipBlankMatchKey: (v: boolean) => void;
   showBackground: boolean;
@@ -1236,6 +1243,7 @@ const ImportOptions: React.FC<{
 }> = ({
   fields, mapping, writeMode, onWriteMode, matchFields, onToggleMatchField,
   createMissingOptions, onCreateMissingOptions, runAutomations, onRunAutomations,
+  treatAsHistorical, onTreatAsHistorical,
   skipBlankMatchKey, onSkipBlankMatchKey,
   showBackground, backgroundImport, onBackgroundImport,
 }) => {
@@ -1300,6 +1308,13 @@ const ImportOptions: React.FC<{
           <label className="flex items-center gap-2 text-xs" data-testid="import-opt-run-automations">
             <Checkbox checked={runAutomations} onCheckedChange={(v) => onRunAutomations(v === true)} />
             {t('grid.import.optRunAutomations')}
+          </label>
+          <label className="flex items-center gap-2 text-xs" data-testid="import-opt-treat-historical">
+            <Checkbox checked={treatAsHistorical} onCheckedChange={(v) => onTreatAsHistorical(v === true)} />
+            <span>
+              {t('grid.import.optTreatHistorical')}
+              <span className="ml-1 text-[11px] text-muted-foreground">{t('grid.import.optTreatHistoricalHint')}</span>
+            </span>
           </label>
           {showBackground && (
             <label className="flex items-center gap-2 text-xs" data-testid="import-opt-background">
@@ -1513,6 +1528,10 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   // Default ON: automations always ran on import before framework#2922 wired
   // the flag up server-side, so preserving behavior means opt-out, not opt-in.
   const [runAutomations, setRunAutomations] = useState(true);
+  // Default OFF (opt-in): a normal import must still walk the state machine —
+  // only an explicit "historical" import skips it so mid-lifecycle rows aren't
+  // rejected by initialStates (framework #3479). The strict behavior is the default.
+  const [treatAsHistorical, setTreatAsHistorical] = useState(false);
   const [skipBlankMatchKey, setSkipBlankMatchKey] = useState(false);
   // Opt-in: route this import through a background job even when the row count
   // is under the async threshold. This is the only way to obtain an undoable
@@ -1876,11 +1895,11 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
       // hand-mapped, field-keyed rows are for the manual path only.
       mappingName ? buildSourceRows(headers, rows, corrections) : buildRawRows(),
       {
-        writeMode, matchFields, createMissingOptions, runAutomations, skipBlankMatchKey, dryRun,
+        writeMode, matchFields, createMissingOptions, runAutomations, treatAsHistorical, skipBlankMatchKey, dryRun,
         ...(mappingName ? { mappingName } : {}),
       },
     ),
-  [buildRawRows, mappingName, headers, rows, corrections, writeMode, matchFields, createMissingOptions, runAutomations, skipBlankMatchKey]);
+  [buildRawRows, mappingName, headers, rows, corrections, writeMode, matchFields, createMissingOptions, runAutomations, treatAsHistorical, skipBlankMatchKey]);
 
   const handleImport = useCallback(async () => {
     setImporting(true); setProgress(0);
@@ -2146,6 +2165,8 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                   onCreateMissingOptions={setCreateMissingOptions}
                   runAutomations={runAutomations}
                   onRunAutomations={setRunAutomations}
+                  treatAsHistorical={treatAsHistorical}
+                  onTreatAsHistorical={setTreatAsHistorical}
                   skipBlankMatchKey={skipBlankMatchKey}
                   onSkipBlankMatchKey={setSkipBlankMatchKey}
                   showBackground={supportsImportJob && rows.length <= ASYNC_IMPORT_THRESHOLD}
