@@ -10,8 +10,6 @@ import type { SchemaNode } from '@object-ui/core';
 import type { BridgeContext, BridgeFn } from './types';
 import { bridgeListView } from './bridges/list-view';
 import { bridgeFormView } from './bridges/form-view';
-import { bridgePage } from './bridges/page';
-import { bridgeDashboard } from './bridges/dashboard';
 
 export class SpecBridge {
   private bridges = new Map<string, BridgeFn>();
@@ -21,8 +19,6 @@ export class SpecBridge {
     this.context = context;
     this.register('list', bridgeListView);
     this.register('form', bridgeFormView);
-    this.register('page', bridgePage);
-    this.register('dashboard', bridgeDashboard);
   }
 
   register(specType: string, bridge: BridgeFn): void {
@@ -46,16 +42,6 @@ export class SpecBridge {
   /** Transform a FormView spec */
   transformFormView(spec: any): SchemaNode {
     return this.transform('form', spec);
-  }
-
-  /** Transform a Page spec */
-  transformPage(spec: any): SchemaNode {
-    return this.transform('page', spec);
-  }
-
-  /** Transform a Dashboard spec */
-  transformDashboard(spec: any): SchemaNode {
-    return this.transform('dashboard', spec);
   }
 
   updateContext(ctx: Partial<BridgeContext>): void {

@@ -10,5 +10,3 @@ export { SpecBridge } from './SpecBridge';
 export type { BridgeContext, BridgeFn, ObjectDefLite } from './types';
 export { bridgeListView } from './bridges/list-view';
 export { bridgeFormView } from './bridges/form-view';
-export { bridgePage } from './bridges/page';
-export { bridgeDashboard } from './bridges/dashboard';
