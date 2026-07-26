@@ -1,6 +1,7 @@
 import React, { useRef, useState, useCallback } from 'react';
 import { Button, EmptyValue } from '@object-ui/components';
 import { useUpload } from '@object-ui/providers';
+import { useObjectTranslation } from '@object-ui/i18n';
 import { Upload, X, File as FileIcon, ImageIcon, Camera, Loader2 } from 'lucide-react';
 import { FieldWidgetProps } from './types';
 import { useUploadingSignal } from './useUploadingSignal';
@@ -20,6 +21,7 @@ function useFileUploads(opts: {
 }) {
   const { files, multiple, maxSize, onChange } = opts;
   const { upload } = useUpload();
+  const { t } = useObjectTranslation();
   const [errors, setErrors] = useState<string[]>([]);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [uploading, setUploading] = useState(false);
@@ -31,7 +33,10 @@ function useFileUploads(opts: {
     const validFiles = selectedFiles.filter(file => {
       if (maxSize && file.size > maxSize) {
         const maxMB = (maxSize / (1024 * 1024)).toFixed(1);
-        newErrors.push(`"${file.name}" exceeds max size (${maxMB} MB)`);
+        newErrors.push(t('fields.file.exceedsMaxSize', {
+          defaultValue: `"${file.name}" exceeds max size (${maxMB} MB)`,
+          name: file.name, max: maxMB,
+        }));
         return false;
       }
       return true;
@@ -63,7 +68,10 @@ function useFileUploads(opts: {
               url: result.url,
             };
           } catch (err) {
-            newErrors.push(`Failed to upload "${file.name}": ${(err as Error).message}`);
+            newErrors.push(t('fields.file.uploadFailed', {
+              defaultValue: `Failed to upload "${file.name}": ${(err as Error).message}`,
+              name: file.name, error: (err as Error).message,
+            }));
             setErrors([...newErrors]);
             return null;
           }
@@ -81,7 +89,7 @@ function useFileUploads(opts: {
       setUploading(false);
       setUploadProgress({});
     }
-  }, [files, multiple, onChange, maxSize, upload]);
+  }, [files, multiple, onChange, maxSize, upload, t]);
 
   return { processFiles, errors, uploading, uploadProgress };
 }
@@ -92,6 +100,7 @@ function useFileUploads(opts: {
  * L2: File size validation, per-file progress indicators, error messages.
  */
 export function FileField({ value, onChange, field, readonly, onUploadingChange, ...props }: FieldWidgetProps<any>) {
+  const { t } = useObjectTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileField = (field || (props as any).schema) as any;
@@ -161,7 +170,7 @@ export function FileField({ value, onChange, field, readonly, onUploadingChange,
       <div className="flex flex-wrap gap-2">
         {readonlyFiles.map((file: any, idx: number) => (
           <span key={idx} className="text-sm truncate max-w-xs">
-            {file.name || file.original_name || 'File'}
+            {file.name || file.original_name || t('fields.file.fileFallback', { defaultValue: 'File' })}
           </span>
         ))}
       </div>
@@ -204,7 +213,7 @@ export function FileField({ value, onChange, field, readonly, onUploadingChange,
           capture={cameraEnabled}
           onChange={handleFileChange}
           className="hidden"
-          aria-label="Camera capture"
+          aria-label={t('fields.file.cameraCapture', { defaultValue: 'Camera capture' })}
           data-testid="file-field-camera-input"
         />
       )}
@@ -236,10 +245,14 @@ export function FileField({ value, onChange, field, readonly, onUploadingChange,
           <Upload className={`size-8 ${isDragOver ? 'text-primary' : 'text-muted-foreground'}`} />
           <div className="text-center">
             <p className="text-sm font-medium">
-              {isDragOver ? 'Drop files here' : 'Drag & drop files here'}
+              {isDragOver
+                ? t('fields.file.dropFilesHere', { defaultValue: 'Drop files here' })
+                : t('fields.file.dragDropHere', { defaultValue: 'Drag & drop files here' })}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              or click to browse{cameraEnabled ? ' • use the camera button below' : ''}
+              {cameraEnabled
+                ? t('fields.file.browseHintCamera', { defaultValue: 'or click to browse • use the camera button below' })
+                : t('fields.file.browseHint', { defaultValue: 'or click to browse' })}
             </p>
           </div>
         </div>
@@ -257,7 +270,9 @@ export function FileField({ value, onChange, field, readonly, onUploadingChange,
             data-testid="file-field-camera-button"
           >
             <Camera className="size-4 mr-2" />
-            {cameraEnabled === 'user' ? 'Take selfie' : 'Take photo'}
+            {cameraEnabled === 'user'
+              ? t('fields.file.takeSelfie', { defaultValue: 'Take selfie' })
+              : t('fields.file.takePhoto', { defaultValue: 'Take photo' })}
           </Button>
         )}
 
@@ -266,12 +281,14 @@ export function FileField({ value, onChange, field, readonly, onUploadingChange,
           <div className="flex items-center gap-2 text-xs text-muted-foreground" data-testid="file-field-uploading">
             <Loader2 className="size-3 animate-spin" />
             <span>
-              Uploading…
-              {Object.keys(uploadProgress).length > 0 &&
-                ` (${Math.round(
-                  (Object.values(uploadProgress).reduce((s, v) => s + v, 0) /
-                    Object.keys(uploadProgress).length) * 100,
-                )}%)`}
+              {(() => {
+                const keys = Object.keys(uploadProgress);
+                if (keys.length === 0) return t('fields.file.uploading', { defaultValue: 'Uploading…' });
+                const pct = Math.round(
+                  (Object.values(uploadProgress).reduce((s, v) => s + v, 0) / keys.length) * 100,
+                );
+                return t('fields.file.uploadingPct', { defaultValue: `Uploading… (${pct}%)`, pct });
+              })()}
             </span>
           </div>
         )}
@@ -302,7 +319,7 @@ export function FileField({ value, onChange, field, readonly, onUploadingChange,
                     <FileIcon className="size-4 text-muted-foreground shrink-0" />
                   )}
                   <span className="text-sm truncate">
-                    {file.name || file.original_name || 'File'}
+                    {file.name || file.original_name || t('fields.file.fileFallback', { defaultValue: 'File' })}
                   </span>
                   {file.size && (
                     <span className="text-xs text-muted-foreground">
@@ -362,6 +379,7 @@ export function FileCell({
   /** Focus-grid coordinate (see GridField keyboard navigation). */
   'data-cell'?: string;
 }) {
+  const { t } = useObjectTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const files = value ? (Array.isArray(value) ? value : [value]) : [];
   const { processFiles, errors, uploading } = useFileUploads({
@@ -379,7 +397,9 @@ export function FileCell({
 
   const isImage = (file: any) => String(file?.mime_type || '').startsWith('image/');
   const nameOf = (file: any) =>
-    typeof file === 'string' ? file : file?.name || file?.original_name || 'File';
+    typeof file === 'string'
+      ? file
+      : file?.name || file?.original_name || t('fields.file.fileFallback', { defaultValue: 'File' });
   const showUpload = !disabled && !uploading && (multiple || files.length === 0);
 
   return (
@@ -412,7 +432,7 @@ export function FileCell({
             <button
               type="button"
               className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
-              aria-label={`Remove ${nameOf(file)}`}
+              aria-label={t('fields.file.remove', { defaultValue: `Remove ${nameOf(file)}`, name: nameOf(file) })}
               onClick={() => removeAt(idx)}
             >
               <X className="size-3" />
@@ -440,7 +460,7 @@ export function FileCell({
           disabled={disabled}
         >
           <Upload className="size-3.5" />
-          {files.length === 0 && 'Upload'}
+          {files.length === 0 && t('fields.file.upload', { defaultValue: 'Upload' })}
         </Button>
       )}
       {errors.length > 0 && (

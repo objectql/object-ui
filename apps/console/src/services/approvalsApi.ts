@@ -64,6 +64,8 @@ export interface ApprovalRequestRow {
   pending_approver_groups?: Record<string, string[]>;
   /** Display values for lookup fields in `payload` (field key → record title). */
   payload_display?: Record<string, string>;
+  /** Display labels for `payload` fields (field key → target object's field label). */
+  payload_labels?: Record<string, string>;
   /** SLA deadline (`created_at + escalation.timeoutHours`), display-only. */
   sla_due_at?: string;
   /** Owning flow's approval steps for progress display (single reads only). */

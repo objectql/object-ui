@@ -117,6 +117,22 @@ const fr = {
     relativeDate: {
       overdue: "En retard de {{count}} j",
     },
+    file: {
+      dragDropHere: 'Glissez-déposez des fichiers ici',
+      dropFilesHere: 'Déposez les fichiers ici',
+      browseHint: 'ou cliquez pour parcourir',
+      browseHintCamera: 'ou cliquez pour parcourir • utilisez le bouton appareil photo ci-dessous',
+      takePhoto: 'Prendre une photo',
+      takeSelfie: 'Prendre un selfie',
+      cameraCapture: 'Capture photo',
+      uploading: 'Téléversement…',
+      uploadingPct: 'Téléversement… ({{pct}} %)',
+      fileFallback: 'Fichier',
+      upload: 'Téléverser',
+      remove: 'Supprimer {{name}}',
+      exceedsMaxSize: '« {{name}} » dépasse la taille maximale ({{max}} Mo)',
+      uploadFailed: 'Échec du téléversement de « {{name}} » : {{error}}',
+    },
     richText: {
       format: "Format : {{format}}",
       basicEditorHint: "Éditeur de texte enrichi (basique)",

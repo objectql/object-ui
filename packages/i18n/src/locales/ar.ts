@@ -117,6 +117,22 @@ const ar = {
     relativeDate: {
       overdue: "متأخر {{count}} يوم",
     },
+    file: {
+      dragDropHere: 'اسحب الملفات وأفلتها هنا',
+      dropFilesHere: 'أفلت الملفات هنا',
+      browseHint: 'أو انقر للتصفح',
+      browseHintCamera: 'أو انقر للتصفح • استخدم زر الكاميرا أدناه',
+      takePhoto: 'التقاط صورة',
+      takeSelfie: 'التقاط صورة ذاتية',
+      cameraCapture: 'التقاط بالكاميرا',
+      uploading: 'جارٍ الرفع…',
+      uploadingPct: 'جارٍ الرفع… ({{pct}}%)',
+      fileFallback: 'ملف',
+      upload: 'رفع',
+      remove: 'إزالة {{name}}',
+      exceedsMaxSize: '"{{name}}" يتجاوز الحجم الأقصى ({{max}} ميغابايت)',
+      uploadFailed: 'فشل رفع "{{name}}": {{error}}',
+    },
     richText: {
       format: "التنسيق: {{format}}",
       basicEditorHint: "محرر النص الغني (أساسي)",

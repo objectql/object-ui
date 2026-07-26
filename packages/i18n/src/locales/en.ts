@@ -136,6 +136,22 @@ const en = {
     relativeDate: {
       overdue: 'Overdue {{count}}d',
     },
+    file: {
+      dragDropHere: 'Drag & drop files here',
+      dropFilesHere: 'Drop files here',
+      browseHint: 'or click to browse',
+      browseHintCamera: 'or click to browse • use the camera button below',
+      takePhoto: 'Take photo',
+      takeSelfie: 'Take selfie',
+      cameraCapture: 'Camera capture',
+      uploading: 'Uploading…',
+      uploadingPct: 'Uploading… ({{pct}}%)',
+      fileFallback: 'File',
+      upload: 'Upload',
+      remove: 'Remove {{name}}',
+      exceedsMaxSize: '"{{name}}" exceeds max size ({{max}} MB)',
+      uploadFailed: 'Failed to upload "{{name}}": {{error}}',
+    },
     richText: {
       format: 'Format: {{format}}',
       basicEditorHint: 'Rich text editor (basic)',

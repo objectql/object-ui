@@ -279,6 +279,7 @@ const OPAQUE_ID_RE = /^[A-Za-z0-9_-]{15,}$/;
 function payloadSummary(
   payload: unknown,
   display?: Record<string, string>,
+  labels?: Record<string, string>,
   max = 6,
   excludeKey?: string,
 ): Array<[string, string]> {
@@ -293,7 +294,9 @@ function payloadSummary(
     if (!resolved && typeof v === 'string' && OPAQUE_ID_RE.test(v.trim()) && !/^\d+$/.test(v.trim())) {
       continue;
     }
-    out.push([prettifyKey(k), resolved ?? formatPayloadValue(k, v)]);
+    // Prefer the server-resolved field label (the target object's own label,
+    // already localized for a single-locale project) over a title-cased key.
+    out.push([labels?.[k] ?? prettifyKey(k), resolved ?? formatPayloadValue(k, v)]);
     if (out.length >= max) break;
   }
   return out;
@@ -324,7 +327,12 @@ function decisionAmountEntry(
       ? v
       : (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v)) ? Number(v) : null);
     if (num == null || !Number.isFinite(num)) continue;
-    return { key: k, label: prettifyKey(k), value: num, display: r.payload_display?.[k] ?? num.toLocaleString() };
+    return {
+      key: k,
+      label: r.payload_labels?.[k] ?? prettifyKey(k),
+      value: num,
+      display: r.payload_display?.[k] ?? num.toLocaleString(),
+    };
   }
   return null;
 }
@@ -1585,7 +1593,7 @@ export function ApprovalsInboxPage() {
               // figure at the top instead of a value buried bottom-right in the
               // generic field grid. Excluded from that grid below so it shows once.
               const drawerAmount = decisionAmountEntry(selected);
-              const summary = payloadSummary(selected.payload, selected.payload_display, 6, drawerAmount?.key);
+              const summary = payloadSummary(selected.payload, selected.payload_display, selected.payload_labels, 6, drawerAmount?.key);
               return (
               <Card>
                 <CardContent className="p-4 space-y-3">

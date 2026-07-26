@@ -117,6 +117,22 @@ const ja = {
     relativeDate: {
       overdue: "期限超過 {{count}}日",
     },
+    file: {
+      dragDropHere: 'ファイルをここにドラッグ＆ドロップ',
+      dropFilesHere: 'ここにドロップ',
+      browseHint: 'またはクリックして選択',
+      browseHintCamera: 'またはクリックして選択 • 下のカメラボタンを使用',
+      takePhoto: '写真を撮る',
+      takeSelfie: '自撮り',
+      cameraCapture: 'カメラ撮影',
+      uploading: 'アップロード中…',
+      uploadingPct: 'アップロード中…（{{pct}}%）',
+      fileFallback: 'ファイル',
+      upload: 'アップロード',
+      remove: '{{name}} を削除',
+      exceedsMaxSize: '「{{name}}」は最大サイズ（{{max}} MB）を超えています',
+      uploadFailed: '「{{name}}」のアップロードに失敗しました：{{error}}',
+    },
     richText: {
       format: "フォーマット: {{format}}",
       basicEditorHint: "リッチテキストエディター（基本）",

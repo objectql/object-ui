@@ -117,6 +117,22 @@ const ko = {
     relativeDate: {
       overdue: "기한 초과 {{count}}일",
     },
+    file: {
+      dragDropHere: '파일을 여기로 끌어다 놓기',
+      dropFilesHere: '여기에 놓기',
+      browseHint: '또는 클릭하여 찾아보기',
+      browseHintCamera: '또는 클릭하여 찾아보기 • 아래 카메라 버튼 사용',
+      takePhoto: '사진 촬영',
+      takeSelfie: '셀피 촬영',
+      cameraCapture: '카메라 촬영',
+      uploading: '업로드 중…',
+      uploadingPct: '업로드 중…（{{pct}}%）',
+      fileFallback: '파일',
+      upload: '업로드',
+      remove: '{{name}} 제거',
+      exceedsMaxSize: '"{{name}}"이(가) 최대 크기({{max}} MB)를 초과합니다',
+      uploadFailed: '"{{name}}" 업로드 실패: {{error}}',
+    },
     richText: {
       format: "형식: {{format}}",
       basicEditorHint: "서식 있는 텍스트 편집기 (기본)",
