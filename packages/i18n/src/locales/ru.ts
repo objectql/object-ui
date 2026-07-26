@@ -1992,6 +1992,7 @@ const ru = {
     progressBar: 'Ход решения',
     declaredActions: 'Действия',
     attachmentChip: 'Вложение',
+    attachmentOpenFailed: 'Не удалось открыть вложение — попробуйте ещё раз',
     approveOneTitle: 'Согласовать «{{title}}»?',
     approveOneBody: 'Запрос будет согласован от вашего имени. Чтобы добавить комментарий или вложение, откройте запрос.',
     flowOrigin: 'Инициировано потоком',

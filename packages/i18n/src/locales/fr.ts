@@ -1992,6 +1992,7 @@ const fr = {
     progressBar: 'Avancement de la décision',
     declaredActions: 'Actions',
     attachmentChip: 'Pièce jointe',
+    attachmentOpenFailed: "Impossible d'ouvrir la pièce jointe — veuillez réessayer",
     approveOneTitle: 'Approuver « {{title}} » ?',
     approveOneBody: 'Cette action approuve la demande en votre nom. Pour ajouter un commentaire ou une pièce jointe, ouvrez la demande.',
     flowOrigin: 'Initiée par un flux',

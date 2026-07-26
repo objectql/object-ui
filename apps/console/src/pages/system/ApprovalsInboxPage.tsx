@@ -100,6 +100,7 @@ import {
   buildApproverIdentities,
   type ApprovalRequestRow,
   type ApprovalActionRow,
+  type ApprovalActionAttachment,
 } from '../../services/approvalsApi';
 
 type TabKey = 'pending' | 'submitted' | 'all';
@@ -420,49 +421,37 @@ export function ApprovalsInboxPage() {
   // collects the comment and — since the shared upload-widget renderer (#2700/
   // #2707) plus the declared `attachments` file param (#2698) — file
   // attachments, so the inbox no longer hand-wires a decision composer. `authFetch`
-  // stays for the timeline's attachment-name resolution and signed-URL open.
+  // stays for opening an attachment's short-lived signed URL.
   const authFetch = useMemo(() => createAuthenticatedFetch(), []);
-  // Resolve attachment fileIds → sys_file display names for the timeline chips
-  // (#2678 P1.5). Best-effort, cached per id; unresolved ids fall back to a
-  // generic "Attachment" label.
-  const [attachmentNames, setAttachmentNames] = useState<Record<string, string>>({});
-  useEffect(() => {
-    const ids = new Set<string>();
-    for (const a of actions) for (const id of (a.attachments ?? [])) {
-      if (id && attachmentNames[id] === undefined) ids.add(id);
-    }
-    if (!ids.size) return;
-    const base = (import.meta.env.VITE_SERVER_URL || '').replace(/\/$/, '');
-    let cancelled = false;
-    void (async () => {
-      const resolved: Record<string, string> = {};
-      await Promise.all(Array.from(ids).map(async (id) => {
-        try {
-          const res = await authFetch(`${base}/api/v1/data/sys_file/${encodeURIComponent(id)}`);
-          if (!res.ok) { resolved[id] = ''; return; }
-          const body = await res.json().catch(() => null);
-          resolved[id] = String(body?.record?.name ?? body?.data?.name ?? body?.name ?? '');
-        } catch { resolved[id] = ''; }
-      }));
-      if (!cancelled) setAttachmentNames(prev => ({ ...prev, ...resolved }));
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed off actions; attachmentNames is the cache being filled
-  }, [actions, authFetch]);
 
-  /** Open an action's attachment via a short-lived signed URL (Bearer-authed fetch). */
-  const openAttachment = useCallback(async (fileId: string) => {
+  /**
+   * Open a timeline attachment. Three things the previous version got wrong,
+   * all of which made the chip look dead (framework#3266 follow-up):
+   *   1. `window.open` ran *after* `await` → not a user gesture → popup blocked.
+   *      We open the tab synchronously, up front, then point it at the URL.
+   *   2. The signed URL is server-relative (`/api/v1/storage/_local/raw/…`) — it
+   *      must resolve against the API origin, not the console origin.
+   *   3. Every failure was swallowed silently. Now the user gets a toast.
+   */
+  const openAttachment = useCallback(async (att: ApprovalActionAttachment) => {
+    // Synchronous open keeps the user-gesture, so the browser won't block it.
+    const win = window.open('', '_blank', 'noopener');
     try {
       const base = (import.meta.env.VITE_SERVER_URL || '').replace(/\/$/, '');
-      const res = await authFetch(`${base}/api/v1/storage/files/${encodeURIComponent(fileId)}/url`);
+      const res = await authFetch(`${base}/api/v1/storage/files/${encodeURIComponent(att.id)}/url`);
       if (!res.ok) throw new Error(`HTTP_${res.status}`);
       const body = await res.json().catch(() => null);
-      const url = body?.data?.url ?? body?.url;
-      if (url) window.open(url, '_blank', 'noopener');
+      const raw = body?.data?.url ?? body?.url;
+      if (!raw) throw new Error('NO_URL');
+      // Signed URLs from the local adapter are relative; S3/GCS are absolute.
+      const url = /^https?:\/\//i.test(raw) ? raw : `${base}${raw}`;
+      if (win) win.location.href = url;
+      else window.open(url, '_blank', 'noopener');
     } catch {
-      /* open failed — non-fatal; the chip stays visible */
+      win?.close();
+      toast.error(tr('attachmentOpenFailed', 'Could not open the attachment — please try again'));
     }
-  }, [authFetch]);
+  }, [authFetch, tr]);
 
   // Search + filters. On the paginated tabs (submitted/all) the free-text
   // query is debounced and pushed to the server; the pending tab keeps
@@ -1821,16 +1810,16 @@ export function ApprovalsInboxPage() {
                           )}
                           {Array.isArray(a.attachments) && a.attachments.length > 0 && (
                             <div className="flex flex-wrap gap-1.5 mt-1">
-                              {a.attachments.map((fileId, i) => (
+                              {a.attachments.map((att, i) => (
                                 <button
-                                  key={fileId}
+                                  key={att.id || i}
                                   type="button"
-                                  onClick={() => void openAttachment(fileId)}
+                                  onClick={() => void openAttachment(att)}
                                   className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                                  title={fileId}
+                                  title={att.name || att.id}
                                 >
                                   <Paperclip className="h-3 w-3" />
-                                  {attachmentNames[fileId]
+                                  {att.name
                                     || `${tr('attachmentChip', 'Attachment')}${a.attachments!.length > 1 ? ` ${i + 1}` : ''}`}
                                 </button>
                               ))}

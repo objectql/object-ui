@@ -2534,6 +2534,7 @@ const en = {
     progressBar: 'Decision progress',
     declaredActions: 'Actions',
     attachmentChip: 'Attachment',
+    attachmentOpenFailed: 'Could not open the attachment — please try again',
     approveOneTitle: 'Approve "{{title}}"?',
     approveOneBody: 'This approves the request with your identity. To add a comment or attachment, open the request instead.',
     flowOrigin: 'Flow-initiated',

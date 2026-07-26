@@ -1994,6 +1994,7 @@ const ko = {
     progressBar: '결정 진행 상황',
     declaredActions: '작업',
     attachmentChip: '첨부 파일',
+    attachmentOpenFailed: '첨부 파일을 열 수 없습니다. 다시 시도해 주세요',
     approveOneTitle: '"{{title}}"을(를) 승인할까요?',
     approveOneBody: '내 이름으로 이 요청을 승인합니다. 의견이나 첨부 파일을 추가하려면 요청을 열어 처리하세요.',
     flowOrigin: '플로우 시작',

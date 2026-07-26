@@ -2608,6 +2608,7 @@ const zh = {
     progressBar: '决策进度',
     declaredActions: '操作',
     attachmentChip: '附件',
+    attachmentOpenFailed: '无法打开附件，请重试',
     approveOneTitle: '通过“{{title}}”？',
     approveOneBody: '将以你的身份通过该请求。如需填写审批意见或附件，请打开该请求处理。',
     flowOrigin: '流程发起',

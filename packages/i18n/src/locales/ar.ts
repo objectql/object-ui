@@ -1992,6 +1992,7 @@ const ar = {
     progressBar: 'تقدم القرار',
     declaredActions: 'الإجراءات',
     attachmentChip: 'مرفق',
+    attachmentOpenFailed: 'تعذّر فتح المرفق — يرجى المحاولة مرة أخرى',
     approveOneTitle: 'الموافقة على "{{title}}"؟',
     approveOneBody: 'ستتم الموافقة على الطلب بهويتك. لإضافة تعليق أو مرفق، افتح الطلب.',
     flowOrigin: 'بدأها التدفق',

@@ -1994,6 +1994,7 @@ const ja = {
     progressBar: '承認の進捗',
     declaredActions: 'アクション',
     attachmentChip: '添付ファイル',
+    attachmentOpenFailed: '添付ファイルを開けませんでした。もう一度お試しください',
     approveOneTitle: '「{{title}}」を承認しますか？',
     approveOneBody: 'あなたの名義でこのリクエストを承認します。コメントや添付を付ける場合は、リクエストを開いて操作してください。',
     flowOrigin: 'フロー起動',

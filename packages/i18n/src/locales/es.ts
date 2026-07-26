@@ -1994,6 +1994,7 @@ const es = {
     progressBar: 'Progreso de la decisión',
     declaredActions: 'Acciones',
     attachmentChip: 'Adjunto',
+    attachmentOpenFailed: 'No se pudo abrir el archivo adjunto: inténtalo de nuevo',
     approveOneTitle: '¿Aprobar «{{title}}»?',
     approveOneBody: 'Esto aprueba la solicitud con tu identidad. Para añadir un comentario o un adjunto, abre la solicitud.',
     flowOrigin: 'Iniciada por flujo',

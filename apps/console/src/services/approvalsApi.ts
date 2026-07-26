@@ -104,6 +104,20 @@ export interface ApprovalRequestRow {
   round?: number;
 }
 
+/**
+ * A file attached to a decision action (#3266). The server resolves the
+ * `sys_approval_action.attachments` file field into rich descriptors, so the
+ * chip has the display name + download URL without any `sys_file` lookup.
+ */
+export interface ApprovalActionAttachment {
+  id: string;
+  name?: string;
+  /** Stable download URL (`/api/v1/storage/files/:id`); may be server-relative. */
+  url?: string;
+  mimeType?: string;
+  size?: number;
+}
+
 export interface ApprovalActionRow {
   id: string;
   request_id: string;
@@ -112,8 +126,8 @@ export interface ApprovalActionRow {
   actor_id?: string | null;
   action: 'submit' | 'approve' | 'reject' | 'recall' | string;
   comment?: string | null;
-  /** File references attached to this action (decision attachments, #3266). */
-  attachments?: string[] | null;
+  /** Files attached to this action (decision attachments, #3266). */
+  attachments?: ApprovalActionAttachment[] | null;
   created_at?: string;
   /** Display name of the actor, resolved server-side. */
   actor_name?: string;

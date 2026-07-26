@@ -1994,6 +1994,7 @@ const de = {
     progressBar: 'Entscheidungsfortschritt',
     declaredActions: 'Aktionen',
     attachmentChip: 'Anhang',
+    attachmentOpenFailed: 'Anhang konnte nicht geöffnet werden – bitte erneut versuchen',
     approveOneTitle: '„{{title}}“ genehmigen?',
     approveOneBody: 'Die Anfrage wird mit Ihrer Identität genehmigt. Um einen Kommentar oder Anhang hinzuzufügen, öffnen Sie die Anfrage.',
     flowOrigin: 'Vom Flow gestartet',

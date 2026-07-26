@@ -1992,6 +1992,7 @@ const pt = {
     progressBar: 'Progresso da decisão',
     declaredActions: 'Ações',
     attachmentChip: 'Anexo',
+    attachmentOpenFailed: 'Não foi possível abrir o anexo — tente novamente',
     approveOneTitle: 'Aprovar "{{title}}"?',
     approveOneBody: 'Isso aprova a solicitação com a sua identidade. Para adicionar um comentário ou anexo, abra a solicitação.',
     flowOrigin: 'Iniciada por fluxo',
