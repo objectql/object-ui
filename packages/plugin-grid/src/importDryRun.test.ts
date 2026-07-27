@@ -79,6 +79,10 @@ describe('formatDryRunError', () => {
     ({
       'grid.import.referenceNotFound': `No matching record for "${vars?.value}"`,
       'grid.import.referenceAmbiguous': `"${vars?.value}" matches more than one record`,
+      'grid.import.invalidNumber': `"${vars?.value}" is not a valid number`,
+      'grid.import.invalidOption': `"${vars?.value}" is not one of the allowed options`,
+      'grid.import.requiredValue': 'This field is required',
+      'grid.import.matchAmbiguous': 'Matches more than one existing record — use a unique value or the record id',
     } as Record<string, string>)[key] ?? key;
 
   it('resolves the field api-name to its label', () => {
@@ -114,6 +118,41 @@ describe('formatDryRunError', () => {
       labels, '导管架', t,
     );
     expect(message).toBe('"导管架" matches more than one record');
+  });
+
+  it('maps a coercion code (invalid_number) off the code, not the raw text', () => {
+    const { message } = formatDryRunError(
+      { field: 'product', code: 'invalid_number', error: 'product: "abc" is not a number' },
+      labels, 'abc', t,
+    );
+    expect(message).toBe('"abc" is not a valid number');
+    expect(message).not.toContain('product:');
+  });
+
+  it('maps invalid_option through its key', () => {
+    const { message } = formatDryRunError(
+      { field: 'product', code: 'invalid_option', error: 'product: "x" is not a known option' },
+      labels, 'x', t,
+    );
+    expect(message).toBe('"x" is not one of the allowed options');
+  });
+
+  it('maps a required-field miss to a value-free message', () => {
+    const { fieldLabel, message } = formatDryRunError(
+      { field: 'product', code: 'required', error: 'product is required' },
+      labels, undefined, t,
+    );
+    expect(fieldLabel).toBe('产品');
+    expect(message).toBe('This field is required');
+  });
+
+  it('maps AMBIGUOUS_MATCH (upsert match key) without leaking the object api-name', () => {
+    const { message } = formatDryRunError(
+      { field: '', code: 'AMBIGUOUS_MATCH', error: 'matchFields matched more than one os_x_position record' },
+      labels, undefined, t,
+    );
+    expect(message).toBe('Matches more than one existing record — use a unique value or the record id');
+    expect(message).not.toContain('os_x_position');
   });
 
   it('strips a duplicated api-name prefix for codes it does not recognize', () => {

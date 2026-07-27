@@ -132,9 +132,17 @@ const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.import.validatePassed': 'All {{ok}} rows are valid.',
   'grid.import.validateFailed': '{{ok}} valid, {{errors}} with errors.',
   'grid.import.errorRowPrefix': 'Row {{row}}: ',
-  // Friendly, localized renderings of the server's structured import errors.
+  // Friendly, localized renderings of the server's structured import errors —
+  // driven off the error `code` so the raw English server text (with its
+  // baked-in api-name and internal object name) never reaches the user.
   'grid.import.referenceNotFound': 'No matching record for "{{value}}"',
   'grid.import.referenceAmbiguous': '"{{value}}" matches more than one record — use a unique value or the record id',
+  'grid.import.invalidBoolean': '"{{value}}" is not a valid true/false value',
+  'grid.import.invalidNumber': '"{{value}}" is not a valid number',
+  'grid.import.invalidDate': '"{{value}}" is not a valid date',
+  'grid.import.invalidOption': '"{{value}}" is not one of the allowed options',
+  'grid.import.requiredValue': 'This field is required',
+  'grid.import.matchAmbiguous': 'Matches more than one existing record — use a unique value or the record id',
   // Import-job history
   'grid.import.history': 'History',
   'grid.import.historyBack': 'Back to import',
@@ -304,7 +312,7 @@ export interface ImportResult {
   totalRows: number;
   importedRows: number;
   skippedRows: number;
-  errors: Array<{ row: number; field: string; message: string }>;
+  errors: Array<{ row: number; field: string; message: string; code?: string }>;
   /** Rows that created a new record (server-side import). */
   createdRows?: number;
   /** Rows that updated an existing record (server-side import). */
@@ -404,6 +412,18 @@ function formatDryRunError(
       return { fieldLabel, message: t('grid.import.referenceNotFound', { value: shown }) };
     case 'reference_ambiguous':
       return { fieldLabel, message: t('grid.import.referenceAmbiguous', { value: shown }) };
+    case 'invalid_boolean':
+      return { fieldLabel, message: t('grid.import.invalidBoolean', { value: shown }) };
+    case 'invalid_number':
+      return { fieldLabel, message: t('grid.import.invalidNumber', { value: shown }) };
+    case 'invalid_date':
+      return { fieldLabel, message: t('grid.import.invalidDate', { value: shown }) };
+    case 'invalid_option':
+      return { fieldLabel, message: t('grid.import.invalidOption', { value: shown }) };
+    case 'required':
+      return { fieldLabel, message: t('grid.import.requiredValue') };
+    case 'AMBIGUOUS_MATCH':
+      return { fieldLabel, message: t('grid.import.matchAmbiguous') };
   }
   let message = (r.error ?? r.code ?? '').trim();
   // Drop a leading `<api-name>:` the server prepended, so it isn't shown on top
@@ -424,7 +444,7 @@ function formatDryRunError(
  */
 export function isPlausibleEmail(value: string): boolean {
   if (value.length === 0 || value.length > 254 || /\s/.test(value)) return false;
-  if (/[^\x00-\x7f]/.test(value)) return false; // ASCII only, like the server
+  if (/[^\x20-\x7e]/.test(value)) return false; // printable ASCII only, like the server
   const at = value.indexOf('@');
   if (at <= 0 || at !== value.lastIndexOf('@') || at === value.length - 1) return false;
   const domain = value.slice(at + 1);
@@ -624,7 +644,7 @@ function jobResultToImportResult(res: ImportJobResultsInfo): ImportResult {
     updatedRows: res.updated,
     errors: (res.results ?? [])
       .filter((r) => !r.ok)
-      .map((r) => ({ row: r.row, field: r.field ?? '', message: r.error ?? r.code ?? 'Import failed' })),
+      .map((r) => ({ row: r.row, field: r.field ?? '', message: r.error ?? r.code ?? 'Import failed', code: r.code })),
     resultsTruncated: res.resultsTruncated,
   };
 }
@@ -2005,7 +2025,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
           updatedRows: res.updated,
           errors: res.results
             .filter((r) => !r.ok)
-            .map((r) => ({ row: r.row, field: r.field ?? '', message: r.error ?? r.code ?? 'Import failed' })),
+            .map((r) => ({ row: r.row, field: r.field ?? '', message: r.error ?? r.code ?? 'Import failed', code: r.code })),
           serverResult: res,
         };
         setProgress(100);
@@ -2380,9 +2400,24 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
             {result.errors.length > 0 && (
               <>
                 <div className="max-h-32 w-full overflow-auto rounded border p-2 text-xs">
-                  {result.errors.slice(0, 10).map((err, i) => (
-                    <p key={i} className="text-destructive">{err.row >= 1 ? `Row ${err.row}${err.field ? ` (${err.field})` : ''}: ` : ''}{err.message}</p>
-                  ))}
+                  {result.errors.slice(0, 10).map((err, i) => {
+                    // Localize the same way the dry-run panel does (drive off
+                    // `code`, resolve the api-name to its label, drop the raw
+                    // server text for known codes) so the completion screen and
+                    // the pre-check read identically (objectstack#3566).
+                    const { fieldLabel, message } = formatDryRunError(
+                      { field: err.field, error: err.message, code: err.code },
+                      fieldLabelByName,
+                      dryRunCellValue(err.row, err.field),
+                      t,
+                    );
+                    return (
+                      <p key={i} className="text-destructive">
+                        {err.row >= 1 ? t('grid.import.errorRowPrefix', { row: err.row }) : ''}
+                        {fieldLabel ? `${fieldLabel}: ` : ''}{message}
+                      </p>
+                    );
+                  })}
                   {result.errors.length > 10 && <p className="text-muted-foreground">{t('grid.import.moreErrors', { count: result.errors.length - 10 })}</p>}
                 </div>
                 {result.errors.some((e) => e.row >= 1) && (

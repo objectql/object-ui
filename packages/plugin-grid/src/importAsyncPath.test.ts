@@ -95,9 +95,9 @@ describe('jobResultToImportResult', () => {
     expect(r.resultsTruncated).toBe(false);
   });
 
-  it('projects only failed rows into the errors list, preferring error over code', () => {
+  it('projects only failed rows into the errors list, preferring error over code (and carrying the code for localization)', () => {
     const r = jobResultToImportResult(base);
-    expect(r.errors).toEqual([{ row: 5, field: 'amount', message: 'not a number' }]);
+    expect(r.errors).toEqual([{ row: 5, field: 'amount', message: 'not a number', code: 'COERCE' }]);
   });
 
   it('carries the resultsTruncated flag through when the server capped the report', () => {
