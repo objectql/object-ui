@@ -229,7 +229,15 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
   // source of truth — formerly a hand-mirrored `NON_EDITABLE_BUCKETS` set kept
   // in lockstep by hand because plugin-detail can't depend on app-shell.
   // Authors can still force-disable with `inlineEdit: false`.
-  const objectInlineEditable = isObjectInlineEditable(objSchema);
+  // [#3546] Also AND inline-editability with the server's effective API
+  // operation set for this object (`/me/permissions` `apiOperations`) — the
+  // record body must not offer double-click/pencil editing the server would
+  // 405. `undefined` (unrestricted / old backend) leaves the bucket affordance
+  // untouched (backward-compatible).
+  const objectInlineEditable = isObjectInlineEditable(
+    objSchema,
+    perms?.getObjectApiOperations?.(objectName),
+  );
   const inlineEditDefault = (schema.inlineEdit ?? true) && objectInlineEditable;
 
   const synthesized: any = {

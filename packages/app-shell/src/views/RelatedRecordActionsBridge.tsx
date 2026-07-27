@@ -49,6 +49,7 @@ import {
   type RelatedRowActionDef,
 } from '@object-ui/react';
 import type { ActionDef } from '@object-ui/core';
+import { usePermissions } from '@object-ui/permissions';
 import { resolveCrudAffordances } from '../utils/crudAffordances';
 import { RECORD_FORM_PARAM, RECORD_FORM_OBJECT_PARAM, RECORD_FORM_LINK_PARAM, RECORD_TRAIL_PARAM, appendRecordTrail } from '../urlParams';
 
@@ -122,6 +123,7 @@ export function RelatedRecordActionsBridge({
   const navigate = useNavigate();
   const { execute } = useAction();
   const [, setSearchParams] = useSearchParams();
+  const { getObjectApiOperations } = usePermissions();
   const base = appName ? `/apps/${appName}` : '';
 
   // #2604 D3 — open a child create/edit task as the console's global record
@@ -177,7 +179,12 @@ export function RelatedRecordActionsBridge({
       resolve: ({ objectName, relationshipField, parentId }) => {
         const childDef = objects.find((o: any) => o?.name === objectName);
         if (!childDef || !base) return {} as RelatedRecordHandlers;
-        const aff = resolveCrudAffordances(childDef);
+        // [#3546] Intersect the child object's bucket affordances with the
+        // server-resolved effective API operation set for THAT child
+        // (`/me/permissions` `apiOperations`), so a related list never offers
+        // Create/Edit/Delete on the child the server would 405. `undefined`
+        // (unrestricted / old backend) leaves the affordances untouched.
+        const aff = resolveCrudAffordances(childDef, getObjectApiOperations(objectName));
         const detailUrl = (id: string | number) => {
           const url = `${base}/${objectName}/record/${encodeURIComponent(String(id))}`;
           // Carry the parent record into the child's `?from=` trail so the
@@ -247,7 +254,7 @@ export function RelatedRecordActionsBridge({
         return handlers;
       },
     }),
-    [objects, base, navigate, dataSource, actionLabel, runRowAction, openChildForm, parentObjectName, parentRecordId, parentTitle],
+    [objects, base, navigate, dataSource, actionLabel, runRowAction, openChildForm, parentObjectName, parentRecordId, parentTitle, getObjectApiOperations],
   );
 
   return (

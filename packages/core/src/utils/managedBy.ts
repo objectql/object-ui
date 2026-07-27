@@ -192,7 +192,17 @@ export function isSystemWritable(obj: SchemaLike | null | undefined): boolean {
  * `append-only` / `better-auth` objects resolve to `false` unless they opened
  * `userActions.edit`. (Per-record predicates gate row action buttons, not
  * object-level editability, so only the resolved boolean matters here.)
+ *
+ * @param effectiveApiOperations OPTIONAL server-resolved effective API operation
+ *   set for this object (`/me/permissions` `apiOperations`, #3391/#3546). When
+ *   provided, inline-edit is additionally ANDed with the server allowing
+ *   `update`, so a record page never offers double-click/pencil editing the
+ *   server would 405. `undefined` (old backend / unrestricted) leaves the
+ *   bucket affordance untouched.
  */
-export function isObjectInlineEditable(obj: SchemaLike | null | undefined): boolean {
-  return resolveCrudAffordances(obj).edit;
+export function isObjectInlineEditable(
+  obj: SchemaLike | null | undefined,
+  effectiveApiOperations?: readonly string[] | null,
+): boolean {
+  return resolveCrudAffordances(obj, effectiveApiOperations).edit;
 }

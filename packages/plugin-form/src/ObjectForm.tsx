@@ -506,7 +506,17 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
     // (e.g. sys_user opens `edit` for its profile fields). When open, the lock
     // lifts and each field's own `readonly` flag decides. The server-side write
     // guard remains the real boundary; this is UX only.
-    const affordances = resolveCrudAffordances(objectSchema as any);
+    // [#3546] Intersect the bucket/userActions affordance with the server's
+    // effective API operation set for this object (`/me/permissions`
+    // `apiOperations`), so the form's blanket field lock also engages when the
+    // server denies `update` (edit mode) / `create` (create mode) — the same
+    // intersection the detail header and list/toolbar surfaces apply.
+    // `undefined` (unrestricted object / no PermissionProvider) leaves the
+    // resolved affordance untouched (backward-compatible).
+    const affordances = resolveCrudAffordances(
+      objectSchema as any,
+      perms?.getObjectApiOperations?.(schema.objectName),
+    );
     const modeAffordanceOpen =
       schema.mode === 'edit'
         ? affordances.edit
@@ -655,7 +665,7 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
     if (!willFetchData) {
       setLoading(false);
     }
-  }, [objectSchema, schema.fields, schema.customFields, schema.readOnly, schema.mode, hasInlineFields, schema.recordId, dataSource]);
+  }, [objectSchema, schema.fields, schema.customFields, schema.readOnly, schema.mode, schema.objectName, hasInlineFields, schema.recordId, dataSource, perms]);
 
   // Handle form submission
   const handleSubmit = useCallback(async (formData: any, e?: any) => {

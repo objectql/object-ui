@@ -186,3 +186,30 @@ describe('resolveCrudAffordances — effective API operations (#3391)', () => {
     expect(aff.exportCsv).toBe(true);
   });
 });
+
+describe('isObjectInlineEditable — effective API operations (#3546)', () => {
+  it('undefined effective set → bucket affordance decides (backward-compatible)', () => {
+    // platform is inline-editable by default; system is not.
+    expect(isObjectInlineEditable({ managedBy: 'platform' })).toBe(true);
+    expect(isObjectInlineEditable({ managedBy: 'platform' }, undefined)).toBe(true);
+    expect(isObjectInlineEditable({ managedBy: 'system' })).toBe(false);
+  });
+
+  it('effective set WITHOUT `update` closes inline-edit even on an editable bucket', () => {
+    // Server hands down a read-only effective set → no double-click/pencil.
+    expect(isObjectInlineEditable({ managedBy: 'platform' }, ['get', 'list'])).toBe(false);
+  });
+
+  it('effective set WITH `update` keeps inline-edit on an editable bucket', () => {
+    expect(isObjectInlineEditable({ managedBy: 'platform' }, ['get', 'update'])).toBe(true);
+  });
+
+  it('effective set never re-opens inline-edit the bucket already denied (intersection)', () => {
+    // system resolves edit=false; even a server `update` grant can't re-open it.
+    expect(isObjectInlineEditable({ managedBy: 'system' }, ['get', 'update'])).toBe(false);
+  });
+
+  it('empty effective set → not inline-editable (deny-all)', () => {
+    expect(isObjectInlineEditable({ managedBy: 'platform' }, [])).toBe(false);
+  });
+});

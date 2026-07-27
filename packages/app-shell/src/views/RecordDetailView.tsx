@@ -894,7 +894,18 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // are still loading (`isLoaded === false`, e.g. no PermissionProvider in a
   // standalone embed) the gate stays open — fail-open is safe because the
   // server enforces data access regardless; this is purely a UI/DX filter.
-  const { can: canOnObject, isLoaded: permissionsLoaded } = usePermissions();
+  const { can: canOnObject, isLoaded: permissionsLoaded, getObjectApiOperations } = usePermissions();
+  // [#3546] Server-resolved effective API operation set for this object
+  // (`/me/permissions` `apiOperations`). Threaded as the 2nd arg into
+  // `resolveCrudAffordances` for the detail header's Edit/Delete and the
+  // record-body inline-edit gate, so the detail surface never offers an
+  // operation the server would 405 — the same intersection the list/toolbar
+  // surface already applies (objectui#2823). `undefined` (unrestricted object
+  // / old backend) leaves the bucket affordances untouched (backward-compatible).
+  const effectiveApiOperations = useMemo(
+    () => (objectDef ? getObjectApiOperations(objectDef.name) : undefined),
+    [objectDef, getObjectApiOperations],
+  );
   const childRelations = useMemo(
     () => deriveRelatedLists(objectDef, objects, {
       canRead: permissionsLoaded ? (name) => canOnObject(name, 'read') : undefined,
@@ -1737,7 +1748,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // menu permanently — Delete must never surface as an inline red button
   // just because an object has few actions.
   const synthSystemActions: ActionDef[] = (() => {
-    const affordances = resolveCrudAffordances(objectDef as any);
+    const affordances = resolveCrudAffordances(objectDef as any, effectiveApiOperations);
     const items: ActionDef[] = [];
     if (affordances.edit) {
       // Single primary Edit CTA → opens the full record form. Inline editing
@@ -1882,7 +1893,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
             on backends that track the lock via approval requests only and
             never materialize an `approval_status` field (objectui#2618). */}
         <InlineEditProvider
-          canEdit={resolveCrudAffordances(objectDef as any).edit && !approvalLocked}
+          canEdit={resolveCrudAffordances(objectDef as any, effectiveApiOperations).edit && !approvalLocked}
           locked={approvalLocked}
           lockedReason={t('detail.lockedTooltip', {
             defaultValue: 'This record has a pending approval request; editing is locked',
