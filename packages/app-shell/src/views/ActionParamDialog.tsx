@@ -32,7 +32,7 @@ import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { ActionParamDef } from '@object-ui/core';
 import { ExpressionEvaluator } from '@object-ui/core';
 import { usePredicateScope } from '@object-ui/react';
-import { getLazyFieldWidget } from '@object-ui/fields';
+import { getLazyFieldWidget, fileIdOf } from '@object-ui/fields';
 import { paramToField } from '../utils/paramToField';
 
 export interface ParamDialogState {
@@ -75,12 +75,15 @@ export function filterVisibleParams(
 
 /**
  * Serialize collected values for the request body. Upload widgets (`file` /
- * `image`) hold a rich `{ file_id, name, url, … }` object — or an array of them
- * when `multiple` — but the portable API contract is the storage id(s). Map each
- * upload param to its `file_id` (a bare string passes through unchanged, and an
- * object missing `file_id` is left intact so the failure is visible rather than
- * silently POSTing `undefined`). Every non-upload value is returned as-is. Pure
- * + exported so the mapping is unit-testable without the dialog render tree.
+ * `image`) may hold a bare `sys_file` id — the reference form they now submit
+ * when the adapter surfaces one — or a rich `{ file_id, name, url, … }` object,
+ * or an array of either when `multiple`. The portable API contract is the
+ * storage id(s), so each upload param is reduced to its id via `fileIdOf`, the
+ * same extractor the field widgets use, so the two surfaces cannot drift on
+ * what counts as an id. An object carrying no id is left intact, so the failure
+ * is visible rather than silently POSTing `undefined`. Every non-upload value is
+ * returned as-is. Pure + exported so the mapping is unit-testable without the
+ * dialog render tree.
  */
 export function serializeParamValues(
   params: ActionParamDef[],
@@ -95,8 +98,7 @@ export function serializeParamValues(
       .map((p) => p.name),
   );
   if (uploadNames.size === 0) return values;
-  const toId = (item: any) =>
-    item && typeof item === 'object' ? (item.file_id ?? item.id ?? item) : item;
+  const toId = (item: any) => fileIdOf(item) ?? item;
   const out: Record<string, any> = { ...values };
   for (const name of uploadNames) {
     const v = out[name];

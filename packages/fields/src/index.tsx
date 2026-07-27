@@ -2443,6 +2443,10 @@ export function registerFields() {
 }
 
 export * from './widgets/types';
+// File field value shapes (ObjectStack ADR-0104 D3 wave 2) — the single
+// arbiter of reference vs expanded vs legacy-blob form, shared by the upload
+// widgets and by action-param serialization.
+export * from './widgets/file-value';
 export * from './FieldEditWidget';
 export * from './widgets/TextField';
 export * from './widgets/NumberField';
