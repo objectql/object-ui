@@ -433,6 +433,31 @@ export interface LookupFieldMetadata extends BaseFieldMetadata {
   options?: SelectOptionMetadata[];
 
   /**
+   * Record field rendered as each candidate's label. Falls back to
+   * `reference_field`, then the referenced object's own display-name
+   * resolution, then the raw id.
+   * @example 'label' — a position's display name
+   */
+  display_field?: string;
+
+  /**
+   * Record field committed as this lookup's VALUE. Defaults to `'id'`; set it
+   * when the reference is stored by another column — e.g. an approval
+   * `position` approver stores `sys_position.name`, because the engine routes
+   * by machine name and names stay portable across environments
+   * (objectstack #3508).
+   */
+  id_field?: string;
+
+  /**
+   * Offer inline "create the referenced record" from an empty/zero-result
+   * picker. Defaults ON for user-facing relations and OFF for platform
+   * objects (`sys_`/`cloud_`/`ai_` and the user directory); set explicitly to
+   * override either way.
+   */
+  allow_create?: boolean;
+
+  /**
    * Secondary field shown as description in the quick-select popover.
    * @example 'industry' — shows customer industry below customer name
    */

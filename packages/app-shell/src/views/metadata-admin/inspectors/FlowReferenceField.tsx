@@ -394,10 +394,17 @@ function RecordLookupCell({ binding, value, onPick, onCommit, onBlur, disabled, 
           readonly={disabled}
           dataSource={adapter}
           field={{
+            // `type` is the discriminator that selects LookupFieldMetadata —
+            // without it the literal is checked against the wrong union member
+            // and the lookup keys below are rejected.
+            type: 'lookup',
+            name: 'value',
             reference_to: binding.object,
             display_field: binding.displayField,
+            // `position` commits the machine name, the rest the row id.
             id_field: binding.valueField,
             multiple: false,
+            // A directory row is never created from a flow-authoring picker.
             allow_create: false,
             placeholder,
             ...(binding.picker ? { picker: binding.picker } : {}),
