@@ -16,21 +16,65 @@ import {
   Badge,
   Skeleton,
 } from '@object-ui/components';
+import { useObjectTranslation } from '@object-ui/i18n';
 import { Settings as SettingsIcon } from 'lucide-react';
 import { getIcon } from '../../utils/getIcon';
 import { listSettingsManifests } from './api';
 import { resolveLabel, type SettingsManifest } from './types';
+import { useSettingsLabel } from './useSettingsLabel';
+
+/**
+ * One manifest card. Extracted so it can resolve the manifest's own
+ * translated title/description via {@link useSettingsLabel} (hooks can't be
+ * called inside a `.map()` callback in the parent).
+ */
+function SettingCard({ m, onOpen }: { m: SettingsManifest; onOpen: () => void }) {
+  const { t } = useObjectTranslation();
+  const labels = useSettingsLabel(m.namespace);
+  const Icon = m.icon ? getIcon(m.icon) : SettingsIcon;
+  const literalLabel = resolveLabel(m.label);
+  const title = labels.title(literalLabel);
+  const description = labels.description(m.description ?? undefined);
+
+  return (
+    <Card
+      className="cursor-pointer hover:border-primary/50 hover:shadow-sm transition-all"
+      onClick={onOpen}
+    >
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between">
+          <Icon className="h-6 w-6 text-muted-foreground" />
+          {m.beta ? (
+            <Badge variant="secondary" className="text-[10px]">
+              {t('console.settingsHub.beta')}
+            </Badge>
+          ) : null}
+        </div>
+        <CardTitle className="text-base mt-2">{title}</CardTitle>
+        {description ? <CardDescription className="text-xs">{description}</CardDescription> : null}
+      </CardHeader>
+      <CardContent className="pt-0">
+        <div className="text-[11px] text-muted-foreground">
+          {t('console.settingsHub.settingsCount', { n: m.specifiers.length })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export function SettingsHub() {
   const navigate = useNavigate();
+  const { t } = useObjectTranslation();
   const [manifests, setManifests] = useState<SettingsManifest[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     listSettingsManifests()
       .then((r) => setManifests(r.manifests ?? []))
-      .catch((err) => setError(err?.message ?? 'Failed to load settings'));
-  }, []);
+      .catch((err) =>
+        setError(err?.message ?? t('console.settingsHub.loadError')),
+      );
+  }, [t]);
 
   const byCategory = useMemo(() => {
     if (!manifests) return null;
@@ -49,8 +93,8 @@ export function SettingsHub() {
       <div className="flex items-center gap-3 mb-6">
         <SettingsIcon className="h-7 w-7 text-muted-foreground" />
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-          <p className="text-sm text-muted-foreground">Configure your workspace, integrations, and feature flags.</p>
+          <h1 className="text-2xl font-semibold tracking-tight">{t('console.settingsHub.title')}</h1>
+          <p className="text-sm text-muted-foreground">{t('console.settingsHub.subtitle')}</p>
         </div>
       </div>
 
@@ -72,42 +116,23 @@ export function SettingsHub() {
       ) : manifests.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            No settings registered. Plugins can register settings manifests via the SettingsService.
+            {t('console.settingsHub.empty')}
           </CardContent>
         </Card>
       ) : (
         Array.from(byCategory ?? []).map(([category, items]) => (
           <section key={category} className="mb-8">
             <h2 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground mb-3">
-              {category}
+              {t(`console.settingsHub.categories.${category}`, { defaultValue: category })}
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {items.map((m) => {
-                const Icon = m.icon ? getIcon(m.icon) : SettingsIcon;
-                return (
-                  <Card
-                    key={m.namespace}
-                    className="cursor-pointer hover:border-primary/50 hover:shadow-sm transition-all"
-                    onClick={() => navigate(`/system/settings/${m.namespace}`)}
-                  >
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <Icon className="h-6 w-6 text-muted-foreground" />
-                        {m.beta ? <Badge variant="secondary" className="text-[10px]">Beta</Badge> : null}
-                      </div>
-                      <CardTitle className="text-base mt-2">{resolveLabel(m.label)}</CardTitle>
-                      {m.description ? (
-                        <CardDescription className="text-xs">{m.description}</CardDescription>
-                      ) : null}
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <div className="text-[11px] text-muted-foreground">
-                        {m.specifiers.length} setting{m.specifiers.length === 1 ? '' : 's'}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+              {items.map((m) => (
+                <SettingCard
+                  key={m.namespace}
+                  m={m}
+                  onOpen={() => navigate(`/system/settings/${m.namespace}`)}
+                />
+              ))}
             </div>
           </section>
         ))

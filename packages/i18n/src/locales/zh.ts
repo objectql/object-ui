@@ -1289,6 +1289,23 @@ const zh = {
       dragToReorder: '拖动以重新排序',
       favorites: '收藏',
     },
+    settingsHub: {
+      title: '设置',
+      subtitle: '配置工作区、集成与功能开关。',
+      loadError: '加载设置失败',
+      empty: '尚未注册任何设置。插件可通过 SettingsService 注册设置清单。',
+      settingsCount: '{{n}} 项设置',
+      beta: 'Beta',
+      // 分类小标题，按 manifest 的 `category` 值取键;未知(插件自定义)分类回退到原始字符串。
+      categories: {
+        Workspace: '工作区',
+        Communication: '通讯',
+        Security: '安全',
+        Infrastructure: '基础设施',
+        Beta: 'Beta',
+        Other: '其他',
+      },
+    },
     loadingSteps: {
       connecting: '正在连接数据源',
       loadingConfig: '正在加载配置',

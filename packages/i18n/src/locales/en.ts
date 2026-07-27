@@ -1213,6 +1213,24 @@ const en = {
       dragToReorder: 'Drag to reorder',
       favorites: 'Favorites',
     },
+    settingsHub: {
+      title: 'Settings',
+      subtitle: 'Configure your workspace, integrations, and feature flags.',
+      loadError: 'Failed to load settings',
+      empty: 'No settings registered. Plugins can register settings manifests via the SettingsService.',
+      settingsCount: '{{n}} settings',
+      beta: 'Beta',
+      // Section headers, keyed by the manifest `category` value. Unknown
+      // (plugin-authored) categories fall back to the literal category string.
+      categories: {
+        Workspace: 'Workspace',
+        Communication: 'Communication',
+        Security: 'Security',
+        Infrastructure: 'Infrastructure',
+        Beta: 'Beta',
+        Other: 'Other',
+      },
+    },
     loadingSteps: {
       connecting: 'Connecting to data source',
       loadingConfig: 'Loading configuration',
