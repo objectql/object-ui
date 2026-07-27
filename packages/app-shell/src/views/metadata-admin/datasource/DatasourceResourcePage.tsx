@@ -64,6 +64,7 @@ import {
   SelectValue,
 } from '@object-ui/components';
 import { createAuthenticatedFetch } from '@object-ui/auth';
+import { useObjectTranslation } from '@object-ui/i18n';
 import { useMetadataClient } from '../useMetadata';
 
 interface DatasourceRow {
@@ -122,6 +123,7 @@ function defaultConfig(driver: DriverEntry | undefined): Record<string, unknown>
 }
 
 export function DatasourceResourcePage(_props: { type?: string }): React.ReactElement {
+  const { t } = useObjectTranslation();
   const authFetch = React.useMemo(() => createAuthenticatedFetch(), []);
   const metaClient = useMetadataClient();
 
@@ -147,12 +149,12 @@ export function DatasourceResourcePage(_props: { type?: string }): React.ReactEl
       const data = await api('/api/v1/datasources');
       setRows(Array.isArray(data?.datasources) ? data.datasources : []);
     } catch (err) {
-      toast.error(`Load datasources: ${(err as Error).message}`);
+      toast.error(t('console.datasource.toast.loadFailed', { msg: (err as Error).message }));
       setRows([]);
     } finally {
       setLoading(false);
     }
-  }, [api]);
+  }, [api, t]);
 
   React.useEffect(() => { void load(); }, [load]);
 
@@ -160,24 +162,30 @@ export function DatasourceResourcePage(_props: { type?: string }): React.ReactEl
     setBusy(`test:${name}`);
     try {
       const r = await api(`/api/v1/datasources/${encodeURIComponent(name)}/test`, { method: 'POST', body: '{}' });
-      toast.success(r?.ok === false ? `${name}: ${r?.error ?? 'failed'}` : `${name}: connection ok${r?.latencyMs != null ? ` (${r.latencyMs}ms)` : ''}`);
+      toast.success(
+        r?.ok === false
+          ? t('console.datasource.toast.testResult', { name, result: r?.error ?? t('console.datasource.toast.failed') })
+          : r?.latencyMs != null
+            ? t('console.datasource.toast.testOkMs', { name, ms: r.latencyMs })
+            : t('console.datasource.toast.testOk', { name }),
+      );
       void load();
     } catch (err) {
-      toast.error(`${name}: ${(err as Error).message}`);
+      toast.error(t('console.datasource.toast.testResult', { name, result: (err as Error).message }));
     } finally {
       setBusy(null);
     }
   };
 
   const remove = async (name: string) => {
-    if (!window.confirm(`Delete datasource “${name}”? This cannot be undone.`)) return;
+    if (!window.confirm(t('console.datasource.confirmDelete', { name }))) return;
     setBusy(`del:${name}`);
     try {
       await api(`/api/v1/datasources/${encodeURIComponent(name)}`, { method: 'DELETE' });
-      toast.success(`Deleted ${name}.`);
+      toast.success(t('console.datasource.toast.deleted', { name }));
       void load();
     } catch (err) {
-      toast.error(`Delete ${name}: ${(err as Error).message}`);
+      toast.error(t('console.datasource.toast.deleteFailed', { name, msg: (err as Error).message }));
     } finally {
       setBusy(null);
     }
@@ -201,10 +209,10 @@ export function DatasourceResourcePage(_props: { type?: string }): React.ReactEl
       setDrivers(list);
       return list;
     } catch (err) {
-      toast.error(`Load drivers: ${(err as Error).message}`);
+      toast.error(t('console.datasource.toast.loadDrivers', { msg: (err as Error).message }));
       return [];
     }
-  }, [api, drivers]);
+  }, [api, drivers, t]);
 
   const selectedDriver = React.useMemo(
     () => drivers.find((d) => d.id === form?.driver),
@@ -247,7 +255,7 @@ export function DatasourceResourcePage(_props: { type?: string }): React.ReactEl
       });
       setEditorOpen(true);
     } catch (err) {
-      toast.error(`Open ${row.name}: ${(err as Error).message}`);
+      toast.error(t('console.datasource.toast.openFailed', { name: row.name, msg: (err as Error).message }));
     } finally {
       setBusy(null);
     }
@@ -280,8 +288,15 @@ export function DatasourceResourcePage(_props: { type?: string }): React.ReactEl
     try {
       const r = await api('/api/v1/datasources/test', { method: 'POST', body: JSON.stringify({ driver: form.driver, config: form.config, ...(form.secret ? { secret: form.secret } : {}) }) });
       const res = r?.result ?? r;
-      if (res?.ok === false) setTestMsg({ ok: false, text: res?.error ?? 'Connection failed' });
-      else setTestMsg({ ok: true, text: `Connection ok${res?.latencyMs != null ? ` (${res.latencyMs}ms)` : ''}` });
+      if (res?.ok === false) setTestMsg({ ok: false, text: res?.error ?? t('console.datasource.editor.testFailed') });
+      else
+        setTestMsg({
+          ok: true,
+          text:
+            res?.latencyMs != null
+              ? t('console.datasource.editor.testOkMs', { ms: res.latencyMs })
+              : t('console.datasource.editor.testOk'),
+        });
     } catch (err) {
       setTestMsg({ ok: false, text: (err as Error).message });
     } finally {
@@ -295,15 +310,15 @@ export function DatasourceResourcePage(_props: { type?: string }): React.ReactEl
     try {
       if (editing) {
         await api(`/api/v1/datasources/${encodeURIComponent(editing)}`, { method: 'PATCH', body: JSON.stringify(draftBody(form)) });
-        toast.success(`Updated ${editing}.`);
+        toast.success(t('console.datasource.toast.updated', { name: editing }));
       } else {
         await api('/api/v1/datasources', { method: 'POST', body: JSON.stringify({ name: form.name, ...draftBody(form) }) });
-        toast.success(`Created ${form.name}.`);
+        toast.success(t('console.datasource.toast.created', { name: form.name }));
       }
       setEditorOpen(false);
       void load();
     } catch (err) {
-      toast.error(`Save: ${(err as Error).message}`);
+      toast.error(t('console.datasource.toast.saveFailed', { msg: (err as Error).message }));
     } finally {
       setSavingEditor(false);
     }
@@ -326,7 +341,7 @@ export function DatasourceResourcePage(_props: { type?: string }): React.ReactEl
       const data = await api(`/api/v1/datasources/${encodeURIComponent(name)}/remote-tables`);
       setTables(Array.isArray(data?.tables) ? data.tables : []);
     } catch (err) {
-      toast.error(`Introspect ${name}: ${(err as Error).message}`);
+      toast.error(t('console.datasource.toast.introspectFailed', { name, msg: (err as Error).message }));
       setTables([]);
     }
   };
@@ -356,8 +371,8 @@ export function DatasourceResourcePage(_props: { type?: string }): React.ReactEl
       }
     }
     setSyncing(false);
-    if (ok) toast.success(`Synced ${ok} object${ok > 1 ? 's' : ''} from ${syncName}.`);
-    if (failures.length) toast.error(`Failed: ${failures.join('; ')}`);
+    if (ok) toast.success(t('console.datasource.toast.synced', { n: ok, name: syncName }));
+    if (failures.length) toast.error(t('console.datasource.toast.syncFailed', { errors: failures.join('; ') }));
     setSyncName(null);
   };
 
@@ -371,7 +386,7 @@ export function DatasourceResourcePage(_props: { type?: string }): React.ReactEl
           <Input
             type="password"
             value={form?.secret ?? ''}
-            placeholder={editing && hasSecret ? '•••••••• (leave blank to keep)' : ''}
+            placeholder={editing && hasSecret ? t('console.datasource.editor.secretKeepPlaceholder') : ''}
             onChange={(e) => setForm((f) => (f ? { ...f, secret: e.target.value } : f))}
           />
           {prop.description && <p className="text-[11px] text-muted-foreground">{prop.description}</p>}
@@ -395,7 +410,7 @@ export function DatasourceResourcePage(_props: { type?: string }): React.ReactEl
         <div key={key} className="space-y-1">
           <Label className="text-xs">{label}{required ? ' *' : ''}</Label>
           <Select value={value != null ? String(value) : ''} onValueChange={(v) => setConfigValue(key, v)}>
-            <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder={t('console.datasource.editor.optionSelect')} /></SelectTrigger>
             <SelectContent>
               {prop.enum.map((opt) => <SelectItem key={String(opt)} value={String(opt)}>{String(opt)}</SelectItem>)}
             </SelectContent>
@@ -422,25 +437,25 @@ export function DatasourceResourcePage(_props: { type?: string }): React.ReactEl
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-xl font-semibold">
-            <Database className="h-5 w-5" /> Datasources
+            <Database className="h-5 w-5" /> {t('console.datasource.title')}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">Connect external databases and sync their tables in as objects.</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('console.datasource.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
-            <RefreshCw className={'mr-1.5 h-4 w-4' + (loading ? ' animate-spin' : '')} /> Refresh
+            <RefreshCw className={'mr-1.5 h-4 w-4' + (loading ? ' animate-spin' : '')} /> {t('console.datasource.refresh')}
           </Button>
           <Button size="sm" onClick={() => void openCreate()}>
-            <Plus className="mr-1.5 h-4 w-4" /> New datasource
+            <Plus className="mr-1.5 h-4 w-4" /> {t('console.datasource.new')}
           </Button>
         </div>
       </div>
 
       {loading ? (
-        <div className="flex items-center gap-2 py-12 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
+        <div className="flex items-center gap-2 py-12 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {t('console.datasource.loading')}</div>
       ) : rows.length === 0 ? (
         <div className="rounded-lg border border-dashed bg-muted/20 py-16 text-center text-sm text-muted-foreground">
-          No datasources yet. Click <span className="font-medium">New datasource</span> to connect one.
+          {t('console.datasource.emptyPrefix')}<span className="font-medium">{t('console.datasource.emptyAction')}</span>{t('console.datasource.emptySuffix')}
         </div>
       ) : (
         <div className="divide-y rounded-lg border bg-card">
@@ -461,17 +476,17 @@ export function DatasourceResourcePage(_props: { type?: string }): React.ReactEl
                   </div>
                 </div>
                 <Button variant="ghost" size="sm" disabled={busy === `test:${ds.name}`} onClick={() => void test(ds.name)}>
-                  {busy === `test:${ds.name}` ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plug className="mr-1.5 h-4 w-4" />} Test
+                  {busy === `test:${ds.name}` ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plug className="mr-1.5 h-4 w-4" />} {t('console.datasource.row.test')}
                 </Button>
                 <Button variant="secondary" size="sm" onClick={() => void openSync(ds.name)}>
-                  <Boxes className="mr-1.5 h-4 w-4" /> Sync objects
+                  <Boxes className="mr-1.5 h-4 w-4" /> {t('console.datasource.row.sync')}
                 </Button>
                 {!isCode && (
                   <>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit" disabled={busy === `edit:${ds.name}`} onClick={() => void openEdit(ds)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" title={t('console.datasource.row.edit')} disabled={busy === `edit:${ds.name}`} onClick={() => void openEdit(ds)}>
                       {busy === `edit:${ds.name}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" title="Delete" disabled={busy === `del:${ds.name}`} onClick={() => void remove(ds.name)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" title={t('console.datasource.row.delete')} disabled={busy === `del:${ds.name}`} onClick={() => void remove(ds.name)}>
                       {busy === `del:${ds.name}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                     </Button>
                   </>
@@ -486,9 +501,9 @@ export function DatasourceResourcePage(_props: { type?: string }): React.ReactEl
       <Dialog open={editorOpen} onOpenChange={(o) => { if (!o) setEditorOpen(false); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editing ? `Edit “${editing}”` : 'New datasource'}</DialogTitle>
+            <DialogTitle>{editing ? t('console.datasource.editor.editTitle', { name: editing }) : t('console.datasource.editor.newTitle')}</DialogTitle>
             <DialogDescription>
-              {editing ? 'Update the connection. Leave the credential blank to keep the current one.' : 'Connect an external database. Credentials are encrypted and never stored in metadata.'}
+              {editing ? t('console.datasource.editor.editDesc') : t('console.datasource.editor.newDesc')}
             </DialogDescription>
           </DialogHeader>
 
@@ -496,27 +511,27 @@ export function DatasourceResourcePage(_props: { type?: string }): React.ReactEl
             <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
               {!editing && (
                 <div className="space-y-1">
-                  <Label className="text-xs">Name *</Label>
+                  <Label className="text-xs">{t('console.datasource.editor.name')} *</Label>
                   <Input
                     value={form.name}
-                    placeholder="my_database"
+                    placeholder={t('console.datasource.editor.namePlaceholder')}
                     onChange={(e) => setForm((f) => (f ? { ...f, name: e.target.value } : f))}
                   />
                   {!nameValid && form.name.length > 0 && (
-                    <p className="text-[11px] text-destructive">Lowercase letters, digits, and underscores; must not start with a digit.</p>
+                    <p className="text-[11px] text-destructive">{t('console.datasource.editor.nameInvalid')}</p>
                   )}
                 </div>
               )}
 
               <div className="space-y-1">
-                <Label className="text-xs">Label</Label>
-                <Input value={form.label} placeholder="Human-friendly name" onChange={(e) => setForm((f) => (f ? { ...f, label: e.target.value } : f))} />
+                <Label className="text-xs">{t('console.datasource.editor.label')}</Label>
+                <Input value={form.label} placeholder={t('console.datasource.editor.labelPlaceholder')} onChange={(e) => setForm((f) => (f ? { ...f, label: e.target.value } : f))} />
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs">Driver *</Label>
+                <Label className="text-xs">{t('console.datasource.editor.driver')} *</Label>
                 <Select value={form.driver} onValueChange={onDriverChange} disabled={!!editing}>
-                  <SelectTrigger><SelectValue placeholder="Choose a driver" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('console.datasource.editor.driverPlaceholder')} /></SelectTrigger>
                   <SelectContent>
                     {drivers.map((d) => <SelectItem key={d.id} value={d.id}>{d.label}</SelectItem>)}
                   </SelectContent>
@@ -528,11 +543,15 @@ export function DatasourceResourcePage(_props: { type?: string }): React.ReactEl
               {Object.entries(selectedDriver?.configSchema?.properties ?? {}).map(([k, p]) => renderField(k, p))}
 
               <div className="space-y-1">
-                <Label className="text-xs">Schema mode</Label>
+                <Label className="text-xs">{t('console.datasource.editor.schemaMode')}</Label>
                 <Select value={form.schemaMode} onValueChange={(v) => setForm((f) => (f ? { ...f, schemaMode: v } : f))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {SCHEMA_MODES.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                    {SCHEMA_MODES.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>
+                        {t(`console.datasource.editor.schemaModes.${m.value}`, { defaultValue: m.label })}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -548,13 +567,13 @@ export function DatasourceResourcePage(_props: { type?: string }): React.ReactEl
 
           <DialogFooter className="gap-2 sm:justify-between">
             <Button variant="ghost" size="sm" disabled={!form?.driver || testingDraft} onClick={() => void testDraft()}>
-              {testingDraft ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plug className="mr-1.5 h-4 w-4" />} Test connection
+              {testingDraft ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plug className="mr-1.5 h-4 w-4" />} {t('console.datasource.editor.testConnection')}
             </Button>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setEditorOpen(false)}>Cancel</Button>
+              <Button variant="ghost" size="sm" onClick={() => setEditorOpen(false)}>{t('console.datasource.editor.cancel')}</Button>
               <Button size="sm" disabled={!canSave} onClick={() => void saveEditor()}>
                 {savingEditor && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-                {editing ? 'Save changes' : 'Create datasource'}
+                {editing ? t('console.datasource.editor.save') : t('console.datasource.editor.create')}
               </Button>
             </div>
           </DialogFooter>
@@ -565,32 +584,32 @@ export function DatasourceResourcePage(_props: { type?: string }): React.ReactEl
       <Dialog open={!!syncName} onOpenChange={(o) => { if (!o) setSyncName(null); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Sync objects from “{syncName}”</DialogTitle>
-            <DialogDescription>Pick the remote tables to import as objects. Each becomes an object definition.</DialogDescription>
+            <DialogTitle>{t('console.datasource.sync.title', { name: syncName })}</DialogTitle>
+            <DialogDescription>{t('console.datasource.sync.desc')}</DialogDescription>
           </DialogHeader>
           {tables == null ? (
-            <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Introspecting…</div>
+            <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {t('console.datasource.sync.introspecting')}</div>
           ) : tables.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">No remote tables found on this datasource.</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">{t('console.datasource.sync.noTables')}</p>
           ) : (
             <div className="max-h-[50vh] space-y-1 overflow-y-auto">
-              {tables.map((t) => {
-                const key = t.schema ? `${t.schema}.${t.name}` : t.name;
+              {tables.map((tbl) => {
+                const key = tbl.schema ? `${tbl.schema}.${tbl.name}` : tbl.name;
                 return (
                   <label key={key} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent">
-                    <input type="checkbox" checked={selected.has(t.name)} onChange={() => toggle(t.name)} className="h-4 w-4" />
+                    <input type="checkbox" checked={selected.has(tbl.name)} onChange={() => toggle(tbl.name)} className="h-4 w-4" />
                     <span className="flex-1">{key}</span>
-                    {t.columnCount != null && <span className="text-[11px] text-muted-foreground">{t.columnCount} cols</span>}
+                    {tbl.columnCount != null && <span className="text-[11px] text-muted-foreground">{t('console.datasource.sync.cols', { n: tbl.columnCount })}</span>}
                   </label>
                 );
               })}
             </div>
           )}
           <div className="mt-2 flex items-center justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setSyncName(null)}>Cancel</Button>
+            <Button variant="ghost" size="sm" onClick={() => setSyncName(null)}>{t('console.datasource.sync.cancel')}</Button>
             <Button size="sm" disabled={syncing || selected.size === 0} onClick={() => void runSync()}>
               {syncing ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Boxes className="mr-1.5 h-4 w-4" />}
-              Create {selected.size || ''} object{selected.size === 1 ? '' : 's'}
+              {t('console.datasource.sync.create', { n: selected.size })}
             </Button>
           </div>
         </DialogContent>
