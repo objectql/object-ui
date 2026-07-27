@@ -121,7 +121,7 @@ const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.import.optCreateOptions': 'Keep unknown option values',
   'grid.import.optRunAutomations': 'Run automations & triggers',
   'grid.import.optTreatHistorical': 'Import as historical data',
-  'grid.import.optTreatHistoricalHint': '(skip state-machine checks so already-completed records import as-is)',
+  'grid.import.optTreatHistoricalHint': '(import completed records as-is — skip state-machine checks and keep their original timestamps & author instead of stamping now)',
   'grid.import.optSkipBlankKey': 'Skip rows with a blank match value',
   'grid.import.optBackground': 'Import in the background',
   'grid.import.optBackgroundHint': '(runs as an undoable job)',

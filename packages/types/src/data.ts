@@ -819,9 +819,11 @@ export interface ImportRequestOptions {
   matchFields?: string[];
   /** Fire triggers/hooks for each imported row (off by default for bulk). */
   runAutomations?: boolean;
-  /** Import as established historical facts: skip the `state_machine` rule so
+  /** Import as established historical facts. Skips the `state_machine` rule so
    *  mid-lifecycle rows (already-closed tickets, closed_won deals) aren't rejected
-   *  by `initialStates` (framework #3479). @default false */
+   *  by `initialStates` (framework #3479), AND preserves the original audit timeline:
+   *  a supplied `updated_at`/`updated_by` and business `readonly` fields are kept
+   *  instead of stamped-now / stripped (framework #3493). @default false */
   treatAsHistorical?: boolean;
   /** Trim leading/trailing whitespace from string cells. @default true */
   trimWhitespace?: boolean;
