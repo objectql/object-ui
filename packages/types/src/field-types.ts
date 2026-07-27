@@ -78,15 +78,6 @@ export interface BaseFieldMetadata {
   defaultValue?: any;
   
   /**
-   * Field permissions (Phase 3.2.6)
-   */
-  permissions?: {
-    read?: boolean;
-    write?: boolean;
-    edit?: boolean;
-  };
-  
-  /**
    * Whether field is sortable
    */
   sortable?: boolean;

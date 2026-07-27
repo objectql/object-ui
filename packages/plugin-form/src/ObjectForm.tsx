@@ -542,9 +542,9 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
       const field = objectSchema.fields?.[name];
       if (!field && !hasInlineFields) return; // Skip if not found in object definition unless inline
 
-      // Check field-level permissions for create/edit modes
-      const hasWritePermission = !field?.permissions || field?.permissions.write !== false;
-      if (schema.mode !== 'view' && !hasWritePermission) return; // Skip fields without write permission
+      // Field-level permissions are enforced downstream by `applyFieldPerms`
+      // (the real per-caller gate via `perms.checkField`); the schema itself
+      // carries no per-caller permission bits (objectstack#3661).
 
       // Check if there's a custom field configuration
       const customField = schema.customFields?.find(f => f.name === name);

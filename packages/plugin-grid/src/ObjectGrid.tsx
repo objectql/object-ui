@@ -417,7 +417,8 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   // gate with this — a missing set (unrestricted object / old backend / no
   // provider) keeps the current behavior. The frontend consumes the effective
   // set the server resolved; it never reads the raw `apiMethods`.
-  const { getObjectApiOperations } = usePermissions();
+  const perms = usePermissions();
+  const { getObjectApiOperations } = perms;
   const effectiveApiOps = objectName ? getObjectApiOperations(objectName) : undefined;
   const schemaFields = schema.fields;
   const schemaColumns = schema.columns;
@@ -1229,7 +1230,12 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       const field = objectSchema.fields?.[fieldName];
       if (!field) return;
 
-      if (field.permissions && field.permissions.read === false) return;
+      // FLS: drop columns the current user cannot read (server-resolved
+      // /me/permissions via checkField — the schema itself carries no
+      // per-caller permission bits, objectstack#3661). Same gate ListView
+      // applies to its auto-derived columns.
+      if (perms?.isLoaded && schema.objectName
+        && !perms.checkField(schema.objectName, fieldName, 'read')) return;
 
       const CellRenderer = getCellRenderer(field.type);
       const numericTypes = ['number', 'currency', 'percent'];
@@ -1249,7 +1255,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     });
 
     return generatedColumns;
-  }, [objectSchema, schemaFields, schemaColumns, dataConfig, hasInlineData, navigation.handleClick, executeAction, data, resolveFieldLabel, translateOptions, schema.objectName]);
+  }, [objectSchema, schemaFields, schemaColumns, dataConfig, hasInlineData, navigation.handleClick, executeAction, data, resolveFieldLabel, translateOptions, schema.objectName, perms]);
 
   const handleExport = useCallback((format: 'csv' | 'xlsx' | 'json' | 'pdf') => {
     // Object-level export permission gate. Default-allow: an explicit

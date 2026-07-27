@@ -362,7 +362,8 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     // Admin users automatically get design tools (no toggle needed)
     const { user, activeOrganization } = useAuth();
     const isAdmin = useIsWorkspaceAdmin();
-    const { can, getObjectApiOperations } = usePermissions();
+    const perms = usePermissions();
+    const { can, getObjectApiOperations } = perms;
     
     // Get Object Definition. The outer ObjectView wrapper already guards the
     // missing-object case, so this always resolves while this component is
@@ -1790,14 +1791,19 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                      ? identityImportFields(objectDef.fields)
                      : Object.entries(objectDef.fields || {})
                      // Only writable fields are importable targets. Computed
-                     // types (formula/summary/autonumber) and fields flagged
-                     // readonly / write:false are server-rejected, so we omit
-                     // them from the mapping step rather than let a user map to
-                     // a column the import will silently drop.
-                     .filter(([, def]: [string, any]) =>
+                     // types (formula/summary/autonumber) and readonly fields
+                     // are server-rejected, and FLS-restricted fields get a
+                     // 403 from the write path — so we omit them from the
+                     // mapping step (and the downloadable template) rather
+                     // than let a user map to a column the import will
+                     // reject. The FLS bit comes from the server-resolved
+                     // /me/permissions channel (checkField), not from the
+                     // schema, which carries no per-caller permission bits
+                     // (objectstack#3661).
+                     .filter(([name, def]: [string, any]) =>
                        !['formula', 'summary', 'autonumber'].includes(def?.type) &&
                        !def?.readonly &&
-                       def?.permissions?.write !== false,
+                       (!perms?.isLoaded || perms.checkField(objectDef.name, name, 'write')),
                      )
                      .map(([name, def]: [string, any]) => ({
                        name,
