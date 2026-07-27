@@ -295,6 +295,10 @@ const zh = {
       importNRows: '导入 {{count}} 行',
       importingProgress: '导入中…',
       requiredMark: '*',
+      optTreatHistorical: '作为历史数据导入',
+      optTreatHistoricalHint: '（按原样导入已完结的记录——跳过状态机校验，保留原始时间戳与作者，而不是记为当前时间）',
+      missingRequiredHint: '无法继续——以下必填字段未映射：{{fields}}。请在文件中添加对应的列，或返回上一步重新上传包含该列的文件。',
+      legacyFallbackNotice: '已通过兼容模式导入：当前连接不支持服务端导入接口，因此所有值均以文本写入，未做服务端类型转换。请升级后端/客户端以获得完整的导入支持（类型转换与关联查找）。',
       required: '必填',
       invalidType: '{{type}} 格式无效',
       legacyReferenceBlocked: '导入已阻止：{{fields}} 是关联字段，需要服务端导入接口把名称解析为记录 ID，而当前连接不支持。按纯文本导入会写坏数据。请升级后端/客户端，或取消这些列的映射后再导入。',
@@ -1361,6 +1365,7 @@ const zh = {
       toggleDarkMode: '切换深色模式',
     },
     commandPalette: {
+      title: '命令面板',
       placeholder: '输入命令或搜索...',
       noResults: '未找到结果。',
       searching: '搜索中…',
@@ -1508,6 +1513,8 @@ const zh = {
           buildCrm: '帮我搭建一个 CRM：客户、联系人、商机，并建立它们之间的关系。',
           buildApp: '做一个项目管理应用：项目、任务、成员。',
           buildFlow: '设计一个工单系统：工单、优先级、状态流转。',
+          buildInventory: '做一个库存管理应用：商品、库存量、供应商，以及低库存预警。',
+          buildRecruiting: '做一个招聘跟踪应用：候选人、在招岗位、面试阶段和面试记录。',
         },
         generic: {
           help: '你可以帮我做什么？',
@@ -2035,6 +2042,7 @@ const zh = {
     settings: '工作区设置',
   },
   help: {
+    keyboardShortcuts: '键盘快捷键',
     onThisPage: '本页目录',
     appDocs: '本应用文档',
     allDocs: '全部文档',

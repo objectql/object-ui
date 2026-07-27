@@ -36,8 +36,14 @@ import {
 } from './savedMapping';
 
 /** Default English fallback strings used when no I18nProvider is mounted
- *  (standalone / unit-test usage). Mirrors the keys under `grid.import.*`. */
-const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
+ *  (standalone / unit-test usage). Mirrors the keys under `grid.import.*`.
+ *
+ *  This is a SECOND source of English copy alongside `@object-ui/i18n`'s `en`
+ *  pack, and the two had already drifted (objectui#2872): the pack carried 62
+ *  keys, this map 133, `zh` 130, no two the same set. They are now pinned to
+ *  each other by `ImportWizard.i18n-parity.test.ts` — add a key here and to
+ *  `en.ts` together, or that test fails. */
+export const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.import.title': 'Import {{object}}',
   'grid.import.stepUpload': 'Upload',
   'grid.import.stepMapping': 'Mapping',
@@ -185,6 +191,7 @@ const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   // Shown when the server refuses import with 405 because the object does not
   // expose the import operation (#3391) — distinct from "route not found".
   'grid.import.notAllowed': 'This object is not open for import.',
+  'grid.import.requiredMark': '*',
 };
 
 /** Apply `{{var}}` interpolation to a translation template. */

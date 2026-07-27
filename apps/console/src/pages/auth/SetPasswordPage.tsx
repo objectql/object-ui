@@ -52,7 +52,7 @@ export function SetPasswordPage() {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
       toast.error(
-        t('auth.setPassword.passwordsMismatch', { defaultValue: 'Passwords do not match' }),
+        t('auth.setPassword.passwordsMismatch'),
       );
       return;
     }
@@ -60,12 +60,12 @@ export function SetPasswordPage() {
     try {
       await setInitialPassword(newPassword);
       toast.success(
-        t('auth.setPassword.success', { defaultValue: 'Local password set' }),
+        t('auth.setPassword.success'),
       );
       navigate(next);
     } catch (err) {
       toast.error(
-        t('auth.setPassword.failed', { defaultValue: 'Could not set password' }),
+        t('auth.setPassword.failed'),
         { description: (err as Error).message },
       );
     } finally {
@@ -78,26 +78,21 @@ export function SetPasswordPage() {
       <Card className="border-border/60 shadow-sm shadow-primary/5 backdrop-blur supports-[backdrop-filter]:bg-card/95">
         <CardHeader className="text-center">
           <CardTitle className="text-xl tracking-tight">
-            {t('auth.setPassword.title', { defaultValue: 'Set a recovery password' })}
+            {t('auth.setPassword.title')}
           </CardTitle>
           <CardDescription>
-            {t('auth.setPassword.description', {
-              defaultValue:
-                'You signed in via single sign-on. Set a local password so you can still sign in to this environment directly if SSO ever becomes unavailable.',
-            })}
+            {t('auth.setPassword.description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {!isLoading && !user ? (
             <p className="text-center text-sm text-muted-foreground">
-              {t('auth.setPassword.noSession', {
-                defaultValue: 'Your session has expired.',
-              })}{' '}
+              {t('auth.setPassword.noSession')}{' '}
               <Link
                 to="/login"
                 className="font-medium text-primary underline-offset-4 hover:underline"
               >
-                {t('auth.setPassword.backToSignIn', { defaultValue: 'Sign in again' })}
+                {t('auth.setPassword.backToSignIn')}
               </Link>
             </p>
           ) : (
@@ -105,7 +100,7 @@ export function SetPasswordPage() {
               {user?.email ? (
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="set-password-email">
-                    {t('auth.setPassword.email', { defaultValue: 'Email' })}
+                    {t('auth.setPassword.email')}
                   </Label>
                   <Input
                     id="set-password-email"
@@ -119,7 +114,7 @@ export function SetPasswordPage() {
               ) : null}
               <div className="flex flex-col gap-2">
                 <Label htmlFor="new-password">
-                  {t('auth.setPassword.newPassword', { defaultValue: 'New password' })}
+                  {t('auth.setPassword.newPassword')}
                 </Label>
                 <Input
                   id="new-password"
@@ -133,7 +128,7 @@ export function SetPasswordPage() {
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="confirm-password">
-                  {t('auth.setPassword.confirmPassword', { defaultValue: 'Confirm password' })}
+                  {t('auth.setPassword.confirmPassword')}
                 </Label>
                 <Input
                   id="confirm-password"
@@ -147,8 +142,8 @@ export function SetPasswordPage() {
               </div>
               <Button type="submit" className="w-full" disabled={submitting}>
                 {submitting
-                  ? t('auth.setPassword.submitting', { defaultValue: 'Saving…' })
-                  : t('auth.setPassword.submit', { defaultValue: 'Set password' })}
+                  ? t('auth.setPassword.submitting')
+                  : t('auth.setPassword.submit')}
               </Button>
             </form>
           )}
