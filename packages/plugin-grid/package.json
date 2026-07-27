@@ -28,7 +28,7 @@
     "@object-ui/permissions": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "@tanstack/react-virtual": "^3.14.6",
+    "@tanstack/react-virtual": "^3.14.8",
     "exceljs": "^4.4.0",
     "lucide-react": "^1.25.0"
   },
@@ -38,7 +38,7 @@
   },
   "devDependencies": {
     "@object-ui/data-objectstack": "workspace:*",
-    "@vitejs/plugin-react": "^6.0.3",
+    "@vitejs/plugin-react": "^6.0.4",
     "msw": "^2.15.0",
     "typescript": "^6.0.3",
     "vite": "^8.1.5",
