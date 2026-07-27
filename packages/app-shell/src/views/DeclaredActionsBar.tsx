@@ -123,6 +123,26 @@ const DeclaredActionButton: React.FC<{
       // input), and reserve `params` for the `_rowRecord` stash the api handler
       // reads for `{id}` interpolation + record-id injection.
       const { params: rawParams, ...rest } = action as ActionDef & { params?: unknown };
+      // #3447: an approval decision may carry author-declared structured
+      // outputs. The key set is PER-REQUEST (each approval node declares its
+      // own `decisionOutputs`, surfaced on the row as `decision_outputs`), so
+      // it cannot be a static action param — synthesize one text param per key
+      // for the decide actions. Params are named `outputs.<key>`; the api
+      // handler folds them into the nested `outputs` body the decide route
+      // expects. Comma-separated values are legal (the service accepts CSV for
+      // multi-id outputs).
+      const declaredOutputKeys: string[] =
+        Array.isArray(recordData.decision_outputs)
+        && /\/(approve|reject)$/.test(String((action as any).target ?? ''))
+          ? (recordData.decision_outputs as unknown[]).map(String)
+          : [];
+      const outputParams = declaredOutputKeys.map((key) => ({
+        name: `outputs.${key}`,
+        label: key.split(/[_-]+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+        type: 'text' as const,
+        required: false,
+        helpText: 'Handed to the flow as a decision output. Comma-separate multiple values.',
+      }));
       const dispatch: any = {
         ...rest,
         // Localized copies ride the dispatch: the runner reads `label` for the
@@ -141,8 +161,9 @@ const DeclaredActionButton: React.FC<{
         objectName,
         params: { _rowRecord: record },
       };
-      if (Array.isArray(rawParams) && rawParams.length > 0) {
-        dispatch.actionParams = rawParams;
+      const staticParams = Array.isArray(rawParams) ? rawParams : [];
+      if (staticParams.length > 0 || outputParams.length > 0) {
+        dispatch.actionParams = [...staticParams, ...outputParams];
       }
       await execute(dispatch as ActionDef);
     } finally {

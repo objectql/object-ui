@@ -104,6 +104,14 @@ export interface ApprovalRequestRow {
   };
   /** ADR-0044 revision round on this (run, node): absent/1 = first round. */
   round?: number;
+  /**
+   * framework#3447 — the node's author-declared decision-output keys
+   * (`config.decisionOutputs`). DeclaredActionsBar synthesizes one input per
+   * key on the approve/reject dialogs (`outputs.<key>` params, folded into a
+   * nested `outputs` body by the api handler); the flow receives them as
+   * `<nodeId>.<key>` variables. Absent when the node declares none.
+   */
+  decision_outputs?: string[];
 }
 
 /**

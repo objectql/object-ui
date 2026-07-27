@@ -261,18 +261,58 @@ export function FlowObjectListField({
                       disabled={disabled}
                     />
                   ) : col.kind === 'reference' ? (
-                    <div className="flex-1">
-                      <ReferenceCombobox
-                        resolved={resolveRefKind(col.ref, (k) => row.values[k])}
-                        value={typeof row.values[col.key] === 'string' ? (row.values[col.key] as string) : ''}
-                        onCommit={(v) => setCell(row.id, col.key, typeof v === 'string' ? v : '')}
-                        onBlur={() => flush(rows)}
-                        placeholder={col.placeholder}
-                        disabled={disabled}
-                        context={context}
-                        showHint={false}
-                      />
-                    </div>
+                    (() => {
+                      const resolved = resolveRefKind(col.ref, (k) => row.values[k]);
+                      const disc = col.ref?.kindFrom
+                        ? String(row.values[col.ref.kindFrom] ?? '')
+                        : '';
+                      // #3447: `expression` is a discriminator value, not a
+                      // reference kind — an approver whose sibling `type` is
+                      // 'expression' authors a CEL expression over the approval
+                      // roots (current/trigger/vars). Render the expression
+                      // input (mono + syntax check) instead of a dead free-text
+                      // reference box. The flow-scope picker/roots are
+                      // deliberately NOT wired in: approval expressions have
+                      // their own root set, and offering flow-scope paths here
+                      // (record.x, bare fields) would teach exactly the
+                      // spelling the runtime rejects; root validation runs
+                      // server-side (os lint + node-entry pre-check).
+                      if (resolved === undefined && disc === 'expression') {
+                        const raw = typeof row.values[col.key] === 'string' ? (row.values[col.key] as string) : '';
+                        return (
+                          <div className="flex-1 space-y-1">
+                            <VariableTextInput
+                              mode="expression"
+                              mono
+                              value={raw}
+                              onValueChange={(v) => setCell(row.id, col.key, v)}
+                              onBlur={() => flush(rows)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                              }}
+                              groups={[]}
+                              placeholder={col.placeholder ?? 'current.<field> · trigger.<field> · vars.<node>.<key>'}
+                              disabled={disabled}
+                            />
+                            <FlowExprIssue value={raw} role="value" />
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="flex-1">
+                          <ReferenceCombobox
+                            resolved={resolved}
+                            value={typeof row.values[col.key] === 'string' ? (row.values[col.key] as string) : ''}
+                            onCommit={(v) => setCell(row.id, col.key, typeof v === 'string' ? v : '')}
+                            onBlur={() => flush(rows)}
+                            placeholder={col.placeholder}
+                            disabled={disabled}
+                            context={context}
+                            showHint={false}
+                          />
+                        </div>
+                      );
+                    })()
                   ) : col.kind === 'select' ? (
                     (() => {
                       const current =
