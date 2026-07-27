@@ -18,8 +18,13 @@
  * `sys_inbox_message` materialization and the `sys_notification_receipt`
  * read-state spine (the re-modeled `sys_notification` L2 event carries no
  * recipient/read columns). This hook only needs to call the SDK with its
- * current signatures: `list(options)`, `markRead(ids[])`, `markAllRead()`,
- * and `registerDevice(request)`.
+ * current signatures: `list(options)`, `markRead(ids[])`, `markAllRead()`.
+ *
+ * The former registerDevice/getPreferences/updatePreferences delegates were
+ * removed (objectstack#3612): the SDK deleted those methods because the
+ * /notifications/devices and /notifications/preferences server routes were
+ * never built — every call was a guaranteed error. They return when the
+ * server side exists.
  */
 
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
@@ -43,12 +48,6 @@ export interface UseClientNotificationsOptions {
 export interface UseClientNotificationsResult {
   /** Fetch notifications from server */
   fetchNotifications: () => Promise<void>;
-  /** Register device for push notifications */
-  registerDevice: (token: string, platform: string) => Promise<void>;
-  /** Get notification preferences */
-  getPreferences: () => Promise<any>;
-  /** Update notification preferences */
-  updatePreferences: (prefs: any) => Promise<void>;
   /** Mark a notification as read on the server */
   markAsRead: (id: string) => Promise<void>;
   /** Loading state */
@@ -159,60 +158,6 @@ export function useClientNotifications(
     }
   }, [client, notify]);
 
-  /* ---- registerDevice ---- */
-
-  const registerDevice = useCallback(
-    async (token: string, platform: string) => {
-      if (!client?.notifications) return;
-      setError(null);
-      try {
-        // ADR-0030 / @objectstack/client v7+: registerDevice takes a single
-        // RegisterDeviceRequest object (`{ token, platform }`), not positional
-        // args. `platform` is the device platform enum.
-        await client.notifications.registerDevice({
-          token,
-          platform: platform as 'ios' | 'android' | 'web',
-        });
-      } catch (err) {
-        const wrapped = err instanceof Error ? err : new Error('Failed to register device');
-        setError(wrapped);
-        throw wrapped;
-      }
-    },
-    [client],
-  );
-
-  /* ---- getPreferences ---- */
-
-  const getPreferences = useCallback(async () => {
-    if (!client?.notifications) return null;
-    setError(null);
-    try {
-      return await client.notifications.getPreferences();
-    } catch (err) {
-      const wrapped = err instanceof Error ? err : new Error('Failed to get preferences');
-      setError(wrapped);
-      throw wrapped;
-    }
-  }, [client]);
-
-  /* ---- updatePreferences ---- */
-
-  const updatePreferences = useCallback(
-    async (prefs: any) => {
-      if (!client?.notifications) return;
-      setError(null);
-      try {
-        await client.notifications.updatePreferences(prefs);
-      } catch (err) {
-        const wrapped = err instanceof Error ? err : new Error('Failed to update preferences');
-        setError(wrapped);
-        throw wrapped;
-      }
-    },
-    [client],
-  );
-
   /* ---- markAsRead (server + local) ---- */
 
   const markAsRead = useCallback(
@@ -259,9 +204,6 @@ export function useClientNotifications(
 
   return {
     fetchNotifications,
-    registerDevice,
-    getPreferences,
-    updatePreferences,
     markAsRead,
     loading,
     error,
