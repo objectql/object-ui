@@ -1,8 +1,10 @@
 import React, { useRef, useState, useCallback, lazy, Suspense } from 'react';
 import { Button, EmptyValue } from '@object-ui/components';
 import { useUpload } from '@object-ui/providers';
-import { Upload, X, Image as ImageIcon, Crop as CropIcon, Loader2 } from 'lucide-react';
+import { useObjectTranslation } from '@object-ui/i18n';
+import { X, Image as ImageIcon, Crop as CropIcon, Loader2 } from 'lucide-react';
 import { FieldWidgetProps } from './types';
+import { ImageLightbox } from './ImageLightbox';
 import { useUploadingSignal } from './useUploadingSignal';
 import {
   fileValueForSubmit,
@@ -32,7 +34,9 @@ export function ImageField({ value, onChange, field, readonly, onUploadingChange
    */
   const cropEnabled = imageField?.crop !== false;
   const [cropTarget, setCropTarget] = useState<{ index: number; src: string; name: string } | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const { upload } = useUpload();
+  const { t } = useObjectTranslation();
   const [uploading, setUploading] = useState(false);
   // Display details of just-uploaded images, keyed by their new `sys_file` id.
   // Submitting the reference form means the field value no longer carries the
@@ -83,20 +87,41 @@ export function ImageField({ value, onChange, field, readonly, onUploadingChange
     [views],
   );
 
+  const lightboxImages = views.filter((v) => v.url).map((v) => ({ url: v.url as string, name: v.name }));
+
   if (readonly) {
-    if (!value) return <EmptyValue />;
+    if (!value || lightboxImages.length === 0) return <EmptyValue />;
 
     return (
-      <div className="flex flex-wrap gap-2">
-        {views.map((img, idx) => (
-          <img
-            key={idx}
-            src={img.url || ''}
-            alt={img.name || `Image ${idx + 1}`}
-            className="size-20 rounded-md object-cover border border-gray-200"
+      <>
+        <div className="flex flex-wrap gap-2">
+          {lightboxImages.map((img, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => setLightboxIndex(idx)}
+              className="group relative overflow-hidden rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-ring"
+              aria-label={t('fields.image.enlarge', { name: img.name || t('fields.image.imageAlt', { index: idx + 1 }) })}
+            >
+              <img
+                src={img.url}
+                alt={img.name || t('fields.image.imageAlt', { index: idx + 1 })}
+                className="size-20 object-cover transition-transform duration-150 group-hover:scale-105"
+              />
+              <span className="pointer-events-none absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/10" />
+            </button>
+          ))}
+        </div>
+        {lightboxIndex !== null && (
+          <ImageLightbox
+            images={lightboxImages}
+            index={lightboxIndex}
+            open
+            onOpenChange={(o) => !o && setLightboxIndex(null)}
+            onIndexChange={setLightboxIndex}
           />
-        ))}
-      </div>
+        )}
+      </>
     );
   }
 
@@ -153,7 +178,7 @@ export function ImageField({ value, onChange, field, readonly, onUploadingChange
               <div key={idx} className="relative group">
                 <img
                   src={img.url || ''}
-                  alt={img.name || `Image ${idx + 1}`}
+                  alt={img.name || t('fields.image.imageAlt', { index: idx + 1 })}
                   className="size-20 rounded-md object-cover border border-gray-200"
                 />
                 <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -164,7 +189,7 @@ export function ImageField({ value, onChange, field, readonly, onUploadingChange
                       size="sm"
                       onClick={() => openCropper(idx)}
                       className="h-6 w-6 p-0"
-                      aria-label={`Crop image ${idx + 1}`}
+                      aria-label={t('fields.image.crop', { index: idx + 1 })}
                       data-testid={`image-field-crop-${idx}`}
                     >
                       <CropIcon className="size-3" />
@@ -176,6 +201,7 @@ export function ImageField({ value, onChange, field, readonly, onUploadingChange
                     size="sm"
                     onClick={() => handleRemove(idx)}
                     className="h-6 w-6 p-0"
+                    aria-label={t('fields.image.remove', { index: idx + 1 })}
                   >
                     <X className="size-3" />
                   </Button>
@@ -198,7 +224,11 @@ export function ImageField({ value, onChange, field, readonly, onUploadingChange
           ) : (
             <ImageIcon className="size-4 mr-2" />
           )}
-          {uploading ? 'Uploading…' : images.length > 0 ? 'Add More Images' : 'Upload Image'}
+          {uploading
+            ? t('fields.image.uploading')
+            : images.length > 0
+              ? t('fields.image.addMore')
+              : t('fields.image.upload')}
         </Button>
       </div>
 

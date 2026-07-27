@@ -303,6 +303,8 @@ import { PercentField } from './widgets/PercentField';
 import { PasswordField } from './widgets/PasswordField';
 import { FileField } from './widgets/FileField';
 import { ImageField } from './widgets/ImageField';
+import { ImageLightbox } from './widgets/ImageLightbox';
+import { readFileValues } from './widgets/file-value';
 import { LocationField } from './widgets/LocationField';
 import { FormulaField } from './widgets/FormulaField';
 import { SummaryField } from './widgets/SummaryField';
@@ -1268,50 +1270,88 @@ export function FileCellRenderer({ value, field }: CellRendererProps): React.Rea
 }
 
 /**
- * Image field cell renderer (with thumbnails)
+ * Image field cell renderer (with thumbnails + click-to-zoom).
+ *
+ * An image value may be a plain URL string, an object ({ url | src | href … }),
+ * a bare `sys_file` id, or an array of any of those. Normalising through
+ * `readFileValues` (which resolves a bare id to its stable download URL) means
+ * a string-URL field, a CDN link, and an unexpanded reference all render a
+ * thumbnail instead of a broken `<img src="">` placeholder.
+ *
+ * Clicking a thumbnail opens a full-screen lightbox (single or gallery). The
+ * click is `stopPropagation`-guarded so, inside a grid row, enlarging an image
+ * doesn't also trigger row navigation.
  */
 export function ImageCellRenderer({ value }: CellRendererProps): React.ReactElement {
-  if (!value) return <EmptyValue />;
+  const { t } = useObjectTranslation();
+  const [lightboxIndex, setLightboxIndex] = React.useState<number | null>(null);
 
-  // An image value may be a plain URL string, an object ({ url | src | href }),
-  // or an array of either. Normalize so a string-URL field (common — e.g. a
-  // `cover` seeded with a CDN link) renders a thumbnail instead of a broken
-  // <img src=""> placeholder.
-  const urlOf = (v: any): string =>
-    typeof v === 'string' ? v : (v?.url || v?.src || v?.href || v?.thumbnailUrl || '');
-  const nameOf = (v: any, fallback: string): string =>
-    (v && typeof v === 'object' && (v.name || v.original_name)) || fallback;
+  const imgs = React.useMemo(
+    () =>
+      readFileValues(value, 'Image')
+        .filter((v) => v.url)
+        .map((v) => ({ url: v.url as string, name: v.name })),
+    [value],
+  );
 
-  if (Array.isArray(value)) {
-    const imgs = value.map((v) => ({ url: urlOf(v), name: nameOf(v, 'Image') })).filter((i) => i.url);
-    if (imgs.length === 0) return <EmptyValue />;
+  if (!value || imgs.length === 0) return <EmptyValue />;
+
+  const imageAlt = (idx: number, name?: string) =>
+    name || t('fields.image.imageAlt', { index: idx + 1 });
+  const open = (idx: number) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setLightboxIndex(idx);
+  };
+  const multiple = imgs.length > 1;
+
+  const lightbox = lightboxIndex !== null && (
+    <ImageLightbox
+      images={imgs}
+      index={lightboxIndex}
+      open
+      onOpenChange={(o) => !o && setLightboxIndex(null)}
+      onIndexChange={setLightboxIndex}
+    />
+  );
+
+  if (multiple) {
     return (
-      <div className="flex -space-x-2">
-        {imgs.slice(0, 3).map((img, idx) => (
-          <img
-            key={idx}
-            src={img.url}
-            alt={img.name || `Image ${idx + 1}`}
-            className="size-8 rounded-md border-2 border-white object-cover"
-          />
-        ))}
-        {imgs.length > 3 && (
-          <div className="size-8 rounded-md border-2 border-white bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-600">
-            +{imgs.length - 3}
-          </div>
-        )}
-      </div>
+      <>
+        <div className="flex -space-x-2">
+          {imgs.slice(0, 3).map((img, idx) => (
+            <img
+              key={idx}
+              src={img.url}
+              alt={imageAlt(idx, img.name)}
+              onClick={open(idx)}
+              className="size-8 cursor-zoom-in rounded-md border-2 border-background object-cover transition-transform hover:scale-110 hover:z-10"
+            />
+          ))}
+          {imgs.length > 3 && (
+            <button
+              type="button"
+              onClick={open(3)}
+              className="size-8 rounded-md border-2 border-background bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground hover:bg-muted/80"
+            >
+              +{imgs.length - 3}
+            </button>
+          )}
+        </div>
+        {lightbox}
+      </>
     );
   }
 
-  const url = urlOf(value);
-  if (!url) return <EmptyValue />;
   return (
-    <img
-      src={url}
-      alt={nameOf(value, 'Image')}
-      className="size-10 rounded-md object-cover"
-    />
+    <>
+      <img
+        src={imgs[0].url}
+        alt={imageAlt(0, imgs[0].name)}
+        onClick={open(0)}
+        className="size-10 cursor-zoom-in rounded-md object-cover transition-transform hover:scale-105"
+      />
+      {lightbox}
+    </>
   );
 }
 
