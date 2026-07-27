@@ -198,12 +198,14 @@ function QuickActionButton({
 }) {
   const [running, setRunning] = React.useState(false);
   const recordCtx = React.useMemo(() => ({ record: record || {} }), [record]);
-  // `disabled` may be a boolean or a CEL predicate. Evaluate the predicate form
-  // against the record; useCondition must be called unconditionally (hook).
-  const disabledPred = toPredicateInput((action as any).disabled);
-  const condDisabled = useCondition(typeof disabledPred === 'string' ? disabledPred : undefined, recordCtx);
-  const isDisabled =
-    (typeof disabledPred === 'string' ? condDisabled : disabledPred === true) || running;
+  // `disabled` may be a boolean or a CEL predicate (disabled when TRUE). Feed
+  // toPredicateInput's result to useCondition WHOLE — since #2661 a CEL-dialect
+  // `{dialect, source}` envelope (the shape the server compiles authored CEL
+  // into) must reach useCondition intact to route to the canonical formula
+  // engine. The previous `typeof === 'string'` split dropped the envelope, so
+  // a spec-authored `disabled` never disabled anything on this surface.
+  const isDisabledPred = useCondition(toPredicateInput((action as any).disabled), recordCtx);
+  const isDisabled = ((action as any).disabled != null ? isDisabledPred : false) || running;
   return (
     <Button
       variant={variant}

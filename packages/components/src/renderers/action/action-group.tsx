@@ -69,6 +69,11 @@ const InlineActionButton: React.FC<{
 }> = ({ action, variant, size, onExecute }) => {
   const [loading, setLoading] = useState(false);
   const isVisible = useCondition(toPredicateInput(action.visible));
+  // Spec field is `disabled` (boolean | CEL — disabled when TRUE). #1885 wired
+  // it in action-button only; this leaf kept reading the legacy non-spec
+  // `enabled`, so a spec-authored `disabled` guard did nothing here. `disabled`
+  // is now the primary control; `enabled` stays as a deprecated fallback.
+  const isDisabledPred = useCondition(toPredicateInput((action as any).disabled));
   const isEnabled = useCondition(toPredicateInput(action.enabled));
 
   const Icon = resolveIcon(action.icon);
@@ -93,7 +98,13 @@ const InlineActionButton: React.FC<{
       variant={btnVariant as any}
       size={btnSize as any}
       className={action.className}
-      disabled={(action.enabled ? !isEnabled : false) || loading}
+      disabled={(
+        (action as any).disabled != null
+          ? isDisabledPred
+          : action.enabled != null
+            ? !isEnabled
+            : false
+      ) || loading}
       onClick={handleClick}
     >
       {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -122,10 +133,17 @@ export const DropdownActionItem: React.FC<{
   onSelect: (action: ActionSchema) => void | Promise<void>;
 }> = ({ action, index, onSelect }) => {
   const isVisible = useCondition(toPredicateInput(action.visible));
+  // Spec `disabled` primary, legacy non-spec `enabled` fallback (see
+  // InlineActionButton above — #1885 follow-through).
+  const isDisabledPred = useCondition(toPredicateInput((action as any).disabled));
   const isEnabled = useCondition(toPredicateInput(action.enabled));
   if (action.visible && !isVisible) return null;
   const Icon = resolveIcon(action.icon);
-  const isDisabled = action.enabled ? !isEnabled : false;
+  const isDisabled = (action as any).disabled != null
+    ? isDisabledPred
+    : action.enabled != null
+      ? !isEnabled
+      : false;
   const showSeparator = action.tags?.includes('separator-before') && index > 0;
   return (
     <>

@@ -69,6 +69,10 @@ const ActionMenuItem: React.FC<{
     throwOnError: true,
     label: `action "${action.name ?? action.label ?? 'action:menu item'}" (visible)`,
   });
+  // Spec `disabled` (boolean | CEL — disabled when TRUE) primary, legacy
+  // non-spec `enabled` fallback (#1885 follow-through — only action-button
+  // was wired; this renderer ignored a spec-authored `disabled`).
+  const isDisabledPred = useCondition(toPredicateInput((action as any).disabled));
   const isEnabled = useCondition(toPredicateInput(action.enabled));
 
   const iconElement = useMemo(() => {
@@ -81,7 +85,11 @@ const ActionMenuItem: React.FC<{
 
   return (
     <DropdownMenuItem
-      disabled={action.enabled ? !isEnabled : false}
+      disabled={(action as any).disabled != null
+        ? isDisabledPred
+        : action.enabled != null
+          ? !isEnabled
+          : false}
       onSelect={(e) => {
         e.preventDefault();
         onExecute(action);

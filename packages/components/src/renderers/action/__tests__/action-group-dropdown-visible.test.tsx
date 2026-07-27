@@ -70,3 +70,43 @@ describe('action:group dropdown item — visible / enabled CEL', () => {
     expect(item).toHaveAttribute('data-disabled');
   });
 });
+
+// Spec field is `disabled` (boolean | CEL — disabled when TRUE). #1885 wired it
+// in action-button only; the group/icon/menu leaves kept reading the legacy
+// non-spec `enabled`, so a spec-authored `disabled` guard silently did nothing
+// there. These pin the follow-through: `disabled` is the primary control and
+// wins over the deprecated `enabled` fallback.
+describe('action:group dropdown item — spec `disabled` CEL', () => {
+  it('disables an action whose `disabled` predicate is TRUE', () => {
+    renderItem(
+      { name: 'close', label: 'Close', disabled: 'record.status == "closed"' },
+      { record: { status: 'closed' } },
+    );
+    const item = screen.getByText('Close').closest('[role="menuitem"]');
+    expect(item).toHaveAttribute('data-disabled');
+  });
+
+  it('keeps an action clickable when `disabled` is FALSE', () => {
+    renderItem(
+      { name: 'close', label: 'Close', disabled: 'record.status == "closed"' },
+      { record: { status: 'open' } },
+    );
+    const item = screen.getByText('Close').closest('[role="menuitem"]');
+    expect(item).not.toHaveAttribute('data-disabled');
+  });
+
+  it('`disabled` wins over the legacy `enabled` fallback when both are present', () => {
+    renderItem(
+      { name: 'close', label: 'Close', disabled: 'record.locked == true', enabled: 'true' },
+      { record: { locked: true } },
+    );
+    const item = screen.getByText('Close').closest('[role="menuitem"]');
+    expect(item).toHaveAttribute('data-disabled');
+  });
+
+  it('supports the boolean literal form (`disabled: true`)', () => {
+    renderItem({ name: 'close', label: 'Close', disabled: true });
+    const item = screen.getByText('Close').closest('[role="menuitem"]');
+    expect(item).toHaveAttribute('data-disabled');
+  });
+});

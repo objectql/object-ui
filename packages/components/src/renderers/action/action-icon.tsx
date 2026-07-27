@@ -43,6 +43,10 @@ const ActionIconRenderer = forwardRef<HTMLButtonElement, ActionIconProps>(
     const [loading, setLoading] = useState(false);
 
     const isVisible = useCondition(toPredicateInput(schema.visible));
+    // Spec `disabled` (boolean | CEL — disabled when TRUE) primary, legacy
+    // non-spec `enabled` fallback (#1885 follow-through — only action-button
+    // was wired; this renderer ignored a spec-authored `disabled`).
+    const isDisabledPred = useCondition(toPredicateInput((schema as any).disabled));
     const isEnabled = useCondition(toPredicateInput(schema.enabled));
 
     const Icon = resolveIcon(schema.icon);
@@ -85,7 +89,13 @@ const ActionIconRenderer = forwardRef<HTMLButtonElement, ActionIconProps>(
         variant={variant as any}
         size={size}
         className={cn('h-8 w-8', schema.className, className)}
-        disabled={(schema.enabled ? !isEnabled : false) || loading}
+        disabled={(
+          (schema as any).disabled != null
+            ? isDisabledPred
+            : schema.enabled != null
+              ? !isEnabled
+              : false
+        ) || loading}
         onClick={handleClick}
         aria-label={schema.label || schema.name}
         {...rest}

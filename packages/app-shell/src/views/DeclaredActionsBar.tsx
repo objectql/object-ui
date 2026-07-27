@@ -112,6 +112,12 @@ const DeclaredActionButton: React.FC<{
     throwOnError: true,
     label: `declared action "${action.name ?? action.label ?? 'action'}" (visible)`,
   });
+  // Spec `disabled` (boolean | CEL — disabled when TRUE), evaluated against the
+  // same record context as `visible`. #1885 wired it in action-button only;
+  // this bar ignored it, so a spec-authored `disabled` guard on a declared
+  // action did nothing here. (No legacy `enabled` fallback: server-declared
+  // actions are spec-shaped and never carried the non-spec key.)
+  const isDisabledPred = useCondition(toPredicateInput((action as any).disabled), recordData);
 
   const handleClick = useCallback(async () => {
     if (loading) return;
@@ -219,7 +225,7 @@ const DeclaredActionButton: React.FC<{
       type="button"
       size="sm"
       variant={variant as any}
-      disabled={loading}
+      disabled={((action as any).disabled != null ? isDisabledPred : false) || loading}
       onClick={handleClick}
       data-testid={`declared-action-${action.name}`}
     >
