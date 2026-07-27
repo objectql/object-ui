@@ -31,6 +31,7 @@ import {
   CheckCircle2,
   Unplug,
 } from 'lucide-react';
+import { useObjectTranslation } from '@object-ui/i18n';
 import { ComponentRegistry } from '@object-ui/core';
 
 const BASE = '/api/v1/cloud-connection';
@@ -79,6 +80,7 @@ async function getJson(url: string, init?: RequestInit): Promise<any> {
 }
 
 export function CloudConnectionPanel() {
+  const { t, language } = useObjectTranslation();
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -107,7 +109,7 @@ export function CloudConnectionPanel() {
     const intervalMs = Math.max(code.interval, 2) * 1000;
     const tick = async () => {
       if (Date.now() - startedAt > code.expires_in * 1000) {
-        setPhase({ kind: 'error', message: 'The request expired before it was approved. Start again.' });
+        setPhase({ kind: 'error', message: t('cloudConnection.errors.expired') });
         return;
       }
       try {
@@ -123,20 +125,20 @@ export function CloudConnectionPanel() {
           await refreshStatus();
           return;
         }
-        setPhase({ kind: 'error', message: body?.error?.code ?? 'Binding failed.' });
+        setPhase({ kind: 'error', message: body?.error?.code ?? t('cloudConnection.errors.bindFailed') });
       } catch (err: any) {
         setPhase({ kind: 'error', message: err?.message ?? String(err) });
       }
     };
     pollTimer.current = setTimeout(tick, intervalMs);
-  }, [refreshStatus]);
+  }, [refreshStatus, t]);
 
   const connect = useCallback(async () => {
     setBusy(true);
     try {
       const body = await getJson(`${BASE}/bind/start`, { method: 'POST', body: '{}' });
       const code: DeviceCode = body?.data;
-      if (!code?.device_code || !code?.user_code) throw new Error('Device code request failed.');
+      if (!code?.device_code || !code?.user_code) throw new Error(t('cloudConnection.errors.deviceCodeFailed'));
       // Auto-open the approval page — the GitHub-login moment. Still within
       // the click's transient activation, so popup blockers generally allow
       // it; the code display below is the blocked-popup fallback.
@@ -154,7 +156,7 @@ export function CloudConnectionPanel() {
     } finally {
       setBusy(false);
     }
-  }, [poll]);
+  }, [poll, t]);
 
   const disconnect = useCallback(async () => {
     setBusy(true);
@@ -179,7 +181,7 @@ export function CloudConnectionPanel() {
   if (phase.kind === 'loading') {
     return (
       <div className="flex items-center gap-2 rounded-lg border p-6 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Checking connection…
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> {t('cloudConnection.checking')}
       </div>
     );
   }
@@ -195,7 +197,7 @@ export function CloudConnectionPanel() {
           className="self-start rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
           onClick={() => { stopPolling(); void refreshStatus(); }}
         >
-          Try again
+          {t('cloudConnection.retry')}
         </button>
       </div>
     );
@@ -208,8 +210,8 @@ export function CloudConnectionPanel() {
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           {phase.popupOpened
-            ? 'Approve the connection in the window that just opened — this page updates by itself.'
-            : 'Waiting for approval in the cloud console…'}
+            ? t('cloudConnection.waiting.popupOpened')
+            : t('cloudConnection.waiting.polling')}
         </div>
         {!phase.popupOpened && link ? (
           <a
@@ -218,7 +220,7 @@ export function CloudConnectionPanel() {
             target="_blank"
             rel="noreferrer"
           >
-            Open the approval page <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+            {t('cloudConnection.waiting.openApproval')} <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
           </a>
         ) : null}
         <div className="flex items-center gap-3">
@@ -230,27 +232,29 @@ export function CloudConnectionPanel() {
             className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
             onClick={() => void copyCode(phase.code.user_code)}
           >
-            <Copy className="h-3.5 w-3.5" aria-hidden="true" /> {copied ? 'Copied' : 'Copy'}
+            <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+            {copied ? t('cloudConnection.waiting.copied') : t('cloudConnection.waiting.copy')}
           </button>
         </div>
+        {/* Two self-contained strings rather than one sentence stitched across
+            JSX — a translator never receives a dangling clause or a bare '.'. */}
         <p className="text-sm text-muted-foreground">
-          The code is pre-filled on the approval page
+          {t('cloudConnection.waiting.codePrefilled')}
           {phase.popupOpened && link ? (
             <>
-              {' '}— if the window did not appear,{' '}
+              {' '}
               <a className="inline-flex items-center gap-1 text-primary underline-offset-2 hover:underline" href={link} target="_blank" rel="noreferrer">
-                open it here <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                {t('cloudConnection.waiting.openItHere')} <ExternalLink className="h-3 w-3" aria-hidden="true" />
               </a>
-              .
             </>
-          ) : '.'}
+          ) : null}
         </p>
         <button
           type="button"
           className="self-start rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
           onClick={() => { stopPolling(); void refreshStatus(); }}
         >
-          Cancel
+          {t('cloudConnection.waiting.cancel')}
         </button>
       </div>
     );
@@ -263,18 +267,18 @@ export function CloudConnectionPanel() {
       <div className="flex flex-col gap-4 rounded-lg border p-6">
         <div className="flex items-center gap-2">
           <CheckCircle2 className="h-5 w-5 text-emerald-600" aria-hidden="true" />
-          <span className="font-medium">Connected to ObjectStack Cloud</span>
+          <span className="font-medium">{t('cloudConnection.bound.title')}</span>
         </div>
         <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm">
-          {conn.name ? (<><dt className="text-muted-foreground">Runtime</dt><dd>{conn.name}</dd></>) : null}
-          {conn.organization_id ? (<><dt className="text-muted-foreground">Organization</dt><dd className="font-mono">{conn.organization_id}</dd></>) : null}
-          {conn.account_email ? (<><dt className="text-muted-foreground">Approved by</dt><dd>{conn.account_email}</dd></>) : null}
-          {runtimeId ? (<><dt className="text-muted-foreground">Runtime ID</dt><dd className="font-mono text-xs">{runtimeId}</dd></>) : null}
-          {phase.status.environmentId ? (<><dt className="text-muted-foreground">Environment</dt><dd className="font-mono">{phase.status.environmentId}</dd></>) : null}
-          {conn.bound_at ? (<><dt className="text-muted-foreground">Since</dt><dd>{new Date(conn.bound_at).toLocaleString()}</dd></>) : null}
+          {conn.name ? (<><dt className="text-muted-foreground">{t('cloudConnection.bound.runtime')}</dt><dd>{conn.name}</dd></>) : null}
+          {conn.organization_id ? (<><dt className="text-muted-foreground">{t('cloudConnection.bound.organization')}</dt><dd className="font-mono">{conn.organization_id}</dd></>) : null}
+          {conn.account_email ? (<><dt className="text-muted-foreground">{t('cloudConnection.bound.approvedBy')}</dt><dd>{conn.account_email}</dd></>) : null}
+          {runtimeId ? (<><dt className="text-muted-foreground">{t('cloudConnection.bound.runtimeId')}</dt><dd className="font-mono text-xs">{runtimeId}</dd></>) : null}
+          {phase.status.environmentId ? (<><dt className="text-muted-foreground">{t('cloudConnection.bound.environment')}</dt><dd className="font-mono">{phase.status.environmentId}</dd></>) : null}
+          {conn.bound_at ? (<><dt className="text-muted-foreground">{t('cloudConnection.bound.since')}</dt><dd>{new Date(conn.bound_at).toLocaleString(language)}</dd></>) : null}
         </dl>
         <p className="text-sm text-muted-foreground">
-          Your organization's private packages now appear in the Marketplace under “Your organization”.
+          {t('cloudConnection.bound.privatePackages')}
         </p>
         <button
           type="button"
@@ -282,7 +286,7 @@ export function CloudConnectionPanel() {
           className="inline-flex items-center gap-1.5 self-start rounded-md border border-destructive/40 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/5 disabled:opacity-50"
           onClick={() => void disconnect()}
         >
-          <Unplug className="h-3.5 w-3.5" aria-hidden="true" /> Disconnect
+          <Unplug className="h-3.5 w-3.5" aria-hidden="true" /> {t('cloudConnection.bound.disconnect')}
         </button>
       </div>
     );
@@ -293,13 +297,10 @@ export function CloudConnectionPanel() {
     <div className="flex flex-col gap-4 rounded-lg border p-6">
       <div className="flex items-center gap-2">
         <CloudOff className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-        <span className="font-medium">Not connected</span>
+        <span className="font-medium">{t('cloudConnection.unbound.title')}</span>
       </div>
       <p className="text-sm text-muted-foreground">
-        Connect this runtime to an ObjectStack control plane to browse your
-        organization's private packages and install them here. Approval is a
-        single click in your cloud account — no ids or credentials are typed
-        into this page.
+        {t('cloudConnection.unbound.body')}
       </p>
       <button
         type="button"
@@ -308,7 +309,7 @@ export function CloudConnectionPanel() {
         onClick={() => void connect()}
       >
         {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Cloud className="h-4 w-4" aria-hidden="true" />}
-        Connect
+        {t('cloudConnection.unbound.connect')}
       </button>
     </div>
   );
