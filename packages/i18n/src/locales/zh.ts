@@ -206,6 +206,7 @@ const zh = {
     },
     import: {
       title: '导入{{object}}',
+      notAllowed: '该对象未开放导入。',
       stepUpload: '上传',
       stepMapping: '字段映射',
       stepPreview: '预览',

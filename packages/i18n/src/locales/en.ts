@@ -207,6 +207,7 @@ const en = {
     },
     import: {
       title: 'Import {{object}}',
+      notAllowed: 'This object is not open for import.',
       stepUpload: 'Upload',
       stepMapping: 'Mapping',
       stepPreview: 'Preview',

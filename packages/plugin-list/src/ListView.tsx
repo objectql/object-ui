@@ -658,8 +658,18 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   const [exportError, setExportError] = React.useState<string | null>(null);
 
   // Object-level export permission gate. Default-allow: export stays enabled
-  // unless `allowExport === false` or `operations.export === false`.
-  const exportPermitted = schema.allowExport !== false && schema.operations?.export !== false;
+  // unless `allowExport === false` or `operations.export === false`, AND — when
+  // the server hands down an effective API operation set for this object
+  // (/me/permissions `apiOperations`, #3391) — unless it excludes `export`.
+  // Missing effective set (unrestricted object / old backend / no provider)
+  // keeps the current behavior. The frontend consumes the effective set the
+  // server resolved; it never reads the raw `apiMethods`.
+  const { getObjectApiOperations } = usePermissions();
+  const effectiveApiOps = schema.objectName ? getObjectApiOperations(schema.objectName) : undefined;
+  const exportPermitted =
+    schema.allowExport !== false &&
+    schema.operations?.export !== false &&
+    (effectiveApiOps ? effectiveApiOps.includes('export') : true);
 
   // Normalize exportOptions: support both ObjectUI object format and spec string[] format
   const resolvedExportOptions = React.useMemo(() => {

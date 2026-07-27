@@ -174,6 +174,9 @@ const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   // Shown on the completion screen when the import ran via the legacy per-row
   // fallback (server `/import` route unavailable) — no server-side coercion.
   'grid.import.legacyFallbackNotice': 'Imported via a compatibility fallback: this connection doesn’t support the server import route, so values were saved as text without server-side type coercion. Upgrade the backend/client for full import support (type coercion and relation lookups).',
+  // Shown when the server refuses import with 405 because the object does not
+  // expose the import operation (#3391) — distinct from "route not found".
+  'grid.import.notAllowed': 'This object is not open for import.',
 };
 
 /** Apply `{{var}}` interpolation to a translation template. */
@@ -219,6 +222,7 @@ export const __testables = {
   get mappedReferenceFields() { return mappedReferenceFields; },
   get formatDryRunError() { return formatDryRunError; },
   get isUnsupportedImportJob() { return isUnsupportedImportJob; },
+  get isImportNotAllowed() { return isImportNotAllowed; },
   get jobResultToImportResult() { return jobResultToImportResult; },
   get buildFailedRowsCsv() { return buildFailedRowsCsv; },
   get buildImportTemplateCsv() { return buildImportTemplateCsv; },
@@ -568,6 +572,25 @@ function isUnsupportedImportJob(err: unknown): boolean {
   if (code === 'UNSUPPORTED_OPERATION') return true;
   const msg = err instanceof Error ? err.message : '';
   return /does not support async import|createImportJob is not a function|import\/jobs|404/i.test(msg);
+}
+
+/** True when the SERVER refused the import because the object does not expose
+ *  the import operation (405 / `OBJECT_API_METHOD_NOT_ALLOWED`, #3391).
+ *
+ *  The opposite of {@link isUnsupportedImportJob} (404 = the async-job ROUTE is
+ *  absent → fall back to sync) and {@link isUnsupportedImport} (adapter can't
+ *  speak `/import` → fall back to per-row create): a **405** means "this object
+ *  is not open for import at all", so every fallback would 405 too. The wizard
+ *  must STOP and show a dedicated message — never fall back. Checked BEFORE the
+ *  unsupported predicates at every catch site so 405 wins over the 404/regex
+ *  fall-back paths. */
+function isImportNotAllowed(err: unknown): boolean {
+  const code = (err as { code?: unknown })?.code;
+  if (code === 'OBJECT_API_METHOD_NOT_ALLOWED') return true;
+  const e = err as { status?: unknown; statusCode?: unknown; httpStatus?: unknown };
+  if (e?.status === 405 || e?.statusCode === 405 || e?.httpStatus === 405) return true;
+  const msg = err instanceof Error ? err.message : typeof err === 'string' ? err : '';
+  return /\b405\b|method not allowed/i.test(msg);
 }
 
 /** Map an async import-job's final results payload onto the wizard's
@@ -1830,6 +1853,10 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     try {
       created = await ds.createImportJob(objectName, request);
     } catch (err) {
+      // [#3391] A 405 (object not open for import) must NOT fall back to the
+      // sync route (which 405s too) — rethrow so handleImport surfaces the
+      // dedicated message. Checked BEFORE the 404-based unsupported fallback.
+      if (isImportNotAllowed(err)) throw err;
       if (isUnsupportedImportJob(err)) return false;
       throw err;
     }
@@ -1918,6 +1945,16 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
         const handled = await runAsyncImport(request);
         if (handled) return;
       } catch (err) {
+        // [#3391] Object not open for import (405) → stop with the dedicated
+        // message; never fall back to the sync route (it 405s too).
+        if (isImportNotAllowed(err)) {
+          const importResult: ImportResult = {
+            totalRows: rows.length, importedRows: 0, skippedRows: rows.length,
+            errors: [{ row: 0, field: '', message: t('grid.import.notAllowed') }],
+          };
+          setResult(importResult); setImporting(false); onComplete?.(importResult);
+          return;
+        }
         if (!isUnsupportedImportJob(err)) {
           const msg = err instanceof Error ? err.message : 'Import failed';
           const importResult: ImportResult = {
@@ -1956,6 +1993,16 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
         setResult(importResult); setImporting(false); onComplete?.(importResult);
         return;
       } catch (err) {
+        // [#3391] Object not open for import (405) → stop with the dedicated
+        // message; never fall back to the legacy per-row loop (it 405s too).
+        if (isImportNotAllowed(err)) {
+          const importResult: ImportResult = {
+            totalRows: rows.length, importedRows: 0, skippedRows: rows.length,
+            errors: [{ row: 0, field: '', message: t('grid.import.notAllowed') }],
+          };
+          setResult(importResult); setImporting(false); onComplete?.(importResult);
+          return;
+        }
         if (!isUnsupportedImport(err)) {
           // A real server failure — surface it rather than silently retrying
           // via the legacy loop (which could double-import partial successes).
@@ -1974,7 +2021,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     await legacyImport();
   }, [
     dataSource, objectName, buildImportRequest, onComplete, rows.length, legacyImport, runAsyncImport,
-    backgroundImport,
+    backgroundImport, t,
   ]);
 
   // Small-file server dry-run pre-check: validate + coerce every row without
@@ -1990,6 +2037,17 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
       const res = await serverImport.call(dataSource, objectName, buildImportRequest(true));
       setDryRunResult(res);
     } catch (err) {
+      // [#3391] Object not open for import (405) → surface the dedicated
+      // message in the dry-run summary; checked before the /import unsupported
+      // fall-back (which would silently hide the refusal).
+      if (isImportNotAllowed(err)) {
+        setDryRunResult({
+          object: objectName, dryRun: true, writeMode, total: rows.length,
+          ok: 0, errors: rows.length, created: 0, updated: 0, skipped: 0,
+          results: [{ row: 0, ok: false, error: t('grid.import.notAllowed') }],
+        });
+        return;
+      }
       // Older adapter/client without /import — silently fall back to the
       // client-side cell validation that StepPreview already shows.
       if (!isUnsupportedImport(err)) {
@@ -2003,7 +2061,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     } finally {
       setValidating(false);
     }
-  }, [dataSource, objectName, buildImportRequest, writeMode, rows.length]);
+  }, [dataSource, objectName, buildImportRequest, writeMode, rows.length, t]);
 
   // A prior dry-run becomes stale the moment the payload changes (mapping,
   // write-mode, options, or an inline cell correction) — drop it so the summary

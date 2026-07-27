@@ -182,6 +182,7 @@ const pt = {
     },
     import: {
       title: "Importar {{object}}",
+      notAllowed: "Este objeto não está aberto para importação.",
       stepUpload: "Enviar",
       stepMapping: "Mapeamento",
       stepPreview: "Pré-visualização",

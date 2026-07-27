@@ -182,6 +182,7 @@ const ar = {
     },
     import: {
       title: "استيراد {{object}}",
+      notAllowed: "هذا الكائن غير متاح للاستيراد.",
       stepUpload: "رفع",
       stepMapping: "تعيين",
       stepPreview: "معاينة",

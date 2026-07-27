@@ -192,4 +192,63 @@ describe('MePermissionsProvider', () => {
     expect(screen.getByTestId('loaded').textContent).toBe('true');
     expect(screen.getByTestId('read').textContent).toBe('false');
   });
+
+  // [#3391] The provider exposes the server's per-object effective API operation
+  // set and maps import/export onto the base write/read permission bit.
+  it('exposes per-object effective apiOperations; undefined when absent', () => {
+    function ApiOpsProbe() {
+      const { getObjectApiOperations } = usePermissions();
+      return (
+        <div>
+          <span data-testid="acct">{JSON.stringify(getObjectApiOperations('account'))}</span>
+          <span data-testid="widget">{String(getObjectApiOperations('widget'))}</span>
+          <span data-testid="missing">{String(getObjectApiOperations('nope'))}</span>
+        </div>
+      );
+    }
+    render(
+      <MePermissionsProvider
+        endpoint="/x"
+        initialPermissions={{
+          authenticated: true, userId: 'u', tenantId: 't', roles: [], permissionSets: [],
+          objects: {
+            account: { allowRead: true, apiOperations: ['get', 'list', 'export'] },
+            widget: { allowRead: true }, // no apiOperations → undefined
+          },
+          fields: {},
+        }}
+      >
+        <ApiOpsProbe />
+      </MePermissionsProvider>,
+    );
+    expect(screen.getByTestId('acct').textContent).toBe(JSON.stringify(['get', 'list', 'export']));
+    expect(screen.getByTestId('widget').textContent).toBe('undefined');
+    expect(screen.getByTestId('missing').textContent).toBe('undefined');
+  });
+
+  it('check(import)→allowCreate and check(export)→allowRead', () => {
+    function ActionProbe() {
+      const { can } = usePermissions();
+      return (
+        <div>
+          <span data-testid="import">{String(can('account', 'import'))}</span>
+          <span data-testid="export">{String(can('account', 'export'))}</span>
+        </div>
+      );
+    }
+    render(
+      <MePermissionsProvider
+        endpoint="/x"
+        initialPermissions={{
+          authenticated: true, userId: 'u', tenantId: 't', roles: [], permissionSets: [],
+          objects: { account: { allowRead: true, allowCreate: false } },
+          fields: {},
+        }}
+      >
+        <ActionProbe />
+      </MePermissionsProvider>,
+    );
+    expect(screen.getByTestId('import').textContent).toBe('false'); // gated on allowCreate:false
+    expect(screen.getByTestId('export').textContent).toBe('true');  // gated on allowRead:true
+  });
 });

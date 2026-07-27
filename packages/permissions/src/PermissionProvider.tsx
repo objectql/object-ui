@@ -119,6 +119,9 @@ export function PermissionProvider({
       checkField,
       getFieldPermissions,
       getRowFilter,
+      // [#3391] Role-based provider does not model the server's effective API
+      // operation set — return undefined so consumers keep current behavior.
+      getObjectApiOperations: () => undefined,
       roles: userRoles,
       // This role-based provider does not model ADR-0066 system capabilities;
       // expose an empty set + a fail-open capability check to satisfy the

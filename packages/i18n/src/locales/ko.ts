@@ -182,6 +182,7 @@ const ko = {
     },
     import: {
       title: "{{object}} 가져오기",
+      notAllowed: "이 객체는 가져오기가 허용되지 않습니다.",
       stepUpload: "업로드",
       stepMapping: "매핑",
       stepPreview: "미리보기",

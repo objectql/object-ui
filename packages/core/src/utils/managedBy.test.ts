@@ -143,3 +143,46 @@ describe('MANAGED_BY_BUCKETS', () => {
     expect(MANAGED_BY_BUCKETS).toEqual(['platform', 'config', 'system', 'engine-owned', 'append-only', 'better-auth']);
   });
 });
+
+describe('resolveCrudAffordances — effective API operations (#3391)', () => {
+  it('undefined effective set → affordances unchanged (backward-compatible)', () => {
+    const platform = { managedBy: 'platform' };
+    expect(resolveCrudAffordances(platform)).toEqual(resolveCrudAffordances(platform, undefined));
+    expect(resolveCrudAffordances(platform, undefined)).toEqual({
+      create: true, import: true, edit: true, delete: true, exportCsv: true,
+    });
+  });
+
+  it('ANDs each affordance bit with its API operation (create/import→create/import, edit→update, delete→delete, exportCsv→export)', () => {
+    // A full-CRUD platform object whose server effective set is read-only + list-derived.
+    const aff = resolveCrudAffordances({ managedBy: 'platform' }, ['get', 'list', 'export']);
+    expect(aff).toMatchObject({
+      create: false, import: false, edit: false, delete: false, exportCsv: true,
+    });
+  });
+
+  it('keeps a bit only when BOTH the affordance and the effective op allow it', () => {
+    // create+update present → create/import/edit survive; no delete/list → delete/export drop.
+    const aff = resolveCrudAffordances({ managedBy: 'platform' }, ['create', 'update', 'import']);
+    expect(aff.create).toBe(true);
+    expect(aff.edit).toBe(true);
+    expect(aff.import).toBe(true);
+    expect(aff.delete).toBe(false);
+    expect(aff.exportCsv).toBe(false);
+  });
+
+  it('empty effective set → all bits off (deny-all)', () => {
+    expect(resolveCrudAffordances({ managedBy: 'platform' }, [])).toMatchObject({
+      create: false, import: false, edit: false, delete: false, exportCsv: false,
+    });
+  });
+
+  it('never re-enables a bit the bucket/userActions already denied', () => {
+    // config bucket has no import; even if the server would allow import, the
+    // UI-intent axis keeps it off (intersection, never union).
+    const aff = resolveCrudAffordances({ managedBy: 'config' }, ['create', 'update', 'delete', 'import', 'export']);
+    expect(aff.import).toBe(false); // config never imports
+    expect(aff.create).toBe(true);
+    expect(aff.exportCsv).toBe(true);
+  });
+});
