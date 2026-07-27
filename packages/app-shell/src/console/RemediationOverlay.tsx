@@ -9,6 +9,7 @@
 import { useState } from 'react';
 import { useAuth } from '@object-ui/auth';
 import { Button, Input, Label } from '@object-ui/components';
+import { useObjectTranslation } from '@object-ui/i18n';
 import { toCanvas } from 'qrcode';
 
 /**
@@ -38,19 +39,21 @@ export function RemediationOverlay() {
 
 function SignOutLink() {
   const { signOut } = useAuth();
+  const { t } = useObjectTranslation();
   return (
     <button
       type="button"
       onClick={() => { void signOut(); }}
       className="mt-4 w-full text-center text-xs text-muted-foreground hover:text-foreground hover:underline"
     >
-      Sign out instead
+      {t('auth.remediation.signOut')}
     </button>
   );
 }
 
 function ExpiredPasswordForm({ message }: { message: string }) {
   const { changePassword, setRemediationRequired } = useAuth();
+  const { t } = useObjectTranslation();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -60,14 +63,14 @@ function ExpiredPasswordForm({ message }: { message: string }) {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (next !== confirm) { setError('New passwords do not match.'); return; }
+    if (next !== confirm) { setError(t('auth.remediation.password.mismatch')); return; }
     setBusy(true);
     try {
       await changePassword(current, next);
       setRemediationRequired(null);
       window.location.reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not change password.');
+      setError(err instanceof Error ? err.message : t('auth.remediation.password.failed'));
       setBusy(false);
     }
   };
@@ -75,29 +78,31 @@ function ExpiredPasswordForm({ message }: { message: string }) {
   return (
     <form onSubmit={submit} className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold">Your password has expired</h2>
+        <h2 className="text-lg font-semibold">{t('auth.remediation.password.title')}</h2>
+        {/* `message` is server-authored (localized upstream or not at all); only
+            the empty-message fallback is ours to translate. */}
         <p className="mt-1 text-sm text-muted-foreground">
-          {message || 'Please set a new password to continue.'}
+          {message || t('auth.remediation.password.fallbackMessage')}
         </p>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="rem-cur">Current password</Label>
+        <Label htmlFor="rem-cur">{t('auth.remediation.password.current')}</Label>
         <Input id="rem-cur" type="password" autoComplete="current-password" value={current}
           onChange={(e) => setCurrent(e.target.value)} required />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="rem-new">New password</Label>
+        <Label htmlFor="rem-new">{t('auth.remediation.password.next')}</Label>
         <Input id="rem-new" type="password" autoComplete="new-password" value={next}
           onChange={(e) => setNext(e.target.value)} required />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="rem-conf">Confirm new password</Label>
+        <Label htmlFor="rem-conf">{t('auth.remediation.password.confirm')}</Label>
         <Input id="rem-conf" type="password" autoComplete="new-password" value={confirm}
           onChange={(e) => setConfirm(e.target.value)} required />
       </div>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <Button type="submit" className="w-full" disabled={busy}>
-        {busy ? 'Updating…' : 'Change password & continue'}
+        {busy ? t('auth.remediation.password.submitting') : t('auth.remediation.password.submit')}
       </Button>
       <SignOutLink />
     </form>
@@ -119,6 +124,7 @@ function TotpQr({ uri }: { uri: string }) {
 
 function MfaEnrollForm({ message }: { message: string }) {
   const { enrollTotp, verifyTotp, setRemediationRequired } = useAuth();
+  const { t } = useObjectTranslation();
   const [step, setStep] = useState<'password' | 'verify'>('password');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
@@ -136,7 +142,7 @@ function MfaEnrollForm({ message }: { message: string }) {
       setBackupCodes(codes ?? []);
       setStep('verify');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not start enrollment.');
+      setError(err instanceof Error ? err.message : t('auth.remediation.mfa.enrollFailed'));
     } finally {
       setBusy(false);
     }
@@ -150,7 +156,7 @@ function MfaEnrollForm({ message }: { message: string }) {
       setRemediationRequired(null);
       window.location.reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Invalid code. Try again.');
+      setError(err instanceof Error ? err.message : t('auth.remediation.mfa.invalidCode'));
       setBusy(false);
     }
   };
@@ -159,19 +165,19 @@ function MfaEnrollForm({ message }: { message: string }) {
     return (
       <form onSubmit={start} className="space-y-4">
         <div>
-          <h2 className="text-lg font-semibold">Set up two-factor authentication</h2>
+          <h2 className="text-lg font-semibold">{t('auth.remediation.mfa.title')}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {message || 'Your organization requires an authenticator app to continue.'}
+            {message || t('auth.remediation.mfa.fallbackMessage')}
           </p>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="rem-pw">Confirm your password</Label>
+          <Label htmlFor="rem-pw">{t('auth.remediation.mfa.confirmPassword')}</Label>
           <Input id="rem-pw" type="password" autoComplete="current-password" value={password}
             onChange={(e) => setPassword(e.target.value)} required />
         </div>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <Button type="submit" className="w-full" disabled={busy}>
-          {busy ? 'Preparing…' : 'Continue'}
+          {busy ? t('auth.remediation.mfa.preparing') : t('auth.remediation.mfa.continue')}
         </Button>
         <SignOutLink />
       </form>
@@ -181,29 +187,29 @@ function MfaEnrollForm({ message }: { message: string }) {
   return (
     <form onSubmit={verify} className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold">Scan with your authenticator</h2>
+        <h2 className="text-lg font-semibold">{t('auth.remediation.mfa.scanTitle')}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Scan this QR code with Google Authenticator, 1Password, Authy, etc., then enter the 6-digit code.
+          {t('auth.remediation.mfa.scanBody')}
         </p>
       </div>
       {totpUri ? <TotpQr uri={totpUri} /> : null}
       {backupCodes.length > 0 ? (
         <details className="rounded-md border bg-muted/40 p-3 text-xs">
-          <summary className="cursor-pointer font-medium">Save your backup codes</summary>
-          <p className="mt-1 text-muted-foreground">Store these somewhere safe — each can be used once if you lose your device.</p>
+          <summary className="cursor-pointer font-medium">{t('auth.remediation.mfa.backupTitle')}</summary>
+          <p className="mt-1 text-muted-foreground">{t('auth.remediation.mfa.backupBody')}</p>
           <div className="mt-2 grid grid-cols-2 gap-1 font-mono">
             {backupCodes.map((c) => <span key={c}>{c}</span>)}
           </div>
         </details>
       ) : null}
       <div className="space-y-2">
-        <Label htmlFor="rem-code">6-digit code</Label>
+        <Label htmlFor="rem-code">{t('auth.remediation.mfa.codeLabel')}</Label>
         <Input id="rem-code" inputMode="numeric" autoComplete="one-time-code" maxLength={8}
           placeholder="123456" value={code} onChange={(e) => setCode(e.target.value)} required />
       </div>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <Button type="submit" className="w-full" disabled={busy}>
-        {busy ? 'Verifying…' : 'Verify & continue'}
+        {busy ? t('auth.remediation.mfa.verifying') : t('auth.remediation.mfa.verify')}
       </Button>
       <SignOutLink />
     </form>

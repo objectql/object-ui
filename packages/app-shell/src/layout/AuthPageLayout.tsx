@@ -5,9 +5,11 @@
  */
 
 import type React from 'react';
+import { useObjectTranslation } from '@object-ui/i18n';
 import { getProductName, getLogoUrl } from '../runtime-config';
 
 export function AuthPageLayout({ children }: { children: React.ReactNode }) {
+  const { t } = useObjectTranslation();
   const productName = getProductName();
   const logoUrl = getLogoUrl();
   return (
@@ -38,10 +40,10 @@ export function AuthPageLayout({ children }: { children: React.ReactNode }) {
             <span className="text-2xl font-bold">{productName}</span>
           </div>
           <h2 className="text-3xl font-bold leading-tight">
-            Build powerful business applications, faster.
+            {t('auth.layout.headline')}
           </h2>
           <p className="text-lg opacity-90">
-            The universal platform for enterprise data management, workflows, and analytics.
+            {t('auth.layout.subhead')}
           </p>
         </div>
       </div>

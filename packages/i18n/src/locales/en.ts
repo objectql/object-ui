@@ -1847,6 +1847,42 @@ const en = {
     shell: {
       tenantHostHint: 'You are signing in to this workspace',
     },
+    layout: {
+      headline: 'Build powerful business applications, faster.',
+      subhead: 'The universal platform for enterprise data management, workflows, and analytics.',
+    },
+    // ADR-0069 full-screen remediation gate. A user hitting this cannot reach
+    // the rest of the app until they finish, so it must read in their language.
+    remediation: {
+      signOut: 'Sign out instead',
+      password: {
+        title: 'Your password has expired',
+        fallbackMessage: 'Please set a new password to continue.',
+        current: 'Current password',
+        next: 'New password',
+        confirm: 'Confirm new password',
+        submit: 'Change password & continue',
+        submitting: 'Updating…',
+        mismatch: 'New passwords do not match.',
+        failed: 'Could not change password.',
+      },
+      mfa: {
+        title: 'Set up two-factor authentication',
+        fallbackMessage: 'Your organization requires an authenticator app to continue.',
+        confirmPassword: 'Confirm your password',
+        continue: 'Continue',
+        preparing: 'Preparing…',
+        enrollFailed: 'Could not start enrollment.',
+        scanTitle: 'Scan with your authenticator',
+        scanBody: 'Scan this QR code with Google Authenticator, 1Password, Authy, etc., then enter the 6-digit code.',
+        backupTitle: 'Save your backup codes',
+        backupBody: 'Store these somewhere safe — each can be used once if you lose your device.',
+        codeLabel: '6-digit code',
+        verify: 'Verify & continue',
+        verifying: 'Verifying…',
+        invalidCode: 'Invalid code. Try again.',
+      },
+    },
   },
   profile: {
     title: 'Profile',
