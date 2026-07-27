@@ -124,10 +124,13 @@ describe('RecordAttachmentsPanel — authenticated signed-URL download (#2970)',
   it('maps a 403 ATTACHMENT_DOWNLOAD_DENIED to friendly copy and does not open a tab', async () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ code: 'ATTACHMENT_DOWNLOAD_DENIED' }), {
-        status: 403,
-        headers: { 'Content-Type': 'application/json' },
-      }),
+      new Response(
+        JSON.stringify({
+          success: false,
+          error: { code: 'ATTACHMENT_DOWNLOAD_DENIED', message: 'You do not have access…' },
+        }),
+        { status: 403, headers: { 'Content-Type': 'application/json' } },
+      ),
     );
     setup(makeDataSource());
     await waitFor(() => expect(screen.getByText('report.pdf')).toBeInTheDocument());
@@ -145,10 +148,13 @@ describe('RecordAttachmentsPanel — authenticated signed-URL download (#2970)',
   it('maps a 401 AUTH_REQUIRED to friendly copy', async () => {
     vi.spyOn(window, 'open').mockImplementation(() => null);
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ code: 'AUTH_REQUIRED' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      }),
+      new Response(
+        JSON.stringify({
+          success: false,
+          error: { code: 'AUTH_REQUIRED', message: 'Authentication required to download this file' },
+        }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } },
+      ),
     );
     setup(makeDataSource());
     await waitFor(() => expect(screen.getByText('report.pdf')).toBeInTheDocument());
@@ -158,5 +164,30 @@ describe('RecordAttachmentsPanel — authenticated signed-URL download (#2970)',
     await waitFor(() =>
       expect(screen.getByRole('alert')).toHaveTextContent('Please sign in to download this attachment.'),
     );
+  });
+
+  // The console ships independently of the server it talks to, so it must keep
+  // reading the PRE-objectstack#3675 body — code as a sibling of `error`, not a
+  // field of it. Without this, pointing a new console at an older server turns
+  // every gated download into the generic "Download failed (403)".
+  it('still maps the legacy top-level `code` shape (older server)', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: 'You do not have access…', code: 'ATTACHMENT_DOWNLOAD_DENIED' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    setup(makeDataSource());
+    await waitFor(() => expect(screen.getByText('report.pdf')).toBeInTheDocument());
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Download' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "You don't have access to download this attachment.",
+      ),
+    );
+    expect(openSpy).not.toHaveBeenCalled();
   });
 });

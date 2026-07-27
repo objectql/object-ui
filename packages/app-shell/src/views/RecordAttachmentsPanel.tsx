@@ -211,7 +211,17 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
         if (!res.ok) {
           let code: string | undefined;
           try {
-            code = (await res.json())?.code;
+            // Read BOTH error dialects, the same way the success branch below
+            // reads both `url` shapes. The storage service moved its error
+            // code from a sibling of `error` into the declared
+            // `{ success: false, error: { code, message } }` envelope
+            // (objectstack#3675); a console build is deployed independently of
+            // the server it talks to, so it has to keep understanding the
+            // older top-level `code` too. Without the nested branch the 401/403
+            // downgrade silently to "Download failed (403)" and the friendly
+            // copy below never fires.
+            const body = (await res.json()) as { code?: string; error?: { code?: string } } | null;
+            code = body?.error?.code ?? body?.code;
           } catch {
             /* non-JSON body */
           }
