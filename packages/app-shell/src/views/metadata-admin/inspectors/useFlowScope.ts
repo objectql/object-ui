@@ -31,14 +31,25 @@ export interface UseFlowScopeResult {
   groups: ScopeGroup[];
   /** Flat, de-duplicated ref list (all groups). */
   refs: ScopeRef[];
+  /**
+   * #3447: the picker groups for an approval node's `expression` APPROVER,
+   * whose closed root set differs from a flow condition's — `current.<field>`
+   * (live record at node entry), `trigger.<field>` (submit-time snapshot) and
+   * `vars.*` (flow variables / upstream outputs, prefix-mapped). `record.*`
+   * and bare fields are deliberately absent: inserting them would author
+   * exactly the spelling the runtime rejects.
+   */
+  approvalExpressionGroups: ScopeGroup[];
   /** True while the trigger object's fields are still loading. */
   loading: boolean;
   /** No references in scope — the field should render as a plain input. */
   isEmpty: boolean;
 }
 
-const GROUP_ORDER: ScopeGroupId[] = ['variables', 'outputs', 'loop', 'trigger'];
-const GROUP_LABELS: Record<ScopeGroupId, string> = {
+// The REGULAR picker's sections — the approval_* group ids (#3447) never
+// appear here; they ride the separately-emitted approvalExpressionGroups.
+const GROUP_ORDER = ['variables', 'outputs', 'loop', 'trigger'] as const;
+const GROUP_LABELS: Record<(typeof GROUP_ORDER)[number], string> = {
   variables: 'Flow variables',
   outputs: 'Upstream outputs',
   loop: 'Loop item',
@@ -77,6 +88,37 @@ export function useFlowScope(
       label: GROUP_LABELS[id],
       refs: refs.filter((r) => r.group === id),
     })).filter((g) => g.refs.length > 0);
-    return { groups, refs, loading: !!scope.trigger && loading, isEmpty: refs.length === 0 };
+
+    // #3447: approval-expression picker groups, built from the same materials.
+    // Trigger-object fields expand under BOTH times (current/trigger); the
+    // graph-walk refs (variables / upstream outputs / loop items) re-home
+    // under the `vars.` prefix. Trigger-group refs (record.<f>, previous.<f>,
+    // bare fields) are excluded — those spellings are not bound there.
+    const approvalCurrent: ScopeRef[] = [];
+    const approvalTrigger: ScopeRef[] = [];
+    for (const f of fields) {
+      if (!f?.name) continue;
+      const detail = f.label && f.label !== f.name ? f.label : f.type;
+      approvalCurrent.push({ token: `current.${f.name}`, label: `current.${f.name}`, detail, group: 'approval_current' });
+      approvalTrigger.push({ token: `trigger.${f.name}`, label: `trigger.${f.name}`, detail, group: 'approval_trigger' });
+    }
+    const approvalVars: ScopeRef[] = refs
+      .filter((r) => r.group === 'variables' || r.group === 'outputs' || r.group === 'loop')
+      .map((r) => ({ ...r, token: `vars.${r.token}`, label: `vars.${r.token}`, group: 'approval_vars' as const }));
+    // `vars.previous` (the pre-update row) is always addressable — listing it
+    // both teaches the spelling and keeps the `vars` root in the known set so
+    // FlowExprIssue never flags a legitimate vars.* reference on a flow with
+    // no declared variables or upstream outputs.
+    approvalVars.push({
+      token: 'vars.previous', label: 'vars.previous',
+      detail: 'pre-update row', group: 'approval_vars',
+    });
+    const approvalExpressionGroups: ScopeGroup[] = [
+      { id: 'approval_current' as const, label: 'Current record (live at node entry)', refs: approvalCurrent },
+      { id: 'approval_trigger' as const, label: 'Trigger snapshot (at submit)', refs: approvalTrigger },
+      { id: 'approval_vars' as const, label: 'Flow variables', refs: approvalVars },
+    ].filter((g) => g.refs.length > 0);
+
+    return { groups, refs, approvalExpressionGroups, loading: !!scope.trigger && loading, isEmpty: refs.length === 0 };
   }, [scope, fields, loading, extraRefs]);
 }

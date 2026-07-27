@@ -103,6 +103,13 @@ export interface FlowObjectListFieldProps {
   context?: FlowReferenceContext;
   /** In-scope variable references for `expression` columns (#1934). */
   scopeGroups?: ScopeGroup[];
+  /**
+   * #3447: picker groups for approval `expression` approver cells — the
+   * closed current/trigger/vars root set. Regular flow scopeGroups must NOT
+   * be offered there (record.* / bare-field spellings are rejected at
+   * runtime), which is why this rides as its own prop.
+   */
+  approvalScopeGroups?: ScopeGroup[];
 }
 
 export function FlowObjectListField({
@@ -117,6 +124,7 @@ export function FlowObjectListField({
   itemLabel,
   context,
   scopeGroups,
+  approvalScopeGroups,
 }: FlowObjectListFieldProps) {
   const external = React.useMemo(
     () =>
@@ -271,12 +279,12 @@ export function FlowObjectListField({
                       // 'expression' authors a CEL expression over the approval
                       // roots (current/trigger/vars). Render the expression
                       // input (mono + syntax check) instead of a dead free-text
-                      // reference box. The flow-scope picker/roots are
-                      // deliberately NOT wired in: approval expressions have
-                      // their own root set, and offering flow-scope paths here
-                      // (record.x, bare fields) would teach exactly the
-                      // spelling the runtime rejects; root validation runs
-                      // server-side (os lint + node-entry pre-check).
+                      // reference box, with the APPROVAL scope groups — never
+                      // the regular flow scopeGroups, whose record.x /
+                      // bare-field spellings the runtime rejects. The same
+                      // groups feed FlowExprIssue, so an out-of-contract root
+                      // warns inline with a "did you mean" before os lint /
+                      // the node-entry pre-check reject it server-side.
                       if (resolved === undefined && disc === 'expression') {
                         const raw = typeof row.values[col.key] === 'string' ? (row.values[col.key] as string) : '';
                         return (
@@ -290,11 +298,11 @@ export function FlowObjectListField({
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
                               }}
-                              groups={[]}
+                              groups={approvalScopeGroups ?? []}
                               placeholder={col.placeholder ?? 'current.<field> · trigger.<field> · vars.<node>.<key>'}
                               disabled={disabled}
                             />
-                            <FlowExprIssue value={raw} role="value" />
+                            <FlowExprIssue value={raw} role="value" scopeGroups={approvalScopeGroups} />
                           </div>
                         );
                       }

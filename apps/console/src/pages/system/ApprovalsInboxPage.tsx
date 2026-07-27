@@ -804,12 +804,28 @@ export function ApprovalsInboxPage() {
   }, [identities]);
 
   /**
+   * #2829 / framework#3447: a node that declares decision outputs expects the
+   * approver to fill them — only the drawer's declared-action dialog collects
+   * them, so the quick paths (inline a/r, hover buttons, bulk) must not decide
+   * such a request: a quick approve would silently hand the flow nothing and
+   * the next stage's expression approver would resolve an empty slate.
+   */
+  const needsDecisionInputs = useCallback((r: ApprovalRequestRow): boolean =>
+    Array.isArray(r.decision_outputs) && r.decision_outputs.length > 0, []);
+
+  /** Quick-decidable = actionable AND no declared decision outputs (#2829). */
+  const quickDecidable = useCallback((r: ApprovalRequestRow): boolean =>
+    isActionable(r) && !needsDecisionInputs(r), [isActionable, needsDecisionInputs]);
+
+  /**
    * Rows the user is actually allowed to bulk-act on:
-   * status=pending AND one of the user's identities is in pending_approvers.
+   * status=pending AND one of the user's identities is in pending_approvers
+   * AND the node declares no decision outputs (#2829 — those need the drawer
+   * dialog; they surface in the bulk bar as skipped).
    */
   const actionableSelectedRows = useMemo(
-    () => filteredRows.filter(r => selectedRowIds.has(r.id) && isActionable(r)),
-    [filteredRows, selectedRowIds, isActionable],
+    () => filteredRows.filter(r => selectedRowIds.has(r.id) && quickDecidable(r)),
+    [filteredRows, selectedRowIds, quickDecidable],
   );
 
   const allFilteredSelectable = filteredRows.filter(r => r.status === 'pending');
@@ -942,17 +958,17 @@ export function ApprovalsInboxPage() {
       } else if ((e.key === 'x' || e.key === ' ') && idx >= 0 && list[idx] && tab === 'pending') {
         e.preventDefault();
         toggleRow(list[idx].id);
-      } else if (e.key === 'a' && idx >= 0 && list[idx] && isActionable(list[idx])) {
+      } else if (e.key === 'a' && idx >= 0 && list[idx] && quickDecidable(list[idx])) {
         e.preventDefault();
         setApproveTarget(list[idx]);
-      } else if (e.key === 'r' && idx >= 0 && list[idx] && isActionable(list[idx])) {
+      } else if (e.key === 'r' && idx >= 0 && list[idx] && quickDecidable(list[idx])) {
         e.preventDefault();
         setRejectTarget(list[idx]);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedId, approveTarget, rejectTarget, tab, openDrawer, toggleRow, isActionable]);
+  }, [selectedId, approveTarget, rejectTarget, tab, openDrawer, toggleRow, quickDecidable]);
 
   // Drawer keyboard: ←/→ walk the visible list without going back to it.
   useEffect(() => {
@@ -1033,18 +1049,27 @@ export function ApprovalsInboxPage() {
   function InlineActions({ r }: { r: ApprovalRequestRow }) {
     if (!isActionable(r)) return null;
     const busy = inlineActing === r.id;
+    // #2829: a request whose node declares decision outputs must go through
+    // the drawer's dialog (the only place those fields are collected) — render
+    // the quick buttons disabled with an explanation instead of hiding them.
+    const needsInputs = needsDecisionInputs(r);
+    const needsInputsHint = tr(
+      'needsDecisionInputs',
+      'This approval collects decision outputs — open it to decide.',
+    );
     return (
       <div
         className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
         onClick={(e) => e.stopPropagation()}
+        title={needsInputs ? needsInputsHint : undefined}
       >
         <Button
           size="sm"
           variant="ghost"
           className="h-7 px-2 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400"
-          disabled={busy}
+          disabled={busy || needsInputs}
           onClick={() => setApproveTarget(r)}
-          aria-label={tr('approve', 'Approve')}
+          aria-label={needsInputs ? needsInputsHint : tr('approve', 'Approve')}
         >
           <CheckCircle2 className="h-4 w-4" />
         </Button>
@@ -1052,9 +1077,9 @@ export function ApprovalsInboxPage() {
           size="sm"
           variant="ghost"
           className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400"
-          disabled={busy}
+          disabled={busy || needsInputs}
           onClick={() => setRejectTarget(r)}
-          aria-label={tr('reject', 'Reject')}
+          aria-label={needsInputs ? needsInputsHint : tr('reject', 'Reject')}
         >
           <XCircle className="h-4 w-4" />
         </Button>
@@ -1419,13 +1444,21 @@ export function ApprovalsInboxPage() {
                         </span>
                       </div>
                       {isActionable(r) && (
-                        <div className="flex gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
-                          <Button size="sm" className="h-7 flex-1" disabled={inlineActing === r.id} onClick={() => setApproveTarget(r)}>
+                        // #2829: outputs-declaring requests decide only via the
+                        // drawer dialog — quick buttons disable with the hint.
+                        <div
+                          className="flex gap-2 pt-1"
+                          onClick={(e) => e.stopPropagation()}
+                          title={needsDecisionInputs(r)
+                            ? tr('needsDecisionInputs', 'This approval collects decision outputs — open it to decide.')
+                            : undefined}
+                        >
+                          <Button size="sm" className="h-7 flex-1" disabled={inlineActing === r.id || needsDecisionInputs(r)} onClick={() => setApproveTarget(r)}>
                             <CheckCircle2 className="h-3.5 w-3.5 mr-1" />{tr('approve', 'Approve')}
                           </Button>
                           <Button
                             size="sm" variant="outline" className="h-7 flex-1 border-destructive text-destructive"
-                            disabled={inlineActing === r.id} onClick={() => setRejectTarget(r)}
+                            disabled={inlineActing === r.id || needsDecisionInputs(r)} onClick={() => setRejectTarget(r)}
                           >
                             <XCircle className="h-3.5 w-3.5 mr-1" />{tr('reject', 'Reject')}
                           </Button>

@@ -131,18 +131,44 @@ const DeclaredActionButton: React.FC<{
       // handler folds them into the nested `outputs` body the decide route
       // expects. Comma-separated values are legal (the service accepts CSV for
       // multi-id outputs).
-      const declaredOutputKeys: string[] =
-        Array.isArray(recordData.decision_outputs)
-        && /\/(approve|reject)$/.test(String((action as any).target ?? ''))
-          ? (recordData.decision_outputs as unknown[]).map(String)
-          : [];
-      const outputParams = declaredOutputKeys.map((key) => ({
-        name: `outputs.${key}`,
-        label: key.split(/[_-]+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-        type: 'text' as const,
-        required: false,
-        helpText: 'Handed to the flow as a decision output. Comma-separate multiple values.',
-      }));
+      const isDecideAction = /\/(approve|reject)$/.test(String((action as any).target ?? ''));
+      // Prefer the typed declarations (framework#3447 follow-up); fall back to
+      // the bare key list from an older backend.
+      const declaredOutputs: Array<{ key: string; label?: string; type?: string; multiple?: boolean }> =
+        isDecideAction && Array.isArray(recordData.decision_output_defs) && recordData.decision_output_defs.length
+          ? (recordData.decision_output_defs as Array<{ key: string; label?: string; type?: string; multiple?: boolean }>)
+          : isDecideAction && Array.isArray(recordData.decision_outputs)
+            ? (recordData.decision_outputs as unknown[]).map((k) => ({ key: String(k) }))
+            : [];
+      // Widget mapping: `user` has a dedicated sys_user picker widget; the
+      // other record kinds ride a lookup param pointed at the system object.
+      const OUTPUT_LOOKUP_OBJECTS: Record<string, string> = {
+        department: 'sys_business_unit',
+        position: 'sys_position',
+        team: 'sys_team',
+      };
+      const outputParams = declaredOutputs.filter((d) => d.key).map((d) => {
+        const label = d.label
+          ?? d.key.split(/[_-]+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        const base = { name: `outputs.${d.key}`, label, required: false } as Record<string, unknown>;
+        if (d.type === 'user') {
+          return {
+            ...base, type: 'user', multiple: d.multiple === true,
+            helpText: 'Handed to the flow as a decision output.',
+          };
+        }
+        const lookupObject = d.type ? OUTPUT_LOOKUP_OBJECTS[d.type] : undefined;
+        if (lookupObject) {
+          return {
+            ...base, type: 'lookup', referenceTo: lookupObject, multiple: d.multiple === true,
+            helpText: 'Handed to the flow as a decision output.',
+          };
+        }
+        return {
+          ...base, type: 'text',
+          helpText: 'Handed to the flow as a decision output. Comma-separate multiple values.',
+        };
+      });
       const dispatch: any = {
         ...rest,
         // Localized copies ride the dispatch: the runner reads `label` for the
