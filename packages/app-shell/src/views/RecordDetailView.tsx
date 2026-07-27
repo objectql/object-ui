@@ -112,6 +112,34 @@ function isSecondaryField(fieldName: string, fieldDef: any): boolean {
   return SECONDARY_FIELD_NAME_HINTS.some((hint) => lc === hint || lc.endsWith(`_${hint}`));
 }
 
+/**
+ * Which system record-header affordances the record page may offer for this
+ * object — the primary `sys_edit` CTA (which also gates the record-body
+ * inline-edit session) and the `sys_delete` overflow item.
+ *
+ * [#3546] Each bit is the object's resolved CRUD affordance (lifecycle bucket +
+ * `userActions`) INTERSECTED with the server-resolved effective API operation
+ * set (`/me/permissions` `apiOperations`) — never a union. So a server grant can
+ * never re-open an affordance the object's bucket closed, and a permissive
+ * bucket default never survives the server denying `update` / `delete`. This is
+ * the detail-surface end of the same intersection the list/toolbar surface
+ * applies (objectui#2823). Passing `undefined` for `effectiveApiOperations`
+ * (unrestricted object / old backend / no `PermissionProvider`) leaves the
+ * bucket + `userActions` decision untouched — backward-compatible.
+ *
+ * Exported so the gate can be unit-tested directly: the record page itself is
+ * wired into routing, auth, presence and data fetching too deeply to render in
+ * a unit test, and this matrix is the part that must not regress. Same pattern
+ * as `defaultListColumnsFromObject` in `ObjectView`.
+ */
+export function resolveRecordHeaderActionGates(
+  objectDef: unknown,
+  effectiveApiOperations?: readonly string[] | null,
+): { edit: boolean; delete: boolean } {
+  const affordances = resolveCrudAffordances(objectDef as any, effectiveApiOperations);
+  return { edit: affordances.edit, delete: affordances.delete };
+}
+
 export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverride, recordIdOverride, embedded }: RecordDetailViewProps) {
 
   const params = useParams<{
@@ -897,8 +925,8 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   const { can: canOnObject, isLoaded: permissionsLoaded, getObjectApiOperations } = usePermissions();
   // [#3546] Server-resolved effective API operation set for this object
   // (`/me/permissions` `apiOperations`). Threaded as the 2nd arg into
-  // `resolveCrudAffordances` for the detail header's Edit/Delete and the
-  // record-body inline-edit gate, so the detail surface never offers an
+  // `resolveRecordHeaderActionGates` for the detail header's Edit/Delete and
+  // the record-body inline-edit gate, so the detail surface never offers an
   // operation the server would 405 — the same intersection the list/toolbar
   // surface already applies (objectui#2823). `undefined` (unrestricted object
   // / old backend) leaves the bucket affordances untouched (backward-compatible).
@@ -1748,7 +1776,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // menu permanently — Delete must never surface as an inline red button
   // just because an object has few actions.
   const synthSystemActions: ActionDef[] = (() => {
-    const affordances = resolveCrudAffordances(objectDef as any, effectiveApiOperations);
+    const affordances = resolveRecordHeaderActionGates(objectDef, effectiveApiOperations);
     const items: ActionDef[] = [];
     if (affordances.edit) {
       // Single primary Edit CTA → opens the full record form. Inline editing
@@ -1893,7 +1921,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
             on backends that track the lock via approval requests only and
             never materialize an `approval_status` field (objectui#2618). */}
         <InlineEditProvider
-          canEdit={resolveCrudAffordances(objectDef as any, effectiveApiOperations).edit && !approvalLocked}
+          canEdit={resolveRecordHeaderActionGates(objectDef, effectiveApiOperations).edit && !approvalLocked}
           locked={approvalLocked}
           lockedReason={t('detail.lockedTooltip', {
             defaultValue: 'This record has a pending approval request; editing is locked',
