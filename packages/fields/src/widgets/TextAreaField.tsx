@@ -36,7 +36,10 @@ export function TextAreaField({ value, onChange, field, readonly, errorMessage, 
 
   const textareaField = (field || (props as any).schema) as any;
   const rows = textareaField?.rows || 4;
-  const maxLength = textareaField?.max_length;
+  // Spec FieldSchema declares camelCase `maxLength`; `max_length` is the legacy
+  // objectui spelling. Dual-read (framework#1878 §3 recheck) — without this a
+  // spec-authored maxLength gave neither the textarea cap nor the counter.
+  const maxLength = textareaField?.maxLength ?? textareaField?.max_length;
   // Mobile fullscreen flag may arrive on the field metadata, on the form-field
   // schema (when called via the form renderer where `field` is the ObjectQL
   // metadata sub-object), or as an explicit widget prop.

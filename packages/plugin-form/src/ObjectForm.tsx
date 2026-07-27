@@ -604,8 +604,12 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
         }
 
         if (field.type === 'text' || field.type === 'textarea' || field.type === 'markdown' || field.type === 'html') {
-          formField.maxLength = field.max_length;
-          formField.minLength = field.min_length;
+          // Spec FieldSchema declares camelCase; `max_length`/`min_length` is
+          // the legacy objectui spelling. Dual-read like buildValidationRules
+          // already does (framework#1878 §3 recheck) — without this a
+          // spec-authored `maxLength` never reached the HTML maxlength cap.
+          formField.maxLength = (field as any).maxLength ?? field.max_length;
+          formField.minLength = (field as any).minLength ?? field.min_length;
         }
 
         if (field.type === 'file' || field.type === 'image') {

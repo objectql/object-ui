@@ -120,7 +120,15 @@ export function PageView() {
               key={refreshKey}
               schema={{
                 ...page,
+                // `type` stays the SchemaNode discriminator ComponentRegistry
+                // dispatches on. The spec's page KIND (`record|home|app|utility|
+                // list`) rides `pageType`, which PageRenderer reads — without
+                // this mapping every page fell back to `pageType: 'record'`,
+                // so non-record pages got the record max-width, a wrong
+                // `data-page-type` and a suppressed header (framework#1878 §3
+                // naming-drift recheck).
                 type: (page as any).type || 'page',
+                pageType: (page as any).type,
                 context: { ...(page as any).context, params, refreshKey },
               }}
             />

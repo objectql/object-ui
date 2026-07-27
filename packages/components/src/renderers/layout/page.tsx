@@ -389,6 +389,10 @@ export const PageRenderer: React.FC<{
   [key: string]: any;
 }> = ({ schema, className, ...props }) => {
   const pageType = schema.pageType || 'record';
+  // Spec PageSchema declares `label` (required); `title` is the objectui
+  // spelling. Dual-read so a spec-authored page still renders its header
+  // (framework#1878 §3 naming-drift recheck).
+  const pageTitle = schema.title ?? (schema as any).label;
 
   // Extract designer-related props and strip schema-only metadata that
   // would otherwise leak onto the wrapper <div> as invalid HTML attributes
@@ -499,12 +503,15 @@ export const PageRenderer: React.FC<{
     >
       <div className={cn(fullBleed ? 'space-y-6' : 'mx-auto space-y-6', maxWidthClass)}>
         {/* Page header — suppressed on record pages (the page:header component
-            in the header region renders the record-bound title instead). */}
-        {pageType !== 'record' && (schema.title || schema.description) && (
+            in the header region renders the record-bound title instead).
+            `title` is the objectui spelling; the spec's PageSchema declares
+            `label` (required), so dual-read it — mirrors the fallback
+            DashboardRenderer already uses (framework#1878 §3 recheck). */}
+        {pageType !== 'record' && (pageTitle || schema.description) && (
           <div className="space-y-2">
-            {schema.title && (
+            {pageTitle && (
               <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                {schema.title}
+                {pageTitle}
               </h1>
             )}
             {schema.description && (
