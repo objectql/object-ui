@@ -80,7 +80,7 @@
     "eslint-plugin-react-refresh": "^0.5.3",
     "globals": "^17.7.0",
     "happy-dom": "^20.11.0",
-    "jsdom": "^29.1.1",
+    "jsdom": "^30.0.0",
     "msw": "^2.15.0",
     "playwright": "^1.61.1",
     "prettier": "^3.9.5",
