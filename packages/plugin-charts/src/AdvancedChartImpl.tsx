@@ -44,6 +44,7 @@ import {
   ChartConfig
 } from './ChartContainerImpl';
 import { mapScatterClick, mapTreemapClick, mapSankeyClick } from './chartDrillEvents';
+import { buildCategoryRank } from '@object-ui/core';
 
 // Default color fallback for chart series
 const DEFAULT_CHART_COLOR = 'hsl(var(--primary))';
@@ -110,6 +111,20 @@ export interface AdvancedChartImplProps {
    */
   categoryColors?: Record<string, string>;
   /**
+   * Declared category order for ordered-sequence charts (funnel / pyramid),
+   * keyed like {@link categoryColors} by the category VALUE or its display
+   * LABEL, listed in domain order.
+   *
+   * A funnel's shape asserts a sequence, so without this the renderer can only
+   * guess at one and sorts by value descending. That is right for a generic
+   * "biggest first" funnel and wrong for a sales pipeline, where the stages
+   * have a declared order (Qualification → Needs Analysis → Proposal →
+   * Negotiation) that a healthy pipeline happens to narrow along — and an
+   * unhealthy one does not. When supplied, this order wins; categories not
+   * listed keep their incoming relative order after the listed ones.
+   */
+  categoryOrder?: string[];
+  /**
    * Optional drill-down click handler. Fires when a chart segment is clicked
    * with `{ category, series, value }`. Wired for bar/horizontal-bar/line/
    * area/pie/donut. Other chart types are no-ops in L1.
@@ -160,6 +175,7 @@ export default function AdvancedChartImpl({
   className = '',
   colors,
   categoryColors,
+  categoryOrder,
   onChartClick,
   isAnimationActive,
 }: AdvancedChartImplProps) {
@@ -410,15 +426,32 @@ export default function AdvancedChartImpl({
     const funnelClickProps = handleFunnelClick
       ? { onClick: handleFunnelClick, style: { cursor: 'pointer' as const } }
       : {};
-    // Recharts <Funnel> draws segments in source order. For a visually
-    // correct funnel (largest at top, narrowing down) we sort descending
-    // by the numeric value of `dataKey` so authors don't have to pre-sort
-    // their dashboard data.
-    const funnelData = [...data].sort((a, b) => {
-      const av = Number(a?.[dataKey] ?? 0);
-      const bv = Number(b?.[dataKey] ?? 0);
-      return bv - av;
-    });
+    // Recharts <Funnel> draws segments in source order, so this decides the
+    // sequence the funnel asserts.
+    //
+    // With a DECLARED order (framework#3588) — a stage picklist's own option
+    // order, or an explicit `stageOrder` — that order wins: a sales funnel must
+    // read Qualification → Needs Analysis → Proposal → Negotiation whether or
+    // not each stage happens to hold more value than the next. Sorting such a
+    // pipeline by value would manufacture a tidy narrowing shape and hide the
+    // very anomaly (a bulge at Proposal) the chart exists to reveal. Categories
+    // missing from the declared order keep their incoming relative order,
+    // after the declared ones — never dropped.
+    //
+    // Without one, keep the long-standing default: descending by value, so a
+    // generic funnel still narrows downward without authors pre-sorting.
+    const categoryRank = buildCategoryRank(categoryOrder);
+    const funnelData = categoryRank
+      ? [...data].sort((a, b) => {
+          const ar = categoryRank.get(String(a?.[xAxisKey] ?? '')) ?? Number.MAX_SAFE_INTEGER;
+          const br = categoryRank.get(String(b?.[xAxisKey] ?? '')) ?? Number.MAX_SAFE_INTEGER;
+          return ar - br;
+        })
+      : [...data].sort((a, b) => {
+          const av = Number(a?.[dataKey] ?? 0);
+          const bv = Number(b?.[dataKey] ?? 0);
+          return bv - av;
+        });
     return (
       <ChartContainer config={config} className={className} {...containerProps}>
         <FunnelChart>

@@ -53,6 +53,11 @@ export interface ChartRendererProps {
      *  category; see AdvancedChartImpl. Set by ObjectChart from select/lookup
      *  dimension option colours and/or an explicit author map. */
     categoryColors?: Record<string, string>;
+    /** Declared category order (value/label keys, in domain order) for
+     *  ordered-sequence charts — funnel/pyramid stages. Set by DatasetWidget
+     *  from the dimension's picklist order or an explicit `stageOrder`; see
+     *  AdvancedChartImpl. Omitted → the funnel's value-descending default. */
+    categoryOrder?: string[];
     /** Pass `false` for a deterministic, export-safe render with no entrance
      *  animation (see AdvancedChartImpl). Omitted → animated default. */
     isAnimationActive?: boolean;
@@ -118,6 +123,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ schema, onChartCli
         className={props.className}
         colors={Array.isArray((schema as any).colors) ? (schema as any).colors : undefined}
         categoryColors={(schema as any).categoryColors}
+        categoryOrder={(schema as any).categoryOrder}
         isAnimationActive={schema.isAnimationActive}
         onChartClick={onChartClick}
       />

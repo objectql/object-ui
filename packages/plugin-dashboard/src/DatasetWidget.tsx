@@ -32,6 +32,7 @@ import {
   buildChartSeries,
   buildOptionColorMap,
   buildDimensionLabelMap,
+  buildCategoryOrder,
   relabelDimensions,
   findChartSeriesRow,
   formatMeasure,
@@ -178,6 +179,30 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // computes each with the measure's TRUE aggregate (never re-derived here).
   const totalsGroupings = isMatrix ? [rowDims, [colDim], []] : undefined;
 
+  // ── Query-affecting widget options (framework#3588) ──────────────────────
+  // `options` is the renderer-extras bag, but four of its keys are NOT
+  // presentation-only: they change the query the server compiles. They were
+  // accepted by the metadata layer and then dropped here — this component never
+  // read `options` at all — so `dateGranularity: 'month'` grouped by the raw
+  // timestamp (one bar per record) and `sortBy` produced no ordering. Lower
+  // them into the `DatasetSelection` the server already understands.
+  const options: Record<string, unknown> =
+    widget?.options && typeof widget.options === 'object' && !Array.isArray(widget.options)
+      ? (widget.options as Record<string, unknown>)
+      : {};
+  const dateGranularity = typeof options.dateGranularity === 'string' ? options.dateGranularity : undefined;
+  const sortBy = typeof options.sortBy === 'string' && options.sortBy ? options.sortBy : undefined;
+  // Only order by something this widget actually projects — the server rejects
+  // an order key it can't resolve, and a stale `sortBy` left behind by an edit
+  // should degrade to "unordered", not fail the whole widget.
+  const sortable = sortBy && (dimensions.includes(sortBy) || values.includes(sortBy)) ? sortBy : undefined;
+  const order = sortable
+    ? { [sortable]: options.sortOrder === 'desc' ? ('desc' as const) : ('asc' as const) }
+    : undefined;
+  const limit = typeof options.limit === 'number' && Number.isFinite(options.limit) && options.limit > 0
+    ? Math.floor(options.limit)
+    : undefined;
+
   const tt = useSafeTranslate();
   const { fieldLabel } = useSafeFieldLabel();
 
@@ -216,10 +241,19 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // select whose options the analytics layer can't see comes back value-keyed,
   // so we resolve it here from the object field options (see relabelDimensions).
   const [dimensionLabels, setDimensionLabels] = useState<Record<string, Record<string, string>> | null>(null);
+  // The first dimension's DECLARED picklist order (framework#3588) — the
+  // sequence the author wrote the options in on the object. For an
+  // ordered-sequence chart (funnel/pyramid) that order IS the domain order
+  // (Qualification → Needs Analysis → Proposal → Negotiation); grouping returns
+  // buckets alphabetically, which draws a shape that reads as a pipeline but
+  // isn't one. Fetched from the same object schema as the colours/labels below.
+  const [categoryOrder, setCategoryOrder] = useState<string[] | null>(null);
 
   // Signature uses the RAW filter (stable) — the resolved one carries a
-  // render-time `now` and would otherwise force a refetch loop.
-  const signature = `${widgetType}|${datasetName}|${dimensions.join(',')}|${values.join(',')}|${JSON.stringify(rawFilter ?? null)}|${JSON.stringify(compareTo ?? null)}`;
+  // render-time `now` and would otherwise force a refetch loop. The
+  // query-affecting options join it so editing a widget's granularity/sort in
+  // the designer refetches instead of re-rendering the previous grid.
+  const signature = `${widgetType}|${datasetName}|${dimensions.join(',')}|${values.join(',')}|${JSON.stringify(rawFilter ?? null)}|${JSON.stringify(compareTo ?? null)}|${dateGranularity ?? ''}|${JSON.stringify(order ?? null)}|${limit ?? ''}`;
   useEffect(() => {
     const src = dataSource as DatasetCapableSource | undefined;
     if (!src || typeof src.queryDataset !== 'function') {
@@ -235,6 +269,9 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
       ...(runtimeFilter ? { runtimeFilter } : {}),
       ...(compareTo ? { compareTo } : {}),
       ...(totalsGroupings ? { totals: { groupings: totalsGroupings } } : {}),
+      ...(dateGranularity ? { dateGranularity } : {}),
+      ...(order ? { order } : {}),
+      ...(limit != null ? { limit } : {}),
     })
       .then((res) => { if (!cancelled) setState({ status: 'ok', rows: Array.isArray(res?.rows) ? res.rows : [], fields: Array.isArray(res?.fields) ? res.fields : [], object: res?.object, dimensionFields: res?.dimensionFields, drillRawRows: Array.isArray(res?.drillRawRows) ? res.drillRawRows : undefined, drillRanges: Array.isArray(res?.drillRanges) ? res.drillRanges : undefined, totals: Array.isArray(res?.totals) ? res.totals : undefined }); })
       .catch((e) => { if (!cancelled) setState({ status: 'error', rows: [], error: String((e as Error)?.message ?? e) }); });
@@ -250,9 +287,9 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // the axis/series display labels even when the server returned raw values.
   // Best-effort: any failure leaves both null (positional palette + raw values).
   useEffect(() => {
-    if (isMetric || isTable) { setCategoryColors(null); setDimensionLabels(null); return; }
+    if (isMetric || isTable) { setCategoryColors(null); setDimensionLabels(null); setCategoryOrder(null); return; }
     const object = state.object;
-    if (!object || dimensions.length === 0) { setCategoryColors(null); setDimensionLabels(null); return; }
+    if (!object || dimensions.length === 0) { setCategoryColors(null); setDimensionLabels(null); setCategoryOrder(null); return; }
     const fieldOf = (dim: string) => (state.dimensionFields && state.dimensionFields[dim]) || dim;
     let cancelled = false;
     (async () => {
@@ -260,7 +297,8 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
         const res = await fetch(`/api/v1/meta/object/${encodeURIComponent(object)}`, { headers: { accept: 'application/json' }, credentials: 'include' });
         const j = await res.json().catch(() => null);
         const objSchema = j?.item ?? j?.data ?? j;
-        const colorMap = buildOptionColorMap(objSchema?.fields?.[fieldOf(dimensions[0])]?.options);
+        const firstDimOptions = objSchema?.fields?.[fieldOf(dimensions[0])]?.options;
+        const colorMap = buildOptionColorMap(firstDimOptions);
         const labels: Record<string, Record<string, string>> = {};
         for (const dim of dimensions) {
           const m = buildDimensionLabelMap(objSchema?.fields?.[fieldOf(dim)]?.options);
@@ -269,8 +307,9 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
         if (!cancelled) {
           setCategoryColors(colorMap);
           setDimensionLabels(Object.keys(labels).length > 0 ? labels : null);
+          setCategoryOrder(buildCategoryOrder(firstDimOptions));
         }
-      } catch { if (!cancelled) { setCategoryColors(null); setDimensionLabels(null); } }
+      } catch { if (!cancelled) { setCategoryColors(null); setDimensionLabels(null); setCategoryOrder(null); } }
     })();
     return () => { cancelled = true; };
   }, [state.object, state.dimensionFields, dimensions, isMetric, isTable]);
@@ -540,6 +579,19 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // series so multi-dimension dataset widgets match the chart-view renderer.
   const { data: chartData, xAxisKey, series } = buildChartSeries(chartRows, dimensions, values, state.fields);
 
+  // Ordered-sequence charts (funnel/pyramid) need a DEFINED stage order.
+  // `options.stageOrder` wins when the author states one explicitly; otherwise
+  // the dimension field's declared picklist order does. Explicit values are
+  // expanded with their display labels because `chartRows` may already be
+  // relabeled — the same value-or-label keying `categoryColors` uses.
+  const stageOrder = Array.isArray(options.stageOrder) ? options.stageOrder : undefined;
+  const explicitOrder = stageOrder?.flatMap((v) => {
+    const key = String(v);
+    const label = dimensionLabels?.[dimensions[0]]?.[key];
+    return label && label !== key ? [key, label] : [key];
+  });
+  const effectiveCategoryOrder = explicitOrder?.length ? explicitOrder : categoryOrder;
+
   // Map a clicked chart segment back to its dataset row, then drill through to
   // the underlying records — same governed path the table/pivot rows use.
   const handleChartDrill = (ev: { category?: string; series?: string; value?: number }) => {
@@ -565,7 +617,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
         // measurement churn, can freeze there — bars never draw until an unrelated
         // re-render (#2756, follow-up to #2727's ineffective settle re-mount).
         // Turning the tween off makes the first paint deterministic.
-        schema={{ type: 'chart', chartType, data: chartData, xAxisKey, series, isAnimationActive: false, ...(categoryColors ? { categoryColors } : {}) } as any}
+        schema={{ type: 'chart', chartType, data: chartData, xAxisKey, series, isAnimationActive: false, ...(categoryColors ? { categoryColors } : {}), ...(effectiveCategoryOrder ? { categoryOrder: effectiveCategoryOrder } : {}) } as any}
         onChartClick={chartDrill}
         onSegmentClick={chartDrill}
       />

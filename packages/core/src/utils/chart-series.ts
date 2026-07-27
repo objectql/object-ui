@@ -198,6 +198,58 @@ export function buildOptionColorMap(options: unknown): Record<string, string> | 
 }
 
 /**
+ * Build the DECLARED category order from a select field's `options` — the
+ * sequence the author wrote them in on the object (framework#3588).
+ *
+ * A picklist's option order is already the domain order: a sales `stage` field
+ * lists Qualification → Needs Analysis → Proposal → Negotiation because that IS
+ * the pipeline. Analytics groups by that field and returns buckets in whatever
+ * order the GROUP BY produced (usually alphabetical), which for an
+ * ordered-sequence chart — a funnel above all — draws a shape that reads as a
+ * pipeline but isn't one.
+ *
+ * Emits BOTH the stored `value` and its display `label` per option, adjacent
+ * and in declared order, for the same reason {@link buildOptionColorMap} keys
+ * by both: a chart row's category may carry either, depending on whether the
+ * server resolved the dimension's labels. Rank is "index of first match", so
+ * either key ranks the option identically.
+ *
+ * Returns `null` for a field with no options, so callers keep their existing
+ * ordering (a funnel falls back to descending by value).
+ */
+export function buildCategoryOrder(options: unknown): string[] | null {
+  if (!Array.isArray(options) || options.length === 0) return null;
+  const keys: string[] = [];
+  for (const opt of options) {
+    if (typeof opt === 'string' || typeof opt === 'number' || typeof opt === 'boolean') {
+      keys.push(String(opt));
+      continue;
+    }
+    if (opt && typeof opt === 'object') {
+      const o = opt as { value?: unknown; label?: unknown };
+      if (o.value != null) keys.push(String(o.value));
+      if (o.label != null && String(o.label) !== String(o.value)) keys.push(String(o.label));
+    }
+  }
+  return keys.length > 0 ? keys : null;
+}
+
+/**
+ * Rank map for {@link buildCategoryOrder} keys — `category → position`, first
+ * occurrence wins. Categories absent from the declared order get no entry; the
+ * caller decides where those sort (see `AdvancedChartImpl`, which keeps them
+ * after the declared ones rather than dropping them).
+ */
+export function buildCategoryRank(order: string[] | null | undefined): Map<string, number> | null {
+  if (!Array.isArray(order) || order.length === 0) return null;
+  const rank = new Map<string, number>();
+  order.forEach((key, i) => {
+    if (!rank.has(key)) rank.set(key, i);
+  });
+  return rank.size > 0 ? rank : null;
+}
+
+/**
  * Build a `{ value → label }` map from a select/enum field's `options`, for
  * resolving a grouped dimension's stored value to its display label (fed to
  * {@link relabelDimensions}). Mirrors {@link buildOptionColorMap}.
