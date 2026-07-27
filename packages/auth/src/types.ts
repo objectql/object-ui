@@ -106,6 +106,17 @@ export interface AuthSocialProvider {
   type?: 'social' | 'oidc';
 }
 
+/**
+ * Deployment tenancy posture (framework ADR-0105 D1).
+ *
+ * - `single` — one organization, no wall.
+ * - `group` — one shared database, organization as membership boundary:
+ *   reads span every organization the caller belongs to, writes land in the
+ *   ACTIVE organization.
+ * - `isolated` — hard per-organization walls (the pre-ADR-0105 `multi`).
+ */
+export type TenancyPosture = 'single' | 'group' | 'isolated';
+
 /** Public auth configuration returned by the server */
 export interface AuthPublicConfig {
   emailPassword?: {
@@ -172,6 +183,17 @@ export interface AuthPublicConfig {
      * (framework#2874 / objectui#2513).
      */
     deviceAuthorization?: boolean;
+    /**
+     * Which tenancy posture the deployment runs (framework ADR-0105 D1).
+     * Non-boolean by design: `multiOrgEnabled` stays the capability gate
+     * ("is an organization wall enforced at all?"), while this key only tells
+     * the console HOW to render organization context. Under `group` the org
+     * switcher picks the WRITE target and reads span every organization the
+     * member belongs to, so group-only affordances (write-context labeling,
+     * org attribution in list views) key off `tenancyPosture === 'group'`.
+     * Absent (older server / config not yet fetched) ⇒ no group affordances.
+     */
+    tenancyPosture?: TenancyPosture;
   };
 }
 

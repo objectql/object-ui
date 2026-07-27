@@ -35,6 +35,7 @@ import {
 } from '@object-ui/components';
 import { Plus, Upload, Star, StarOff, Table as TableIcon, KanbanSquare, Calendar, LayoutGrid, Activity, GanttChart, MapPin, BarChart3 } from 'lucide-react';
 import { useFavorites } from '../hooks/useFavorites';
+import { useTenancyPosture } from '../hooks/useTenancyPosture';
 import { getIcon } from '../utils/getIcon';
 import type { ListViewSchema, ViewNavigationConfig, FeedItem } from '@object-ui/types';
 import { detectStatusField, isSystemManagedField } from '@object-ui/types';
@@ -128,18 +129,35 @@ function substituteFilterTokens(filter: any, currentUserId: string | undefined):
  * non-hidden / non-readonly `owner_id` and `organization_id`. Without this,
  * `applySystemFields` (which spreads injected fields to the FRONT of the field
  * map) would surface `owner_id` as a leading raw-id column (#2702, #2777).
+ *
+ * `opts.orgAttribution` (ADR-0105 group posture): reads span every
+ * organization the member belongs to, so cross-org rows need attribution —
+ * append `organization_id` as a TRAILING column when the object carries the
+ * field. Trailing keeps business fields leading; render-time only, never
+ * persisted into saved view metadata (a saved view must not fossilize a
+ * posture-dependent column set).
  */
-export function defaultListColumnsFromObject(objectDef: any, limit = 5): string[] {
+export function defaultListColumnsFromObject(
+    objectDef: any,
+    limit = 5,
+    opts?: { orgAttribution?: boolean },
+): string[] {
+    const withOrgAttribution = (cols: string[]): string[] =>
+        opts?.orgAttribution && objectDef?.fields?.organization_id && !cols.includes('organization_id')
+            ? [...cols, 'organization_id']
+            : cols;
     const curated = objectDef?.highlightFields;
     if (Array.isArray(curated) && curated.length > 0) {
-        return curated.filter((n: string) => objectDef?.fields?.[n]);
+        return withOrgAttribution(curated.filter((n: string) => objectDef?.fields?.[n]));
     }
     const fields = objectDef?.fields;
     if (fields && typeof fields === 'object') {
-        return Object.entries(fields)
-            .filter(([name, f]: [string, any]) => f && !f.hidden && !isSystemManagedField(name, f))
-            .map(([name]) => name)
-            .slice(0, limit);
+        return withOrgAttribution(
+            Object.entries(fields)
+                .filter(([name, f]: [string, any]) => f && !f.hidden && !isSystemManagedField(name, f))
+                .map(([name]) => name)
+                .slice(0, limit),
+        );
     }
     return [];
 }
@@ -198,6 +216,9 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     const { t } = useObjectTranslation();
     const { objectLabel, objectDescription: objectDesc, viewLabel, viewEmptyState, actionLabel, actionConfirm, actionSuccess, actionParamText, fieldLabel, fieldOptionLabel } = useObjectLabel();
     const { isFavorite, toggleFavorite } = useFavorites();
+    // ADR-0105: under group posture default list columns get a trailing
+    // organization_id attribution column (reads span all the user's orgs).
+    const orgAttribution = useTenancyPosture() === 'group';
     // ADR-0034: runtime view edits persist via the metadata draft/publish
     // model (the `sys_view` table is retired).
     const metadataClient = useMetadataClient();
@@ -571,7 +592,8 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         // / ownership columns (notably the non-readonly `owner_id`) are excluded
         // by the shared classifier. #2702 applied this to ObjectGrid /
         // InterfaceListPage; this view resolves its columns here (#2777).
-        const resolveDefaultColumns = (): string[] => defaultListColumnsFromObject(objectDef, 5);
+        const resolveDefaultColumns = (): string[] =>
+            defaultListColumnsFromObject(objectDef, 5, { orgAttribution });
 
         const definedViews = objectDef.listViews || objectDef.list_views || {};
         const viewList = Object.entries(definedViews).map(([key, value]: [string, any]) => {
@@ -707,7 +729,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         });
 
         return viewList;
-    }, [objectDef, savedViews, viewOverrides, t]);
+    }, [objectDef, savedViews, viewOverrides, t, orgAttribution]);
 
     // Active View State — merge saved draft if available for this view.
     // Resolution priority: URL viewId → ?view= → user-marked default → first.

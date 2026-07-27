@@ -69,4 +69,47 @@ describe('defaultListColumnsFromObject', () => {
     expect(defaultListColumnsFromObject({})).toEqual([]);
     expect(defaultListColumnsFromObject(undefined)).toEqual([]);
   });
+
+  // ADR-0105 group posture: reads span every organization the member belongs
+  // to, so org-walled rows need attribution — organization_id is appended as a
+  // TRAILING column, business fields still lead.
+  describe('orgAttribution (ADR-0105 group posture)', () => {
+    it('appends organization_id last for an org-walled object', () => {
+      const cols = defaultListColumnsFromObject(invoiceLike, 5, { orgAttribution: true });
+      expect(cols).toEqual(['invoice_no', 'account', 'contact', 'owner', 'organization_id']);
+    });
+
+    it('appends after a curated highlightFields set too', () => {
+      const cols = defaultListColumnsFromObject(
+        { highlightFields: ['invoice_no'], fields: invoiceLike.fields },
+        5,
+        { orgAttribution: true },
+      );
+      expect(cols).toEqual(['invoice_no', 'organization_id']);
+    });
+
+    it('does not append for an object without organization_id (not org-walled)', () => {
+      const cols = defaultListColumnsFromObject(
+        { fields: { title: { type: 'text' } } },
+        5,
+        { orgAttribution: true },
+      );
+      expect(cols).toEqual(['title']);
+    });
+
+    it('does not duplicate when the curated set already lists organization_id', () => {
+      const cols = defaultListColumnsFromObject(
+        { highlightFields: ['invoice_no', 'organization_id'], fields: invoiceLike.fields },
+        5,
+        { orgAttribution: true },
+      );
+      expect(cols).toEqual(['invoice_no', 'organization_id']);
+    });
+
+    it('is a no-op when the flag is off or absent (non-group postures unchanged)', () => {
+      expect(defaultListColumnsFromObject(invoiceLike, 5, { orgAttribution: false })).toEqual(
+        defaultListColumnsFromObject(invoiceLike, 5),
+      );
+    });
+  });
 });

@@ -24,6 +24,7 @@ import { Database } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { isSystemManagedField } from '@object-ui/types';
 import { useMetadata } from '../providers/MetadataProvider';
+import { useTenancyPosture } from '../hooks/useTenancyPosture';
 import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState';
 import { RecordDetailView } from './RecordDetailView';
 
@@ -74,18 +75,32 @@ function resolveSourceView(objectDef: any, sourceView?: string): any | undefined
  * (ADR-0085), else the first business fields — framework-managed
  * system/audit/ownership columns (including the injected, editable `owner_id`)
  * are excluded via the shared `isSystemManagedField` classifier.
+ *
+ * `opts.orgAttribution` (ADR-0105 group posture): reads span every
+ * organization the member belongs to, so cross-org rows need attribution —
+ * append `organization_id` as a TRAILING column when the object carries the
+ * field. Render-time only; never persisted into page/view metadata.
  */
-export function defaultColumnsFromObject(objectDef: any): string[] {
+export function defaultColumnsFromObject(
+  objectDef: any,
+  opts?: { orgAttribution?: boolean },
+): string[] {
+  const withOrgAttribution = (cols: string[]): string[] =>
+    opts?.orgAttribution && objectDef?.fields?.organization_id && !cols.includes('organization_id')
+      ? [...cols, 'organization_id']
+      : cols;
   const curated = objectDef?.highlightFields;
   if (Array.isArray(curated) && curated.length > 0) {
-    return curated.filter((n: string) => objectDef.fields?.[n]);
+    return withOrgAttribution(curated.filter((n: string) => objectDef.fields?.[n]));
   }
   const fields = objectDef?.fields;
   if (fields && typeof fields === 'object') {
-    return Object.entries(fields)
-      .filter(([name, f]: [string, any]) => f && !f.hidden && !isSystemManagedField(name, f))
-      .map(([name]) => name)
-      .slice(0, 6);
+    return withOrgAttribution(
+      Object.entries(fields)
+        .filter(([name, f]: [string, any]) => f && !f.hidden && !isSystemManagedField(name, f))
+        .map(([name]) => name)
+        .slice(0, 6),
+    );
   }
   return [];
 }
@@ -176,6 +191,9 @@ export function InterfaceListPage({ page, className, onConfigChange, reserveEdit
   const dataSource = useAdapter();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  // ADR-0105: group posture appends a trailing organization_id attribution
+  // column to the object-derived default column set (reads span all orgs).
+  const orgAttribution = useTenancyPosture() === 'group';
 
   // ADR-0047 filter persistence: restore `uf_*` URL params once at mount,
   // mirror every selection change back (replace — no history spam).
@@ -337,7 +355,7 @@ export function InterfaceListPage({ page, className, onConfigChange, reserveEdit
       ? (cfg.columns as any)
       : hasColumns(view)
         ? view.columns
-        : defaultColumnsFromObject(objectDef);
+        : defaultColumnsFromObject(objectDef, { orgAttribution });
 
     // Sort: the page's own first, then the legacy view's.
     const sort = Array.isArray(cfg.sort) && cfg.sort.length ? cfg.sort : view.sort;
@@ -388,7 +406,7 @@ export function InterfaceListPage({ page, className, onConfigChange, reserveEdit
       inlineEdit: userActions.editInline === true,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [objectDefName, viewDefJson, cfg]);
+  }, [objectDefName, viewDefJson, cfg, orgAttribution]);
 
   if (!objectDef || !schema) {
     return (

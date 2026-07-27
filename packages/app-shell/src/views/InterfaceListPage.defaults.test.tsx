@@ -104,4 +104,27 @@ describe('defaultColumnsFromObject', () => {
     expect(cols).not.toContain('owner_id');
     expect(cols[0]).toBe('b_0');
   });
+
+  // ADR-0105 group posture: organization_id is appended as a TRAILING
+  // attribution column for org-walled objects; business fields still lead.
+  describe('orgAttribution (ADR-0105 group posture)', () => {
+    it('appends organization_id last for an org-walled object', () => {
+      const cols = defaultColumnsFromObject(fieldZooLike, { orgAttribution: true });
+      expect(cols).toEqual(['name', 'f_email', 'f_number', 'organization_id']);
+    });
+
+    it('does not append for an object without organization_id', () => {
+      const cols = defaultColumnsFromObject(
+        { fields: { title: { type: 'text' } } },
+        { orgAttribution: true },
+      );
+      expect(cols).toEqual(['title']);
+    });
+
+    it('is a no-op when the flag is off (non-group postures unchanged)', () => {
+      expect(defaultColumnsFromObject(fieldZooLike, { orgAttribution: false })).toEqual(
+        defaultColumnsFromObject(fieldZooLike),
+      );
+    });
+  });
 });

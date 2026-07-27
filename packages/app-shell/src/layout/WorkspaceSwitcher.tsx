@@ -12,6 +12,11 @@
  *   (full-page reload so the active-org context refreshes app-wide, mirroring
  *   OrganizationsPage), plus shortcuts to manage members / create a workspace.
  * - No org context at all: renders nothing.
+ *
+ * Under `group` tenancy posture (ADR-0105) the switcher's meaning changes:
+ * the active organization is only the WRITE target — reads span every
+ * organization the member belongs to — so the dropdown labels it as the
+ * working organization instead of implying it bounds what the user sees.
  */
 
 import { useEffect, useState } from 'react';
@@ -29,6 +34,7 @@ import {
 } from '@object-ui/components';
 import { ChevronsUpDown, Check, Plus, Users } from 'lucide-react';
 import { resolveRootUrl } from '../console/organizations/resolveHomeUrl';
+import { useTenancyPosture } from '../hooks/useTenancyPosture';
 
 function getOrgInitials(name: string): string {
   return name
@@ -52,6 +58,7 @@ export function WorkspaceSwitcher() {
   const navigate = useNavigate();
   const { organizations, activeOrganization, switchOrganization, getAuthConfig } = useAuth();
   const [multiOrgDisabled, setMultiOrgDisabled] = useState(false);
+  const isGroupPosture = useTenancyPosture() === 'group';
 
   useEffect(() => {
     let cancelled = false;
@@ -105,8 +112,21 @@ export function WorkspaceSwitcher() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-60">
         <DropdownMenuLabel className="text-xs text-muted-foreground">
-          {t('organization.switcher.label', { defaultValue: 'Switch organization' })}
+          {isGroupPosture
+            ? t('organization.switcher.groupLabel', { defaultValue: 'Working organization' })
+            : t('organization.switcher.label', { defaultValue: 'Switch organization' })}
         </DropdownMenuLabel>
+        {isGroupPosture && (
+          <p
+            className="px-2 pb-1.5 text-xs font-normal leading-snug text-muted-foreground"
+            data-testid="workspace-switcher-group-hint"
+          >
+            {t('organization.switcher.groupHint', {
+              defaultValue:
+                'New records are created here. Views show data from all your organizations.',
+            })}
+          </p>
+        )}
         {orgList.map((org) => (
           <DropdownMenuItem
             key={org.id}

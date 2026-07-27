@@ -65,6 +65,7 @@ import {
   PREVIEW_QUERY_FLAG,
   PREVIEW_QUERY_VALUE,
 } from '../preview/PreviewModeContext';
+import { useTenancyPosture } from '../hooks/useTenancyPosture';
 
 /** Field types the auto-derived user-filter bar offers as dropdowns. */
 const USER_FILTER_TYPES = new Set(['select', 'multiselect', 'radio', 'enum', 'boolean']);
@@ -81,6 +82,9 @@ export function ObjectDataPage({ dataSource, objects }: any) {
   const { user } = useAuth();
   const isAdmin = useIsWorkspaceAdmin();
   const metadataClient = useMetadataClient();
+  // ADR-0105: group posture appends a trailing organization_id attribution
+  // column to the auto-derived columns (reads span all the user's orgs).
+  const orgAttribution = useTenancyPosture() === 'group';
   // ADR-0037: enter draft-preview after "Save as view" so the fresh draft is
   // visible; if already previewing, keep the flag off the suffix (it's sticky).
   const previewDrafts = usePreviewDrafts();
@@ -141,8 +145,8 @@ export function ObjectDataPage({ dataSource, objects }: any) {
 
   // Auto-derived columns + filter bar, both trimmed by field-level security.
   const columns = React.useMemo(
-    () => defaultColumnsFromObject(objectDef).filter((f: string) => canRead(f)),
-    [objectDef, canRead],
+    () => defaultColumnsFromObject(objectDef, { orgAttribution }).filter((f: string) => canRead(f)),
+    [objectDef, canRead, orgAttribution],
   );
   const userFilters = React.useMemo(() => {
     const fields = objectDef?.fields;

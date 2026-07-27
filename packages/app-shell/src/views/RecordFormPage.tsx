@@ -32,7 +32,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { ObjectForm } from '@object-ui/plugin-form';
 import { Button, Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
-import { ArrowLeft, Database } from 'lucide-react';
+import { ArrowLeft, Building2, Database } from 'lucide-react';
 import { toast } from 'sonner';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { useMetadata } from '../providers/MetadataProvider';
@@ -68,7 +68,7 @@ export function RecordFormPage({ mode }: RecordFormPageProps) {
   const { objects, loading: metadataLoading } = useMetadata();
   const { t } = useObjectTranslation();
   const { objectLabel } = useObjectLabel();
-  const { user, getAuthConfig } = useAuth();
+  const { user, getAuthConfig, activeOrganization } = useAuth();
 
   // Pull deployment-level feature flags so action visibility predicates
   // (e.g. `features.multiOrgEnabled != false` on sys_organization's create
@@ -297,6 +297,25 @@ export function RecordFormPage({ mode }: RecordFormPageProps) {
               className="ml-1"
             />
           </nav>
+          {/* ADR-0105 group posture: reads span all the user's organizations
+              but a new record lands in the ACTIVE one (engine-stamped), so
+              create mode names the write target where the user commits. Only
+              rendered for org-walled objects (they carry organization_id). */}
+          {mode === 'create' &&
+            features?.tenancyPosture === 'group' &&
+            activeOrganization &&
+            (objectDef as any)?.fields?.organization_id && (
+              <span
+                className="ml-auto inline-flex items-center gap-1.5 rounded-md border bg-muted/50 px-2 py-1 text-xs text-muted-foreground"
+                data-testid="record-form-write-target-org"
+              >
+                <Building2 className="h-3.5 w-3.5 shrink-0" />
+                {t('form.createTargetOrg', {
+                  org: activeOrganization.name,
+                  defaultValue: `Creates in ${activeOrganization.name}`,
+                })}
+              </span>
+            )}
         </header>
 
         <div className="flex-1 overflow-auto p-4 sm:p-6">

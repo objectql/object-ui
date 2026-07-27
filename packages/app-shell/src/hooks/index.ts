@@ -31,6 +31,7 @@ export {
   type UseUrlOverlayOptions,
   type UrlOverlayControls,
 } from './useUrlOverlay';
+export { useTenancyPosture } from './useTenancyPosture';
 export { useTrackRouteAsRecent, type UseTrackRouteAsRecentOptions } from './useTrackRouteAsRecent';
 export {
   sanitizeChatMessagesForCache,

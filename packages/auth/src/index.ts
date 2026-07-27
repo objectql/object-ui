@@ -71,6 +71,7 @@ export type {
   AuthSocialProvider,
   AuthPublicConfig,
   SignInWithProviderOptions,
+  TenancyPosture,
 } from './types';
 
 export type { AuthContextValue } from './AuthContext';
