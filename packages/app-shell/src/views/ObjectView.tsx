@@ -11,6 +11,7 @@
 
 import { useMemo, useState, useCallback, useEffect, useRef, lazy, Suspense, type ComponentType } from 'react';
 import { useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
+import { resolveFilterPlaceholders, type FilterTokenScope } from '@object-ui/core';
 import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState';
 import { buildListFilterKey, readListFilterState, writeListFilterState } from './listFilterStorage';
 const ObjectChart = lazy(() =>
@@ -86,34 +87,24 @@ const VIEW_TYPE_ICONS: Record<string, ComponentType<{ className?: string }>> = {
 const FALLBACK_USER = { id: 'current-user', name: 'Demo User' };
 
 /**
- * Replace built-in tokens (e.g. `{current_user_id}`) inside a filter array
- * with concrete values. Filters from platform-shipped `listViews` or saved
- * `sys_view` rows may declare context-sensitive predicates like
+ * Replace built-in placeholders (e.g. `{current_user_id}`) inside a list-view
+ * filter with concrete values. Filters from platform-shipped `listViews` or
+ * saved `sys_view` rows may declare context-sensitive predicates like
  * `{ field: 'submitter_id', operator: 'equals', value: '{current_user_id}' }`
  * — those need to be substituted before the query reaches the API.
  *
- * Recognised tokens:
- *   • `{current_user_id}` → the authenticated user's id
+ * Delegates to the shared `resolveFilterPlaceholders` in `@object-ui/core`,
+ * which also expands date macros and understands `{current_org_id}`.
  *
- * Returns a deep-cloned copy with substitutions applied. Non-array input
- * is returned unchanged.
+ * This used to be a local implementation that bailed on non-array input
+ * (`if (!Array.isArray(filter)) return filter`) and knew exactly one token.
+ * That narrowness is why it could not be reused by dashboard widgets, whose
+ * filters are MongoDB-style objects — so widgets went without any resolution
+ * at all and silently rendered 0 (framework #3574). Every surface now routes
+ * through one shape-agnostic resolver.
  */
-function substituteFilterTokens(filter: any, currentUserId: string | undefined): any {
-    if (!Array.isArray(filter)) return filter;
-    const sub = (v: any): any => {
-        if (typeof v === 'string') {
-            if (v === '{current_user_id}') return currentUserId ?? v;
-            return v;
-        }
-        if (Array.isArray(v)) return v.map(sub);
-        if (v && typeof v === 'object') {
-            const out: any = {};
-            for (const k of Object.keys(v)) out[k] = sub(v[k]);
-            return out;
-        }
-        return v;
-    };
-    return filter.map(sub);
+function substituteFilterTokens(filter: any, scope: FilterTokenScope): any {
+    return resolveFilterPlaceholders(filter, scope);
 }
 
 /**
@@ -950,6 +941,13 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         ? { id: user.id, name: user.name, avatar: user.image }
         : FALLBACK_USER;
 
+    // Session scope for filter placeholders. Memoised so the resolved filter
+    // identity is stable across renders — it feeds view schemas below.
+    const filterScope = useMemo<FilterTokenScope>(
+        () => ({ currentUserId: currentUser.id, currentOrgId: activeOrganization?.id ?? null }),
+        [currentUser.id, activeOrganization?.id],
+    );
+
     // Action system for toolbar operations — refreshKey moved up (declared earlier).
     // Wired to confirmHandler/toastHandler so deletes use the Shadcn AlertDialog
     // and Sonner toast instead of native window.confirm.
@@ -1288,7 +1286,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             sort: (viewDef as any).sort ?? listSchema.sort,
             filter: (() => {
                 const base = (viewDef as any).filter ?? listSchema.filter;
-                const substituted = substituteFilterTokens(base, currentUser.id);
+                const substituted = substituteFilterTokens(base, filterScope);
                 if (!urlFilters.length) return substituted;
                 const baseArr = Array.isArray(substituted) ? substituted : [];
                 return [...baseArr, ...urlFilters];
@@ -1424,7 +1422,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     ...(Array.isArray(viewDef.filter) ? viewDef.filter : []),
                     ...urlFilters,
                 ];
-                const substituted = substituteFilterTokens(combined, currentUser.id);
+                const substituted = substituteFilterTokens(combined, filterScope);
                 return Array.isArray(substituted) && substituted.length ? { filters: substituted } : {};
             })()),
             ...(viewDef.sort?.length ? { sort: viewDef.sort } : {}),

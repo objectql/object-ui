@@ -41,6 +41,7 @@ import { Database, Lock, Plus, Save, X } from 'lucide-react';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { usePermissions, useFieldPermissions } from '@object-ui/permissions';
 import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
+import { resolveFilterPlaceholders } from '@object-ui/core';
 import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState';
 import {
   parseUrlFilterTriples,
@@ -78,7 +79,7 @@ export function ObjectDataPage({ dataSource, objects }: any) {
   const [searchParams, setSearchParams] = useSearchParams();
   const { can } = usePermissions();
   const { canRead } = useFieldPermissions(objectName ?? '');
-  const { user } = useAuth();
+  const { user, activeOrganization } = useAuth();
   const isAdmin = useIsWorkspaceAdmin();
   const metadataClient = useMetadataClient();
   // ADR-0037: enter draft-preview after "Save as view" so the fresh draft is
@@ -121,11 +122,14 @@ export function ObjectDataPage({ dataSource, objects }: any) {
       );
     }
     // Template variables mirror nav `recordId` substitution so shared links
-    // can carry `{current_user_id}`.
-    return readable.map(([field, op, value]) =>
-      value === '{current_user_id}' ? [field, op, user?.id ?? value] : [field, op, value],
-    ) as FilterTriple[];
-  }, [filterParamsKey, canRead, user?.id]);
+    // can carry `{current_user_id}`. Routed through the shared resolver so a
+    // link also gets `{current_org_id}` and date macros, instead of the single
+    // hard-coded token this used to compare against (framework #3574).
+    return resolveFilterPlaceholders(readable, {
+      currentUserId: user?.id ?? null,
+      currentOrgId: activeOrganization?.id ?? null,
+    }) as FilterTriple[];
+  }, [filterParamsKey, canRead, user?.id, activeOrganization?.id]);
 
   // One display chip per field — a date-bucket drill's two range triples
   // (>= start, < end) collapse into a single "start → end" chip (#1752).

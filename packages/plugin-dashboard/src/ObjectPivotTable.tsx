@@ -7,13 +7,13 @@
  */
 
 import React, { useState, useEffect, useContext, useRef } from 'react';
-import { useDataScope, SchemaRendererContext } from '@object-ui/react';
+import { useDataScope, SchemaRendererContext, useFilterScope } from '@object-ui/react';
 import { useSafeFieldLabel } from '@object-ui/i18n';
 import { extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, type DrillEvent } from '@object-ui/core';
 import { Skeleton, cn } from '@object-ui/components';
 import { PivotTable } from './PivotTable';
 import { DrillDownDrawer } from './DrillDownDrawer';
-import { resolveDateMacros } from './utils';
+import { resolveFilterPlaceholders } from './utils';
 import type { PivotTableSchema } from '@object-ui/types';
 
 export interface ObjectPivotTableProps {
@@ -104,6 +104,10 @@ export const ObjectPivotTable: React.FC<ObjectPivotTableProps> = ({ schema, data
     return () => { alive = false; };
   }, [dataSource, schema.objectName]);
 
+  // Session scope for `{current_user_id}` / `{current_org_id}` in the schema
+  // filter. Read at component level — the fetch below is async.
+  const filterScope = useFilterScope();
+
   useEffect(() => {
     let isMounted = true;
 
@@ -118,7 +122,7 @@ export const ObjectPivotTable: React.FC<ObjectPivotTableProps> = ({ schema, data
 
         if (typeof dataSource.find === 'function') {
           const results = await dataSource.find(schema.objectName, {
-            $filter: resolveDateMacros(schema.filter),
+            $filter: resolveFilterPlaceholders(schema.filter, filterScope),
           });
           data = extractRecords(results);
         } else {
@@ -143,7 +147,7 @@ export const ObjectPivotTable: React.FC<ObjectPivotTableProps> = ({ schema, data
     }
 
     return () => { isMounted = false; };
-  }, [schema.objectName, dataSource, boundData, schema.data, schema.filter]);
+  }, [schema.objectName, dataSource, boundData, schema.data, schema.filter, filterScope]);
 
   // Resolve data: bound data > static schema data > fetched data
   const rawData = boundData || schema.data || fetchedData;

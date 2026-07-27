@@ -42,6 +42,10 @@ export * from './runtime/capabilities.js';
 export { composeStacks } from '@objectstack/spec';
 export * from './utils/drill-down.js';
 export * from './utils/date-macros.js';
+// Session-scoped filter placeholders ({current_user_id} / {current_org_id})
+// plus `resolveFilterPlaceholders`, the single entry point every surface
+// should call so no vocabulary is silently skipped (framework #3574).
+export * from './utils/filter-tokens.js';
 export * from './utils/dashboard-filters.js';
 export * from './utils/merge-filters.js';
 export * from './utils/compare-to.js';

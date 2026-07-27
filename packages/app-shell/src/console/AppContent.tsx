@@ -14,7 +14,7 @@ import { useAssistant } from '../assistant/assistantBus';
 import { ModalForm } from '@object-ui/plugin-form';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
 import { toast } from 'sonner';
-import { useActionRunner, useGlobalUndo, useMutationInvalidationBridge, notifyDataChanged } from '@object-ui/react';
+import { useActionRunner, useGlobalUndo, useMutationInvalidationBridge, notifyDataChanged, FilterScopeProvider } from '@object-ui/react';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import type { ConnectionState } from '@object-ui/data-objectstack';
 import { useAuth } from '@object-ui/auth';
@@ -114,7 +114,7 @@ function DraftReviewNavigator({ appName }: { appName: string | undefined }) {
 
 export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = {}) {
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
-  const { user, getAuthConfig } = useAuth();
+  const { user, getAuthConfig, activeOrganization } = useAuth();
   const dataSource = useAdapter();
 
   // Deployment-level feature flags from `/api/v1/auth/config`. Used by
@@ -630,6 +630,17 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
 
   return (
     <ExpressionProvider user={expressionUser} app={activeApp} data={{}} features={features}>
+      {/* Session scope for `{current_user_id}` / `{current_org_id}` filter
+          placeholders. Mounted here rather than folded into the expression
+          scope above: that one is the predicate evaluation context (it carries
+          no organization), and widening it for filter resolution would couple
+          two unrelated contracts. Renderer packages deliberately do not depend
+          on @object-ui/auth, so the shell supplies the values (framework
+          #3574). */}
+      <FilterScopeProvider
+        currentUserId={user?.id ?? null}
+        currentOrgId={activeOrganization?.id ?? null}
+      >
       <NavigationSyncEffect />
       <ConsoleLayout
         activeAppName={activeApp.name}
@@ -806,6 +817,7 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
             />
           )}
       </ConsoleLayout>
+      </FilterScopeProvider>
     </ExpressionProvider>
   );
 }

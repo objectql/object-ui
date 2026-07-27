@@ -44,7 +44,8 @@ import {
 import { cn, Skeleton, ChartSkeleton, GridSkeleton } from '@object-ui/components';
 import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
 import { BarChart3, AlertTriangle, Download } from 'lucide-react';
-import { resolveDateMacros } from './utils';
+import { useFilterScope } from '@object-ui/react';
+import { resolveFilterPlaceholders } from './utils';
 import { DrillDownDrawer } from './DrillDownDrawer';
 
 type Row = Record<string, unknown>;
@@ -183,15 +184,21 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // ADR-0021 dual-form: the widget's presentation-scope `filter` must flow into
   // the dataset query as `runtimeFilter`, or a dataset-bound widget renders the
   // UNFILTERED total (e.g. "open pipeline" showing the grand total). Resolve
-  // date macros client-side first — exactly as the legacy widget renderers do
-  // (the server does not expand `{current_quarter_start}` etc.). Keyed on the
-  // raw filter ref so the resolution is stable across renders.
+  // placeholders client-side first — exactly as the legacy widget renderers do
+  // (the server expands neither `{current_quarter_start}` nor
+  // `{current_user_id}`). Keyed on the raw filter ref so the resolution is
+  // stable across renders.
+  //
+  // Resolve BOTH vocabularies. This used to call `resolveDateMacros` alone, so
+  // a user-scoped widget sent `{current_user_id}` to SQL as a literal, matched
+  // no row, and rendered 0 with no error anywhere (framework #3574).
+  const filterScope = useFilterScope();
   const rawFilter = widget?.filter;
   const runtimeFilter = useMemo(
     () => (rawFilter && typeof rawFilter === 'object' && Object.keys(rawFilter).length > 0
-      ? resolveDateMacros(rawFilter)
+      ? resolveFilterPlaceholders(rawFilter, filterScope)
       : undefined),
-    [rawFilter],
+    [rawFilter, filterScope],
   );
 
   const [state, setState] = useState<{ status: 'idle' | 'loading' | 'ok' | 'error'; rows: Row[]; fields?: DatasetResultField[]; object?: string; dimensionFields?: Record<string, string>; drillRawRows?: Array<Record<string, unknown>>; drillRanges?: Array<Record<string, DatasetDrillRange>>; totals?: DatasetTotals[]; error?: string }>({ status: 'idle', rows: [] });

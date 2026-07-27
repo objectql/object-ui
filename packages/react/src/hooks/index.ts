@@ -7,6 +7,8 @@
  */
 
 export * from './useExpression';
+// Session scope for filter placeholders ({current_user_id}/{current_org_id}).
+export * from './useFilterScope';
 export * from './useActionRunner';
 export * from './useNavigationOverlay';
 export * from './usePageVariables';

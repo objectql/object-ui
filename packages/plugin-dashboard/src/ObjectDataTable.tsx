@@ -7,12 +7,12 @@
  */
 
 import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
-import { useDataScope, SchemaRendererContext, SchemaRenderer } from '@object-ui/react';
+import { useDataScope, SchemaRendererContext, SchemaRenderer, useFilterScope } from '@object-ui/react';
 import { extractRecords, isDrillEnabled } from '@object-ui/core';
 import type { DrillDownConfig } from '@object-ui/types';
 import { Skeleton, RefreshIndicator, cn } from '@object-ui/components';
 import { useSafeFieldLabel, useObjectTranslation, useLocalization } from '@object-ui/i18n';
-import { resolveDateMacros } from './utils';
+import { resolveFilterPlaceholders } from './utils';
 import {
   buildFieldMeta,
   renderFieldValue,
@@ -174,6 +174,11 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
     setDrillRecord(row ?? null);
   }, []);
 
+  // Session scope for `{current_user_id}` / `{current_org_id}` in the schema
+  // filter. Read at component level — the fetch below is async, and hooks
+  // cannot be called from inside it.
+  const filterScope = useFilterScope();
+
   useEffect(() => {
     let isMounted = true;
 
@@ -196,7 +201,7 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
           // cells can render the related record's display name instead of a
           // bare FK id. Adapters that don't understand `$expand` ignore it.
           const expand = computeLookupExpand(schema, objectSchema);
-          const params: any = { $filter: resolveDateMacros(schema.filter) };
+          const params: any = { $filter: resolveFilterPlaceholders(schema.filter, filterScope) };
           if (expand.length) params.$expand = expand;
           const results = await dataSource.find(schema.objectName, params);
           data = extractRecords(results);
@@ -226,7 +231,7 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
     }
 
     return () => { isMounted = false; };
-  }, [schema.objectName, dataSource, boundData, schema.data, schema.filter, objectSchema]);
+  }, [schema.objectName, dataSource, boundData, schema.data, schema.filter, objectSchema, filterScope]);
 
   // Fetch object schema for column-header translation and select-option cell labels.
   useEffect(() => {

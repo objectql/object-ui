@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useContext, useCallback, useMemo, useRef } from 'react';
-import { useDataScope, SchemaRendererContext, SchemaRenderer, useDrillNavigation } from '@object-ui/react';
+import { useDataScope, SchemaRendererContext, SchemaRenderer, useDrillNavigation, useFilterScope } from '@object-ui/react';
 import { ChartRenderer } from './ChartRenderer';
-import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveDateMacros, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, buildDimensionLabelMap, relabelDimensions, type CompareToConfig, type DrillEvent, type ChartResultField } from '@object-ui/core';
+import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveFilterPlaceholders, resolveContextTokens, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, buildDimensionLabelMap, relabelDimensions, type CompareToConfig, type DrillEvent, type ChartResultField } from '@object-ui/core';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator, Button, ChartSkeleton } from '@object-ui/components';
 import { AlertCircle, ArrowUpRight } from 'lucide-react';
 import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
@@ -405,6 +405,10 @@ export const ObjectChart = (props: any) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schema.objectName, aggregateKey]);
 
+  // Session scope for `{current_user_id}` / `{current_org_id}` in the schema
+  // filter. Read at component level — `fetchData` is async and a callback.
+  const filterScope = useFilterScope();
+
   const fetchData = useCallback(async (ds: any, mounted: { current: boolean }) => {
       if (!ds || (!schema.objectName && !schema.dataset)) {
         // No way to fetch — clear loading so the no-datasource / empty state
@@ -424,7 +428,7 @@ export const ObjectChart = (props: any) => {
           // server resolves dimension labels + measure formats, so the legacy
           // client-side aggregate / groupBy-label resolution below is skipped.
           if (schema.dataset && typeof ds.queryDataset === 'function') {
-              const runtimeFilter = resolveDateMacros(schema.filter);
+              const runtimeFilter = resolveFilterPlaceholders(schema.filter, filterScope);
               const res = await ds.queryDataset(schema.dataset, {
                   dimensions: Array.isArray(schema.dimensions) ? schema.dimensions : [],
                   measures: Array.isArray(schema.values) ? schema.values : [],
@@ -437,17 +441,21 @@ export const ObjectChart = (props: any) => {
               return;
           }
 
-          // Resolve relative-date macros (e.g. "{current_quarter_start}")
-          // so both aggregate and find see real ISO dates and any drill-down
+          // Resolve every filter placeholder — relative-date macros (e.g.
+          // "{current_quarter_start}") AND session tokens ("{current_user_id}")
+          // — so both aggregate and find see real values and any drill-down
           // filter further down the line stays consistent.
-          const resolvedFilter = resolveDateMacros(schema.filter);
+          const resolvedFilter = resolveFilterPlaceholders(schema.filter, filterScope);
           const compareTo: CompareToConfig | undefined = (schema as any).compareTo;
           const wantsComparison = !!compareTo && supportsCompareTo(schema.chartType);
           // shiftFilterByCompareTo expects the raw filter (with date macros)
           // so it can substitute `{current_*}` tokens or re-resolve macros
-          // against a shifted `now`.
+          // against a shifted `now`. It only understands the date vocabulary,
+          // so the session tokens still need their pass over the result —
+          // otherwise the comparison series silently ignores the owner clause
+          // that the primary series honours.
           const comparisonFilter = wantsComparison
-            ? shiftFilterByCompareTo(schema.filter, compareTo!)
+            ? resolveContextTokens(shiftFilterByCompareTo(schema.filter, compareTo!), filterScope)
             : null;
 
           const [currentRowsRaw, comparisonRows] = await Promise.all([
@@ -543,7 +551,7 @@ export const ObjectChart = (props: any) => {
           if (mounted.current) setLoading(false);
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schema.objectName, datasetKey, aggregateKey, filterKey, compareToKey, schema.xAxisKey, schema.chartType, runAggregate]);
+  }, [schema.objectName, datasetKey, aggregateKey, filterKey, compareToKey, schema.xAxisKey, schema.chartType, runAggregate, filterScope]);
 
   useEffect(() => {
     const mounted = { current: true };

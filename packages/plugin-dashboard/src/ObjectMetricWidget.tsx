@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
-import { SchemaRendererContext, SchemaRenderer } from '@object-ui/react';
+import { SchemaRendererContext, SchemaRenderer, useFilterScope } from '@object-ui/react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle } from '@object-ui/components';
 import { isDrillEnabled, resolveDrillTitle } from '@object-ui/core';
 import type { DrillDownConfig } from '@object-ui/types';
@@ -15,7 +15,7 @@ import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
 import { MetricWidget } from './MetricWidget';
 import { OpenInListButton } from './OpenInListButton';
 import {
-  resolveDateMacros,
+  resolveFilterPlaceholders,
   shiftFilterByCompareTo,
   compareToTrendLabelKey,
   computeMetricDelta,
@@ -190,10 +190,16 @@ export const ObjectMetricWidget: React.FC<ObjectMetricWidgetProps> = ({
   // (e.g. DashboardRenderer.getComponentSchema rebuilds these on every render).
   const aggregateKey = useMemo(() => (aggregate ? JSON.stringify(aggregate) : ''), [aggregate]);
 
-  // Resolve relative-date macros (e.g. "{current_quarter_start}") so the
-  // server sees a real ISO date and the drill-down `find()` later sees the
-  // exact same filter as the aggregate query.
-  const resolvedFilter = useMemo(() => resolveDateMacros(filter), [filter]);
+  // Resolve every filter placeholder — relative-date macros (e.g.
+  // "{current_quarter_start}") AND session tokens ("{current_user_id}") — so
+  // the server sees real values and the drill-down `find()` later sees the
+  // exact same filter as the aggregate query. Resolving only date macros here
+  // left user-scoped metrics silently rendering 0 (framework #3574).
+  const filterScope = useFilterScope();
+  const resolvedFilter = useMemo(
+    () => resolveFilterPlaceholders(filter, filterScope),
+    [filter, filterScope],
+  );
   const resolvedFilterKey = useMemo(
     () => (resolvedFilter ? JSON.stringify(resolvedFilter) : ''),
     [resolvedFilter],
