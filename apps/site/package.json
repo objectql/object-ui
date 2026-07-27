@@ -34,7 +34,7 @@
     "@objectstack/spec": "^16.0.0-rc.0",
     "fumadocs-core": "16.13.0",
     "fumadocs-mdx": "15.2.0",
-    "fumadocs-ui": "16.11.5",
+    "fumadocs-ui": "16.13.0",
     "lucide-react": "^1.25.0",
     "next": "16.2.12",
     "react": "19.2.7",
