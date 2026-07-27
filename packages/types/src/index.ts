@@ -943,20 +943,12 @@ export {
   defineStack,
   ObjectStackSchema,
   ObjectStackDefinitionSchema,
-  ObjectStackCapabilitiesSchema,
-  ObjectOSCapabilitiesSchema,
-  ObjectQLCapabilitiesSchema,
-  ObjectUICapabilitiesSchema,
 } from '@objectstack/spec';
 
 export type {
   PluginContext,
   ObjectStack,
   ObjectStackDefinition,
-  ObjectStackCapabilities,
-  ObjectOSCapabilities,
-  ObjectQLCapabilities,
-  ObjectUICapabilities,
 } from '@objectstack/spec';
 
 // ----------------------------------------------------------------------------

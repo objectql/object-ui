@@ -19,13 +19,8 @@ describe('ObjectStack Spec v3.0.0 Namespace Exports', () => {
 
   it('should export ObjectStack schemas', async () => {
     const types = await import('../index');
-    // ObjectStack capability schemas should be exported
     expect(types.ObjectStackSchema).toBeDefined();
     expect(types.ObjectStackDefinitionSchema).toBeDefined();
-    expect(types.ObjectStackCapabilitiesSchema).toBeDefined();
-    expect(types.ObjectOSCapabilitiesSchema).toBeDefined();
-    expect(types.ObjectQLCapabilitiesSchema).toBeDefined();
-    expect(types.ObjectUICapabilitiesSchema).toBeDefined();
   });
 
   it('should export VERSION constant', async () => {
