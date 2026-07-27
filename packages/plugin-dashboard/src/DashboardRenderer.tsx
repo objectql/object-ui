@@ -816,12 +816,15 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
                   }
                   return;
                 }
-                if (actionType === 'modal' || actionType === 'script') {
-                  const result = await executeAction(actionUrl || label);
-                  if (!result?.success) console.warn('[DashboardRenderer] action failed', result?.error);
-                  return;
-                }
-                console.warn(`[DashboardRenderer] Unknown header actionType="${actionType}" for "${label}"`);
+                // Everything that is not a raw navigation goes through the
+                // ActionRunner, which owns the type registry. This used to
+                // allow-list `modal` / `script` only, so a `flow` header action
+                // (and `api` / `form` / `navigation`) fell through to a warn and
+                // never dispatched — a screen flow could not even be launched
+                // from a dashboard (framework#3528). The runner reports an
+                // unknown type itself, so there is nothing to second-guess here.
+                const result = await executeAction(actionUrl || label);
+                if (!result?.success) console.warn('[DashboardRenderer] action failed', result?.error);
               };
               return (
                 <Button key={i} variant="outline" size="sm" onClick={handleClick}>

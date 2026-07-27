@@ -16,6 +16,7 @@ import { AuthGuard, useAuth, createAuthenticatedFetch } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { SchemaRendererProvider, ActionProvider } from '@object-ui/react';
 import { useActionModal } from '../hooks/useActionModal';
+import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime';
 import { createObjectStackUserStateAdapter } from '@object-ui/data-objectstack';
 import { AdapterProvider, useAdapter } from '../providers/AdapterProvider';
 import { withSettleSignal } from '../observability/settleSignal';
@@ -45,20 +46,53 @@ export function LoadingFallback() {
 }
 
 /**
- * Provide a MODAL handler at the console ROOT — the same level the global
- * SchemaRendererProvider (dataSource) sits — so it reaches EVERY field widget,
+ * The console ROOT action runtime — the same level the global
+ * SchemaRendererProvider (dataSource) sits, so it reaches EVERY field widget,
  * including a relation field inside a create/edit form that renders in a Radix
- * Dialog portal (which sits above the lower per-view ActionProviders). This is
- * what lets a lookup's inline "create the referenced record" open that object's
- * OWN create form and select the result. Only ADDS the modal capability where
- * none existed; richer per-view ActionProviders still override it where they
- * apply. Must render inside MetadataProvider (useActionModal reads useMetadata).
+ * Dialog portal (which sits above the lower per-view ActionProviders).
+ *
+ * It started as a modal-only provider (what lets a lookup's inline "create the
+ * referenced record" open that object's OWN create form). But an
+ * `ActionProvider` also decides what a `useAction()` consumer BELOW it can
+ * dispatch, and this one carried no `handlers` map — so every `action:button`
+ * outside ObjectView / RecordDetailView / PageView / DeclaredActionsBar bound
+ * to a runner that could only open modals. A `type: 'flow'` action there failed
+ * with "Flow handler not registered", which is one way a screen flow becomes
+ * unlaunchable (framework#3528); `api` and `script` were equally dead.
+ *
+ * It now carries the shared console runtime's api / flow / script handlers and
+ * its confirm / param / result / screen-flow dialogs, so those action types
+ * work anywhere by default. Richer per-view providers still override it where
+ * they apply.
+ *
+ * `modal` deliberately stays on the CLIENT-side `useActionModal` handler rather
+ * than the runtime's server-action mapping: a modal action at this level is the
+ * inline-create affordance above, not a server endpoint. Registering it in
+ * `handlers` would take precedence over `onModal` and reroute those clicks to
+ * `/api/v1/actions/...`.
+ *
+ * Must render inside MetadataProvider (useActionModal reads useMetadata).
  */
-function GlobalCreateModalProvider({ dataSource, children }: { dataSource: unknown; children: ReactNode }) {
+function GlobalActionRuntimeProvider({ dataSource, children }: { dataSource: unknown; children: ReactNode }) {
   const { modalHandler, modalElement } = useActionModal(dataSource);
+  const runtime = useConsoleActionRuntime({ dataSource });
   return (
-    <ActionProvider onModal={modalHandler}>
+    <ActionProvider
+      context={runtime.actionProviderProps.context}
+      onConfirm={runtime.actionProviderProps.onConfirm}
+      onToast={runtime.actionProviderProps.onToast}
+      onNavigate={runtime.actionProviderProps.onNavigate}
+      onParamCollection={runtime.actionProviderProps.onParamCollection}
+      onResultDialog={runtime.actionProviderProps.onResultDialog}
+      onModal={modalHandler}
+      handlers={{
+        api: runtime.apiHandler,
+        flow: runtime.flowHandler,
+        script: runtime.serverActionHandler,
+      }}
+    >
       {children}
+      {runtime.dialogs}
       {modalElement}
     </ActionProvider>
   );
@@ -161,9 +195,9 @@ function ConnectedShellInner({ children }: { children: ReactNode }) {
     <SchemaRendererProvider dataSource={adapter} apiFetch={apiProviderFetch}>
       <MetadataProvider key={language} adapter={adapter}>
         <UserStateBridge />
-        <GlobalCreateModalProvider dataSource={adapter}>
+        <GlobalActionRuntimeProvider dataSource={adapter}>
           {children}
-        </GlobalCreateModalProvider>
+        </GlobalActionRuntimeProvider>
       </MetadataProvider>
     </SchemaRendererProvider>
   );
