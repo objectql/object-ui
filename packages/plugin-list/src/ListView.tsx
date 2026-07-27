@@ -2523,7 +2523,16 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           data-testid="record-count-bar"
         >
           <span className="font-medium text-foreground/80">
-            {data.length === 1 ? t('list.recordCountOne', { count: data.length }) : t('list.recordCount', { count: data.length })}
+            {/* Under server pagination `data` is only the current page, so the
+                honest record count is the server's grand total (#586). When the
+                whole result set is in memory, serverTotal is null and data.length
+                already IS the total. */}
+            {(() => {
+              const totalCount = serverTotal ?? data.length;
+              return totalCount === 1
+                ? t('list.recordCountOne', { count: totalCount })
+                : t('list.recordCount', { count: totalCount });
+            })()}
           </span>
           {dataLimitReached && (
             <span className="text-amber-600" data-testid="data-limit-warning">
