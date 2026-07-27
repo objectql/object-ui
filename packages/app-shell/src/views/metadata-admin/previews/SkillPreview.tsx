@@ -27,7 +27,6 @@ import {
   Filter,
   MessagesSquare,
   Power,
-  ShieldCheck,
   Sparkles,
   Wrench,
 } from 'lucide-react';
@@ -45,7 +44,6 @@ export function SkillPreview({ name, draft }: MetadataPreviewProps) {
   const triggerConditions = Array.isArray(d.triggerConditions)
     ? (d.triggerConditions as Array<Record<string, unknown>>)
     : [];
-  const permissions = Array.isArray(d.permissions) ? (d.permissions as string[]) : [];
   const active = d.active !== false;
   const model = (d.model as string | undefined) ?? undefined;
 
@@ -76,9 +74,6 @@ export function SkillPreview({ name, draft }: MetadataPreviewProps) {
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
                   <Pill icon={Power} label={active ? 'Active' : 'Disabled'} tone={active ? 'green' : 'gray'} />
                   {model && <Pill label={`model: ${model}`} mono />}
-                  {permissions.length > 0 && (
-                    <Pill icon={ShieldCheck} label={`${permissions.length} required perm${permissions.length === 1 ? '' : 's'}`} />
-                  )}
                 </div>
               </div>
             </div>
@@ -163,21 +158,11 @@ export function SkillPreview({ name, draft }: MetadataPreviewProps) {
             </Section>
           )}
 
-          {/* Permissions */}
-          {permissions.length > 0 && (
-            <Section title="Required Permissions" icon={ShieldCheck}>
-              <div className="flex flex-wrap gap-1">
-                {permissions.map((p) => (
-                  <span
-                    key={p}
-                    className="inline-flex items-center gap-1 rounded border bg-muted/40 px-1.5 py-0.5 text-[11px] font-mono"
-                  >
-                    {p}
-                  </span>
-                ))}
-              </div>
-            </Section>
-          )}
+          {/* `permissions` was REMOVED from SkillSchema (framework#3686): skill
+              invocation was never gated by it, and showing a "Required
+              Permissions" panel for an unenforced list taught the wrong model.
+              Access is gated at the AGENT (`access`/`permissions`) or on the
+              underlying actions the skill's tools call. */}
         </div>
       </PreviewErrorBoundary>
     </PreviewShell>
