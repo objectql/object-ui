@@ -578,7 +578,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
 
   // Client-side modal transport: `type:'modal'` actions open here (Dialog /
   // Sheet / Drawer by `placement`) and render arbitrary SchemaNode content.
-  const { modalHandler, modalElement } = useActionModal(dataSource);
+  const { modalHandler, modalElement, resolveModalTarget } = useActionModal(dataSource);
 
   // Flow action handler — POST to /api/v1/automation/{name}/trigger.
   // Triggered when an Action with `type: 'flow'` is invoked from a record-level
@@ -795,6 +795,22 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       serverActionInFlight.current.delete(inflightKey);
     }
   }, [authFetch, pureRecordId, objectName]);
+
+  /**
+   * `type: 'modal'` dispatch — same rule as the shared console runtime (see
+   * `useConsoleActionRuntime.modalActionHandler`): open `target` as a page (or
+   * an object form) when it names one, else fall through to the action's
+   * server-side handler. Registering it as a handler rather than relying on the
+   * runner's built-in `executeModal` is what gives the record page that server
+   * fallback, so a modal action bound to `engine.registerAction(...)` completes
+   * here exactly as it does on a list page.
+   */
+  const modalActionHandler = useCallback(async (action: ActionDef) => {
+    const schema = (action as any).modal ?? action.target ?? (action as any).params?.schema;
+    const descriptor = schema != null ? await resolveModalTarget(schema) : null;
+    if (descriptor) return modalHandler(descriptor);
+    return serverActionHandler(action);
+  }, [resolveModalTarget, modalHandler, serverActionHandler]);
 
   // ─── Approvals ─────────────────────────────────────────────────────
   // Since ADR-0019 an approval is a flow node: the flow opens the request,
@@ -1888,7 +1904,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           onParamCollection={paramCollectionHandler}
           onResultDialog={resultDialogHandler}
           onModal={modalHandler}
-          handlers={{ api: apiHandler, flow: flowHandler, script: serverActionHandler, approval: approvalHandler }}
+          handlers={{ api: apiHandler, flow: flowHandler, script: serverActionHandler, modal: modalActionHandler, approval: approvalHandler }}
         >
           <div className="flex-1 overflow-hidden flex flex-row">
             <div className="flex-1 overflow-auto p-3 sm:p-4 lg:p-6 scroll-pb-48">
