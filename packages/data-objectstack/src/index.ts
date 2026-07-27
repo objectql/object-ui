@@ -2603,6 +2603,12 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       const measureName = params.function === 'count'
         ? 'count'
         : `${params.field}_${params.function}`;
+      // The column the caller expects the value under — the raw `field`, or the
+      // literal `count` when a count names no field (framework#3701). Reading
+      // `params.field` directly here keyed the row `undefined` for a fieldless
+      // count and deleted the `count` the server sent, so the chart plotted
+      // nothing.
+      const valueKey = this.aggregateValueKey(params);
 
       const payload: Record<string, unknown> = {
         cube: resource,
@@ -2634,7 +2640,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       const measureMissing = rawRows.length > 0 && rawRows.every((row: any) => {
         if (row == null) return true;
         if (measureName in row && row[measureName] != null) return false;
-        if (params.field in row && row[params.field] != null) return false;
+        if (valueKey in row && row[valueKey] != null) return false;
         return true;
       });
       if (measureMissing) {
@@ -2644,14 +2650,15 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         return this.aggregateClientSide(records, params);
       }
 
-      // Map measure keys back to the original field name so that consumers
-      // (ObjectChart, DashboardRenderer, etc.) can access values by field name.
-      // This includes count → field (e.g. 'count' → 'amount') to match the
-      // output format of aggregateClientSide() which always uses params.field.
+      // Map measure keys back to the object-bound result column so consumers
+      // (ObjectChart, DashboardRenderer, …) read values by the name the
+      // convention promises: `field`, or `count` for a fieldless count
+      // (framework#3701). This includes count → field (e.g. 'count' →
+      // 'amount'), matching aggregateClientSide()'s output.
       return rawRows.map((row: any) => {
         const mapped = { ...row };
-        if (measureName !== params.field && measureName in mapped) {
-          mapped[params.field] = mapped[measureName];
+        if (measureName !== valueKey && measureName in mapped) {
+          mapped[valueKey] = mapped[measureName];
           delete mapped[measureName];
         }
         return mapped;
@@ -2776,8 +2783,19 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   }
 
   /** Client-side aggregation fallback */
-  private aggregateClientSide(records: any[], params: { field: string; function: string; groupBy: string }): any[] {
+  /**
+   * The result column an object-bound `aggregate` projects its value under
+   * (framework#3701, `chartAggregateValueKey` in `@objectstack/spec/ui`): the
+   * raw `field` name — no `sum_`-style decoration, unlike a dataset measure —
+   * or the literal `count` when a count names no field.
+   */
+  private aggregateValueKey(params: { field?: string; function?: string }): string {
+    return params.field || params.function || 'count';
+  }
+
+  private aggregateClientSide(records: any[], params: { field?: string; function: string; groupBy: string }): any[] {
     const { field, function: aggFn, groupBy } = params;
+    const valueKey = this.aggregateValueKey(params);
     const groups: Record<string, any[]> = {};
 
     for (const record of records) {
@@ -2787,7 +2805,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     }
 
     return Object.entries(groups).map(([key, group]) => {
-      const values = group.map(r => Number(r[field]) || 0);
+      const values = field ? group.map(r => Number(r[field]) || 0) : [];
       let result: number;
 
       switch (aggFn) {
@@ -2798,7 +2816,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         case 'sum': default: result = values.reduce((a, b) => a + b, 0); break;
       }
 
-      return { [groupBy]: key, [field]: result };
+      return { [groupBy]: key, [valueKey]: result };
     });
   }
 

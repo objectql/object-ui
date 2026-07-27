@@ -16,15 +16,33 @@ export function humanizeLabel(value: string): string {
 }
 
 /**
+ * The result column an object-bound `aggregate` projects its value under
+ * (framework#3701, `chartAggregateValueKey` in `@objectstack/spec/ui`).
+ *
+ * The raw `field` name — an object-bound aggregate does NOT decorate it the way
+ * a dataset measure is named (`sum_amount`). Only `count` may omit `field`, and
+ * it then lands under the literal `'count'`, which is the alias the engine
+ * projects `COUNT(*)` under. Exported so every path that builds these rows
+ * agrees on one key instead of each re-deriving it.
+ */
+export function aggregateValueKey(aggregate: { field?: string; function?: string }): string {
+  return aggregate.field || aggregate.function || 'count';
+}
+
+/** Suffix the previous-window value carries under a compareTo overlay. */
+export const COMPARISON_SUFFIX = '__comparison';
+
+/**
  * Client-side aggregation for fetched records.
  * Groups records by `groupBy` field and applies the aggregation function
  * to the `field` values in each group.
  */
 export function aggregateRecords(
   records: any[],
-  aggregate: { field: string; function: string; groupBy: string }
+  aggregate: { field?: string; function: string; groupBy: string }
 ): any[] {
   const { field, function: aggFn, groupBy } = aggregate;
+  const valueKey = aggregateValueKey(aggregate);
   const groups: Record<string, any[]> = {};
 
   for (const record of records) {
@@ -34,7 +52,7 @@ export function aggregateRecords(
   }
 
   return Object.entries(groups).map(([key, group]) => {
-    const values = group.map(r => Number(r[field]) || 0);
+    const values = field ? group.map(r => Number(r[field]) || 0) : [];
     let result: number;
 
     switch (aggFn) {
@@ -56,7 +74,7 @@ export function aggregateRecords(
         break;
     }
 
-    return { [groupBy]: key, [field]: result };
+    return { [groupBy]: key, [valueKey]: result };
   });
 }
 
@@ -369,8 +387,9 @@ export const ObjectChart = (props: any) => {
         const aggField = schema.aggregate.field;
         const aggFn = schema.aggregate.function;
         // Project the measure under its plain field name so downstream
-        // (xAxisKey + series.dataKey lookups) finds it unchanged.
-        const alias = aggField || aggFn;
+        // (xAxisKey + series.dataKey lookups) finds it unchanged — the
+        // object-bound result-column convention (framework#3701).
+        const alias = aggregateValueKey(schema.aggregate);
         // For `count`, omit `field` so the engine emits `count(*)` /
         // `COUNT(*)`. The upstream dashboard wiring defaults `field: 'value'`
         // for charts without an explicit valueField, which crashes on SQL
@@ -479,17 +498,22 @@ export const ObjectChart = (props: any) => {
           if (wantsComparison && comparisonRows.length > 0 && schema.aggregate) {
             const aggField = schema.aggregate.field;
             const aggFn = schema.aggregate.function;
+            // The column this aggregate projects its value under — `field`,
+            // or `count` for a fieldless count (framework#3701).
+            const valueKey = aggregateValueKey(schema.aggregate);
             const readValue = (row: Record<string, any>): number | null => {
               if (row == null) return null;
-              const suffixed = `${aggField}_${aggFn}`;
-              if (suffixed in row) return Number(row[suffixed]);
-              if (aggFn === 'count' && `${aggField}_count` in row) return Number(row[`${aggField}_count`]);
-              if (aggField in row) return Number(row[aggField]);
+              if (aggField) {
+                const suffixed = `${aggField}_${aggFn}`;
+                if (suffixed in row) return Number(row[suffixed]);
+                if (aggFn === 'count' && `${aggField}_count` in row) return Number(row[`${aggField}_count`]);
+              }
+              if (valueKey in row) return Number(row[valueKey]);
               if ('value' in row) return Number(row.value);
               if ('count' in row) return Number(row.count);
               return null;
             };
-            const comparisonKey = `${aggField}__comparison`;
+            const comparisonKey = `${valueKey}${COMPARISON_SUFFIX}`;
             const gb = groupByField;
             if (gb && data.some((r: any) => r[gb] != null) && comparisonRows.some((r: any) => r[gb] != null)) {
               const cmpByKey = new Map<string, number | null>();
@@ -601,16 +625,20 @@ export const ObjectChart = (props: any) => {
   // for a supported chart type, also synthesize a second series so the
   // chart implementation renders the comparison overlay (dashed / muted).
   const compareToConfig: CompareToConfig | undefined = (schema as any).compareTo;
+  // The result column this aggregate projects its value under, and the column
+  // the comparison overlay arrives in (framework#3701).
+  const valueKey = schema.aggregate ? aggregateValueKey(schema.aggregate) : undefined;
+  const comparisonKey = valueKey ? `${valueKey}${COMPARISON_SUFFIX}` : undefined;
   const enableComparisonSeries =
     !!compareToConfig &&
     supportsCompareTo(schema.chartType) &&
-    !!schema.aggregate &&
-    finalData.some((row: Record<string, any>) => row[`${schema.aggregate!.field}__comparison`] != null);
+    !!comparisonKey &&
+    finalData.some((row: Record<string, any>) => row[comparisonKey] != null);
 
   const augmentedSeries = useMemo(() => {
     const existing = Array.isArray((schema as any).series) ? (schema as any).series : null;
     if (!enableComparisonSeries) return existing;
-    const primary = existing || [{ dataKey: schema.aggregate!.field }];
+    const primary = existing || [{ dataKey: valueKey }];
     const labelMap: Record<string, string> = {
       vsLastWeek: 'Previous week',
       vsLastMonth: 'Previous month',
@@ -624,12 +652,12 @@ export const ObjectChart = (props: any) => {
     return [
       ...primary.map((s: any) => ({ ...s, variant: s.variant || 'current' })),
       {
-        dataKey: `${schema.aggregate!.field}__comparison`,
+        dataKey: comparisonKey,
         label: friendlyLabel,
         variant: 'comparison',
       },
     ];
-  }, [enableComparisonSeries, (schema as any).series, schema.aggregate, schema.filter, compareToConfig]);
+  }, [enableComparisonSeries, (schema as any).series, valueKey, comparisonKey, schema.filter, compareToConfig]);
 
   // ADR-0021 (#1759): when the chart binds to a dataset, derive data/xAxisKey/
   // series from its dimensions/measures via the shared buildChartSeries helper —
