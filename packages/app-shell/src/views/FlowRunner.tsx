@@ -14,7 +14,7 @@
  * {@link ScreenView} — the same renderer the Studio design preview reuses, so
  * the two can never drift (cf. #1927).
  */
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -25,7 +25,7 @@ import {
   Button,
 } from '@object-ui/components';
 import { toast } from 'sonner';
-import { ScreenView, isObjectFormScreen, initialScreenValues, type ScreenSpec } from './ScreenView';
+import { ScreenView, isObjectFormScreen, initialScreenValues, screenFields, type ScreenSpec } from './ScreenView';
 
 export type { ScreenSpec, ScreenFieldSpec } from './ScreenView';
 
@@ -120,7 +120,7 @@ export function FlowRunner({ state, authFetch, baseUrl, onClose, onComplete, dat
   };
 
   const submit = async () => {
-    const missing = screen.fields.filter(
+    const missing = screenFields(screen).filter(
       (f) => f.required && (values[f.name] === undefined || values[f.name] === '' || values[f.name] === null),
     );
     if (missing.length) {
@@ -164,21 +164,29 @@ export function FlowRunner({ state, authFetch, baseUrl, onClose, onComplete, dat
           {screen.description && <DialogDescription>{screen.description}</DialogDescription>}
         </DialogHeader>
 
-        <ScreenView
-          screen={screen}
-          values={values}
-          onValueChange={setVal}
-          dataSource={dataSource}
-          objects={objects}
-          objectForm={{
-            onSuccess: onObjectFormSaved,
-            onCancel: onClose,
-            showSubmit: true,
-            showCancel: true,
-            submitText: 'Save & Continue',
-            cancelText: 'Cancel',
-          }}
-        />
+        {/* The screen body pulls in lazily-loaded chunks (an `object-form` step
+            mounts ObjectForm, whose field widgets are lazy). Without a boundary
+            HERE, that suspension unwinds to the host's nearest <Suspense> — a
+            route-level one on some surfaces — which swaps the whole page for a
+            fallback and destroys the host's state, taking this dialog (and the
+            run it is driving) with it. */}
+        <Suspense fallback={<div className="py-6 text-sm text-muted-foreground">Loading…</div>}>
+          <ScreenView
+            screen={screen}
+            values={values}
+            onValueChange={setVal}
+            dataSource={dataSource}
+            objects={objects}
+            objectForm={{
+              onSuccess: onObjectFormSaved,
+              onCancel: onClose,
+              showSubmit: true,
+              showCancel: true,
+              submitText: 'Save & Continue',
+              cancelText: 'Cancel',
+            }}
+          />
+        </Suspense>
 
         {!isObjectForm && (
           <DialogFooter>

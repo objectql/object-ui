@@ -5,10 +5,20 @@
  * Console is not project-scoped: there is no useScopedClient and no projectId
  * param. The client comes from `useAdapter().getClient()` (which exposes
  * `.automation` and `.meta`). Run output renders as a plain `<pre>` block.
+ *
+ * A *screen* flow pauses instead of completing: the trigger returns
+ * `{ status: 'paused', runId, screen }`. This page used to dump that envelope
+ * as JSON and stop — the run stayed suspended forever with no way to finish it
+ * from the UI, and every test run of a screen flow orphaned a `paused` row in
+ * the history (framework#3528). It now hands the pause to the SAME
+ * {@link FlowRunner} the record/list surfaces use, so a screen flow can be
+ * driven to completion (multi-step wizards and `object-form` steps included)
+ * from here too.
  */
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { useAdapter } from '@object-ui/app-shell';
+import { useAdapter, useMetadata, FlowRunner, type ScreenFlowState } from '@object-ui/app-shell';
+import { createAuthenticatedFetch } from '@object-ui/auth';
 import {
   Card,
   CardContent,
@@ -71,6 +81,9 @@ function StatusBadge({ status }: { status: string }) {
     error:     { icon: XCircle,      cls: 'text-red-600 border-red-300' },
     running:   { icon: Loader2,      cls: 'text-blue-600 border-blue-300 animate-pulse' },
     pending:   { icon: Clock,        cls: 'text-amber-600 border-amber-300' },
+    // A screen/approval node suspended the run — it is waiting for input, not
+    // stalled (ADR-0019 durable pause).
+    paused:    { icon: Clock,        cls: 'text-amber-600 border-amber-300' },
     skipped:   { icon: AlertCircle,  cls: 'text-muted-foreground' },
   };
   const cfg = map[status] ?? { icon: AlertCircle, cls: 'text-muted-foreground' };
@@ -247,15 +260,23 @@ function FlowTestRunner({
     [flow],
   );
 
+  const adapter = useAdapter();
+  const { objects } = useMetadata();
+  const authFetch = useMemo(() => createAuthenticatedFetch(), []);
+
   const [values, setValues] = useState<Record<string, string>>({});
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  // The paused screen a test run stopped at — driven to completion by
+  // <FlowRunner>, exactly as a `type: 'flow'` action would.
+  const [screenFlow, setScreenFlow] = useState<ScreenFlowState | null>(null);
 
   useEffect(() => {
     setValues({});
     setResult(null);
     setError(null);
+    setScreenFlow(null);
   }, [flow?.name]);
 
   const setVal = (k: string, v: string) => setValues(s => ({ ...s, [k]: v }));
@@ -268,6 +289,7 @@ function FlowTestRunner({
     setRunning(true);
     setError(null);
     setResult(null);
+    setScreenFlow(null);
     try {
       const params: Record<string, unknown> = {};
       for (const v of inputVars) {
@@ -277,6 +299,11 @@ function FlowTestRunner({
       }
       const res = await client.automation.execute(flow.name, { params });
       setResult(res);
+      // Screen flow: the run is suspended at a `screen` node. Open the runner
+      // so the tester can fill it in and the run can actually finish.
+      if (res?.status === 'paused' && res?.screen && res?.runId) {
+        setScreenFlow({ flowName: flow.name, runId: res.runId, screen: res.screen });
+      }
       onExecuted?.();
     } catch (e: any) {
       setError(e?.message ?? String(e));
@@ -342,6 +369,8 @@ function FlowTestRunner({
             <div className="flex items-center gap-2 text-sm font-medium">
               {error || result?.success === false ? (
                 <><XCircle className="h-4 w-4 text-red-500" /> Failed</>
+              ) : result?.status === 'paused' ? (
+                <><Clock className="h-4 w-4 text-amber-500" /> Waiting for input</>
               ) : (
                 <><CheckCircle2 className="h-4 w-4 text-emerald-500" /> Result</>
               )}
@@ -352,10 +381,38 @@ function FlowTestRunner({
               )}
             </div>
             {error && <p className="text-sm text-red-500 font-mono break-all">{error}</p>}
+            {/* A run left paused (the runner was dismissed) can be reopened —
+                the suspension is durable, so the screen is still waiting. */}
+            {result?.status === 'paused' && result?.screen && result?.runId && !screenFlow && (
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm text-muted-foreground">
+                  This run is paused at screen <span className="font-mono">{result.screen.nodeId}</span>.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setScreenFlow({ flowName: flow.name, runId: result.runId, screen: result.screen })}
+                >
+                  Continue run
+                </Button>
+              </div>
+            )}
             {result && <JsonBlock data={result} />}
           </div>
         )}
       </CardContent>
+
+      {/* The shared screen-flow runner — renders the paused screen and POSTs
+          the collected values to the run's resume endpoint. */}
+      <FlowRunner
+        state={screenFlow}
+        authFetch={authFetch}
+        baseUrl={import.meta.env.VITE_SERVER_URL || ''}
+        dataSource={adapter}
+        objects={objects}
+        onClose={() => { setScreenFlow(null); onExecuted?.(); }}
+        onComplete={() => { setScreenFlow(null); onExecuted?.(); }}
+      />
     </Card>
   );
 }

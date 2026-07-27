@@ -97,7 +97,14 @@ export function hiddenFieldCount(node: ScreenPreviewNode, variables: Record<stri
  * / objectName / mode / defaults / idVariable). `fields` are gated by their
  * `visibleWhen` against `variables` (omit `variables` to keep every field).
  */
-export function buildScreenSpec(node: ScreenPreviewNode, variables?: Record<string, unknown>): ScreenSpec {
+/**
+ * A designed screen always carries a (possibly empty) field list — `fields` is
+ * optional on the WIRE type only, where a message-only / object-form pause may
+ * omit it.
+ */
+export type DesignedScreenSpec = ScreenSpec & { fields: ScreenFieldSpec[] };
+
+export function buildScreenSpec(node: ScreenPreviewNode, variables?: Record<string, unknown>): DesignedScreenSpec {
   const c = (node.config && typeof node.config === 'object' ? node.config : {}) as Record<string, unknown>;
   const objectName = typeof c.objectName === 'string' && c.objectName ? c.objectName : undefined;
   const mode = c.mode === 'edit' ? 'edit' : c.mode === 'create' ? 'create' : undefined;
