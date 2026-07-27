@@ -21,20 +21,23 @@ const APPROVAL_CONFIG_SCHEMA = {
           type: {
             type: 'string',
             enum: ['user', 'org_membership_level', 'role', 'position', 'team', 'department', 'manager', 'field', 'queue'],
-            // `role` still parses (a 15.x flow must keep loading) but is not
-            // offered for new authoring — ADR-0090 D3.
-            xEnumDeprecated: ['role'],
+            // `role` (ADR-0090 D3) and `queue` (declared-but-unenforced,
+            // framework #3508) still parse — stored flows must keep loading —
+            // but are not offered for new authoring.
+            xEnumDeprecated: ['role', 'queue'],
           },
           value: {
-            description: 'User id / membership tier / position / team / department / field / queue — per `type`',
+            description: 'User id / membership tier / position / team / department / field — per `type`',
             type: 'string',
             xRef: {
               kindFrom: 'type',
               objectSource: '$trigger',
-              // Mirrors @objectstack/spec approval.zod.ts: both the canonical
-              // spelling and its deprecated `role` alias point at the same
-              // picker kind (ADR-0090 D3).
-              map: { user: 'user', org_membership_level: 'org-membership-level', role: 'org-membership-level', position: 'position', team: 'team', department: 'department', field: 'object-field', queue: 'queue' },
+              // Mirrors @objectstack/spec approval.zod.ts: the deprecated
+              // `role` alias points at the same picker kind as its canonical
+              // spelling (ADR-0090 D3); `manager` maps to the auto-resolved
+              // cell; `queue` stays mapped so stored rows keep rendering
+              // (framework #3508).
+              map: { user: 'user', org_membership_level: 'org-membership-level', role: 'org-membership-level', position: 'position', team: 'team', department: 'department', manager: 'manager', field: 'object-field', queue: 'queue' },
             },
           },
         },
@@ -112,23 +115,26 @@ describe('jsonSchemaToFlowFields', () => {
     expect(colKeys).toEqual(['type', 'value']);
     const typeCol = approvers.columns!.find((c) => c.key === 'type')!;
     expect(typeCol.kind).toBe('select');
-    // `role` is dropped from the OPTIONS (xEnumDeprecated) while staying in the
-    // enum: the designer must not hand an author the deprecated spelling, which
-    // reads as "the old name for position" and silently routes to nobody.
-    expect(typeCol.options!.map((o) => o.value)).toEqual(['user', 'org_membership_level', 'position', 'team', 'department', 'manager', 'field', 'queue']);
+    // `role` and `queue` are dropped from the OPTIONS (xEnumDeprecated) while
+    // staying in the enum: the designer must not hand an author a deprecated
+    // spelling (ADR-0090 D3) or a type the runtime resolves to nobody
+    // (framework #3508) — but stored rows keep rendering.
+    expect(typeCol.options!.map((o) => o.value)).toEqual(['user', 'org_membership_level', 'position', 'team', 'department', 'manager', 'field']);
     expect(typeCol.options!.map((o) => o.value)).not.toContain('role');
+    expect(typeCol.options!.map((o) => o.value)).not.toContain('queue');
     const valueCol = approvers.columns!.find((c) => c.key === 'value')!;
     // Polymorphic reference: the picker follows the row's `type`. The
     // deprecated `role` discriminator survives and resolves to the SAME picker
     // kind as the canonical spelling — a flow authored on 15.x must keep
-    // rendering for the length of its deprecation window (ADR-0090 D3).
+    // rendering for the length of its deprecation window (ADR-0090 D3) — and
+    // `queue`/`manager` map to their warning / auto-resolved cells (#3508).
     expect(valueCol.kind).toBe('reference');
     expect(valueCol.ref).toEqual({
       kindFrom: 'type',
       objectSource: '$trigger',
-      map: { user: 'user', org_membership_level: 'org-membership-level', role: 'org-membership-level', position: 'position', team: 'team', department: 'department', field: 'object-field', queue: 'queue' },
+      map: { user: 'user', org_membership_level: 'org-membership-level', role: 'org-membership-level', position: 'position', team: 'team', department: 'department', manager: 'manager', field: 'object-field', queue: 'queue' },
     });
-    expect(valueCol.placeholder).toBe('User id / membership tier / position / team / department / field / queue — per `type`');
+    expect(valueCol.placeholder).toBe('User id / membership tier / position / team / department / field — per `type`');
   });
 
   it('maps a static-kind xRef column into a reference column', () => {

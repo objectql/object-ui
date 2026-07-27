@@ -45,8 +45,8 @@ export type FlowConfigFieldKind =
   | 'reference';
 
 /**
- * What a `reference` field points at — the picker's data source. The control
- * is always an *editable* combobox (suggestions + free text), so an unknown /
+ * What a `reference` field points at — the picker's data source. Most kinds
+ * render an *editable* combobox (suggestions + free text), so an unknown /
  * not-yet-created value is never rejected and an empty catalog degrades to a
  * plain text box.
  *
@@ -56,20 +56,30 @@ export type FlowConfigFieldKind =
  *   • `flow`          → a flow, by name (`client.list('flow')`)
  *   • `org-membership-level`
  *                     → a better-auth org-membership tier. A FIXED three-value
- *                       enum (owner/admin/member), not a catalog: there is no
- *                       `role` metadata type to list (ADR-0090 D3 renamed
- *                       `sys_role` → `sys_position`), so this kind supplies its
- *                       own options rather than calling `client.list`.
- *   • `position`      → a position / 岗位 by machine name (`client.list('position')`);
- *                       holders resolve via `sys_user_position` (ADR-0090 D3)
+ *                       enum (owner/admin/member) rendered as a STRICT select
+ *                       (framework #3508): there is no `role` metadata type to
+ *                       list (ADR-0090 D3), and free text is how dirty values
+ *                       like `sales_manager` got stored.
+ *   • `user` / `team` / `department` / `position` → a DATA-record lookup on
+ *                       the matching directory object (`sys_user` / `sys_team`
+ *                       / `sys_business_unit` / `sys_position`) via the
+ *                       DataSource adapter — NOT the metadata registry, which
+ *                       lists no records (framework #3508). `position` commits
+ *                       the machine NAME (`sys_user_position` routes by name,
+ *                       ADR-0090 D3); the others commit the row id. See
+ *                       `KIND_TO_RECORD_LOOKUP`, which mirrors the spec's
+ *                       `APPROVER_VALUE_BINDINGS`.
+ *   • `manager`       → auto-resolved at runtime (submitter's manager) — a
+ *                       disabled cell, no value to author
+ *   • `queue`         → declared-but-unenforced in the runtime (framework
+ *                       #3508): free text + warning, not offered for new rows
  *   • `node`          → another node in *this* flow, by id (read from the draft)
- *   • `user` / `team` / `queue` / `department` → the matching metadata list
- *                       (`client.list(kind)`); empty in dev, populated per tenant
  *   • `connector`     → an installed connector (`client.list('connector')`)
  *   • `email-template`→ an email template (`client.list('email_template')`)
  *
  * Kinds that have no catalog in the current tenant simply degrade to a plain
- * text box — the control is always an editable combobox, never a hard dropdown.
+ * text box (record lookups also keep a manual-entry escape hatch) — the author
+ * is never trapped.
  */
 export type ReferenceKind =
   | 'object'
@@ -82,6 +92,7 @@ export type ReferenceKind =
   | 'team'
   | 'queue'
   | 'department'
+  | 'manager'
   | 'connector'
   | 'connector-action'
   | 'email-template';
@@ -526,36 +537,41 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
           key: 'type',
           label: 'Type',
           kind: 'select',
-          // `role` is deliberately absent: it is the deprecated spelling of
-          // `org_membership_level` (ADR-0090 D3) and reads as "the old name for
-          // position", which is the trap — a stored `role` row still renders
-          // and resolves, but the designer never authors a new one.
+          // Mirrors the spec's NON_AUTHORABLE_APPROVER_TYPES (approval.zod.ts):
+          // `role` is the deprecated spelling of `org_membership_level`
+          // (ADR-0090 D3), and `queue` is declared-but-unenforced — the runtime
+          // resolves it to nobody (framework #3508). A stored row of either
+          // still renders (the select surfaces it flagged "(deprecated)"), but
+          // the designer never authors a new one. Indirect bindings lead and
+          // the literal `user` binding comes last: binding a specific person is
+          // the least portable choice (env moves, people leave).
           options: [
-            { value: 'user', label: 'User' },
-            { value: 'position', label: 'Position' },
-            { value: 'org_membership_level', label: 'Organization membership (owner/admin/member)' },
-            { value: 'team', label: 'Team' },
-            { value: 'department', label: 'Department' },
             { value: 'manager', label: 'Manager' },
+            { value: 'position', label: 'Position' },
+            { value: 'department', label: 'Department' },
+            { value: 'team', label: 'Team' },
             { value: 'field', label: 'Field' },
-            { value: 'queue', label: 'Queue' },
+            { value: 'org_membership_level', label: 'Organization membership (owner/admin/member)' },
+            { value: 'user', label: 'User' },
           ],
         },
         {
-          // Polymorphic: the picker follows the row's `type`. `manager` takes no
-          // value (resolved from the submitter's manager_id) so it stays unmapped
-          // → free text; unmapped/empty types likewise fall back to free text.
+          // Polymorphic: the picker follows the row's `type` — record lookups
+          // for the directory kinds, a strict select for the membership tier,
+          // an auto-resolved cell for `manager`, an object-field picker for
+          // `field` (framework #3508). Unmapped/empty types fall back to free
+          // text.
           key: 'value',
           label: 'Value',
           kind: 'reference',
-          placeholder: 'user id / position / membership tier / field — per type',
+          placeholder: 'User id / membership tier / position / team / department / field — per `type`',
           ref: {
             kindFrom: 'type',
             objectSource: '$trigger',
-            // `role` maps to the same picker as `org_membership_level`: the
-            // designer no longer offers it, but a flow authored on 15.x still
-            // has stored rows, and they must keep rendering for the length of
-            // the deprecation window.
+            // `role` maps to the same picker as `org_membership_level`, and
+            // `queue` stays mapped (free text + warning): the designer no
+            // longer offers either, but stored rows must keep rendering for
+            // the length of the deprecation window.
             map: {
               user: 'user',
               position: 'position',
@@ -563,6 +579,7 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
               role: 'org-membership-level',
               team: 'team',
               department: 'department',
+              manager: 'manager',
               field: 'object-field',
               queue: 'queue',
             },

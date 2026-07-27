@@ -8,11 +8,17 @@
  *
  * Why a combobox and not a strict dropdown: the designer must never trap the
  * author. The control suggests known values (fetched per {@link ReferenceKind})
- * but always accepts free text, so a field that doesn't exist yet, a role the
- * current tenant hasn't populated, or an empty catalog all still let the author
- * type a value. Implemented with a native `<datalist>` for exactly that
- * suggest-but-allow-anything behaviour, zero extra dependencies, and built-in
- * accessibility.
+ * but always accepts free text, so a field that doesn't exist yet or an empty
+ * catalog still let the author type a value. Implemented with a native
+ * `<datalist>` for exactly that suggest-but-allow-anything behaviour, zero
+ * extra dependencies, and built-in accessibility.
+ *
+ * Four kinds carry a stronger contract than suggest-and-allow-anything
+ * (framework #3508): the directory-backed kinds (`user`/`team`/`department`/
+ * `position`) render a record lookup against the data API (with a manual-entry
+ * escape hatch, so the never-trap rule still holds), `org-membership-level` is
+ * a strict select over a closed enum, `manager` is auto-resolved (disabled
+ * cell), and `queue` warns that the runtime doesn't resolve it.
  *
  * Two layers:
  *   • {@link ReferenceCombobox} — the bare control, given an already-resolved
@@ -28,7 +34,13 @@
  */
 
 import * as React from 'react';
-import { Input, Label } from '@object-ui/components';
+import {
+  Button, Input, Label,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@object-ui/components';
+import { Pencil, Search } from 'lucide-react';
+import { useAdapter } from '@object-ui/react';
+import { LookupField } from '@object-ui/fields';
 import type { FlowReferenceSpec, ReferenceKind } from './flow-node-config';
 import { useMetadataClient } from '../useMetadata';
 import { useObjectFields } from '../previews/useObjectFields';
@@ -47,20 +59,52 @@ interface Option {
 }
 
 /**
- * Reference kinds backed by a flat metadata list (`client.list(type)`), mapped
+ * Reference kinds backed by a flat METADATA list (`client.list(type)`), mapped
  * to their metadata-type name. `object-field` and `node` are resolved
- * specially (not via a list) and are intentionally absent.
+ * specially (not via a list) and are intentionally absent — and so are the
+ * directory kinds (`user` / `team` / `department` / `position`), which are
+ * backed by DATA records, not the metadata registry: they used to map here,
+ * so the picker queried `GET /api/v1/meta/user` (which lists no `sys_user`
+ * rows), came back empty, and silently degraded to a free-text id box
+ * (framework #3508). They live in {@link KIND_TO_RECORD_LOOKUP} instead.
  */
 const KIND_TO_META_TYPE: Partial<Record<ReferenceKind, string>> = {
   object: 'object',
   flow: 'flow',
-  position: 'position',
-  user: 'user',
-  team: 'team',
-  queue: 'queue',
-  department: 'department',
   connector: 'connector',
   'email-template': 'email_template',
+};
+
+/**
+ * Reference kinds backed by DATA records in the system directory objects —
+ * mirrors `APPROVER_VALUE_BINDINGS` in `@objectstack/spec` (automation/
+ * approval.zod.ts, framework #3508; import it once a published ^16 release
+ * carries the export). The approval engine resolves these against records,
+ * so the designer offers a record lookup through the DataSource adapter.
+ *
+ * `valueField` is the committed value. `position` deliberately stores the
+ * machine NAME — the engine filters `sys_user_position.position` by name, and
+ * names stay portable across environments the way row ids do not. The others
+ * store the row id. `department` resolves against `sys_business_unit` (there
+ * is no `sys_department`).
+ */
+export interface RecordLookupBinding {
+  /** Directory object the picker queries via the data API. */
+  object: string;
+  /** Record field committed as the reference value. */
+  valueField: 'id' | 'name';
+  /** Record field shown as the row label. */
+  displayField: string;
+  /** `search` opts into the people picker (avatar rows) — users only. */
+  picker?: 'search';
+  /** Secondary-line fields for people rows. */
+  subtitle?: string[];
+}
+export const KIND_TO_RECORD_LOOKUP: Partial<Record<ReferenceKind, RecordLookupBinding>> = {
+  user: { object: 'sys_user', valueField: 'id', displayField: 'name', picker: 'search', subtitle: ['email'] },
+  team: { object: 'sys_team', valueField: 'id', displayField: 'name' },
+  department: { object: 'sys_business_unit', valueField: 'id', displayField: 'name' },
+  position: { object: 'sys_position', valueField: 'name', displayField: 'label' },
 };
 
 /**
@@ -69,7 +113,8 @@ const KIND_TO_META_TYPE: Partial<Record<ReferenceKind, string>> = {
  * ADR-0090 D3 removed the `role` metadata type, so that call returned nothing
  * and the picker silently degraded to a free-text box — which is how
  * `sales_manager` got typed into a field that only ever accepts these three.
- * The tier is a closed enum, so the options are supplied here instead.
+ * The tier is a closed enum, so it renders as a STRICT select over these
+ * options (framework #3508) — free text would re-open the same trap.
  */
 const ORG_MEMBERSHIP_LEVEL_OPTIONS: Option[] = [
   { value: 'owner', label: 'Owner' },
@@ -281,6 +326,101 @@ function useConnectorListOptions(enabled: boolean): { options: Option[] } {
   return state;
 }
 
+/**
+ * A single-select RECORD lookup cell for the directory-backed reference kinds
+ * (framework #3508). Wraps `@object-ui/fields` LookupField with the app-shell
+ * adapter as its DataSource — the same pattern `AccessExplainPanel` and
+ * `AssignedUsersSection` already use to pick `sys_user` rows inside metadata
+ * editing (ADR-0072: the picker only offers references that actually resolve).
+ *
+ * "Never trap the author" still holds: with no adapter (offline preview
+ * gallery, no backend) the cell degrades to plain free text, and even with an
+ * adapter a pencil toggle switches to manual entry — a value the directory
+ * can't resolve yet (fresh env, dangling id) stays typeable.
+ */
+function RecordLookupCell({ binding, value, onPick, onCommit, onBlur, disabled, placeholder }: {
+  binding: RecordLookupBinding;
+  value: unknown;
+  /** Immediate commit for picker selections (there is no blur to flush on). */
+  onPick: (value: string) => void;
+  /** Keystroke-level commit for the manual-entry input (flushed via onBlur). */
+  onCommit: (value: unknown) => void;
+  onBlur?: () => void;
+  disabled?: boolean;
+  placeholder?: string;
+}) {
+  const adapter = useAdapter();
+  const [manual, setManual] = React.useState(false);
+  const current = value != null ? String(value) : '';
+
+  if (!adapter || manual) {
+    return (
+      <div className="flex w-full items-center gap-1">
+        <Input
+          value={current}
+          onChange={(e) => onCommit(e.target.value)}
+          onBlur={onBlur}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+          }}
+          placeholder={placeholder}
+          disabled={disabled}
+          className="h-8 flex-1 text-sm"
+        />
+        {adapter && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 shrink-0 p-0 text-muted-foreground"
+            onClick={() => setManual(false)}
+            disabled={disabled}
+            aria-label="Pick from records"
+            title="Pick from records"
+          >
+            <Search className="h-3.5 w-3.5" />
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex w-full items-center gap-1">
+      <div className="min-w-0 flex-1">
+        <LookupField
+          value={current || null}
+          onChange={(v: unknown) => onPick(v == null ? '' : String(v))}
+          readonly={disabled}
+          dataSource={adapter}
+          field={{
+            reference_to: binding.object,
+            display_field: binding.displayField,
+            id_field: binding.valueField,
+            multiple: false,
+            allow_create: false,
+            placeholder,
+            ...(binding.picker ? { picker: binding.picker } : {}),
+            ...(binding.subtitle ? { subtitle: binding.subtitle } : {}),
+          }}
+        />
+      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-8 w-8 shrink-0 p-0 text-muted-foreground"
+        onClick={() => setManual(true)}
+        disabled={disabled}
+        aria-label="Enter value manually"
+        title="Enter value manually"
+      >
+        <Pencil className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  );
+}
+
 export interface ReferenceComboboxProps {
   /** The resolved concrete reference, or undefined → plain free text. */
   resolved: ResolvedRef | undefined;
@@ -288,6 +428,13 @@ export interface ReferenceComboboxProps {
   onCommit: (value: unknown) => void;
   /** Optional blur handler (the `objectList` repeater flushes rows on blur). */
   onBlur?: () => void;
+  /**
+   * Immediate-commit callback for picker-style selections (record lookup,
+   * strict select) — controls with no blur event to flush on. The `objectList`
+   * repeater passes its set-and-flush; when absent, falls back to
+   * `onCommit` + `onBlur`, which suits the standalone inspector field.
+   */
+  onSelect?: (value: string) => void;
   disabled?: boolean;
   placeholder?: string;
   context?: FlowReferenceContext;
@@ -297,13 +444,19 @@ export interface ReferenceComboboxProps {
 
 /**
  * The bare reference combobox — suggestions for `resolved.kind`, always
- * free-text editable. Hooks are called unconditionally (kind-gated args) so the
+ * free-text editable, except for the kinds with a stronger contract:
+ * directory-backed kinds render a record lookup ({@link RecordLookupCell}),
+ * `org-membership-level` a strict select (closed enum), `manager` a disabled
+ * auto-resolved cell, and `queue` free text with a not-supported warning
+ * (framework #3508). Hooks are called unconditionally (kind-gated args) so the
  * component is safe to use in a repeater where the kind changes per row.
  */
-export function ReferenceCombobox({ resolved, value, onCommit, onBlur, disabled, placeholder, context, showHint = true }: ReferenceComboboxProps) {
+export function ReferenceCombobox({ resolved, value, onCommit, onBlur, onSelect, disabled, placeholder, context, showHint = true }: ReferenceComboboxProps) {
   const listId = React.useId();
   const ctx: FlowReferenceContext = context ?? { draft: {}, node: null };
   const kind = resolved?.kind;
+  // Picker-style commits have no blur event; default to commit-then-flush.
+  const commitSelection = onSelect ?? ((v: string) => { onCommit(v); onBlur?.(); });
 
   // object-field: resolve the target object, then its field catalog.
   const objectName = resolved ? resolveObjectName(resolved.kind, resolved.objectSource, ctx) : undefined;
@@ -333,7 +486,6 @@ export function ReferenceCombobox({ resolved, value, onCommit, onBlur, disabled,
     }
     if (kind === 'connector-action') return connectorActionOptions;
     if (kind === 'connector') return connectorListOptions;
-    if (kind === 'org-membership-level') return ORG_MEMBERSHIP_LEVEL_OPTIONS;
     if (kind === 'node') {
       const nodes = Array.isArray(ctx.draft.nodes) ? (ctx.draft.nodes as Array<Record<string, unknown>>) : [];
       const currentId = typeof ctx.node?.id === 'string' ? ctx.node.id : undefined;
@@ -354,6 +506,92 @@ export function ReferenceCombobox({ resolved, value, onCommit, onBlur, disabled,
   const unresolvedObject = kind === 'object-field' && !objectName;
   // Same for a connector-action with no connector chosen yet.
   const unresolvedConnector = kind === 'connector-action' && !connectorName;
+
+  // ── Kinds with a stronger contract than suggest-and-allow-anything ──────
+  // (All hooks above have already run — the branches below only render.)
+
+  // Directory-backed kinds → single-select record lookup (framework #3508).
+  const lookup = kind ? KIND_TO_RECORD_LOOKUP[kind] : undefined;
+  if (lookup) {
+    return (
+      <RecordLookupCell
+        binding={lookup}
+        value={value}
+        onPick={commitSelection}
+        onCommit={onCommit}
+        onBlur={onBlur}
+        disabled={disabled}
+        placeholder={placeholder}
+      />
+    );
+  }
+
+  // Closed enum → strict select, never free text: `sales_manager` typed into
+  // a membership-tier box matches nobody at runtime. A stored value outside
+  // the enum (legacy dirty data) still renders, flagged, so editing an old
+  // row never silently blanks it — mirroring the repeater's select cells.
+  if (kind === 'org-membership-level') {
+    const current = value != null ? String(value) : '';
+    const shown = current && !ORG_MEMBERSHIP_LEVEL_OPTIONS.some((o) => o.value === current)
+      ? [...ORG_MEMBERSHIP_LEVEL_OPTIONS, { value: current, label: `${current} (invalid)` }]
+      : ORG_MEMBERSHIP_LEVEL_OPTIONS;
+    return (
+      <Select value={current || undefined} onValueChange={commitSelection} disabled={disabled}>
+        <SelectTrigger className="h-8 w-full text-sm">
+          <SelectValue placeholder={placeholder ?? '—'} />
+        </SelectTrigger>
+        <SelectContent>
+          {shown.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }
+
+  // Auto-resolved at runtime (submitter's manager) — no value to author. A
+  // stored value (the advanced field-name override, authorable via API) still
+  // displays. The explanation renders regardless of `showHint`: it is the
+  // reason the input is disabled, not an optional nicety.
+  if (kind === 'manager') {
+    return (
+      <div className="w-full space-y-1">
+        <Input
+          value={value != null ? String(value) : ''}
+          disabled
+          placeholder="Resolved automatically"
+          className="h-8 text-sm"
+        />
+        <p className="text-[11px] leading-snug text-muted-foreground">
+          Resolved at runtime from the submitter&apos;s manager — no value needed.
+        </p>
+      </div>
+    );
+  }
+
+  // Declared-but-unenforced (framework #3508): the runtime has no queue
+  // resolution, so a stored value keeps its free-text cell but carries a
+  // warning — rendered regardless of `showHint` because the slot silently
+  // routes to nobody. New rows can no longer choose this type.
+  if (kind === 'queue') {
+    return (
+      <div className="w-full space-y-1">
+        <Input
+          value={value != null ? String(value) : ''}
+          onChange={(e) => onCommit(e.target.value)}
+          onBlur={onBlur}
+          placeholder={placeholder}
+          disabled={disabled}
+          className="h-8 text-sm"
+        />
+        <p className="text-[11px] leading-snug text-amber-600 dark:text-amber-400">
+          Queue approvers are not supported by the runtime yet — this slot resolves to nobody.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full space-y-1">

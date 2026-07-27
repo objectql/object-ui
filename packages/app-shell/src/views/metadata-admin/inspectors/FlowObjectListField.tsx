@@ -267,6 +267,10 @@ export function FlowObjectListField({
                         value={typeof row.values[col.key] === 'string' ? (row.values[col.key] as string) : ''}
                         onCommit={(v) => setCell(row.id, col.key, typeof v === 'string' ? v : '')}
                         onBlur={() => flush(rows)}
+                        // Picker-style selections (record lookup, strict
+                        // select) have no blur to flush on — set-and-flush
+                        // atomically, like the checkbox/select cells.
+                        onSelect={(v) => commitCell(row.id, col.key, v)}
                         placeholder={col.placeholder}
                         disabled={disabled}
                         context={context}

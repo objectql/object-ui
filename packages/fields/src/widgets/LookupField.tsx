@@ -477,7 +477,11 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
       try {
         const fetched: LookupOption[] = [];
         for (const id of unresolved) {
-          if (typeof (dataSource as any).findOne === 'function') {
+          // `findOne` resolves by PRIMARY id only. When the field commits a
+          // different column (`id_field: 'name'` — e.g. position machine
+          // names, objectstack #3508), hydrate by filtering on that column or
+          // the stored value would never resolve to a label.
+          if (typeof (dataSource as any).findOne === 'function' && idField === 'id') {
             const rec = await (dataSource as any).findOne(referenceTo, id);
             if (rec) fetched.push(recordToOption(rec, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema));
           } else {

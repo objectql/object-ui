@@ -102,6 +102,10 @@ const REFERENCE_KINDS: ReadonlySet<string> = new Set<ReferenceKind>([
   'team',
   'queue',
   'department',
+  // Auto-resolved approver (submitter's manager) — renders as a disabled
+  // cell, not a picker (framework #3508). Listed so the spec's xRef map entry
+  // survives validation; an older designer without it just degraded to text.
+  'manager',
   'connector',
   'email-template',
 ]);
