@@ -155,16 +155,38 @@ export function FlowObjectListField({
   };
 
   // Set a cell AND flush — used by controls with no blur to flush on (checkbox,
-  // select) and by the nested-list editors, which each commit a whole array on
-  // their own blur/add/remove. The flush stays inside the `setRows` updater
-  // (the accepted idiom for the sibling scalar controls) so the `lastCommitted`
-  // ref is touched only there, never in the render body.
+  // select, record lookup) and by the nested-list editors, which each commit a
+  // whole array on their own blur/add/remove.
+  //
+  // The flush must NOT happen inside the `setRows` updater (objectui#2838):
+  // React runs updaters during the RENDER phase, so calling `onCommit` there
+  // reaches the parent's setState mid-render —
+  //   Cannot update a component (`MetadataResourceEditPageImpl`) while rendering
+  //   a different component (`FlowObjectListField`).
+  // React usually computes an updater eagerly inside the dispatch, which hides
+  // the warning; it surfaces as soon as the component already has a queued
+  // update (type in a cell, then hit the row's ✕), which is why the plain suites
+  // never caught it and the real designer warns on every commit.
+  //
+  // So: the handler bumps a commit token alongside the row update, the updater
+  // stays pure, and the effect below flushes AFTER commit — publishing the rows
+  // React actually applied rather than a stale closure read.
+  const [commitToken, setCommitToken] = React.useState(0);
+
+  React.useEffect(() => {
+    if (commitToken === 0) return; // mount, not a commit
+    flush(rows);
+    // Keyed on the token ALONE. `rows` also changes when the external value
+    // syncs down (the effect above), and flushing then would echo the parent's
+    // own value back at it; the token only moves on a real interaction. `rows`
+    // is still read fresh here — both setStates batch into the render this
+    // effect belongs to.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [commitToken]);
+
   const commitCell = (id: string, key: string, v: Cell) => {
-    setRows((rs) => {
-      const next = rs.map((r) => (r.id === id ? { ...r, values: { ...r.values, [key]: v } } : r));
-      flush(next);
-      return next;
-    });
+    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, values: { ...r.values, [key]: v } } : r)));
+    setCommitToken((t) => t + 1);
   };
 
   const addRow = () => {
@@ -173,12 +195,11 @@ export function FlowObjectListField({
     setRows((rs) => [...rs, { id: uniqueId('ol', rs.map((r) => r.id)), values }]);
   };
 
+  // Same shape as `commitCell`: bump the token, let the effect publish
+  // (objectui#2838).
   const removeRow = (id: string) => {
-    setRows((rs) => {
-      const next = rs.filter((r) => r.id !== id);
-      flush(next);
-      return next;
-    });
+    setRows((rs) => rs.filter((r) => r.id !== id));
+    setCommitToken((t) => t + 1);
   };
 
   return (
