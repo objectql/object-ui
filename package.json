@@ -84,8 +84,8 @@
     "msw": "^2.15.0",
     "playwright": "^1.61.1",
     "prettier": "^3.9.5",
-    "react": "19.2.7",
-    "react-dom": "19.2.7",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
     "react-router-dom": "^7.18.1",
     "rollup-plugin-visualizer": "^7.0.1",
     "tailwindcss": "^4.3.3",
@@ -103,8 +103,8 @@
   },
   "pnpm": {
     "overrides": {
-      "react": "19.2.7",
-      "react-dom": "19.2.7",
+      "react": "19.2.8",
+      "react-dom": "19.2.8",
       "@types/react": "19.2.17",
       "@types/react-dom": "19.2.3",
       "dompurify": "^3.4.5",
