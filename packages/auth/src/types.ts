@@ -117,6 +117,34 @@ export interface AuthSocialProvider {
  */
 export type TenancyPosture = 'single' | 'group' | 'isolated';
 
+/**
+ * [framework ADR-0090 D12 / ADR-0105 D8] What the caller may delegate, as
+ * returned by `GET /api/v1/security/my-delegable-scope`.
+ *
+ * A picker NARROWS with this; the server-side gate still decides. Empty lists
+ * mean "no delegated authority" — render no placement rather than a permissive
+ * form the server would refuse.
+ */
+export interface DelegableScope {
+  /** Unconstrained caller (tenant-level admin); the lists then enumerate everything. */
+  isTenantAdmin: boolean;
+  /** Business units the caller may place people into. */
+  placeableBusinessUnitIds: string[];
+  /** Positions the caller may assign — every set they distribute is allowlisted. */
+  assignablePositions: string[];
+  /** The `adminScope`s those derive from, for attribution. */
+  scopes: Array<{
+    setName: string;
+    businessUnit: string;
+    includeSubtree: boolean;
+    manageAssignments: boolean;
+    manageBindings: boolean;
+    authorEnvironmentSets: boolean;
+    assignablePermissionSets: string[];
+    businessUnitIds: string[];
+  }>;
+}
+
 /** Public auth configuration returned by the server */
 export interface AuthPublicConfig {
   emailPassword?: {
@@ -248,6 +276,15 @@ export interface AuthClient {
 
   /** Fetch the public auth configuration from the server (providers, features) */
   getConfig: () => Promise<AuthPublicConfig>;
+  /**
+   * [framework ADR-0090 D12 / ADR-0105 D8] What the CALLER may delegate —
+   * `GET /api/v1/security/my-delegable-scope`. Used to narrow the
+   * scoped-invitation placement pickers to the units and positions the issuer
+   * can actually hand out. `null` when the deployment doesn't expose it (no
+   * delegated-administration runtime ⇒ 501, or the request failed) — consumers
+   * then hide placement rather than offering something that would be refused.
+   */
+  describeDelegableScope: () => Promise<DelegableScope | null>;
   /** Initiate sign-in with a third-party provider (Google, GitHub, OIDC, etc.) */
   signInWithProvider: (providerId: string, options?: SignInWithProviderOptions) => Promise<void>;
 
@@ -266,7 +303,19 @@ export interface AuthClient {
   /** Get members of an organization */
   getMembers: (orgId: string) => Promise<AuthOrganizationMember[]>;
   /** Invite a member to an organization */
-  inviteMember: (data: { organizationId: string; email: string; role: string }) => Promise<AuthInvitation>;
+  inviteMember: (data: {
+    organizationId: string;
+    email: string;
+    role: string;
+    /**
+     * [framework ADR-0105 D8] Placement intent — the business unit the invitee
+     * lands in and the positions they are assigned on acceptance. Authorized
+     * SERVER-side against the ISSUER's `adminScope`: an out-of-scope pair
+     * rejects the whole invitation, so this is a request, never an authority.
+     */
+    businessUnitId?: string;
+    positions?: string[];
+  }) => Promise<AuthInvitation>;
   /** Remove a member from an organization */
   removeMember: (data: { organizationId: string; memberIdOrUserId: string }) => Promise<void>;
   /** Update a member's role */

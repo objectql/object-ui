@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from '@object-ui/components';
 import { useAuth } from '@object-ui/auth';
-import type { AuthInvitation } from '@object-ui/auth';
+import type { AuthInvitation, DelegableScope } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Loader2, Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
@@ -51,7 +51,7 @@ export function InviteMemberDialog({
   onInvited,
 }: InviteMemberDialogProps) {
   const { t } = useObjectTranslation();
-  const { inviteMember } = useAuth();
+  const { inviteMember, describeDelegableScope } = useAuth();
 
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<Role>('member');
@@ -60,6 +60,17 @@ export function InviteMemberDialog({
   const [createdInvitation, setCreatedInvitation] = useState<AuthInvitation | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // ── [framework ADR-0105 D8] Placement intent ────────────────────────────
+  // The invitation may carry the unit the invitee lands in and the positions
+  // they get on acceptance. The options are NARROWED to what this issuer may
+  // actually delegate (`my-delegable-scope`); the server still authorizes the
+  // pair against their adminScope, so this is convenience, not the boundary.
+  // No delegable authority (or no runtime exposing it) ⇒ the whole section is
+  // hidden rather than offering a form the server would refuse.
+  const [delegable, setDelegable] = useState<DelegableScope | null>(null);
+  const [businessUnitId, setBusinessUnitId] = useState<string>('');
+  const [positions, setPositions] = useState<string[]>([]);
+
   useEffect(() => {
     if (open) {
       setEmail('');
@@ -67,8 +78,30 @@ export function InviteMemberDialog({
       setError(null);
       setCreatedInvitation(null);
       setCopied(false);
+      setBusinessUnitId('');
+      setPositions([]);
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    describeDelegableScope?.()
+      .then((scope) => {
+        if (!cancelled) setDelegable(scope);
+      })
+      .catch(() => {
+        /* absent surface — placement stays hidden */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, describeDelegableScope]);
+
+  const canPlace =
+    !!delegable &&
+    delegable.placeableBusinessUnitIds.length > 0 &&
+    delegable.assignablePositions.length > 0;
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -81,6 +114,12 @@ export function InviteMemberDialog({
           organizationId,
           email: email.trim(),
           role,
+          // Placement travels only when BOTH halves are chosen — a unit with
+          // no positions (or the reverse) is not a placement, and sending a
+          // half-intent would have the server reject an otherwise fine invite.
+          ...(canPlace && businessUnitId && positions.length > 0
+            ? { businessUnitId, positions }
+            : {}),
         });
         setCreatedInvitation(inv);
         onInvited?.(inv);
@@ -90,7 +129,7 @@ export function InviteMemberDialog({
         setIsSubmitting(false);
       }
     },
-    [email, role, organizationId, inviteMember, onInvited],
+    [email, role, organizationId, inviteMember, onInvited, canPlace, businessUnitId, positions],
   );
 
   const handleCopy = useCallback(async () => {
@@ -197,6 +236,82 @@ export function InviteMemberDialog({
                   </SelectContent>
                 </Select>
               </div>
+              {/* [framework ADR-0105 D8] Placement — only for issuers who
+                  actually hold delegated authority. Options come from
+                  `my-delegable-scope`, so a delegate sees their own subtree and
+                  the positions they may hand out; the server re-checks. */}
+              {canPlace && (
+                <div
+                  className="grid gap-3 rounded-md border border-dashed p-3"
+                  data-testid="invite-placement-section"
+                >
+                  <div className="grid gap-1">
+                    <Label className="text-sm">
+                      {t('organization.invitations.placementLabel', {
+                        defaultValue: 'Placement (optional)',
+                      })}
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {t('organization.invitations.placementDescription', {
+                        defaultValue:
+                          'Applied when the invitation is accepted. Only units and positions you may delegate are listed.',
+                      })}
+                    </p>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="invite-business-unit" className="text-xs">
+                      {t('organization.invitations.businessUnitLabel', { defaultValue: 'Business unit' })}
+                    </Label>
+                    <Select value={businessUnitId} onValueChange={setBusinessUnitId}>
+                      <SelectTrigger id="invite-business-unit" data-testid="invite-business-unit-select">
+                        <SelectValue
+                          placeholder={t('organization.invitations.businessUnitPlaceholder', {
+                            defaultValue: 'No placement',
+                          })}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {delegable!.placeableBusinessUnitIds.map((id) => (
+                          <SelectItem key={id} value={id}>
+                            {id}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {businessUnitId && (
+                    <div className="grid gap-2" data-testid="invite-positions">
+                      <Label className="text-xs">
+                        {t('organization.invitations.positionsLabel', { defaultValue: 'Positions' })}
+                      </Label>
+                      <div className="flex flex-wrap gap-2">
+                        {delegable!.assignablePositions.map((name) => {
+                          const selected = positions.includes(name);
+                          return (
+                            <Button
+                              key={name}
+                              type="button"
+                              size="sm"
+                              variant={selected ? 'default' : 'outline'}
+                              data-testid={`invite-position-${name}`}
+                              aria-pressed={selected}
+                              onClick={() =>
+                                setPositions((prev) =>
+                                  prev.includes(name) ? prev.filter((p) => p !== name) : [...prev, name],
+                                )
+                              }
+                            >
+                              {name}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               {error && (
                 <p className="text-sm text-destructive" data-testid="invite-error">{error}</p>
               )}

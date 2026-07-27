@@ -7,7 +7,7 @@
  */
 
 import { createContext } from 'react';
-import type { AuthUser, AuthSession, PreviewModeOptions, AuthOrganization, AuthOrganizationMember, AuthInvitation, AuthPublicConfig, SignInWithProviderOptions } from './types';
+import type { AuthUser, AuthSession, PreviewModeOptions, AuthOrganization, AuthOrganizationMember, AuthInvitation, AuthPublicConfig, SignInWithProviderOptions, DelegableScope } from './types';
 
 export interface AuthContextValue {
   /** Current authenticated user */
@@ -120,8 +120,24 @@ export interface AuthContextValue {
 
   /** List members of an organization */
   getMembers: (orgId: string) => Promise<AuthOrganizationMember[]>;
-  /** Invite a user by email */
-  inviteMember: (data: { organizationId: string; email: string; role: string }) => Promise<AuthInvitation>;
+  /**
+   * Invite a user by email. `businessUnitId` / `positions` carry [framework
+   * ADR-0105 D8] placement intent, authorized server-side against the ISSUER's
+   * adminScope — an out-of-scope pair rejects the whole invitation.
+   */
+  inviteMember: (data: {
+    organizationId: string;
+    email: string;
+    role: string;
+    businessUnitId?: string;
+    positions?: string[];
+  }) => Promise<AuthInvitation>;
+  /**
+   * [framework ADR-0090 D12 / ADR-0105 D8] What the caller may delegate:
+   * business units they may place into and positions they may assign. `null`
+   * when the deployment has no delegated-administration runtime.
+   */
+  describeDelegableScope: () => Promise<DelegableScope | null>;
   /** Remove a member by id */
   removeMember: (data: { organizationId: string; memberIdOrUserId: string }) => Promise<void>;
   /** Update a member's role */

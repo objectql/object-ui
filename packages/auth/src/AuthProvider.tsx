@@ -596,8 +596,23 @@ export function AuthProvider({
   );
 
   const inviteMember = useCallback(
-    (data: { organizationId: string; email: string; role: string }): Promise<AuthInvitation> =>
-      client.inviteMember(data),
+    (data: {
+      organizationId: string;
+      email: string;
+      role: string;
+      businessUnitId?: string;
+      positions?: string[];
+    }): Promise<AuthInvitation> => client.inviteMember(data),
+    [client],
+  );
+
+  /**
+   * [framework ADR-0090 D12 / ADR-0105 D8] What the caller may delegate — the
+   * narrowing input for the scoped-invitation placement pickers. `null` when
+   * the deployment doesn't expose it, so consumers hide placement entirely.
+   */
+  const describeDelegableScope = useCallback(
+    () => client.describeDelegableScope(),
     [client],
   );
 
@@ -694,6 +709,7 @@ export function AuthProvider({
       leaveOrganization,
       getMembers,
       inviteMember,
+      describeDelegableScope,
       removeMember,
       updateMemberRole,
       listInvitations,
@@ -710,7 +726,7 @@ export function AuthProvider({
       remediationRequired, enrollTotp, verifyTotp,
       organizations, activeOrganization, activeMember, isOrganizationsLoading, switchOrganization, createOrganization, refreshOrganizations,
       updateOrganization, deleteOrganization, leaveOrganization,
-      getMembers, inviteMember, removeMember, updateMemberRole,
+      getMembers, inviteMember, describeDelegableScope, removeMember, updateMemberRole,
       listInvitations, cancelInvitation, getInvitation, acceptInvitation, rejectInvitation, listUserInvitations,
     ],
   );

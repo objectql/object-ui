@@ -606,6 +606,35 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
       return (raw && typeof raw === 'object' && 'user' in raw ? raw.user : raw) as AuthUser;
     },
 
+    /**
+     * [framework ADR-0090 D12 / ADR-0105 D8] What the caller may delegate.
+     *
+     * Sits next to the auth base path (`…/auth` → `…/security/…`) rather than
+     * taking a second base URL, so a deployment that relocates its API prefix
+     * moves both together. Never throws: a deployment without the
+     * delegated-administration runtime answers 501, and any failure yields
+     * `null` so the caller HIDES placement instead of offering a form the
+     * server would refuse.
+     */
+    async describeDelegableScope(): Promise<import('./types').DelegableScope | null> {
+      try {
+        const securityBase = basePath.replace(/\/auth$/, '/security');
+        const response = await bearerFetch(`${origin}${securityBase}/my-delegable-scope`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (!response.ok) return null;
+        const body = (await response.json()) as any;
+        // The server wraps some payloads as `{ success, data }`; tolerate both.
+        const scope = body && typeof body === 'object' && 'data' in body ? body.data : body;
+        return scope && typeof scope === 'object' && Array.isArray(scope.placeableBusinessUnitIds)
+          ? (scope as import('./types').DelegableScope)
+          : null;
+      } catch {
+        return null;
+      }
+    },
+
     async getConfig(): Promise<AuthPublicConfig> {
       if (!configPromise) {
         configPromise = loadConfigWithRetry().catch((err) => {
@@ -741,11 +770,24 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
       return (result?.members ?? []) as AuthOrganizationMember[];
     },
 
-    async inviteMember(inviteData: { organizationId: string; email: string; role: string }): Promise<AuthInvitation> {
+    async inviteMember(inviteData: {
+      organizationId: string;
+      email: string;
+      role: string;
+      businessUnitId?: string;
+      positions?: string[];
+    }): Promise<AuthInvitation> {
       const { data, error } = await (betterAuth as any).organization.inviteMember({
         organizationId: inviteData.organizationId,
         email: inviteData.email,
         role: inviteData.role,
+        // [framework ADR-0105 D8] Placement intent rides better-auth's own
+        // `additionalFields` on the invitation. Omitted entirely when absent so
+        // an ordinary invite is byte-identical to before; when present, the
+        // server authorizes it against the ISSUER's adminScope and rejects the
+        // whole invitation if it is out of scope.
+        ...(inviteData.businessUnitId ? { businessUnitId: inviteData.businessUnitId } : {}),
+        ...(inviteData.positions?.length ? { positions: inviteData.positions } : {}),
       });
       if (error) throw new Error(error.message ?? 'Failed to invite member');
       return data as unknown as AuthInvitation;

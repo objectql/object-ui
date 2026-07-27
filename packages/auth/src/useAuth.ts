@@ -56,6 +56,7 @@ export function useAuth(): AuthContextValue {
       setInitialPassword: async () => { throw new Error('useAuth must be used within an AuthProvider'); },
       hasLocalPassword: async () => false,
       getAuthConfig: async () => ({}),
+      describeDelegableScope: async () => null,
       signInWithProvider: async () => { throw new Error('useAuth must be used within an AuthProvider'); },
       organizations: [],
       activeOrganization: null,

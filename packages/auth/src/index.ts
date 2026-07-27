@@ -72,6 +72,7 @@ export type {
   AuthPublicConfig,
   SignInWithProviderOptions,
   TenancyPosture,
+  DelegableScope,
 } from './types';
 
 export type { AuthContextValue } from './AuthContext';
