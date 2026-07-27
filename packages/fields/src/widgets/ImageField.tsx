@@ -4,6 +4,13 @@ import { useUpload } from '@object-ui/providers';
 import { Upload, X, Image as ImageIcon, Crop as CropIcon, Loader2 } from 'lucide-react';
 import { FieldWidgetProps } from './types';
 import { useUploadingSignal } from './useUploadingSignal';
+import {
+  fileValueForSubmit,
+  readFileValues,
+  uploadResultView,
+  withRecentUploads,
+  type FileValueView,
+} from './file-value';
 
 // Lazy-load the cropper so the dialog (canvas + crop logic) is not in the initial
 // ImageField bundle. Consumers that never crop pay zero cost.
@@ -27,11 +34,22 @@ export function ImageField({ value, onChange, field, readonly, onUploadingChange
   const [cropTarget, setCropTarget] = useState<{ index: number; src: string; name: string } | null>(null);
   const { upload } = useUpload();
   const [uploading, setUploading] = useState(false);
+  // Display details of just-uploaded images, keyed by their new `sys_file` id.
+  // Submitting the reference form means the field value no longer carries the
+  // URL a thumbnail needs; these keep the preview visible until the next read
+  // returns the expanded form. See `file-value`.
+  const [recent, setRecent] = useState<Record<string, FileValueView>>({});
   useUploadingSignal(uploading, onUploadingChange);
 
   // Derived value + memoized handlers must run before the readonly early return
   // so hook order stays stable across renders.
   const images = value ? (Array.isArray(value) ? value : [value]) : [];
+  const views = withRecentUploads(readFileValues(value, 'Image'), recent);
+
+  const remember = useCallback((result: any, originalName: string) => {
+    const view = uploadResultView(result, originalName);
+    if (view.id) setRecent((prev) => ({ ...prev, [view.id as string]: view }));
+  }, []);
 
   const handleCropConfirm = useCallback(
     async (blob: Blob, name: string) => {
@@ -39,13 +57,8 @@ export function ImageField({ value, onChange, field, readonly, onUploadingChange
       setUploading(true);
       try {
         const result = await upload(blob);
-        const next = {
-          name: result.name || name,
-          original_name: name,
-          size: result.size,
-          mime_type: result.mimeType,
-          url: result.url,
-        };
+        remember(result, name);
+        const next = fileValueForSubmit(result, name);
         if (multiple) {
           const updated = [...images];
           updated[cropTarget.index] = next;
@@ -58,16 +71,16 @@ export function ImageField({ value, onChange, field, readonly, onUploadingChange
         setCropTarget(null);
       }
     },
-    [cropTarget, images, multiple, onChange, upload],
+    [cropTarget, images, multiple, onChange, upload, remember],
   );
 
   const openCropper = useCallback(
     (index: number) => {
-      const img = images[index];
+      const img = views[index];
       if (!img?.url) return;
       setCropTarget({ index, src: img.url, name: img.name || `image-${index}.png` });
     },
-    [images],
+    [views],
   );
 
   if (readonly) {
@@ -75,7 +88,7 @@ export function ImageField({ value, onChange, field, readonly, onUploadingChange
 
     return (
       <div className="flex flex-wrap gap-2">
-        {images.map((img: any, idx: number) => (
+        {views.map((img, idx) => (
           <img
             key={idx}
             src={img.url || ''}
@@ -96,13 +109,8 @@ export function ImageField({ value, onChange, field, readonly, onUploadingChange
       const imageObjects = await Promise.all(
         selectedFiles.map(async (file) => {
           const result = await upload(file);
-          return {
-            name: result.name,
-            original_name: file.name,
-            size: result.size,
-            mime_type: result.mimeType,
-            url: result.url,
-          };
+          remember(result, file.name);
+          return fileValueForSubmit(result, file.name);
         }),
       );
 
@@ -139,9 +147,9 @@ export function ImageField({ value, onChange, field, readonly, onUploadingChange
       />
       
       <div className="space-y-2">
-        {images.length > 0 && (
+        {views.length > 0 && (
           <div className="grid grid-cols-4 gap-2">
-            {images.map((img: any, idx: number) => (
+            {views.map((img, idx) => (
               <div key={idx} className="relative group">
                 <img
                   src={img.url || ''}

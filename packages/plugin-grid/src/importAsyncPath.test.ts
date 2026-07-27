@@ -2,7 +2,44 @@ import { describe, it, expect } from 'vitest';
 import { __testables } from './ImportWizard';
 import type { ImportJobResultsInfo } from '@object-ui/types';
 
-const { isUnsupportedImportJob, jobResultToImportResult } = __testables;
+const { isUnsupportedImportJob, isImportNotAllowed, jobResultToImportResult } = __testables;
+
+describe('isImportNotAllowed (#3391)', () => {
+  it('matches the framework OBJECT_API_METHOD_NOT_ALLOWED code', () => {
+    expect(isImportNotAllowed({ code: 'OBJECT_API_METHOD_NOT_ALLOWED' })).toBe(true);
+  });
+
+  it('matches a 405 on status / statusCode / httpStatus', () => {
+    expect(isImportNotAllowed({ status: 405 })).toBe(true);
+    expect(isImportNotAllowed({ statusCode: 405 })).toBe(true);
+    expect(isImportNotAllowed({ httpStatus: 405 })).toBe(true);
+  });
+
+  it('matches a bare 405 / "method not allowed" message', () => {
+    expect(isImportNotAllowed(new Error('Request failed with status 405'))).toBe(true);
+    expect(isImportNotAllowed(new Error('405 Method Not Allowed'))).toBe(true);
+    expect(isImportNotAllowed('Method Not Allowed')).toBe(true);
+  });
+
+  it('does NOT match a 404 (route absent → sync fallback) or UNSUPPORTED_OPERATION', () => {
+    expect(isImportNotAllowed(new Error('POST /data/task/import/jobs 404 Not Found'))).toBe(false);
+    expect(isImportNotAllowed({ code: 'UNSUPPORTED_OPERATION' })).toBe(false);
+    expect(isImportNotAllowed(new Error('Row 3: value out of range'))).toBe(false);
+    expect(isImportNotAllowed(null)).toBe(false);
+    expect(isImportNotAllowed(undefined)).toBe(false);
+  });
+
+  it('405 wins over the 404/regex fall-back predicates (checked first at every catch site)', () => {
+    // A 405 must be classified as "not allowed", never as "unsupported job route".
+    const err405 = { code: 'OBJECT_API_METHOD_NOT_ALLOWED', status: 405 };
+    expect(isImportNotAllowed(err405)).toBe(true);
+    expect(isUnsupportedImportJob(err405)).toBe(false);
+    // Conversely a 404 is "unsupported" and NOT "not allowed".
+    const err404 = new Error('import/jobs 404');
+    expect(isUnsupportedImportJob(err404)).toBe(true);
+    expect(isImportNotAllowed(err404)).toBe(false);
+  });
+});
 
 describe('isUnsupportedImportJob', () => {
   it('matches the adapter UNSUPPORTED_OPERATION code', () => {

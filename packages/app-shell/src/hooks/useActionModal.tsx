@@ -14,11 +14,18 @@
  *   placement: 'bottom'      → Drawer (bottom sheet)
  *
  * `content` is an arbitrary SchemaNode rendered via <SchemaRenderer>, so a
- * modal action can open any page/form/list. Back-compat: a string target
- * (e.g. "create_opportunity") or `{ objectName, mode }` opens a <ModalForm>.
+ * modal action can open any page/form/list. `{ objectName, mode }` opens a
+ * <ModalForm> (what a lookup field's inline "create the referenced record"
+ * passes).
  *
- * Returns `{ modalHandler, modalElement }`: pass `modalHandler` as the
- * ActionProvider `onModal`, and render `modalElement` once in the subtree.
+ * A STRING target — what `type: 'modal'` actions carry — is resolved through
+ * {@link resolveModalTarget}: page first, then object. See that function for
+ * why the order matters.
+ *
+ * Returns `{ modalHandler, modalElement, resolveModalTarget }`: pass
+ * `modalHandler` as the ActionProvider `onModal`, render `modalElement` once in
+ * the subtree, and use `resolveModalTarget` to ask — without opening anything —
+ * whether a target names something this hook can render.
  */
 import React, { useCallback, useState } from 'react';
 import {
@@ -60,6 +67,14 @@ export interface ModalDescriptor {
   mode?: string;
   recordId?: string;
   fields?: any;
+  /**
+   * An UNRESOLVED string target, straight off a `type: 'modal'` action. It
+   * names a page or an object; which one is only knowable by asking the
+   * metadata service, so `normalizeModalSchema` (pure) records the name here
+   * and {@link resolveModalTarget} (async) turns it into a renderable
+   * descriptor. Never rendered directly.
+   */
+  targetName?: string;
 }
 
 type ActionResult = { success: boolean; reload?: boolean; data?: any; [k: string]: any };
@@ -77,12 +92,33 @@ const SIDE_SIZE_CLASS: Partial<Record<ModalSize, string>> = {
   full: 'sm:max-w-[95vw]',
 };
 
-/** Normalize the opaque `schema` arg the ActionRunner passes into a descriptor. */
+/**
+ * Normalize the opaque `schema` arg the ActionRunner passes into a descriptor.
+ *
+ * A STRING is left UNRESOLVED (`targetName`) rather than assumed to be an
+ * object name. Per the spec, a `type: 'modal'` action's `target` is "the
+ * modal/page name to open" — so reading it as an object name sent every
+ * page-targeting modal action to `GET /meta/object/<page>`, which 400s, and the
+ * dialog rendered <ModalForm>'s "Error loading form — Bad Request" instead of
+ * the page (framework#3530). `resolveModalTarget` decides page-vs-object by
+ * asking the metadata service.
+ *
+ * The `create_`/`new_`/`add_`/`edit_`/`update_` prefix convention still yields
+ * an object-form guess, but it is now only a FALLBACK: it rides alongside
+ * `targetName` so a page actually named `create_opportunity` wins over the
+ * object `opportunity` it would otherwise be parsed into.
+ */
 export function normalizeModalSchema(schema: any): ModalDescriptor {
   if (typeof schema === 'string') {
     const m = schema.match(/^(create|new|add|edit|update)_(.+)$/);
-    if (m) return { objectName: m[2], mode: m[1] === 'edit' || m[1] === 'update' ? 'edit' : 'create' };
-    return { objectName: schema, mode: 'create' };
+    if (m) {
+      return {
+        targetName: schema,
+        objectName: m[2],
+        mode: m[1] === 'edit' || m[1] === 'update' ? 'edit' : 'create',
+      };
+    }
+    return { targetName: schema };
   }
   if (schema && typeof schema === 'object') {
     // A bare SchemaNode (has `type` but isn't a modal descriptor) → render as content.
@@ -99,7 +135,10 @@ export function useActionModal(dataSource?: any) {
   // Object metadata — degrades to an empty list outside a MetadataProvider
   // (see useMetadata). Used to resolve the object's default form view so the
   // create/edit modal honors its curated sections + field selection/order.
-  const { objects } = useMetadata();
+  // `getItem` fetches ONE named item on demand, so resolving a modal target
+  // never drags in the whole (lazily loaded) page or object list — this hook is
+  // mounted at the console root, where an eager list read would cost every page.
+  const { objects, getItem } = useMetadata();
 
   const close = useCallback((r: ActionResult) => {
     setState((s) => {
@@ -108,12 +147,73 @@ export function useActionModal(dataSource?: any) {
     });
   }, []);
 
+  /**
+   * Turn whatever the ActionRunner handed us into a descriptor this hook can
+   * actually render, or `null` when the target names nothing renderable.
+   *
+   * Resolution order for a string target is PAGE FIRST, then object, because
+   * that is what the spec says the name means — `type: 'modal'` documents
+   * `target` as "the modal/page name to open". Probing the object first would
+   * re-introduce framework#3530 in reverse for any app whose page and object
+   * share a name.
+   *
+   * A `null` return is not an error by itself: the console runtimes read it as
+   * "this isn't a client-rendered modal" and fall through to the action's
+   * server-side handler, which is how a modal action whose target names a
+   * registered `engine.registerAction` handler still completes.
+   */
+  const resolveModalTarget = useCallback(
+    async (schema: any): Promise<ModalDescriptor | null> => {
+      const d = normalizeModalSchema(schema);
+      const targetName = d.targetName;
+      if (!targetName) {
+        // Already renderable (content / objectName descriptor), or empty.
+        return d.content || d.objectName ? d : null;
+      }
+
+      const page = await getItem('page', targetName);
+      if (page) {
+        // Rendered exactly like PageView does it: the page item IS the schema
+        // node, with `type` naming the page kind ('record' | 'utility' | …).
+        return {
+          placement: d.placement ?? 'center',
+          size: d.size ?? 'xl',
+          title: d.title ?? (page as any).label ?? undefined,
+          description: d.description,
+          content: { ...(page as any), type: (page as any).type || 'page' },
+        };
+      }
+
+      // Object fallback: the `create_x`/`edit_x` prefix guess first (it names a
+      // different object than the raw target), then the raw target itself.
+      for (const objectName of [d.objectName, targetName]) {
+        if (!objectName) continue;
+        if (await getItem('object', objectName)) {
+          return { ...d, targetName: undefined, objectName, mode: d.mode ?? 'create' };
+        }
+      }
+      return null;
+    },
+    [getItem],
+  );
+
   const modalHandler = useCallback(
-    (schema: any) =>
-      new Promise<ActionResult>((resolve) => {
-        setState({ d: normalizeModalSchema(schema), resolve });
-      }),
-    [],
+    async (schema: any): Promise<ActionResult> => {
+      const d = await resolveModalTarget(schema);
+      if (!d) {
+        const name = normalizeModalSchema(schema).targetName;
+        return {
+          success: false,
+          error: name
+            ? `Modal target "${name}" matches no page or object — a modal action's \`target\` names the page to open.`
+            : 'Modal action has no target to open.',
+        };
+      }
+      return new Promise<ActionResult>((resolve) => {
+        setState({ d, resolve });
+      });
+    },
+    [resolveModalTarget],
   );
 
   let modalElement: React.ReactNode = null;
@@ -220,5 +320,5 @@ export function useActionModal(dataSource?: any) {
     }
   }
 
-  return { modalHandler, modalElement, closeModal: close };
+  return { modalHandler, modalElement, closeModal: close, resolveModalTarget };
 }

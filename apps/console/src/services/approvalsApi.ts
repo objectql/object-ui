@@ -64,6 +64,8 @@ export interface ApprovalRequestRow {
   pending_approver_groups?: Record<string, string[]>;
   /** Display values for lookup fields in `payload` (field key → record title). */
   payload_display?: Record<string, string>;
+  /** Display labels for `payload` fields (field key → target object's field label). */
+  payload_labels?: Record<string, string>;
   /** SLA deadline (`created_at + escalation.timeoutHours`), display-only. */
   sla_due_at?: string;
   /** Owning flow's approval steps for progress display (single reads only). */
@@ -102,6 +104,41 @@ export interface ApprovalRequestRow {
   };
   /** ADR-0044 revision round on this (run, node): absent/1 = first round. */
   round?: number;
+  /**
+   * framework#3447 — the node's author-declared decision-output keys
+   * (`config.decisionOutputs`). DeclaredActionsBar synthesizes one input per
+   * key on the approve/reject dialogs (`outputs.<key>` params, folded into a
+   * nested `outputs` body by the api handler); the flow receives them as
+   * `<nodeId>.<key>` variables. Absent when the node declares none.
+   */
+  decision_outputs?: string[];
+  /**
+   * framework#3447 follow-up: the normalized TYPED declarations behind
+   * `decision_outputs` — `{ key, label?, type?, multiple? }` — so the decide
+   * dialog renders a record picker (user / department / position / team; id
+   * values, `multiple` → id array) instead of free text. Prefer this and fall
+   * back to the bare key list (older backend).
+   */
+  decision_output_defs?: Array<{
+    key: string;
+    label?: string;
+    type?: 'text' | 'user' | 'department' | 'position' | 'team';
+    multiple?: boolean;
+  }>;
+}
+
+/**
+ * A file attached to a decision action (#3266). The server resolves the
+ * `sys_approval_action.attachments` file field into rich descriptors, so the
+ * chip has the display name + download URL without any `sys_file` lookup.
+ */
+export interface ApprovalActionAttachment {
+  id: string;
+  name?: string;
+  /** Stable download URL (`/api/v1/storage/files/:id`); may be server-relative. */
+  url?: string;
+  mimeType?: string;
+  size?: number;
 }
 
 export interface ApprovalActionRow {
@@ -112,8 +149,8 @@ export interface ApprovalActionRow {
   actor_id?: string | null;
   action: 'submit' | 'approve' | 'reject' | 'recall' | string;
   comment?: string | null;
-  /** File references attached to this action (decision attachments, #3266). */
-  attachments?: string[] | null;
+  /** Files attached to this action (decision attachments, #3266). */
+  attachments?: ApprovalActionAttachment[] | null;
   created_at?: string;
   /** Display name of the actor, resolved server-side. */
   actor_name?: string;

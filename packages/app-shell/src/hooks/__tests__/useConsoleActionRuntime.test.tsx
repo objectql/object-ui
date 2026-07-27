@@ -37,6 +37,22 @@ vi.mock('@object-ui/i18n', () => ({
   }),
 }));
 
+// The client modal transport is stubbed for the same reason — importing it for
+// real drags in <ModalForm> and the whole plugin-form graph. `resolveTargetSpy`
+// stands in for the page/object lookup so the modal-dispatch tests below can
+// choose whether a target resolves. Its real resolution rules are covered in
+// useActionModal.resolve.test.tsx.
+const modalHandlerSpy = vi.fn(async () => ({ success: true }));
+const resolveTargetSpy = vi.fn(async (_schema: any): Promise<any> => null);
+vi.mock('../useActionModal', () => ({
+  useActionModal: () => ({
+    modalHandler: modalHandlerSpy,
+    modalElement: null,
+    closeModal: () => {},
+    resolveModalTarget: resolveTargetSpy,
+  }),
+}));
+
 // The dialogs/flow-runner are not exercised here — keep them as inert stubs so
 // the hook module imports cheaply.
 vi.mock('../../views/ActionConfirmDialog', () => ({ ActionConfirmDialog: () => null }));
@@ -61,6 +77,9 @@ import { useAction, usePageVariables, PageVariablesProvider, PageVariableActionB
 beforeEach(() => {
   authFetchSpy.mockReset();
   navigateSpy.mockReset();
+  modalHandlerSpy.mockClear();
+  resolveTargetSpy.mockReset();
+  resolveTargetSpy.mockResolvedValue(null);
   (toast as any).mockClear?.();
   (toast as any).error.mockClear();
   (toast as any).success.mockClear();
@@ -295,6 +314,68 @@ describe('useConsoleActionRuntime — authenticated handlers', () => {
     expect(Object.keys(props.handlers).sort()).toEqual(['api', 'flow', 'modal', 'script']);
     expect(typeof props.onConfirm).toBe('function');
     expect(typeof props.onParamCollection).toBe('function');
+    expect(typeof props.onModal).toBe('function');
+  });
+});
+
+/**
+ * framework#3530 — `type: 'modal'` used to be wired straight to
+ * `serverActionHandler` here, while RecordDetailView opened modals client-side.
+ * The same button therefore did two different things depending on which surface
+ * mounted it. Both now run this rule: render `target` when it names a page (or
+ * object), else complete the action server-side.
+ */
+describe('modalActionHandler — open the target, else run it server-side', () => {
+  it('opens the resolved target client-side and never POSTs to /actions', async () => {
+    resolveTargetSpy.mockResolvedValue({ content: { name: 'log_call', type: 'utility' } });
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [], objectName: 'crm_call' }),
+    );
+
+    await act(async () => {
+      await result.current.modalActionHandler({ name: 'log_call', type: 'modal', target: 'log_call' } as any);
+    });
+
+    expect(resolveTargetSpy).toHaveBeenCalledWith('log_call');
+    expect(modalHandlerSpy).toHaveBeenCalledWith({ content: { name: 'log_call', type: 'utility' } });
+    expect(authFetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the server action when the target names no page or object', async () => {
+    // The modal was the param dialog the runner already collected — the action
+    // still has to run, so it goes to its registered server handler.
+    resolveTargetSpy.mockResolvedValue(null);
+    authFetchSpy.mockResolvedValue({ ok: true, json: async () => ({ success: true, data: { ok: 1 } }) });
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [], objectName: 'crm_call' }),
+    );
+
+    let r: any;
+    await act(async () => {
+      r = await result.current.modalActionHandler({
+        name: 'log_call', type: 'modal', target: 'log_call', params: { subject: 'Intro' },
+      } as any);
+    });
+
+    expect(modalHandlerSpy).not.toHaveBeenCalled();
+    expect(authFetchSpy).toHaveBeenCalledTimes(1);
+    expect(authFetchSpy.mock.calls[0][0]).toContain('/api/v1/actions/crm_call/log_call');
+    expect(r.success).toBe(true);
+  });
+
+  it('prefers an inline `modal` descriptor over `target`', async () => {
+    resolveTargetSpy.mockResolvedValue({ objectName: 'customers', mode: 'create' });
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [], objectName: 'crm_call' }),
+    );
+
+    await act(async () => {
+      await result.current.modalActionHandler({
+        name: 'x', type: 'modal', target: 'ignored', modal: { objectName: 'customers', mode: 'create' },
+      } as any);
+    });
+
+    expect(resolveTargetSpy).toHaveBeenCalledWith({ objectName: 'customers', mode: 'create' });
   });
 });
 

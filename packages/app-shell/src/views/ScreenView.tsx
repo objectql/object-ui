@@ -42,7 +42,13 @@ export interface ScreenSpec {
   nodeId: string;
   title?: string;
   description?: string;
-  fields: ScreenFieldSpec[];
+  /**
+   * Optional on the wire: an `object-form` step (or a message-only screen from
+   * a third-party node executor) can legitimately omit it, so every read goes
+   * through {@link screenFields} rather than touching the array directly — an
+   * absent `fields` used to throw the moment the dialog opened.
+   */
+  fields?: ScreenFieldSpec[];
   /**
    * `'object-form'` renders the named object's FULL create/edit form — incl.
    * inline master-detail child grids — as a wizard step (vs. the flat `fields`
@@ -62,10 +68,15 @@ export function isObjectFormScreen(screen: ScreenSpec): boolean {
   return screen.kind === 'object-form' && !!screen.objectName;
 }
 
+/** The screen's input fields — always an array, even when the payload omits them. */
+export function screenFields(screen: ScreenSpec): ScreenFieldSpec[] {
+  return Array.isArray(screen.fields) ? screen.fields : [];
+}
+
 /** Seed flat-field values from each field's `defaultValue`. */
 export function initialScreenValues(screen: ScreenSpec): Record<string, unknown> {
   const v: Record<string, unknown> = {};
-  for (const f of screen.fields) if (f.defaultValue !== undefined) v[f.name] = f.defaultValue;
+  for (const f of screenFields(screen)) if (f.defaultValue !== undefined) v[f.name] = f.defaultValue;
   return v;
 }
 
@@ -143,7 +154,7 @@ export function ScreenView({ screen, values, onValueChange, dataSource, objects,
 
   return (
     <div className={cn('space-y-4 py-2', className)}>
-      {screen.fields.map((f) => (
+      {screenFields(screen).map((f) => (
         <div key={f.name} className="space-y-1.5">
           <Label htmlFor={`ff-${f.name}`} className="text-sm">
             {f.label || f.name}

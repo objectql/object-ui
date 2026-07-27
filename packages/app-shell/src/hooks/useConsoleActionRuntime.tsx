@@ -39,6 +39,7 @@ import type {
   ResultDialogHandler,
   ToastHandler,
 } from '@object-ui/core';
+import { useActionModal } from './useActionModal';
 import { ActionConfirmDialog, type ConfirmDialogState } from '../views/ActionConfirmDialog';
 import { ActionParamDialog, type ParamDialogState } from '../views/ActionParamDialog';
 import { ActionResultDialog, type ResultDialogState } from '../views/ActionResultDialog';
@@ -103,6 +104,8 @@ export interface ConsoleActionRuntime {
   apiHandler: (action: ActionDef) => Promise<ActionResult>;
   flowHandler: (action: ActionDef, context?: ActionContext) => Promise<ActionResult>;
   serverActionHandler: (action: ActionDef, context?: ActionContext) => Promise<ActionResult>;
+  /** `type: 'modal'` — opens `target` as a page/object form, else runs the action server-side. */
+  modalActionHandler: (action: ActionDef, context?: ActionContext) => Promise<ActionResult>;
   /** Authenticated fetch wrapper (Bearer + tenant + cookies). */
   authFetch: ReturnType<typeof createAuthenticatedFetch>;
   /** Open the shared environment entitlement (upgrade / limit) dialog. */
@@ -296,6 +299,21 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
           ? action.bodyShape.wrap
           : undefined;
         const body: Record<string, any> = wrap ? { [wrap]: resolvedParams } : { ...resolvedParams };
+
+        // #3447: decision outputs. DeclaredActionsBar synthesizes one param per
+        // author-declared output key, named `outputs.<key>` (the key set is
+        // per-request, so it can't be a static action param). Fold the dotted
+        // params into the nested `outputs` object the approvals decide route
+        // expects. Scoped to the `outputs.` prefix — a generic dotted-key fold
+        // could reinterpret existing actions' literal param names.
+        for (const k of Object.keys(body)) {
+          if (k.startsWith('outputs.') && k.length > 'outputs.'.length) {
+            const value = body[k];
+            delete body[k];
+            if (value === undefined || value === '') continue; // blank optional output → omit
+            (body.outputs ??= {})[k.slice('outputs.'.length)] = value;
+          }
+        }
 
         if (rowRecord && action.recordIdParam) {
           const rowField = action.recordIdField || 'id';
@@ -624,6 +642,30 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
     }
   }, [authFetch, objApiName, refresh]);
 
+  // Client-side modal transport, shared with RecordDetailView so a
+  // `type: 'modal'` action behaves the SAME on a list page, an SDUI page, a
+  // declared-actions bar and a record page. Before this, only RecordDetailView
+  // opened modals client-side and every other console surface POSTed them to
+  // `/actions/...` — the same button did two different things depending on
+  // where it was mounted (framework#3530).
+  const { modalHandler, modalElement, resolveModalTarget } = useActionModal(dataSource);
+
+  /**
+   * `type: 'modal'` dispatch. The action's `target` names the page to open
+   * (spec: "the modal/page name to open"), so try to render it client-side
+   * first. When it names neither a page nor an object there is nothing to
+   * render — the modal was the param dialog the runner already collected — so
+   * complete the action through its server-side handler, which is how a modal
+   * action bound to `engine.registerAction(...)` (or an inline `body`) still
+   * runs.
+   */
+  const modalActionHandler = useCallback(async (action: ActionDef, context?: ActionContext): Promise<ActionResult> => {
+    const schema = (action as any).modal ?? action.target ?? (action as any).params?.schema;
+    const descriptor = schema != null ? await resolveModalTarget(schema) : null;
+    if (descriptor) return modalHandler(descriptor);
+    return serverActionHandler(action, context);
+  }, [resolveModalTarget, modalHandler, serverActionHandler]);
+
   const actionProviderProps = useMemo(() => ({
     context: {
       ...(objectName ? { objectName } : {}),
@@ -640,11 +682,12 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
     onNavigate: navigateHandler,
     onParamCollection: paramCollectionHandler,
     onResultDialog: resultDialogHandler,
-    handlers: { api: apiHandler, flow: flowHandler, script: serverActionHandler, modal: serverActionHandler },
+    onModal: modalHandler,
+    handlers: { api: apiHandler, flow: flowHandler, script: serverActionHandler, modal: modalActionHandler },
   }), [
     objectName, currentUser, activeOrganization, confirmHandler, toastHandler,
     navigateHandler, paramCollectionHandler, resultDialogHandler, apiHandler,
-    flowHandler, serverActionHandler,
+    flowHandler, serverActionHandler, modalHandler, modalActionHandler,
   ]);
 
   const dialogs = (
@@ -676,6 +719,7 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
         apiBase={import.meta.env.VITE_SERVER_URL || ''}
         onOpenChange={(open) => { if (!open) setEntitlementDialog({ open: false }); }}
       />
+      {modalElement}
     </>
   );
 
@@ -688,6 +732,7 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
     apiHandler,
     flowHandler,
     serverActionHandler,
+    modalActionHandler,
     authFetch,
     openEntitlementDialog,
     actionProviderProps,

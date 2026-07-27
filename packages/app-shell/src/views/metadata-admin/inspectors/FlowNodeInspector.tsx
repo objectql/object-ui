@@ -136,7 +136,7 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
     [loc],
   );
   // In-scope variable references for this node, for the data-picker (#1934).
-  const { groups: scopeGroups } = useFlowScope(draft as Record<string, unknown>, loc?.scopeAnchorId, nestedLoopRefs);
+  const { groups: scopeGroups, approvalExpressionGroups } = useFlowScope(draft as Record<string, unknown>, loc?.scopeAnchorId, nestedLoopRefs);
   const fields = React.useMemo(() => {
     const schema = node?.type ? configSchemas[node.type] : undefined;
     const serverFields = schema !== undefined ? jsonSchemaToFlowFields(schema) : null;
@@ -364,6 +364,7 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
             locale={locale}
             context={{ draft, node }}
             scopeGroups={scopeGroups}
+            approvalScopeGroups={approvalExpressionGroups}
           />
         );
       })}

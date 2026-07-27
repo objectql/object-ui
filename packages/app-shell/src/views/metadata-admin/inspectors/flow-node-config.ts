@@ -551,6 +551,9 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
             { value: 'department', label: 'Department' },
             { value: 'team', label: 'Team' },
             { value: 'field', label: 'Field' },
+            // #3447: CEL over current.* / trigger.* / vars.*, resolved at node
+            // entry — the value cell switches to the expression input.
+            { value: 'expression', label: 'Expression (CEL)' },
             { value: 'org_membership_level', label: 'Organization membership (owner/admin/member)' },
             { value: 'user', label: 'User' },
           ],
@@ -560,7 +563,9 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
           // for the directory kinds, a strict select for the membership tier,
           // an auto-resolved cell for `manager`, an object-field picker for
           // `field` (framework #3508). Unmapped/empty types fall back to free
-          // text.
+          // text — except `expression` (#3447), which the cell special-cases
+          // into the CEL expression input (it is a discriminator value, not a
+          // reference kind, so it deliberately has no `map` entry).
           key: 'value',
           label: 'Value',
           kind: 'reference',
@@ -584,6 +589,19 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
               queue: 'queue',
             },
           },
+        },
+        {
+          // #3447: expression-only — how the expression's resolved ids expand
+          // into people. Dead config on other types (linted server-side).
+          key: 'resolveAs',
+          label: 'Resolve as',
+          kind: 'select',
+          options: [
+            { value: 'user', label: 'User ids (default)' },
+            { value: 'department', label: 'Department ids → members' },
+            { value: 'position', label: 'Position names → holders' },
+            { value: 'team', label: 'Team ids → members' },
+          ],
         },
         {
           // Group label for `per_group` sign-off (#3266): approvers sharing a
@@ -617,6 +635,17 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
       ref: { kind: 'object-field', objectSource: '$trigger' },
       placeholder: 'approval_status',
       help: 'Business-object field to mirror request status onto (pending/approved/rejected). Should be readonly.',
+    }),
+    // #3447: empty-slate policy — load-bearing for expression approvers, whose
+    // slate is runtime data and may legitimately resolve to nobody.
+    cfg('onEmptyApprovers', 'If no approver resolves', 'select', {
+      options: [
+        { value: 'admin_rescue', label: 'Hold for admin takeover (default)' },
+        { value: 'fail', label: 'Fail the node (config bug)' },
+        { value: 'auto_approve', label: 'Auto-approve (waves through!)' },
+      ],
+      defaultValue: 'admin_rescue',
+      help: 'What an empty resolved approver slate does at node entry. Auto-approve silently waves the record through — opt in deliberately.',
     }),
     // Per-node SLA escalation (spec ApprovalEscalationSchema, nested under
     // config.escalation). Sub-fields reveal once escalation is enabled.

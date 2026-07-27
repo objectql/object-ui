@@ -31,7 +31,13 @@
  */
 
 /** Which group a reference belongs to (drives the picker's section headers). */
-export type ScopeGroupId = 'variables' | 'outputs' | 'loop' | 'trigger';
+export type ScopeGroupId =
+  | 'variables' | 'outputs' | 'loop' | 'trigger'
+  // #3447: approval `expression` approvers see a DIFFERENT root set than flow
+  // conditions (current/trigger/vars — never `record`/bare fields). Their
+  // picker groups carry their own ids so they can never leak into the regular
+  // condition picker.
+  | 'approval_current' | 'approval_trigger' | 'approval_vars';
 
 /**
  * One pickable reference. `token` is the BARE form (no braces); the picker
@@ -184,6 +190,18 @@ export function nodeOutputRefs(node: FlowNodeLike): ScopeRef[] {
   // Screen — collected input field names become variables for downstream nodes.
   if (type === 'screen' || type === 'user_task') {
     for (const f of asArray(cfg.fields)) add(str(asRecord(f).name));
+  }
+
+  // Approval (framework#3447): the resume envelope writes `<nodeId>.decision`,
+  // and each author-declared decision output (`decisionOutputs` — bare key or
+  // typed `{ key, … }`) lands as `<nodeId>.<key>` — the values a later
+  // approval node's `expression` approver reads as `vars.<nodeId>.<key>`.
+  if (type === 'approval' && nodeId) {
+    add(`${nodeId}.decision`);
+    for (const entry of asArray(cfg.decisionOutputs)) {
+      const key = typeof entry === 'string' ? entry : str(asRecord(entry).key);
+      if (key) add(`${nodeId}.${key}`);
+    }
   }
 
   return out;

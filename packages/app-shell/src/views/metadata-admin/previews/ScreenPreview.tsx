@@ -25,7 +25,7 @@ import * as React from 'react';
 import { Button, cn } from '@object-ui/components';
 import { useAdapter } from '../../../providers/AdapterProvider';
 import { useMetadata } from '../../../providers/MetadataProvider';
-import { ScreenView, isObjectFormScreen, initialScreenValues, type ScreenSpec } from '../../ScreenView';
+import { ScreenView, isObjectFormScreen, initialScreenValues, screenFields, type ScreenSpec } from '../../ScreenView';
 import { buildScreenSpec, interpolate, hiddenFieldCount, type ScreenPreviewNode } from './screen-spec';
 
 export type { ScreenPreviewNode } from './screen-spec';
@@ -63,9 +63,9 @@ export function ScreenPreview({ node, variables, className }: ScreenPreviewProps
   // label/title-only edit.
   const structKey = isObjectForm
     ? `obj:${spec.objectName}:${spec.mode ?? 'create'}`
-    : 'fields:' + spec.fields.map((f) => `${f.name}:${f.type ?? ''}:${f.required ? 1 : 0}`).join('|');
+    : 'fields:' + screenFields(spec).map((f) => `${f.name}:${f.type ?? ''}:${f.required ? 1 : 0}`).join('|');
 
-  const empty = !title && !description && !isObjectForm && spec.fields.length === 0 && hidden === 0;
+  const empty = !title && !description && !isObjectForm && screenFields(spec).length === 0 && hidden === 0;
 
   return (
     <div className={cn('overflow-hidden rounded-md border bg-background', className)}>
@@ -90,7 +90,7 @@ export function ScreenPreview({ node, variables, className }: ScreenPreviewProps
                 {' '}condition{hidden === 1 ? '' : 's'}.
               </p>
             )}
-            {!isObjectForm && spec.fields.length > 0 && (
+            {!isObjectForm && screenFields(spec).length > 0 && (
               <div className="mt-4 flex justify-end">
                 {/* Non-functional — the preview never resumes a real run. */}
                 <Button size="sm" disabled>Submit</Button>

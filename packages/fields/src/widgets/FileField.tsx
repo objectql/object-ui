@@ -1,9 +1,18 @@
 import React, { useRef, useState, useCallback } from 'react';
 import { Button, EmptyValue } from '@object-ui/components';
 import { useUpload } from '@object-ui/providers';
+import { useObjectTranslation } from '@object-ui/i18n';
 import { Upload, X, File as FileIcon, ImageIcon, Camera, Loader2 } from 'lucide-react';
 import { FieldWidgetProps } from './types';
 import { useUploadingSignal } from './useUploadingSignal';
+import {
+  fileValueForSubmit,
+  readFileValues,
+  uploadResultView,
+  withRecentUploads,
+  isImageValue,
+  type FileValueView,
+} from './file-value';
 
 /**
  * Shared upload pipeline for the file widgets: validates size, uploads through
@@ -11,6 +20,13 @@ import { useUploadingSignal } from './useUploadingSignal';
  * into the field value — append for `multiple`, replace otherwise. Extracted so
  * the full-size FileField and the compact grid-cell {@link FileCell} stay
  * behaviourally identical (same value shape, same error handling).
+ *
+ * Stores the **reference form** — a bare `sys_file` id — when the upload
+ * adapter surfaced one, and the legacy inline blob when it did not, so the same
+ * build works against a backend that has adopted file-as-reference and one that
+ * has not (see `file-value`). Because a bare id carries no name or URL, each
+ * completed upload's display details are kept in `recent`, keyed by id, so the
+ * file renders immediately instead of as a bare token until a read enriches it.
  */
 function useFileUploads(opts: {
   files: any[];
@@ -20,9 +36,11 @@ function useFileUploads(opts: {
 }) {
   const { files, multiple, maxSize, onChange } = opts;
   const { upload } = useUpload();
+  const { t } = useObjectTranslation();
   const [errors, setErrors] = useState<string[]>([]);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [uploading, setUploading] = useState(false);
+  const [recent, setRecent] = useState<Record<string, FileValueView>>({});
 
   const processFiles = useCallback(async (selectedFiles: File[]) => {
     if (selectedFiles.length === 0) return;
@@ -31,7 +49,10 @@ function useFileUploads(opts: {
     const validFiles = selectedFiles.filter(file => {
       if (maxSize && file.size > maxSize) {
         const maxMB = (maxSize / (1024 * 1024)).toFixed(1);
-        newErrors.push(`"${file.name}" exceeds max size (${maxMB} MB)`);
+        newErrors.push(t('fields.file.exceedsMaxSize', {
+          defaultValue: `"${file.name}" exceeds max size (${maxMB} MB)`,
+          name: file.name, max: maxMB,
+        }));
         return false;
       }
       return true;
@@ -42,48 +63,51 @@ function useFileUploads(opts: {
 
     setUploading(true);
     try {
-      const fileObjects = await Promise.all(
+      const uploaded = await Promise.all(
         validFiles.map(async (file) => {
           try {
             const result = await upload(file, {
               onProgress: (ratio) =>
                 setUploadProgress((prev) => ({ ...prev, [file.name]: ratio })),
             });
-            return {
-              // `file_id` is the storage id the backend keys attachments by
-              // (the adapter returns it as `meta.fileId`); surfacing it here
-              // lets callers that need the id — e.g. an action param POSTing
-              // `attachments: string[]` — recover it without a second lookup.
-              // Extra key; the record file-field value shape is unchanged.
-              file_id: (result.meta as { fileId?: string } | undefined)?.fileId,
-              name: result.name,
-              original_name: file.name,
-              size: result.size,
-              mime_type: result.mimeType,
-              url: result.url,
-            };
+            return { result, originalName: file.name };
           } catch (err) {
-            newErrors.push(`Failed to upload "${file.name}": ${(err as Error).message}`);
+            newErrors.push(t('fields.file.uploadFailed', {
+              defaultValue: `Failed to upload "${file.name}": ${(err as Error).message}`,
+              name: file.name, error: (err as Error).message,
+            }));
             setErrors([...newErrors]);
             return null;
           }
         }),
       );
-      const successful = fileObjects.filter(Boolean) as any[];
+      const successful = uploaded.filter(Boolean) as Array<{ result: any; originalName: string }>;
       if (successful.length === 0) return;
 
+      // Remember what each new id looks like so it can render before the next
+      // read expands it back into `{ id, name, size, mimeType, url }`.
+      const views: Record<string, FileValueView> = {};
+      for (const { result, originalName } of successful) {
+        const view = uploadResultView(result, originalName);
+        if (view.id) views[view.id] = view;
+      }
+      if (Object.keys(views).length > 0) setRecent((prev) => ({ ...prev, ...views }));
+
+      const nextValues = successful.map(({ result, originalName }) =>
+        fileValueForSubmit(result, originalName),
+      );
       if (multiple) {
-        onChange([...files, ...successful]);
+        onChange([...files, ...nextValues]);
       } else {
-        onChange(successful[0]);
+        onChange(nextValues[0]);
       }
     } finally {
       setUploading(false);
       setUploadProgress({});
     }
-  }, [files, multiple, onChange, maxSize, upload]);
+  }, [files, multiple, onChange, maxSize, upload, t]);
 
-  return { processFiles, errors, uploading, uploadProgress };
+  return { processFiles, errors, uploading, uploadProgress, recent };
 }
 
 /**
@@ -92,6 +116,7 @@ function useFileUploads(opts: {
  * L2: File size validation, per-file progress indicators, error messages.
  */
 export function FileField({ value, onChange, field, readonly, onUploadingChange, ...props }: FieldWidgetProps<any>) {
+  const { t } = useObjectTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileField = (field || (props as any).schema) as any;
@@ -115,9 +140,13 @@ export function FileField({ value, onChange, field, readonly, onUploadingChange,
   const [isDragOver, setIsDragOver] = useState(false);
 
   const files = value ? (Array.isArray(value) ? value : [value]) : [];
-  const { processFiles, errors, uploading, uploadProgress } = useFileUploads({
+  const { processFiles, errors, uploading, uploadProgress, recent } = useFileUploads({
     files, multiple, maxSize, onChange,
   });
+  const fallbackName = t('fields.file.fileFallback', { defaultValue: 'File' });
+  // Normalised for display: accepts a bare reference id, the expanded
+  // `{ id, name, size, mimeType, url }`, or a legacy inline blob.
+  const views = withRecentUploads(readFileValues(value, fallbackName), recent);
   useUploadingSignal(uploading, onUploadingChange);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -155,13 +184,12 @@ export function FileField({ value, onChange, field, readonly, onUploadingChange,
 
   if (readonly) {
     if (!value) return <EmptyValue />;
-    
-    const readonlyFiles = Array.isArray(value) ? value : [value];
+
     return (
       <div className="flex flex-wrap gap-2">
-        {readonlyFiles.map((file: any, idx: number) => (
+        {views.map((file, idx) => (
           <span key={idx} className="text-sm truncate max-w-xs">
-            {file.name || file.original_name || 'File'}
+            {file.name}
           </span>
         ))}
       </div>
@@ -179,11 +207,6 @@ export function FileField({ value, onChange, field, readonly, onUploadingChange,
     } else {
       onChange(null);
     }
-  };
-
-  const isImage = (file: any) => {
-    const mime = file.mime_type || '';
-    return mime.startsWith('image/');
   };
 
   return (
@@ -204,7 +227,7 @@ export function FileField({ value, onChange, field, readonly, onUploadingChange,
           capture={cameraEnabled}
           onChange={handleFileChange}
           className="hidden"
-          aria-label="Camera capture"
+          aria-label={t('fields.file.cameraCapture', { defaultValue: 'Camera capture' })}
           data-testid="file-field-camera-input"
         />
       )}
@@ -236,10 +259,14 @@ export function FileField({ value, onChange, field, readonly, onUploadingChange,
           <Upload className={`size-8 ${isDragOver ? 'text-primary' : 'text-muted-foreground'}`} />
           <div className="text-center">
             <p className="text-sm font-medium">
-              {isDragOver ? 'Drop files here' : 'Drag & drop files here'}
+              {isDragOver
+                ? t('fields.file.dropFilesHere', { defaultValue: 'Drop files here' })
+                : t('fields.file.dragDropHere', { defaultValue: 'Drag & drop files here' })}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              or click to browse{cameraEnabled ? ' • use the camera button below' : ''}
+              {cameraEnabled
+                ? t('fields.file.browseHintCamera', { defaultValue: 'or click to browse • use the camera button below' })
+                : t('fields.file.browseHint', { defaultValue: 'or click to browse' })}
             </p>
           </div>
         </div>
@@ -257,7 +284,9 @@ export function FileField({ value, onChange, field, readonly, onUploadingChange,
             data-testid="file-field-camera-button"
           >
             <Camera className="size-4 mr-2" />
-            {cameraEnabled === 'user' ? 'Take selfie' : 'Take photo'}
+            {cameraEnabled === 'user'
+              ? t('fields.file.takeSelfie', { defaultValue: 'Take selfie' })
+              : t('fields.file.takePhoto', { defaultValue: 'Take photo' })}
           </Button>
         )}
 
@@ -266,12 +295,14 @@ export function FileField({ value, onChange, field, readonly, onUploadingChange,
           <div className="flex items-center gap-2 text-xs text-muted-foreground" data-testid="file-field-uploading">
             <Loader2 className="size-3 animate-spin" />
             <span>
-              Uploading…
-              {Object.keys(uploadProgress).length > 0 &&
-                ` (${Math.round(
-                  (Object.values(uploadProgress).reduce((s, v) => s + v, 0) /
-                    Object.keys(uploadProgress).length) * 100,
-                )}%)`}
+              {(() => {
+                const keys = Object.keys(uploadProgress);
+                if (keys.length === 0) return t('fields.file.uploading', { defaultValue: 'Uploading…' });
+                const pct = Math.round(
+                  (Object.values(uploadProgress).reduce((s, v) => s + v, 0) / keys.length) * 100,
+                );
+                return t('fields.file.uploadingPct', { defaultValue: `Uploading… (${pct}%)`, pct });
+              })()}
             </span>
           </div>
         )}
@@ -286,23 +317,23 @@ export function FileField({ value, onChange, field, readonly, onUploadingChange,
         )}
 
         {/* File list */}
-        {files.length > 0 && (
+        {views.length > 0 && (
           <div className="space-y-1">
-            {files.map((file: any, idx: number) => (
+            {views.map((file, idx) => (
               <div
                 key={idx}
                 className="flex items-center justify-between gap-2 p-2 bg-muted/50 rounded-md border"
               >
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                  {isImage(file) && file.url ? (
+                  {isImageValue(file) && file.url ? (
                     <img src={file.url} alt={file.name} className="size-8 object-cover rounded shrink-0" />
-                  ) : isImage(file) ? (
+                  ) : isImageValue(file) ? (
                     <ImageIcon className="size-4 text-muted-foreground shrink-0" />
                   ) : (
                     <FileIcon className="size-4 text-muted-foreground shrink-0" />
                   )}
                   <span className="text-sm truncate">
-                    {file.name || file.original_name || 'File'}
+                    {file.name}
                   </span>
                   {file.size && (
                     <span className="text-xs text-muted-foreground">
@@ -362,11 +393,14 @@ export function FileCell({
   /** Focus-grid coordinate (see GridField keyboard navigation). */
   'data-cell'?: string;
 }) {
+  const { t } = useObjectTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const files = value ? (Array.isArray(value) ? value : [value]) : [];
-  const { processFiles, errors, uploading } = useFileUploads({
+  const { processFiles, errors, uploading, recent } = useFileUploads({
     files, multiple: !!multiple, maxSize, onChange,
   });
+  const fallbackName = t('fields.file.fileFallback', { defaultValue: 'File' });
+  const views = withRecentUploads(readFileValues(value, fallbackName), recent);
 
   const removeAt = (index: number) => {
     if (multiple) {
@@ -377,9 +411,6 @@ export function FileCell({
     }
   };
 
-  const isImage = (file: any) => String(file?.mime_type || '').startsWith('image/');
-  const nameOf = (file: any) =>
-    typeof file === 'string' ? file : file?.name || file?.original_name || 'File';
   const showUpload = !disabled && !uploading && (multiple || files.length === 0);
 
   return (
@@ -395,24 +426,24 @@ export function FileCell({
         }}
         className="hidden"
       />
-      {files.map((file: any, idx: number) => (
+      {views.map((file, idx) => (
         <span
           key={idx}
           className="inline-flex max-w-40 items-center gap-1 rounded border bg-muted/50 px-1 py-0.5 text-xs"
-          title={nameOf(file)}
+          title={file.name}
           data-testid="file-cell-chip"
         >
-          {isImage(file) && file.url ? (
-            <img src={file.url} alt={nameOf(file)} className="size-5 shrink-0 rounded object-cover" />
+          {isImageValue(file) && file.url ? (
+            <img src={file.url} alt={file.name} className="size-5 shrink-0 rounded object-cover" />
           ) : (
             <FileIcon className="size-3 shrink-0 text-muted-foreground" />
           )}
-          <span className="truncate">{nameOf(file)}</span>
+          <span className="truncate">{file.name}</span>
           {!disabled && (
             <button
               type="button"
               className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
-              aria-label={`Remove ${nameOf(file)}`}
+              aria-label={t('fields.file.remove', { defaultValue: `Remove ${file.name}`, name: file.name })}
               onClick={() => removeAt(idx)}
             >
               <X className="size-3" />
@@ -440,7 +471,7 @@ export function FileCell({
           disabled={disabled}
         >
           <Upload className="size-3.5" />
-          {files.length === 0 && 'Upload'}
+          {files.length === 0 && t('fields.file.upload', { defaultValue: 'Upload' })}
         </Button>
       )}
       {errors.length > 0 && (

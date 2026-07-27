@@ -84,4 +84,48 @@ describe('FlowRunner resume outcomes', () => {
     await fillAndSubmit();
     await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1));
   });
+
+  it('renders and resumes a screen whose payload carries no `fields`', async () => {
+    // A message-only / object-form pause can omit `fields` entirely; reading it
+    // unguarded threw before the dialog could paint.
+    const authFetch = vi.fn(async () => jsonResponse({ success: true, data: { success: true } }));
+    const onClose = vi.fn();
+    const onComplete = vi.fn();
+    render(
+      <FlowRunner
+        state={{
+          flowName: 'convert_lead',
+          runId: 'run-9',
+          screen: { nodeId: 'notice', title: 'Already Converted' } as ScreenFlowState['screen'],
+        }}
+        authFetch={authFetch}
+        baseUrl=""
+        onClose={onClose}
+        onComplete={onComplete}
+      />,
+    );
+    expect(screen.getByText('Already Converted')).toBeInTheDocument();
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Submit' }));
+    await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1));
+    expect(authFetch).toHaveBeenCalledWith(
+      '/api/v1/automation/convert_lead/runs/run-9/resume',
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ inputs: {} }) }),
+    );
+  });
+
+  it('posts the resume to the run endpoint with the collected values', async () => {
+    const authFetch = vi.fn(async () => jsonResponse({ success: true, data: { success: true } }));
+    setup(authFetch);
+    await fillAndSubmit();
+    await waitFor(() =>
+      expect(authFetch).toHaveBeenCalledWith(
+        '/api/v1/automation/reassign_wizard/runs/run-1/resume',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ inputs: { new_assignee: 'linus@example.com' } }),
+        }),
+      ),
+    );
+  });
 });

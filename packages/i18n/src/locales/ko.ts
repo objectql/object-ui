@@ -117,6 +117,22 @@ const ko = {
     relativeDate: {
       overdue: "기한 초과 {{count}}일",
     },
+    file: {
+      dragDropHere: '파일을 여기로 끌어다 놓기',
+      dropFilesHere: '여기에 놓기',
+      browseHint: '또는 클릭하여 찾아보기',
+      browseHintCamera: '또는 클릭하여 찾아보기 • 아래 카메라 버튼 사용',
+      takePhoto: '사진 촬영',
+      takeSelfie: '셀피 촬영',
+      cameraCapture: '카메라 촬영',
+      uploading: '업로드 중…',
+      uploadingPct: '업로드 중…（{{pct}}%）',
+      fileFallback: '파일',
+      upload: '업로드',
+      remove: '{{name}} 제거',
+      exceedsMaxSize: '"{{name}}"이(가) 최대 크기({{max}} MB)를 초과합니다',
+      uploadFailed: '"{{name}}" 업로드 실패: {{error}}',
+    },
     richText: {
       format: "형식: {{format}}",
       basicEditorHint: "서식 있는 텍스트 편집기 (기본)",
@@ -182,6 +198,7 @@ const ko = {
     },
     import: {
       title: "{{object}} 가져오기",
+      notAllowed: "이 객체는 가져오기가 허용되지 않습니다.",
       stepUpload: "업로드",
       stepMapping: "매핑",
       stepPreview: "미리보기",
@@ -1994,6 +2011,7 @@ const ko = {
     progressBar: '결정 진행 상황',
     declaredActions: '작업',
     attachmentChip: '첨부 파일',
+    attachmentOpenFailed: '첨부 파일을 열 수 없습니다. 다시 시도해 주세요',
     approveOneTitle: '"{{title}}"을(를) 승인할까요?',
     approveOneBody: '내 이름으로 이 요청을 승인합니다. 의견이나 첨부 파일을 추가하려면 요청을 열어 처리하세요.',
     flowOrigin: '플로우 시작',

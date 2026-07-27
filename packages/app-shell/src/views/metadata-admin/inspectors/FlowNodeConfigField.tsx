@@ -34,9 +34,11 @@ export interface FlowNodeConfigFieldProps {
   context?: FlowReferenceContext;
   /** In-scope variable references for the data-picker (#1934). */
   scopeGroups?: ScopeGroup[];
+  /** #3447: approval-expression picker groups (current/trigger/vars roots). */
+  approvalScopeGroups?: ScopeGroup[];
 }
 
-export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, context, scopeGroups }: FlowNodeConfigFieldProps) {
+export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, context, scopeGroups, approvalScopeGroups }: FlowNodeConfigFieldProps) {
   const refMode: 'expression' | 'template' =
     field.refMode ?? (field.kind === 'expression' ? 'expression' : 'template');
   const control = (() => {
@@ -114,6 +116,7 @@ export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, 
             itemLabel={t('engine.inspector.flowNode.list.item', locale)}
             context={context}
             scopeGroups={scopeGroups}
+            approvalScopeGroups={approvalScopeGroups}
           />
         );
       case 'number':

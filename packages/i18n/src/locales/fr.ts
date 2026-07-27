@@ -117,6 +117,22 @@ const fr = {
     relativeDate: {
       overdue: "En retard de {{count}} j",
     },
+    file: {
+      dragDropHere: 'Glissez-déposez des fichiers ici',
+      dropFilesHere: 'Déposez les fichiers ici',
+      browseHint: 'ou cliquez pour parcourir',
+      browseHintCamera: 'ou cliquez pour parcourir • utilisez le bouton appareil photo ci-dessous',
+      takePhoto: 'Prendre une photo',
+      takeSelfie: 'Prendre un selfie',
+      cameraCapture: 'Capture photo',
+      uploading: 'Téléversement…',
+      uploadingPct: 'Téléversement… ({{pct}} %)',
+      fileFallback: 'Fichier',
+      upload: 'Téléverser',
+      remove: 'Supprimer {{name}}',
+      exceedsMaxSize: '« {{name}} » dépasse la taille maximale ({{max}} Mo)',
+      uploadFailed: 'Échec du téléversement de « {{name}} » : {{error}}',
+    },
     richText: {
       format: "Format : {{format}}",
       basicEditorHint: "Éditeur de texte enrichi (basique)",
@@ -182,6 +198,7 @@ const fr = {
     },
     import: {
       title: "Importer {{object}}",
+      notAllowed: "Cet objet n'est pas ouvert à l'import.",
       stepUpload: "Télécharger",
       stepMapping: "Correspondance",
       stepPreview: "Aperçu",
@@ -1992,6 +2009,7 @@ const fr = {
     progressBar: 'Avancement de la décision',
     declaredActions: 'Actions',
     attachmentChip: 'Pièce jointe',
+    attachmentOpenFailed: "Impossible d'ouvrir la pièce jointe — veuillez réessayer",
     approveOneTitle: 'Approuver « {{title}} » ?',
     approveOneBody: 'Cette action approuve la demande en votre nom. Pour ajouter un commentaire ou une pièce jointe, ouvrez la demande.',
     flowOrigin: 'Initiée par un flux',

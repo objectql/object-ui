@@ -103,6 +103,13 @@ export interface FlowObjectListFieldProps {
   context?: FlowReferenceContext;
   /** In-scope variable references for `expression` columns (#1934). */
   scopeGroups?: ScopeGroup[];
+  /**
+   * #3447: picker groups for approval `expression` approver cells — the
+   * closed current/trigger/vars root set. Regular flow scopeGroups must NOT
+   * be offered there (record.* / bare-field spellings are rejected at
+   * runtime), which is why this rides as its own prop.
+   */
+  approvalScopeGroups?: ScopeGroup[];
 }
 
 export function FlowObjectListField({
@@ -117,6 +124,7 @@ export function FlowObjectListField({
   itemLabel,
   context,
   scopeGroups,
+  approvalScopeGroups,
 }: FlowObjectListFieldProps) {
   const external = React.useMemo(
     () =>
@@ -261,22 +269,62 @@ export function FlowObjectListField({
                       disabled={disabled}
                     />
                   ) : col.kind === 'reference' ? (
-                    <div className="flex-1">
-                      <ReferenceCombobox
-                        resolved={resolveRefKind(col.ref, (k) => row.values[k])}
-                        value={typeof row.values[col.key] === 'string' ? (row.values[col.key] as string) : ''}
-                        onCommit={(v) => setCell(row.id, col.key, typeof v === 'string' ? v : '')}
-                        onBlur={() => flush(rows)}
-                        // Picker-style selections (record lookup, strict
-                        // select) have no blur to flush on — set-and-flush
-                        // atomically, like the checkbox/select cells.
-                        onSelect={(v) => commitCell(row.id, col.key, v)}
-                        placeholder={col.placeholder}
-                        disabled={disabled}
-                        context={context}
-                        showHint={false}
-                      />
-                    </div>
+                    (() => {
+                      const resolved = resolveRefKind(col.ref, (k) => row.values[k]);
+                      const disc = col.ref?.kindFrom
+                        ? String(row.values[col.ref.kindFrom] ?? '')
+                        : '';
+                      // #3447: `expression` is a discriminator value, not a
+                      // reference kind — an approver whose sibling `type` is
+                      // 'expression' authors a CEL expression over the approval
+                      // roots (current/trigger/vars). Render the expression
+                      // input (mono + syntax check) instead of a dead free-text
+                      // reference box, with the APPROVAL scope groups — never
+                      // the regular flow scopeGroups, whose record.x /
+                      // bare-field spellings the runtime rejects. The same
+                      // groups feed FlowExprIssue, so an out-of-contract root
+                      // warns inline with a "did you mean" before os lint /
+                      // the node-entry pre-check reject it server-side.
+                      if (resolved === undefined && disc === 'expression') {
+                        const raw = typeof row.values[col.key] === 'string' ? (row.values[col.key] as string) : '';
+                        return (
+                          <div className="flex-1 space-y-1">
+                            <VariableTextInput
+                              mode="expression"
+                              mono
+                              value={raw}
+                              onValueChange={(v) => setCell(row.id, col.key, v)}
+                              onBlur={() => flush(rows)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                              }}
+                              groups={approvalScopeGroups ?? []}
+                              placeholder={col.placeholder ?? 'current.<field> · trigger.<field> · vars.<node>.<key>'}
+                              disabled={disabled}
+                            />
+                            <FlowExprIssue value={raw} role="value" scopeGroups={approvalScopeGroups} />
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="flex-1">
+                          <ReferenceCombobox
+                            resolved={resolved}
+                            value={typeof row.values[col.key] === 'string' ? (row.values[col.key] as string) : ''}
+                            onCommit={(v) => setCell(row.id, col.key, typeof v === 'string' ? v : '')}
+                            onBlur={() => flush(rows)}
+                            // Picker-style selections (record lookup, strict
+                            // select) have no blur to flush on — set-and-flush
+                            // atomically, like the checkbox/select cells.
+                            onSelect={(v) => commitCell(row.id, col.key, v)}
+                            placeholder={col.placeholder}
+                            disabled={disabled}
+                            context={context}
+                            showHint={false}
+                          />
+                        </div>
+                      );
+                    })()
                   ) : col.kind === 'select' ? (
                     (() => {
                       const current =

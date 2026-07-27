@@ -135,6 +135,22 @@ const zh = {
     relativeDate: {
       overdue: '逾期 {{count}} 天',
     },
+    file: {
+      dragDropHere: '拖拽文件到此处',
+      dropFilesHere: '松开以上传',
+      browseHint: '或点击浏览',
+      browseHintCamera: '或点击浏览 • 使用下方相机按钮',
+      takePhoto: '拍照',
+      takeSelfie: '自拍',
+      cameraCapture: '拍摄',
+      uploading: '上传中…',
+      uploadingPct: '上传中…（{{pct}}%）',
+      fileFallback: '文件',
+      upload: '上传',
+      remove: '移除 {{name}}',
+      exceedsMaxSize: '“{{name}}” 超过大小上限（{{max}} MB）',
+      uploadFailed: '上传 “{{name}}” 失败：{{error}}',
+    },
     richText: {
       format: '格式: {{format}}',
       basicEditorHint: '富文本编辑器（基础）',
@@ -206,6 +222,7 @@ const zh = {
     },
     import: {
       title: '导入{{object}}',
+      notAllowed: '该对象未开放导入。',
       stepUpload: '上传',
       stepMapping: '字段映射',
       stepPreview: '预览',
@@ -2608,6 +2625,7 @@ const zh = {
     progressBar: '决策进度',
     declaredActions: '操作',
     attachmentChip: '附件',
+    attachmentOpenFailed: '无法打开附件，请重试',
     approveOneTitle: '通过“{{title}}”？',
     approveOneBody: '将以你的身份通过该请求。如需填写审批意见或附件，请打开该请求处理。',
     flowOrigin: '流程发起',

@@ -117,6 +117,22 @@ const ru = {
     relativeDate: {
       overdue: "Просрочено на {{count}} дн.",
     },
+    file: {
+      dragDropHere: 'Перетащите файлы сюда',
+      dropFilesHere: 'Отпустите файлы здесь',
+      browseHint: 'или нажмите для выбора',
+      browseHintCamera: 'или нажмите для выбора • используйте кнопку камеры ниже',
+      takePhoto: 'Сделать фото',
+      takeSelfie: 'Сделать селфи',
+      cameraCapture: 'Съёмка камерой',
+      uploading: 'Загрузка…',
+      uploadingPct: 'Загрузка… ({{pct}} %)',
+      fileFallback: 'Файл',
+      upload: 'Загрузить',
+      remove: 'Удалить {{name}}',
+      exceedsMaxSize: '«{{name}}» превышает максимальный размер ({{max}} МБ)',
+      uploadFailed: 'Не удалось загрузить «{{name}}»: {{error}}',
+    },
     richText: {
       format: "Формат: {{format}}",
       basicEditorHint: "Редактор форматированного текста (базовый)",
@@ -182,6 +198,7 @@ const ru = {
     },
     import: {
       title: "Импорт {{object}}",
+      notAllowed: "Этот объект не открыт для импорта.",
       stepUpload: "Загрузка",
       stepMapping: "Сопоставление",
       stepPreview: "Предпросмотр",
@@ -1992,6 +2009,7 @@ const ru = {
     progressBar: 'Ход решения',
     declaredActions: 'Действия',
     attachmentChip: 'Вложение',
+    attachmentOpenFailed: 'Не удалось открыть вложение — попробуйте ещё раз',
     approveOneTitle: 'Согласовать «{{title}}»?',
     approveOneBody: 'Запрос будет согласован от вашего имени. Чтобы добавить комментарий или вложение, откройте запрос.',
     flowOrigin: 'Инициировано потоком',

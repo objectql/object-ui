@@ -2,19 +2,34 @@ import { describe, it, expect } from 'vitest';
 import { normalizeModalSchema } from '../useActionModal';
 
 describe('normalizeModalSchema', () => {
-  it('maps create_/new_/add_ string targets to a create object-form', () => {
-    expect(normalizeModalSchema('create_opportunity')).toEqual({ objectName: 'opportunity', mode: 'create' });
-    expect(normalizeModalSchema('new_task')).toEqual({ objectName: 'task', mode: 'create' });
-    expect(normalizeModalSchema('add_note')).toEqual({ objectName: 'note', mode: 'create' });
+  it('keeps a string target UNRESOLVED — page-vs-object is a metadata question', () => {
+    // framework#3530: assuming "object" here sent every page-targeting modal
+    // action to GET /meta/object/<page>, which 400s and rendered ModalForm's
+    // "Error loading form — Bad Request". `resolveModalTarget` asks the
+    // metadata service instead (see useActionModal.resolve.test.tsx).
+    expect(normalizeModalSchema('log_call')).toEqual({ targetName: 'log_call' });
+    expect(normalizeModalSchema('contact')).toEqual({ targetName: 'contact' });
   });
 
-  it('maps edit_/update_ string targets to an edit object-form', () => {
-    expect(normalizeModalSchema('edit_account')).toEqual({ objectName: 'account', mode: 'edit' });
-    expect(normalizeModalSchema('update_lead')).toEqual({ objectName: 'lead', mode: 'edit' });
+  it('carries a create_/new_/add_ prefix guess ALONGSIDE the raw target', () => {
+    expect(normalizeModalSchema('create_opportunity')).toEqual({
+      targetName: 'create_opportunity', objectName: 'opportunity', mode: 'create',
+    });
+    expect(normalizeModalSchema('new_task')).toEqual({
+      targetName: 'new_task', objectName: 'task', mode: 'create',
+    });
+    expect(normalizeModalSchema('add_note')).toEqual({
+      targetName: 'add_note', objectName: 'note', mode: 'create',
+    });
   });
 
-  it('treats a bare string as a create form for that object', () => {
-    expect(normalizeModalSchema('contact')).toEqual({ objectName: 'contact', mode: 'create' });
+  it('carries an edit_/update_ prefix guess as an edit form', () => {
+    expect(normalizeModalSchema('edit_account')).toEqual({
+      targetName: 'edit_account', objectName: 'account', mode: 'edit',
+    });
+    expect(normalizeModalSchema('update_lead')).toEqual({
+      targetName: 'update_lead', objectName: 'lead', mode: 'edit',
+    });
   });
 
   it('treats a bare SchemaNode (has type, no descriptor keys) as content', () => {

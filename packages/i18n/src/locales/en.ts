@@ -136,6 +136,22 @@ const en = {
     relativeDate: {
       overdue: 'Overdue {{count}}d',
     },
+    file: {
+      dragDropHere: 'Drag & drop files here',
+      dropFilesHere: 'Drop files here',
+      browseHint: 'or click to browse',
+      browseHintCamera: 'or click to browse • use the camera button below',
+      takePhoto: 'Take photo',
+      takeSelfie: 'Take selfie',
+      cameraCapture: 'Camera capture',
+      uploading: 'Uploading…',
+      uploadingPct: 'Uploading… ({{pct}}%)',
+      fileFallback: 'File',
+      upload: 'Upload',
+      remove: 'Remove {{name}}',
+      exceedsMaxSize: '"{{name}}" exceeds max size ({{max}} MB)',
+      uploadFailed: 'Failed to upload "{{name}}": {{error}}',
+    },
     richText: {
       format: 'Format: {{format}}',
       basicEditorHint: 'Rich text editor (basic)',
@@ -207,6 +223,7 @@ const en = {
     },
     import: {
       title: 'Import {{object}}',
+      notAllowed: 'This object is not open for import.',
       stepUpload: 'Upload',
       stepMapping: 'Mapping',
       stepPreview: 'Preview',
@@ -2534,6 +2551,7 @@ const en = {
     progressBar: 'Decision progress',
     declaredActions: 'Actions',
     attachmentChip: 'Attachment',
+    attachmentOpenFailed: 'Could not open the attachment — please try again',
     approveOneTitle: 'Approve "{{title}}"?',
     approveOneBody: 'This approves the request with your identity. To add a comment or attachment, open the request instead.',
     flowOrigin: 'Flow-initiated',

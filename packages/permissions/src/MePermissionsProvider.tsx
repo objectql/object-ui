@@ -34,6 +34,13 @@ export interface MePermissionsResponse {
     allowDelete?: boolean;
     viewAllRecords?: boolean;
     modifyAllRecords?: boolean;
+    /**
+     * [#3391] Server-resolved effective API operation set for this object
+     * (enum-ordered). Present only when the object tightens exposure via
+     * `apiMethods`; absent = unrestricted (client default-allow). The frontend
+     * consumes THIS, never a raw `apiMethods` whitelist.
+     */
+    apiOperations?: string[];
     [k: string]: unknown;
   }>;
   /** field-level perms keyed `"object.field"` */
@@ -156,6 +163,12 @@ export function MePermissionsProvider({
         update: 'allowEdit',
         edit: 'allowEdit',
         delete: 'allowDelete',
+        // [#3391] import derives from create∨update, export from list(read) —
+        // gate them on the base write/read permission bit (the per-object
+        // effective API operation set adds the finer apiMethods layer on top,
+        // consumed via getObjectApiOperations + resolveCrudAffordances).
+        import: 'allowCreate',
+        export: 'allowRead',
       };
       const k = map[action as string] ?? 'allowRead';
       // Same authentication-gated default as checkField (#2926 ④).
@@ -186,12 +199,26 @@ export function MePermissionsProvider({
 
   const getRowFilter = useCallback(() => undefined, []);
 
+  const getObjectApiOperations = useCallback(
+    (object: string): string[] | undefined => {
+      if (!data) return undefined;
+      const objKey = (object ?? '').toLowerCase();
+      // Per-object only — the `*` wildcard carries no apiOperations. Absent →
+      // undefined so consumers fall back to their current (default-allow) path.
+      const objPerm = data.objects?.[objKey] ?? data.objects?.[object];
+      const ops = objPerm?.apiOperations;
+      return Array.isArray(ops) ? ops : undefined;
+    },
+    [data],
+  );
+
   const value = useMemo<PermissionContextValue>(
     () => ({
       check,
       checkField,
       getFieldPermissions,
       getRowFilter,
+      getObjectApiOperations,
       roles: data?.roles ?? [],
       systemPermissions: data?.systemPermissions ?? [],
       hasCapabilities: (required: string[]) => {
@@ -200,7 +227,7 @@ export function MePermissionsProvider({
       },
       isLoaded: !loading && !error && data !== null,
     }),
-    [check, checkField, getFieldPermissions, getRowFilter, data, loading, error],
+    [check, checkField, getFieldPermissions, getRowFilter, getObjectApiOperations, data, loading, error],
   );
 
   if (loading && !data) return <>{loadingFallback}</>;

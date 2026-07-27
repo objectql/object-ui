@@ -350,7 +350,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     // Admin users automatically get design tools (no toggle needed)
     const { user, activeOrganization } = useAuth();
     const isAdmin = useIsWorkspaceAdmin();
-    const { can } = usePermissions();
+    const { can, getObjectApiOperations } = usePermissions();
     
     // Get Object Definition. The outer ObjectView wrapper already guards the
     // missing-object case, so this always resolves while this component is
@@ -405,9 +405,14 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     // hide the lot — those flows go through purpose-built actions on the
     // source record (e.g. "Submit for Approval" on an Opportunity creates
     // an `sys_approval_request`).  Permissions still gate the buttons.
+    // [#3391] Intersect the bucket affordances with the server's effective API
+    // operation set for this object (from /me/permissions apiOperations), so the
+    // toolbar never offers Import/Export/New/Edit/Delete the server would 405.
+    // `undefined` (unrestricted object / old backend) leaves affordances as-is.
+    // The identity-import bypass below is independent of `affordances.import`.
     const affordances = useMemo(
-      () => resolveCrudAffordances(objectDef as any),
-      [objectDef],
+      () => resolveCrudAffordances(objectDef as any, getObjectApiOperations(objectDef.name)),
+      [objectDef, getObjectApiOperations],
     );
 
     // Propagate externally-triggered refreshes (e.g. global ModalForm submit)

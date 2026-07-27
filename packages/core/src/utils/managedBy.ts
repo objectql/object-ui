@@ -112,8 +112,36 @@ export function userActionPredicates(
   return normalizeUserAction(v, false).predicates;
 }
 
-/** Resolve the effective CRUD affordances for an object schema. */
-export function resolveCrudAffordances(obj: SchemaLike | null | undefined): CrudAffordances {
+/**
+ * The affordance-bit → server API-operation mapping used to intersect the
+ * UI-intent affordances with the server's effective API operation set (#3391).
+ * This is the objectui end of the framework's `API_METHOD_DERIVATION` contract:
+ * the button predicate is `affordance(op) ∧ effective.api(op)`.
+ */
+const AFFORDANCE_TO_API_OPERATION = {
+  create: 'create',
+  import: 'import',
+  edit: 'update',
+  delete: 'delete',
+  exportCsv: 'export',
+} as const;
+
+/**
+ * Resolve the effective CRUD affordances for an object schema.
+ *
+ * @param obj The object schema (managedBy bucket + userActions overrides).
+ * @param effectiveApiOperations OPTIONAL server-resolved effective API operation
+ *   set for this object (from `/me/permissions` `apiOperations`, #3391). When
+ *   provided, each affordance bit is ANDed with the corresponding API operation
+ *   (create/import→create/import, edit→update, delete→delete, exportCsv→export),
+ *   so the UI never shows a button the server would 405. Passing `undefined`
+ *   (old backend / no effective set) leaves the affordances untouched —
+ *   backward-compatible. An empty array means "expose nothing" → all bits off.
+ */
+export function resolveCrudAffordances(
+  obj: SchemaLike | null | undefined,
+  effectiveApiOperations?: readonly string[] | null,
+): CrudAffordances {
   const bucket = (obj?.managedBy as ManagedByBucket | undefined) ?? 'platform';
   const base = DEFAULTS[bucket] ?? DEFAULTS.platform;
   const o = obj?.userActions ?? {};
@@ -128,6 +156,17 @@ export function resolveCrudAffordances(obj: SchemaLike | null | undefined): Crud
   };
   if (edit.predicates) out.editPredicates = edit.predicates;
   if (del.predicates) out.deletePredicates = del.predicates;
+  // [#3391] Intersect with the server's effective API operations when present.
+  // The frontend consumes the effective set the server hands down; it never
+  // reads the raw `apiMethods` nor re-derives.
+  if (Array.isArray(effectiveApiOperations)) {
+    const eff = new Set(effectiveApiOperations);
+    for (const [bit, op] of Object.entries(AFFORDANCE_TO_API_OPERATION) as Array<
+      [keyof typeof AFFORDANCE_TO_API_OPERATION, string]
+    >) {
+      if (out[bit] && !eff.has(op)) out[bit] = false;
+    }
+  }
   return out;
 }
 

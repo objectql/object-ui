@@ -36,6 +36,7 @@ import {
 } from '@object-ui/components';
 import { usePullToRefresh } from '@object-ui/mobile';
 import { resolveConditionalFormatting, buildExpandFields, buildExportFileName } from '@object-ui/core';
+import { usePermissions } from '@object-ui/permissions';
 import { ChevronRight, ChevronDown, ChevronLeft, ChevronsLeft, ChevronsRight, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock, Loader2 } from 'lucide-react';
 import { useRowColor } from './useRowColor';
 import { useGroupedData } from './useGroupedData';
@@ -411,6 +412,13 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const objectName = dataConfig?.provider === 'object' && dataConfig && 'object' in dataConfig
     ? (dataConfig as any).object
     : schema.objectName;
+  // [#3391] Server-resolved effective API operation set for this object
+  // (/me/permissions `apiOperations`). The Export button and handler AND their
+  // gate with this — a missing set (unrestricted object / old backend / no
+  // provider) keeps the current behavior. The frontend consumes the effective
+  // set the server resolved; it never reads the raw `apiMethods`.
+  const { getObjectApiOperations } = usePermissions();
+  const effectiveApiOps = objectName ? getObjectApiOperations(objectName) : undefined;
   const schemaFields = schema.fields;
   const schemaColumns = schema.columns;
   const schemaFilter = schema.filter;
@@ -1244,9 +1252,12 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   }, [objectSchema, schemaFields, schemaColumns, dataConfig, hasInlineData, navigation.handleClick, executeAction, data, resolveFieldLabel, translateOptions, schema.objectName]);
 
   const handleExport = useCallback((format: 'csv' | 'xlsx' | 'json' | 'pdf') => {
-    // Object-level export permission gate. Default-allow: only an explicit
-    // `operations.export === false` blocks the export.
+    // Object-level export permission gate. Default-allow: an explicit
+    // `operations.export === false` blocks it, and — when the server hands down
+    // an effective API operation set for this object (#3391) — so does its
+    // exclusion of `export`. Missing effective set keeps current behavior.
     if (schema.operations?.export === false) return;
+    if (effectiveApiOps && !effectiveApiOps.includes('export')) return;
     const exportConfig = schema.exportOptions;
     const maxRecords = exportConfig?.maxRecords || 0;
     const includeHeaders = exportConfig?.includeHeaders !== false;
@@ -1352,7 +1363,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       downloadFile(new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' }), fileNameFor('json'));
     }
     setShowExport(false);
-  }, [data, schema.exportOptions, schema.operations?.export, schema.objectName, objectName, objectSchema, generateColumns, dataSource, hasInlineData, schemaFilter, schemaSort]);
+  }, [data, schema.exportOptions, schema.operations?.export, effectiveApiOps, schema.objectName, objectName, objectSchema, generateColumns, dataSource, hasInlineData, schemaFilter, schemaSort]);
 
   if (error) {
     return (
@@ -2269,8 +2280,13 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   // Hide row-height toggle when parent (e.g., ListView) controls density externally,
   // signaled by `hideRowHeightToggle` prop on schema.
   const showRowHeightToggle = schema.rowHeight !== undefined && !(schema as any).hideRowHeightToggle;
-  // Export is offered only when configured AND not blocked by object-level perms.
-  const exportEnabled = !!schema.exportOptions && schema.operations?.export !== false;
+  // Export is offered only when configured AND not blocked by object-level perms
+  // — including the server's effective API operation set (#3391): when present
+  // and it excludes `export`, the button is hidden. Missing set → unchanged.
+  const exportEnabled =
+    !!schema.exportOptions &&
+    schema.operations?.export !== false &&
+    (effectiveApiOps ? effectiveApiOps.includes('export') : true);
   const hasToolbar = exportEnabled || showRowHeightToggle;
   const gridToolbar = hasToolbar ? (
     <div className="flex items-center justify-end gap-1 px-2 py-1">

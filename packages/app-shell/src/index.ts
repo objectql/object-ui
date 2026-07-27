@@ -134,8 +134,16 @@ export {
   SearchResultsPage,
   ViewConfigPanel,
   DeclaredActionsBar,
+  FlowRunner,
 } from './views';
-export type { RecordFormPageProps, DeclaredActionsBarProps } from './views';
+export type {
+  RecordFormPageProps,
+  DeclaredActionsBarProps,
+  FlowRunnerProps,
+  ScreenFlowState,
+  ScreenSpec,
+  ScreenFieldSpec,
+} from './views';
 
 // Hooks
 export {

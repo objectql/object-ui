@@ -117,6 +117,22 @@ const de = {
     relativeDate: {
       overdue: "{{count}} T. überfällig",
     },
+    file: {
+      dragDropHere: 'Dateien hierher ziehen und ablegen',
+      dropFilesHere: 'Dateien hier ablegen',
+      browseHint: 'oder zum Durchsuchen klicken',
+      browseHintCamera: 'oder zum Durchsuchen klicken • Kamera-Schaltfläche unten verwenden',
+      takePhoto: 'Foto aufnehmen',
+      takeSelfie: 'Selfie aufnehmen',
+      cameraCapture: 'Kameraaufnahme',
+      uploading: 'Wird hochgeladen…',
+      uploadingPct: 'Wird hochgeladen… ({{pct}} %)',
+      fileFallback: 'Datei',
+      upload: 'Hochladen',
+      remove: '{{name}} entfernen',
+      exceedsMaxSize: '„{{name}}“ überschreitet die maximale Größe ({{max}} MB)',
+      uploadFailed: 'Hochladen von „{{name}}“ fehlgeschlagen: {{error}}',
+    },
     richText: {
       format: "Format: {{format}}",
       basicEditorHint: "Rich-Text-Editor (einfach)",
@@ -182,6 +198,7 @@ const de = {
     },
     import: {
       title: "{{object}} importieren",
+      notAllowed: "Dieses Objekt ist nicht für den Import freigegeben.",
       stepUpload: "Hochladen",
       stepMapping: "Zuordnung",
       stepPreview: "Vorschau",
@@ -1994,6 +2011,7 @@ const de = {
     progressBar: 'Entscheidungsfortschritt',
     declaredActions: 'Aktionen',
     attachmentChip: 'Anhang',
+    attachmentOpenFailed: 'Anhang konnte nicht geöffnet werden – bitte erneut versuchen',
     approveOneTitle: '„{{title}}“ genehmigen?',
     approveOneBody: 'Die Anfrage wird mit Ihrer Identität genehmigt. Um einen Kommentar oder Anhang hinzuzufügen, öffnen Sie die Anfrage.',
     flowOrigin: 'Vom Flow gestartet',

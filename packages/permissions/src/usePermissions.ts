@@ -34,6 +34,7 @@ export function usePermissions(): PermissionContextValue & {
         checkField: () => true,
         getFieldPermissions: () => [],
         getRowFilter: () => undefined,
+        getObjectApiOperations: () => undefined,
         roles: [],
         systemPermissions: [],
         hasCapabilities: () => true,
