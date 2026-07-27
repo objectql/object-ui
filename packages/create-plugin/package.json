@@ -21,7 +21,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "chalk": "^5.6.2",
+    "chalk": "^6.0.0",
     "commander": "^15.0.0",
     "fs-extra": "^11.4.0",
     "prompts": "^2.4.2"

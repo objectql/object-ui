@@ -34,7 +34,7 @@
     "@object-ui/types": "workspace:*",
     "clsx": "^2.1.1",
     "lucide-react": "^1.25.0",
-    "react-i18next": "^17.0.10",
+    "react-i18next": "^17.0.11",
     "tailwind-merge": "^3.6.0"
   },
   "peerDependencies": {

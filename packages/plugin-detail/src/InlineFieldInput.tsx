@@ -16,6 +16,10 @@ import {
   CurrencyField,
   PercentField,
   CapabilityMultiSelectField,
+  ImageField,
+  FileField,
+  AvatarField,
+  SignatureField,
   coerceToSafeValue,
 } from '@object-ui/fields';
 import { PermissionFacetLink } from './renderers/PermissionFacetLink';
@@ -128,6 +132,23 @@ export const InlineFieldInput: React.FC<InlineFieldInputProps> = ({
         onChange={(v) => onChange(v)}
       />
     );
+  }
+  // File-backed fields carry a `sys_file` reference (id / descriptor / URL), not
+  // free text — a plain input would surface the raw storage URL and offer no way
+  // to re-upload. Render the same upload widget the form uses so inline edit can
+  // preview, replace, add and remove files (objectui image inline-edit showing a
+  // bare URL string).
+  if (editType === 'image') {
+    return <ImageField field={field as any} value={value} onChange={(v: any) => onChange(v)} />;
+  }
+  if (editType === 'avatar') {
+    return <AvatarField field={field as any} value={value} onChange={(v: any) => onChange(v)} />;
+  }
+  if (editType === 'signature') {
+    return <SignatureField field={field as any} value={value} onChange={(v: any) => onChange(v)} />;
+  }
+  if (editType === 'file' || editType === 'video' || editType === 'audio') {
+    return <FileField field={field as any} value={value} onChange={(v: any) => onChange(v)} />;
   }
   // Reference fields (lookup / master_detail / tree / user / owner) store an id
   // but may arrive `$expand`-ed as a record object. A plain text input would

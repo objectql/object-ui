@@ -108,12 +108,19 @@ describe('readFileValue', () => {
     expect(readFileValue('https://cdn.example.com/a.png').name).toBe('a.png');
   });
 
-  it('reads a bare reference as an id with no URL of its own', () => {
+  it('resolves a bare reference to the stable download URL', () => {
     const view = readFileValue('file_a', 'File');
 
-    // Honest: an unexpanded reference genuinely has nothing to render from.
+    // The read path may leave a value in its bare-reference form (seen on the
+    // edit-form data path); the stable endpoint is derivable from the id, so a
+    // thumbnail still renders instead of a broken `<img src="">`.
     expect(view).toMatchObject({ id: 'file_a', name: 'File' });
-    expect(view.url).toBeUndefined();
+    expect(view.url).toBe('/api/v1/storage/files/file_a');
+  });
+
+  it('derives the URL of an object that carries an id but no url', () => {
+    const view = readFileValue({ id: 'file_b', name: 'b.png' });
+    expect(view.url).toBe('/api/v1/storage/files/file_b');
   });
 
   it('treats a URL string as a URL, never as a reference', () => {

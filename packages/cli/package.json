@@ -58,7 +58,7 @@
     "@object-ui/types": "workspace:*",
     "@types/glob": "^9.0.0",
     "@vitejs/plugin-react": "^6.0.4",
-    "chalk": "^5.6.2",
+    "chalk": "^6.0.0",
     "commander": "^15.0.0",
     "express": "^4.22.2",
     "express-rate-limit": "^8.6.1",

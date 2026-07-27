@@ -68,6 +68,24 @@ export function fileIdOf(value: unknown): string | undefined {
   return undefined;
 }
 
+/**
+ * The stable download endpoint a bare `sys_file` id resolves to.
+ *
+ * `createObjectStackUploadAdapter` stores exactly this URL (`${basePath}/files/
+ * :id`, default base `/api/v1/storage`) as a completed upload's value, and the
+ * endpoint 302-redirects to a freshly-signed short-lived URL on every request —
+ * so it can be used directly as an `<img src>`. Building it here means a value
+ * still in its bare-reference form (the backend read path didn't expand it —
+ * seen on the edit-form data path, objectui image thumbnails rendering broken)
+ * resolves to a real URL instead of an empty `src`.
+ */
+export const FILE_STORAGE_BASE_PATH = '/api/v1/storage';
+
+/** The stable download URL for a `sys_file` id. */
+export function fileUrlFromId(id: string): string {
+  return `${FILE_STORAGE_BASE_PATH}/files/${encodeURIComponent(id)}`;
+}
+
 /** Last path segment of a URL, used as a display name of last resort. */
 function nameFromUrl(url: string): string {
   const path = url.split(/[?#]/)[0] ?? url;
@@ -85,8 +103,11 @@ export function readFileValue(value: unknown, fallbackName = 'File'): FileValueV
   if (value == null) return { name: fallbackName, raw: value };
 
   if (typeof value === 'string') {
-    // A bare id has no name or URL of its own — the backend expands it on read.
-    if (isFileIdToken(value)) return { id: value, name: fallbackName, raw: value };
+    // A bare id carries no name of its own (the backend expands it on read),
+    // but its URL is derivable from the stable download endpoint — so a value
+    // the read path left as a bare reference still renders a thumbnail instead
+    // of a broken `<img src="">`.
+    if (isFileIdToken(value)) return { id: value, name: fallbackName, url: fileUrlFromId(value), raw: value };
     // Otherwise it is a URL (legacy external link, data:, blob:).
     return { url: value, name: nameFromUrl(value), raw: value };
   }
@@ -94,14 +115,17 @@ export function readFileValue(value: unknown, fallbackName = 'File'): FileValueV
   if (typeof value === 'object') {
     const o = value as Record<string, unknown>;
     const str = (v: unknown) => (typeof v === 'string' && v ? v : undefined);
-    const url = str(o.url);
+    const id = fileIdOf(o);
+    // An object shape that carries an id but not its URL (a partially-expanded
+    // reference) still resolves to the stable endpoint, same as a bare id.
+    const url = str(o.url) ?? (id ? fileUrlFromId(id) : undefined);
     const name =
       str(o.name) ??
       str(o.original_name) ??
-      (url ? nameFromUrl(url) : undefined) ??
+      (str(o.url) ? nameFromUrl(str(o.url) as string) : undefined) ??
       fallbackName;
     return {
-      id: fileIdOf(o),
+      id,
       name,
       url,
       size: typeof o.size === 'number' ? o.size : undefined,
@@ -190,8 +214,17 @@ export function withRecentUploads(
 ): FileValueView[] {
   if (Object.keys(recent).length === 0) return views;
   return views.map((v) => {
-    if (!v.id || v.url) return v;
-    const known = recent[v.id];
-    return known ? { ...known, raw: v.raw } : v;
+    const known = v.id ? recent[v.id] : undefined;
+    if (!known) return v;
+    // A value the backend already expanded carries its own URL on the raw
+    // object — leave that alone. A bare reference (string id, or an id-only
+    // object) has only the synthetic download URL `readFileValue` derived, so
+    // the just-uploaded name/mimeType still fills in.
+    const rawHasOwnUrl =
+      !!v.raw &&
+      typeof v.raw === 'object' &&
+      typeof (v.raw as Record<string, unknown>).url === 'string' &&
+      !!(v.raw as Record<string, unknown>).url;
+    return rawHasOwnUrl ? v : { ...known, raw: v.raw };
   });
 }

@@ -414,12 +414,31 @@ function formatDryRunError(
   return { fieldLabel, message };
 }
 
+/**
+ * Plausible email? Mirrors the server's `isLikelyEmail` (structure + ASCII) so
+ * an obviously-bad address — e.g. a non-ASCII domain like `x@柴仟.com` — is
+ * flagged red in the preview here, instead of passing client + dry-run
+ * validation only to be rejected by better-auth at real-import time
+ * (framework#3566). Deliberately not a regex: a single-pass structural check
+ * has no backtracking (cf. the server-side ReDoS note).
+ */
+export function isPlausibleEmail(value: string): boolean {
+  if (value.length === 0 || value.length > 254 || /\s/.test(value)) return false;
+  if (/[^\x00-\x7f]/.test(value)) return false; // ASCII only, like the server
+  const at = value.indexOf('@');
+  if (at <= 0 || at !== value.lastIndexOf('@') || at === value.length - 1) return false;
+  const domain = value.slice(at + 1);
+  const dot = domain.lastIndexOf('.');
+  return dot > 0 && dot < domain.length - 1;
+}
+
 function validateValue(value: string, type: string): boolean {
   if (!value) return true;
   switch (type) {
     case 'number': case 'currency': case 'percent': return !isNaN(Number(value));
     case 'boolean': return BOOLEAN_IMPORT_TOKENS.has(value.trim().toLowerCase());
     case 'date': case 'datetime': return !isNaN(Date.parse(value));
+    case 'email': return isPlausibleEmail(value.trim());
     default: return true;
   }
 }
