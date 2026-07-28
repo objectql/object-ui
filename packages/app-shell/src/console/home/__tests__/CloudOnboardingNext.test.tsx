@@ -22,7 +22,21 @@ vi.mock('@object-ui/auth', () => ({
   createAuthenticatedFetch: () => (url: string, init?: any) => fetchImpl(url, init),
 }));
 
+import { I18nProvider } from '@object-ui/i18n';
 import { CloudOnboardingNext } from '../CloudOnboardingNext';
+
+/**
+ * The CTA labels resolve from the locale packs (objectui#2871), so these
+ * renders need a real i18n context — without one `t()` returns the raw key and
+ * these assertions would pass against nothing. Pinned to `en` with browser
+ * detection off so the expectations stay deterministic.
+ */
+const renderOnboarding = (ui: React.ReactElement) =>
+  render(
+    <I18nProvider config={{ defaultLanguage: 'en', detectBrowserLanguage: false }}>
+      {ui}
+    </I18nProvider>,
+  );
 
 function summary(hasProductionEnv: boolean) {
   return {
@@ -46,7 +60,7 @@ describe('CloudOnboardingNext', () => {
 
   it('shows "Create your environment" when the org has no production env', async () => {
     fetchImpl = async () => summary(false);
-    render(<CloudOnboardingNext {...PROPS} />);
+    renderOnboarding(<CloudOnboardingNext {...PROPS} />);
 
     const create = await screen.findByText('Create your environment');
     expect(create).toBeTruthy();
@@ -62,7 +76,7 @@ describe('CloudOnboardingNext', () => {
 
   it('shows "Open Production" once the org has a production env', async () => {
     fetchImpl = async () => summary(true);
-    render(<CloudOnboardingNext {...PROPS} />);
+    renderOnboarding(<CloudOnboardingNext {...PROPS} />);
 
     expect(await screen.findByText('Open Production')).toBeTruthy();
     expect(screen.queryByText('Create your environment')).toBeNull();
@@ -70,7 +84,7 @@ describe('CloudOnboardingNext', () => {
 
   it('degrades to the open-production actions when the signal cannot be resolved', async () => {
     fetchImpl = async () => ({ ok: false, status: 500, json: async () => null });
-    render(<CloudOnboardingNext {...PROPS} />);
+    renderOnboarding(<CloudOnboardingNext {...PROPS} />);
 
     // Unknown state is fail-safe: it must NEVER strand a real user behind a
     // wrong "create" CTA, so it shows Open Production + Manage environments.
@@ -82,7 +96,7 @@ describe('CloudOnboardingNext', () => {
   it('renders a non-CTA skeleton while the signal is still loading', async () => {
     let resolveFetch: (v: any) => void = () => {};
     fetchImpl = () => new Promise((r) => { resolveFetch = r; });
-    const { container } = render(<CloudOnboardingNext {...PROPS} />);
+    const { container } = renderOnboarding(<CloudOnboardingNext {...PROPS} />);
 
     // Before the fetch resolves: no CTA text, just the skeleton placeholder.
     expect(screen.queryByText('Open Production')).toBeNull();

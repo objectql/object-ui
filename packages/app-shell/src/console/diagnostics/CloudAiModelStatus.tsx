@@ -20,8 +20,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Badge, Skeleton } from '@object-ui/components';
 import { createAuthenticatedFetch } from '@object-ui/auth';
 import { ComponentRegistry } from '@object-ui/core';
+import { useObjectTranslation } from '@object-ui/i18n';
 
-type I18n = { en: string; zh: string };
+type TFn = (key: string, vars?: Record<string, unknown>) => string;
 
 interface EffectiveModelReport {
   conversational: { model?: string; source: string };
@@ -47,21 +48,12 @@ type Phase =
   | { phase: 'ready'; report: EffectiveModelReport }
   | { phase: 'error'; status?: number };
 
-function pick(label: I18n): string {
-  const lang =
-    (typeof document !== 'undefined' && document.documentElement.getAttribute('lang')) || 'en';
-  return lang.toLowerCase().startsWith('zh') ? label.zh : label.en;
-}
-
 /** Env-override source → a friendly label; `code-default` reads as such. */
-function sourceLabel(source: string): I18n {
-  if (source === 'code-default')
-    return { en: 'code default (no env override)', zh: '代码默认(无 env 覆盖)' };
-  if (source === 'inherits-conversational')
-    return { en: 'same as build/ask', zh: '与 build/ask 相同' };
-  if (source.startsWith('env:'))
-    return { en: `pinned by ${source.slice(4)}`, zh: `被 ${source.slice(4)} 钉住` };
-  return { en: source, zh: source };
+function sourceLabel(source: string, t: TFn): string {
+  if (source === 'code-default') return t('aiModelStatus.sourceCodeDefault');
+  if (source === 'inherits-conversational') return t('aiModelStatus.sourceInherits');
+  if (source.startsWith('env:')) return t('aiModelStatus.sourcePinned', { source: source.slice(4) });
+  return source;
 }
 
 /** `code-default` is the calm state; any env pin is worth a highlight. */
@@ -104,19 +96,20 @@ function useEffectiveModel(url: string): Phase {
 }
 
 /** One labelled row: dimension name, the resolved model, and a source badge. */
-function ModelRow({ label, model, source }: { label: I18n; model?: string; source: string }) {
+function ModelRow({ label, model, source, t }: { label: string; model?: string; source: string; t: TFn }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 py-2 border-b border-border last:border-b-0">
-      <span className="text-sm text-muted-foreground">{pick(label)}</span>
+      <span className="text-sm text-muted-foreground">{label}</span>
       <span className="flex items-center gap-2">
         <code className="text-sm font-medium">{model ?? '—'}</code>
-        <Badge variant={sourceTone(source)}>{pick(sourceLabel(source))}</Badge>
+        <Badge variant={sourceTone(source)}>{sourceLabel(source, t)}</Badge>
       </span>
     </div>
   );
 }
 
 export function CloudAiModelStatus({ properties }: CloudAiModelStatusProps) {
+  const { t } = useObjectTranslation();
   const url = properties?.effectiveModelUrl || DEFAULT_URL;
   const state = useEffectiveModel(url);
 
@@ -133,10 +126,9 @@ export function CloudAiModelStatus({ properties }: CloudAiModelStatusProps) {
   if (state.phase === 'error') {
     return (
       <div className="text-sm text-muted-foreground" data-ai-model-status="error">
-        {pick({
-          en: `Couldn't read the effective AI model${state.status ? ` (HTTP ${state.status})` : ''}. This environment may not run an AI service, or you may lack the ai:read permission.`,
-          zh: `无法读取有效 AI 模型${state.status ? `(HTTP ${state.status})` : ''}。该环境可能未运行 AI 服务,或你没有 ai:read 权限。`,
-        })}
+        {state.status
+          ? t('aiModelStatus.readFailedWithStatus', { status: state.status })
+          : t('aiModelStatus.readFailed')}
       </div>
     );
   }
@@ -150,33 +142,36 @@ export function CloudAiModelStatus({ properties }: CloudAiModelStatusProps) {
 
       <div className="rounded-md border border-border px-3">
         <ModelRow
-          label={{ en: 'Build / Ask model', zh: 'Build / Ask 模型' }}
+          label={t('aiModelStatus.rowConversational')}
+          t={t}
           model={report.conversational.model}
           source={report.conversational.source}
         />
         <ModelRow
-          label={{ en: 'Structured (blueprint / seed)', zh: '结构化(蓝图 / 种子)' }}
+          label={t('aiModelStatus.rowStructured')}
+          t={t}
           model={report.structured.model}
           source={report.structured.source}
         />
         <ModelRow
-          label={{ en: 'Reasoning effort', zh: '推理强度' }}
+          label={t('aiModelStatus.rowReasoning')}
+          t={t}
           model={report.reasoningEffort.effective}
           source={report.reasoningEffort.source}
         />
       </div>
 
       <div className="text-xs text-muted-foreground">
-        <span className="font-medium">{pick({ en: 'Overrides in effect: ', zh: '生效的 env 覆盖:' })}</span>
+        <span className="font-medium">{t('aiModelStatus.overridesInEffect')}</span>
         {setOverrides.length === 0 ? (
-          <span>{pick({ en: 'none — running the deployed code defaults.', zh: '无 —— 跑的是部署代码的默认值。' })}</span>
+          <span>{t('aiModelStatus.noOverrides')}</span>
         ) : (
           <code>{setOverrides.map(([k, v]) => `${k}=${v}`).join('  ·  ')}</code>
         )}
       </div>
 
       <p className="text-xs text-muted-foreground">
-        {pick({ en: 'Adapter: ', zh: '适配器:' })}
+        {t('aiModelStatus.adapter')}
         <code>{report.adapter}{report.provider ? ` / ${report.provider}` : ''}</code>
       </p>
     </div>

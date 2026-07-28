@@ -18,9 +18,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, Badge } from '@object-ui/components';
 import { createAuthenticatedFetch } from '@object-ui/auth';
 import { toast } from 'sonner';
+import { useObjectTranslation } from '@object-ui/i18n';
 import { ImportWizard } from '@object-ui/plugin-grid';
-
-type I18n = { en: string; zh: string };
 
 interface WizardField {
   name: string;
@@ -39,12 +38,6 @@ interface ExcelImportBarProps {
   defaultObjectName?: string;
   /** Called when the user dismisses the bar or an import completes. */
   onDone: () => void;
-}
-
-function pick(label: I18n): string {
-  const lang =
-    (typeof document !== 'undefined' && document.documentElement.getAttribute('lang')) || 'en';
-  return lang.toLowerCase().startsWith('zh') ? label.zh : label.en;
 }
 
 const SKIP_OBJECT_PREFIXES = ['sys_', 'ai_', 'cloud_'];
@@ -68,6 +61,7 @@ function normalizeFields(schema: any): WizardField[] {
 }
 
 export function ExcelImportBar({ file, dataSource, defaultObjectName, onDone }: ExcelImportBarProps) {
+  const { t } = useObjectTranslation();
   const authFetch = useMemo(() => createAuthenticatedFetch(), []);
   const [objects, setObjects] = useState<Array<{ name: string; label: string }> | null>(null);
   const [selected, setSelected] = useState<string>(defaultObjectName ?? '');
@@ -109,13 +103,13 @@ export function ExcelImportBar({ file, dataSource, defaultObjectName, onDone }: 
       const schema = await dataSource.getObjectSchema(selected);
       const f = normalizeFields(schema);
       if (!f.length) {
-        toast.error(pick({ en: 'That object has no importable fields.', zh: '该对象没有可导入的字段。' }));
+        toast.error(t('excelImport.noImportableFields'));
         return;
       }
       setFields(f);
       setOpen(true);
     } catch {
-      toast.error(pick({ en: 'Could not read the object schema.', zh: '无法读取对象结构。' }));
+      toast.error(t('excelImport.schemaReadFailed'));
     } finally {
       setLoadingFields(false);
     }
@@ -135,10 +129,7 @@ export function ExcelImportBar({ file, dataSource, defaultObjectName, onDone }: 
         initialFile={file}
         onComplete={(result) => {
           toast.success(
-            pick({
-              en: `Imported ${result.importedRows} row(s) into ${selectedLabel}.`,
-              zh: `已把 ${result.importedRows} 行真实数据导入「${selectedLabel}」。`,
-            }),
+            t('excelImport.imported', { count: result.importedRows, object: selectedLabel }),
           );
         }}
       />
@@ -149,10 +140,10 @@ export function ExcelImportBar({ file, dataSource, defaultObjectName, onDone }: 
     <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm" data-excel-import-bar>
       <Badge variant="secondary">CSV / Excel</Badge>
       <span className="text-muted-foreground">
-        {pick({ en: 'Import the real rows from', zh: '把真实数据导入自' })}
+        {t('excelImport.importFrom')}
       </span>
       <code className="font-medium">{file.name}</code>
-      <span className="text-muted-foreground">{pick({ en: 'into', zh: '到' })}</span>
+      <span className="text-muted-foreground">{t('excelImport.into')}</span>
       <select
         className="h-8 rounded-md border border-input bg-background px-2 text-sm"
         value={selected}
@@ -164,10 +155,10 @@ export function ExcelImportBar({ file, dataSource, defaultObjectName, onDone }: 
         ))}
       </select>
       <Button size="sm" onClick={openWizard} disabled={!selected || loadingFields}>
-        {loadingFields ? pick({ en: 'Opening…', zh: '打开中…' }) : pick({ en: 'Import', zh: '导入' })}
+        {loadingFields ? t('excelImport.opening') : t('excelImport.importAction')}
       </Button>
       <Button size="sm" variant="ghost" onClick={onDone}>
-        {pick({ en: 'Dismiss', zh: '忽略' })}
+        {t('excelImport.dismiss')}
       </Button>
     </div>
   );

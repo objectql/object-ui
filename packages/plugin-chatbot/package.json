@@ -34,6 +34,7 @@
     "@ai-sdk/react": "^4.0.40",
     "@object-ui/components": "workspace:*",
     "@object-ui/core": "workspace:*",
+    "@object-ui/i18n": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
     "@radix-ui/react-slot": "^1.3.3",

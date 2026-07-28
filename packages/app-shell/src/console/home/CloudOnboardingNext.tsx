@@ -32,9 +32,7 @@ import { Rocket, Plus, Settings2 } from 'lucide-react';
 import { useAuth } from '@object-ui/auth';
 import { createAuthenticatedFetch } from '@object-ui/auth';
 import { ComponentRegistry } from '@object-ui/core';
-
-/** Inline {en,zh} copy resolved against the active locale. */
-type I18n = { en: string; zh: string };
+import { useObjectTranslation } from '@object-ui/i18n';
 
 interface CloudOnboardingNextProps {
   properties?: {
@@ -63,12 +61,6 @@ const DEFAULT_OPEN_PRODUCTION_URL = '/api/v1/cloud/environments/production/sso-o
 const DEFAULT_ENVIRONMENTS_ROUTE = '/apps/cloud_control/sys_environment';
 
 /** Resolve the active locale's string (cheap; the page uses {en,zh} pairs). */
-function pick(label: I18n): string {
-  const lang =
-    (typeof document !== 'undefined' && document.documentElement.getAttribute('lang')) || 'en';
-  return lang.toLowerCase().startsWith('zh') ? label.zh : label.en;
-}
-
 /**
  * Resolve `hasProductionEnv` from the org-scoped entitlements summary. Returns
  * `unknown` on any failure so the caller degrades gracefully rather than
@@ -127,6 +119,7 @@ function openProduction(url: string) {
 }
 
 export function CloudOnboardingNext({ properties }: CloudOnboardingNextProps) {
+  const { t } = useObjectTranslation();
   const navigate = useNavigate();
   const state = useProductionEnvState(properties?.warmUrl);
   const openUrl = properties?.openProductionUrl || DEFAULT_OPEN_PRODUCTION_URL;
@@ -143,16 +136,10 @@ export function CloudOnboardingNext({ properties }: CloudOnboardingNextProps) {
     );
   }
 
-  const hint: I18n =
+  const hint =
     state.phase === 'ready' && !state.hasProductionEnv
-      ? {
-          en: 'Spin up your first environment — a private workspace with its own URL, database, and plan. Building happens inside it.',
-          zh: '创建你的第一个环境——一个独立的工作区,有自己的网址、数据库和套餐。应用的搭建在里面进行。',
-        }
-      : {
-          en: 'Your production environment is ready. Open it to build and run your apps — that all happens inside the environment.',
-          zh: '你的生产环境已就绪。打开它来搭建和运行应用——这些都在环境内部进行。',
-        };
+      ? t('cloudOnboarding.hintCreate')
+      : t('cloudOnboarding.hintReady');
 
   // No production env yet → the real first step is "create", not "open".
   const showCreatePrimary = state.phase === 'ready' && !state.hasProductionEnv;
@@ -168,20 +155,20 @@ export function CloudOnboardingNext({ properties }: CloudOnboardingNextProps) {
           // second create button on the list page.
           <Button size="lg" onClick={() => navigate(`${envsRoute}?runAction=create_environment`)}>
             <Plus className="mr-2 h-4 w-4" />
-            {pick({ en: 'Create your environment', zh: '创建你的环境' })}
+            {t('cloudOnboarding.createEnvironment')}
           </Button>
         ) : (
           <Button size="lg" onClick={() => openProduction(openUrl)}>
             <Rocket className="mr-2 h-4 w-4" />
-            {pick({ en: 'Open Production', zh: '打开生产环境' })}
+            {t('cloudOnboarding.openProduction')}
           </Button>
         )}
         <Button size="lg" variant="secondary" onClick={() => navigate(envsRoute)}>
           <Settings2 className="mr-2 h-4 w-4" />
-          {pick({ en: 'Manage environments', zh: '管理环境' })}
+          {t('cloudOnboarding.manageEnvironments')}
         </Button>
       </div>
-      <p className="max-w-xl text-center text-sm text-muted-foreground">{pick(hint)}</p>
+      <p className="max-w-xl text-center text-sm text-muted-foreground">{hint}</p>
     </div>
   );
 }

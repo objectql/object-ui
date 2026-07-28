@@ -20,6 +20,7 @@
 import * as React from 'react';
 import { cn } from '@object-ui/components';
 import { SchemaRenderer } from '@object-ui/react';
+import { useObjectTranslation } from '@object-ui/i18n';
 import { AlertCircle, ArrowRight, Copy, Check, RefreshCw, CornerDownLeft, Bot, Eye, GitCompareArrows, Rocket, Clock3, CheckCircle2, XCircle, Loader2, ShieldCheck, TriangleAlert, ClipboardList, HelpCircle, Table2, WifiOff, Sparkles, Hourglass } from 'lucide-react';
 import type { ChatStatus } from 'ai';
 import {
@@ -3732,6 +3733,7 @@ function ErrorBanner({
   onReload?: () => void;
   onUpgrade?: () => void;
 }) {
+  const { t, language } = useObjectTranslation();
   const quota = React.useMemo(() => parseAiQuotaError(error), [error]);
   const { summary, details } = React.useMemo(() => summarizeChatError(error), [error]);
   const [expanded, setExpanded] = React.useState(false);
@@ -3739,15 +3741,17 @@ function ErrorBanner({
   // AI quota refusal (429 from the cloud token guardrail) -> friendly upgrade /
   // top-up CTA instead of a red "Response failed" banner.
   if (quota) {
-    const isZh =
-      typeof navigator !== 'undefined' && !!navigator.language?.toLowerCase().startsWith('zh');
+    // The server sends both a localized `message` (zh) and `messageEn`; that
+    // pair is server-owned, so we still choose between them — but by the
+    // console's active language, not `navigator.language`, which ignored the
+    // in-app locale switcher entirely (objectui#2871). The banner's own copy
+    // now comes from the locale packs.
+    const isZh = language.toLowerCase().startsWith('zh');
     const text =
       (isZh ? quota.message : quota.messageEn ?? quota.message) ||
-      (isZh ? 'AI \u989d\u5ea6\u5df2\u7528\u5b8c\u3002' : 'You have reached your AI quota.');
-    const cta = quota.topUp
-      ? (isZh ? '\u8d2d\u4e70\u989d\u5ea6\u5305' : 'Buy a credit pack')
-      : (isZh ? '\u5347\u7ea7\u65b9\u6848' : 'Upgrade plan');
-    const title = isZh ? '\u9700\u8981\u5347\u7ea7' : 'Upgrade needed';
+      t('chatbotQuota.fallbackMessage');
+    const cta = quota.topUp ? t('chatbotQuota.buyCredits') : t('chatbotQuota.upgradePlan');
+    const title = t('chatbotQuota.title');
     return (
       <div className="border-t bg-background px-3 py-2 text-sm" role="alert">
         <div className="rounded-md border border-amber-300/40 bg-amber-50/60 px-3 py-2 text-foreground dark:bg-amber-950/20">
