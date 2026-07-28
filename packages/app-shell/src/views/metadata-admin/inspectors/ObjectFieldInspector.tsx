@@ -51,14 +51,11 @@ import {
 import {
   FIELD_TYPE_META,
   TYPES_BY_CATEGORY,
-  CATEGORY_LABEL_EN,
-  CATEGORY_LABEL_ZH,
   type FieldTypeId,
 } from '../previews/field-types';
 import { CelPredicateField } from '../CelPredicateField';
 import { t, tFormat } from '../i18n';
 
-const isZh = (locale?: string) => (locale ?? '').toLowerCase().startsWith('zh');
 
 interface Option {
   value: string;
@@ -162,13 +159,14 @@ function writePredicate(orig: unknown, next: string): unknown {
 }
 
 function buildTypeOptions(locale?: string): Array<{ value: string; label: string }> {
-  const zh = (locale ?? '').toLowerCase().startsWith('zh');
-  const cats = zh ? CATEGORY_LABEL_ZH : CATEGORY_LABEL_EN;
+  // Type and category names come from the Studio catalog rather than the
+  // `labelZh` column that used to sit on FIELD_TYPE_META, so this no longer
+  // needs a zh/en branch (objectui#2871).
   return TYPES_BY_CATEGORY.flatMap((g) =>
-    g.types.map((id) => {
-      const m = FIELD_TYPE_META[id];
-      return { value: id, label: `${cats[g.category]} · ${zh ? m.labelZh : m.label}` };
-    }),
+    g.types.map((id) => ({
+      value: id,
+      label: `${t(`engine.fieldCategory.${g.category}`, locale)} · ${t(`engine.fieldType.${id}`, locale)}`,
+    })),
   );
 }
 
@@ -350,7 +348,7 @@ export function ObjectFieldInspector({
     />
   );
 
-  const typeMetaLabel = isZh(locale) ? typeMeta?.labelZh : typeMeta?.label;
+  const typeMetaLabel = typeMeta ? t(`engine.fieldType.${typeMeta.id}`, locale) : undefined;
 
   return (
     <InspectorShell

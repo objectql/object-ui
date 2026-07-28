@@ -852,6 +852,7 @@ const es = {
   console: {
     title: "Consola ObjectStack",
     initializing: "Inicializando aplicación...",
+    loadingHint: "Configurar un entorno nuevo puede tardar unos momentos.",
     breadcrumb: {
       dashboards: "Paneles",
       pages: "Páginas",

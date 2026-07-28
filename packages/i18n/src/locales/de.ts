@@ -852,6 +852,7 @@ const de = {
   console: {
     title: "ObjectStack Konsole",
     initializing: "Anwendung wird initialisiert...",
+    loadingHint: "Die Einrichtung einer neuen Umgebung kann einen Moment dauern.",
     breadcrumb: {
       dashboards: "Dashboards",
       pages: "Seiten",

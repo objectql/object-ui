@@ -850,6 +850,7 @@ const ar = {
   console: {
     title: "وحدة تحكم ObjectStack",
     initializing: "جاري تهيئة التطبيق...",
+    loadingHint: "قد يستغرق إعداد بيئة جديدة بعض الوقت.",
     breadcrumb: {
       dashboards: "لوحات المعلومات",
       pages: "الصفحات",

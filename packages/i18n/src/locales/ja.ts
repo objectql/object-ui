@@ -852,6 +852,7 @@ const ja = {
   console: {
     title: "ObjectStack コンソール",
     initializing: "アプリケーションを初期化中...",
+    loadingHint: "新しい環境のセットアップには少し時間がかかることがあります。",
     breadcrumb: {
       dashboards: "ダッシュボード",
       pages: "ページ",

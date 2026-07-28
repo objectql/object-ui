@@ -850,6 +850,7 @@ const fr = {
   console: {
     title: "Console ObjectStack",
     initializing: "Initialisation de l'application...",
+    loadingHint: "La configuration d'un nouvel environnement peut prendre quelques instants.",
     breadcrumb: {
       dashboards: "Tableaux de bord",
       pages: "Pages",

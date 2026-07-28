@@ -850,6 +850,7 @@ const pt = {
   console: {
     title: "Console ObjectStack",
     initializing: "Inicializando aplicação...",
+    loadingHint: "Configurar um novo ambiente pode levar alguns instantes.",
     breadcrumb: {
       dashboards: "Painéis",
       pages: "Páginas",

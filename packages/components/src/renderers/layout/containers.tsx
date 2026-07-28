@@ -152,20 +152,17 @@ const KNOWN_LABEL_DICT: Record<string, Record<string, string>> = {
   },
 };
 
-const detectLocale = (): string => {
-  if (typeof document !== 'undefined') {
-    const docLang = document.documentElement?.lang;
-    if (docLang) return docLang;
-  }
-  if (typeof navigator !== 'undefined' && navigator.language) {
-    return navigator.language;
-  }
-  return 'en';
-};
-
-const translateLabel = (text: string): string => {
+/**
+ * `locale` is passed in rather than re-detected. Both call sites already
+ * resolve it from `useObjectTranslation().language`; this function used to
+ * call `detectLocale()` and read `document.documentElement.lang` on its own,
+ * so the tab label and the chrome around it could render from two different
+ * language sources — they desync the moment the user switches language
+ * in-app, because the DOM attribute and the i18n instance update
+ * independently (objectui#2871).
+ */
+const translateLabel = (text: string, locale: string): string => {
   if (!text) return text;
-  const locale = detectLocale();
   // Match `zh-CN`, `zh-TW`, then base `zh` → `zh-CN`.
   const exact = KNOWN_LABEL_DICT[locale];
   const base = locale.split('-')[0];
@@ -448,7 +445,7 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     value: typeof (it as any).value === 'string' && (it as any).value !== '' ? (it as any).value : `tab-${idx}`,
     // pickLocalized first (honours `{ en, zh }` / `{ default }`); translateLabel
     // then maps any plain-English well-known token (Details/Related/…) to the locale.
-    labelStr: translateLabel(pickLocalized(it.label, language)),
+    labelStr: translateLabel(pickLocalized(it.label, language), language),
     // Explicit spec count wins; otherwise fall back to the derived probe.
     count: it.count !== undefined && it.count !== null && it.count !== ''
       ? it.count
@@ -634,7 +631,7 @@ const PageAccordionRenderer: React.FC<any> = ({ schema, className, ...props }) =
   const itemsWithValue = items.map((it, idx) => ({
     ...it,
     value: `panel-${idx}`,
-    labelStr: translateLabel(pickLocalized(it.label, language)),
+    labelStr: translateLabel(pickLocalized(it.label, language), language),
   }));
 
   const defaultOpen = itemsWithValue

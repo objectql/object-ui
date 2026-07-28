@@ -850,6 +850,7 @@ const ru = {
   console: {
     title: "Консоль ObjectStack",
     initializing: "Инициализация приложения...",
+    loadingHint: "Настройка нового окружения может занять некоторое время.",
     breadcrumb: {
       dashboards: "Панели",
       pages: "Страницы",

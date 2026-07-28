@@ -66,8 +66,6 @@ import {
 import {
   FIELD_TYPE_META,
   TYPES_BY_CATEGORY,
-  CATEGORY_LABEL_EN,
-  CATEGORY_LABEL_ZH,
   CATEGORY_TONE,
   type FieldTypeId,
   type FieldTypeMeta,
@@ -77,12 +75,13 @@ import { FieldStub } from './FieldStub';
 import { t, tFormat } from '../i18n';
 
 /* ─── locale helpers ─── */
-const isZh = (locale?: string) => (locale ?? '').toLowerCase().startsWith('zh');
-/** Field-type display label in the active locale (data carries both). */
+// Both resolve through the Studio catalog now. They used to read a `labelZh`
+// column on FIELD_TYPE_META behind an `isZh` check, which meant the picker
+// only ever spoke English or Chinese (objectui#2871).
 const typeLabel = (meta: FieldTypeMeta | undefined, locale?: string): string | undefined =>
-  meta ? (isZh(locale) ? meta.labelZh : meta.label) : undefined;
+  meta ? t(`engine.fieldType.${meta.id}`, locale) : undefined;
 const categoryLabel = (cat: FieldTypeCategory, locale?: string): string =>
-  (isZh(locale) ? CATEGORY_LABEL_ZH : CATEGORY_LABEL_EN)[cat];
+  t(`engine.fieldCategory.${cat}`, locale);
 
 export interface ObjectFormCanvasProps {
   objectName: string;
@@ -1274,7 +1273,11 @@ function AddFieldButton({ onPick, compact, locale }: { onPick: (type: FieldTypeI
         category: g.category,
         types: g.types.filter((id) => {
           const m = FIELD_TYPE_META[id];
-          return id.includes(q) || m.label.toLowerCase().includes(q) || m.labelZh.includes(filter.trim());
+          // Match the id, the English label, and the label as the user
+          // actually sees it — previously the third arm was hard-wired to
+          // Chinese, so searching in ja/de matched nothing (objectui#2871).
+          const shown = typeLabel(m, locale) ?? '';
+          return id.includes(q) || m.label.toLowerCase().includes(q) || shown.toLowerCase().includes(q);
         }),
       }))
       .filter((g) => g.types.length > 0);

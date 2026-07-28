@@ -3,7 +3,7 @@ import { Spinner, Button } from '@object-ui/components';
 import { Database, CheckCircle2, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { getProductName, getLogoUrl } from '../runtime-config';
-import { en as enLocale, zh as zhLocale } from '@object-ui/i18n';
+import { en as enLocale, builtInLocales } from '@object-ui/i18n';
 
 interface LoadingScreenProps {
   /** Optional message override */
@@ -23,14 +23,29 @@ interface LoadingScreenProps {
 // synchronous dictionary for the startup shell instead.
 // The product name is read from the runtime-config singleton (sync) so it
 // reflects server-pushed branding when available, falling back to 'ObjectOS'.
+//
+// Indexed by the two-letter prefix across ALL built-in packs rather than a
+// `zh ? … : en` check: the previous form collapsed ten shipped languages into
+// two, so a ja/ko/de user saw English for the whole boot (objectui#2871).
+//
+// Each field falls back to `en` individually. A pack that is behind on some
+// `console.*` keys — several are, see objectui#2872 part (a) — must degrade to
+// English, not to `undefined`, which would render blank on the splash.
 function getStartupStrings() {
-  if (typeof document !== 'undefined' && document.documentElement.lang?.startsWith('zh')) {
-    return zhLocale.console;
-  }
-  if (typeof navigator !== 'undefined' && navigator.language?.startsWith('zh')) {
-    return zhLocale.console;
-  }
-  return enLocale.console;
+  const tag =
+    (typeof document !== 'undefined' ? document.documentElement.lang : '') ||
+    (typeof navigator !== 'undefined' ? navigator.language : '') ||
+    'en';
+  const base = tag.toLowerCase().split('-')[0] as keyof typeof builtInLocales;
+  const pack = builtInLocales[base]?.console;
+  if (!pack || pack === enLocale.console) return enLocale.console;
+  return {
+    ...enLocale.console,
+    ...pack,
+    loadingSteps: { ...enLocale.console.loadingSteps, ...pack.loadingSteps },
+    error: { ...enLocale.console.error, ...pack.error },
+    actions: { ...enLocale.console.actions, ...pack.actions },
+  };
 }
 
 export function LoadingScreen({ message, error, onRetry, retrying }: LoadingScreenProps) {

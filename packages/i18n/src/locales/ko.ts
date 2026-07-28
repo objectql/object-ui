@@ -852,6 +852,7 @@ const ko = {
   console: {
     title: "ObjectStack 콘솔",
     initializing: "애플리케이션 초기화 중...",
+    loadingHint: "새 환경을 설정하는 데 시간이 조금 걸릴 수 있습니다.",
     breadcrumb: {
       dashboards: "대시보드",
       pages: "페이지",

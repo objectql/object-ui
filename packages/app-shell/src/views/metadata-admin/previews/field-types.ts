@@ -46,71 +46,74 @@ export type FieldTypeCategory =
 
 export interface FieldTypeMeta {
   id: FieldTypeId;
+  /**
+   * English display label. The localized name lives in the Studio catalog as
+   * `engine.fieldType.<id>` — this column used to carry a `labelZh` sibling,
+   * which capped the picker at two languages (objectui#2871).
+   */
   label: string;
-  /** Brief Chinese label for the picker / type badge. */
-  labelZh: string;
   category: FieldTypeCategory;
   Icon: LucideIcon;
 }
 
-const M = (id: FieldTypeId, label: string, labelZh: string, category: FieldTypeCategory, Icon: LucideIcon): FieldTypeMeta =>
-  ({ id, label, labelZh, category, Icon });
+const M = (id: FieldTypeId, label: string, category: FieldTypeCategory, Icon: LucideIcon): FieldTypeMeta =>
+  ({ id, label, category, Icon });
 
 export const FIELD_TYPE_META: Record<FieldTypeId, FieldTypeMeta> = {
-  text:        M('text',        'Text',         '单行文本',   'text',       Type),
-  textarea:    M('textarea',    'Text Area',    '多行文本',   'text',       AlignLeft),
-  email:       M('email',       'Email',        '邮箱',       'text',       AtSign),
-  url:         M('url',         'URL',          '网址',       'text',       Globe),
-  phone:       M('phone',       'Phone',        '电话',       'text',       Phone),
-  password:    M('password',    'Password',     '密码',       'text',       Lock),
-  markdown:    M('markdown',    'Markdown',     'Markdown',   'text',       FileText),
-  html:        M('html',        'HTML',         'HTML',       'text',       Code),
-  richtext:    M('richtext',    'Rich Text',    '富文本',     'text',       Sparkles),
+  text:        M('text',        'Text',   'text',       Type),
+  textarea:    M('textarea',    'Text Area',   'text',       AlignLeft),
+  email:       M('email',       'Email',       'text',       AtSign),
+  url:         M('url',         'URL',       'text',       Globe),
+  phone:       M('phone',       'Phone',       'text',       Phone),
+  password:    M('password',    'Password',       'text',       Lock),
+  markdown:    M('markdown',    'Markdown',   'text',       FileText),
+  html:        M('html',        'HTML',       'text',       Code),
+  richtext:    M('richtext',    'Rich Text',     'text',       Sparkles),
 
-  number:      M('number',      'Number',       '数字',       'number',     Hash),
-  currency:    M('currency',    'Currency',     '货币',       'number',     DollarSign),
-  percent:     M('percent',     'Percent',      '百分比',     'number',     Percent),
+  number:      M('number',      'Number',       'number',     Hash),
+  currency:    M('currency',    'Currency',       'number',     DollarSign),
+  percent:     M('percent',     'Percent',     'number',     Percent),
 
-  date:        M('date',        'Date',         '日期',       'date',       Calendar),
-  datetime:    M('datetime',    'Date/Time',    '日期时间',   'date',       Calendar),
-  time:        M('time',        'Time',         '时间',       'date',       Clock),
+  date:        M('date',        'Date',       'date',       Calendar),
+  datetime:    M('datetime',    'Date/Time',   'date',       Calendar),
+  time:        M('time',        'Time',       'date',       Clock),
 
-  boolean:     M('boolean',     'Checkbox',     '复选框',     'logic',      CheckSquare),
-  toggle:      M('toggle',      'Toggle',       '开关',       'logic',      ToggleLeft),
+  boolean:     M('boolean',     'Checkbox',     'logic',      CheckSquare),
+  toggle:      M('toggle',      'Toggle',       'logic',      ToggleLeft),
 
-  select:      M('select',      'Picklist',     '下拉选择',   'selection',  ListOrdered),
-  multiselect: M('multiselect', 'Multi-Select', '多选',       'selection',  ListChecks),
-  radio:       M('radio',       'Radio',        '单选',       'selection',  CircleDot),
-  checkboxes:  M('checkboxes',  'Checkboxes',   '复选组',     'selection',  ListChecks),
+  select:      M('select',      'Picklist',   'selection',  ListOrdered),
+  multiselect: M('multiselect', 'Multi-Select',       'selection',  ListChecks),
+  radio:       M('radio',       'Radio',       'selection',  CircleDot),
+  checkboxes:  M('checkboxes',  'Checkboxes',     'selection',  ListChecks),
 
-  lookup:        M('lookup',        'Lookup',        '查找关系', 'relation', Link2),
-  master_detail: M('master_detail', 'Master-Detail', '主从关系', 'relation', Workflow),
-  tree:          M('tree',          'Tree',          '树形关系', 'relation', Network),
+  lookup:        M('lookup',        'Lookup', 'relation', Link2),
+  master_detail: M('master_detail', 'Master-Detail', 'relation', Workflow),
+  tree:          M('tree',          'Tree', 'relation', Network),
 
-  image:       M('image',       'Image',        '图片',       'media',      Image),
-  file:        M('file',        'File',         '文件',       'media',      Paperclip),
-  avatar:      M('avatar',      'Avatar',       '头像',       'media',      UserCircle),
-  video:       M('video',       'Video',        '视频',       'media',      Video),
-  audio:       M('audio',       'Audio',        '音频',       'media',      Music),
+  image:       M('image',       'Image',       'media',      Image),
+  file:        M('file',        'File',       'media',      Paperclip),
+  avatar:      M('avatar',      'Avatar',       'media',      UserCircle),
+  video:       M('video',       'Video',       'media',      Video),
+  audio:       M('audio',       'Audio',       'media',      Music),
 
-  formula:     M('formula',     'Formula',      '公式',       'calculated', Calculator),
-  summary:     M('summary',     'Rollup',       '汇总',       'calculated', Sigma),
-  autonumber:  M('autonumber',  'Auto Number',  '自动编号',   'calculated', Hash),
+  formula:     M('formula',     'Formula',       'calculated', Calculator),
+  summary:     M('summary',     'Rollup',       'calculated', Sigma),
+  autonumber:  M('autonumber',  'Auto Number',   'calculated', Hash),
 
-  composite:   M('composite',   'Composite',    '复合字段',   'advanced',   Boxes),
-  repeater:    M('repeater',    'Repeater',     '重复字段',   'advanced',   Repeat2),
-  location:    M('location',    'Location',     '地理坐标',   'advanced',   MapPin),
-  address:     M('address',     'Address',      '地址',       'advanced',   Map),
-  code:        M('code',        'Code',         '代码',       'advanced',   Code),
-  json:        M('json',        'JSON',         'JSON',       'advanced',   FileJson),
-  color:       M('color',       'Color',        '颜色',       'advanced',   Palette),
-  rating:      M('rating',      'Rating',       '评分',       'advanced',   Star),
-  slider:      M('slider',      'Slider',       '滑块',       'advanced',   SlidersHorizontal),
-  signature:   M('signature',   'Signature',    '签名',       'advanced',   PenLine),
-  qrcode:      M('qrcode',      'QR Code',      '二维码',     'advanced',   QrCode),
-  progress:    M('progress',    'Progress',     '进度条',     'advanced',   BarChart3),
-  tags:        M('tags',        'Tags',         '标签',       'advanced',   Tags),
-  vector:      M('vector',      'Vector',       '向量',       'advanced',   Atom),
+  composite:   M('composite',   'Composite',   'advanced',   Boxes),
+  repeater:    M('repeater',    'Repeater',   'advanced',   Repeat2),
+  location:    M('location',    'Location',   'advanced',   MapPin),
+  address:     M('address',     'Address',       'advanced',   Map),
+  code:        M('code',        'Code',       'advanced',   Code),
+  json:        M('json',        'JSON',       'advanced',   FileJson),
+  color:       M('color',       'Color',       'advanced',   Palette),
+  rating:      M('rating',      'Rating',       'advanced',   Star),
+  slider:      M('slider',      'Slider',       'advanced',   SlidersHorizontal),
+  signature:   M('signature',   'Signature',       'advanced',   PenLine),
+  qrcode:      M('qrcode',      'QR Code',     'advanced',   QrCode),
+  progress:    M('progress',    'Progress',     'advanced',   BarChart3),
+  tags:        M('tags',        'Tags',       'advanced',   Tags),
+  vector:      M('vector',      'Vector',       'advanced',   Atom),
 };
 
 export const CATEGORY_ORDER: FieldTypeCategory[] = [
@@ -158,12 +161,6 @@ export function resolveCategoryTone(type: unknown): CategoryTone {
   return CATEGORY_TONE[resolveFieldTypeMeta(type).category];
 }
 
-export const CATEGORY_LABEL_ZH: Record<FieldTypeCategory, string> = {
-  text: '文本', number: '数值', date: '日期/时间', logic: '逻辑',
-  selection: '选择', relation: '关系', media: '媒体',
-  calculated: '计算', advanced: '高级',
-};
-
 /** All type ids grouped by category, in category order. */
 export const TYPES_BY_CATEGORY: Array<{ category: FieldTypeCategory; types: FieldTypeId[] }> =
   CATEGORY_ORDER.map((category) => ({
@@ -181,7 +178,6 @@ export function resolveFieldTypeMeta(type: unknown): FieldTypeMeta {
   return {
     id: 'text',
     label: typeof type === 'string' ? type : 'unknown',
-    labelZh: typeof type === 'string' ? type : '未知',
     category: 'advanced',
     Icon: Type,
   };
