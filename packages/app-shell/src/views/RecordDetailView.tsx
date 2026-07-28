@@ -868,14 +868,30 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     void approvalsRef.current.refresh();
   }, [recordInvalidationNonce]);
 
-  // The shared lock signal for the inline-edit session: the record's own
-  // `approval_status` (what the DetailView lock band keys off) OR an open
-  // pending request from the approvals API — the latter catches backends
-  // that lock via the request record without materializing the field.
-  const approvalLocked =
+  // "An approval is in flight" — the record's own `approval_status` mirror OR
+  // an open pending request from the approvals API (the latter catches backends
+  // that track approvals without materializing the field).
+  const approvalPending =
     (pageRecord as any)?.approval_status === 'pending' ||
     (pageRecord as any)?.approval_status === 'in_approval' ||
     !!approvals.pendingRequest;
+
+  // …and, separately, "the record is LOCKED for writes" (#3794). These are not
+  // the same statement: an approval node with `lockRecord: false` leaves the
+  // record editable on purpose — that is how an approver amends a record while
+  // deciding on it — and the server's lock hook honors it (`lockRecord === false`
+  // ⇒ the update goes through). Conflating them made the console claim "Locked
+  // for approval" on a record it would happily save, so approvers never tried.
+  //
+  // The pending REQUEST is authoritative when we have one: `locks_record` comes
+  // from the same node-config snapshot the server hook reads (framework #3794).
+  // With no request in hand — approvals plugin absent, still loading, or a
+  // field-only backend — fall back to the `approval_status` mirror and assume
+  // locked, which is the safe direction (worst case we hide an edit affordance
+  // instead of letting a user fill a form the server will reject).
+  const approvalLocked = approvals.pendingRequest
+    ? approvals.pendingRequest.locks_record !== false
+    : approvalPending;
 
   const approvalHandler = useCallback(async (action: ActionDef) => {
     const target = action.target || action.name;
@@ -1796,6 +1812,14 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         // can't be stacked on top of the draft (two competing edit sessions
         // with no reconciliation).
         disableDuringInlineEdit: true,
+        // #3794 — an approval-LOCKED record refuses every write (the server
+        // answers RECORD_LOCKED), so opening the form only to be rejected on
+        // Save after filling a screen is wasted work. Disabled rather than
+        // hidden: the user should see the affordance exists and is off, with
+        // the lock band next to it saying why. Note this is the LOCK, not the
+        // mere presence of an approval — a `lockRecord: false` node keeps Edit
+        // live, which is the point of that setting.
+        disabled: approvalLocked,
         onClick: () => onEdit({ id: pureRecordId }),
       } as any);
     }
@@ -1919,10 +1943,15 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
             DetailView "Locked for approval" band renders from the SAME
             dual-source `approvalLocked` that gated `canEdit` — engaging even
             on backends that track the lock via approval requests only and
-            never materialize an `approval_status` field (objectui#2618). */}
+            never materialize an `approval_status` field (objectui#2618).
+            `approvalPending` is the separate "a request is in flight" signal
+            (#3794): on a `lockRecord: false` node it is true while `locked` is
+            false, and the band says "in approval (editable)" instead of lying
+            about a lock the server does not enforce. */}
         <InlineEditProvider
           canEdit={resolveRecordHeaderActionGates(objectDef, effectiveApiOperations).edit && !approvalLocked}
           locked={approvalLocked}
+          approvalPending={approvalPending}
           lockedReason={t('detail.lockedTooltip', {
             defaultValue: 'This record has a pending approval request; editing is locked',
           })}

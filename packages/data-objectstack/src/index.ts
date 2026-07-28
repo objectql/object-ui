@@ -974,6 +974,41 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   }
 
   /**
+   * Same, for the cross-object transactional batch (framework #3794). Its
+   * response hangs the events off a top-level `droppedFields` list, each tagged
+   * with the `index` of the operation it came from — `results` entries are bare
+   * record echoes with nowhere to hang a per-row list.
+   *
+   * This is the path that matters most for the warning: `batchTransaction` is
+   * how the console's record form saves a master-detail record, so a
+   * `readonlyWhen`-locked field edited in that form was stripped server-side
+   * while the UI reported a plain success. The operation kind is taken from the
+   * originating op so the toast doesn't call an update a create.
+   */
+  private notifyBatchDroppedFields(
+    operations: BatchTransactionOperation[],
+    payload: unknown,
+  ): void {
+    const dropped = (payload as { droppedFields?: unknown } | null | undefined)?.droppedFields;
+    if (!Array.isArray(dropped) || dropped.length === 0) return;
+    for (const entry of dropped) {
+      if (!entry || typeof entry !== 'object') continue;
+      const e = entry as DroppedFieldsEvent & { index?: number };
+      if (!Array.isArray(e.fields) || e.fields.length === 0) continue;
+      const op = typeof e.index === 'number' ? operations[e.index] : undefined;
+      // `delete` never drops fields; anything unexpected reads as an update,
+      // which is the truthful default for a batch that echoed a strip.
+      const operation: 'create' | 'update' = (op?.action ?? 'create') === 'create' ? 'create' : 'update';
+      this.emitWriteWarning({
+        operation,
+        resource: e.object ?? op?.object ?? '',
+        ...(op?.id !== undefined && op?.id !== null ? { id: op.id } : {}),
+        droppedFields: [{ object: e.object, fields: e.fields, reason: e.reason }],
+      });
+    }
+  }
+
+  /**
    * Subscribe to write-warning events (a create/update dropped caller-supplied
    * fields — #3431/#3455). Returns an unsubscribe function. The app shell uses
    * this to toast the user; the write itself already succeeded.
@@ -1225,6 +1260,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       // dependency floor (framework #3271). No hand-rolled POST /api/v1/batch.
       const payload = await this.client.data.batchTransaction(operations);
       this.emitBatchMutations(operations, payload?.results);
+      this.notifyBatchDroppedFields(operations, payload);
       return payload;
     } catch (err) {
       // On a non-declaring backend, endpoint missing (404/405) or a runtime that

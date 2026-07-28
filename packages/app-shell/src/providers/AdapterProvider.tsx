@@ -7,29 +7,59 @@
  * @module
  */
 
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { ObjectStackAdapter, type WriteWarningEvent } from '@object-ui/data-objectstack';
 import { createAuthenticatedFetch } from '@object-ui/auth';
 import { AdapterCtx } from '@object-ui/react';
+import { useObjectTranslation } from '@object-ui/i18n';
 import { installSettleSignalGlobal, withSettleSignal } from '../observability/settleSignal';
 
 export { useAdapter } from '@object-ui/react';
 
+type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
+
 /**
  * Turn a write-warning (framework #3431/#3455) into a human toast. The write
- * SUCCEEDED — some caller-supplied fields were legally stripped (read-only /
- * locked by state), so we tell the user rather than let it pass silently.
+ * SUCCEEDED — some caller-supplied fields were legally stripped, so we tell the
+ * user rather than let it pass silently.
+ *
+ * The REASON decides the wording (#3794). `readonly_when` is not "this field is
+ * read-only" — the field is editable in other states and the form rendered it
+ * as an ordinary input; what happened is that THIS record's current state locks
+ * it. Saying "read-only" there sends the user looking for a permission problem
+ * that doesn't exist. Fields are named by their machine name: the event carries
+ * no labels, and a wrong guess at a label is worse than an exact key.
  */
-function toastWriteWarning(ev: WriteWarningEvent): void {
-  const fields = Array.from(new Set(ev.droppedFields.flatMap((d) => d.fields)));
-  if (fields.length === 0) return;
-  const list = fields.join(', ');
-  const description =
-    fields.length === 1
-      ? `The read-only field “${list}” could not be changed and was not saved.`
-      : `${fields.length} read-only fields could not be changed and were not saved: ${list}.`;
-  toast.warning('Some fields were not saved', { description });
+function toastWriteWarning(ev: WriteWarningEvent, t: TranslateFn): void {
+  const byReason = new Map<string, string[]>();
+  for (const d of ev.droppedFields) {
+    const seen = byReason.get(d.reason) ?? [];
+    for (const f of d.fields) if (!seen.includes(f)) seen.push(f);
+    byReason.set(d.reason, seen);
+  }
+  const lines: string[] = [];
+  for (const [reason, fields] of byReason) {
+    if (fields.length === 0) continue;
+    const list = fields.join(', ');
+    lines.push(
+      reason === 'readonly_when'
+        ? t('detail.writeStrippedByState', {
+            fields: list,
+            defaultValue:
+              'Not editable in this record\'s current state, so it was not saved: {{fields}}',
+          })
+        : t('detail.writeStrippedReadonly', {
+            fields: list,
+            defaultValue: 'Read-only, so it was not saved: {{fields}}',
+          }),
+    );
+  }
+  if (lines.length === 0) return;
+  toast.warning(
+    t('detail.writeStrippedTitle', { defaultValue: 'Some fields were not saved' }),
+    { description: lines.join('\n') },
+  );
 }
 
 interface AdapterProviderProps {
@@ -44,6 +74,13 @@ interface AdapterProviderProps {
  */
 export function AdapterProvider({ children, adapter: externalAdapter }: AdapterProviderProps) {
   const [adapter, setAdapter] = useState<ObjectStackAdapter | null>(externalAdapter ?? null);
+  // The warning listener is registered ONCE (the adapter outlives a language
+  // switch), so read `t` through a ref instead of capturing it — otherwise a
+  // user who switches language mid-session keeps getting the old locale, and
+  // adding `t` to the effect deps would tear down and rebuild the adapter.
+  const { t } = useObjectTranslation();
+  const tRef = useRef(t);
+  tRef.current = t;
 
   useEffect(() => {
     if (externalAdapter) {
@@ -72,7 +109,9 @@ export function AdapterProvider({ children, adapter: externalAdapter }: AdapterP
 
         // Surface silently-stripped write fields (#3431/#3455) as a toast so a
         // read-only value the user typed doesn't just vanish on save.
-        unsubscribeWriteWarning = a.onWriteWarning(toastWriteWarning);
+        unsubscribeWriteWarning = a.onWriteWarning((ev) =>
+          toastWriteWarning(ev, tRef.current as TranslateFn),
+        );
 
         await a.connect();
 

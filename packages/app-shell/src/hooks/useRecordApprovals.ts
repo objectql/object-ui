@@ -32,6 +32,16 @@ export interface ApprovalRequestLite {
   pending_approvers?: string[] | null;
   submitted_at?: string;
   completed_at?: string | null;
+  /**
+   * Whether THIS request's node locks the record for writes (framework #3794).
+   * Read from the node-config snapshot's `lockRecord` by the same server that
+   * enforces the lock, so it cannot disagree with the `beforeUpdate` hook.
+   *
+   * `false` ⇒ pending but writable — the node deliberately lets the approver
+   * amend the record while deciding. Absent ⇒ an older server with no opinion;
+   * callers assume locked (the safe direction).
+   */
+  locks_record?: boolean;
 }
 
 interface UseRecordApprovalsResult {

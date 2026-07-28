@@ -94,6 +94,56 @@ describe('ObjectStackAdapter.onWriteWarning', () => {
     expect(events).toEqual([]);
   });
 
+  // ── cross-object batch (framework #3794) ─────────────────────────────────
+  //
+  // `batchTransaction` is the console record form's save path for a
+  // master-detail record, so this is where a `readonlyWhen` strip actually
+  // reaches a user editing a form. Its response tags each event with the index
+  // of the operation that produced it.
+
+  it('emits a write-warning per event on a cross-object batch, resolving the op', async () => {
+    const batchTransaction = vi.fn().mockResolvedValue({
+      results: [{ id: 'acc1' }, { id: 'inv1' }],
+      droppedFields: [
+        { object: 'invoice', fields: ['tax_rate'], reason: 'readonly_when', index: 1 },
+      ],
+    });
+    const ds = makeDS({ batchTransaction });
+    ds.atomicBatchCapability = true;
+    const events: WriteWarningEvent[] = [];
+    ds.onWriteWarning((e: WriteWarningEvent) => events.push(e));
+
+    await ds.batchTransaction([
+      { object: 'account', action: 'create', data: { name: 'Acme' } },
+      { object: 'invoice', action: 'update', id: 'inv1', data: { status: 'paid', tax_rate: 9 } },
+    ]);
+
+    expect(events).toEqual([
+      {
+        operation: 'update',
+        resource: 'invoice',
+        id: 'inv1',
+        droppedFields: [{ object: 'invoice', fields: ['tax_rate'], reason: 'readonly_when' }],
+      },
+    ]);
+  });
+
+  it('does NOT emit for a clean batch or a malformed droppedFields list', async () => {
+    const batchTransaction = vi
+      .fn()
+      .mockResolvedValueOnce({ results: [{ id: 'a' }] })
+      .mockResolvedValueOnce({ results: [{ id: 'a' }], droppedFields: [{ object: 'x', fields: [], index: 0 }] });
+    const ds = makeDS({ batchTransaction });
+    ds.atomicBatchCapability = true;
+    const events: WriteWarningEvent[] = [];
+    ds.onWriteWarning((e: WriteWarningEvent) => events.push(e));
+
+    await ds.batchTransaction([{ object: 'x', action: 'create', data: {} }]);
+    await ds.batchTransaction([{ object: 'x', action: 'create', data: {} }]);
+
+    expect(events).toEqual([]);
+  });
+
   it('stops delivering after unsubscribe', async () => {
     const create = vi.fn().mockResolvedValue({ record: { id: 'r1' }, droppedFields: ONE_DROP });
     const ds = makeDS({ create });

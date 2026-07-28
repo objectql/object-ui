@@ -31,6 +31,7 @@ import {
   ChevronRight,
   Copy,
   Lock,
+  Clock,
   X,
 } from 'lucide-react';
 import { DetailSection } from './DetailSection';
@@ -1017,43 +1018,73 @@ export const DetailView: React.FC<DetailViewProps> = ({
           bar itself now lives in the record-level <InlineEditSaveBar>
           (objectui#2407 P1); this band is lock-only. */}
       {inlineEdit && schema.showHeader === false && (() => {
-        // Detect approval lock. Prefer the host-supplied signal
-        // (`inline.locked`) — the record-level session computes it from the
-        // record's `approval_status` field OR an open approvals request
-        // (objectui#2618), so the band engages even on backends that track
-        // the lock via approval requests only and never materialize an
-        // `approval_status` field on the record. Fall back to the record's
-        // own field for bare/legacy DetailView usage without a host that
-        // threads the lock. Either way a locked record's writes are rejected
-        // with RECORD_LOCKED, so surface the badge instead of editing and
-        // failing on save.
+        // Two DISTINCT states to surface (#3794): an approval is in flight, and
+        // — separately — the record is locked for writes. An approval node
+        // declaring `lockRecord: false` is pending WITHOUT locking (the server's
+        // lock hook returns early and the save lands), so painting the same
+        // "Locked for approval" band on both told the approver the opposite of
+        // what the backend does, and the node's whole point — amend the record
+        // while deciding — went unused.
+        //
+        // The host is authoritative when it has an opinion: the record-level
+        // session resolves both from the pending approval REQUEST, whose
+        // `locks_record` is the same node-config snapshot the server hook reads.
+        // Only when no host threads `approvalPending` (bare/legacy DetailView)
+        // do we fall back to the record's own `approval_status` field — and that
+        // mirror can only say "in approval", so the fallback assumes a lock,
+        // which is the safe direction and preserves the objectui#2618 behavior.
         const approvalStatus = data?.approval_status;
-        const isLocked =
-          (inline?.locked ?? false) ||
-          approvalStatus === 'pending' ||
-          approvalStatus === 'in_approval';
-        // Nothing to surface (not locked, no approval-cancel error): no band.
-        if (!isLocked && !saveError) return null;
+        const fieldPending =
+          approvalStatus === 'pending' || approvalStatus === 'in_approval';
+        const hostKnows = inline?.approvalPending !== undefined;
+        const isLocked = hostKnows
+          ? (inline?.locked ?? false)
+          : ((inline?.locked ?? false) || fieldPending);
+        // A lock always implies an in-flight approval, so a host that threads
+        // only `locked` (objectui#2618, before `approvalPending` existed) keeps
+        // its band.
+        const isPending = isLocked || (hostKnows ? !!inline?.approvalPending : fieldPending);
+        // Nothing to surface (no approval in flight, no approval-cancel error).
+        if (!isPending && !saveError) return null;
         return (
         <div className="flex flex-col items-end gap-1">
-          {isLocked && (
+          {isPending && (
             <div className="flex items-center justify-end gap-2">
-              <span
-                role="status"
-                className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-800"
-                title={inline?.lockedReason ?? t('detail.lockedTooltip')}
-              >
-                <Lock className="h-3 w-3" />
-                <span>{t('detail.lockedByApproval')}</span>
-              </span>
+              {isLocked ? (
+                <span
+                  role="status"
+                  className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-800"
+                  title={inline?.lockedReason ?? t('detail.lockedTooltip')}
+                >
+                  <Lock className="h-3 w-3" />
+                  <span>{t('detail.lockedByApproval')}</span>
+                </span>
+              ) : (
+                // Pending but writable — a neutral (not amber-warning) band, and
+                // no lock glyph: nothing here is blocked. The recall affordance
+                // stays, since recalling is about the request, not the lock.
+                <span
+                  role="status"
+                  className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-1 text-xs text-muted-foreground"
+                  title={t('detail.inApprovalEditableTooltip')}
+                >
+                  <Clock className="h-3 w-3" />
+                  <span>{t('detail.inApprovalEditable')}</span>
+                </span>
+              )}
               {dataSource?.cancelPendingApproval && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleCancelApproval}
                   disabled={isCancellingApproval}
-                  className="gap-2 border-amber-300 text-amber-800 hover:bg-amber-50"
-                  title={t('detail.cancelApprovalTooltip')}
+                  className={isLocked ? 'gap-2 border-amber-300 text-amber-800 hover:bg-amber-50' : 'gap-2'}
+                  // The locked variant's tooltip promises to UNLOCK the record;
+                  // on a node that never locked it, that sentence describes an
+                  // effect the click does not have.
+                  title={isLocked
+                    ? t('detail.cancelApprovalTooltip')
+                    : t('detail.cancelApprovalTooltipUnlocked')}
                 >
                   <X className="h-4 w-4" />
                   <span>

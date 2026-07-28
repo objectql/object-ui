@@ -144,7 +144,6 @@ describe('createObjectStackUserStateAdapter', () => {
         user_id: 'u1',
         key: 'ui.favorites',
         value: [{ id: 'a' }],
-        updated_at: expect.any(String),
       });
     });
 
@@ -165,9 +164,33 @@ describe('createObjectStackUserStateAdapter', () => {
 
       expect(ds.update).toHaveBeenCalledWith('sys_user_preference', 'row-99', {
         value: [{ id: 'x' }],
-        updated_at: expect.any(String),
       });
       expect(ds.create).not.toHaveBeenCalled();
+    });
+
+    // #3794 — `updated_at` is server-managed. A caller-supplied value is
+    // stripped (framework #2948) and reported back as a dropped field, which
+    // the console turns into a "Some fields were not saved" toast. Stamping it
+    // here fired that warning on every recents/favorites write, about a field
+    // no user ever touched — noise on the exact surface that is supposed to
+    // tell a user their edit did not land.
+    it('never sends the server-managed updated_at column', async () => {
+      const ds = mockDataSource({
+        find: vi.fn().mockResolvedValue({ data: [] }) as any,
+        create: vi.fn().mockResolvedValue({ id: 'row-1' }) as any,
+      });
+      const adapter = createObjectStackUserStateAdapter({
+        dataSource: ds,
+        userId: 'u',
+        key: 'ui.recent',
+      });
+
+      await adapter.save([{ id: 'a' } as any]);
+      await adapter.save([{ id: 'b' } as any]);
+
+      for (const call of [...(ds.create as any).mock.calls, ...(ds.update as any).mock.calls]) {
+        expect(call[call.length - 1]).not.toHaveProperty('updated_at');
+      }
     });
 
     it('uses the cached row id from a previous load on subsequent saves', async () => {
@@ -242,7 +265,6 @@ describe('createObjectStackUserStateAdapter', () => {
       expect(ds.create).toHaveBeenCalledTimes(1);
       expect(ds.update).toHaveBeenCalledWith('sys_user_preference', 'row-7', {
         value: [{ id: 'q' }],
-        updated_at: expect.any(String),
       });
     });
 
@@ -270,7 +292,6 @@ describe('createObjectStackUserStateAdapter', () => {
       expect(ds.create).toHaveBeenCalledTimes(1);
       expect(ds.update).toHaveBeenCalledWith('sys_user_preference', 'row-1', {
         value: [{ id: 'a' }, { id: 'b' }],
-        updated_at: expect.any(String),
       });
     });
 

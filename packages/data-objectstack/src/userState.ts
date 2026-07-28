@@ -159,13 +159,18 @@ export function createObjectStackUserStateAdapter<T = unknown>(
   // (a concurrent writer created the row, or the backend dropped our find
   // predicate), recover by re-finding and updating rather than surfacing the
   // failed insert.
+  //
+  // Deliberately does NOT stamp `updated_at`: the column is server-managed, and
+  // a non-system caller's write to it is stripped (framework #2948) and reported
+  // back as a dropped field — which the console surfaces as a "Some fields were
+  // not saved" toast (#3431). Sending it made every recents/favorites write pop
+  // a scary warning about a field the user never touched, drowning the real
+  // signal the toast exists for (#3794). The server stamps it either way.
   const upsert = async (items: T[]): Promise<void> => {
-    const now = new Date().toISOString();
-
     // Fast path: we already know the row id from a previous load/save.
     if (cachedRowId !== null) {
       try {
-        await dataSource.update(resource, cachedRowId, { value: items, updated_at: now });
+        await dataSource.update(resource, cachedRowId, { value: items });
         return;
       } catch (updateError) {
         // Row may have been deleted server-side — fall through to find/insert.
@@ -177,7 +182,7 @@ export function createObjectStackUserStateAdapter<T = unknown>(
     const existing = await findExisting();
     if (existing && existing.id !== undefined && existing.id !== null) {
       cachedRowId = existing.id;
-      await dataSource.update(resource, existing.id, { value: items, updated_at: now });
+      await dataSource.update(resource, existing.id, { value: items });
       return;
     }
 
@@ -186,7 +191,6 @@ export function createObjectStackUserStateAdapter<T = unknown>(
         user_id: userId,
         key,
         value: items,
-        updated_at: now,
       });
       const newId = (created as UserPreferenceRecord | undefined)?.id;
       if (newId !== undefined && newId !== null) cachedRowId = newId;
@@ -196,7 +200,7 @@ export function createObjectStackUserStateAdapter<T = unknown>(
       const recovered = await findExisting();
       if (recovered && recovered.id !== undefined && recovered.id !== null) {
         cachedRowId = recovered.id;
-        await dataSource.update(resource, recovered.id, { value: items, updated_at: now });
+        await dataSource.update(resource, recovered.id, { value: items });
         return;
       }
       throw createError;

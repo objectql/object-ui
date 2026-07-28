@@ -52,6 +52,22 @@ export interface InlineEditContextValue {
    */
   lockedReason?: string;
   /**
+   * Whether an approval request is IN FLIGHT on this record — which is a
+   * different statement from {@link locked} (#3794). An approval node declaring
+   * `lockRecord: false` keeps the record writable while its request is pending
+   * (the server's lock hook returns early), so `approvalPending && !locked` is a
+   * real, common state: the approver is *meant* to amend the record while
+   * deciding. Consumers render "In approval (editable)" for it instead of the
+   * "Locked for approval" band, which would tell the user the opposite of what
+   * the backend does.
+   *
+   * `undefined` means the host has NO opinion (a bare/legacy `DetailView` with
+   * no approvals-aware host) — consumers then fall back to the record's own
+   * `approval_status` field. A host that sets it is authoritative for BOTH
+   * signals, so a `lockRecord: false` node isn't re-locked by the mirror field.
+   */
+  approvalPending?: boolean;
+  /**
    * Draft of user-edited values. Holds ONLY the keys the user actually
    * changed, so the save path never writes computed / read-only / untouched
    * fields. Read a field's live value as `draft[name] ?? data[name]`.
@@ -95,6 +111,12 @@ export interface InlineEditProviderProps {
   locked?: boolean;
   /** Optional human-readable lock reason, surfaced as the band tooltip. */
   lockedReason?: string;
+  /**
+   * Whether an approval request is pending on the record (#3794), independent
+   * of whether it LOCKS the record. Left undefined by hosts that don't resolve
+   * approvals; consumers then fall back to the record's `approval_status`.
+   */
+  approvalPending?: boolean;
   children: React.ReactNode;
 }
 
@@ -102,6 +124,7 @@ export const InlineEditProvider: React.FC<InlineEditProviderProps> = ({
   canEdit = true,
   locked = false,
   lockedReason,
+  approvalPending,
   children,
 }) => {
   const [editing, setEditing] = React.useState(false);
@@ -144,6 +167,7 @@ export const InlineEditProvider: React.FC<InlineEditProviderProps> = ({
       canEdit,
       locked,
       lockedReason,
+      approvalPending,
       draft,
       autoFocusField,
       saving,
@@ -155,7 +179,7 @@ export const InlineEditProvider: React.FC<InlineEditProviderProps> = ({
       setSaving,
       setError,
     }),
-    [editing, canEdit, locked, lockedReason, draft, autoFocusField, saving, error, enter, setField, teardown],
+    [editing, canEdit, locked, lockedReason, approvalPending, draft, autoFocusField, saving, error, enter, setField, teardown],
   );
 
   return <InlineEditContext.Provider value={value}>{children}</InlineEditContext.Provider>;
