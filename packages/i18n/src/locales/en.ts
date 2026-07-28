@@ -1494,7 +1494,12 @@ const en = {
       changesConfirmed: 'Confirmed',
       changesConfirm: 'Confirm',
       changesConfirmHint: 'Reply to confirm or adjust this change.',
-      changesConfirmMessage: 'Confirm the changes — apply what you just proposed.',
+      // Wording is load-bearing: this is SENT to the agent and must satisfy the
+      // cloud confirm gate's English clause `apply (this|the) change`
+      // (service-ai-studio confirm-gate.ts APPROVAL_RE). "apply what you just
+      // proposed" did NOT match, so the button was inert. Singular "the change"
+      // so it still matches if the gate ever adds a word boundary.
+      changesConfirmMessage: 'Confirm — apply the change you just proposed.',
       changeVerb: {
         createObject: 'Create object',
         addField: 'Add field',

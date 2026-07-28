@@ -707,7 +707,9 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
    * `planApproveMessage` this is OUTBOUND text, so the console picks it by the
    * language of the CONVERSATION, not of the UI — sending Chinese from an
    * English session would flip the agent's reply language (objectui#2884).
-   * Default "Confirm the changes — apply what you just proposed."
+   * The wording must satisfy the cloud confirm gate's approval pattern or the
+   * agent re-proposes and the button looks inert.
+   * Default "Confirm — apply the change you just proposed."
    */
   changesConfirmMessage?: string;
   /**
@@ -1263,7 +1265,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       changesConfirmedLabel = 'Confirmed',
       changesConfirmLabel = 'Confirm',
       changesConfirmHintLabel = 'Reply to confirm or adjust this change.',
-      changesConfirmMessage = 'Confirm the changes — apply what you just proposed.',
+      changesConfirmMessage = 'Confirm — apply the change you just proposed.',
       changeVerbLabels = DEFAULT_CHANGE_VERB_LABELS,
       fetchPendingDraftCount,
       autoPublishDrafts = false,

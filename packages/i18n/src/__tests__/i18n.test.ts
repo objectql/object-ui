@@ -98,37 +98,61 @@ describe('@object-ui/i18n', () => {
       expect(i18n.t('console.ai.nextSteps')).toBe('下一步');
     });
 
-    // Regression guard: the "开始搭建" button SENDS these two messages, and the
-    // cloud confirm gate (service-ai-studio confirm-gate.ts APPROVAL_RE) only
-    // treats Chinese text as approval when it is 确认-anchored (e.g. "确认搭建").
-    // A bare "…搭建吧" silently fails the gate → the agent re-proposes and the
-    // button looks inert. Keep both messages matching the gate's 确认 anchor.
-    it('AI plan-approve messages stay anchored on the confirm gate keyword (确认)', () => {
-      const i18n = createI18n({ defaultLanguage: 'zh', detectBrowserLanguage: false });
-      // Mirror of the cloud APPROVAL_RE Chinese clause (confirm-gate.ts). Kept
-      // narrow on purpose: a plain build REQUEST ("帮我搭建一个 CRM") must NOT match.
-      const gate = /确认[，,、]?\s*(开始|可以|并|要)?\s*(搭建|创建|生成|构建|修改|应用)|直接搭建/;
-      expect(i18n.t('console.ai.planApproveMessage')).toMatch(gate);
-      expect(i18n.t('console.ai.planApproveDefaultsMessage')).toMatch(gate);
-      expect('帮我搭建一个 CRM').not.toMatch(gate);
+    // Regression guard: the plan card's "Build it" and the change card's
+    // "Confirm" buttons SEND these messages to the agent, and the cloud confirm
+    // gate (service-ai-studio confirm-gate.ts APPROVAL_RE) decides whether the
+    // text counts as approval. Text the gate does not recognise fails SILENTLY:
+    // the agent re-proposes instead of acting and the button just looks inert.
+    //
+    // `GATE` below is a verbatim mirror of that regex. It is duplicated across
+    // repo boundaries on purpose — objectui cannot import from cloud — so when
+    // APPROVAL_RE changes there, update this copy in the same breath.
+    //
+    // How this guard earned its keep: it originally mirrored only the CHINESE
+    // clause, and the English half was reduced to "starts with Confirm, contains
+    // apply" because nothing here could see the real pattern. That weaker check
+    // passed while the shipped English string ("…apply what you just proposed")
+    // did NOT match the gate — every English conversation's Confirm button was
+    // dead, and so were all eight locales that fall back to English.
+    const GATE =
+      /直接搭建|直接建|直接帮我(建|搭)|不用再?问我?|别再?问我?|无需确认|不用确认|确认[，,、]?\s*(开始|可以|并|要)?\s*(搭建|创建|生成|构建|修改|应用|执行|继续)|应用(你|您|刚才|这个?|那个?|该|上述|提议|建议)+的?\s*(改动|修改|变更|更改)|^\s*确[认定][。.!！\s]*$|just build it|go ahead and build|start building|build it now|don'?t ask|without confirmation|build it as proposed|build it with your best|apply (this|the) change/i;
 
-      // The granular change-confirm card (objectui#2884) sends its own message
-      // through the SAME gate, so it carries the same 确认 anchor. This one is
-      // unchanged from the string that was previously hard-coded in the
-      // component, so the Chinese path is byte-for-byte what the gate already
-      // accepted — the fix only stopped it being sent to English conversations.
-      expect(i18n.t('console.ai.changesConfirmMessage')).toMatch(gate);
+    // Only the APPROVAL messages. `planAnswerMessage` is deliberately absent: it
+    // answers a structure question so the agent can continue, and must NOT read
+    // as blanket approval.
+    const APPROVAL_KEYS = [
+      'console.ai.planApproveMessage',
+      'console.ai.planApproveDefaultsMessage',
+      'console.ai.changesConfirmMessage',
+    ] as const;
+
+    it.each(['zh', 'en'])(
+      'every outbound approval message the %s console sends satisfies the cloud confirm gate',
+      (lang) => {
+        const i18n = createI18n({ defaultLanguage: lang, detectBrowserLanguage: false });
+        for (const key of APPROVAL_KEYS) {
+          const msg = i18n.t(key);
+          expect(msg, `${key} must not fall through to its raw key`).not.toBe(key);
+          expect(msg, `${lang} ${key} does not match the cloud APPROVAL_RE`).toMatch(GATE);
+        }
+      },
+    );
+
+    it('the gate stays narrow — a plain build request is not approval', () => {
+      // If these ever match, the preview-first gate has been widened into
+      // uselessness and the mirror above is no longer worth trusting.
+      expect('帮我搭建一个 CRM').not.toMatch(GATE);
+      expect('Please build me a CRM app').not.toMatch(GATE);
+      expect('我不确定这样对不对').not.toMatch(GATE);
     });
 
-    // The English half of the same contract. The cloud APPROVAL_RE's English
-    // clause is not mirrored here (nothing in this repo can see it), so this
-    // only pins the two tokens the message is built around — enough to catch a
-    // careless reword that drops the approval verb entirely.
-    it('AI change-confirm message keeps its approval verb in English', () => {
+    it('planAnswerMessage answers a question without reading as approval', () => {
       const i18n = createI18n({ defaultLanguage: 'en', detectBrowserLanguage: false });
-      const msg = i18n.t('console.ai.changesConfirmMessage');
-      expect(msg).toMatch(/^Confirm\b/i);
-      expect(msg).toMatch(/\bapply\b/i);
+      const msg = i18n.t('console.ai.planAnswerMessage', {
+        question: 'One shelf or many?',
+        option: 'many',
+      });
+      expect(msg).not.toMatch(GATE);
     });
 
     it('translates common keys in Japanese', () => {

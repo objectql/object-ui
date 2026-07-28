@@ -1602,7 +1602,7 @@ export function ChatPane({
   const changesConfirmMessage = convZh
     ? '确认修改，应用你刚才提议的改动。'
     : t('console.ai.changesConfirmMessage', {
-        defaultValue: 'Confirm the changes — apply what you just proposed.',
+        defaultValue: 'Confirm — apply the change you just proposed.',
       });
   // Verb column of the change rows. Unlike the message above these are LABELS,
   // so they follow the UI locale like every other label on the card.
