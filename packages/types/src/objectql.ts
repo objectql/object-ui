@@ -88,8 +88,6 @@ import type {
 export type ListViewGalleryConfig = GalleryConfig & {
   /** Legacy: image field (deprecated, use coverField) */
   imageField?: string;
-  /** Legacy: subtitle field */
-  subtitleField?: string;
   [key: string]: any;
 };
 

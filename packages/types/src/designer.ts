@@ -483,7 +483,6 @@ export interface UnifiedViewConfig {
   gallery?: {
     imageField?: string;
     titleField?: string;
-    subtitleField?: string;
   };
   /** Timeline-specific options */
   timeline?: {

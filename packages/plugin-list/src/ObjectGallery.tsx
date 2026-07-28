@@ -30,7 +30,6 @@ export interface ObjectGalleryProps {
         imageField?: string;
         /** @deprecated Use gallery.titleField instead */
         titleField?: string;
-        subtitleField?: string;
     };
     data?: Record<string, unknown>[];
     dataSource?: { find: (name: string, query: unknown) => Promise<unknown> };

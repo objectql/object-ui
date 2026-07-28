@@ -766,16 +766,18 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         return {
           type: 'object-gallery',
           ...baseProps,
-          imageField: viewOptions.gallery?.imageField,
+          // `coverField` is the spec key; `imageField` is the legacy alias that
+          // ObjectGallery still consults as a flat prop.
+          imageField: viewOptions.gallery?.coverField || viewOptions.gallery?.imageField,
           titleField: viewOptions.gallery?.titleField || 'name',
-          subtitleField: viewOptions.gallery?.subtitleField,
           ...(viewOptions.gallery || {}),
         };
       case 'timeline':
         return {
           type: 'object-timeline',
           ...baseProps,
-          dateField: viewOptions.timeline?.dateField || 'created_at',
+          // `startDateField` is the spec key; `dateField` is the legacy alias.
+          startDateField: viewOptions.timeline?.startDateField || viewOptions.timeline?.dateField || 'created_at',
           titleField: viewOptions.timeline?.titleField || 'name',
           ...(viewOptions.timeline || {}),
         };

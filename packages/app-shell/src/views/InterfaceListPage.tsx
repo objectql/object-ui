@@ -132,13 +132,14 @@ const SELECT_TYPES = new Set(['select', 'multiselect', 'radio', 'enum', 'boolean
 const DATE_TYPES = new Set(['date', 'datetime', 'time']);
 const IMAGE_TYPES = new Set(['image', 'file', 'attachment', 'avatar', 'photo']);
 
-export function defaultKanbanFromObject(objectDef: any): { groupField: string; groupByField: string } | undefined {
+export function defaultKanbanFromObject(objectDef: any): { groupByField: string } | undefined {
   const field =
     firstFieldMatching(objectDef, (_n, f) => SELECT_TYPES.has(f.type)) ??
     firstFieldMatching(objectDef, (n) => /status|stage|state|priority|category|kind/i.test(n));
-  // ListView reads `groupField` to render and `groupByField || groupField`
-  // to decide the viz is available — set both so it resolves either way.
-  return field ? { groupField: field, groupByField: field } : undefined;
+  // `groupByField` is the spec key. This used to emit the legacy `groupField`
+  // alongside it because ListView rendered off the alias only — that read-site
+  // now prefers the spec key, so one key is enough.
+  return field ? { groupByField: field } : undefined;
 }
 
 function defaultDateField(objectDef: any): string | undefined {

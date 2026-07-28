@@ -1478,7 +1478,13 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     defaultView: viewDef.calendar?.defaultView,
                 },
                 timeline: {
-                    dateField: viewDef.timeline?.dateField || 'due_date',
+                    // Spread the full view-defined timeline config first so the spec
+                    // fields (startDateField/endDateField/groupByField/colorField/scale)
+                    // survive; then layer the defaults. (Mirrors the gallery and gantt
+                    // branches — a bare whitelist here was dropping every spec key and
+                    // pinning the axis to the legacy `dateField` fallback.)
+                    ...(viewDef.timeline || {}),
+                    startDateField: viewDef.timeline?.startDateField || viewDef.timeline?.dateField || 'due_date',
                     titleField: viewDef.timeline?.titleField || objectDef.titleField || 'name',
                     descriptionField: viewDef.timeline?.descriptionField,
                 },
@@ -1499,7 +1505,6 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     imageField: viewDef.gallery?.imageField || viewDef.gallery?.coverField || 'image',
                     coverField: viewDef.gallery?.coverField || viewDef.gallery?.imageField,
                     titleField: viewDef.gallery?.titleField || objectDef.titleField || 'name',
-                    subtitleField: viewDef.gallery?.subtitleField,
                 },
                 gantt: {
                     // Spread the full view-defined gantt config first so the

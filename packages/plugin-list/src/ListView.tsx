@@ -783,7 +783,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         v.titleField, v.cardTitle,
         v.startDateField, v.endDateField, v.dateField, v.endField,
         v.colorField, v.allDayField,
-        v.coverField, v.imageField, v.subtitleField,
+        v.coverField, v.imageField,
         v.swimlaneField, v.valueField,
         ...(Array.isArray(v.cardFields) ? v.cardFields : []),
         ...(Array.isArray(v.visibleFields) ? v.visibleFields : []),
@@ -998,7 +998,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
               v.titleField, v.cardTitle,
               v.startDateField, v.endDateField, v.dateField, v.endField,
               v.colorField, v.allDayField,
-              v.coverField, v.imageField, v.subtitleField,
+              v.coverField, v.imageField,
               v.swimlaneField, v.valueField,
               ...(Array.isArray(v.cardFields) ? v.cardFields : []),
               ...(Array.isArray(v.visibleFields) ? v.visibleFields : []),
@@ -1338,28 +1338,34 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           ...((schema as any).bulkActionDefs ? { bulkActionDefs: (schema as any).bulkActionDefs } : {}),
           ...(schema.options?.grid || {}),
         };
-      case 'kanban':
+      case 'kanban': {
+        // The spec's lane field is `groupByField`; `groupField` is the legacy
+        // objectui alias. Read the canonical key FIRST — reading only the alias
+        // meant a spec-authored config (what CreateViewDialog emits) passed the
+        // capability gate above but rendered lanes from the detector instead.
+        // ADR-0085: with neither key set, fall back to the object's declared
+        // lifecycle (`stageField`, incl. strict-false suppression) via the shared
+        // detector — mirrors ObjectView's default so both entry paths agree.
+        // objectDef loads async: until it lands this stays undefined and the board
+        // re-derives lanes once it does.
+        const kanbanCfg = { ...(schema.options?.kanban || {}), ...(schema.kanban || {}) };
+        // `columns` is the spec's list of fields shown on each card. ObjectKanban's
+        // own `columns` prop is its LANES, so passing this through verbatim built
+        // lanes with undefined id/title. Map it to `cardFields` and strip the
+        // vocabulary keys from the passthrough (mirrors plugin-view's adapter).
+        const { columns: kanbanCardColumns, groupByField, groupField, cardFields, titleField, ...restKanban } = kanbanCfg as Record<string, any>;
+        const laneField = groupByField || groupField || detectStatusField(objectDef) || undefined;
         return {
           type: 'object-kanban',
           ...baseProps,
-          // ADR-0085: no explicit lane field → the object's declared
-          // lifecycle (`stageField`, incl. strict-false suppression) via the
-          // shared detector — mirrors ObjectView's default so a schema that
-          // omits groupField behaves the same on both entry paths. objectDef
-          // loads async: until it lands this stays undefined and the board
-          // re-derives lanes once it does.
-          groupBy: schema.kanban?.groupField || schema.options?.kanban?.groupField
-            || detectStatusField(objectDef) || undefined,
-          groupField: schema.kanban?.groupField || schema.options?.kanban?.groupField
-            || detectStatusField(objectDef) || undefined,
-          ...(schema.kanban?.titleField || schema.options?.kanban?.titleField
-            ? { titleField: schema.kanban?.titleField || schema.options?.kanban?.titleField }
-            : {}),
-          cardFields: schema.kanban?.cardFields || effectiveFields || [],
+          groupBy: laneField,
+          groupField: laneField,
+          ...(titleField ? { titleField } : {}),
+          cardFields: cardFields || kanbanCardColumns || effectiveFields || [],
           ...(groupingConfig ? { grouping: groupingConfig } : {}),
-          ...(schema.options?.kanban || {}),
-          ...(schema.kanban || {}),
+          ...restKanban,
         };
+      }
       case 'calendar':
         return {
           type: 'object-calendar',
@@ -1390,7 +1396,6 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           // Deprecated top-level props for backward compat
           imageField: schema.gallery?.coverField || schema.gallery?.imageField || schema.options?.gallery?.imageField,
           titleField: schema.gallery?.titleField || schema.options?.gallery?.titleField || 'name',
-          subtitleField: schema.gallery?.subtitleField || schema.options?.gallery?.subtitleField,
           ...(groupingConfig ? { grouping: groupingConfig } : {}),
         };
       }

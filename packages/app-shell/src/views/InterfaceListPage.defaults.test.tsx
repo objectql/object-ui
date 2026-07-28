@@ -28,12 +28,12 @@ const taskObject = {
 
 describe('InterfaceListPage default viz bindings', () => {
   it('kanban: picks the first select field as the group field (both aliases)', () => {
-    expect(defaultKanbanFromObject(taskObject)).toEqual({ groupField: 'status', groupByField: 'status' });
+    expect(defaultKanbanFromObject(taskObject)).toEqual({ groupByField: 'status' });
   });
 
   it('kanban: falls back to a status-like field name when no select type exists', () => {
     const obj = { fields: { title: { type: 'text' }, stage: { type: 'text' } } };
-    expect(defaultKanbanFromObject(obj)).toEqual({ groupField: 'stage', groupByField: 'stage' });
+    expect(defaultKanbanFromObject(obj)).toEqual({ groupByField: 'stage' });
   });
 
   it('kanban: undefined when nothing groupable', () => {
@@ -50,7 +50,7 @@ describe('InterfaceListPage default viz bindings', () => {
 
   it('ignores hidden and system fields', () => {
     const obj = { fields: { created_at: { type: 'datetime' }, hidden_sel: { type: 'select', hidden: true }, real_sel: { type: 'select' } } };
-    expect(defaultKanbanFromObject(obj)).toEqual({ groupField: 'real_sel', groupByField: 'real_sel' });
+    expect(defaultKanbanFromObject(obj)).toEqual({ groupByField: 'real_sel' });
   });
 });
 

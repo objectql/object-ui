@@ -25,6 +25,26 @@ is `z.infer<typeof ListViewSchema> & ListViewRuntimeProps`. A drift-guard test
 (`__tests__/list-view-spec-parity.test.ts`) fails if the spec grows a field objectui
 hasn't triaged. **Do not hand-add spec-owned fields here** — import them from the spec.
 
+### Per-view-type configs derive from the spec — #2231
+
+`kanban` / `calendar` / `gantt` / `gallery` / `timeline` on `ListViewSchema` are the
+spec's config schemas `.partial()`-ed (the product authors partial configs, and spec
+marks `columns` / `titleField` / `startDateField` required). `gantt` has no local
+schema at all — it flows in with the rest of `SpecListViewFields`.
+
+Only these keys are local, and each is asserted in the drift guard:
+
+| config | local key | why |
+| :--- | :--- | :--- |
+| `kanban` | `groupField`, `cardFields` | deprecated aliases for spec `groupByField` / `columns` |
+| `calendar` | `defaultView` | no spec counterpart — promote it rather than growing this |
+| `gallery` | `imageField` | deprecated alias for spec `coverField` |
+| `timeline` | `dateField` | deprecated alias for spec `startDateField` |
+
+**The spec key is canonical and wins at every read-site.** The aliases exist so stored
+view metadata keeps validating; don't author new metadata with them, and don't add a
+new alias here — rename at the producer instead.
+
 ### Spec sub-schemas are re-exported by reference (not mirrored) — #2231
 
 The schemas that used to be hand-written "mirrors" of `@objectstack/spec/ui` are now the

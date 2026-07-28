@@ -2549,3 +2549,98 @@ describe('ListView — gantt view fed by an api-provider ViewData', () => {
     expect(mockDataSource.find).toHaveBeenCalled();
   });
 });
+
+// ============================================================================
+// Kanban — spec vocabulary reaches the board (#2231)
+// ============================================================================
+describe('ListView — kanban config speaks the spec vocabulary', () => {
+  // The spec lane key is `groupByField`; `groupField` is the legacy objectui
+  // alias. ListView used to gate the Kanban tab on `groupByField || groupField`
+  // but render lanes off `groupField` ALONE, so a spec-authored config — what
+  // CreateViewDialog emits — offered the tab and then grouped by the detector's
+  // guess. And because the whole config was spread onto the component props,
+  // the spec's `columns` (fields shown on each card) landed on ObjectKanban's
+  // `columns` prop, which is its LANES, producing lanes with undefined ids.
+  let prevObjectKanban: ReturnType<typeof ComponentRegistry.get>;
+  let kanbanCalls: any[];
+
+  beforeAll(() => {
+    prevObjectKanban = ComponentRegistry.get('object-kanban');
+    ComponentRegistry.register('object-kanban', (props: any) => {
+      kanbanCalls.push(props);
+      return <div data-testid="kanban-stub" />;
+    });
+  });
+  afterAll(() => {
+    if (prevObjectKanban) {
+      ComponentRegistry.register('object-kanban', prevObjectKanban);
+    } else {
+      ComponentRegistry.unregister('object-kanban');
+    }
+  });
+  beforeEach(() => {
+    kanbanCalls = [];
+    mockDataSource.find.mockClear();
+  });
+
+  const kanbanSchema = (kanban: Record<string, unknown>) => ({
+    type: 'list-view',
+    objectName: 'contacts',
+    viewType: 'kanban',
+    fields: ['name'],
+    kanban,
+  } as unknown as ListViewSchema);
+
+  it('groups by the spec `groupByField`', async () => {
+    renderWithProvider(<ListView schema={kanbanSchema({ groupByField: 'stage' })} dataSource={mockDataSource} />);
+    expect(await screen.findByTestId('kanban-stub')).toBeInTheDocument();
+
+    const last = kanbanCalls.at(-1);
+    expect(last?.schema?.groupBy).toBe('stage');
+    expect(last?.schema?.groupField).toBe('stage');
+  });
+
+  it('still honors the deprecated `groupField` alias', async () => {
+    renderWithProvider(<ListView schema={kanbanSchema({ groupField: 'priority' })} dataSource={mockDataSource} />);
+    expect(await screen.findByTestId('kanban-stub')).toBeInTheDocument();
+
+    expect(kanbanCalls.at(-1)?.schema?.groupBy).toBe('priority');
+  });
+
+  it('lets the spec key win when both are present', async () => {
+    renderWithProvider(
+      <ListView schema={kanbanSchema({ groupByField: 'stage', groupField: 'legacy' })} dataSource={mockDataSource} />,
+    );
+    expect(await screen.findByTestId('kanban-stub')).toBeInTheDocument();
+
+    expect(kanbanCalls.at(-1)?.schema?.groupBy).toBe('stage');
+  });
+
+  it('maps the spec `columns` to card fields instead of leaking it as lanes', async () => {
+    renderWithProvider(
+      <ListView
+        schema={kanbanSchema({ groupByField: 'stage', columns: ['name', 'amount'] })}
+        dataSource={mockDataSource}
+      />,
+    );
+    expect(await screen.findByTestId('kanban-stub')).toBeInTheDocument();
+
+    const last = kanbanCalls.at(-1);
+    expect(last?.schema?.cardFields).toEqual(['name', 'amount']);
+    // `columns` on ObjectKanban means lanes — the view config's `columns` must
+    // not reach it, or the board renders lanes with undefined id/title.
+    expect(last?.schema?.columns).toBeUndefined();
+  });
+
+  it('does not leak the vocabulary keys onto the component schema', async () => {
+    renderWithProvider(
+      <ListView schema={kanbanSchema({ groupByField: 'stage', summarizeField: 'amount' })} dataSource={mockDataSource} />,
+    );
+    expect(await screen.findByTestId('kanban-stub')).toBeInTheDocument();
+
+    const last = kanbanCalls.at(-1);
+    expect(last?.schema?.groupByField).toBeUndefined();
+    // Unrecognized spec fields still pass through for the renderer to consume.
+    expect(last?.schema?.summarizeField).toBe('amount');
+  });
+});

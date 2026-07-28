@@ -31,13 +31,29 @@
  * extension (add it to SANCTIONED_LOCAL with a rationale). See #2231.
  */
 import { describe, it, expect } from 'vitest';
-import { ListViewSchema as SpecListViewSchema } from '@objectstack/spec/ui';
+import {
+  ListViewSchema as SpecListViewSchema,
+  KanbanConfigSchema as SpecKanbanConfigSchema,
+  CalendarConfigSchema as SpecCalendarConfigSchema,
+  GanttConfigSchema as SpecGanttConfigSchema,
+  GalleryConfigSchema as SpecGalleryConfigSchema,
+  TimelineConfigSchema as SpecTimelineConfigSchema,
+} from '@objectstack/spec/ui';
 import { ListViewSchema as OuiListViewSchema } from '../zod/objectql.zod.js';
 import { BaseSchema } from '../zod/base.zod.js';
 
 const specShape = (SpecListViewSchema as unknown as { shape: Record<string, unknown> }).shape;
 const ouiShape = (OuiListViewSchema as unknown as { shape: Record<string, unknown> }).shape;
 const baseShape = (BaseSchema as unknown as { shape: Record<string, unknown> }).shape;
+
+/** Peel `.optional()` / `.default()` wrappers off a field and return its object shape. */
+function unwrapObjectShape(schema: unknown): Record<string, unknown> {
+  let cur = schema as { unwrap?: () => unknown; shape?: Record<string, unknown> };
+  for (let i = 0; i < 5 && cur && !cur.shape && typeof cur.unwrap === 'function'; i++) {
+    cur = cur.unwrap() as typeof cur;
+  }
+  return cur?.shape ?? {};
+}
 
 const specKeys = Object.keys(specShape);
 const ouiKeys = new Set(Object.keys(ouiShape));
@@ -139,5 +155,77 @@ describe('ListView spec parity (#2231 drift guard)', () => {
       rowHeight: 'compact',
     });
     expect(canonical.success).toBe(true);
+  });
+});
+
+/**
+ * Per-view-type configs — derived from the spec configs, not forked (#2231).
+ *
+ * These used to be hand-written objects with their own vocabulary
+ * (`groupField`/`cardFields`/`imageField`/`dateField`), which is how a
+ * spec-authored `kanban: { groupByField }` — exactly what `CreateViewDialog`
+ * emits — could pass the ListView capability gate and still render the wrong
+ * lanes. They now carry the spec's field set; only the keys asserted below are
+ * local, and each is either a deprecated alias or has no spec counterpart.
+ */
+describe('per-view-type configs derive from the spec', () => {
+  const CONFIGS = {
+    kanban: { spec: SpecKanbanConfigSchema, local: ['groupField', 'cardFields'] },
+    calendar: { spec: SpecCalendarConfigSchema, local: ['defaultView'] },
+    gantt: { spec: SpecGanttConfigSchema, local: [] },
+    gallery: { spec: SpecGalleryConfigSchema, local: ['imageField'] },
+    timeline: { spec: SpecTimelineConfigSchema, local: ['dateField'] },
+  } as const;
+
+  it.each(Object.keys(CONFIGS))('%s carries every spec field', (key) => {
+    const { spec } = CONFIGS[key as keyof typeof CONFIGS];
+    const specKeys = Object.keys((spec as unknown as { shape: Record<string, unknown> }).shape);
+    const ouiKeys = new Set(Object.keys(unwrapObjectShape(ouiShape[key])));
+    expect(specKeys.filter((k) => !ouiKeys.has(k))).toEqual([]);
+  });
+
+  it.each(Object.keys(CONFIGS))('%s declares only the sanctioned local keys', (key) => {
+    const { spec, local } = CONFIGS[key as keyof typeof CONFIGS];
+    const specKeys = new Set(Object.keys((spec as unknown as { shape: Record<string, unknown> }).shape));
+    const localOnly = Object.keys(unwrapObjectShape(ouiShape[key])).filter((k) => !specKeys.has(k));
+    expect(localOnly.sort()).toEqual([...local].sort());
+  });
+
+  it('accepts spec vocabulary on every config', () => {
+    const result = OuiListViewSchema.safeParse({
+      type: 'list-view',
+      objectName: 'accounts',
+      kanban: { groupByField: 'stage', columns: ['name', 'amount'] },
+      calendar: { startDateField: 'starts_at', titleField: 'name', colorField: 'stage' },
+      gantt: { startDateField: 'starts_at', endDateField: 'ends_at', titleField: 'name', groupByField: 'owner', resourceView: true },
+      gallery: { coverField: 'logo', coverFit: 'contain', cardSize: 'large', visibleFields: ['name'] },
+      timeline: { startDateField: 'starts_at', titleField: 'name', scale: 'month', groupByField: 'owner' },
+    });
+    expect(result.success).toBe(true);
+    // Spec fields must survive the parse, not be silently stripped.
+    expect(result.success && result.data.gantt).toMatchObject({ groupByField: 'owner', resourceView: true });
+    expect(result.success && result.data.timeline).toMatchObject({ scale: 'month' });
+  });
+
+  it('still accepts the deprecated pre-#2231 aliases so stored views keep validating', () => {
+    const result = OuiListViewSchema.safeParse({
+      type: 'list-view',
+      objectName: 'accounts',
+      kanban: { groupField: 'stage', cardFields: ['name'] },
+      gallery: { imageField: 'logo' },
+      timeline: { dateField: 'due_date' },
+      calendar: { startDateField: 'starts_at', defaultView: 'week' },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('does not require the spec-required sub-fields the product authors partially', () => {
+    // CreateViewDialog emits `kanban: { groupByField }` with no `columns`; spec
+    // marks `columns` required, so the derivation must stay `.partial()`.
+    expect(OuiListViewSchema.safeParse({
+      type: 'list-view',
+      objectName: 'accounts',
+      kanban: { groupByField: 'stage' },
+    }).success).toBe(true);
   });
 });

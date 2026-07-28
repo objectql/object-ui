@@ -19,6 +19,10 @@
 import { z } from 'zod';
 import {
   ListViewSchema as SpecListViewSchema,
+  KanbanConfigSchema as SpecKanbanConfigSchema,
+  CalendarConfigSchema as SpecCalendarConfigSchema,
+  GalleryConfigSchema as SpecGalleryConfigSchema,
+  TimelineConfigSchema as SpecTimelineConfigSchema,
   HttpMethodSchema as SpecHttpMethodSchema,
   HttpRequestSchema as SpecHttpRequestSchema,
   ViewDataSchema as SpecViewDataSchema,
@@ -278,11 +282,14 @@ const UserFiltersSchema = z.object({
  *   - legacy vocabulary kept for back-compat: `viewType` (renamed spec `type`),
  *     `fields`/`columns`, `filters`, the `show*` toolbar flags, `densityMode`, `color`, …;
  *   - configs whose objectui shape is intentionally broader than spec's (migration
- *     deferred): `userFilters`, `sharing`, `aria`, `conditionalFormatting`,
- *     `exportOptions`, and the per-view-type `kanban`/`calendar`/`gantt`/`gallery`/`timeline`.
+ *     deferred): `userFilters`, `sharing`, `aria`, `conditionalFormatting`, `exportOptions`.
  *
- * Migrating the legacy vocabulary to the spec-canonical keys (`type`/`columns`/`filter`/
- * `userActions`) and adopting spec's narrower sub-shapes is deferred — see #2231.
+ * The per-view-type configs (`kanban`/`calendar`/`gantt`/`gallery`/`timeline`) are no
+ * longer forks: they derive from the spec configs below, keeping only `calendar.defaultView`
+ * (no spec counterpart) and four deprecated aliases for the pre-#2231 vocabulary.
+ *
+ * Migrating the remaining legacy vocabulary to the spec-canonical keys (`type`/`columns`/
+ * `filter`/`userActions`) is deferred — see #2231.
  */
 // Spec view-config fields, minus: the component envelope (name/label/description →
 // BaseSchema), the discriminator/renamed/relaxed keys (type/columns), and the configs
@@ -302,11 +309,53 @@ const SpecListViewFields = SpecListViewSchema
     exportOptions: true,
     kanban: true,
     calendar: true,
-    gantt: true,
     gallery: true,
     timeline: true,
   })
   .partial();
+
+// ── Per-view-type configs, derived from spec (issue #2231) ────────────────────
+// Each is the spec config `.partial()`-ed: spec requires `columns`/`titleField`/
+// `startDateField` on some of these, but objectui authors partial configs (the
+// product's own CreateViewDialog emits `kanban: { groupByField }` alone), so
+// requiring them would reject views the app itself creates. `.partial()` keeps the
+// spec's field set and types by reference while staying permissive — the same
+// trade-off `SpecListViewFields` makes above.
+//
+// `gantt` needs no local schema at all: the spec config already covers every field
+// the renderer reads and is `.passthrough()` for renderer-ahead knobs, so it flows
+// in with the rest of `SpecListViewFields`.
+//
+// The deprecated aliases below are the pre-#2231 objectui vocabulary. They stay
+// accepted so stored view metadata keeps validating, but the spec key is canonical
+// and wins at every read-site.
+//
+// `.passthrough()` is kept from the pre-#2231 shapes for the same reason the spec
+// puts it on `GanttConfigSchema`/`TreeConfigSchema`: the renderers grow config knobs
+// ahead of the protocol (calendar's `allDayField`, for one), and stripping them here
+// would silently disable a shipped capability.
+const KanbanConfig = SpecKanbanConfigSchema.partial().extend({
+  /** @deprecated legacy alias for the spec's `groupByField` */
+  groupField: z.string().optional().describe('Deprecated alias for groupByField'),
+  /** @deprecated legacy alias for the spec's `columns` (fields shown on each card) */
+  cardFields: z.array(z.string()).optional().describe('Deprecated alias for columns'),
+}).passthrough();
+
+const CalendarConfig = SpecCalendarConfigSchema.partial().extend({
+  // objectui-only: the calendar renderer's initial view mode. No spec counterpart —
+  // promote it rather than growing this extension.
+  defaultView: z.enum(['month', 'week', 'day', 'agenda']).optional().describe('Initial calendar view mode'),
+}).passthrough();
+
+const GalleryConfig = SpecGalleryConfigSchema.partial().extend({
+  /** @deprecated legacy alias for the spec's `coverField` */
+  imageField: z.string().optional().describe('Deprecated alias for coverField'),
+}).passthrough();
+
+const TimelineConfig = SpecTimelineConfigSchema.partial().extend({
+  /** @deprecated legacy alias for the spec's `startDateField` */
+  dateField: z.string().optional().describe('Deprecated alias for startDateField'),
+}).passthrough();
 
 // View-kind enum reused from spec (unwrap its `.default('grid')`) so it cannot drift.
 const ViewKindEnum = SpecListViewSchema.shape.type.removeDefault();
@@ -396,36 +445,12 @@ export const ListViewSchema = BaseSchema
         fileNamePrefix: z.string().optional(),
       }),
     ]).optional().describe('Export options'),
-    kanban: z.object({
-      groupField: z.string(),
-      titleField: z.string().optional(),
-      cardFields: z.array(z.string()).optional(),
-    }).passthrough().optional().describe('Kanban-specific configuration'),
-    calendar: z.object({
-      startDateField: z.string(),
-      endDateField: z.string().optional(),
-      titleField: z.string().optional(),
-      defaultView: z.enum(['month', 'week', 'day', 'agenda']).optional(),
-    }).passthrough().optional().describe('Calendar-specific configuration'),
-    gantt: z.object({
-      startDateField: z.string(),
-      endDateField: z.string(),
-      titleField: z.string().optional(),
-      progressField: z.string().optional(),
-      dependenciesField: z.string().optional(),
-    }).passthrough().optional().describe('Gantt-specific configuration'),
-    gallery: z.object({
-      coverField: z.string().optional(),
-      titleField: z.string().optional(),
-      imageField: z.string().optional(),
-      subtitleField: z.string().optional(),
-    }).passthrough().optional().describe('Gallery-specific configuration'),
-    timeline: z.object({
-      startDateField: z.string().optional(),
-      endDateField: z.string().optional(),
-      titleField: z.string().optional(),
-      dateField: z.string().optional(),
-    }).passthrough().optional().describe('Timeline-specific configuration'),
+    // Per-view-type configs — spec-derived (see the definitions above #2231).
+    // `gantt` is NOT here: it flows in from `SpecListViewFields` unmodified.
+    kanban: KanbanConfig.optional().describe('Kanban-specific configuration'),
+    calendar: CalendarConfig.optional().describe('Calendar-specific configuration'),
+    gallery: GalleryConfig.optional().describe('Gallery-specific configuration'),
+    timeline: TimelineConfig.optional().describe('Timeline-specific configuration'),
   });
 
 /**
