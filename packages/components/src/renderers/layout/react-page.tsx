@@ -19,11 +19,11 @@
  *
  * Scope injected into the source:
  *   - `React`                — so authors can call hooks.
- *   - the PUBLIC data blocks — `<ObjectTable>`, `<ObjectForm>`, charts, metrics…
+ *   - the PUBLIC data blocks — `<ObjectGrid>`, `<ObjectForm>`, charts, metrics…
  *     each as a prop-driven wrapper that renders via SchemaRenderer. Layout is
  *     left to plain HTML + Tailwind (React's strength); only the data blocks
  *     that can't be expressed in HTML are injected.
- *   - `Block`                — escape hatch: `<Block type="object-table" .../>`.
+ *   - `Block`                — escape hatch: `<Block type="object-grid" .../>`.
  *   - `useAdapter`            — live data hook: query/create/update objects.
  *   - `data` / `variables`   — page data + local variables, for convenience.
  */
