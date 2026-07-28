@@ -701,7 +701,13 @@ export class ActionRunner {
    * Supports ${} template expressions referencing data, record, user context.
    */
   private async executeScript(action: ActionDef): Promise<ActionResult> {
-    const script = action.execute || action.target;
+    // `target` is the canonical binding; `execute` is its deprecated alias
+    // (@objectstack/spec ActionSchema). Canonical wins when both are present,
+    // matching the spec's own fold and ActionPreview's `target ?? execute`.
+    // Spec >=16.1 folds `execute` into `target` and drops it at parse, so this
+    // only bites on raw, unparsed metadata — where the two readers used to
+    // disagree. Alias-only authoring still works via the fallback.
+    const script = action.target || action.execute;
     if (!script) {
       return { success: false, error: 'No script provided for script action' };
     }

@@ -200,10 +200,23 @@ describe('ActionRunner', () => {
       expect(result.data).toBe(101);
     });
 
-    it('should evaluate script with string target fallback', async () => {
+    it('should evaluate script from the canonical target field', async () => {
       const result = await runner.execute({
         type: 'script',
         target: 'data.name',
+      });
+      expect(result.success).toBe(true);
+      expect(result.data).toBe('Test');
+    });
+
+    it('should prefer canonical target over the deprecated execute alias', async () => {
+      // Spec >=16.1 folds `execute` into `target` at parse, so the two keys only
+      // coexist on raw metadata. When they do, canonical wins — the same
+      // precedence ActionPreview and the spec's own fold already use.
+      const result = await runner.execute({
+        type: 'script',
+        target: 'data.name',
+        execute: 'record.id + 100',
       });
       expect(result.success).toBe(true);
       expect(result.data).toBe('Test');
