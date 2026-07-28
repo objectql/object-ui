@@ -2475,6 +2475,10 @@ const pt = {
     manageEnvironments: "Gerenciar ambientes",
   },
   aiModelStatus: {
+    summary: "Criar / Perguntar usa {{conversational}} ({{conversationalSource}}); estruturado usa {{structured}} ({{structuredSource}}).",
+    summaryRouting: "Política de roteamento: planos gratuitos → {{free}}, planos pagos → {{paid}}.",
+    modelUnknown: "desconhecido",
+    sourceUnknown: "não informado pelo adaptador",
     rowConversational: "Modelo Build / Ask",
     rowStructured: "Estruturado (blueprint / seed)",
     rowReasoning: "Esforço de raciocínio",

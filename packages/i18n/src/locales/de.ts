@@ -2475,6 +2475,10 @@ const de = {
     manageEnvironments: "Umgebungen verwalten",
   },
   aiModelStatus: {
+    summary: "Erstellen / Fragen nutzt {{conversational}} ({{conversationalSource}}); strukturiert nutzt {{structured}} ({{structuredSource}}).",
+    summaryRouting: "Routing-Richtlinie: kostenlose Tarife → {{free}}, kostenpflichtige Tarife → {{paid}}.",
+    modelUnknown: "unbekannt",
+    sourceUnknown: "vom Adapter nicht gemeldet",
     rowConversational: "Build-/Ask-Modell",
     rowStructured: "Strukturiert (Blueprint / Seed)",
     rowReasoning: "Reasoning-Aufwand",

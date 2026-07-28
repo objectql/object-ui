@@ -2475,6 +2475,10 @@ const ja = {
     manageEnvironments: "環境を管理",
   },
   aiModelStatus: {
+    summary: "ビルド / 質問は {{conversational}}（{{conversationalSource}}）、構造化出力は {{structured}}（{{structuredSource}}）を使用します。",
+    summaryRouting: "ルーティングポリシー: 無料プラン → {{free}}、有料プラン → {{paid}}。",
+    modelUnknown: "不明",
+    sourceUnknown: "アダプターから報告なし",
     rowConversational: "Build / Ask モデル",
     rowStructured: "構造化（ブループリント / シード）",
     rowReasoning: "推論の強度",

@@ -2475,6 +2475,10 @@ const ko = {
     manageEnvironments: "환경 관리",
   },
   aiModelStatus: {
+    summary: "빌드 / 질문은 {{conversational}}({{conversationalSource}}), 구조화 출력은 {{structured}}({{structuredSource}})을(를) 사용합니다.",
+    summaryRouting: "라우팅 정책: 무료 요금제 → {{free}}, 유료 요금제 → {{paid}}.",
+    modelUnknown: "알 수 없음",
+    sourceUnknown: "어댑터가 보고하지 않음",
     rowConversational: "Build / Ask 모델",
     rowStructured: "구조화(블루프린트 / 시드)",
     rowReasoning: "추론 강도",

@@ -2475,6 +2475,10 @@ const ar = {
     manageEnvironments: "إدارة البيئات",
   },
   aiModelStatus: {
+    summary: "يستخدم الإنشاء / السؤال {{conversational}} ({{conversationalSource}})؛ ويستخدم الإخراج المهيكل {{structured}} ({{structuredSource}}).",
+    summaryRouting: "سياسة التوجيه: الخطط المجانية ← {{free}}، الخطط المدفوعة ← {{paid}}.",
+    modelUnknown: "غير معروف",
+    sourceUnknown: "لم يبلّغ عنه المحوّل",
     rowConversational: "نموذج Build / Ask",
     rowStructured: "مُهيكل (blueprint / seed)",
     rowReasoning: "مستوى الاستدلال",

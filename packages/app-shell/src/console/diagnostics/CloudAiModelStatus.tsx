@@ -31,6 +31,28 @@ interface EffectiveModelReport {
   adapter: string;
   provider?: string;
   overrides: Record<string, string | null>;
+  /**
+   * Plan→model routing for this deploy, injected by the host (objectos-runtime
+   * owns `planToAiModel`; service-ai stays plan-agnostic), so the report says
+   * what EACH tier gets rather than only the model the live adapter happens to
+   * hold. Omitted by hosts with no plan concept.
+   *
+   * The server has always sent this; the client just never declared it, so the
+   * only place it surfaced was inside the English `summary` string — meaning
+   * non-English admins could not see the routing policy at all (objectui#2886).
+   */
+  routing?: { free: string; paid: string };
+  /**
+   * Server-composed one-line summary. **Deliberately not rendered.**
+   *
+   * It is assembled in `service-ai`'s `buildEffectiveModelReport` as a
+   * hard-coded English template literal, and the route handler there takes no
+   * request argument at all — so it cannot read `Accept-Language` even though
+   * `createAuthenticatedFetch` has been sending it since objectui#1319. Every
+   * ingredient of the sentence is already in the structured fields above, so
+   * this panel composes its own localized version instead. Kept in the type
+   * because it is part of the wire contract, not because it is used.
+   */
   summary: string;
 }
 
@@ -53,6 +75,10 @@ function sourceLabel(source: string, t: TFn): string {
   if (source === 'code-default') return t('aiModelStatus.sourceCodeDefault');
   if (source === 'inherits-conversational') return t('aiModelStatus.sourceInherits');
   if (source.startsWith('env:')) return t('aiModelStatus.sourcePinned', { source: source.slice(4) });
+  // service-ai's `attributeSource` returns the bare token 'unknown' when the
+  // adapter cannot report a model — reachable, and it used to render as raw
+  // English here (objectui#2886).
+  if (source === 'unknown') return t('aiModelStatus.sourceUnknown');
   return source;
 }
 
@@ -136,9 +162,33 @@ export function CloudAiModelStatus({ properties }: CloudAiModelStatusProps) {
   const { report } = state;
   const setOverrides = Object.entries(report.overrides).filter(([, v]) => v != null);
 
+  // The summary the server sends is English-only and unlocalizable at source
+  // (see `EffectiveModelReport.summary`), so compose the same sentence from the
+  // structured fields. `sourceLabel` already yields exactly the two clauses the
+  // server hand-rolls: "pinned by X" / "code default (no env override)" for the
+  // conversational half, and "same as build/ask" for an unpinned structured
+  // model — so no new source vocabulary is needed here.
+  const unknownModel = t('aiModelStatus.modelUnknown');
+
   return (
     <div className="space-y-4" data-ai-model-status="ready">
-      <p className="text-sm text-foreground">{report.summary}</p>
+      <p className="text-sm text-foreground" data-testid="ai-model-summary">
+        {t('aiModelStatus.summary', {
+          conversational: report.conversational.model ?? unknownModel,
+          conversationalSource: sourceLabel(report.conversational.source, t),
+          structured: report.structured.model ?? unknownModel,
+          structuredSource: sourceLabel(report.structured.source, t),
+        })}
+        {report.routing ? (
+          <>
+            {' '}
+            {t('aiModelStatus.summaryRouting', {
+              free: report.routing.free,
+              paid: report.routing.paid,
+            })}
+          </>
+        ) : null}
+      </p>
 
       <div className="rounded-md border border-border px-3">
         <ModelRow

@@ -2475,6 +2475,10 @@ const ru = {
     manageEnvironments: "Управление окружениями",
   },
   aiModelStatus: {
+    summary: "Сборка / вопросы используют {{conversational}} ({{conversationalSource}}); структурированный вывод — {{structured}} ({{structuredSource}}).",
+    summaryRouting: "Политика маршрутизации: бесплатные тарифы → {{free}}, платные тарифы → {{paid}}.",
+    modelUnknown: "неизвестно",
+    sourceUnknown: "адаптер не сообщил",
     rowConversational: "Модель Build / Ask",
     rowStructured: "Структурированный (blueprint / seed)",
     rowReasoning: "Интенсивность рассуждений",
