@@ -111,6 +111,24 @@ describe('@object-ui/i18n', () => {
       expect(i18n.t('console.ai.planApproveMessage')).toMatch(gate);
       expect(i18n.t('console.ai.planApproveDefaultsMessage')).toMatch(gate);
       expect('帮我搭建一个 CRM').not.toMatch(gate);
+
+      // The granular change-confirm card (objectui#2884) sends its own message
+      // through the SAME gate, so it carries the same 确认 anchor. This one is
+      // unchanged from the string that was previously hard-coded in the
+      // component, so the Chinese path is byte-for-byte what the gate already
+      // accepted — the fix only stopped it being sent to English conversations.
+      expect(i18n.t('console.ai.changesConfirmMessage')).toMatch(gate);
+    });
+
+    // The English half of the same contract. The cloud APPROVAL_RE's English
+    // clause is not mirrored here (nothing in this repo can see it), so this
+    // only pins the two tokens the message is built around — enough to catch a
+    // careless reword that drops the approval verb entirely.
+    it('AI change-confirm message keeps its approval verb in English', () => {
+      const i18n = createI18n({ defaultLanguage: 'en', detectBrowserLanguage: false });
+      const msg = i18n.t('console.ai.changesConfirmMessage');
+      expect(msg).toMatch(/^Confirm\b/i);
+      expect(msg).toMatch(/\bapply\b/i);
     });
 
     it('translates common keys in Japanese', () => {

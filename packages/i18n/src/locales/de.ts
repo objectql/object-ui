@@ -854,6 +854,23 @@ const de = {
     },
   },
   console: {
+    ai: {
+      changesTitle: "Änderungen bestätigen",
+      changesConfirmed: "Bestätigt",
+      changesConfirm: "Bestätigen",
+      changesConfirmHint: "Antworten Sie, um diese Änderung zu bestätigen oder anzupassen.",
+      changesConfirmMessage: "Änderungen bestätigt — wende an, was du gerade vorgeschlagen hast.",
+      changeVerb: {
+        createObject: "Objekt erstellen",
+        addField: "Feld hinzufügen",
+        modifyField: "Feld ändern",
+        deleteField: "Feld löschen",
+        createMetadata: "Erstellen",
+        updateMetadata: "Ändern",
+        createSeed: "Beispieldaten erzeugen",
+        createPackage: "App-Paket erstellen",
+      },
+    },
     title: "ObjectStack Konsole",
     initializing: "Anwendung wird initialisiert...",
     loadingHint: "Die Einrichtung einer neuen Umgebung kann einen Moment dauern.",
@@ -1912,6 +1929,13 @@ const de = {
     sourceCodeDefault: "Code-Standard (kein env-Override)",
     sourceInherits: "wie build/ask",
     sourcePinned: "festgelegt durch {{source}}",
+  },
+  chatbotError: {
+    title: "Antwort fehlgeschlagen",
+    fallbackDetail: "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
+    details: "Details",
+    hide: "Ausblenden",
+    retry: "Erneut versuchen",
   },
   chatbotQuota: {
     title: "Upgrade erforderlich",

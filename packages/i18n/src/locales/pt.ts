@@ -852,6 +852,23 @@ const pt = {
     },
   },
   console: {
+    ai: {
+      changesTitle: "Confirmar alterações",
+      changesConfirmed: "Confirmado",
+      changesConfirm: "Confirmar",
+      changesConfirmHint: "Responda para confirmar ou ajustar esta alteração.",
+      changesConfirmMessage: "Alterações confirmadas — aplique o que você acabou de propor.",
+      changeVerb: {
+        createObject: "Criar objeto",
+        addField: "Adicionar campo",
+        modifyField: "Modificar campo",
+        deleteField: "Excluir campo",
+        createMetadata: "Criar",
+        updateMetadata: "Modificar",
+        createSeed: "Gerar dados de exemplo",
+        createPackage: "Criar pacote de aplicativo",
+      },
+    },
     title: "Console ObjectStack",
     initializing: "Inicializando aplicação...",
     loadingHint: "Configurar um novo ambiente pode levar alguns instantes.",
@@ -1910,6 +1927,13 @@ const pt = {
     sourceCodeDefault: "padrão do código (sem substituição env)",
     sourceInherits: "igual a build/ask",
     sourcePinned: "fixado por {{source}}",
+  },
+  chatbotError: {
+    title: "Falha na resposta",
+    fallbackDetail: "Algo deu errado. Tente novamente.",
+    details: "Detalhes",
+    hide: "Ocultar",
+    retry: "Tentar novamente",
   },
   chatbotQuota: {
     title: "Upgrade necessário",

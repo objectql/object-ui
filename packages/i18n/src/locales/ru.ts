@@ -852,6 +852,23 @@ const ru = {
     },
   },
   console: {
+    ai: {
+      changesTitle: "Подтвердите изменения",
+      changesConfirmed: "Подтверждено",
+      changesConfirm: "Подтвердить",
+      changesConfirmHint: "Ответьте, чтобы подтвердить или скорректировать это изменение.",
+      changesConfirmMessage: "Изменения подтверждены — примени то, что ты только что предложил.",
+      changeVerb: {
+        createObject: "Создать объект",
+        addField: "Добавить поле",
+        modifyField: "Изменить поле",
+        deleteField: "Удалить поле",
+        createMetadata: "Создать",
+        updateMetadata: "Изменить",
+        createSeed: "Сгенерировать примеры данных",
+        createPackage: "Создать пакет приложения",
+      },
+    },
     title: "Консоль ObjectStack",
     initializing: "Инициализация приложения...",
     loadingHint: "Настройка нового окружения может занять некоторое время.",
@@ -1910,6 +1927,13 @@ const ru = {
     sourceCodeDefault: "значение по умолчанию в коде (без env-переопределения)",
     sourceInherits: "как у build/ask",
     sourcePinned: "закреплено через {{source}}",
+  },
+  chatbotError: {
+    title: "Ошибка ответа",
+    fallbackDetail: "Что-то пошло не так. Попробуйте ещё раз.",
+    details: "Подробности",
+    hide: "Скрыть",
+    retry: "Повторить",
   },
   chatbotQuota: {
     title: "Требуется обновление тарифа",

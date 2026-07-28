@@ -1596,6 +1596,29 @@ export function ChatPane({
     : t('console.ai.planApproveDefaultsMessage', {
         defaultValue: 'Build it with your best assumptions; use sensible defaults for the open questions.',
       });
+  // Same rule for the granular change-confirm card. It used to send a hard-coded
+  // Chinese sentence regardless of the conversation, so an English user clicking
+  // Confirm flipped the agent into Chinese for the rest of the thread (#2884).
+  const changesConfirmMessage = convZh
+    ? '确认修改，应用你刚才提议的改动。'
+    : t('console.ai.changesConfirmMessage', {
+        defaultValue: 'Confirm the changes — apply what you just proposed.',
+      });
+  // Verb column of the change rows. Unlike the message above these are LABELS,
+  // so they follow the UI locale like every other label on the card.
+  const changeVerbLabels = useMemo(
+    () => ({
+      create_object: t('console.ai.changeVerb.createObject', { defaultValue: 'Create object' }),
+      add_field: t('console.ai.changeVerb.addField', { defaultValue: 'Add field' }),
+      modify_field: t('console.ai.changeVerb.modifyField', { defaultValue: 'Modify field' }),
+      delete_field: t('console.ai.changeVerb.deleteField', { defaultValue: 'Delete field' }),
+      create_metadata: t('console.ai.changeVerb.createMetadata', { defaultValue: 'Create' }),
+      update_metadata: t('console.ai.changeVerb.updateMetadata', { defaultValue: 'Modify' }),
+      create_seed: t('console.ai.changeVerb.createSeed', { defaultValue: 'Generate sample data' }),
+      create_package: t('console.ai.changeVerb.createPackage', { defaultValue: 'Create app package' }),
+    }),
+    [t],
+  );
 
   // ADR-0037: refresh the live preview when a turn finishes while the canvas is
   // open. The per-artifact `onDraftArtifacts` signal covers a build streaming in,
@@ -2176,6 +2199,14 @@ export function ChatPane({
         })}
         planApproveMessage={planApproveMessage}
         planApproveDefaultsMessage={planApproveDefaultsMessage}
+        changesTitleLabel={t('console.ai.changesTitle', { defaultValue: 'Confirm changes' })}
+        changesConfirmedLabel={t('console.ai.changesConfirmed', { defaultValue: 'Confirmed' })}
+        changesConfirmLabel={t('console.ai.changesConfirm', { defaultValue: 'Confirm' })}
+        changesConfirmHintLabel={t('console.ai.changesConfirmHint', {
+          defaultValue: 'Reply to confirm or adjust this change.',
+        })}
+        changesConfirmMessage={changesConfirmMessage}
+        changeVerbLabels={changeVerbLabels}
         planAnswerMessage={(question, option) =>
           t('console.ai.planAnswerMessage', {
             question,

@@ -852,6 +852,23 @@ const fr = {
     },
   },
   console: {
+    ai: {
+      changesTitle: "Confirmer les modifications",
+      changesConfirmed: "Confirmé",
+      changesConfirm: "Confirmer",
+      changesConfirmHint: "Répondez pour confirmer ou ajuster cette modification.",
+      changesConfirmMessage: "Modifications confirmées — applique ce que tu viens de proposer.",
+      changeVerb: {
+        createObject: "Créer un objet",
+        addField: "Ajouter un champ",
+        modifyField: "Modifier un champ",
+        deleteField: "Supprimer un champ",
+        createMetadata: "Créer",
+        updateMetadata: "Modifier",
+        createSeed: "Générer des données d'exemple",
+        createPackage: "Créer un package d'application",
+      },
+    },
     title: "Console ObjectStack",
     initializing: "Initialisation de l'application...",
     loadingHint: "La configuration d'un nouvel environnement peut prendre quelques instants.",
@@ -1910,6 +1927,13 @@ const fr = {
     sourceCodeDefault: "valeur par défaut du code (aucune surcharge env)",
     sourceInherits: "identique à build/ask",
     sourcePinned: "figé par {{source}}",
+  },
+  chatbotError: {
+    title: "Échec de la réponse",
+    fallbackDetail: "Une erreur s'est produite. Veuillez réessayer.",
+    details: "Détails",
+    hide: "Masquer",
+    retry: "Réessayer",
   },
   chatbotQuota: {
     title: "Mise à niveau requise",

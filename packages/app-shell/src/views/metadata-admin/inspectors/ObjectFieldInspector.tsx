@@ -192,7 +192,7 @@ export function ObjectFieldInspector({
     ? ((draft as any).fieldGroups as Array<{ key?: string; label?: string }>)
     : [];
 
-  const objectOptions = useObjectOptions();
+  const objectOptions = useObjectOptions(locale);
 
   // Spec `Field.returnType` is stamped from the formula's inferred CEL type,
   // but ONLY once the author actually edits the formula in this session —
@@ -1479,7 +1479,7 @@ function SummaryConfigFields({
 
 /* ─────────────── Hook: load object list for lookup picker ─────────────── */
 
-function useObjectOptions(): Array<{ value: string; label: string }> {
+function useObjectOptions(locale?: string): Array<{ value: string; label: string }> {
   const client: MetadataClient = useMetadataClient();
   const [opts, setOpts] = React.useState<Array<{ value: string; label: string }>>([]);
 
@@ -1507,7 +1507,10 @@ function useObjectOptions(): Array<{ value: string; label: string }> {
         for (const d of drafts ?? []) {
           const name = (d as { name?: string }).name;
           if (typeof name === 'string' && name && !byName.has(name)) {
-            byName.set(name, { value: name, label: `${name} (草稿)` });
+            byName.set(name, {
+              value: name,
+              label: `${name} ${t('engine.inspector.draftSuffix', locale)}`,
+            });
           }
         }
         setOpts([...byName.values()].sort((a, b) => a.value.localeCompare(b.value)));
@@ -1518,7 +1521,7 @@ function useObjectOptions(): Array<{ value: string; label: string }> {
     return () => {
       cancelled = true;
     };
-  }, [client]);
+  }, [client, locale]);
 
   return opts;
 }

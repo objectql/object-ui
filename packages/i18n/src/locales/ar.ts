@@ -852,6 +852,23 @@ const ar = {
     },
   },
   console: {
+    ai: {
+      changesTitle: "تأكيد التغييرات",
+      changesConfirmed: "تم التأكيد",
+      changesConfirm: "تأكيد",
+      changesConfirmHint: "أجب لتأكيد هذا التغيير أو تعديله.",
+      changesConfirmMessage: "تم تأكيد التغييرات — طبّق ما اقترحته للتو.",
+      changeVerb: {
+        createObject: "إنشاء كائن",
+        addField: "إضافة حقل",
+        modifyField: "تعديل حقل",
+        deleteField: "حذف حقل",
+        createMetadata: "إنشاء",
+        updateMetadata: "تعديل",
+        createSeed: "إنشاء بيانات تجريبية",
+        createPackage: "إنشاء حزمة تطبيق",
+      },
+    },
     title: "وحدة تحكم ObjectStack",
     initializing: "جاري تهيئة التطبيق...",
     loadingHint: "قد يستغرق إعداد بيئة جديدة بعض الوقت.",
@@ -1910,6 +1927,13 @@ const ar = {
     sourceCodeDefault: "القيمة الافتراضية في الكود (بدون تجاوز env)",
     sourceInherits: "مثل build/ask",
     sourcePinned: "مثبّت بواسطة {{source}}",
+  },
+  chatbotError: {
+    title: "فشل الرد",
+    fallbackDetail: "حدث خطأ ما. يرجى المحاولة مرة أخرى.",
+    details: "التفاصيل",
+    hide: "إخفاء",
+    retry: "إعادة المحاولة",
   },
   chatbotQuota: {
     title: "الترقية مطلوبة",

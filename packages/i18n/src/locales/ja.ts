@@ -854,6 +854,23 @@ const ja = {
     },
   },
   console: {
+    ai: {
+      changesTitle: "変更の確認",
+      changesConfirmed: "確認済み",
+      changesConfirm: "変更を確定",
+      changesConfirmHint: "返信してこの変更を確定または調整してください。",
+      changesConfirmMessage: "変更を確定します。提案された内容を適用してください。",
+      changeVerb: {
+        createObject: "オブジェクトを作成",
+        addField: "項目を追加",
+        modifyField: "項目を変更",
+        deleteField: "項目を削除",
+        createMetadata: "作成",
+        updateMetadata: "変更",
+        createSeed: "サンプルデータを生成",
+        createPackage: "アプリパッケージを作成",
+      },
+    },
     title: "ObjectStack コンソール",
     initializing: "アプリケーションを初期化中...",
     loadingHint: "新しい環境のセットアップには少し時間がかかることがあります。",
@@ -1912,6 +1929,13 @@ const ja = {
     sourceCodeDefault: "コード既定値（env オーバーライドなし）",
     sourceInherits: "build/ask と同じ",
     sourcePinned: "{{source}} で固定",
+  },
+  chatbotError: {
+    title: "応答に失敗しました",
+    fallbackDetail: "問題が発生しました。もう一度お試しください。",
+    details: "詳細",
+    hide: "非表示",
+    retry: "再試行",
   },
   chatbotQuota: {
     title: "アップグレードが必要です",

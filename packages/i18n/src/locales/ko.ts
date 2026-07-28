@@ -854,6 +854,23 @@ const ko = {
     },
   },
   console: {
+    ai: {
+      changesTitle: "변경 확인",
+      changesConfirmed: "확인됨",
+      changesConfirm: "변경 확정",
+      changesConfirmHint: "회신하여 이 변경을 확정하거나 조정하세요.",
+      changesConfirmMessage: "변경을 확정합니다. 방금 제안한 내용을 적용해 주세요.",
+      changeVerb: {
+        createObject: "객체 생성",
+        addField: "필드 추가",
+        modifyField: "필드 수정",
+        deleteField: "필드 삭제",
+        createMetadata: "생성",
+        updateMetadata: "수정",
+        createSeed: "샘플 데이터 생성",
+        createPackage: "앱 패키지 생성",
+      },
+    },
     title: "ObjectStack 콘솔",
     initializing: "애플리케이션 초기화 중...",
     loadingHint: "새 환경을 설정하는 데 시간이 조금 걸릴 수 있습니다.",
@@ -1912,6 +1929,13 @@ const ko = {
     sourceCodeDefault: "코드 기본값(env 재정의 없음)",
     sourceInherits: "build/ask와 동일",
     sourcePinned: "{{source}}에 의해 고정됨",
+  },
+  chatbotError: {
+    title: "응답 실패",
+    fallbackDetail: "문제가 발생했습니다. 다시 시도해 주세요.",
+    details: "세부 정보",
+    hide: "숨기기",
+    retry: "다시 시도",
   },
   chatbotQuota: {
     title: "업그레이드 필요",

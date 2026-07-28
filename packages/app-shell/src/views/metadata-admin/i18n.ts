@@ -306,6 +306,9 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.widget.width': 'Width',
   'engine.inspector.widget.height': 'Height',
   'engine.inspector.widget.remove': 'Remove widget',
+  // Marks an object that exists only as an unpublished draft in the object
+  // picker, so the author can tell it apart from a published sibling.
+  'engine.inspector.draftSuffix': '(draft)',
   // Dataset binding (ADR-0021) — governed cross-object semantic layer.
   'engine.inspector.widget.datasetSection': 'Dataset binding',
   'engine.inspector.widget.dataset': 'Dataset',
@@ -1866,6 +1869,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.widget.width': '宽度',
   'engine.inspector.widget.height': '高度',
   'engine.inspector.widget.remove': '删除组件',
+  'engine.inspector.draftSuffix': '(草稿)',
   // Dataset binding (ADR-0021) — governed cross-object semantic layer.
   'engine.inspector.widget.datasetSection': '数据集绑定',
   'engine.inspector.widget.dataset': '数据集',
