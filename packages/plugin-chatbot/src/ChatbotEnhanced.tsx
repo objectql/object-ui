@@ -694,7 +694,7 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
    * approves a specific set of metadata edits. They were hard-coded Chinese
    * until objectui#2884, so an English user read them in Chinese.
    */
-  /** Heading of the confirm-before-change card (default "Confirm").
+  /** Heading of the confirm-before-change card (default "Confirm changes"). */
   changesTitleLabel?: string;
   /** Badge replacing the buttons once this change set has been confirmed (default "Confirmed"). */
   changesConfirmedLabel?: string;
