@@ -390,6 +390,7 @@ function FilterBuilder({
           <span className="text-sm font-medium">{t('filterBuilder.where')}</span>
           {filterGroup.conditions.length > 1 && (
             <Button
+              type="button"
               variant="outline"
               size="sm"
               onClick={toggleLogic}
@@ -401,6 +402,7 @@ function FilterBuilder({
         </div>
         {showClearAll && filterGroup.conditions.length > 0 && (
           <Button
+            type="button"
             variant="ghost"
             size="sm"
             onClick={clearAllConditions}
@@ -464,6 +466,7 @@ function FilterBuilder({
             </div>
 
             <Button
+              type="button"
               variant="ghost"
               size="icon"
               className="h-9 w-9 shrink-0"
@@ -476,7 +479,13 @@ function FilterBuilder({
         ))}
       </div>
 
+      {/* Every control here is `type="button"` on purpose: a bare <button> inside
+          a <form> defaults to type="submit", and FilterBuilder is embedded in one
+          (the sharing-rule dialog's criteria field). Adding a condition used to
+          submit the dialog — firing validation, and saving outright once the form
+          was valid (objectstack#3821). */}
       <Button
+        type="button"
         variant="outline"
         size="sm"
         onClick={addCondition}

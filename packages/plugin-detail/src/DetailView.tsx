@@ -48,6 +48,7 @@ import { usePermissions } from '@object-ui/permissions';
 import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
 import type { DetailViewSchema, DataSource, ActionSchema, SchemaNode } from '@object-ui/types';
 import { useDetailTranslation } from './useDetailTranslation';
+import { useRecordEditable } from './useRecordEditable';
 
 /** Default page size for related lists in the detail view */
 const DEFAULT_RELATED_PAGE_SIZE = 5;
@@ -261,7 +262,50 @@ export const DetailView: React.FC<DetailViewProps> = ({
       summaryFields: filterFields(rawSchema.summaryFields as any[]) as any,
     };
   }, [rawSchema, perms]);
-  const schema = gatedSchema;
+
+  /**
+   * Record-level write gate (objectstack#3821). Object-level permissions say
+   * whether the user may edit `showcase_private_note` at all; they cannot say
+   * whether they may edit THIS one. A read-only sharing grant sits exactly in
+   * that gap, so the header used to offer "Edit", open the form, and let the
+   * user retype a field before the server rejected it with a 403. Ask the
+   * explain engine for the row-level verdict and reflect it on the CTA.
+   *
+   * Only consulted when the object-level check already passes — when it
+   * doesn't, the buttons are hidden anyway and the request would be waste.
+   * Fails open (see `useRecordEditable`); the server remains the authority.
+   */
+  const objectAllowsUpdate = React.useMemo(
+    () => !perms?.isLoaded || !rawSchema.objectName || perms.can(rawSchema.objectName, 'update'),
+    [perms, rawSchema.objectName],
+  );
+  const objectAllowsDelete = React.useMemo(
+    () => !perms?.isLoaded || !rawSchema.objectName || perms.can(rawSchema.objectName, 'delete'),
+    [perms, rawSchema.objectName],
+  );
+  const recordId =
+    rawSchema.resourceId != null ? String(rawSchema.resourceId) : undefined;
+  const canEditRecord = useRecordEditable(
+    rawSchema.objectName,
+    recordId,
+    'update',
+    objectAllowsUpdate,
+  );
+  const canDeleteRecord = useRecordEditable(
+    rawSchema.objectName,
+    recordId,
+    'delete',
+    objectAllowsDelete,
+  );
+
+  const schema = React.useMemo<DetailViewSchema>(
+    () => ({
+      ...gatedSchema,
+      showEdit: gatedSchema.showEdit && objectAllowsUpdate && canEditRecord,
+      showDelete: gatedSchema.showDelete && objectAllowsDelete && canDeleteRecord,
+    }),
+    [gatedSchema, objectAllowsUpdate, canEditRecord, objectAllowsDelete, canDeleteRecord],
+  );
 
 
   // Fire onDataLoaded whenever the record changes so hosts can publish it

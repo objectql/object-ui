@@ -415,4 +415,57 @@ describe('ApiDataSource — URL building', () => {
     expect(orderbyParam).toContain('name asc');
     expect(orderbyParam).toContain('age desc');
   });
+
+  // objectstack#3821: a hand-built clause string used to fall into the
+  // `Object.entries` branch and get walked character by character
+  // ('0 n,1 a,2 m,…'), so the server sorted by columns that don't exist and
+  // every row was filtered out — the sharing-rule recipient picker showed
+  // "No matches" forever.
+  it('should pass a string $orderby through verbatim', async () => {
+    const mockFetch = createMockFetch([]);
+    const ds = new ApiDataSource({
+      read: { url: 'http://localhost/api/users' },
+      fetch: mockFetch,
+    });
+
+    await ds.find('users', { $orderby: 'name asc' });
+    const url = new URL(mockFetch.mock.calls[0][0] as string);
+    expect(url.searchParams.get('$orderby')).toBe('name asc');
+  });
+
+  it('should pass a multi-field string $orderby through verbatim', async () => {
+    const mockFetch = createMockFetch([]);
+    const ds = new ApiDataSource({
+      read: { url: 'http://localhost/api/users' },
+      fetch: mockFetch,
+    });
+
+    await ds.find('users', { $orderby: 'name asc, age desc' });
+    const url = new URL(mockFetch.mock.calls[0][0] as string);
+    expect(url.searchParams.get('$orderby')).toBe('name asc, age desc');
+  });
+
+  it('should serialize $orderby from the string-array format', async () => {
+    const mockFetch = createMockFetch([]);
+    const ds = new ApiDataSource({
+      read: { url: 'http://localhost/api/users' },
+      fetch: mockFetch,
+    });
+
+    await ds.find('users', { $orderby: ['name', '-age'] });
+    const url = new URL(mockFetch.mock.calls[0][0] as string);
+    expect(url.searchParams.get('$orderby')).toBe('name,-age');
+  });
+
+  it('should serialize $orderby from the sort-object-array format', async () => {
+    const mockFetch = createMockFetch([]);
+    const ds = new ApiDataSource({
+      read: { url: 'http://localhost/api/users' },
+      fetch: mockFetch,
+    });
+
+    await ds.find('users', { $orderby: [{ field: 'name' }, { field: 'age', order: 'desc' }] });
+    const url = new URL(mockFetch.mock.calls[0][0] as string);
+    expect(url.searchParams.get('$orderby')).toBe('name asc,age desc');
+  });
 });

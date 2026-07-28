@@ -2,6 +2,7 @@ import React from 'react';
 import { FilterBuilder, cn } from '@object-ui/components';
 import { SchemaRendererContext } from '@object-ui/react';
 import type { FieldWidgetProps } from './types';
+import { useFieldTranslation } from './useFieldTranslation';
 
 /**
  * FilterConditionField — visual criteria builder for a stored FilterCondition
@@ -230,6 +231,7 @@ export function FilterConditionField({
   ...props
 }: FieldWidgetProps<string | object>) {
   const ctx = React.useContext(SchemaRendererContext);
+  const { t } = useFieldTranslation();
   const dataSource: any = (props as any).dataSource ?? (ctx as any)?.dataSource ?? null;
   const dependentValues: Record<string, any> = (props as any).dependentValues ?? {};
   const objectName = String(dependentValues.object_name ?? '');
@@ -290,14 +292,18 @@ export function FilterConditionField({
   if (!objectName) {
     return (
       <p className={cn('text-sm text-muted-foreground', className)}>
-        Select an object first.
+        {t('fields.filterCondition.selectObjectFirst')}
       </p>
     );
   }
 
   if (readonly) {
     if (!rawValue.trim()) {
-      return <span className={cn('text-sm text-muted-foreground', className)}>All records</span>;
+      return (
+        <span className={cn('text-sm text-muted-foreground', className)}>
+          {t('fields.filterCondition.allRecords')}
+        </span>
+      );
     }
     return (
       <pre className={cn('overflow-x-auto rounded bg-muted/40 p-2 text-xs', className)}>
@@ -317,7 +323,7 @@ export function FilterConditionField({
             onChange={(e) => onChange(e.target.value as any)}
           />
           {!parsed.ok && (
-            <span className="text-xs text-destructive">Invalid JSON — the rule will match no records until fixed.</span>
+            <span className="text-xs text-destructive">{t('fields.filterCondition.invalidJson')}</span>
           )}
         </>
       ) : (
@@ -332,9 +338,11 @@ export function FilterConditionField({
         className="self-start text-xs text-muted-foreground underline-offset-2 hover:underline"
         onClick={() => setRawMode((m) => !m)}
         disabled={!representable && !rawMode}
-        title={!representable ? 'This criteria can only be edited as JSON' : undefined}
+        title={!representable ? t('fields.filterCondition.jsonOnly') : undefined}
       >
-        {rawMode ? 'Use visual builder' : 'Edit as JSON'}
+        {rawMode
+          ? t('fields.filterCondition.useVisualBuilder')
+          : t('fields.filterCondition.editAsJson')}
       </button>
     </div>
   );

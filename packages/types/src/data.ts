@@ -35,11 +35,13 @@ export interface QueryParams {
 
   /**
    * Sort order
-   * Can be a Map { field: 'asc' }, an Array of strings ['field', '-field'], or Array of sort objects
+   * Can be an OData clause string 'field asc, other desc', a Map { field: 'asc' },
+   * an Array of strings ['field', '-field'], or an Array of sort objects.
+   * @example 'name asc'
    * @example { createdAt: 'desc', name: 'asc' }
    * @example ['name', '-createdAt']
    */
-  $orderby?: Record<string, 'asc' | 'desc'> | string[] | Array<{ field: string; order?: 'asc' | 'desc' }>;
+  $orderby?: string | Record<string, 'asc' | 'desc'> | string[] | Array<{ field: string; order?: 'asc' | 'desc' }>;
 
   /**
    * Number of records to skip (for pagination)

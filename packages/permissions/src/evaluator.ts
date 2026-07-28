@@ -57,11 +57,17 @@ export function evaluatePermission({
     const roleConfig = objectConfig.roles[roleName];
     if (!roleConfig) continue;
 
-    if (roleConfig.actions.includes(action)) {
+    // `actions` is optional in practice: a role config may carry only
+    // `fieldPermissions` (the field-level gate is the whole point of the
+    // entry). Reading `.includes` off it unguarded threw a TypeError that
+    // propagated out of `check()` and took the whole view down with it —
+    // a permission *check* must never be able to crash a render
+    // (objectstack#3821).
+    if (roleConfig.actions?.includes(action)) {
       // Check row-level permissions if record is provided
       if (record && roleConfig.rowPermissions?.length) {
         const rowAllowed = roleConfig.rowPermissions.some(
-          (rp) => rp.actions.includes(action),
+          (rp) => rp.actions?.includes(action),
         );
         if (!rowAllowed) continue;
       }

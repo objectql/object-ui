@@ -80,7 +80,15 @@ function queryParamsToRecord(params?: QueryParams): Record<string, unknown> {
     out.$filter = JSON.stringify(params.$filter);
   }
   if (params.$orderby) {
-    if (Array.isArray(params.$orderby)) {
+    if (typeof params.$orderby === 'string') {
+      // Already an OData order clause ('name asc', 'a asc,b desc'). It MUST be
+      // passed through verbatim: the `Object.entries` branch below would walk a
+      // string index-by-index and emit `0 n,1 a,2 m,…`, which the server dutifully
+      // sorts by — columns that don't exist — and the whole page comes back empty
+      // (objectstack#3821). Callers that build the clause by hand (ObjectGrid's
+      // schema `sort`, RecipientPickerField) hit exactly that.
+      out.$orderby = params.$orderby;
+    } else if (Array.isArray(params.$orderby)) {
       if (typeof params.$orderby[0] === 'string') {
         out.$orderby = (params.$orderby as string[]).join(',');
       } else {

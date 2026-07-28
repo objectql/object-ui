@@ -29,7 +29,7 @@ import { AlertCircle, ChevronDown, ChevronRight, Loader2, Maximize2, Check, X } 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '../../ui/dialog';
 import { cn } from '../../lib/utils';
 import React from 'react';
-import { SchemaRendererContext, usePredicateScope } from '@object-ui/react';
+import { SchemaRendererContext, usePredicateScope, isPermissionError, extractWriteErrorMessage } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
 
 /** Inline section header rendered as a virtual field inside a flat SchemaRenderer field list.
@@ -77,6 +77,9 @@ const useSafeFormTranslation = createSafeTranslation(
     'validation.email': 'Please enter a valid email address',
     'validation.url': 'Please enter a valid URL',
     'validation.formInvalid': 'Please check the highlighted fields: {{fields}}',
+    'errors.forbidden': 'Access denied.',
+    'form.noPermissionToSave': "You don't have permission to save this record.",
+    'form.submitFailed': 'Could not save. Please try again.',
   },
   'common.selectOption',
 );
@@ -553,12 +556,19 @@ ComponentRegistry.register('form',
           form.reset();
         }
       } catch (error) {
-        // Handle different error types safely
-        const errorMessage = error instanceof Error 
-          ? error.message 
-          : typeof error === 'string' 
-            ? error 
-            : 'An error occurred during submission';
+        // A rejected write used to be rendered verbatim, which put raw server
+        // diagnostics in front of end users — untranslated, and leaking the
+        // object's machine name and the record id, e.g.
+        // "FORBIDDEN: insufficient privileges to update showcase_private_note
+        // pi-TgoJ4_DM55Fqz" (objectstack#3821). A permission denial is a
+        // condition the UI already knows how to name, so say it in the user's
+        // language and keep the server text for the console.
+        const errorMessage = isPermissionError(error)
+          ? t('form.noPermissionToSave')
+          : extractWriteErrorMessage(error) ?? t('form.submitFailed');
+        if (isPermissionError(error) && typeof console !== 'undefined') {
+          console.warn('[form] write denied:', error);
+        }
         setSubmitError(errorMessage);
         // Also surface as a toast so the message is visible even when the
         // in-form banner has scrolled out of view (long forms in modals/drawers).

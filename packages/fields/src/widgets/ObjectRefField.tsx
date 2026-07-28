@@ -2,6 +2,7 @@ import React from 'react';
 import { Combobox, EmptyValue, cn } from '@object-ui/components';
 import { SchemaRendererContext } from '@object-ui/react';
 import type { FieldWidgetProps } from './types';
+import { useFieldTranslation } from './useFieldTranslation';
 
 /**
  * ObjectRefField — object-name picker for form fields that store the machine
@@ -33,6 +34,7 @@ export function ObjectRefField({
   ...props
 }: FieldWidgetProps<string>) {
   const ctx = React.useContext(SchemaRendererContext);
+  const { t } = useFieldTranslation();
   const dataSource: any = (props as any).dataSource ?? (ctx as any)?.dataSource ?? null;
   const disabled = (props as any).disabled as boolean | undefined;
 
@@ -94,9 +96,9 @@ export function ObjectRefField({
       options={options}
       value={value ?? ''}
       onValueChange={(v) => onChange(v as any)}
-      placeholder={objects === null ? 'Loading objects…' : 'Select an object'}
-      searchPlaceholder="Search objects…"
-      emptyText={objects === null ? 'Loading…' : 'No objects found'}
+      placeholder={objects === null ? t('fields.objectRef.loading') : t('fields.objectRef.placeholder')}
+      searchPlaceholder={t('fields.objectRef.search')}
+      emptyText={objects === null ? t('common.loading') : t('fields.objectRef.empty')}
       disabled={disabled}
       className={cn(className)}
     />
