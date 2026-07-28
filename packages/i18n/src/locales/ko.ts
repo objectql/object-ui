@@ -508,6 +508,8 @@ const ko = {
     saving: "저장 중…",
     lockedByApproval: "승인을 위해 잠김",
     lockedTooltip: "이 레코드에 대기 중인 승인 요청이 있습니다. 편집이 잠겨 있습니다",
+    approvalPendingEditable: "승인 진행 중 · 편집 가능",
+    approvalPendingTooltip: "이 레코드에 대기 중인 승인 요청이 있지만 이 단계에서는 편집할 수 있습니다",
     cancelApproval: "승인 취소",
     cancelApprovalInFlight: "취소 중…",
     cancelApprovalTooltip: "대기 중인 승인 요청을 취소하여 레코드 잠금 해제",

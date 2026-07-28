@@ -46,6 +46,21 @@ export interface InlineEditContextValue {
    */
   locked: boolean;
   /**
+   * Whether an approval is in flight on this record, INDEPENDENT of whether it
+   * locks the record (objectui#2902). An approval node may declare
+   * `lockRecord: false`, in which case the backend accepts edits while the node
+   * waits — `approvalPending` is true and `locked` is false.
+   *
+   * Kept separate because the two drive different affordances: the recall
+   * button and the "an approval is running" status belong to `approvalPending`,
+   * while only `locked` may suppress editing. Consumers that conflate them
+   * either hide recall on an editable record or claim a lock that isn't there.
+   *
+   * `locked` implies an approval is pending, so hosts that thread only `locked`
+   * still get a coherent band. Defaults to `false`.
+   */
+  approvalPending: boolean;
+  /**
    * Human-readable reason for the approval lock, surfaced as the band's
    * tooltip. Optional — consumers fall back to their own localized default
    * when omitted.
@@ -93,6 +108,12 @@ export interface InlineEditProviderProps {
    * from a record field the backend may not materialize. Defaults to `false`.
    */
   locked?: boolean;
+  /**
+   * Whether an approval is pending on the record, whether or not it locks it
+   * (objectui#2902). Omitted ⇒ falls back to `locked`, which keeps hosts that
+   * only know about the lock rendering exactly as before.
+   */
+  approvalPending?: boolean;
   /** Optional human-readable lock reason, surfaced as the band tooltip. */
   lockedReason?: string;
   children: React.ReactNode;
@@ -101,9 +122,14 @@ export interface InlineEditProviderProps {
 export const InlineEditProvider: React.FC<InlineEditProviderProps> = ({
   canEdit = true,
   locked = false,
+  approvalPending,
   lockedReason,
   children,
 }) => {
+  // A locked record always has an approval running; the converse is what
+  // #2902 added. Defaulting this way means an un-migrated host keeps its
+  // previous behavior with no code change.
+  const pending = approvalPending ?? locked;
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState<Record<string, any>>({});
   const [autoFocusField, setAutoFocusField] = React.useState<string | null>(null);
@@ -143,6 +169,7 @@ export const InlineEditProvider: React.FC<InlineEditProviderProps> = ({
       editing,
       canEdit,
       locked,
+      approvalPending: pending,
       lockedReason,
       draft,
       autoFocusField,
@@ -155,7 +182,7 @@ export const InlineEditProvider: React.FC<InlineEditProviderProps> = ({
       setSaving,
       setError,
     }),
-    [editing, canEdit, locked, lockedReason, draft, autoFocusField, saving, error, enter, setField, teardown],
+    [editing, canEdit, locked, pending, lockedReason, draft, autoFocusField, saving, error, enter, setField, teardown],
   );
 
   return <InlineEditContext.Provider value={value}>{children}</InlineEditContext.Provider>;

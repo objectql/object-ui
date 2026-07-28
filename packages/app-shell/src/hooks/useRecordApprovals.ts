@@ -32,6 +32,36 @@ export interface ApprovalRequestLite {
   pending_approvers?: string[] | null;
   submitted_at?: string;
   completed_at?: string | null;
+  /**
+   * Whether THIS pending node locks the record from edits (objectui#2902).
+   * The approval node's `lockRecord` policy, surfaced by the server from the
+   * same `node_config_json` snapshot its record-lock `beforeUpdate` hook reads
+   * — so the badge we render and the rule the server applies agree.
+   *
+   * `undefined` on a pre-framework#3814 backend, which never sent the flag.
+   * Callers must fail CLOSED there (treat as locked): offering an edit the
+   * server then rejects with `RECORD_LOCKED` is worse than hiding one it would
+   * have allowed. See {@link recordLockedByApproval}.
+   */
+  lock_record?: boolean;
+}
+
+/**
+ * Does an open approval request lock its record from edits?
+ *
+ * A pending request is NOT the same thing as a locked record: an approval node
+ * may declare `lockRecord: false`, and the server then lets the record be
+ * edited while that node waits (a single-approver step where the approver is
+ * meant to fill in the missing detail is the motivating case). Treating "has a
+ * pending request" as "locked" mislabels those nodes and hides an edit the
+ * server would have accepted — objectui#2902.
+ *
+ * Fails closed on both unknowns: no request at all is not a lock, but a request
+ * from a backend too old to report the policy is.
+ */
+export function recordLockedByApproval(request: ApprovalRequestLite | null | undefined): boolean {
+  if (!request) return false;
+  return request.lock_record !== false;
 }
 
 interface UseRecordApprovalsResult {

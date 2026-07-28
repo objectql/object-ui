@@ -692,6 +692,8 @@ const zh = {
     editInlineHint: '双击编辑',
     lockedByApproval: '审批中已锁定',
     lockedTooltip: '该记录有待审批的请求，编辑已被锁定',
+    approvalPendingEditable: '审批中 · 可编辑',
+    approvalPendingTooltip: '该记录有待审批的请求，但当前审批节点仍允许编辑',
     cancelApproval: '撤回审批',
     cancelApprovalInFlight: '撤回中…',
     cancelApprovalTooltip: '撤回当前的待审批请求以解除记录锁定',

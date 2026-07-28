@@ -35,7 +35,7 @@ const baseSchema: DetailViewSchema = {
 };
 
 function renderBand(
-  providerProps: { locked?: boolean; lockedReason?: string; canEdit?: boolean },
+  providerProps: { locked?: boolean; approvalPending?: boolean; lockedReason?: string; canEdit?: boolean },
   data?: Record<string, unknown>,
 ) {
   return render(
@@ -69,5 +69,49 @@ describe('DetailView – approval-lock band (objectui#2618)', () => {
   it('does not show the band when neither signal indicates a lock', () => {
     renderBand({ locked: false }, { approval_status: 'draft' });
     expect(screen.queryByText('Locked for approval')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Two-state approval band (objectui#2902).
+ *
+ * An approval node declares `lockRecord`, and on a `lockRecord: false` node the
+ * server accepts edits for the whole time the node waits. The band used to key
+ * off "a pending request exists" alone, so both states rendered identically —
+ * a record you could freely edit was labelled "Locked for approval". The band
+ * must now distinguish them, and recall (which is about the approval, not the
+ * lock) must survive in the editable state.
+ */
+describe('DetailView – approval band, editable vs locked (objectui#2902)', () => {
+  it('labels a pending-but-unlocked approval as editable, not locked', () => {
+    renderBand({ locked: false, approvalPending: true });
+    expect(screen.getByText('In approval · editable')).toBeInTheDocument();
+    expect(screen.queryByText('Locked for approval')).not.toBeInTheDocument();
+  });
+
+  it('uses a distinct tooltip for the editable state', () => {
+    renderBand({ locked: false, approvalPending: true });
+    expect(screen.getByRole('status')).toHaveAttribute(
+      'title',
+      'This record has a pending approval request; this step still allows editing',
+    );
+  });
+
+  it('still labels a locked approval as locked when both signals are on', () => {
+    // The locked node of the same flow: pending AND locking.
+    renderBand({ locked: true, approvalPending: true });
+    expect(screen.getByText('Locked for approval')).toBeInTheDocument();
+    expect(screen.queryByText('In approval · editable')).not.toBeInTheDocument();
+  });
+
+  it('treats `locked` alone as pending too, so un-migrated hosts are unchanged', () => {
+    // A host that threads only `locked` (pre-#2902) must keep its old band.
+    renderBand({ locked: true });
+    expect(screen.getByText('Locked for approval')).toBeInTheDocument();
+  });
+
+  it('shows no band when no approval is running at all', () => {
+    renderBand({ locked: false, approvalPending: false }, { approval_status: 'draft' });
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 });

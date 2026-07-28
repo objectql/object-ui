@@ -680,6 +680,8 @@ const en = {
     editInlineHint: 'Double-click to edit',
     lockedByApproval: 'Locked for approval',
     lockedTooltip: 'This record has a pending approval request; editing is locked',
+    approvalPendingEditable: 'In approval · editable',
+    approvalPendingTooltip: 'This record has a pending approval request; this step still allows editing',
     cancelApproval: 'Recall approval',
     cancelApprovalInFlight: 'Recalling…',
     cancelApprovalTooltip: 'Recall the pending approval request to unlock this record',

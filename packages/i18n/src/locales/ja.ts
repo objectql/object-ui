@@ -519,6 +519,8 @@ const ja = {
     saving: "保存中…",
     lockedByApproval: "承認のためロック中",
     lockedTooltip: "このレコードには承認待ちのリクエストがあります。編集はロックされています",
+    approvalPendingEditable: "承認中 · 編集可能",
+    approvalPendingTooltip: "このレコードには承認待ちのリクエストがありますが、このステップでは編集できます",
     cancelApproval: "承認を取り消す",
     cancelApprovalInFlight: "取り消し中…",
     cancelApprovalTooltip: "承認待ちリクエストを取り消してレコードのロックを解除する",

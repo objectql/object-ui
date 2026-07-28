@@ -29,6 +29,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Copy,
   Lock,
   X,
@@ -1011,48 +1012,76 @@ export const DetailView: React.FC<DetailViewProps> = ({
         <HeaderHighlight fields={schema.highlightFields} data={data} objectName={schema.objectName} objectSchema={objectSchema} />
       )}
 
-      {/* Approval-lock band — when the DetailView's own header is suppressed
-          (composed under a Lightning-style page:header), surface the approval
-          lock reason + recall affordance inline. The inline-edit Save / Cancel
+      {/* Approval band — when the DetailView's own header is suppressed
+          (composed under a Lightning-style page:header), surface the running
+          approval + recall affordance inline. The inline-edit Save / Cancel
           bar itself now lives in the record-level <InlineEditSaveBar>
-          (objectui#2407 P1); this band is lock-only. */}
+          (objectui#2407 P1). */}
       {inlineEdit && schema.showHeader === false && (() => {
-        // Detect approval lock. Prefer the host-supplied signal
-        // (`inline.locked`) — the record-level session computes it from the
-        // record's `approval_status` field OR an open approvals request
-        // (objectui#2618), so the band engages even on backends that track
-        // the lock via approval requests only and never materialize an
-        // `approval_status` field on the record. Fall back to the record's
-        // own field for bare/legacy DetailView usage without a host that
-        // threads the lock. Either way a locked record's writes are rejected
-        // with RECORD_LOCKED, so surface the badge instead of editing and
-        // failing on save.
+        // Two independent facts, not one (objectui#2902):
+        //
+        //   isPending — an approval is running on this record.
+        //   isLocked  — that approval also forbids edits.
+        //
+        // They come apart because an approval node declares `lockRecord`, and
+        // on a `lockRecord: false` node the backend accepts writes for the
+        // whole time the node waits. Rendering one band for both states told
+        // the user "locked" on a record they could freely edit, and the
+        // approver — the very person the flag exists to let edit — never tried.
+        //
+        // Prefer the host-supplied signals: the record-level session resolves
+        // the pending node's policy from the approvals API (objectui#2618 for
+        // why the record field alone is not enough). The record's own
+        // `approval_status` remains the fallback for bare/legacy DetailView
+        // usage with no host threading the state; it carries no node
+        // granularity, so it can only mean "locked" — the safe read, since a
+        // wrongly-offered edit dies on the server with RECORD_LOCKED.
         const approvalStatus = data?.approval_status;
-        const isLocked =
-          (inline?.locked ?? false) ||
-          approvalStatus === 'pending' ||
-          approvalStatus === 'in_approval';
-        // Nothing to surface (not locked, no approval-cancel error): no band.
-        if (!isLocked && !saveError) return null;
+        const statusPending =
+          approvalStatus === 'pending' || approvalStatus === 'in_approval';
+        const isLocked = (inline?.locked ?? false) || statusPending;
+        const isPending = (inline?.approvalPending ?? false) || isLocked;
+        // Nothing to surface (no approval, no approval-cancel error): no band.
+        if (!isPending && !saveError) return null;
         return (
         <div className="flex flex-col items-end gap-1">
-          {isLocked && (
+          {isPending && (
             <div className="flex items-center justify-end gap-2">
               <span
                 role="status"
-                className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-800"
-                title={inline?.lockedReason ?? t('detail.lockedTooltip')}
+                className={
+                  isLocked
+                    ? 'inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-800'
+                    // An editable approval is informational, not a warning —
+                    // amber here would read as "something is blocked".
+                    : 'inline-flex items-center gap-1 rounded-md border border-sky-300 bg-sky-50 px-2 py-1 text-xs text-sky-800'
+                }
+                title={
+                  isLocked
+                    ? (inline?.lockedReason ?? t('detail.lockedTooltip'))
+                    : t('detail.approvalPendingTooltip')
+                }
               >
-                <Lock className="h-3 w-3" />
-                <span>{t('detail.lockedByApproval')}</span>
+                {isLocked ? <Lock className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+                <span>
+                  {isLocked
+                    ? t('detail.lockedByApproval')
+                    : t('detail.approvalPendingEditable')}
+                </span>
               </span>
+              {/* Recall belongs to the approval, not to the lock: an editable
+                  pending approval is just as recallable as a locked one. */}
               {dataSource?.cancelPendingApproval && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleCancelApproval}
                   disabled={isCancellingApproval}
-                  className="gap-2 border-amber-300 text-amber-800 hover:bg-amber-50"
+                  className={
+                    isLocked
+                      ? 'gap-2 border-amber-300 text-amber-800 hover:bg-amber-50'
+                      : 'gap-2 border-sky-300 text-sky-800 hover:bg-sky-50'
+                  }
                   title={t('detail.cancelApprovalTooltip')}
                 >
                   <X className="h-4 w-4" />

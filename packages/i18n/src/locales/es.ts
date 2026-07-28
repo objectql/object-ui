@@ -508,6 +508,8 @@ const es = {
     saving: "Guardando…",
     lockedByApproval: "Bloqueado para aprobación",
     lockedTooltip: "Este registro tiene una solicitud de aprobación pendiente; la edición está bloqueada",
+    approvalPendingEditable: "En aprobación · editable",
+    approvalPendingTooltip: "Este registro tiene una solicitud de aprobación pendiente; este paso todavía permite la edición",
     cancelApproval: "Cancelar aprobación",
     cancelApprovalInFlight: "Cancelando…",
     cancelApprovalTooltip: "Cancelar la solicitud de aprobación pendiente para desbloquear el registro",

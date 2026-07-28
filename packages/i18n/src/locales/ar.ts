@@ -508,6 +508,8 @@ const ar = {
     saving: "جارٍ الحفظ…",
     lockedByApproval: "مقفل للموافقة",
     lockedTooltip: "يحتوي هذا السجل على طلب موافقة معلق؛ التعديل مقفل",
+    approvalPendingEditable: "قيد الموافقة · قابل للتعديل",
+    approvalPendingTooltip: "يحتوي هذا السجل على طلب موافقة معلق، لكن هذه الخطوة لا تزال تسمح بالتعديل",
     cancelApproval: "إلغاء الموافقة",
     cancelApprovalInFlight: "جارٍ الإلغاء…",
     cancelApprovalTooltip: "إلغاء طلب الموافقة المعلق لفتح قفل السجل",

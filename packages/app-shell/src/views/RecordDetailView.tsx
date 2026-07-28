@@ -36,7 +36,7 @@ import { resolveActionParams } from '../utils/resolveActionParams';
 import { useRecordBreadcrumbTitle } from '../context/NavigationContext';
 import type { FeedItem } from '@object-ui/types';
 import type { ActionDef, ActionParamDef } from '@object-ui/core';
-import { useRecordApprovals } from '../hooks/useRecordApprovals';
+import { useRecordApprovals, recordLockedByApproval } from '../hooks/useRecordApprovals';
 import { RecordAttachmentsPanel } from './RecordAttachmentsPanel';
 import { RecordPermissionAssignmentsRenderer } from './metadata-admin/RecordPermissionAssignmentsRenderer';
 import { getRecordDisplayName } from '../utils';
@@ -868,14 +868,32 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     void approvalsRef.current.refresh();
   }, [recordInvalidationNonce]);
 
-  // The shared lock signal for the inline-edit session: the record's own
-  // `approval_status` (what the DetailView lock band keys off) OR an open
-  // pending request from the approvals API — the latter catches backends
-  // that lock via the request record without materializing the field.
-  const approvalLocked =
+  // Approval state is TWO signals, not one (objectui#2902).
+  //
+  // `approvalPending` — an approval is in flight on this record. Drives the
+  // status band and the recall affordance, which are meaningful whether or not
+  // the record is editable.
+  //
+  // `approvalLocked` — that approval also forbids edits. The approval node's
+  // `lockRecord` policy decides this, and the server enforces exactly that
+  // policy in its record-lock `beforeUpdate` hook. Conflating the two (which
+  // this used to do) made every `lockRecord: false` node claim the record was
+  // locked while the server happily accepted writes — and, worse than the
+  // wrong label, `canEdit` below then suppressed the inline-edit affordances
+  // entirely, so the "approver may fill in the missing detail" case the flag
+  // exists for was unreachable from the console.
+  //
+  // The record's own `approval_status` field stays a fallback for backends
+  // that mirror status onto the record but expose no approvals API. It carries
+  // no node granularity, so it can only mean "locked" — the conservative read,
+  // and the same one `recordLockedByApproval` applies to a pre-framework#3814 backend.
+  const approvalStatusPending =
     (pageRecord as any)?.approval_status === 'pending' ||
-    (pageRecord as any)?.approval_status === 'in_approval' ||
-    !!approvals.pendingRequest;
+    (pageRecord as any)?.approval_status === 'in_approval';
+  const approvalPending = approvalStatusPending || !!approvals.pendingRequest;
+  const approvalLocked = approvals.pendingRequest
+    ? recordLockedByApproval(approvals.pendingRequest)
+    : approvalStatusPending;
 
   const approvalHandler = useCallback(async (action: ActionDef) => {
     const target = action.target || action.name;
@@ -1916,13 +1934,17 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
             hides the pencil affordances and no-ops `enter()`, so users can't
             type into a draft that Save would reject with RECORD_LOCKED.
             `locked` surfaces the approval lock as its own signal so the
-            DetailView "Locked for approval" band renders from the SAME
-            dual-source `approvalLocked` that gated `canEdit` — engaging even
-            on backends that track the lock via approval requests only and
-            never materialize an `approval_status` field (objectui#2618). */}
+            DetailView approval band renders from the SAME dual-source
+            `approvalLocked` that gated `canEdit` — engaging even on backends
+            that track the lock via approval requests only and never
+            materialize an `approval_status` field (objectui#2618).
+            `approvalPending` rides alongside it so a node that declares
+            `lockRecord: false` still shows its band and recall button while
+            leaving the record editable (objectui#2902). */}
         <InlineEditProvider
           canEdit={resolveRecordHeaderActionGates(objectDef, effectiveApiOperations).edit && !approvalLocked}
           locked={approvalLocked}
+          approvalPending={approvalPending}
           lockedReason={t('detail.lockedTooltip', {
             defaultValue: 'This record has a pending approval request; editing is locked',
           })}

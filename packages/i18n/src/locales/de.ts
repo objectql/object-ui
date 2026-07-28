@@ -508,6 +508,8 @@ const de = {
     saving: "Speichern…",
     lockedByApproval: "Zur Genehmigung gesperrt",
     lockedTooltip: "Dieser Datensatz hat eine ausstehende Genehmigungsanfrage; die Bearbeitung ist gesperrt",
+    approvalPendingEditable: "In Genehmigung · bearbeitbar",
+    approvalPendingTooltip: "Dieser Datensatz hat eine ausstehende Genehmigungsanfrage; dieser Schritt erlaubt weiterhin die Bearbeitung",
     cancelApproval: "Genehmigung zurückziehen",
     cancelApprovalInFlight: "Zurückziehen…",
     cancelApprovalTooltip: "Ausstehende Genehmigungsanfrage zurückziehen, um den Datensatz zu entsperren",

@@ -508,6 +508,8 @@ const fr = {
     saving: "Enregistrement…",
     lockedByApproval: "Verrouillé pour approbation",
     lockedTooltip: "Cet enregistrement a une demande d'approbation en attente ; la modification est verrouillée",
+    approvalPendingEditable: "En approbation · modifiable",
+    approvalPendingTooltip: "Cet enregistrement a une demande d'approbation en attente ; cette étape autorise encore la modification",
     cancelApproval: "Annuler l'approbation",
     cancelApprovalInFlight: "Annulation…",
     cancelApprovalTooltip: "Annuler la demande d'approbation en attente pour déverrouiller l'enregistrement",
