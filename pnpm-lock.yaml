@@ -2632,6 +2632,9 @@ importers:
         specifier: workspace:*
         version: link:../types
     devDependencies:
+      '@types/node':
+        specifier: ^26.1.1
+        version: 26.1.1
       '@types/vscode':
         specifier: ^1.125.0
         version: 1.125.0

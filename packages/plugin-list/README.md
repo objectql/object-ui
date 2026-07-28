@@ -53,7 +53,7 @@ function ContactsView() {
         type: 'list-view',
         objectName: 'contacts',
         viewType: 'grid',
-        fields: ['name', 'email', 'phone', 'company'],
+        columns: ['name', 'email', 'phone', 'company'],
         sort: [{ field: 'name', order: 'asc' }],
       }}
     />
@@ -73,7 +73,7 @@ are supported on the schema:
     type: 'list-view',
     objectName: 'tasks',
     viewType: 'grid',
-    fields: ['title', 'status', 'assignee'],
+    columns: ['title', 'status', 'assignee'],
     grouping: {
       fields: [
         { field: 'status', order: 'asc', collapsed: false },
@@ -90,7 +90,7 @@ are supported on the schema:
     type: 'list-view',
     objectName: 'tasks',
     viewType: 'grid',
-    fields: ['title', 'status'],
+    columns: ['title', 'status'],
     groupBy: 'status',
   }}
 />
@@ -107,7 +107,7 @@ grouping fields at runtime via the Group toolbar button.
     type: 'list-view',
     objectName: 'deals',
     viewType: 'kanban',
-    fields: ['name', 'amount', 'stage', 'close_date'],
+    columns: ['name', 'amount', 'stage', 'close_date'],
     options: {
       kanban: {
         groupField: 'stage',
@@ -134,7 +134,7 @@ grouping fields at runtime via the Group toolbar button.
   schema={{
     type: 'list-view',
     objectName: 'tasks',
-    fields: ['title', 'status', 'priority'],
+    columns: ['title', 'status', 'priority'],
   }}
   onViewChange={(view) => console.log('View changed to:', view)}
   onSearchChange={(search) => console.log('Search:', search)}
@@ -152,7 +152,10 @@ interface ListViewSchema {
   type: 'list-view';
   objectName: string;
   viewType?: 'grid' | 'kanban' | 'calendar' | 'gantt' | 'map' | 'chart';
-  fields?: string[];
+  /** Spec-canonical column list. The legacy `fields` alias is still accepted
+   *  on input (stored view metadata carries it) and folded into `columns` by
+   *  `normalizeListViewSchema` — but nothing reads it, so emit `columns`. */
+  columns?: string[] | ListColumn[];
   filters?: Array<any[] | string>;
   sort?: Array<{ field: string; order: 'asc' | 'desc' }>;
   options?: {

@@ -19,7 +19,7 @@ import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveCrudAffordances } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveCrudAffordances, normalizeListViewSchema, rowHeightToDensityMode } from '@object-ui/core';
 import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 
@@ -335,22 +335,16 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   const { fieldLabel: resolveFieldLabel, actionLabel: resolveActionLabel, objectLabel: resolveObjectLabel } = useListFieldLabel();
   const { translateOptions } = useSafeFieldLabel();
 
-  // Kernel level default: Ensure viewType is always a RENDERABLE kind.
-  // Two inputs must land on 'grid': a missing viewType, and the view-metadata
-  // kind `'list'` (AI-authored views store `type/viewKind: 'list'`, which hosts
-  // forward verbatim) — 'list' names the view CATEGORY, not a renderer, and
-  // letting it through used to hit the typeless default branch below and
-  // render as a red "Unknown component type" box.
-  // Perf: only allocate a new object when normalization is actually needed,
-  // otherwise return propSchema as-is so downstream useMemos see a stable
-  // reference when callers already provide a renderable viewType (the common case).
-  const schema = React.useMemo(
-    () =>
-      propSchema.viewType && (propSchema.viewType as string) !== 'list'
-        ? propSchema
-        : { ...propSchema, viewType: 'grid' },
-    [propSchema],
-  );
+  // Canonicalize the view vocabulary ONCE, here, before anything reads it
+  // (#2890): the legacy `fields` folds into the spec's `columns`, and `viewType`
+  // is defaulted to a RENDERABLE kind. Nothing on this path parses the schema
+  // through zod, so this call site — not `ListViewSchema` — is what guarantees
+  // the fold runs. See `normalizeListViewSchema` for why the legacy key is
+  // dropped rather than dual-read.
+  // Perf: the normalizer returns propSchema by reference when there is nothing
+  // to fold, so downstream useMemos keep a stable dependency identity on the
+  // already-canonical path (the common case).
+  const schema = React.useMemo(() => normalizeListViewSchema(propSchema), [propSchema]);
 
   // Convenience: resolve field label with schema.objectName pre-bound
   const tFieldLabel = React.useCallback(
@@ -682,21 +676,14 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     return schema.exportOptions;
   }, [schema.exportOptions]);
 
-  // Density Mode — rowHeight maps to density if densityMode not explicitly set
+  // Toolbar density, resolved from the spec-canonical `rowHeight` (#2890). The
+  // legacy `densityMode` is folded into it by `normalizeListViewSchema` above —
+  // it used to be read FIRST here, so a view carrying both rendered the legacy
+  // value, backwards from every other pair's canonical-wins precedence.
   const resolvedDensity = React.useMemo(() => {
-    if (schema.densityMode) return schema.densityMode;
-    if (schema.rowHeight) {
-      const map: Record<string, 'compact' | 'comfortable' | 'spacious'> = {
-        compact: 'compact',
-        short: 'compact',
-        medium: 'comfortable',
-        tall: 'spacious',
-        extra_tall: 'spacious',
-      };
-      return map[schema.rowHeight] || 'comfortable';
-    }
+    if (schema.rowHeight) return rowHeightToDensityMode(schema.rowHeight);
     return 'compact';
-  }, [schema.densityMode, schema.rowHeight]);
+  }, [schema.rowHeight]);
   const density = useDensityMode(resolvedDensity, {
     onChange: schema.onDensityChange,
   });
@@ -776,7 +763,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
 
   // Auto-compute $expand fields from objectDef (lookup / master_detail).
   //
-  // Important: include not only the user-declared `schema.fields` (table
+  // Important: include not only the user-declared `schema.columns` (table
   // columns) but also the runtime fields used by alternate view types
   // (kanban cardFields, calendar dateField, gallery coverField, etc.).
   // Otherwise a kanban whose card shows `account` would request
@@ -785,8 +772,8 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // list view shows "Initech Solutions" but kanban used to show
   // "8UY9zHWBfjYjYor4" for the same field.
   const expandFields = React.useMemo(() => {
-    const baseColumns = Array.isArray(schema.fields)
-      ? (schema.fields as any[])
+    const baseColumns = Array.isArray(schema.columns)
+      ? (schema.columns as any[])
           .map((f) => (typeof f === 'string' ? f : f?.field))
           .filter((v): v is string => typeof v === 'string' && v.length > 0)
       : [];
@@ -826,7 +813,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     return buildExpandFields(objectDef?.fields, augmented);
   }, [
     objectDef?.fields,
-    schema.fields,
+    schema.columns,
     (schema as any).kanban,
     (schema as any).calendar,
     (schema as any).gallery,
@@ -919,7 +906,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       try {
         // Construct filter
         let finalFilter: any = [];
-        const baseFilter = schema.filters || [];
+        const baseFilter = schema.filter || [];
         const userFilter = convertFilterGroupToAST(currentFilters);
         
         
@@ -956,8 +943,8 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         // boundary even though the UI hides it — server-side trust must
         // never be defeated by what the client requests.
         const selectFields = (() => {
-          const rawCols = Array.isArray(schema.fields)
-            ? (schema.fields as any[])
+          const rawCols = Array.isArray(schema.columns)
+            ? (schema.columns as any[])
                 .map(f => (typeof f === 'string' ? f : f?.field))
                 .filter((v): v is string => typeof v === 'string' && v.length > 0)
             : [];
@@ -1133,7 +1120,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     fetchData();
 
     return () => { isMounted = false; };
-  }, [schema.objectName, schema.data, dataSource, schema.filters, effectivePageSize, currentSort, currentFilters, userFilterConditions, refreshKey, searchTerm, schema.searchableFields, expandFields, objectDefLoaded, schema.refreshTrigger, perms, serverPage, currentView, groupingConfig, ganttOwnsData]); // Re-fetch on filter/sort/search/refreshTrigger/perms/page change
+  }, [schema.objectName, schema.data, dataSource, schema.filter, effectivePageSize, currentSort, currentFilters, userFilterConditions, refreshKey, searchTerm, schema.searchableFields, expandFields, objectDefLoaded, schema.refreshTrigger, perms, serverPage, currentView, groupingConfig, ganttOwnsData]); // Re-fetch on filter/sort/search/refreshTrigger/perms/page change
 
   // Any change to the result-defining inputs (object, filters, sort, search,
   // grouping, page size) invalidates the current page number — snap back to
@@ -1143,7 +1130,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // from under a user who just turned it. serverPage is deliberately NOT part of
   // the signature, so turning the page never triggers a reset.
   const pageResetSignature = JSON.stringify([
-    schema.objectName, schema.filters, effectivePageSize, currentSort,
+    schema.objectName, schema.filter, effectivePageSize, currentSort,
     currentFilters, userFilterConditions, searchTerm, currentView, groupingConfig,
   ]);
   const prevPageResetSignature = React.useRef(pageResetSignature);
@@ -1266,12 +1253,9 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // effect so $select can be gated server-side too.)
   // Apply hiddenFields and fieldOrder to produce effective fields
   const effectiveFields = React.useMemo(() => {
-    let fields = schema.fields || [];
-
-    // Defensive: ensure fields is an array of strings/objects
-    if (!Array.isArray(fields)) {
-      fields = [];
-    }
+    // Defensive: `columns` is `string[] | ListColumn[]`, but metadata is
+    // user-authored — anything non-array degrades to "no declared columns".
+    let fields: any[] = Array.isArray(schema.columns) ? (schema.columns as any[]) : [];
 
     // FLS: drop columns the current user cannot read.
     if (perms?.isLoaded && schema.objectName) {
@@ -1303,7 +1287,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     }
     
     return fields;
-  }, [schema.fields, schema.objectName, hiddenFields, schema.fieldOrder, perms]);
+  }, [schema.columns, schema.objectName, hiddenFields, schema.fieldOrder, perms]);
 
   // Generate the appropriate view component schema
   const viewComponentSchema = React.useMemo(() => {
@@ -1315,7 +1299,13 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     const baseProps = {
       objectName: schema.objectName,
       fields: effectiveFields,
-      filters: schema.filters,
+      // Spec-canonical `filter` (#2890). Every child view — ObjectGrid,
+      // ObjectGallery, ObjectKanban, ObjectCalendar, ObjectGantt, ObjectMap,
+      // ObjectTree, ObjectChart — reads `schema.filter`; ListView was the only
+      // surface speaking `filters`, so a child that fetches its own rows (the
+      // chart branch below, and any of these rendered standalone) never saw the
+      // view's base filter at all.
+      filter: schema.filter,
       sort: currentSort,
       className: "h-full w-full",
       // Disable internal controls that clash with ListView toolbar
@@ -1511,7 +1501,10 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           type: 'object-chart',
           objectName: schema.objectName,
           chartType: chartCfg.chartType || 'bar',
-          filters: schema.filters,
+          // `ObjectChart` reads `schema.filter` and never read `filters`, so a
+          // chart list view with a base filter used to aggregate the WHOLE
+          // object (#2890).
+          filter: schema.filter,
           aggregate: {
             field: valueField,
             function: chartCfg.aggregation || 'count',
@@ -1554,10 +1547,12 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     };
 
     if (!objectDef?.fields) {
-        // Fallback to schema fields if objectDef not loaded yet
-        fields = (schema.fields || []).map((f: any) => {
+        // Fallback to the declared columns if objectDef not loaded yet
+        fields = (Array.isArray(schema.columns) ? (schema.columns as any[]) : []).map((f: any) => {
            if (typeof f === 'string') return { value: f, label: f, type: 'text' };
-           const fieldName = f.name || f.fieldName;
+           // `field` is the spec's ListColumn key; `name`/`fieldName` are the
+           // shapes hosts pass through from stored metadata.
+           const fieldName = f.name || f.fieldName || f.field;
            return {
               value: fieldName,
               label: tFieldLabel(fieldName, f.label || f.name),
@@ -1587,7 +1582,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     }
 
     return fields;
-  }, [objectDef, schema.fields, schema.filterableFields, schema.objectName, tFieldLabel, translateOptions]);
+  }, [objectDef, schema.columns, schema.filterableFields, schema.objectName, tFieldLabel, translateOptions]);
 
   // Export handler
   const handleExport = React.useCallback((format: 'csv' | 'xlsx' | 'json' | 'pdf') => {
@@ -1625,7 +1620,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         .filter(Boolean);
 
       // Merge the same filter sources as the data fetch (base + user + conditions).
-      const baseFilter = schema.filters || [];
+      const baseFilter = schema.filter || [];
       const userFilter = convertFilterGroupToAST(currentFilters);
       const normalizedUserFilterConditions = normalizeFilters(userFilterConditions);
       const allFilters = [
@@ -1725,11 +1720,11 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       URL.revokeObjectURL(url);
     }
     setShowExport(false);
-  }, [data, effectiveFields, resolvedExportOptions, schema.objectName, schema.filters, exportPermitted, dataSource, currentFilters, userFilterConditions, currentSort, objectDef, resolveObjectLabel]);
+  }, [data, effectiveFields, resolvedExportOptions, schema.objectName, schema.filter, exportPermitted, dataSource, currentFilters, userFilterConditions, currentSort, objectDef, resolveObjectLabel]);
 
   // All available fields for hide/show (with i18n)
   const allFields = React.useMemo(() => {
-    return (schema.fields || []).map((f: any) => {
+    return (Array.isArray(schema.columns) ? (schema.columns as any[]) : []).map((f: any) => {
       if (typeof f === 'string') {
         return { name: f, label: tFieldLabel(f, f) };
       }
@@ -1737,7 +1732,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       const rawLabel = f.label || f.name || f.field;
       return { name, label: tFieldLabel(name, rawLabel) };
     });
-  }, [schema.fields, tFieldLabel]);
+  }, [schema.columns, tFieldLabel]);
 
   return (
     <div

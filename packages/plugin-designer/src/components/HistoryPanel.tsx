@@ -54,7 +54,7 @@ export function HistoryPanel<T>({
   const { timeline, currentIndex, undo, redo, jumpTo, canUndo, canRedo } = history;
 
   const defaultRenderLabel = React.useCallback(
-    (_entry: T, index: number, position: number) => {
+    (_entry: T, _index: number, position: number) => {
       if (position === 0) return 'Current';
       if (position < 0) return `Earlier (${Math.abs(position)} step${Math.abs(position) > 1 ? 's' : ''} back)`;
       return `Later (${position} step${position > 1 ? 's' : ''} forward)`;

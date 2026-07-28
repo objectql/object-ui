@@ -2,34 +2,35 @@
 "@object-ui/plugin-detail": minor
 "@object-ui/app-shell": minor
 "@object-ui/data-objectstack": minor
-"@object-ui/react": minor
 "@object-ui/i18n": minor
 ---
 
-fix(detail): say what the record actually allows — "in approval (editable)" vs locked, and warn on silently stripped fields (framework#3794)
+fix(detail): finish the approval-lock story, and warn on silently stripped fields (framework#3794)
 
 The Console reported record writability wrong in both directions during an
 approval, so a user had nothing to go on: what they *could* edit said "locked",
 and what they *couldn't* said "updated successfully".
 
-**"Locked for approval" was painted over every pending approval.** The band and
-the recall affordance rendered on any open request, ignoring the node's
-`lockRecord`. A node declaring `lockRecord: false` is pending *without* locking —
-the server's hook lets the write through on purpose, so the approver can amend
-the record as part of deciding on it — and the band told them not to bother. The
-mirror image was just as bad: on a genuinely locked record the header **Edit**
-button stayed live, so the user filled a whole form before the save came back
-`RECORD_LOCKED`.
+**The lock band told the truth; the Edit button did not.** objectui#2902 split
+the band into "in approval · editable" vs locked, but the header **Edit** CTA
+still keyed off nothing at all — on a genuinely locked record it stayed live, so
+the user opened the form, filled a screen, and got `RECORD_LOCKED` back on Save.
+It is now `disabled` on a locked record: visible-but-off, with the band beside it
+saying why. This is the LOCK, not the mere presence of an approval — a
+`lockRecord: false` node keeps Edit live, which is the point of that setting.
 
-The pending request is now authoritative for both signals. `useRecordApprovals`
-reads `locks_record` (framework#3794, resolved from the same node-config snapshot
-the lock hook reads); `RecordDetailView` derives `approvalPending` and
-`approvalLocked` separately and threads both through `InlineEditProvider`
-(new `approvalPending` prop). The band renders the amber lock only when the
-record is really locked, a neutral "In approval (editable)" / 审批中（可编辑）
-otherwise, and the header Edit CTA is disabled on a locked record. With no
-approvals-aware host, the old `approval_status`-field fallback is unchanged and
-still assumes a lock — the safe direction.
+**And the band could still re-lock itself.** `DetailView` OR-ed the record's own
+`approval_status` mirror into `isLocked` unconditionally. That mirror is written
+on submit by any flow configuring an `approvalStatusField`, *regardless of*
+`lockRecord` — so on a `lockRecord: false` node the host correctly resolved "not
+locked" from the request's `lock_record` while the mirror dragged the band back
+to "Locked for approval", with the pencils live and saves landing underneath it.
+The host is now authoritative whenever it threads `approvalPending`; the mirror
+is consulted only for bare/legacy `DetailView` hosts that thread nothing, where
+it still reads as locked (no node granularity — the safe direction).
+
+Recall's tooltip no longer promises to unlock a record the node never locked
+(`detail.cancelApprovalTooltipUnlocked`).
 
 **Silently stripped fields now surface on the record form's save path.** The
 adapter emitted a write-warning for `create`/`update` responses carrying
@@ -39,10 +40,11 @@ saves a master-detail record, i.e. the one surface where a user actually edits a
 resolving each back to its operation via the response's `index`.
 
 The toast itself was hardcoded English and called every strip "read-only". It is
-now localized (`detail.writeStripped*`, en + zh) and worded by reason:
+now localized (`detail.writeStripped*`, ten locales) and worded by reason:
 `readonly_when` says the field is not editable *in this record's current state*,
 which is what actually happened — the field is editable in other states and the
-form rendered it as an ordinary input.
+form rendered it as an ordinary input, so "read-only" sent the user hunting for a
+permission problem that does not exist.
 
 **And it stopped crying wolf.** `createObjectStackUserStateAdapter` hand-stamped
 the server-managed `updated_at` on every recents/favorites write, which the

@@ -39,6 +39,30 @@ const FIELD_DEFAULTS: Record<string, string> = {
   'lookup.nextPage': 'Next page',
   'lookup.jumpToPage': 'Jump to page',
   'lookup.retry': 'Retry',
+  // objectstack#3821 — sharing-rule authoring widgets (object-ref /
+  // recipient-picker / filter-condition). The recipient placeholder is keyed
+  // PER TYPE rather than interpolating the enum value into an English
+  // sentence, which no locale could translate.
+  'fields.objectRef.loading': 'Loading objects…',
+  'fields.objectRef.placeholder': 'Select an object',
+  'fields.objectRef.search': 'Search objects…',
+  'fields.objectRef.empty': 'No objects found',
+  'fields.recipient.selectTypeFirst': 'Select a recipient type first.',
+  'fields.recipient.loading': 'Loading…',
+  'fields.recipient.search': 'Search…',
+  'fields.recipient.empty': 'No matches',
+  'fields.recipient.select': 'Select a recipient',
+  'fields.recipient.selectUser': 'Select a user',
+  'fields.recipient.selectTeam': 'Select a team',
+  'fields.recipient.selectBusinessUnit': 'Select a business unit',
+  'fields.recipient.selectPosition': 'Select a position',
+  'fields.recipient.selectUnitAndSubordinates': 'Select a business unit',
+  'fields.filterCondition.selectObjectFirst': 'Select an object first.',
+  'fields.filterCondition.allRecords': 'All records',
+  'fields.filterCondition.invalidJson': 'Invalid JSON — the rule will match no records until fixed.',
+  'fields.filterCondition.jsonOnly': 'This criteria can only be edited as JSON',
+  'fields.filterCondition.editAsJson': 'Edit as JSON',
+  'fields.filterCondition.useVisualBuilder': 'Use visual builder',
   // objectui#2600 B5 — capability picker scope group headers.
   'capability.group.platform': 'Platform',
   'capability.group.org': 'Organization',

@@ -6,7 +6,12 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { DataSource, BatchTransactionOperation } from '@object-ui/core';
+import type {
+  DataSource,
+  BatchTransactionOperation,
+  QueryParams,
+  QueryResult,
+} from '@object-ui/types';
 import { emulateBatchTransaction } from '@object-ui/core';
 
 /**
@@ -14,12 +19,15 @@ import { emulateBatchTransaction } from '@object-ui/core';
  * 在真实项目中，你会在这里使用 fetch/axios 调用你的 API。
  */
 export class MockDataSource implements DataSource {
-  async find(resource: string, params?: any): Promise<any[]> {
+  async find(resource: string, params?: QueryParams): Promise<QueryResult> {
     console.log(`[DataSource] Querying ${resource}`, params);
-    return [];
+    // `find` returns an envelope, not a bare array — consumers read `.data`
+    // and `.total` (see QueryResult). Returning `[]` here would leave every
+    // caller with `undefined` data.
+    return { data: [], total: 0 };
   }
 
-  async findOne(resource: string, id: string): Promise<any> {
+  async findOne(_resource: string, _id: string): Promise<any> {
     return null;
   }
 
@@ -33,11 +41,11 @@ export class MockDataSource implements DataSource {
     return { id: Math.random().toString(), ...data };
   }
 
-  async update(resource: string, id: string, data: any): Promise<any> {
+  async update(_resource: string, _id: string, data: any): Promise<any> {
     return data;
   }
 
-  async delete(resource: string, id: string): Promise<any> {
+  async delete(_resource: string, _id: string): Promise<any> {
     return true;
   }
 

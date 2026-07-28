@@ -228,6 +228,10 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
           throw Object.assign(new Error(code ?? `Download failed (${res.status})`), { code });
         }
         const body = await res.json();
+        // Both URL dialects, for the same independent-deploy reason as the
+        // error branch above: the route answered a bare `{ url }` until
+        // objectstack#3689 moved it into the declared
+        // `{ success: true, data: { url } }` envelope.
         const url: string | undefined = body?.url ?? body?.data?.url;
         if (!url) throw new Error('Download URL missing from response');
         const target = /^https?:/i.test(url) ? url : `${baseUrl}${url}`;

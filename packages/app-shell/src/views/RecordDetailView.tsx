@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
-import { RecordChatterPanel, InlineEditSaveBar, buildDefaultPageSchema, deriveFieldGroupDetailSections, extractMentions, resolveTitleField } from '@object-ui/plugin-detail';
+import { RecordChatterPanel, InlineEditSaveBar, buildDefaultPageSchema, deriveFieldGroupDetailSections, extractMentions, resolveTitleField, useRecordEditable } from '@object-ui/plugin-detail';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
 import { usePermissions } from '@object-ui/permissions';
@@ -36,7 +36,7 @@ import { resolveActionParams } from '../utils/resolveActionParams';
 import { useRecordBreadcrumbTitle } from '../context/NavigationContext';
 import type { FeedItem } from '@object-ui/types';
 import type { ActionDef, ActionParamDef } from '@object-ui/core';
-import { useRecordApprovals } from '../hooks/useRecordApprovals';
+import { useRecordApprovals, recordLockedByApproval } from '../hooks/useRecordApprovals';
 import { RecordAttachmentsPanel } from './RecordAttachmentsPanel';
 import { RecordPermissionAssignmentsRenderer } from './metadata-admin/RecordPermissionAssignmentsRenderer';
 import { getRecordDisplayName } from '../utils';
@@ -868,30 +868,32 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     void approvalsRef.current.refresh();
   }, [recordInvalidationNonce]);
 
-  // "An approval is in flight" — the record's own `approval_status` mirror OR
-  // an open pending request from the approvals API (the latter catches backends
-  // that track approvals without materializing the field).
-  const approvalPending =
-    (pageRecord as any)?.approval_status === 'pending' ||
-    (pageRecord as any)?.approval_status === 'in_approval' ||
-    !!approvals.pendingRequest;
-
-  // …and, separately, "the record is LOCKED for writes" (#3794). These are not
-  // the same statement: an approval node with `lockRecord: false` leaves the
-  // record editable on purpose — that is how an approver amends a record while
-  // deciding on it — and the server's lock hook honors it (`lockRecord === false`
-  // ⇒ the update goes through). Conflating them made the console claim "Locked
-  // for approval" on a record it would happily save, so approvers never tried.
+  // Approval state is TWO signals, not one (objectui#2902).
   //
-  // The pending REQUEST is authoritative when we have one: `locks_record` comes
-  // from the same node-config snapshot the server hook reads (framework #3794).
-  // With no request in hand — approvals plugin absent, still loading, or a
-  // field-only backend — fall back to the `approval_status` mirror and assume
-  // locked, which is the safe direction (worst case we hide an edit affordance
-  // instead of letting a user fill a form the server will reject).
+  // `approvalPending` — an approval is in flight on this record. Drives the
+  // status band and the recall affordance, which are meaningful whether or not
+  // the record is editable.
+  //
+  // `approvalLocked` — that approval also forbids edits. The approval node's
+  // `lockRecord` policy decides this, and the server enforces exactly that
+  // policy in its record-lock `beforeUpdate` hook. Conflating the two (which
+  // this used to do) made every `lockRecord: false` node claim the record was
+  // locked while the server happily accepted writes — and, worse than the
+  // wrong label, `canEdit` below then suppressed the inline-edit affordances
+  // entirely, so the "approver may fill in the missing detail" case the flag
+  // exists for was unreachable from the console.
+  //
+  // The record's own `approval_status` field stays a fallback for backends
+  // that mirror status onto the record but expose no approvals API. It carries
+  // no node granularity, so it can only mean "locked" — the conservative read,
+  // and the same one `recordLockedByApproval` applies to a pre-framework#3814 backend.
+  const approvalStatusPending =
+    (pageRecord as any)?.approval_status === 'pending' ||
+    (pageRecord as any)?.approval_status === 'in_approval';
+  const approvalPending = approvalStatusPending || !!approvals.pendingRequest;
   const approvalLocked = approvals.pendingRequest
-    ? approvals.pendingRequest.locks_record !== false
-    : approvalPending;
+    ? recordLockedByApproval(approvals.pendingRequest)
+    : approvalStatusPending;
 
   const approvalHandler = useCallback(async (action: ActionDef) => {
     const target = action.target || action.name;
@@ -955,6 +957,26 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       canRead: permissionsLoaded ? (name) => canOnObject(name, 'read') : undefined,
     }),
     [objectDef, objects, canOnObject, permissionsLoaded],
+  );
+
+  // [objectstack#3821] RECORD-level write gate. Everything above is object
+  // scoped — it cannot express "this one record is read-only", which is
+  // exactly what a read-only sharing grant is. So the header offered Edit on
+  // a record the user may only read: the form opened, the user retyped a
+  // field, and the server rejected the save with a 403. Ask the explain
+  // engine for the row-level verdict (fail-open; the server stays the
+  // authority per ADR-0057 D10) and fold it into the same affordance gates.
+  const recordWriteAllowed = useRecordEditable(
+    objectDef?.name,
+    pureRecordId,
+    'update',
+    !!objectDef?.name && !!pureRecordId,
+  );
+  const recordDeleteAllowed = useRecordEditable(
+    objectDef?.name,
+    pureRecordId,
+    'delete',
+    !!objectDef?.name && !!pureRecordId,
   );
 
   // ── Audit history fetch ────────────────────────────────────────────
@@ -1792,7 +1814,12 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // menu permanently — Delete must never surface as an inline red button
   // just because an object has few actions.
   const synthSystemActions: ActionDef[] = (() => {
-    const affordances = resolveRecordHeaderActionGates(objectDef, effectiveApiOperations);
+    const objectAffordances = resolveRecordHeaderActionGates(objectDef, effectiveApiOperations);
+    // Object-level gate AND the record-level verdict (objectstack#3821).
+    const affordances = {
+      edit: objectAffordances.edit && recordWriteAllowed,
+      delete: objectAffordances.delete && recordDeleteAllowed,
+    };
     const items: ActionDef[] = [];
     if (affordances.edit) {
       // Single primary Edit CTA → opens the full record form. Inline editing
@@ -1812,13 +1839,13 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         // can't be stacked on top of the draft (two competing edit sessions
         // with no reconciliation).
         disableDuringInlineEdit: true,
-        // #3794 — an approval-LOCKED record refuses every write (the server
-        // answers RECORD_LOCKED), so opening the form only to be rejected on
-        // Save after filling a screen is wasted work. Disabled rather than
-        // hidden: the user should see the affordance exists and is off, with
-        // the lock band next to it saying why. Note this is the LOCK, not the
-        // mere presence of an approval — a `lockRecord: false` node keeps Edit
-        // live, which is the point of that setting.
+        // framework#3794 — an approval-LOCKED record refuses every write (the
+        // server answers RECORD_LOCKED), so opening the form only to be
+        // rejected on Save after filling a screen is wasted work. Disabled
+        // rather than hidden: the user should see the affordance exists and is
+        // off, with the lock band next to it saying why. Note this is the
+        // LOCK, not the mere presence of an approval — a `lockRecord: false`
+        // node keeps Edit live, which is the point of that setting.
         disabled: approvalLocked,
         onClick: () => onEdit({ id: pureRecordId }),
       } as any);
@@ -1940,16 +1967,15 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
             hides the pencil affordances and no-ops `enter()`, so users can't
             type into a draft that Save would reject with RECORD_LOCKED.
             `locked` surfaces the approval lock as its own signal so the
-            DetailView "Locked for approval" band renders from the SAME
-            dual-source `approvalLocked` that gated `canEdit` — engaging even
-            on backends that track the lock via approval requests only and
-            never materialize an `approval_status` field (objectui#2618).
-            `approvalPending` is the separate "a request is in flight" signal
-            (#3794): on a `lockRecord: false` node it is true while `locked` is
-            false, and the band says "in approval (editable)" instead of lying
-            about a lock the server does not enforce. */}
+            DetailView approval band renders from the SAME dual-source
+            `approvalLocked` that gated `canEdit` — engaging even on backends
+            that track the lock via approval requests only and never
+            materialize an `approval_status` field (objectui#2618).
+            `approvalPending` rides alongside it so a node that declares
+            `lockRecord: false` still shows its band and recall button while
+            leaving the record editable (objectui#2902). */}
         <InlineEditProvider
-          canEdit={resolveRecordHeaderActionGates(objectDef, effectiveApiOperations).edit && !approvalLocked}
+          canEdit={resolveRecordHeaderActionGates(objectDef, effectiveApiOperations).edit && recordWriteAllowed && !approvalLocked}
           locked={approvalLocked}
           approvalPending={approvalPending}
           lockedReason={t('detail.lockedTooltip', {

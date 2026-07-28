@@ -324,9 +324,12 @@ function scorePair(header: string, field: MappableField, inferred: InferredType)
   const targets = [field.name, field.label].filter((s): s is string => !!s);
   const hNorm = normalizeKey(header);
   const hTokens = tokenize(header);
-  let score = 0;
-  let reason: MappingReason = 'none';
-  const bump = (s: number, r: MappingReason) => { if (s > score) { score = s; reason = r; } };
+  // Held as one record rather than two captured `let`s: `bump` only ever
+  // mutates them from inside a closure, which TypeScript's control-flow
+  // analysis does not track — it would still believe `reason` is `'none'` at
+  // the type gate below and report those comparisons as non-overlapping.
+  const best: { score: number; reason: MappingReason } = { score: 0, reason: 'none' };
+  const bump = (s: number, r: MappingReason) => { if (s > best.score) { best.score = s; best.reason = r; } };
 
   for (const target of targets) {
     if (header.trim() === target.trim()) { bump(1, 'exact'); continue; }
@@ -349,11 +352,11 @@ function scorePair(header: string, field: MappableField, inferred: InferredType)
   // Type gate: for softer (non-exact) matches, reward a compatible inferred
   // type and heavily discount an incompatible one so we don't confidently map
   // a text column onto a number field just because the names rhyme.
-  if (reason !== 'exact' && reason !== 'normalized' && inferred !== 'text' && score > 0) {
-    if (isTypeCompatible(inferred, field.type)) score = Math.min(1, score + 0.05);
-    else score *= 0.5;
+  if (best.reason !== 'exact' && best.reason !== 'normalized' && inferred !== 'text' && best.score > 0) {
+    if (isTypeCompatible(inferred, field.type)) best.score = Math.min(1, best.score + 0.05);
+    else best.score *= 0.5;
   }
-  return { score, reason };
+  return { score: best.score, reason: best.reason };
 }
 
 /**

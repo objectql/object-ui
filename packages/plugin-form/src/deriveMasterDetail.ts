@@ -150,6 +150,15 @@ const TYPE_FILL_PRIORITY: Record<string, number> = {
 };
 
 /**
+ * Fill priority for a column. `GridColumn.type` is optional, and a column
+ * without one sorts with the unknown types at the back of the budget — the
+ * same place the bare `TYPE_FILL_PRIORITY[undefined] ?? 5` lookup put it.
+ */
+function fillPriority(col: GridColumn): number {
+  return (col.type ? TYPE_FILL_PRIORITY[col.type] : undefined) ?? 5;
+}
+
+/**
  * Choose the default-visible subset of `max` columns — always keeping the
  * primary (name-like) column and every required column, then filling the
  * remaining budget by type usefulness. Columns NOT in the visible set are
@@ -166,7 +175,7 @@ function curateColumns(cols: GridColumn[], max: number): GridColumn[] {
   const remaining = cols
     .map((c, i) => ({ c, i }))
     .filter(({ c }) => !visible.has(c.field))
-    .sort((a, b) => (TYPE_FILL_PRIORITY[a.c.type] ?? 5) - (TYPE_FILL_PRIORITY[b.c.type] ?? 5) || a.i - b.i);
+    .sort((a, b) => fillPriority(a.c) - fillPriority(b.c) || a.i - b.i);
   for (const { c } of remaining) {
     if (visible.size >= max) break;
     visible.add(c.field);

@@ -1003,8 +1003,11 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           // Active view's display label — ListView appends it to export
           // download filenames.
           label: (currentNamedViewConfig as any)?.label ?? activeView?.label,
-          fields: currentNamedViewConfig?.columns || activeView?.columns || schema.table?.fields,
-          filters: mergedFilters,
+          // Spec-canonical key (#2890) — the view configs this reads from are
+          // already `columns`-keyed, so emitting `fields` here was a pure
+          // canonical→legacy downgrade.
+          columns: currentNamedViewConfig?.columns || activeView?.columns || schema.table?.fields,
+          filter: mergedFilters,
           sort: mergedSort,
           // Propagate appearance/view-config properties for live preview
           rowHeight: activeView?.rowHeight,

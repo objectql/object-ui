@@ -35,6 +35,60 @@ jobs:
       - name: Verify all packages are in changeset fixed group
         run: node scripts/check-changeset-fixed.mjs
 
+  # Types were entirely unguarded until #2911: no job ran `type-check`, and
+  # `turbo build` only checks types for packages whose build script happens to
+  # invoke `tsc` — the 22 `vite build` packages transpile without checking. A
+  # `maplibre-gl@6` breakage therefore sat on `main` for a day behind a green CI.
+  #
+  # Note that `pnpm type-check` alone is not a sufficient gate: turbo silently
+  # skips any package with no `type-check` script, so a package without one
+  # reads as passing. The coverage guard is what makes that impossible, and it
+  # runs first because it is instant and catches the structural mistake.
+  type-check:
+    name: Type Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Verify pnpm version
+        run: pnpm --version
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '20.x'
+          cache: 'pnpm'
+
+      # Every package must be either type-checked or explicitly declared as a
+      # known gap. Runs before install: it only reads package.json files.
+      - name: Verify type-check coverage
+        run: node scripts/check-type-check-coverage.mjs
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Turbo Cache
+        uses: actions/cache@v6
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-type-check-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-type-check-
+            turbo-${{ runner.os }}-
+
+      # `type-check` dependsOn `^build`, so this builds workspace dependencies
+      # first: the checked packages resolve their deps through built `.d.ts`.
+      - name: Run type-check
+        run: pnpm type-check
+
   # PRs run the suite split across 4 runners. The suite is dominated by fixed
   # per-file cost rather than by the assertions: a PR run reported 495s wall
   # clock of which only 178s was `tests` — the rest was `setup` (831s

@@ -47,6 +47,8 @@ export type {
   ConcurrentUpdateConflict,
   ConcurrentUpdateDialogProps,
 } from './ConcurrentUpdateDialog';
+export { useRecordEditable, __clearRecordEditableCache } from './useRecordEditable';
+export type { RecordOperation } from './useRecordEditable';
 export { SectionGroup } from './SectionGroup';
 export { HeaderHighlight } from './HeaderHighlight';
 export { InlineFieldInput, extractLookupId, TEXTUAL_REF_FALLBACK_TYPES } from './InlineFieldInput';

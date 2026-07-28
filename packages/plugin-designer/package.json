@@ -24,6 +24,7 @@
     "build": "vite build",
     "clean": "rm -rf dist",
     "test": "vitest run",
+    "type-check": "tsc --noEmit",
     "lint": "eslint ."
   },
   "peerDependencies": {

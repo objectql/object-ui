@@ -24,6 +24,7 @@ function Probe() {
     <div>
       <span data-testid="editing">{String(inline.editing)}</span>
       <span data-testid="locked">{String(inline.locked)}</span>
+      <span data-testid="approvalPending">{String(inline.approvalPending)}</span>
       <span data-testid="lockedReason">{inline.lockedReason ?? ''}</span>
       <span data-testid="draft">{JSON.stringify(inline.draft)}</span>
       <span data-testid="focus">{inline.autoFocusField ?? ''}</span>
@@ -104,5 +105,42 @@ describe('InlineEditContext', () => {
     );
     expect(screen.getByTestId('locked').textContent).toBe('true');
     expect(screen.getByTestId('lockedReason').textContent).toBe('Pending approval');
+  });
+
+  // ── approvalPending vs locked (objectui#2902) ──────────────────
+  //
+  // An approval node's `lockRecord: false` means the server keeps accepting
+  // writes while the node waits. The context has to carry both facts so the
+  // band can say "in approval" without claiming a lock, and so `canEdit` stays
+  // free to allow the edit the server would accept.
+
+  it('carries approvalPending independently of locked', () => {
+    render(
+      <InlineEditProvider canEdit approvalPending locked={false}>
+        <Probe />
+      </InlineEditProvider>,
+    );
+    expect(screen.getByTestId('approvalPending').textContent).toBe('true');
+    expect(screen.getByTestId('locked').textContent).toBe('false');
+  });
+
+  it('defaults approvalPending to locked, so pre-#2902 hosts are unchanged', () => {
+    render(
+      <InlineEditProvider canEdit={false} locked>
+        <Probe />
+      </InlineEditProvider>,
+    );
+    expect(screen.getByTestId('approvalPending').textContent).toBe('true');
+  });
+
+  it('leaves enter() usable while an unlocked approval is pending', () => {
+    // The whole point of `lockRecord: false`: the approver edits in place.
+    render(
+      <InlineEditProvider canEdit approvalPending locked={false}>
+        <Probe />
+      </InlineEditProvider>,
+    );
+    fireEvent.click(screen.getByText('enter'));
+    expect(screen.getByTestId('editing').textContent).toBe('true');
   });
 });

@@ -169,13 +169,13 @@ export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'detail.concurrentUpdateReload': 'Reload latest',
   'detail.concurrentUpdateOverwrite': 'Overwrite anyway',
   'detail.concurrentUpdateCancel': 'Cancel',
-  // Approval lock band (objectui#2618)
+  // Approval band (objectui#2618; two-state since #2902)
   'detail.lockedByApproval': 'Locked for approval',
   'detail.lockedTooltip': 'This record has a pending approval request; editing is locked',
-  // …and the pending-but-writable variant (#3794): the approval node declares
+  // …and the pending-but-writable variant: the approval node declares
   // `lockRecord: false`, so the record stays editable while the request is open.
-  'detail.inApprovalEditable': 'In approval (editable)',
-  'detail.inApprovalEditableTooltip': 'This record has a pending approval request, but this step does not lock it — you can still edit',
+  'detail.approvalPendingEditable': 'In approval · editable',
+  'detail.approvalPendingTooltip': 'This record has a pending approval request; this step still allows editing',
   'detail.cancelApproval': 'Recall approval',
   'detail.cancelApprovalInFlight': 'Recalling…',
   'detail.cancelApprovalTooltip': 'Recall the pending approval request to unlock this record',

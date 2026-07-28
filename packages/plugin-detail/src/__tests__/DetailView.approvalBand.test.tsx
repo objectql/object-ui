@@ -35,12 +35,7 @@ const baseSchema: DetailViewSchema = {
 };
 
 function renderBand(
-  providerProps: {
-    locked?: boolean;
-    lockedReason?: string;
-    canEdit?: boolean;
-    approvalPending?: boolean;
-  },
+  providerProps: { locked?: boolean; approvalPending?: boolean; lockedReason?: string; canEdit?: boolean },
   data?: Record<string, unknown>,
 ) {
   return render(
@@ -78,48 +73,60 @@ describe('DetailView – approval-lock band (objectui#2618)', () => {
 });
 
 /**
- * A pending approval whose node declares `lockRecord: false` (#3794).
+ * Two-state approval band (objectui#2902).
  *
- * The server's lock hook returns early on that node, so the record IS editable
- * while the request is open — the whole point of the setting is letting the
- * approver amend the record as part of deciding on it. The band used to render
- * "Locked for approval" here anyway, so approvers never tried to edit and the
- * capability was invisible. The host now threads both signals: `approvalPending`
- * (a request is open) and `locked` (writes are blocked).
+ * An approval node declares `lockRecord`, and on a `lockRecord: false` node the
+ * server accepts edits for the whole time the node waits. The band used to key
+ * off "a pending request exists" alone, so both states rendered identically —
+ * a record you could freely edit was labelled "Locked for approval". The band
+ * must now distinguish them, and recall (which is about the approval, not the
+ * lock) must survive in the editable state.
  */
-describe('DetailView – pending approval that does NOT lock (#3794)', () => {
-  it('shows the editable variant, not the lock band', () => {
-    renderBand({ locked: false, approvalPending: true, canEdit: true });
-    expect(screen.getByText('In approval (editable)')).toBeInTheDocument();
+describe('DetailView – approval band, editable vs locked (objectui#2902)', () => {
+  it('labels a pending-but-unlocked approval as editable, not locked', () => {
+    renderBand({ locked: false, approvalPending: true });
+    expect(screen.getByText('In approval · editable')).toBeInTheDocument();
     expect(screen.queryByText('Locked for approval')).not.toBeInTheDocument();
   });
 
-  it('host signals win over the record approval_status mirror', () => {
-    // The mirror field only ever says "in approval" — it cannot express the
-    // node's lock policy. A host that resolved the pending REQUEST knows better,
-    // so its `locked: false` must not be re-locked by the field fallback.
-    renderBand(
-      { locked: false, approvalPending: true, canEdit: true },
-      { approval_status: 'pending' },
+  it('uses a distinct tooltip for the editable state', () => {
+    renderBand({ locked: false, approvalPending: true });
+    expect(screen.getByRole('status')).toHaveAttribute(
+      'title',
+      'This record has a pending approval request; this step still allows editing',
     );
-    expect(screen.getByText('In approval (editable)')).toBeInTheDocument();
-    expect(screen.queryByText('Locked for approval')).not.toBeInTheDocument();
   });
 
-  it('still shows the lock band when the host says the node locks', () => {
+  it('still labels a locked approval as locked when both signals are on', () => {
+    // The locked node of the same flow: pending AND locking.
     renderBand({ locked: true, approvalPending: true });
     expect(screen.getByText('Locked for approval')).toBeInTheDocument();
-    expect(screen.queryByText('In approval (editable)')).not.toBeInTheDocument();
+    expect(screen.queryByText('In approval · editable')).not.toBeInTheDocument();
   });
 
-  it('shows no band once the host reports no pending request', () => {
-    // Approval finished but the mirror field lags (or was never cleared): the
-    // host is authoritative, so no band — neither variant.
-    renderBand(
-      { locked: false, approvalPending: false, canEdit: true },
-      { approval_status: 'pending' },
-    );
+  it('treats `locked` alone as pending too, so un-migrated hosts are unchanged', () => {
+    // A host that threads only `locked` (pre-#2902) must keep its old band.
+    renderBand({ locked: true });
+    expect(screen.getByText('Locked for approval')).toBeInTheDocument();
+  });
+
+  it('shows no band when no approval is running at all', () => {
+    renderBand({ locked: false, approvalPending: false }, { approval_status: 'draft' });
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('lets the host verdict beat the approval_status mirror on an unlocked node', () => {
+    // The configuration where the two sources genuinely disagree: a flow with
+    // an `approvalStatusField` mirrors `approval_status: 'pending'` onto the
+    // record on submit no matter what `lockRecord` says, so a `lockRecord:
+    // false` node has BOTH the mirror reading "pending" and a host verdict of
+    // "not locked". OR-ing the mirror in would re-lock the band on exactly the
+    // node this feature exists to free — pencils live and saves landing under
+    // a band that says "Locked for approval". The host resolved its verdict
+    // from the request's `lock_record`, which is the same snapshot the
+    // server's lock hook reads, so it wins.
+    renderBand({ locked: false, approvalPending: true }, { approval_status: 'pending' });
+    expect(screen.getByText('In approval · editable')).toBeInTheDocument();
     expect(screen.queryByText('Locked for approval')).not.toBeInTheDocument();
-    expect(screen.queryByText('In approval (editable)')).not.toBeInTheDocument();
   });
 });

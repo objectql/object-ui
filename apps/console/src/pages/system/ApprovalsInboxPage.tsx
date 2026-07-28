@@ -121,6 +121,21 @@ const STATUS_CLASSES: Record<string, string> = {
   returned: 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-400',
 };
 
+/**
+ * Status chip. Module scope on purpose: declared inside `ApprovalsInboxPage`
+ * it was a brand-new component type on every render, so React unmounted and
+ * remounted every badge in the table each time the page re-rendered
+ * (`react-hooks/static-components`). The translated label is passed in
+ * because `statusLabel` closes over the page's `t`.
+ */
+function StatusBadge({ status, label }: { status: string; label: string }) {
+  return (
+    <Badge variant="outline" className={cn('font-medium', STATUS_CLASSES[status] ?? '')}>
+      {label}
+    </Badge>
+  );
+}
+
 function formatDate(s: string | null | undefined): string {
   if (!s) return '—';
   try { return new Date(s).toLocaleString(); } catch { return s; }
@@ -214,19 +229,24 @@ function submittedAt(r: ApprovalRequestRow): string | undefined {
   return r.submitted_at || r.created_at || undefined;
 }
 
-/** Hours a pending request has been waiting; null when no timestamp. */
-function waitingHours(r: ApprovalRequestRow): number | null {
+/**
+ * Hours a pending request has been waiting at instant `now`; null when no
+ * timestamp. `now` is a parameter rather than a `Date.now()` read so callers
+ * on the render path stay pure (`react-hooks/purity`) — see the `now` state in
+ * {@link ApprovalsInboxPage}.
+ */
+function waitingHours(r: ApprovalRequestRow, now: number): number | null {
   const s = submittedAt(r);
   if (!s) return null;
   const t = Date.parse(s);
   if (Number.isNaN(t)) return null;
-  return (Date.now() - t) / 36e5;
+  return (now - t) / 36e5;
 }
 
 /** Aging tint: quiet under a day, amber 1–3 days, red beyond 3 days. */
-function agingClass(r: ApprovalRequestRow): string {
+function agingClass(r: ApprovalRequestRow, now: number): string {
   if (r.status !== 'pending') return 'text-muted-foreground';
-  const h = waitingHours(r);
+  const h = waitingHours(r, now);
   if (h == null) return 'text-muted-foreground';
   if (h > 72) return 'text-red-600 dark:text-red-400 font-medium';
   if (h > 24) return 'text-amber-600 dark:text-amber-400';
@@ -237,6 +257,19 @@ function agingClass(r: ApprovalRequestRow): string {
 function compactDuration(ms: number): string {
   const h = Math.max(1, Math.round(Math.abs(ms) / 36e5));
   return h < 48 ? `${h}h` : `${Math.round(h / 24)}d`;
+}
+
+/**
+ * SLA position at instant `now`, or null when there is nothing to show — no
+ * due date, or one the backend sent in a shape `Date.parse` can't read (which
+ * previously rendered as "SLA NaNh left"). Takes `now` for the same purity
+ * reason as {@link waitingHours}.
+ */
+function slaState(dueAt: string | null | undefined, now: number): { overdue: boolean; ms: number } | null {
+  if (!dueAt) return null;
+  const due = Date.parse(dueAt);
+  if (Number.isNaN(due)) return null;
+  return { overdue: due < now, ms: Math.abs(now - due) };
 }
 
 const PAYLOAD_SYSTEM_KEYS = new Set([
@@ -354,12 +387,31 @@ export function ApprovalsInboxPage() {
     [t],
   );
 
+  /**
+   * The one clock this page renders against.
+   *
+   * Every age/SLA figure below used to call `Date.now()` mid-render, which is
+   * impure (`react-hooks/purity`): the output depended on when React happened
+   * to render, so it disagreed with itself under StrictMode's double render and
+   * froze between renders — an inbox left open showed "just now" indefinitely.
+   * Holding the instant in state and advancing it on a timer makes render a
+   * pure function of props+state *and* makes the countdowns actually tick.
+   *
+   * A minute is the finest granularity anything here displays ("5m ago",
+   * "36h", "3d"), so that is the tick rate.
+   */
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   /** Localized relative time, e.g. "5m ago" / "5 分钟前". */
   const formatRelative = useCallback((s: string | null | undefined): string => {
     if (!s) return '—';
     const ts = Date.parse(s);
     if (Number.isNaN(ts)) return s;
-    const sec = Math.round((Date.now() - ts) / 1000);
+    const sec = Math.round((now - ts) / 1000);
     if (sec < 45) return tr('justNow', 'just now');
     const min = Math.round(sec / 60);
     if (min < 60) return tr('minutesAgo', '{{count}}m ago', { count: min });
@@ -368,7 +420,7 @@ export function ApprovalsInboxPage() {
     const day = Math.round(hr / 24);
     if (day < 30) return tr('daysAgo', '{{count}}d ago', { count: day });
     try { return new Date(s).toLocaleDateString(language); } catch { return s; }
-  }, [tr, language]);
+  }, [tr, language, now]);
 
   const statusLabel = useCallback((status: string): string => {
     switch (status) {
@@ -397,13 +449,14 @@ export function ApprovalsInboxPage() {
     return err?.message || fallback;
   }, [tr]);
 
-  function StatusBadge({ status }: { status: string }) {
-    return (
-      <Badge variant="outline" className={cn('font-medium', STATUS_CLASSES[status] ?? '')}>
-        {statusLabel(status)}
-      </Badge>
-    );
-  }
+  /** SLA chip copy for a {@link slaState} result. */
+  const slaLabel = useCallback(
+    (sla: { overdue: boolean; ms: number }): string =>
+      sla.overdue
+        ? tr('slaOverdue', 'SLA overdue {{dur}}', { dur: compactDuration(sla.ms) })
+        : tr('slaRemaining', 'SLA {{dur}} left', { dur: compactDuration(sla.ms) }),
+    [tr],
+  );
 
   const recordHref = useCallback((r: ApprovalRequestRow): string => {
     const app = appName || 'setup';
@@ -449,6 +502,9 @@ export function ApprovalsInboxPage() {
       const res = await authFetch(`${base}/api/v1/storage/files/${encodeURIComponent(att.id)}/url`);
       if (!res.ok) throw new Error(`HTTP_${res.status}`);
       const body = await res.json().catch(() => null);
+      // Both dialects: the declared `{ success: true, data: { url } }` envelope
+      // this route answers as of objectstack#3689, and the bare `{ url }` an
+      // older server still sends — the console deploys independently of it.
       const raw = body?.data?.url ?? body?.url;
       if (!raw) throw new Error('NO_URL');
       // Signed URLs from the local adapter are relative; S3/GCS are absolute.
@@ -1384,23 +1440,24 @@ export function ApprovalsInboxPage() {
                               </div>
                             )}
                           </TableCell>
-                          <TableCell><StatusBadge status={r.status} /></TableCell>
+                          <TableCell><StatusBadge status={r.status} label={statusLabel(r.status)} /></TableCell>
                           <TableCell
-                            className={cn('text-xs whitespace-nowrap', agingClass(r))}
+                            className={cn('text-xs whitespace-nowrap', agingClass(r, now))}
                             title={formatDate(submittedAt(r))}
                           >
                             <Clock className="h-3 w-3 inline mr-1" />
                             {formatRelative(submittedAt(r))}
-                            {r.status === 'pending' && r.sla_due_at && (
-                              <div className={cn(
-                                'mt-0.5 text-[10px] font-medium',
-                                Date.parse(r.sla_due_at) < Date.now() ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground',
-                              )}>
-                                {Date.parse(r.sla_due_at) < Date.now()
-                                  ? tr('slaOverdue', 'SLA overdue {{dur}}', { dur: compactDuration(Date.now() - Date.parse(r.sla_due_at)) })
-                                  : tr('slaRemaining', 'SLA {{dur}} left', { dur: compactDuration(Date.parse(r.sla_due_at) - Date.now()) })}
-                              </div>
-                            )}
+                            {r.status === 'pending' && (() => {
+                              const sla = slaState(r.sla_due_at, now);
+                              return sla ? (
+                                <div className={cn(
+                                  'mt-0.5 text-[10px] font-medium',
+                                  sla.overdue ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground',
+                                )}>
+                                  {slaLabel(sla)}
+                                </div>
+                              ) : null;
+                            })()}
                           </TableCell>
                           <TableCell className="w-20"><InlineActions r={r} /></TableCell>
                         </TableRow>
@@ -1417,7 +1474,7 @@ export function ApprovalsInboxPage() {
                     <CardContent className="p-3 space-y-1.5">
                       <div className="flex items-start justify-between gap-2">
                         <div className="font-medium text-sm truncate">{processLabel(r)}</div>
-                        <StatusBadge status={r.status} />
+                        <StatusBadge status={r.status} label={statusLabel(r.status)} />
                       </div>
                       <div className="text-sm truncate">
                         {r.record_title || formatIdentity(r.record_id)}
@@ -1439,7 +1496,7 @@ export function ApprovalsInboxPage() {
                             <UserIcon className="h-3 w-3" />{submitterDisplay(r)}
                           </span>
                         )}
-                        <span className={cn('inline-flex items-center gap-1 whitespace-nowrap', agingClass(r))}>
+                        <span className={cn('inline-flex items-center gap-1 whitespace-nowrap', agingClass(r, now))}>
                           <Clock className="h-3 w-3" />{formatRelative(submittedAt(r))}
                         </span>
                       </div>
@@ -1582,7 +1639,7 @@ export function ApprovalsInboxPage() {
             <div className="space-y-4 mt-6">
               {/* Status strip */}
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <StatusBadge status={selected.status} />
+                <StatusBadge status={selected.status} label={statusLabel(selected.status)} />
                 {(selected.round ?? 1) > 1 && (
                   <Badge variant="outline" className="text-[10px] border-violet-200 text-violet-700 dark:border-violet-500/30 dark:text-violet-400">
                     {tr('roundChip', 'Round {{n}}', { n: selected.round })}
@@ -1595,18 +1652,19 @@ export function ApprovalsInboxPage() {
                 {selected.completed_at && (
                   <span>· {tr('completedAt', 'Completed {{when}}', { when: formatRelative(selected.completed_at) })}</span>
                 )}
-                {selected.status === 'pending' && selected.sla_due_at && (
-                  <Badge variant="outline" className={cn(
-                    'text-[10px]',
-                    Date.parse(selected.sla_due_at) < Date.now()
-                      ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400'
-                      : 'border-border text-muted-foreground',
-                  )}>
-                    {Date.parse(selected.sla_due_at) < Date.now()
-                      ? tr('slaOverdue', 'SLA overdue {{dur}}', { dur: compactDuration(Date.now() - Date.parse(selected.sla_due_at)) })
-                      : tr('slaRemaining', 'SLA {{dur}} left', { dur: compactDuration(Date.parse(selected.sla_due_at) - Date.now()) })}
-                  </Badge>
-                )}
+                {selected.status === 'pending' && (() => {
+                  const sla = slaState(selected.sla_due_at, now);
+                  return sla ? (
+                    <Badge variant="outline" className={cn(
+                      'text-[10px]',
+                      sla.overdue
+                        ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400'
+                        : 'border-border text-muted-foreground',
+                    )}>
+                      {slaLabel(sla)}
+                    </Badge>
+                  ) : null;
+                })()}
               </div>
 
               {/* Business summary card */}

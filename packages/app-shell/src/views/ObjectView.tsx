@@ -11,7 +11,7 @@
 
 import { useMemo, useState, useCallback, useEffect, useRef, lazy, Suspense, type ComponentType } from 'react';
 import { useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
-import { resolveFilterPlaceholders, type FilterTokenScope } from '@object-ui/core';
+import { resolveFilterPlaceholders, DENSITY_MODE_TO_ROW_HEIGHT, type FilterTokenScope } from '@object-ui/core';
 import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState';
 import { buildListFilterKey, readListFilterState, writeListFilterState } from './listFilterStorage';
 const ObjectChart = lazy(() =>
@@ -1307,17 +1307,28 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             // through the same persistViewPatch helper which debounces and
             // batches concurrent toggles.
             sort: (viewDef as any).sort ?? listSchema.sort,
+            // The ONE place this view's effective filter is computed (#2890).
+            // It used to be computed twice — once here as `filter` for the child
+            // views, once further down as `filters` for ListView — with the two
+            // copies subtly different (only this one fell back to
+            // `listSchema.filter`; only that one ran token substitution over the
+            // URL filters). Now: base ?? listSchema, concatenated with the URL
+            // filters, and substituted as a whole.
             filter: (() => {
                 const base = (viewDef as any).filter ?? listSchema.filter;
-                const substituted = substituteFilterTokens(base, filterScope);
-                if (!urlFilters.length) return substituted;
-                const baseArr = Array.isArray(substituted) ? substituted : [];
-                return [...baseArr, ...urlFilters];
+                const baseArr = Array.isArray(base) ? base : base ? [base] : [];
+                const combined = urlFilters.length ? [...baseArr, ...urlFilters] : base;
+                return substituteFilterTokens(combined, filterScope);
             })(),
             hiddenFields: (viewDef as any).hiddenFields ?? listSchema.hiddenFields,
             columnState: (viewDef as any).columnState ?? (listSchema as any).columnState,
             onDensityChange: (mode) => {
-                persistViewPatch(viewDef.id, viewDef, { densityMode: mode });
+                // Persist the spec-canonical `rowHeight` (#2890). Writing the
+                // legacy `densityMode` here is what kept re-seeding it into
+                // stored view metadata after every toolbar toggle.
+                persistViewPatch(viewDef.id, viewDef, {
+                    rowHeight: DENSITY_MODE_TO_ROW_HEIGHT[mode],
+                });
             },
             onSortChange: (sort: any) => {
                 persistViewPatch(viewDef.id, viewDef, { sort });
@@ -1439,15 +1450,8 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                         ?? resolveManagedByEmptyState((objectDef as any)?.managedBy, t, objectDef.name, (objectDef as any)?.userActions),
                 ),
             aria: viewDef.aria ?? listSchema.aria,
-            // Propagate filter/sort as default filters/sort for data flow
-            ...((() => {
-                const combined = [
-                    ...(Array.isArray(viewDef.filter) ? viewDef.filter : []),
-                    ...urlFilters,
-                ];
-                const substituted = substituteFilterTokens(combined, filterScope);
-                return Array.isArray(substituted) && substituted.length ? { filters: substituted } : {};
-            })()),
+            // (the legacy `filters` twin of the `filter` above lived here until
+            // #2890 — see the note at its single remaining computation)
             ...(viewDef.sort?.length ? { sort: viewDef.sort } : {}),
             options: {
                 kanban: {

@@ -37,8 +37,15 @@ export interface SectionFieldsContext {
   readOnly?: boolean;
   /** Form mode — `view` forces every field disabled. */
   mode?: 'create' | 'edit' | 'view';
-  /** Translation-aware label resolver (from `useSafeFieldLabel`). */
-  fieldLabel: (objectName: string, fieldName: string, fallback?: string) => string;
+  /**
+   * Translation-aware label resolver (from `useSafeFieldLabel`).
+   *
+   * `fallback` is required, matching the producer in `@object-ui/i18n`: the
+   * resolver returns the fallback when no translation exists, so an omitted
+   * one could not satisfy the `=> string` return. Every call site already
+   * passes it.
+   */
+  fieldLabel: (objectName: string, fieldName: string, fallback: string) => string;
 }
 
 /**

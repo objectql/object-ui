@@ -2,6 +2,7 @@ import React from 'react';
 import { Combobox, EmptyValue, cn } from '@object-ui/components';
 import { SchemaRendererContext } from '@object-ui/react';
 import type { FieldWidgetProps } from './types';
+import { useFieldTranslation } from './useFieldTranslation';
 
 /**
  * RecipientPickerField — dependent record picker for a polymorphic recipient
@@ -31,14 +32,20 @@ interface RecipientMapping {
   storeField: 'id' | 'name';
   /** Candidate display-label fields, in preference order. */
   labelFields: string[];
+  /**
+   * i18n key for the "choose one" placeholder. Keyed per type rather than
+   * interpolating the enum value into an English sentence — "Select a
+   * business unit" and "选择业务单元" share no structure (objectstack#3821).
+   */
+  placeholderKey: string;
 }
 
 const TYPE_TO_OBJECT: Record<string, RecipientMapping> = {
-  user: { object: 'sys_user', storeField: 'id', labelFields: ['name', 'full_name', 'email'] },
-  team: { object: 'sys_team', storeField: 'id', labelFields: ['name', 'label'] },
-  business_unit: { object: 'sys_business_unit', storeField: 'id', labelFields: ['name', 'label'] },
-  unit_and_subordinates: { object: 'sys_business_unit', storeField: 'id', labelFields: ['name', 'label'] },
-  position: { object: 'sys_position', storeField: 'name', labelFields: ['label', 'name'] },
+  user: { object: 'sys_user', storeField: 'id', labelFields: ['name', 'full_name', 'email'], placeholderKey: 'fields.recipient.selectUser' },
+  team: { object: 'sys_team', storeField: 'id', labelFields: ['name', 'label'], placeholderKey: 'fields.recipient.selectTeam' },
+  business_unit: { object: 'sys_business_unit', storeField: 'id', labelFields: ['name', 'label'], placeholderKey: 'fields.recipient.selectBusinessUnit' },
+  unit_and_subordinates: { object: 'sys_business_unit', storeField: 'id', labelFields: ['name', 'label'], placeholderKey: 'fields.recipient.selectUnitAndSubordinates' },
+  position: { object: 'sys_position', storeField: 'name', labelFields: ['label', 'name'], placeholderKey: 'fields.recipient.selectPosition' },
 };
 
 export function RecipientPickerField({
@@ -49,6 +56,7 @@ export function RecipientPickerField({
   ...props
 }: FieldWidgetProps<string>) {
   const ctx = React.useContext(SchemaRendererContext);
+  const { t } = useFieldTranslation();
   const dataSource: any = (props as any).dataSource ?? (ctx as any)?.dataSource ?? null;
   const disabled = (props as any).disabled as boolean | undefined;
   const dependentValues: Record<string, any> = (props as any).dependentValues ?? {};
@@ -57,12 +65,18 @@ export function RecipientPickerField({
 
   const [records, setRecords] = React.useState<any[] | null>(null);
 
-  // Reset the stored recipient when the type changes AFTER mount (an id for a
-  // user is not a valid team/business-unit id). The ref starts null so the
-  // initial render of an existing rule never clears its value.
-  const prevType = React.useRef<string | null>(null);
+  // Reset the stored recipient when the admin PICKS a different type (an id for
+  // a user is not a valid team/business-unit id).
+  //
+  // "Different type" means one non-empty type replacing another. The empty
+  // string is not a type — it is the edit form before the record has hydrated,
+  // and treating `'' → 'user'` as a change wiped the saved recipient the moment
+  // an existing rule was opened for editing (objectstack#3821): the picker went
+  // blank, and saving persisted the blank. Only a non-empty predecessor can
+  // invalidate the stored id.
+  const prevType = React.useRef<string>('');
   React.useEffect(() => {
-    if (prevType.current !== null && prevType.current !== recipientType && value) {
+    if (prevType.current && recipientType && prevType.current !== recipientType && value) {
       onChange('' as any);
     }
     prevType.current = recipientType;
@@ -75,7 +89,11 @@ export function RecipientPickerField({
     let cancelled = false;
     (async () => {
       try {
-        const res = await dataSource.find(mapping.object, { $top: 500, $orderby: 'name asc' });
+        // Object form, not the 'name asc' clause string: the clause string is
+        // supported again (objectstack#3821 fixed ApiDataSource walking it
+        // character by character), but the structured form can't regress that
+        // way for any data source.
+        const res = await dataSource.find(mapping.object, { $top: 500, $orderby: { name: 'asc' } });
         const list: any[] = res?.data ?? res?.records ?? (Array.isArray(res) ? res : []);
         if (!cancelled) setRecords(Array.isArray(list) ? list : []);
       } catch {
@@ -105,7 +123,7 @@ export function RecipientPickerField({
   if (!recipientType) {
     return (
       <p className={cn('text-sm text-muted-foreground', className)}>
-        Select a recipient type first.
+        {t('fields.recipient.selectTypeFirst')}
       </p>
     );
   }
@@ -137,12 +155,14 @@ export function RecipientPickerField({
       value={value ?? ''}
       onValueChange={(v) => onChange(v as any)}
       placeholder={
-        records === null ? 'Loading…' : `Select a ${recipientType.replace(/_/g, ' ')}`
+        records === null
+          ? t('fields.recipient.loading')
+          : t(mapping.placeholderKey ?? 'fields.recipient.select')
       }
-      searchPlaceholder="Search…"
-      emptyText={records === null ? 'Loading…' : 'No matches'}
+      searchPlaceholder={t('fields.recipient.search')}
+      emptyText={records === null ? t('fields.recipient.loading') : t('fields.recipient.empty')}
       disabled={disabled}
-      className={className}
+      className={cn('w-full', className)}
     />
   );
 }

@@ -70,9 +70,52 @@ interface DatasourceRow {
   name: string;
   label?: string;
   driver?: string;
+  /**
+   * Last connect verdict, from the framework's retained connection state
+   * (framework#3827): `ok` (live driver registered) | `error` (connect
+   * attempted and failed — see statusReason) | `blocked` (the host's connect
+   * policy refused it; a decision, not a fault) | `unvalidated` (no connect
+   * attempted — e.g. a managed datasource the auto-connect gate leaves
+   * metadata-only).
+   */
   status?: string;
+  /**
+   * Operator-facing detail behind `error` / `blocked` — the raw connect error
+   * or the policy's reason. This surface is admin-gated, so showing it here is
+   * intended; end users never see it (framework#3828).
+   */
+  statusReason?: string;
   origin?: string;
   active?: boolean;
+}
+
+/**
+ * Status chip per verdict. `unvalidated` stays visually quiet — it means
+ * "nothing is known", not "something is wrong" — while `error`/`blocked` carry
+ * the operator-facing reason as a native tooltip (the file's existing idiom).
+ */
+function StatusChip({ status, reason }: { status?: string; reason?: string }) {
+  if (!status) return null;
+  const chip = (cls: string, label: string) => (
+    <span
+      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-medium ${cls}`}
+      title={reason || undefined}
+    >
+      {label}
+    </span>
+  );
+  switch (status) {
+    case 'ok':
+      return chip('bg-emerald-500/10 text-emerald-600 dark:text-emerald-400', 'connected');
+    case 'error':
+      return chip('bg-destructive/10 text-destructive', 'connect failed');
+    case 'blocked':
+      return chip('bg-amber-500/10 text-amber-600 dark:text-amber-400', 'blocked by policy');
+    case 'unvalidated':
+      return chip('bg-muted text-muted-foreground', 'not connected');
+    default:
+      return chip('bg-muted text-muted-foreground', status);
+  }
 }
 interface RemoteTable { name: string; schema?: string; columnCount?: number }
 
@@ -456,9 +499,14 @@ export function DatasourceResourcePage(_props: { type?: string }): React.ReactEl
                   </div>
                   <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
                     <span className="rounded bg-muted px-1.5 py-0.5 font-mono">{ds.driver}</span>
-                    {ds.status && <span>· {ds.status}</span>}
+                    <StatusChip status={ds.status} reason={ds.statusReason} />
                     {ds.origin && <span>· {ds.origin}</span>}
                   </div>
+                  {ds.statusReason && (ds.status === 'error' || ds.status === 'blocked') && (
+                    <div className="mt-0.5 truncate text-[11px] text-muted-foreground" title={ds.statusReason}>
+                      {ds.statusReason}
+                    </div>
+                  )}
                 </div>
                 <Button variant="ghost" size="sm" disabled={busy === `test:${ds.name}`} onClick={() => void test(ds.name)}>
                   {busy === `test:${ds.name}` ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plug className="mr-1.5 h-4 w-4" />} Test

@@ -577,7 +577,9 @@ describe('ObjectView', () => {
 
       expect(screen.getByTestId('custom-list')).toBeInTheDocument();
       const firstCallSchema = renderListViewSpy.mock.calls[0]?.[0]?.schema;
-      expect(firstCallSchema?.fields).toEqual(['name']);
+      // Spec-canonical `columns` (#2890) — the view configs are already
+      // `columns`-keyed, so the payload no longer downgrades them to `fields`.
+      expect(firstCallSchema?.columns).toEqual(['name']);
 
       // Update views — simulate live preview change
       const updatedViews = [
@@ -597,7 +599,7 @@ describe('ObjectView', () => {
       // renderListView should have been called again with the updated columns
       const lastCallIndex = renderListViewSpy.mock.calls.length - 1;
       const lastCallSchema = renderListViewSpy.mock.calls[lastCallIndex]?.[0]?.schema;
-      expect(lastCallSchema?.fields).toEqual(['name', 'email', 'status']);
+      expect(lastCallSchema?.columns).toEqual(['name', 'email', 'status']);
     });
 
     it('should pass showSort=false through schema to suppress sort UI', async () => {

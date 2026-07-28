@@ -192,6 +192,8 @@
   "scripts": {
     "vscode:prepublish": "pnpm run build",
     "build": "tsup",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint .",
     "dev": "tsup --watch",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
@@ -199,6 +201,7 @@
     "publish": "vsce publish"
   },
   "devDependencies": {
+    "@types/node": "^26.1.1",
     "@types/vscode": "^1.125.0",
     "@vscode/vsce": "^3.9.2",
     "tsup": "^8.5.1",

@@ -29,9 +29,9 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Copy,
   Lock,
-  Clock,
   X,
 } from 'lucide-react';
 import { DetailSection } from './DetailSection';
@@ -49,6 +49,7 @@ import { usePermissions } from '@object-ui/permissions';
 import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
 import type { DetailViewSchema, DataSource, ActionSchema, SchemaNode } from '@object-ui/types';
 import { useDetailTranslation } from './useDetailTranslation';
+import { useRecordEditable } from './useRecordEditable';
 
 /** Default page size for related lists in the detail view */
 const DEFAULT_RELATED_PAGE_SIZE = 5;
@@ -262,7 +263,50 @@ export const DetailView: React.FC<DetailViewProps> = ({
       summaryFields: filterFields(rawSchema.summaryFields as any[]) as any,
     };
   }, [rawSchema, perms]);
-  const schema = gatedSchema;
+
+  /**
+   * Record-level write gate (objectstack#3821). Object-level permissions say
+   * whether the user may edit `showcase_private_note` at all; they cannot say
+   * whether they may edit THIS one. A read-only sharing grant sits exactly in
+   * that gap, so the header used to offer "Edit", open the form, and let the
+   * user retype a field before the server rejected it with a 403. Ask the
+   * explain engine for the row-level verdict and reflect it on the CTA.
+   *
+   * Only consulted when the object-level check already passes — when it
+   * doesn't, the buttons are hidden anyway and the request would be waste.
+   * Fails open (see `useRecordEditable`); the server remains the authority.
+   */
+  const objectAllowsUpdate = React.useMemo(
+    () => !perms?.isLoaded || !rawSchema.objectName || perms.can(rawSchema.objectName, 'update'),
+    [perms, rawSchema.objectName],
+  );
+  const objectAllowsDelete = React.useMemo(
+    () => !perms?.isLoaded || !rawSchema.objectName || perms.can(rawSchema.objectName, 'delete'),
+    [perms, rawSchema.objectName],
+  );
+  const recordId =
+    rawSchema.resourceId != null ? String(rawSchema.resourceId) : undefined;
+  const canEditRecord = useRecordEditable(
+    rawSchema.objectName,
+    recordId,
+    'update',
+    objectAllowsUpdate,
+  );
+  const canDeleteRecord = useRecordEditable(
+    rawSchema.objectName,
+    recordId,
+    'delete',
+    objectAllowsDelete,
+  );
+
+  const schema = React.useMemo<DetailViewSchema>(
+    () => ({
+      ...gatedSchema,
+      showEdit: gatedSchema.showEdit && objectAllowsUpdate && canEditRecord,
+      showDelete: gatedSchema.showDelete && objectAllowsDelete && canDeleteRecord,
+    }),
+    [gatedSchema, objectAllowsUpdate, canEditRecord, objectAllowsDelete, canDeleteRecord],
+  );
 
 
   // Fire onDataLoaded whenever the record changes so hosts can publish it
@@ -1012,73 +1056,97 @@ export const DetailView: React.FC<DetailViewProps> = ({
         <HeaderHighlight fields={schema.highlightFields} data={data} objectName={schema.objectName} objectSchema={objectSchema} />
       )}
 
-      {/* Approval-lock band — when the DetailView's own header is suppressed
-          (composed under a Lightning-style page:header), surface the approval
-          lock reason + recall affordance inline. The inline-edit Save / Cancel
+      {/* Approval band — when the DetailView's own header is suppressed
+          (composed under a Lightning-style page:header), surface the running
+          approval + recall affordance inline. The inline-edit Save / Cancel
           bar itself now lives in the record-level <InlineEditSaveBar>
-          (objectui#2407 P1); this band is lock-only. */}
+          (objectui#2407 P1). */}
       {inlineEdit && schema.showHeader === false && (() => {
-        // Two DISTINCT states to surface (#3794): an approval is in flight, and
-        // — separately — the record is locked for writes. An approval node
-        // declaring `lockRecord: false` is pending WITHOUT locking (the server's
-        // lock hook returns early and the save lands), so painting the same
-        // "Locked for approval" band on both told the approver the opposite of
-        // what the backend does, and the node's whole point — amend the record
-        // while deciding — went unused.
+        // Two independent facts, not one (objectui#2902):
         //
-        // The host is authoritative when it has an opinion: the record-level
-        // session resolves both from the pending approval REQUEST, whose
-        // `locks_record` is the same node-config snapshot the server hook reads.
-        // Only when no host threads `approvalPending` (bare/legacy DetailView)
-        // do we fall back to the record's own `approval_status` field — and that
-        // mirror can only say "in approval", so the fallback assumes a lock,
-        // which is the safe direction and preserves the objectui#2618 behavior.
+        //   isPending — an approval is running on this record.
+        //   isLocked  — that approval also forbids edits.
+        //
+        // They come apart because an approval node declares `lockRecord`, and
+        // on a `lockRecord: false` node the backend accepts writes for the
+        // whole time the node waits. Rendering one band for both states told
+        // the user "locked" on a record they could freely edit, and the
+        // approver — the very person the flag exists to let edit — never tried.
+        //
+        // The record's own `approval_status` is the fallback for bare/legacy
+        // DetailView usage where no host threads the state (objectui#2618 for
+        // why the record field alone is not enough). It carries no node
+        // granularity, so it can only mean "locked" — the safe read, since a
+        // wrongly-offered edit dies on the server with RECORD_LOCKED.
+        //
+        // But it must NOT be OR-ed in unconditionally, because the two sources
+        // genuinely disagree in a shipping configuration: a flow configuring an
+        // `approvalStatusField` mirrors `approval_status: 'pending'` onto the
+        // record on submit *regardless of* `lockRecord` (framework
+        // `mirrorStatusField`), so the mirror would drag the band back to
+        // "Locked for approval" on exactly the `lockRecord: false` node this
+        // feature exists to free — pencils live and saves landing underneath it.
+        //
+        // `approvalPending && !locked` is the tell that the host has an actual
+        // opinion. `InlineEditProvider` defaults `approvalPending` to `locked`,
+        // so a host threading only `locked` (pre-#2902) always reports the two
+        // equal and can never produce that combination; a host that resolved
+        // the pending node's `lock_record` is the only thing that can. When it
+        // speaks, it wins — it read the same snapshot the server's lock hook
+        // enforces.
         const approvalStatus = data?.approval_status;
-        const fieldPending =
+        const statusPending =
           approvalStatus === 'pending' || approvalStatus === 'in_approval';
-        const hostKnows = inline?.approvalPending !== undefined;
-        const isLocked = hostKnows
-          ? (inline?.locked ?? false)
-          : ((inline?.locked ?? false) || fieldPending);
+        const hostPending = inline?.approvalPending ?? false;
+        const hostSaysEditable = hostPending && !(inline?.locked ?? false);
+        const isLocked = hostSaysEditable
+          ? false
+          : ((inline?.locked ?? false) || statusPending);
         // A lock always implies an in-flight approval, so a host that threads
         // only `locked` (objectui#2618, before `approvalPending` existed) keeps
         // its band.
-        const isPending = isLocked || (hostKnows ? !!inline?.approvalPending : fieldPending);
-        // Nothing to surface (no approval in flight, no approval-cancel error).
+        const isPending = isLocked || hostPending || statusPending;
+        // Nothing to surface (no approval, no approval-cancel error): no band.
         if (!isPending && !saveError) return null;
         return (
         <div className="flex flex-col items-end gap-1">
           {isPending && (
             <div className="flex items-center justify-end gap-2">
-              {isLocked ? (
-                <span
-                  role="status"
-                  className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-800"
-                  title={inline?.lockedReason ?? t('detail.lockedTooltip')}
-                >
-                  <Lock className="h-3 w-3" />
-                  <span>{t('detail.lockedByApproval')}</span>
+              <span
+                role="status"
+                className={
+                  isLocked
+                    ? 'inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-800'
+                    // An editable approval is informational, not a warning —
+                    // amber here would read as "something is blocked".
+                    : 'inline-flex items-center gap-1 rounded-md border border-sky-300 bg-sky-50 px-2 py-1 text-xs text-sky-800'
+                }
+                title={
+                  isLocked
+                    ? (inline?.lockedReason ?? t('detail.lockedTooltip'))
+                    : t('detail.approvalPendingTooltip')
+                }
+              >
+                {isLocked ? <Lock className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+                <span>
+                  {isLocked
+                    ? t('detail.lockedByApproval')
+                    : t('detail.approvalPendingEditable')}
                 </span>
-              ) : (
-                // Pending but writable — a neutral (not amber-warning) band, and
-                // no lock glyph: nothing here is blocked. The recall affordance
-                // stays, since recalling is about the request, not the lock.
-                <span
-                  role="status"
-                  className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-1 text-xs text-muted-foreground"
-                  title={t('detail.inApprovalEditableTooltip')}
-                >
-                  <Clock className="h-3 w-3" />
-                  <span>{t('detail.inApprovalEditable')}</span>
-                </span>
-              )}
+              </span>
+              {/* Recall belongs to the approval, not to the lock: an editable
+                  pending approval is just as recallable as a locked one. */}
               {dataSource?.cancelPendingApproval && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleCancelApproval}
                   disabled={isCancellingApproval}
-                  className={isLocked ? 'gap-2 border-amber-300 text-amber-800 hover:bg-amber-50' : 'gap-2'}
+                  className={
+                    isLocked
+                      ? 'gap-2 border-amber-300 text-amber-800 hover:bg-amber-50'
+                      : 'gap-2 border-sky-300 text-sky-800 hover:bg-sky-50'
+                  }
                   // The locked variant's tooltip promises to UNLOCK the record;
                   // on a node that never locked it, that sentence describes an
                   // effect the click does not have.
