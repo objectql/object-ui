@@ -54,3 +54,4 @@ export * from './utils/dataset-format.js';
 export * from './utils/record-title.js';
 export * from './utils/export-filename.js';
 export * from './utils/reference-keys.js';
+export * from './utils/normalize-list-view.js';

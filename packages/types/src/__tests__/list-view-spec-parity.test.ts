@@ -72,7 +72,11 @@ const SANCTIONED_LOCAL = new Set<string>([
   'objectName',
   // renamed spec `type` (view-kind enum); `type` itself is the component discriminator
   'viewType',
-  // legacy aliases for spec `columns` / `filter`
+  // legacy aliases for spec `columns` / `filter`. `fields` is INPUT-ONLY since
+  // #2890: `normalizeListViewSchema` (@object-ui/core) folds it into `columns`
+  // at the ListView boundary and no renderer reads it. It stays declared here
+  // so stored metadata keeps validating and so the spec's react-blocks
+  // `<ListView fields>` prop keeps a schema anchor.
   'fields',
   'filters',
   // legacy toolbar visibility flags (spec-canonical: `userActions`)

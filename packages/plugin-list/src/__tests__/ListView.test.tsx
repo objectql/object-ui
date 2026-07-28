@@ -2676,3 +2676,50 @@ describe('ListView — $select collects fields named by the spec vocabulary', ()
     }
   });
 });
+
+describe('ListView — column vocabulary (#2890)', () => {
+  // ListView reads the spec-canonical `columns`. The legacy `fields` is folded
+  // into it by `normalizeListViewSchema` at the component boundary — the ONE
+  // place legacy acceptance lives, so no read-site dual-reads. `$select` is the
+  // observable: it is built from the columns the view actually shows.
+  const lastSelect = (): string[] | undefined =>
+    mockDataSource.find.mock.calls.at(-1)?.[1]?.$select as string[] | undefined;
+
+  const renderWithColumns = async (extra: Record<string, unknown>) => {
+    const schema = {
+      type: 'list-view',
+      objectName: 'contacts',
+      viewType: 'grid',
+      ...extra,
+    } as unknown as ListViewSchema;
+    renderWithProvider(<ListView schema={schema} dataSource={mockDataSource} />);
+    await vi.waitFor(() => expect(mockDataSource.find).toHaveBeenCalled());
+  };
+
+  beforeEach(() => {
+    mockDataSource.find.mockClear();
+    mockDataSource.find.mockResolvedValue([]);
+  });
+
+  it('projects the spec-canonical `columns`', async () => {
+    await renderWithColumns({ columns: ['name', 'email'] });
+    expect(lastSelect()).toEqual(expect.arrayContaining(['name', 'email']));
+  });
+
+  it('projects `columns` given as ListColumn objects, not just strings', async () => {
+    await renderWithColumns({ columns: [{ field: 'name' }, { field: 'email' }] });
+    expect(lastSelect()).toEqual(expect.arrayContaining(['name', 'email']));
+  });
+
+  it('still honors the legacy `fields` — stored view metadata carries it', async () => {
+    await renderWithColumns({ fields: ['name', 'email'] });
+    expect(lastSelect()).toEqual(expect.arrayContaining(['name', 'email']));
+  });
+
+  it('lets `columns` win when a view carries both', async () => {
+    await renderWithColumns({ columns: ['name'], fields: ['email'] });
+    const selected = lastSelect();
+    expect(selected).toEqual(expect.arrayContaining(['name']));
+    expect(selected).not.toContain('email');
+  });
+});

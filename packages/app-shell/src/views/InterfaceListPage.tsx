@@ -365,7 +365,7 @@ export function InterfaceListPage({ page, className, onConfigChange, reserveEdit
       type: 'list-view' as const,
       objectName: objectDef.name,
       viewType: (allowed[0] ?? view.type ?? 'grid'),
-      fields: columns,
+      columns,
       ...(filters.length ? { filters } : {}),
       ...(sort?.length ? { sort } : {}),
       grouping: view.grouping,

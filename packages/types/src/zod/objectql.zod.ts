@@ -381,6 +381,10 @@ export const ListViewSchema = BaseSchema
     viewType: ViewKindEnum.optional().describe('View Type'),
     // Relaxed spec `columns` (spec requires it) + legacy `fields` alias for string[] columns.
     columns: z.union([z.array(z.string()), z.array(ListColumnSchema)]).optional().describe('Columns definition'),
+    // Legacy alias for `columns`, still accepted because stored view metadata
+    // carries it. NO renderer reads it: `normalizeListViewSchema`
+    // (`@object-ui/core`) folds it into `columns` at the ListView boundary
+    // (#2890). Producers must emit `columns`.
     fields: z.array(z.string()).optional().describe('Legacy alias for string[] columns'),
     // Legacy tuple/CEL filter format (spec-canonical `filter` is imported above).
     filters: z.array(z.union([z.array(z.any()), z.string()])).optional().describe('Filter conditions (legacy)'),
