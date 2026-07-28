@@ -30,7 +30,6 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // peers already carry, so the TS6059 rootDir noise is excluded).
 const DEBT = {
   "@object-ui/plugin-form": { errors: 10, issue: 2919, note: "6x t() fallback-signature mismatch, 2x undefined index, 2x string|number" },
-  "@object-ui/site": { errors: 7, issue: 2919, note: "TS2304 on Next's generated LayoutProps/PageProps; needs .next/types from a prior next build" },
   "@object-ui/plugin-grid": { errors: 4, issue: 2919, note: "2x t() call signature + 2x TS2367 that are closure-mutation narrowing artifacts, NOT a logic bug" },
   "@object-ui/cli": { errors: 4, issue: 2919, note: "tsup dts:true does not fail on these" },
   "@object-ui/plugin-view": { errors: 3, issue: 2916, note: "Record<ViewType,...> missing the 'chart' key" },
@@ -44,6 +43,25 @@ const DEBT = {
 // on every run — the moment one gains a build script or a tsconfig it is a real
 // package, the exemption dies, and the guard fails.
 const NOT_COMPILED = ["@object-ui/example-hello-world"];
+
+// Packages whose own `build` type-checks them, so a separate `type-check` script
+// would only run the compiler twice. Unlike the `vite build` packages — which
+// transpile without checking, the hole that caused #2911 — `next build` runs a
+// full type-check unless `typescript.ignoreBuildErrors` is set.
+//
+// That escape hatch is exactly how this exemption could rot, so it is verified
+// on every run rather than trusted: setting `ignoreBuildErrors` fails the guard.
+const CHECKED_BY_OWN_BUILD = {
+  "@object-ui/site": {
+    build: "next build",
+    // Caveat worth knowing: the `docs` CI job runs this build only when
+    // `apps/site/` or `content/` changed (plus every push to main). A PR that
+    // only touches a workspace package in `transpilePackages` therefore does
+    // not re-check the site until it lands. Closing that would mean paying a
+    // Next build on many more PRs — a cost/coverage call, not a silent gap.
+    verifyNoIgnoreBuildErrors: "apps/site/next.config.mjs",
+  },
+};
 
 // ── Collect workspace packages ───────────────────────────────────────────────
 const GROUPS = ["packages", "apps", "examples"];
@@ -77,6 +95,7 @@ function collect() {
         name: pkg.name,
         dir,
         hasScript: Boolean(pkg.scripts?.["type-check"]),
+        build: pkg.scripts?.build,
         hasBuild: Boolean(pkg.scripts?.build),
         hasTsconfig,
       });
@@ -93,7 +112,7 @@ const errors = [];
 // 1. Undeclared gap — a package born without a type-check script.
 for (const pkg of packages) {
   if (pkg.hasScript) continue;
-  if (DEBT[pkg.name] || NOT_COMPILED.includes(pkg.name)) continue;
+  if (DEBT[pkg.name] || NOT_COMPILED.includes(pkg.name) || CHECKED_BY_OWN_BUILD[pkg.name]) continue;
   errors.push(
     `${pkg.name} (${pkg.dir}) has no "type-check" script, so \`pnpm type-check\` skips it entirely.\n` +
       `      Add  "type-check": "tsc --noEmit"  to its package.json. If its types do not compile\n` +
@@ -134,14 +153,58 @@ for (const name of NOT_COMPILED) {
   }
 }
 
+// 4. Ratchet — "its own build checks it" only holds while that stays true.
+for (const [name, spec] of Object.entries(CHECKED_BY_OWN_BUILD)) {
+  const pkg = byName.get(name);
+  if (!pkg) {
+    errors.push(`${name} is listed in CHECKED_BY_OWN_BUILD but is not a workspace package any more — delete the entry.`);
+    continue;
+  }
+  if (pkg.hasScript) {
+    errors.push(`${name} now has a "type-check" script — delete its CHECKED_BY_OWN_BUILD entry.`);
+    continue;
+  }
+  if (pkg.build !== spec.build) {
+    errors.push(
+      `${name} is exempt because its build is \`${spec.build}\`, which type-checks — but the build\n` +
+        `      script is now \`${pkg.build}\`. Re-confirm it still type-checks, then update or drop the entry.`
+    );
+    continue;
+  }
+  // `next build` type-checks by default; `ignoreBuildErrors` silently disables
+  // it, which would turn this exemption into exactly the hole #2911 was about.
+  if (spec.verifyNoIgnoreBuildErrors) {
+    const configPath = resolve(root, spec.verifyNoIgnoreBuildErrors);
+    let config;
+    try {
+      config = readFileSync(configPath, "utf8");
+    } catch {
+      errors.push(
+        `${name}: cannot read ${spec.verifyNoIgnoreBuildErrors}, so the exemption cannot be verified.\n` +
+          `      Point verifyNoIgnoreBuildErrors at the real config, or drop the exemption.`
+      );
+      continue;
+    }
+    if (/ignoreBuildErrors\s*:\s*true/.test(config)) {
+      errors.push(
+        `${name} sets \`ignoreBuildErrors: true\` in ${spec.verifyNoIgnoreBuildErrors}, so \`${spec.build}\`\n` +
+          `      no longer type-checks it and nothing else does either. Remove that flag, or add a\n` +
+          `      "type-check" script and delete this exemption.`
+      );
+    }
+  }
+}
+
 // ── Report ───────────────────────────────────────────────────────────────────
 const checked = packages.filter((p) => p.hasScript).length;
 const debtCount = Object.keys(DEBT).length;
 const debtErrors = Object.values(DEBT).reduce((sum, d) => sum + d.errors, 0);
+const byBuild = Object.keys(CHECKED_BY_OWN_BUILD).length;
 
 if (errors.length === 0) {
   console.log(
-    `✅  type-check coverage: ${checked}/${packages.length} packages checked, ` +
+    `✅  type-check coverage: ${checked}/${packages.length} via \`type-check\`, ` +
+      `${byBuild} via their own build, ` +
       `${debtCount} known-broken (${debtErrors} errors outstanding), ` +
       `${NOT_COMPILED.length} not compiled.`
   );
