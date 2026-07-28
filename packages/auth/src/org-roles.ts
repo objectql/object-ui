@@ -15,13 +15,32 @@
  * 'member'` in both `MembersPage` and `InviteMemberDialog`, so a role the
  * server had learned about was still unreachable from either screen.
  *
- * ⚠️ This list MIRRORS the server; it does not derive from it. `/auth/config`
- * exposes feature flags but no role vocabulary, so there is no surface to read
- * — see objectstack-ai/objectstack#3723, which tracks making one list the
- * source for all of them (the framework already carries the same list twice:
- * the better-auth roles map and two enforced `Field.select` option sets). Until
- * that lands, a role added server-side must be added HERE too — one place, not
- * two.
+ * ## The vocabulary is CLOSED — this mirror is complete by construction
+ *
+ * [framework ADR-0108 / objectstack#3723] These four names are the WHOLE list,
+ * and the framework owns them. An application cannot add a fifth: the server
+ * used to register every declared `position` / `permission` name as an
+ * organization role, and that was retired, because every value stored in
+ * `sys_member.role` is projected into `current_user.positions` — so a business
+ * role handed out this way was capability with none of the position system's
+ * controls (no `granted_by`, no validity window, no scope check).
+ *
+ * So the standing instruction that used to live here — *"a role added
+ * server-side must be added HERE too"* — no longer applies. There are no
+ * server-side additions to chase. A membership role is an organization GRADE
+ * (what you may reach); what a person may DO is a position, granted through
+ * `sys_user_position` or an invitation's placement (framework ADR-0105 D8).
+ *
+ * ⚠️ Still a mirror, not a derivation — but now only for a packaging reason,
+ * not a design one. The names live in `@objectstack/spec` as
+ * `BUILTIN_MEMBERSHIP_ROLES` / `BUILTIN_MEMBERSHIP_ROLE_OPTIONS`, which
+ * `@object-ui/auth` cannot import yet: this package does not depend on
+ * `@objectstack/spec`, and the constants ship in the first release carrying
+ * ADR-0108 (absent from the published 16.1.0). Once this package takes that
+ * dependency at a version that has them, the four `export const`s below become
+ * a re-export and `ORG_ROLES` becomes `[...BUILTIN_MEMBERSHIP_ROLES]` — the
+ * labels and grade ladder stay here, since they are console concerns.
+ * `orgRolesMatchFramework` in the tests pins the list until then.
  */
 
 export const ORG_ROLE_OWNER = 'owner';

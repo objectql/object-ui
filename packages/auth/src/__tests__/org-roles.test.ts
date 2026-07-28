@@ -33,6 +33,22 @@ describe('vocabulary', () => {
     expect(ORG_ROLES).toContain(ORG_ROLE_DELEGATED_ADMIN);
   });
 
+  it('is EXACTLY the framework four — the closed vocabulary, mirrored', () => {
+    // [framework ADR-0108 / objectstack#3723] `sys_member.role` is a closed,
+    // framework-owned list; an app can no longer register a fifth name. This
+    // is the drift guard until `@object-ui/auth` can import
+    // `BUILTIN_MEMBERSHIP_ROLES` from `@objectstack/spec` (see org-roles.ts).
+    //
+    // Order matters: it is the display order both screens list, and it matches
+    // `BUILTIN_MEMBERSHIP_ROLE_OPTIONS` server-side.
+    //
+    // If this fails because the framework list changed, mirror the change —
+    // do NOT add a name the server does not offer. A value outside this set is
+    // rejected on write by an enforced `Field.select`, so the console would be
+    // offering something that always 400s.
+    expect([...ORG_ROLES]).toEqual(['owner', 'admin', 'delegated_admin', 'member']);
+  });
+
   it('every role has a label — a role with no label renders as a raw key', () => {
     for (const role of ORG_ROLES) {
       expect(ORG_ROLE_LABELS[role]?.key).toBeTruthy();

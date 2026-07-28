@@ -37,8 +37,9 @@ export { normalizePhoneIdentifier, looksLikePhoneIdentifier } from './phone-iden
 export { createAuthenticatedFetch, ActiveOrganizationStorage, type AuthenticatedAdapterOptions } from './createAuthenticatedFetch';
 export { getUserInitials } from './types';
 
-// Organization membership-role vocabulary + the narrowing helpers every org
-// screen shares (see `org-roles.ts` for why this mirrors rather than derives).
+// Organization membership-role vocabulary — a CLOSED, framework-owned list of
+// four (framework ADR-0108) — plus the narrowing helpers every org screen
+// shares. See `org-roles.ts` for why this still mirrors rather than derives.
 export {
   ORG_ROLE_OWNER,
   ORG_ROLE_ADMIN,
