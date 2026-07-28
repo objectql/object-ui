@@ -20,6 +20,14 @@ function toKebab(name: string): string {
 
 const cache = new Map<string, React.ElementType>();
 
+/**
+ * Resolve a Lucide icon component by name.
+ *
+ * The result is memoised per name in the module-level `cache`, so call sites
+ * get a *stable* component reference across renders — nothing is created during
+ * render. `react-hooks/static-components` cannot see through the call, so the
+ * JSX sites that render the result carry a targeted disable pointing back here.
+ */
 export function getIcon(name?: string): React.ElementType {
   if (!name) return Database;
   const cached = cache.get(name);

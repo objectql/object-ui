@@ -31,18 +31,12 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 //
 // Every entry is real debt: fix the errors, add `"lint": "eslint ."`, then
 // delete the entry.
-const DEBT = {
-  "@object-ui/console": {
-    errors: 14,
-    issue: 2927,
-    note: "8x react-hooks/purity (Date.now during render) + 4x react-hooks/static-components (components created during render reset state) + no-useless-assignment + prefer-const",
-  },
-  "@object-ui/runner": {
-    errors: 3,
-    issue: 2927,
-    note: "3x react-hooks/static-components in LayoutRenderer",
-  },
-};
+//
+// Empty since #2927 closed the last two (`@object-ui/console`, 14 errors, and
+// `@object-ui/runner`, 3). Every workspace package now runs ESLint. Adding an
+// entry here is a deliberate admission that a package ships known errors — do
+// it with an issue number, and treat it as temporary.
+const DEBT = {};
 
 // ── Collect workspace packages ───────────────────────────────────────────────
 const GROUPS = ["packages", "apps", "examples"];

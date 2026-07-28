@@ -36,10 +36,14 @@ const ACTIVE_ORG_KEY = 'auth-active-organization-id';
 
 export async function preflightAuth(authBaseUrl: string): Promise<void> {
   if (typeof window === 'undefined') return;
-  let token: string | null = null;
+  // No initializer: every path out of the try/catch below either assigns
+  // `token` or returns, so a `= null` seed would be dead (no-useless-assignment).
+  let token: string | null;
   try {
     token = localStorage.getItem(TOKEN_KEY);
   } catch {
+    // Storage blocked (Safari private mode / partitioned iframe) — nothing to
+    // validate, and nothing we could purge either.
     return;
   }
   if (!token) return;

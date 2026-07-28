@@ -158,7 +158,10 @@ export function SettingsView() {
       </Button>
 
       <div className="mt-3 flex items-start gap-3">
-        {Icon ? <Icon className="h-7 w-7 mt-0.5 text-muted-foreground" /> : null}
+        {Icon ? (
+          // eslint-disable-next-line react-hooks/static-components -- getIcon returns a module-cached stable component per name, not one created during render
+          <Icon className="h-7 w-7 mt-0.5 text-muted-foreground" />
+        ) : null}
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>

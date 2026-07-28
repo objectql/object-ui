@@ -219,7 +219,10 @@ export function SettingsField(props: SettingsFieldProps) {
           ) : null}
         </div>
         <Button size="sm" variant="secondary" onClick={onAction} disabled={saving}>
-          {Icon ? <Icon className="h-4 w-4 mr-1.5" /> : null}
+          {Icon ? (
+            // eslint-disable-next-line react-hooks/static-components -- getIcon returns a module-cached stable component per name, not one created during render
+            <Icon className="h-4 w-4 mr-1.5" />
+          ) : null}
           {actionLabel}
         </Button>
       </div>

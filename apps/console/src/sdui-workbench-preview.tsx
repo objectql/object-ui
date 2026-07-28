@@ -22,7 +22,7 @@ if (new URLSearchParams(location.search).has('disable')) {
 }
 
 // ---- in-memory adapter (just enough for ListView + ObjectForm) ----
-let store: any[] = [
+const store: any[] = [
   { id: '1', name: 'Apollo Migration', status: 'active', health: 'green', budget: 120000, owner: 'Dana Lee' },
   { id: '2', name: 'Billing Revamp', status: 'planned', health: 'yellow', budget: 80000, owner: 'Sam Ortiz' },
   { id: '3', name: 'Mobile App v2', status: 'active', health: 'red', budget: 210000, owner: 'Priya N.' },

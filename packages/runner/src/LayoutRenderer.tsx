@@ -45,6 +45,11 @@ interface LayoutRendererProps {
 // Helper to resolve icon from string name (e.g. "bar-chart" -> "BarChart")
 // Delegates to the shared lazy icon resolver so we don't ship the entire
 // lucide-react namespace for the few icons rendered by user schemas.
+//
+// `getLazyIcon` memoises per name in a module-level cache, so the component
+// this returns is a stable reference across renders — not a component created
+// during render. `react-hooks/static-components` cannot see through the call,
+// hence the targeted disables at the JSX sites below.
 const getIcon = (name?: string) => {
   if (!name) return null;
   return getLazyIcon(name);
@@ -66,7 +71,10 @@ const NavItem = ({ item, currentPath, isSidebarOpen, onNavigate, level = 0 }: an
         <Collapsible open={isOpen} onOpenChange={setIsOpen} className="w-full">
             <CollapsibleTrigger className={`flex w-full items-center justify-between py-2 text-sm font-medium rounded-md transition-colors text-muted-foreground hover:bg-muted hover:text-foreground ${isSidebarOpen ? 'px-3' : 'justify-center px-2 cursor-pointer'}`}>
                  <div className="flex items-center overflow-hidden">
-                    {Icon && <Icon className={`h-4 w-4 shrink-0 ${isSidebarOpen ? 'mr-3' : ''}`} />}
+                    {Icon && (
+                        // eslint-disable-next-line react-hooks/static-components -- getLazyIcon returns a module-cached stable component per name, not one created during render
+                        <Icon className={`h-4 w-4 shrink-0 ${isSidebarOpen ? 'mr-3' : ''}`} />
+                    )}
                     <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 ${isSidebarOpen ? 'opacity-100 w-auto' : 'opacity-0 w-0 hidden'}`}>
                         {item.label}
                     </span>
@@ -102,7 +110,10 @@ const NavItem = ({ item, currentPath, isSidebarOpen, onNavigate, level = 0 }: an
           : 'text-muted-foreground hover:bg-muted hover:text-foreground'
       } ${isSidebarOpen ? 'px-3' : 'justify-center px-2'} ${level > 0 && isSidebarOpen ? 'pl-10' : ''}`}
     >
-      {Icon && <Icon className={`h-4 w-4 shrink-0 ${isSidebarOpen ? 'mr-3' : ''} ${isActive ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-foreground'}`} />}
+      {Icon && (
+        // eslint-disable-next-line react-hooks/static-components -- getLazyIcon returns a module-cached stable component per name, not one created during render
+        <Icon className={`h-4 w-4 shrink-0 ${isSidebarOpen ? 'mr-3' : ''} ${isActive ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-foreground'}`} />
+      )}
       <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 ${isSidebarOpen ? 'opacity-100 w-auto' : 'opacity-0 w-0 hidden'}`}>
         {item.label}
       </span>
@@ -164,6 +175,7 @@ export const LayoutRenderer = ({ app, children, currentPath, onNavigate }: Layou
         >
           <div className={`h-14 flex items-center border-b font-semibold text-lg tracking-tight transition-all ${isSidbarOpen ? 'px-6' : 'justify-center px-0'}`}>
             {LogoIcon ? (
+              // eslint-disable-next-line react-hooks/static-components -- getLazyIcon returns a module-cached stable component per name, not one created during render
               <LogoIcon className="h-6 w-6" />
             ) : app.logo ? (
               <img src={app.logo} alt={app.title} className="h-6 w-auto" />

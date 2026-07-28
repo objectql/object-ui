@@ -43,6 +43,7 @@ function SettingCard({ m, onOpen }: { m: SettingsManifest; onOpen: () => void })
     >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
+          {/* eslint-disable-next-line react-hooks/static-components -- getIcon returns a module-cached stable component per name, not one created during render */}
           <Icon className="h-6 w-6 text-muted-foreground" />
           {m.beta ? (
             <Badge variant="secondary" className="text-[10px]">

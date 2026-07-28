@@ -17,6 +17,7 @@
     "dev": "vite",
     "build": "vite build",
     "type-check": "tsc --noEmit",
+    "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run"
   },
