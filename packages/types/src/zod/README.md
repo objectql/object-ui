@@ -25,6 +25,27 @@ is `z.infer<typeof ListViewSchema> & ListViewRuntimeProps`. A drift-guard test
 (`__tests__/list-view-spec-parity.test.ts`) fails if the spec grows a field objectui
 hasn't triaged. **Do not hand-add spec-owned fields here** — import them from the spec.
 
+### Spec sub-schemas are re-exported by reference (not mirrored) — #2231
+
+The schemas that used to be hand-written "mirrors" of `@objectstack/spec/ui` are now the
+spec's schemas **by reference**, so they cannot drift:
+
+- `objectql.zod.ts`: `HttpMethodSchema`, `HttpRequestSchema`, `ViewDataSchema`,
+  `SelectionConfigSchema`, `PaginationConfigSchema` are direct re-exports;
+  `ListColumnSchema` is the spec base plus two sanctioned objectui-only extensions
+  (`prefix`, and a broadened `summary` that also accepts the `{ type, field }` object
+  form the grid renderer supports).
+- `theme.zod.ts`: `ColorPaletteSchema`, `TypographySchema`, `SpacingSchema`,
+  `BorderRadiusSchema`, `ShadowSchema`, `BreakpointsSchema`, `AnimationSchema`,
+  `ZIndexSchema`, `ThemeModeSchema`, `ThemeLogoSchema`, `ThemeDefinitionSchema` all
+  resolve to the spec's schemas.
+
+A drift-guard test (`__tests__/spec-subschema-parity.test.ts`) asserts reference
+identity — a faithful copy fails it too, because a copy is a fork. **Do not re-fork
+these**: fix or extend the schema upstream in `@objectstack/spec`, or (for genuinely
+objectui-only renderer concerns) extend locally via `.extend()` on the spec base and
+sanction the field in the parity test.
+
 ## Installation
 
 The Zod schemas are included in the `@object-ui/types` package:

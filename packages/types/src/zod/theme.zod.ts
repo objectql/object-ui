@@ -17,208 +17,91 @@
  */
 
 import { z } from 'zod';
+import {
+  ColorPaletteSchema as SpecColorPaletteSchema,
+  TypographySchema as SpecTypographySchema,
+  SpacingSchema as SpecSpacingSchema,
+  BorderRadiusSchema as SpecBorderRadiusSchema,
+  ShadowSchema as SpecShadowSchema,
+  BreakpointsSchema as SpecBreakpointsSchema,
+  AnimationSchema as SpecAnimationSchema,
+  ZIndexSchema as SpecZIndexSchema,
+  ThemeModeSchema as SpecThemeModeSchema,
+  ThemeSchema as SpecThemeSchema,
+} from '@objectstack/spec/ui';
 import { BaseSchema } from './base.zod.js';
 
 /**
- * Color Palette Schema
- * Mirrors @objectstack/spec/ui ColorPaletteSchema.
+ * Color Palette Schema — `@objectstack/spec/ui` schema re-exported by reference
+ * (issue #2231; formerly a hand-written mirror).
  */
-export const ColorPaletteSchema = z.object({
-  primary: z.string().describe('Primary brand color'),
-  secondary: z.string().optional().describe('Secondary color'),
-  accent: z.string().optional().describe('Accent color'),
-  success: z.string().optional().describe('Success color'),
-  warning: z.string().optional().describe('Warning color'),
-  error: z.string().optional().describe('Error color'),
-  info: z.string().optional().describe('Informational color'),
-  background: z.string().optional().describe('Background color'),
-  surface: z.string().optional().describe('Surface/card background color'),
-  text: z.string().optional().describe('Primary text color'),
-  textSecondary: z.string().optional().describe('Secondary text color'),
-  border: z.string().optional().describe('Border color'),
-  disabled: z.string().optional().describe('Disabled state color'),
-  primaryLight: z.string().optional().describe('Lighter primary variant'),
-  primaryDark: z.string().optional().describe('Darker primary variant'),
-  secondaryLight: z.string().optional().describe('Lighter secondary variant'),
-  secondaryDark: z.string().optional().describe('Darker secondary variant'),
-});
+export const ColorPaletteSchema = SpecColorPaletteSchema;
 
 /**
- * Typography Schema
- * Mirrors @objectstack/spec/ui TypographySchema.
+ * Typography Schema — `@objectstack/spec/ui` schema re-exported by reference
+ * (issue #2231; formerly a hand-written mirror).
  */
-export const TypographySchema = z.object({
-  fontFamily: z.object({
-    base: z.string().optional().describe('Base body font family'),
-    heading: z.string().optional().describe('Heading font family'),
-    mono: z.string().optional().describe('Monospace font family'),
-  }).optional().describe('Font family definitions'),
-  fontSize: z.object({
-    xs: z.string().optional(),
-    sm: z.string().optional(),
-    base: z.string().optional(),
-    lg: z.string().optional(),
-    xl: z.string().optional(),
-    '2xl': z.string().optional(),
-    '3xl': z.string().optional(),
-    '4xl': z.string().optional(),
-  }).optional().describe('Font size scale'),
-  fontWeight: z.object({
-    light: z.number().optional(),
-    normal: z.number().optional(),
-    medium: z.number().optional(),
-    semibold: z.number().optional(),
-    bold: z.number().optional(),
-  }).optional().describe('Font weight scale'),
-  lineHeight: z.object({
-    tight: z.string().optional(),
-    normal: z.string().optional(),
-    relaxed: z.string().optional(),
-    loose: z.string().optional(),
-  }).optional().describe('Line height scale'),
-  letterSpacing: z.object({
-    tighter: z.string().optional(),
-    tight: z.string().optional(),
-    normal: z.string().optional(),
-    wide: z.string().optional(),
-    wider: z.string().optional(),
-  }).optional().describe('Letter spacing scale'),
-});
+export const TypographySchema = SpecTypographySchema;
 
 /**
- * Spacing Scale Schema
- * Mirrors @objectstack/spec/ui SpacingSchema.
+ * Spacing Scale Schema — `@objectstack/spec/ui` schema re-exported by reference
+ * (issue #2231; formerly a hand-written mirror).
  */
-export const SpacingSchema = z.object({
-  '0': z.string().optional(),
-  '1': z.string().optional(),
-  '2': z.string().optional(),
-  '3': z.string().optional(),
-  '4': z.string().optional(),
-  '5': z.string().optional(),
-  '6': z.string().optional(),
-  '8': z.string().optional(),
-  '10': z.string().optional(),
-  '12': z.string().optional(),
-  '16': z.string().optional(),
-  '20': z.string().optional(),
-  '24': z.string().optional(),
-});
+export const SpacingSchema = SpecSpacingSchema;
 
 /**
- * Border Radius Schema
- * Mirrors @objectstack/spec/ui BorderRadiusSchema.
+ * Border Radius Schema — `@objectstack/spec/ui` schema re-exported by reference
+ * (issue #2231; formerly a hand-written mirror).
  */
-export const BorderRadiusSchema = z.object({
-  none: z.string().optional(),
-  sm: z.string().optional(),
-  base: z.string().optional(),
-  md: z.string().optional(),
-  lg: z.string().optional(),
-  xl: z.string().optional(),
-  '2xl': z.string().optional(),
-  full: z.string().optional(),
-});
+export const BorderRadiusSchema = SpecBorderRadiusSchema;
 
 /**
- * Shadow Schema
- * Mirrors @objectstack/spec/ui ShadowSchema.
+ * Shadow Schema — `@objectstack/spec/ui` schema re-exported by reference
+ * (issue #2231; formerly a hand-written mirror).
  */
-export const ShadowSchema = z.object({
-  none: z.string().optional(),
-  sm: z.string().optional(),
-  base: z.string().optional(),
-  md: z.string().optional(),
-  lg: z.string().optional(),
-  xl: z.string().optional(),
-  '2xl': z.string().optional(),
-  inner: z.string().optional(),
-});
+export const ShadowSchema = SpecShadowSchema;
 
 /**
- * Breakpoints Schema
- * Mirrors @objectstack/spec/ui BreakpointsSchema.
+ * Breakpoints Schema — `@objectstack/spec/ui` schema re-exported by reference
+ * (issue #2231; formerly a hand-written mirror).
  */
-export const BreakpointsSchema = z.object({
-  xs: z.string().optional(),
-  sm: z.string().optional(),
-  md: z.string().optional(),
-  lg: z.string().optional(),
-  xl: z.string().optional(),
-  '2xl': z.string().optional(),
-});
+export const BreakpointsSchema = SpecBreakpointsSchema;
 
 /**
- * Animation Schema
- * Mirrors @objectstack/spec/ui AnimationSchema.
+ * Animation Schema — `@objectstack/spec/ui` schema re-exported by reference
+ * (issue #2231; formerly a hand-written mirror). The mirror's `timing` keys had
+ * drifted to camelCase (`easeIn`); the spec — and the runtime consumer
+ * (`usePageTransition`) — use snake_case (`ease_in`), which now applies here too.
  */
-export const AnimationSchema = z.object({
-  duration: z.object({
-    fast: z.string().optional(),
-    base: z.string().optional(),
-    slow: z.string().optional(),
-  }).optional().describe('Duration presets'),
-  timing: z.object({
-    linear: z.string().optional(),
-    ease: z.string().optional(),
-    easeIn: z.string().optional(),
-    easeOut: z.string().optional(),
-    easeInOut: z.string().optional(),
-  }).optional().describe('Timing function presets'),
-});
+export const AnimationSchema = SpecAnimationSchema;
 
 /**
- * Z-Index Schema
- * Mirrors @objectstack/spec/ui ZIndexSchema.
+ * Z-Index Schema — `@objectstack/spec/ui` schema re-exported by reference
+ * (issue #2231; formerly a hand-written mirror).
  */
-export const ZIndexSchema = z.object({
-  base: z.number().optional(),
-  dropdown: z.number().optional(),
-  sticky: z.number().optional(),
-  fixed: z.number().optional(),
-  modalBackdrop: z.number().optional(),
-  modal: z.number().optional(),
-  popover: z.number().optional(),
-  tooltip: z.number().optional(),
-});
+export const ZIndexSchema = SpecZIndexSchema;
 
 /**
- * Theme Mode Schema
- * Mirrors @objectstack/spec/ui ThemeMode.
+ * Theme Mode Schema — `@objectstack/spec/ui` schema re-exported by reference
+ * (issue #2231; formerly a hand-written mirror).
  */
-export const ThemeModeSchema = z.enum(['light', 'dark', 'auto']).describe('Theme mode');
+export const ThemeModeSchema = SpecThemeModeSchema;
 
 /**
- * Theme Logo Schema
- * Mirrors the inline logo object in @objectstack/spec ThemeSchema.
+ * Theme Logo Schema — the inline `logo` object of `@objectstack/spec/ui`
+ * `ThemeSchema`, unwrapped by reference so it cannot drift (issue #2231).
  */
-export const ThemeLogoSchema = z.object({
-  light: z.string().optional().describe('Logo URL for light mode'),
-  dark: z.string().optional().describe('Logo URL for dark mode'),
-  favicon: z.string().optional().describe('Favicon URL'),
-});
+export const ThemeLogoSchema = SpecThemeSchema.shape.logo.unwrap();
 
 /**
- * Theme Definition Schema
- * Mirrors @objectstack/spec/ui ThemeSchema.
+ * Theme Definition Schema — `@objectstack/spec/ui` `ThemeSchema` re-exported by
+ * reference (issue #2231; formerly a hand-written mirror). Differences vs the old
+ * mirror: gains the spec's `density`/`wcagContrast`/`rtl`/`touchTarget`/
+ * `keyboardNavigation` fields, and `mode` now defaults to the spec's `'light'`
+ * (the mirror had drifted to `'auto'`). The TS type side (`Theme` in `../theme.ts`)
+ * was already the spec's — this aligns the runtime validator with it.
  */
-export const ThemeDefinitionSchema = z.object({
-  name: z.string().describe('Theme identifier'),
-  label: z.string().describe('Display label'),
-  description: z.string().optional().describe('Human-readable description'),
-  mode: ThemeModeSchema.default('auto').describe('Theme mode'),
-  colors: ColorPaletteSchema.describe('Semantic color palette'),
-  typography: TypographySchema.optional().describe('Typography design tokens'),
-  spacing: SpacingSchema.optional().describe('Spacing scale'),
-  borderRadius: BorderRadiusSchema.optional().describe('Border radius scale'),
-  shadows: ShadowSchema.optional().describe('Shadow scale'),
-  breakpoints: BreakpointsSchema.optional().describe('Responsive breakpoints'),
-  animation: AnimationSchema.optional().describe('Animation presets'),
-  zIndex: ZIndexSchema.optional().describe('Z-index layering'),
-  customVars: z.record(z.string(), z.string()).optional().describe('Custom CSS variables'),
-  logo: ThemeLogoSchema.optional().describe('Logo/branding assets'),
-  extends: z.string().optional().describe('Extend another theme by name'),
-});
+export const ThemeDefinitionSchema = SpecThemeSchema;
 
 /**
  * Theme Component Schema (ObjectUI rendering)

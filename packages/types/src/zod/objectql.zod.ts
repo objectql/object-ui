@@ -17,66 +17,54 @@
  */
 
 import { z } from 'zod';
-import { ListViewSchema as SpecListViewSchema } from '@objectstack/spec/ui';
+import {
+  ListViewSchema as SpecListViewSchema,
+  HttpMethodSchema as SpecHttpMethodSchema,
+  HttpRequestSchema as SpecHttpRequestSchema,
+  ViewDataSchema as SpecViewDataSchema,
+  ListColumnSchema as SpecListColumnSchema,
+  ColumnSummarySchema as SpecColumnSummarySchema,
+  SelectionConfigSchema as SpecSelectionConfigSchema,
+  PaginationConfigSchema as SpecPaginationConfigSchema,
+} from '@objectstack/spec/ui';
 import { BaseSchema } from './base.zod.js';
 
 /**
- * HTTP Method Schema
- * Mirrors @objectstack/spec/ui HttpMethodSchema.
+ * HTTP Method Schema — `@objectstack/spec/ui` schema re-exported by reference
+ * (issue #2231; formerly a hand-written mirror).
  */
-export const HttpMethodSchema = z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
+export const HttpMethodSchema = SpecHttpMethodSchema;
 
 /**
- * HTTP Request Schema
- * Mirrors @objectstack/spec/ui HttpRequestSchema.
+ * HTTP Request Schema — `@objectstack/spec/ui` schema re-exported by reference
+ * (issue #2231; formerly a hand-written mirror). Differences vs the old mirror:
+ * `body` is the spec's `z.unknown()` (a superset of the old record/string/FormData/
+ * Blob union) and `method` now defaults to `'GET'` on parse.
  */
-export const HttpRequestSchema = z.object({
-  url: z.string().describe('API endpoint URL'),
-  method: HttpMethodSchema.optional().describe('HTTP method'),
-  headers: z.record(z.string(), z.string()).optional().describe('Custom HTTP headers'),
-  params: z.record(z.string(), z.unknown()).optional().describe('Query parameters'),
-  body: z.union([z.record(z.string(), z.unknown()), z.string(), z.instanceof(FormData), z.instanceof(Blob)]).optional().describe('Request body'),
-});
+export const HttpRequestSchema = SpecHttpRequestSchema;
 
 /**
- * View Data Source Schema
- * Mirrors @objectstack/spec/ui ViewDataSchema.
+ * View Data Source Schema — `@objectstack/spec/ui` schema re-exported by reference
+ * (issue #2231; formerly a hand-written mirror that had drifted behind the spec's
+ * fourth `provider: 'schema'` variant for schema-bound forms).
  */
-export const ViewDataSchema = z.union([
-  z.object({
-    provider: z.literal('object'),
-    object: z.string().describe('Target object name'),
-  }),
-  z.object({
-    provider: z.literal('api'),
-    read: HttpRequestSchema.optional().describe('Read configuration'),
-    write: HttpRequestSchema.optional().describe('Write configuration'),
-  }),
-  z.object({
-    provider: z.literal('value'),
-    items: z.array(z.unknown()).describe('Static data array'),
-  }),
-]);
+export const ViewDataSchema = SpecViewDataSchema;
 
 /**
- * List Column Schema
- * Mirrors @objectstack/spec/ui ListColumnSchema.
+ * List Column Schema — derived from `@objectstack/spec/ui` `ListColumnSchema`
+ * (issue #2231): spec fields flow in by reference; objectui-only extensions are
+ * declared locally on top via `.extend()`.
+ *  - `summary` is broadened: the spec's `ColumnSummarySchema` enum plus the
+ *    `{ type, field }` object form the grid renderer supports (per-column field
+ *    override — see `useColumnSummary` in `@object-ui/plugin-grid`). The old
+ *    mirror's free-string arm is gone: unknown aggregation names now fail
+ *    validation instead of silently rendering nothing.
+ *  - `prefix` is objectui-only compound-cell rendering (read by `ObjectGrid`);
+ *    promote it into the spec rather than growing this extension.
  */
-export const ListColumnSchema = z.object({
-  field: z.string().describe('Field name'),
-  label: z.string().optional().describe('Display label'),
-  width: z.number().optional().describe('Column width'),
-  align: z.enum(['left', 'center', 'right']).optional().describe('Text alignment'),
-  hidden: z.boolean().optional().describe('Hide column by default'),
-  sortable: z.boolean().optional().describe('Allow sorting'),
-  resizable: z.boolean().optional().describe('Allow resizing'),
-  wrap: z.boolean().optional().describe('Allow text wrapping'),
-  type: z.string().optional().describe('Renderer type override'),
-  link: z.boolean().optional().describe('Functions as the primary navigation link (triggers View navigation)'),
-  action: z.string().optional().describe('Registered Action ID to execute when clicked'),
-  pinned: z.enum(['left', 'right']).optional().describe('Pin column to left or right edge'),
+export const ListColumnSchema = SpecListColumnSchema.extend({
   summary: z.union([
-    z.string(),
+    SpecColumnSummarySchema,
     z.object({
       type: z.enum(['count', 'sum', 'avg', 'min', 'max']).describe('Aggregation type'),
       field: z.string().optional().describe('Field to aggregate (defaults to column field)'),
@@ -89,21 +77,18 @@ export const ListColumnSchema = z.object({
 });
 
 /**
- * Selection Config Schema
- * Mirrors @objectstack/spec/ui SelectionConfigSchema.
+ * Selection Config Schema — `@objectstack/spec/ui` schema re-exported by reference
+ * (issue #2231; formerly a hand-written mirror). `type` now defaults to `'none'`
+ * on parse instead of staying undefined.
  */
-export const SelectionConfigSchema = z.object({
-  type: z.enum(['none', 'single', 'multiple']).optional().describe('Selection mode'),
-});
+export const SelectionConfigSchema = SpecSelectionConfigSchema;
 
 /**
- * Pagination Config Schema
- * Mirrors @objectstack/spec/ui PaginationConfigSchema.
+ * Pagination Config Schema — `@objectstack/spec/ui` schema re-exported by reference
+ * (issue #2231; formerly a hand-written mirror). `pageSize` is now the spec's
+ * positive-int with a default of 25 on parse.
  */
-export const PaginationConfigSchema = z.object({
-  pageSize: z.number().optional().describe('Page size'),
-  pageSizeOptions: z.array(z.number()).optional().describe('Page size options'),
-});
+export const PaginationConfigSchema = SpecPaginationConfigSchema;
 
 /**
  * Sort Config Schema
