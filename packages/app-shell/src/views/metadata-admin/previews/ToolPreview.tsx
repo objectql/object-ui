@@ -135,7 +135,11 @@ export function ToolPreview({ name, draft }: MetadataPreviewProps) {
       toolbar={
         toolName && (
           <a
-            href={`/developer/api-console?path=/api/v1/ai/tools/${encodeURIComponent(toolName)}/invoke`}
+            // `/execute` is the verb service-ai mounts (buildToolRoutes). This
+            // link said `/invoke`, which nothing has ever mounted, so "Open in
+            // API Console" landed on a path that could only 404 — the same
+            // shape as the three dead AI endpoints framework#3718 removed.
+            href={`/developer/api-console?path=/api/v1/ai/tools/${encodeURIComponent(toolName)}/execute`}
             target="_blank"
             rel="noreferrer"
             className="text-xs inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"

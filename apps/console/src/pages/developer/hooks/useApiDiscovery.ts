@@ -45,16 +45,33 @@ function buildAuthEndpoints(authBase: string): EndpointDef[] {
 }
 
 export const SERVICE_ENDPOINT_CATALOG: Record<string, { group: string; defaultRoute: string; endpoints: ServiceEndpointEntry[] }> = {
-  // The twelve routes `buildAIRoutes()` mounts, in table order (framework#3718).
+  // The `/api/v1/ai/**` family, in ledger order (framework#3718).
+  //
   // `/nlq`, `/suggest` and `/insights` used to sit here with "try it" bodies and
   // always 404'd — they were declared in the framework's `DEFAULT_AI_ROUTES` and
   // never implemented anywhere, so this page offered three endpoints that had no
   // server. The audited table is cloud's `packages/service-ai/src/
   // ai-route-ledger.ts`; when a route is added or renamed there, mirror it here.
   //
-  // `/status` and `/effective-model` are deliberately NOT SDK surface (operator
-  // diagnostics) — which is exactly why they belong on this page: it explores raw
-  // HTTP, not `client.*`.
+  // That first fix listed one server-side builder, `buildAIRoutes()`. The family
+  // is SEVEN builders plus one route mounted by `objectos-runtime`, so this page
+  // still showed under half of it. All 26 are here now, grouped as the ledger
+  // groups them.
+  //
+  // TWO KINDS OF ENTRY LIVE HERE, and both belong:
+  //  - routes the SDK also expresses (`/chat`, `/conversations/*`) — this page is
+  //    where you check the wire shape behind `client.ai.*`;
+  //  - routes it deliberately does not (`/status`, `/effective-model`, `/tools/*`,
+  //    `/evals/runs`, `/usage`) — operator and console surfaces, which is exactly
+  //    why they belong on a page that explores raw HTTP rather than `client.*`.
+  //
+  // MOUNTING IS CONDITIONAL for four of the builders (see AI_ROUTE_MOUNT_GATES in
+  // the ledger): `/agents/*` and `/assistant/*` need a metadata service,
+  // `/evals/runs` also needs a data engine, `/conversations/:id/debug` needs one.
+  // A full Cloud deployment wires all of them; a stripped host may not, and there
+  // these 404 because they are not mounted — NOT because they do not exist. That
+  // is a different failure from the one above, and the only honest place to say so
+  // is here.
   ai: {
     group: 'AI',
     defaultRoute: '/api/v1/ai',
@@ -74,6 +91,39 @@ export const SERVICE_ENDPOINT_CATALOG: Record<string, { group: string; defaultRo
       { method: 'PATCH', path: '/conversations/:id', desc: 'Update conversation (title, metadata)', bodyTemplate: { title: '' } },
       { method: 'DELETE', path: '/conversations/:id', desc: 'Delete conversation' },
       { method: 'POST', path: '/conversations/:id/messages', desc: 'Add message to conversation', bodyTemplate: { role: 'user', content: '' } },
+      { method: 'GET', path: '/conversations/:id/debug', desc: 'Reconcile a build conversation: agent-claimed vs live metadata' },
+
+      // Named agents. `/agents/:agentName/chat` is dual-mode on the same flag as
+      // `/chat` above — `stream: false` for the JSON reply this page can render.
+      { method: 'GET', path: '/agents', desc: 'List active agents' },
+      { method: 'POST', path: '/agents/:agentName/chat', desc: 'Chat with a named agent (JSON)', bodyTemplate: { messages: [{ role: 'user', content: '' }], stream: false } },
+
+      // Ambient assistant — resolves the agent and skills from context instead of
+      // being told. Same `stream: false` treatment on its chat route.
+      { method: 'GET', path: '/assistant', desc: 'Resolve the default assistant and its active skills' },
+      { method: 'GET', path: '/assistant/skills', desc: 'List active skills for a context' },
+      { method: 'POST', path: '/assistant/chat', desc: 'Ambient chat — auto-resolves agent and skills (JSON)', bodyTemplate: { messages: [{ role: 'user', content: '' }], stream: false } },
+
+      // Tools. `execute` is the mounted verb — the metadata-admin tool preview
+      // used to deep-link here with `/invoke`, which has never existed.
+      { method: 'GET', path: '/tools', desc: 'List registered AI tools' },
+      { method: 'POST', path: '/tools/:toolName/execute', desc: 'Execute one tool directly (playground)', bodyTemplate: { parameters: {} } },
+
+      // HITL approval queue. Reads take `ai:read`; approve/reject take the
+      // separate `ai:approve` — a token that lists the queue may not clear it.
+      { method: 'GET', path: '/pending-actions', desc: 'List pending actions awaiting approval' },
+      { method: 'GET', path: '/pending-actions/:id', desc: 'Get one pending action' },
+      { method: 'POST', path: '/pending-actions/:id/approve', desc: 'Approve a pending action and execute it', bodyTemplate: {} },
+      { method: 'POST', path: '/pending-actions/:id/reject', desc: 'Reject a pending action', bodyTemplate: { reason: '' } },
+
+      // Operator surfaces. A run here makes real (paid) LLM calls — hence
+      // `ai:admin`, and hence the warning in the description rather than a
+      // friendlier one-liner.
+      { method: 'POST', path: '/evals/runs', desc: 'Run an eval case — ai:admin, makes paid LLM calls', bodyTemplate: { caseId: '' } },
+
+      // Mounted by `objectos-runtime`, not `service-ai`: the console usage ring
+      // reads it. Reports a fraction of quota, never a token count.
+      { method: 'GET', path: '/usage', desc: 'AI quota headroom per meter (console usage indicator)' },
     ],
   },
   workflow: {
