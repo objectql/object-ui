@@ -34,6 +34,9 @@ import {
   Treemap,
   Sankey,
   Tooltip,
+  ReferenceLine,
+  ReferenceArea,
+  Brush,
 } from 'recharts';
 import {
   ChartContainer,
@@ -44,6 +47,7 @@ import {
   ChartConfig
 } from './ChartContainerImpl';
 import { mapScatterClick, mapTreemapClick, mapSankeyClick } from './chartDrillEvents';
+import { formatterFor, domainFor, type NormalizedAxis, type NormalizedSeries } from './normalizeChartSchema';
 import { buildCategoryRank } from '@object-ui/core';
 
 // Default color fallback for chart series
@@ -96,7 +100,11 @@ export interface AdvancedChartImplProps {
   data?: Array<Record<string, any>>;
   config?: ChartConfig;
   xAxisKey?: string;
-  series?: Array<{ dataKey: string; chartType?: 'bar' | 'line' | 'area'; variant?: 'current' | 'comparison'; opacity?: number; dashArray?: string; label?: string }>;
+  /**
+   * Plotted series, in the renderer's internal shape. Authors write the spec
+   * `series: [{ name, stack, yAxis, … }]`; `normalizeChartSchema` translates.
+   */
+  series?: NormalizedSeries[];
   className?: string;
   /** Categorical/series colour palette. Overrides the theme's `--chart-1..n`
    *  defaults so a page/dashboard can brand its charts (data-screens). */
@@ -131,6 +139,32 @@ export interface AdvancedChartImplProps {
    */
   onChartClick?: (event: { category?: string; series?: string; value?: number }) => void;
   /**
+   * Spec `ChartAxis` presentation for the category axis — `format` (tick
+   * formatter), `title`, `showGridLines`. Its `field` already arrived as
+   * {@link AdvancedChartImplProps.xAxisKey}. Resolved by
+   * `normalizeChartSchema`, so the renderer never parses the author shape.
+   */
+  xAxis?: NormalizedAxis;
+  /**
+   * Spec `ChartConfig.yAxis` — one entry per value axis, in declaration order.
+   * Index 0 is the primary axis; a second entry (or one with
+   * `position: 'right'`) turns on the secondary axis that `series[].yAxis`
+   * binds to. Carries `min`/`max` (domain), `format` (ticks), `logarithmic`
+   * (scale) and `title`.
+   */
+  yAxes?: NormalizedAxis[];
+  /** Spec `ChartConfig.showLegend`. Omitted → shown (the schema default). */
+  showLegend?: boolean;
+  /** Spec `ChartConfig.showDataLabels` — print each point's value on the mark. */
+  showDataLabels?: boolean;
+  /** Spec `ChartConfig.title` / `.subtitle`, rendered above the plot. */
+  title?: string;
+  subtitle?: string;
+  /** Spec `ChartConfig.annotations` — reference lines / bands. */
+  annotations?: Array<Record<string, any>>;
+  /** Spec `ChartConfig.interaction` — `tooltips`, `brush`. */
+  interaction?: Record<string, any>;
+  /**
    * Disable Recharts' entrance animation when `false`. Animations drive the
    * reveal via `requestAnimationFrame`, which browsers throttle/pause in
    * hidden/background tabs — so a chart rendered off-screen (analytics export,
@@ -163,6 +197,26 @@ function TreemapCell(props: any) {
 }
 
 /**
+ * Renders the spec's `ChartConfig.title` / `.subtitle` above the plot.
+ *
+ * Both were previously accepted by the contract and drawn by nothing — `title`
+ * only ever reached the drill-down drawer's heading. With neither set this
+ * returns the chart untouched, so no existing caller gains a wrapper element.
+ */
+function ChartFrame({ title, subtitle, children }: { title?: string; subtitle?: string; children: React.ReactNode }) {
+  if (!title && !subtitle) return <>{children}</>;
+  return (
+    <div className="flex h-full w-full flex-col">
+      <div className="mb-2 shrink-0">
+        {title ? <div className="text-sm font-medium leading-tight text-foreground">{title}</div> : null}
+        {subtitle ? <div className="text-xs leading-tight text-muted-foreground">{subtitle}</div> : null}
+      </div>
+      <div className="min-h-0 flex-1">{children}</div>
+    </div>
+  );
+}
+
+/**
  * AdvancedChartImpl - The heavy implementation that imports Recharts with full features
  * This component is lazy-loaded to avoid including Recharts in the initial bundle
  */
@@ -178,6 +232,14 @@ export default function AdvancedChartImpl({
   categoryOrder,
   onChartClick,
   isAnimationActive,
+  xAxis: xAxisSpec,
+  yAxes,
+  showLegend,
+  showDataLabels,
+  title,
+  subtitle,
+  annotations,
+  interaction,
 }: AdvancedChartImplProps) {
   // Normalize 'column' → 'bar' (Recharts BarChart is already vertical).
   // 'column' is the spec-level alias for vertical bars; 'horizontal-bar' stays as-is.
@@ -343,6 +405,118 @@ export default function AdvancedChartImpl({
     }
   }, []);
 
+  // ── Spec ChartAxis presentation (objectui#2880 S2) ──────────────────────
+  // The author's `format` wins over the compact default; `min`/`max` pin the
+  // domain; `logarithmic` swaps the scale; `title` labels the axis. All three
+  // arrive already parsed from `normalizeChartSchema`, so nothing here has to
+  // know the author-facing shape.
+  const primaryY: NormalizedAxis | undefined = yAxes?.[0];
+  // A secondary axis exists when a second entry is declared, or the only entry
+  // asks to sit on the right.
+  const secondaryY: NormalizedAxis | undefined =
+    yAxes && yAxes.length > 1
+      ? yAxes[1]
+      : primaryY?.position === 'right'
+        ? primaryY
+        : undefined;
+  const hasDualAxis = !!yAxes && (yAxes.length > 1);
+
+  const xTickFormatter = React.useMemo(
+    () => formatterFor(xAxisSpec?.format) ?? formatTick,
+    [xAxisSpec?.format, formatTick],
+  );
+  const yTickFormatter = React.useMemo(
+    () => formatterFor(primaryY?.format) ?? formatYTick,
+    [primaryY?.format, formatYTick],
+  );
+  const y2TickFormatter = React.useMemo(
+    () => formatterFor(secondaryY?.format) ?? formatYTick,
+    [secondaryY?.format, formatYTick],
+  );
+
+  /** Recharts props derived from one spec y-axis (domain / scale / label). */
+  const yAxisSpecProps = React.useCallback((axis: NormalizedAxis | undefined) => {
+    if (!axis) return {};
+    const domain = domainFor(axis);
+    return {
+      ...(domain ? { domain } : {}),
+      // `allowDataOverflow` is what makes an explicit domain actually clip
+      // rather than being silently widened to fit the data.
+      ...(domain ? { allowDataOverflow: true } : {}),
+      ...(axis.logarithmic ? { scale: 'log' as const, domain: domain ?? ([1, 'auto'] as any) } : {}),
+      ...(axis.title ? { label: { value: axis.title, angle: -90, position: 'insideLeft' as const } } : {}),
+    };
+  }, []);
+
+  // `showGridLines` is per-axis in the spec; the renderer draws one grid, so
+  // an explicit `false` on EITHER axis turns off that axis's lines.
+  const showYGrid = primaryY?.showGridLines !== false;
+  // The default grid draws horizontal lines only (`vertical={false}`), which is
+  // the right default for a categorical x-axis; honour an explicit opt-in.
+  const gridProps = {
+    vertical: xAxisSpec?.showGridLines === true,
+    horizontal: showYGrid,
+  };
+
+  // Legend is on unless the author turned it off (spec default `true`).
+  const legendVisible = showLegend !== false;
+
+  // ── Spec ChartConfig.annotations (objectui#2880 S3) ─────────────────────
+  // `type: 'line'` → ReferenceLine at `value`; `type: 'region'` → ReferenceArea
+  // spanning `value`..`endValue`. `axis` picks which axis the value belongs to.
+  const annotationEls = React.useMemo(() => {
+    if (!Array.isArray(annotations) || annotations.length === 0) return null;
+    const DASH: Record<string, string | undefined> = { solid: undefined, dashed: '4 4', dotted: '1 4' };
+    return annotations.map((a, i) => {
+      const onX = a?.axis === 'x';
+      const stroke = resolveColor(String(a?.color || 'hsl(var(--muted-foreground))'));
+      const strokeDasharray = DASH[String(a?.style ?? 'dashed')];
+      const text = typeof a?.label === 'string' ? a.label : undefined;
+      const labelProp = text ? { label: { value: text, position: 'insideTopRight' as const, fill: stroke, fontSize: 11 } } : {};
+      if (a?.type === 'region') {
+        const range = onX ? { x1: a.value, x2: a.endValue } : { y1: a.value, y2: a.endValue };
+        return (
+          <ReferenceArea
+            key={`ann-${i}`}
+            {...range}
+            {...(hasDualAxis && !onX ? { yAxisId: 'left' } : {})}
+            fill={stroke}
+            fillOpacity={0.12}
+            stroke={stroke}
+            strokeOpacity={0.35}
+            {...labelProp}
+          />
+        );
+      }
+      return (
+        <ReferenceLine
+          key={`ann-${i}`}
+          {...(onX ? { x: a?.value } : { y: a?.value })}
+          {...(hasDualAxis && !onX ? { yAxisId: 'left' } : {})}
+          stroke={stroke}
+          strokeDasharray={strokeDasharray}
+          {...labelProp}
+        />
+      );
+    });
+  }, [annotations, hasDualAxis]);
+
+  // ── Spec ChartConfig.interaction (objectui#2880 S3) ─────────────────────
+  // `tooltips: false` suppresses the hover card; `brush: true` adds the range
+  // selector under the plot. `zoom` has no Recharts primitive behind it and is
+  // deliberately not faked — see the note in ChartConfigSchema.
+  const tooltipsEnabled = interaction?.tooltips !== false;
+  const brushEnabled = interaction?.brush === true;
+  const brushEl = brushEnabled
+    ? <Brush dataKey={xAxisKey} height={24} travellerWidth={8} stroke="hsl(var(--muted-foreground))" />
+    : null;
+
+  /** `showDataLabels` prints each point's value on the mark itself. */
+  const dataLabel = (formatter?: (v: any) => string) =>
+    showDataLabels
+      ? <LabelList position="top" className="fill-foreground" fontSize={11} {...(formatter ? { formatter } : {})} />
+      : null;
+
   // Shared X-axis props for time/categorical axes. Recharts' `minTickGap`
   // automatically thins ticks that would otherwise overlap, so we no
   // longer hard-code `interval={0}` (which forced every label and
@@ -353,9 +527,10 @@ export default function AdvancedChartImpl({
     axisLine: false as const,
     interval: 'preserveStartEnd' as const,
     minTickGap: isMobile ? 32 : 48,
-    tickFormatter: formatTick,
+    tickFormatter: xTickFormatter,
+    ...(xAxisSpec?.title ? { label: { value: xAxisSpec.title, position: 'insideBottom' as const, offset: -4 } } : {}),
     ...(!isMobile && hasLongLabels && { angle: -35, textAnchor: 'end' as const, height: 60 }),
-  }), [isMobile, hasLongLabels, formatTick]);
+  }), [isMobile, hasLongLabels, xTickFormatter, xAxisSpec?.title]);
 
   // Pie and Donut charts
   if (chartType === 'pie' || chartType === 'donut') {
@@ -604,33 +779,57 @@ export default function AdvancedChartImpl({
   // Combo chart (mixed bar + line on same chart)
   if (chartType === 'combo') {
     return (
+      <ChartFrame title={title} subtitle={subtitle}>
       <ChartContainer config={config} className={className} {...containerProps}>
         <BarChart data={data}>
-          <CartesianGrid vertical={false} />
+          <CartesianGrid {...gridProps} />
           <XAxis dataKey={xAxisKey} {...xAxisCommonProps} />
-          <YAxis yAxisId="left" tickLine={false} axisLine={false} tickFormatter={formatYTick} width={48} />
-          <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false} tickFormatter={formatYTick} width={48} />
-          <ChartTooltip content={<ChartTooltipContent />} />
-          <ChartLegend
-            content={<ChartLegendContent />}
-            {...(isMobile && { verticalAlign: "bottom", wrapperStyle: { fontSize: '11px', paddingTop: '8px' } })}
-          />
+          <YAxis yAxisId="left" tickLine={false} axisLine={false} tickFormatter={yTickFormatter} width={48} {...yAxisSpecProps(primaryY)} />
+          <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false} tickFormatter={y2TickFormatter} width={48} {...yAxisSpecProps(secondaryY)} />
+          {tooltipsEnabled ? <ChartTooltip content={<ChartTooltipContent />} /> : null}
+          {legendVisible ? (
+            <ChartLegend
+              content={<ChartLegendContent />}
+              {...(isMobile && { verticalAlign: "bottom", wrapperStyle: { fontSize: '11px', paddingTop: '8px' } })}
+            />
+          ) : null}
+          {annotationEls}
+          {brushEl}
           {series.map((s: any, index: number) => {
             const color = resolveColor(config[s.dataKey]?.color || DEFAULT_CHART_COLOR);
             const seriesType = s.chartType || (index === 0 ? 'bar' : 'line');
-            const yAxisId = seriesType === 'bar' ? 'left' : 'right';
+            // An explicit spec `series[].yAxis` wins over the family-derived
+            // default (bar→left / line→right), which is only a guess.
+            const yAxisId = s.yAxis === 'right' || s.yAxis === 'left'
+              ? s.yAxis
+              : (seriesType === 'bar' ? 'left' : 'right');
             const cmp = comparisonStyle(s, seriesType as any);
+            const stackProps = s.stack ? { stackId: String(s.stack) } : {};
+            const valueFormatter = formatterFor((yAxisId === 'right' ? secondaryY : primaryY)?.format);
 
             if (seriesType === 'line') {
-              return <Line key={s.dataKey} yAxisId={yAxisId} type="monotone" dataKey={s.dataKey} stroke={color} strokeWidth={2} dot={false} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...animProps} />;
+              return (
+                <Line key={s.dataKey} yAxisId={yAxisId} type="monotone" dataKey={s.dataKey} stroke={color} strokeWidth={2} dot={false} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...animProps}>
+                  {dataLabel(valueFormatter)}
+                </Line>
+              );
             }
             if (seriesType === 'area') {
-              return <Area key={s.dataKey} yAxisId={yAxisId} type="monotone" dataKey={s.dataKey} fill={color} stroke={color} fillOpacity={cmp?.fillOpacity ?? 0.4} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...animProps} />;
+              return (
+                <Area key={s.dataKey} yAxisId={yAxisId} type="monotone" dataKey={s.dataKey} fill={color} stroke={color} fillOpacity={cmp?.fillOpacity ?? 0.4} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...stackProps} {...animProps}>
+                  {dataLabel(valueFormatter)}
+                </Area>
+              );
             }
-            return <Bar key={s.dataKey} yAxisId={yAxisId} dataKey={s.dataKey} fill={color} radius={4} fillOpacity={cmp?.fillOpacity} {...animProps} />;
+            return (
+              <Bar key={s.dataKey} yAxisId={yAxisId} dataKey={s.dataKey} fill={color} radius={4} fillOpacity={cmp?.fillOpacity} {...stackProps} {...animProps}>
+                {dataLabel(valueFormatter)}
+              </Bar>
+            );
           })}
         </BarChart>
       </ChartContainer>
+      </ChartFrame>
     );
   }
 
@@ -652,6 +851,7 @@ export default function AdvancedChartImpl({
   const gslug = (c: string) => 'g' + c.replace(/[^a-zA-Z0-9]/g, '');
 
   return (
+    <ChartFrame title={title} subtitle={subtitle}>
     <ChartContainer config={config} className={className} {...containerProps}>
       <ChartComponent data={data} layout={isHorizontal ? 'vertical' : 'horizontal'} {...cartesianClickProps}>
         <defs>
@@ -668,30 +868,54 @@ export default function AdvancedChartImpl({
             </React.Fragment>
           ))}
         </defs>
-        <CartesianGrid vertical={false} />
+        <CartesianGrid {...gridProps} />
         {isHorizontal ? (
           <>
-            <XAxis type="number" tickLine={false} axisLine={false} tickFormatter={formatYTick} />
+            {/* Horizontal bars swap the axis roles: the VALUE axis is x, so the
+                spec y-axis config (domain/format/scale) applies to it. */}
+            <XAxis type="number" tickLine={false} axisLine={false} tickFormatter={yTickFormatter} {...yAxisSpecProps(primaryY)} />
             <YAxis
               type="category"
               dataKey={xAxisKey}
               tickLine={false}
               axisLine={false}
               width={Math.min(140, Math.max(60, Math.max(...data.map(d => String(d[xAxisKey] ?? '').length)) * 7))}
-              tickFormatter={formatTick}
+              tickFormatter={xTickFormatter}
             />
           </>
         ) : (
           <>
             <XAxis dataKey={xAxisKey} {...xAxisCommonProps} />
-            <YAxis tickLine={false} axisLine={false} tickFormatter={formatYTick} width={48} />
+            <YAxis
+              {...(hasDualAxis ? { yAxisId: 'left' as const } : {})}
+              tickLine={false}
+              axisLine={false}
+              tickFormatter={yTickFormatter}
+              width={48}
+              {...yAxisSpecProps(primaryY)}
+            />
+            {hasDualAxis ? (
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={y2TickFormatter}
+                width={48}
+                {...yAxisSpecProps(secondaryY)}
+              />
+            ) : null}
           </>
         )}
-        <ChartTooltip content={<ChartTooltipContent />} />
-        <ChartLegend
-          content={<ChartLegendContent />}
-          {...(isMobile && { verticalAlign: "bottom", wrapperStyle: { fontSize: '11px', paddingTop: '8px' } })}
-        />
+        {tooltipsEnabled ? <ChartTooltip content={<ChartTooltipContent />} /> : null}
+        {legendVisible ? (
+          <ChartLegend
+            content={<ChartLegendContent />}
+            {...(isMobile && { verticalAlign: "bottom", wrapperStyle: { fontSize: '11px', paddingTop: '8px' } })}
+          />
+        ) : null}
+        {annotationEls}
+        {brushEl}
         {series.map((s: any, sIdx: number) => {
           const palette = getPalette();
           // Comparison series should mirror the color of the primary series
@@ -704,6 +928,17 @@ export default function AdvancedChartImpl({
           const baseIdx = isComparison ? series.indexOf(baseSeries) : sIdx;
           const seriesColor = resolveColor(config[baseSeries.dataKey]?.color || palette[baseIdx % palette.length] || DEFAULT_CHART_COLOR);
 
+          // Spec `series[].yAxis` binds this series to the secondary axis.
+          // Only meaningful once a second axis is declared.
+          const axisProps = hasDualAxis ? { yAxisId: s.yAxis === 'right' ? 'right' : 'left' } : {};
+          // Spec `series[].stack` — series sharing a group id stack together.
+          // Recharts keys stacking off `stackId`, so the author's group name
+          // passes through unchanged.
+          const stackProps = s.stack ? { stackId: String(s.stack) } : {};
+          const valueFormatter = formatterFor(
+            (s.yAxis === 'right' ? secondaryY : primaryY)?.format,
+          );
+
           if (chartType === 'bar' || chartType === 'horizontal-bar') {
             // For categorical bar charts with a single primary series,
             // color each bar distinctly. With a comparison overlay the
@@ -713,24 +948,34 @@ export default function AdvancedChartImpl({
             const colorPerCategory = primaryCount === 1 && !isComparison && series.length === 1 && data.length > 1;
             const cmp = comparisonStyle(s, 'bar');
             return (
-              <Bar key={s.dataKey} dataKey={s.dataKey} fill={`url(#bg-${gslug(seriesColor)})`} radius={4} fillOpacity={cmp?.fillOpacity} {...animProps}>
+              <Bar key={s.dataKey} dataKey={s.dataKey} fill={`url(#bg-${gslug(seriesColor)})`} radius={4} fillOpacity={cmp?.fillOpacity} {...stackProps} {...axisProps} {...animProps}>
                 {colorPerCategory && data.map((entry, idx) => (
                   <Cell key={`cell-${idx}`} fill={`url(#bg-${gslug(resolveColor(colorForCategory(entry?.[xAxisKey], idx, palette)))})`} />
                 ))}
+                {dataLabel(valueFormatter)}
               </Bar>
             );
           }
           if (chartType === 'line') {
             const cmp = comparisonStyle(s, 'line');
-            return <Line key={s.dataKey} type="monotone" dataKey={s.dataKey} stroke={seriesColor} strokeWidth={2} dot={false} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...animProps} />;
+            return (
+              <Line key={s.dataKey} type="monotone" dataKey={s.dataKey} stroke={seriesColor} strokeWidth={2} dot={false} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...axisProps} {...animProps}>
+                {dataLabel(valueFormatter)}
+              </Line>
+            );
           }
           if (chartType === 'area') {
             const cmp = comparisonStyle(s, 'area');
-            return <Area key={s.dataKey} type="monotone" dataKey={s.dataKey} fill={`url(#ag-${gslug(seriesColor)})`} stroke={seriesColor} strokeWidth={2} fillOpacity={cmp?.fillOpacity ?? 1} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...animProps} />;
+            return (
+              <Area key={s.dataKey} type="monotone" dataKey={s.dataKey} fill={`url(#ag-${gslug(seriesColor)})`} stroke={seriesColor} strokeWidth={2} fillOpacity={cmp?.fillOpacity ?? 1} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...stackProps} {...axisProps} {...animProps}>
+                {dataLabel(valueFormatter)}
+              </Area>
+            );
           }
           return null;
         })}
       </ChartComponent>
     </ChartContainer>
+    </ChartFrame>
   );
 }

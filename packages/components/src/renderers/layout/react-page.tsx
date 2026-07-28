@@ -59,8 +59,21 @@ function buildComponentScope(dataSource: unknown): Record<string, React.Componen
     const name = toPascal(tag);
     if (seen.has(name)) continue;
     seen.add(name);
-    const Wrapper: React.FC<any> = ({ children: _children, ...props }) =>
-      React.createElement(SchemaRenderer as any, { schema: { type: tag, dataSource, ...props } });
+    // `type` is the SDUI envelope's component discriminator, but it is ALSO a
+    // legitimate prop name in a block's own spec schema — `ChartConfig.type` is
+    // the chart family. Flattening props into the schema bag collides the two:
+    // spreading last let an author's `type="bar"` replace `object-chart` and
+    // the block stopped resolving; stamping the discriminator last silently ate
+    // the author's value instead. Neither is acceptable (ADR-0078), so the
+    // discriminator wins the `type` slot and the author's value is preserved
+    // beside it under `specType` for the block to read
+    // (objectui#2880 / framework#3729).
+    const Wrapper: React.FC<any> = ({ children: _children, ...props }) => {
+      const specType = typeof props.type === 'string' && props.type !== tag ? props.type : undefined;
+      return React.createElement(SchemaRenderer as any, {
+        schema: { dataSource, ...props, ...(specType ? { specType } : {}), type: tag },
+      });
+    };
     Wrapper.displayName = name;
     scope[name] = Wrapper;
   }

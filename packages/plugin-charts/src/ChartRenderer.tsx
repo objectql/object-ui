@@ -2,6 +2,7 @@
 import React, { Suspense } from 'react';
 import { Skeleton } from '@object-ui/components';
 import type { ChartConfig } from './ChartContainerImpl';
+import { normalizeChartSchema } from './normalizeChartSchema';
 
 // 🚀 Lazy load the implementation files
 const LazyChart = React.lazy(() => import('./ChartImpl'));
@@ -46,8 +47,25 @@ export interface ChartRendererProps {
     chartType?: 'bar' | 'column' | 'horizontal-bar' | 'line' | 'area' | 'pie' | 'donut' | 'radar' | 'scatter' | 'funnel' | 'combo' | 'treemap' | 'sankey';
     data?: Array<Record<string, any>>;
     config?: Record<string, any>;
+    /** Internal binding. Authors write the spec `xAxis: { field }` (or the
+     *  report surface's bare string); `normalizeChartSchema` resolves both. */
     xAxisKey?: string;
-    series?: Array<{ dataKey: string; label?: string; variant?: 'current' | 'comparison'; opacity?: number; dashArray?: string; chartType?: 'bar' | 'line' | 'area' }>;
+    /** Internal binding. Authors write the spec `series: [{ name, … }]`. */
+    series?: Array<{ dataKey: string; label?: string; variant?: 'current' | 'comparison'; opacity?: number; dashArray?: string; chartType?: 'bar' | 'line' | 'area'; stack?: string; yAxis?: 'left' | 'right'; color?: string }>;
+    /** Spec `ChartConfig` shape — honored via `normalizeChartSchema`
+     *  (objectui#2880). Listed here so the author-facing contract type-checks;
+     *  the internal props above win when both are present. */
+    xAxis?: unknown;
+    yAxis?: unknown;
+    showLegend?: boolean;
+    showDataLabels?: boolean;
+    title?: unknown;
+    subtitle?: unknown;
+    annotations?: Array<Record<string, any>>;
+    interaction?: Record<string, any>;
+    /** An author `type` rescued from the SDUI envelope's discriminator
+     *  collision by the react-page wrapper — see `normalizeChartSchema`. */
+    specType?: string;
     colors?: string[];
     /** Per-category colour map (value/label → colour). Wins over `colors` per
      *  category; see AdvancedChartImpl. Set by ObjectChart from select/lookup
@@ -70,14 +88,22 @@ export interface ChartRendererProps {
  * ChartRenderer - The public API for the advanced chart component
  */
 export const ChartRenderer: React.FC<ChartRendererProps> = ({ schema, onChartClick }) => {
-  // ⚡️ Adapter: Normalize JSON schema to Recharts Props
+  // ⚡️ Adapter: Normalize the AUTHOR-facing chart schema to Recharts props.
+  //
+  // The spec shape (`type` / `xAxis: {field}` / `yAxis: [{field, format, …}]` /
+  // `series: [{name, stack, yAxis}]`) and the renderer's internal shape
+  // (`chartType` / `xAxisKey` / `series: [{dataKey}]`) both land here;
+  // `normalizeChartSchema` is the single translation point, with internal props
+  // winning so DashboardRenderer/ObjectView/the dataset path are untouched
+  // (objectui#2880 S1).
   const props = React.useMemo(() => {
-    // 1. Defaults
-    let series = schema.series;
-    let xAxisKey = schema.xAxisKey;
+    const spec = normalizeChartSchema(schema);
+
+    let series: any[] | undefined = schema.series ?? spec.series;
+    let xAxisKey = schema.xAxisKey ?? spec.xAxisKey;
     let config = schema.config;
 
-    // 2. Adapt Tremor/Simple format (categories -> series, index -> xAxisKey)
+    // Adapt the Tremor/simple format (categories -> series, index -> xAxisKey)
     if (!xAxisKey) {
        if ((schema as any).index) xAxisKey = (schema as any).index;
        else if ((schema as any).category) xAxisKey = (schema as any).category; // Support Pie/Donut category
@@ -91,24 +117,26 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ schema, onChartCli
           series = [{ dataKey: (schema as any).value }];
        }
     }
-    
-    // 3. Auto-generate config/colors if missing
+
+    // Auto-generate config/colors if missing. A spec `series[].color` is an
+    // explicit author choice, so it wins over the positional palette.
     if (!config && series) {
-       const colors = (schema as any).colors || ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))']; 
+       const colors = (schema as any).colors || ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))'];
        const newConfig: ChartConfig = {};
        series.forEach((s: any, idx: number) => {
-         newConfig[s.dataKey] = { label: s.label || s.dataKey, color: colors[idx % colors.length] };
+         newConfig[s.dataKey] = { label: s.label || s.dataKey, color: s.color || colors[idx % colors.length] };
        });
        config = newConfig;
     }
 
     return {
-      chartType: schema.chartType,
+      chartType: schema.chartType ?? spec.chartType,
       data: Array.isArray(schema.data) ? schema.data : [],
       config,
       xAxisKey,
       series,
-      className: schema.className
+      className: schema.className,
+      spec,
     };
   }, [schema]);
 
@@ -126,6 +154,14 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ schema, onChartCli
         categoryOrder={(schema as any).categoryOrder}
         isAnimationActive={schema.isAnimationActive}
         onChartClick={onChartClick}
+        xAxis={props.spec.xAxis}
+        yAxes={props.spec.yAxes}
+        showLegend={props.spec.showLegend}
+        showDataLabels={props.spec.showDataLabels}
+        title={props.spec.title}
+        subtitle={props.spec.subtitle}
+        annotations={props.spec.annotations}
+        interaction={props.spec.interaction}
       />
     </Suspense>
   );

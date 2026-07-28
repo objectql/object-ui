@@ -1,0 +1,334 @@
+/**
+ * ObjectUI
+ * Copyright (c) 2024-present ObjectStack Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+/**
+ * The ONE place the spec's author-facing chart shape is translated into the
+ * renderer's internal pipeline contract (framework#3729 / objectui#2880).
+ *
+ * ## Why this exists
+ *
+ * `ChartConfigSchema` (`@objectstack/spec/ui`) is the chart protocol — axes are
+ * `{ field, format, min, max, logarithmic, … }` objects and series are
+ * `{ name, stack, yAxis, … }`. The renderer, however, grew a Recharts-flavoured
+ * internal shape: `chartType`, `xAxisKey` (a bare string) and
+ * `series[].dataKey`. Everything an author wrote in the SPEC shape reached the
+ * renderer and was silently dropped — precisely what ADR-0078 forbids.
+ *
+ * This module closes that gap by NORMALIZING at the boundary, rather than by
+ * sprinkling `??` fallbacks through the render tree. That distinction matters
+ * (framework PD #12): a lone normalization layer is a translation from one
+ * declared contract to another, whereas scattered fallbacks fossilize a second
+ * de-facto dialect at every read site.
+ *
+ * **Internal props win.** `DashboardRenderer`, `ObjectView` and the dataset
+ * path already speak the internal shape; passing `xAxisKey`/`series[].dataKey`
+ * explicitly keeps working byte-for-byte, so there is no migration.
+ *
+ * ## The `type` collision
+ *
+ * `ChartConfig.type` is the chart family (`'bar' | 'line' | …`). But on every
+ * surface that FLATTENS chart config into a component props bag — the react
+ * tier's injected blocks especially — `type` is already taken: it is the SDUI
+ * envelope's component discriminator (`{ type: 'object-chart', … }`). An author
+ * writing `type="bar"` would replace the discriminator and the block would not
+ * resolve at all.
+ *
+ * The collision is created by the flattening, so it is resolved there: the
+ * react-page wrapper preserves an author-supplied `type` under `specType`
+ * before stamping the discriminator (see `react-page.tsx`). This module reads
+ * it back. Surfaces where chart config is properly NESTED (a dashboard
+ * widget's `chartConfig`) never collide and pass `type` through untouched.
+ */
+
+/** A chart family this renderer actually draws. */
+export type ChartFamily =
+  | 'bar' | 'column' | 'horizontal-bar'
+  | 'line' | 'area'
+  | 'pie' | 'donut' | 'funnel'
+  | 'radar' | 'scatter'
+  | 'treemap' | 'sankey'
+  | 'combo';
+
+const RENDERABLE = new Set<string>([
+  'bar', 'column', 'horizontal-bar',
+  'line', 'area',
+  'pie', 'donut', 'funnel',
+  'radar', 'scatter',
+  'treemap', 'sankey',
+  'combo',
+]);
+
+/**
+ * Every value the spec's `ChartTypeSchema` admits — a superset of
+ * {@link RENDERABLE}, because single-value families (`metric`, `kpi`, `gauge`,
+ * …) and tabular ones render through other components entirely.
+ *
+ * Recognition is broader than rendering on purpose: this set is what decides
+ * whether a bare `type` is a chart family or the SDUI envelope's component
+ * discriminator, and getting THAT wrong would break the block outright.
+ */
+const CHART_TYPES = new Set<string>([
+  ...RENDERABLE,
+  'gauge', 'solid-gauge', 'metric', 'kpi', 'bullet',
+  'table', 'pivot',
+]);
+
+export type AnyRec = Record<string, any>;
+
+/** A y-axis (or the x-axis) after normalization — spec `ChartAxis`, resolved. */
+export interface NormalizedAxis {
+  /** Result column this axis reads (y-axis only; the x-axis field becomes `xAxisKey`). */
+  field?: string;
+  /** d3-style format string, e.g. `"$0,0.00"` / `"0.0%"`. */
+  format?: string;
+  min?: number;
+  max?: number;
+  /** Default true, per the spec schema. */
+  showGridLines?: boolean;
+  logarithmic?: boolean;
+  position?: 'left' | 'right' | 'top' | 'bottom';
+  /** Axis title (already resolved to a plain string). */
+  title?: string;
+}
+
+export interface NormalizedSeries {
+  dataKey: string;
+  label?: string;
+  /** Per-series family override (combo charts). */
+  chartType?: 'bar' | 'line' | 'area';
+  variant?: 'current' | 'comparison' | 'primary';
+  opacity?: number;
+  dashArray?: string;
+  /** Stack group id — series sharing one id stack together. */
+  stack?: string;
+  /** Which y-axis this series binds to (dual-axis charts). */
+  yAxis?: 'left' | 'right';
+  color?: string;
+}
+
+export interface NormalizedChartSchema {
+  chartType?: ChartFamily;
+  xAxisKey?: string;
+  series?: NormalizedSeries[];
+  /** X-axis presentation config (its `field` is hoisted to `xAxisKey`). */
+  xAxis?: NormalizedAxis;
+  /** Y-axes, in declaration order. Index 0 is the primary (left) axis. */
+  yAxes?: NormalizedAxis[];
+  showLegend?: boolean;
+  showDataLabels?: boolean;
+  title?: string;
+  subtitle?: string;
+  annotations?: AnyRec[];
+  interaction?: AnyRec;
+}
+
+const isRec = (v: unknown): v is AnyRec => !!v && typeof v === 'object' && !Array.isArray(v);
+const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
+const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+
+/**
+ * An i18n label may be a plain string or a `{ en, zh-CN, … }` record. Charts
+ * render a string; pick a reasonable one rather than `[object Object]`.
+ */
+function label(v: unknown): string | undefined {
+  const s = str(v);
+  if (s) return s;
+  if (isRec(v)) {
+    const first = Object.values(v).find((x) => typeof x === 'string' && x);
+    return first as string | undefined;
+  }
+  return undefined;
+}
+
+function normalizeAxis(raw: unknown): NormalizedAxis | undefined {
+  if (!isRec(raw)) return undefined;
+  const out: NormalizedAxis = {};
+  const field = str(raw.field);
+  if (field) out.field = field;
+  const format = str(raw.format);
+  if (format) out.format = format;
+  const min = num(raw.min);
+  if (min !== undefined) out.min = min;
+  const max = num(raw.max);
+  if (max !== undefined) out.max = max;
+  if (typeof raw.showGridLines === 'boolean') out.showGridLines = raw.showGridLines;
+  if (typeof raw.logarithmic === 'boolean') out.logarithmic = raw.logarithmic;
+  const position = str(raw.position);
+  if (position === 'left' || position === 'right' || position === 'top' || position === 'bottom') {
+    out.position = position;
+  }
+  const title = label(raw.title);
+  if (title) out.title = title;
+  return out;
+}
+
+/**
+ * Merge one series entry from either shape.
+ *
+ * Internal (`dataKey`) wins over spec (`name`) so a caller that already speaks
+ * the internal contract is untouched. `type` (spec, a ChartType) and
+ * `chartType` (internal) both name the per-series family in a combo chart.
+ */
+function normalizeSeries(raw: unknown): NormalizedSeries | undefined {
+  if (!isRec(raw)) {
+    // A bare string is accepted as a shorthand for `{ name }` — the Tremor-ish
+    // `categories: ['a','b']` form ChartRenderer already adapts.
+    const bare = str(raw);
+    return bare ? { dataKey: bare } : undefined;
+  }
+  const dataKey = str(raw.dataKey) ?? str(raw.name);
+  if (!dataKey) return undefined;
+  const out: NormalizedSeries = { dataKey };
+  const lbl = label(raw.label);
+  if (lbl) out.label = lbl;
+  const family = str(raw.chartType) ?? str(raw.type);
+  if (family === 'bar' || family === 'line' || family === 'area') out.chartType = family;
+  const variant = str(raw.variant);
+  if (variant === 'comparison' || variant === 'current' || variant === 'primary') out.variant = variant;
+  const opacity = num(raw.opacity);
+  if (opacity !== undefined) out.opacity = opacity;
+  const dash = str(raw.dashArray);
+  if (dash) out.dashArray = dash;
+  const stack = str(raw.stack);
+  if (stack) out.stack = stack;
+  const yAxis = str(raw.yAxis);
+  if (yAxis === 'left' || yAxis === 'right') out.yAxis = yAxis;
+  const color = str(raw.color);
+  if (color) out.color = color;
+  return out;
+}
+
+/**
+ * Translate a chart schema — spec shape, internal shape, or a mix — into the
+ * renderer's internal contract. Only keys that resolve to something are
+ * present on the result, so callers can spread it over their own defaults.
+ */
+export function normalizeChartSchema(schema: unknown): NormalizedChartSchema {
+  if (!isRec(schema)) return {};
+  const out: NormalizedChartSchema = {};
+
+  // ── chart family ────────────────────────────────────────────────────────
+  // `chartType` (internal) → `specType` (an author `type` rescued from the
+  // envelope collision) → `type` (only when it is unambiguously a chart family
+  // and not a component discriminator).
+  const rawType = str(schema.type);
+  const chartType =
+    str(schema.chartType) ??
+    str(schema.specType) ??
+    (rawType && CHART_TYPES.has(rawType) ? rawType : undefined);
+  // A family this renderer does not draw (`metric`, `table`, …) is left unset
+  // rather than mapped onto a bar chart — the caller's own default is a more
+  // honest answer than silently drawing the wrong picture.
+  if (chartType && RENDERABLE.has(chartType)) out.chartType = chartType as ChartFamily;
+
+  // ── axes ────────────────────────────────────────────────────────────────
+  // Spec `xAxis` is an object; the report surface narrows it to a bare string.
+  // Both mean "the column on the category axis".
+  const xAxisRaw = schema.xAxis;
+  const xAxisSpec = normalizeAxis(xAxisRaw);
+  if (xAxisSpec && (xAxisSpec.format || xAxisSpec.title || xAxisSpec.showGridLines !== undefined)) {
+    out.xAxis = xAxisSpec;
+  }
+  const xAxisKey = str(schema.xAxisKey) ?? xAxisSpec?.field ?? str(xAxisRaw);
+  if (xAxisKey) out.xAxisKey = xAxisKey;
+
+  const yAxes = (Array.isArray(schema.yAxis) ? schema.yAxis : schema.yAxis !== undefined ? [schema.yAxis] : [])
+    .map((a: unknown) => normalizeAxis(a) ?? (str(a) ? { field: str(a) } : undefined))
+    .filter((a): a is NormalizedAxis => !!a);
+  if (yAxes.length) out.yAxes = yAxes;
+
+  // ── series ──────────────────────────────────────────────────────────────
+  const rawSeries = Array.isArray(schema.series)
+    ? schema.series
+    : Array.isArray(schema.categories)
+      ? schema.categories
+      : undefined;
+  let series = rawSeries?.map(normalizeSeries).filter((s): s is NormalizedSeries => !!s);
+  // No series at all: the y-axes name the plotted columns, so a chart written
+  // purely in spec shape (`yAxis: [{ field: 'total' }]`) still plots.
+  if (!series?.length) {
+    const fromAxes = yAxes
+      .filter((a) => a.field)
+      .map<NormalizedSeries>((a, i) => ({
+        dataKey: a.field!,
+        ...(a.title ? { label: a.title } : {}),
+        ...(i > 0 || a.position === 'right' ? { yAxis: 'right' as const } : {}),
+      }));
+    if (fromAxes.length) series = fromAxes;
+  }
+  if (series?.length) out.series = series;
+
+  // ── chrome ──────────────────────────────────────────────────────────────
+  if (typeof schema.showLegend === 'boolean') out.showLegend = schema.showLegend;
+  if (typeof schema.showDataLabels === 'boolean') out.showDataLabels = schema.showDataLabels;
+  const title = label(schema.title);
+  if (title) out.title = title;
+  const subtitle = label(schema.subtitle);
+  if (subtitle) out.subtitle = subtitle;
+  if (Array.isArray(schema.annotations) && schema.annotations.length) {
+    out.annotations = schema.annotations.filter(isRec);
+  }
+  if (isRec(schema.interaction)) out.interaction = schema.interaction;
+
+  return out;
+}
+
+/**
+ * Build a tick formatter from a spec `ChartAxis.format` string.
+ *
+ * The spec documents "d3-format or similar" (`"$0,0.00"`, `"0.0%"`). Rather
+ * than pull in d3-format for a handful of patterns, this reads the shape of
+ * the string — currency prefix, percent suffix, thousands separator, decimal
+ * places — and drives `Intl.NumberFormat`, which is already loaded and
+ * locale-aware. An unrecognized format returns `undefined`, so the caller
+ * keeps its own default formatting rather than rendering something wrong.
+ */
+export function formatterFor(format: string | undefined): ((value: any) => string) | undefined {
+  if (!format) return undefined;
+  const isPercent = format.includes('%');
+  const currencyMatch = /^([$£€¥₹])/.exec(format);
+  const grouped = format.includes(',');
+  const decimals = /\.(0+)/.exec(format)?.[1].length ?? 0;
+  const CURRENCY_BY_SYMBOL: Record<string, string> = {
+    $: 'USD', '£': 'GBP', '€': 'EUR', '¥': 'CNY', '₹': 'INR',
+  };
+  // Nothing recognizable to act on — don't guess.
+  if (!isPercent && !currencyMatch && !grouped && decimals === 0) return undefined;
+
+  const opts: Intl.NumberFormatOptions = {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+    useGrouping: grouped,
+  };
+  if (isPercent) opts.style = 'percent';
+  else if (currencyMatch) {
+    opts.style = 'currency';
+    opts.currency = CURRENCY_BY_SYMBOL[currencyMatch[1]] ?? 'USD';
+  }
+  return (value: any) => {
+    const n = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(n)) return value == null ? '' : String(value);
+    try {
+      return new Intl.NumberFormat(undefined, opts).format(n);
+    } catch {
+      return String(n);
+    }
+  };
+}
+
+/**
+ * Recharts `domain` for an axis, or `undefined` to keep the auto domain.
+ * A half-open range (only `min`, only `max`) pins that end and leaves the
+ * other automatic.
+ */
+export function domainFor(axis: NormalizedAxis | undefined): [any, any] | undefined {
+  if (!axis) return undefined;
+  const { min, max } = axis;
+  if (min === undefined && max === undefined) return undefined;
+  return [min ?? 'auto', max ?? 'auto'];
+}
