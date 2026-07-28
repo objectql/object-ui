@@ -29,15 +29,15 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // #2911 sweep (bare `tsc --noEmit` with the `paths` override its type-checked
 // peers already carry, so the TS6059 rootDir noise is excluded).
 const DEBT = {
-  "@object-ui/runner": { errors: 14, note: "no tsconfig.json at all; also imports two exports @object-ui/core does not have" },
-  "@object-ui/plugin-form": { errors: 10, note: "6x t() fallback-signature mismatch, 2x undefined index, 2x string|number" },
-  "@object-ui/plugin-grid": { errors: 4, note: "importParsers.ts:352 dead branch + 2x t() call signature" },
-  "@object-ui/cli": { errors: 4, note: "tsup dts:true does not fail on these" },
-  "@object-ui/plugin-view": { errors: 3, note: "Record<ViewType,...> missing the 'chart' key" },
-  "@object-ui/layout": { errors: 2, note: "'component' compared against a union that lacks it" },
-  "@object-ui/plugin-designer": { errors: 1, note: "unused binding" },
-  "object-ui": { errors: 1, note: "TS5107: moduleResolution=node10 deprecated" },
-  "@object-ui/site": { errors: 7, note: "TS2304 on Next's generated LayoutProps/PageProps; needs .next/types from a prior next build" },
+  "@object-ui/runner": { errors: 14, issue: 2917, note: "no tsconfig.json at all; also imports two exports @object-ui/core does not have" },
+  "@object-ui/plugin-form": { errors: 10, issue: 2919, note: "6x t() fallback-signature mismatch, 2x undefined index, 2x string|number" },
+  "@object-ui/site": { errors: 7, issue: 2919, note: "TS2304 on Next's generated LayoutProps/PageProps; needs .next/types from a prior next build" },
+  "@object-ui/plugin-grid": { errors: 4, issue: 2919, note: "2x t() call signature + 2x TS2367 that are closure-mutation narrowing artifacts, NOT a logic bug" },
+  "@object-ui/cli": { errors: 4, issue: 2919, note: "tsup dts:true does not fail on these" },
+  "@object-ui/plugin-view": { errors: 3, issue: 2916, note: "Record<ViewType,...> missing the 'chart' key" },
+  "@object-ui/layout": { errors: 2, issue: 2918, note: "nav type 'component' is implemented but absent from NavigationItemType and its zod enum" },
+  "@object-ui/plugin-designer": { errors: 1, issue: 2919, note: "unused parameter" },
+  "object-ui": { errors: 1, issue: 2919, note: "TS5107: moduleResolution=node10 deprecated, stops working in TS 7" },
 };
 
 // Packages that are not compiled at all: documentation snippets with no build
@@ -98,7 +98,7 @@ for (const pkg of packages) {
   errors.push(
     `${pkg.name} (${pkg.dir}) has no "type-check" script, so \`pnpm type-check\` skips it entirely.\n` +
       `      Add  "type-check": "tsc --noEmit"  to its package.json. If its types do not compile\n` +
-      `      yet, add it to DEBT in ${"scripts/check-type-check-coverage.mjs"} with an error count.`
+      `      yet, add it to DEBT in scripts/check-type-check-coverage.mjs with an error count.`
   );
 }
 
@@ -108,7 +108,10 @@ for (const name of Object.keys(DEBT)) {
   if (!pkg) {
     errors.push(`${name} is listed in DEBT but is not a workspace package any more — delete the entry.`);
   } else if (pkg.hasScript) {
-    errors.push(`${name} now has a "type-check" script — delete its DEBT entry so the gap cannot reopen.`);
+    errors.push(
+      `${name} now has a "type-check" script — delete its DEBT entry so the gap cannot reopen` +
+        `${DEBT[name].issue ? ` (and close #${DEBT[name].issue} if it is done)` : ""}.`
+    );
   }
 }
 
