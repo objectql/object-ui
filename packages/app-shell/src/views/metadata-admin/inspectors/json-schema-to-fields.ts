@@ -40,7 +40,7 @@
  *                                   e.g. CRUD `fields`/`filter`, assignments)
  */
 
-import type { FlowConfigField, FlowConfigColumn, FlowConfigFieldKind, FlowReferenceSpec, ReferenceKind } from './flow-node-config';
+import type { FlowConfigField, FlowConfigColumn, FlowConfigFieldKind, FlowReferenceSpec, ReferenceKind, RefValueSource } from './flow-node-config';
 
 /** Loose JSON Schema node shape — we only read the keys we map. */
 interface JsonSchemaNode {
@@ -78,7 +78,20 @@ interface JsonSchemaNode {
    * (`kindFrom` + `map`): the concrete kind is chosen at render time from a
    * sibling field/column value (e.g. an approver's `value` follows its `type`).
    */
-  xRef?: { kind?: string; objectSource?: string; kindFrom?: string; map?: Record<string, string> };
+  xRef?: {
+    kind?: string;
+    objectSource?: string;
+    kindFrom?: string;
+    map?: Record<string, string>;
+    /**
+     * Per-discriminator data contract (framework #3508 follow-up): where each
+     * kind's candidates live and which column the picker commits. `map` names
+     * only a picker KIND, which is how this package came to query the metadata
+     * REGISTRY for data records; with `sources` the designer reads the answer
+     * off the schema instead of mirroring it locally.
+     */
+    sources?: Record<string, unknown>;
+  };
   /**
    * Authoring-semantics marker carried from the executor's Zod
    * `.meta({ xExpression })` (ADR-0018), on a string property. Declares whether
@@ -111,6 +124,42 @@ const REFERENCE_KINDS: ReadonlySet<string> = new Set<ReferenceKind>([
 ]);
 
 /**
+ * Validate one `xRef.sources` entry. An entry the designer cannot act on is
+ * DROPPED rather than half-trusted: a `data` source missing its object or
+ * committed column would produce a picker that queries nothing, which is the
+ * failure this annotation exists to end (framework#3508). A dropped entry
+ * simply leaves the consumer on its local fallback.
+ */
+function sourceOf(raw: unknown): RefValueSource | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const s = raw as Record<string, unknown>;
+  if (s.source === 'data') {
+    return typeof s.object === 'string' && s.object && typeof s.valueField === 'string' && s.valueField
+      ? { source: 'data', object: s.object, valueField: s.valueField }
+      : undefined;
+  }
+  if (s.source === 'enum') {
+    const values = Array.isArray(s.values) ? s.values.filter((v): v is string => typeof v === 'string') : [];
+    return values.length ? { source: 'enum', values } : undefined;
+  }
+  if (s.source === 'auto' || s.source === 'trigger-field' || s.source === 'expression' || s.source === 'unsupported') {
+    return { source: s.source };
+  }
+  return undefined;
+}
+
+/** Read the per-discriminator data contract, or undefined when none survives. */
+function sourcesOf(raw: unknown): Record<string, RefValueSource> | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const out: Record<string, RefValueSource> = {};
+  for (const [disc, entry] of Object.entries(raw as Record<string, unknown>)) {
+    const parsed = sourceOf(entry);
+    if (parsed) out[disc] = parsed;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/**
  * Read a valid `xRef` annotation off a schema node, or undefined. Accepts both
  * the static shape (`{ kind }`) and the polymorphic shape (`{ kindFrom, map }`),
  * validating every referenced kind against {@link REFERENCE_KINDS} so an unknown
@@ -128,7 +177,10 @@ function refOf(node: JsonSchemaNode): FlowReferenceSpec | undefined {
       if (typeof kind === 'string' && REFERENCE_KINDS.has(kind)) map[disc] = kind as ReferenceKind;
     }
     if (Object.keys(map).length === 0) return undefined;
-    return { kindFrom: x.kindFrom, map, ...objectSource };
+    // `sources` is optional and additive: a server that predates it simply
+    // leaves the consumer on its local fallback (framework#3508 follow-up).
+    const sources = sourcesOf(x.sources);
+    return { kindFrom: x.kindFrom, map, ...objectSource, ...(sources ? { sources } : {}) };
   }
 
   // Static: a single concrete kind.

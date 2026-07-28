@@ -155,6 +155,67 @@ describe('jsonSchemaToFlowFields', () => {
     expect(col.ref).toEqual({ kind: 'connector' });
   });
 
+  // framework#3508 follow-up: `map` names a picker KIND but never said what
+  // backs it, so this package had to guess the data source — and guessed the
+  // metadata registry, which lists no directory ROWS. `sources` carries the
+  // answer, and an entry the designer cannot act on is dropped rather than
+  // half-trusted (a `data` source with no committed column would query
+  // nothing, which is the failure the annotation exists to end).
+  it('carries xRef.sources through, dropping entries that could not drive a picker', () => {
+    const fields = jsonSchemaToFlowFields({
+      type: 'object',
+      properties: {
+        rows: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              value: {
+                type: 'string',
+                xRef: {
+                  kindFrom: 'type',
+                  map: { user: 'user', team: 'team', manager: 'manager' },
+                  sources: {
+                    user: { source: 'data', object: 'sys_user', valueField: 'id' },
+                    manager: { source: 'auto' },
+                    org_membership_level: { source: 'enum', values: ['owner', 'admin'] },
+                    // Unusable: a record source with no committed column.
+                    team: { source: 'data', object: 'sys_team' },
+                    // Unusable: not a source shape at all.
+                    bogus: { source: 'telepathy' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    })!;
+    const col = fields.find((f) => f.id === 'rows')!.columns!.find((c) => c.key === 'value')!;
+    expect(col.ref!.sources).toEqual({
+      user: { source: 'data', object: 'sys_user', valueField: 'id' },
+      manager: { source: 'auto' },
+      org_membership_level: { source: 'enum', values: ['owner', 'admin'] },
+    });
+  });
+
+  it('omits sources entirely for a server that predates the annotation', () => {
+    const fields = jsonSchemaToFlowFields({
+      type: 'object',
+      properties: {
+        rows: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { value: { type: 'string', xRef: { kindFrom: 'type', map: { user: 'user' } } } },
+          },
+        },
+      },
+    })!;
+    const col = fields.find((f) => f.id === 'rows')!.columns!.find((c) => c.key === 'value')!;
+    expect(col.ref).toEqual({ kindFrom: 'type', map: { user: 'user' } });
+  });
+
   it('drops a polymorphic xRef whose map has no known kinds (column stays text)', () => {
     const fields = jsonSchemaToFlowFields({
       type: 'object',
