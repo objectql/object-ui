@@ -132,6 +132,23 @@ export interface ActionDef {
   execute?: string;
   /** Target URL or identifier (for type: 'url', 'modal', 'flow') */
   target?: string;
+  /**
+   * Action body (spec `ActionSchema.body` — `HookBodySchema`). Opaque here:
+   * bodies are a SERVER-side execution surface and this runner never
+   * interprets one.
+   *
+   * L2 (`language: 'js'`) is defined as a function body run inside an isolated
+   * VM enforcing declared capabilities, `timeoutMs` and `memoryMb`. A browser
+   * has no such isolate, so "enforcing" those client-side would be decoration.
+   * L1 (`language: 'expression'`) is formula-engine (CEL) source, a different
+   * dialect from this package's `${…}` ExpressionEvaluator — running it here
+   * would diverge silently rather than fail.
+   *
+   * Consumers dispatch bodies by registering a `script` handler that POSTs to
+   * `/api/v1/actions/{object}/{action}` (see app-shell's
+   * `useConsoleActionRuntime`); the server runs the body through its sandbox.
+   */
+  body?: unknown;
   /** For type: 'url' — where to open `target`. `'new-tab'` forces a new
    *  browser tab/window, `'self'` forces same-page navigation. When omitted,
    *  external URLs open in a new tab and relative URLs navigate in place.
@@ -709,6 +726,19 @@ export class ActionRunner {
     // disagree. Alias-only authoring still works via the fallback.
     const script = action.target || action.execute;
     if (!script) {
+      // A spec `body` IS a script — this runner just cannot run one (see the
+      // `body` field docs). Saying "no script provided" would send the author
+      // hunting for a missing field they actually wrote, so name the real
+      // cause and the remedy instead.
+      if (action.body != null) {
+        return {
+          success: false,
+          error:
+            'Action body must be executed server-side — this client runner does not interpret ' +
+            '`body` (sandboxed JS needs an isolated VM; expression bodies use the formula engine). ' +
+            'Register a `script` handler that POSTs to /api/v1/actions/{object}/{action}.',
+        };
+      }
       return { success: false, error: 'No script provided for script action' };
     }
 
