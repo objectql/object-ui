@@ -31,6 +31,7 @@
     "test:coverage": "vitest run --coverage",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
+    "type-check:coverage": "node scripts/check-type-check-coverage.mjs",
     "cli": "node packages/cli/dist/cli.js",
     "objectui": "node packages/cli/dist/cli.js",
     "create-plugin": "node packages/create-plugin/dist/index.js",

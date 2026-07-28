@@ -28,7 +28,6 @@ import { extractRecords, buildExpandFields } from '@object-ui/core';
 import { z } from 'zod';
 import MapGL, { NavigationControl, Marker, Popup } from 'react-map-gl/maplibre';
 import type { MapRef } from 'react-map-gl/maplibre';
-import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 const MapConfigSchema = z.object({

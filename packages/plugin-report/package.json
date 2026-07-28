@@ -20,6 +20,7 @@
   ],
   "scripts": {
     "build": "vite build",
+    "type-check": "tsc --noEmit",
     "clean": "rm -rf dist",
     "test": "vitest run",
     "lint": "eslint ."
