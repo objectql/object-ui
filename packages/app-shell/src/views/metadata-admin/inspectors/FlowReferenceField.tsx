@@ -41,7 +41,7 @@ import {
 import { Pencil, Search } from 'lucide-react';
 import { useAdapter } from '@object-ui/react';
 import { LookupField } from '@object-ui/fields';
-import type { FlowReferenceSpec, ReferenceKind } from './flow-node-config';
+import type { FlowReferenceSpec, ReferenceKind, RefValueSource } from './flow-node-config';
 import { useMetadataClient } from '../useMetadata';
 import { useObjectFields } from '../previews/useObjectFields';
 
@@ -127,6 +127,13 @@ export interface ResolvedRef {
   kind: ReferenceKind;
   objectSource?: string;
   connectorSource?: string;
+  /**
+   * The schema's own answer for where this kind's candidates live, when the
+   * server published one (framework#3508 follow-up). Takes precedence over
+   * {@link KIND_TO_RECORD_LOOKUP}, which stays as the fallback for a server
+   * that predates the annotation.
+   */
+  source?: RefValueSource;
 }
 
 /**
@@ -140,13 +147,59 @@ export function resolveRefKind(
   sibling: (key: string) => unknown,
 ): ResolvedRef | undefined {
   if (!ref) return undefined;
-  if (ref.kind) return { kind: ref.kind, objectSource: ref.objectSource, connectorSource: ref.connectorSource };
+  if (ref.kind) {
+    return {
+      kind: ref.kind,
+      objectSource: ref.objectSource,
+      connectorSource: ref.connectorSource,
+      source: ref.sources?.[ref.kind],
+    };
+  }
   if (ref.kindFrom && ref.map) {
     const disc = sibling(ref.kindFrom);
     const k = typeof disc === 'string' ? ref.map[disc] : undefined;
-    if (k) return { kind: k, objectSource: ref.objectSource, connectorSource: ref.connectorSource };
+    // The source is keyed by the DISCRIMINATOR (the approver `type`), not by
+    // the picker kind: `role` and `org_membership_level` share one kind but
+    // are separate enum members upstream.
+    if (k) {
+      return {
+        kind: k,
+        objectSource: ref.objectSource,
+        connectorSource: ref.connectorSource,
+        source: typeof disc === 'string' ? ref.sources?.[disc] : undefined,
+      };
+    }
   }
   return undefined;
+}
+
+/**
+ * The record lookup to render for a resolved reference.
+ *
+ * The schema's `xRef.sources` wins when present — it is the spec's own
+ * `APPROVER_VALUE_BINDINGS`, so it cannot drift from what the engine resolves.
+ * {@link KIND_TO_RECORD_LOOKUP} supplies the fallback (older server) and, in
+ * both paths, the PRESENTATION: which field to show, whether to open the
+ * people picker, what subtitle to put under a row. Those are this package's
+ * calls and deliberately stay out of the spec.
+ *
+ * A `data` source for a kind this package has no presentation entry for still
+ * renders a lookup — display falls back to the committed column, which beats
+ * degrading a resolvable reference to free text.
+ */
+export function recordLookupFor(resolved: ResolvedRef | undefined): RecordLookupBinding | undefined {
+  if (!resolved) return undefined;
+  const local = KIND_TO_RECORD_LOOKUP[resolved.kind];
+  const published = resolved.source;
+  if (published && published.source !== 'data') return undefined;
+  if (!published) return local;
+  return {
+    object: published.object,
+    valueField: published.valueField as RecordLookupBinding['valueField'],
+    displayField: local?.displayField ?? published.valueField,
+    ...(local?.picker ? { picker: local.picker } : {}),
+    ...(local?.subtitle ? { subtitle: local.subtitle } : {}),
+  };
 }
 
 /** Read `node.config[key]` as a non-empty string, else undefined. */
@@ -518,7 +571,10 @@ export function ReferenceCombobox({ resolved, value, onCommit, onBlur, onSelect,
   // (All hooks above have already run — the branches below only render.)
 
   // Directory-backed kinds → single-select record lookup (framework #3508).
-  const lookup = kind ? KIND_TO_RECORD_LOOKUP[kind] : undefined;
+  // The object + committed column come from the schema when the server
+  // publishes them, so this package no longer decides where the engine's
+  // approvers live — see `recordLookupFor`.
+  const lookup = recordLookupFor(resolved);
   if (lookup) {
     return (
       <RecordLookupCell

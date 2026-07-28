@@ -127,7 +127,40 @@ export interface FlowReferenceSpec {
    */
   kindFrom?: string;
   map?: Record<string, ReferenceKind>;
+  /**
+   * Where each discriminator value's candidates actually live, keyed like
+   * {@link map} — published by the spec as `xRef.sources` (framework #3508
+   * follow-up) and carried through by `json-schema-to-fields`.
+   *
+   * {@link map} only ever named a picker KIND. It never said what backs that
+   * picker, so this package had to keep its own copy of the data contract —
+   * and the first copy pointed every directory kind at the metadata REGISTRY
+   * (`GET /api/v1/meta/:type`), which cannot list `sys_user` / `sys_team` /
+   * `sys_business_unit` / `sys_position` ROWS. Candidates came back empty and
+   * the control silently degraded to free text (framework#3508). Reading the
+   * source off the schema means a new approver type can no longer leave a
+   * stale mirror behind here.
+   *
+   * Absent when the server predates the annotation — consumers keep a local
+   * fallback for that case.
+   */
+  sources?: Record<string, RefValueSource>;
 }
+
+/**
+ * How a polymorphic reference's candidates are sourced, per discriminator
+ * value. Mirrors the spec's `APPROVER_VALUE_SOURCES` projection.
+ *
+ * `data` means the DATA API (`/api/v1/data/:object`) — named in deliberate
+ * contrast to `meta`, the registry this used to query by mistake. The other
+ * variants are not pickers at all: a closed `enum`, an `auto`-resolved value, a
+ * `trigger-field` name, a CEL `expression`, or an `unsupported` type the
+ * runtime never resolves.
+ */
+export type RefValueSource =
+  | { source: 'data'; object: string; valueField: string }
+  | { source: 'enum'; values: string[] }
+  | { source: 'auto' | 'trigger-field' | 'expression' | 'unsupported' };
 
 /** Column descriptor for an `objectList` repeater row. */
 export interface FlowConfigColumn {
@@ -537,14 +570,25 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
           key: 'type',
           label: 'Type',
           kind: 'select',
-          // Mirrors the spec's NON_AUTHORABLE_APPROVER_TYPES (approval.zod.ts):
-          // `role` is the deprecated spelling of `org_membership_level`
-          // (ADR-0090 D3), and `queue` is declared-but-unenforced — the runtime
-          // resolves it to nobody (framework #3508). A stored row of either
-          // still renders (the select surfaces it flagged "(deprecated)"), but
-          // the designer never authors a new one. Indirect bindings lead and
-          // the literal `user` binding comes last: binding a specific person is
-          // the least portable choice (env moves, people leave).
+          // OFFLINE FALLBACK ONLY. `FlowNodeInspector` renders
+          // `serverFields ?? fieldsForNodeType(...)`, so against a real backend
+          // the approval node's fields come from the engine-published
+          // configSchema and this list is never read — it covers the preview
+          // gallery and any stack whose server publishes no schema.
+          //
+          // That is why the ordering below is ALSO carried by the spec's
+          // `ApproverType` enum (framework#3508 follow-up): stating it only
+          // here left the live picker in enum order with `user` first, the
+          // exact opposite of the intent. Indirect bindings lead and the
+          // literal `user` binding comes last — binding a specific person is
+          // the least portable choice (env moves, people leave). Keep the two
+          // in sync; the spec is the source of truth.
+          //
+          // Both paths also drop the spec's NON_AUTHORABLE_APPROVER_TYPES —
+          // `role` (deprecated spelling of `org_membership_level`, ADR-0090 D3)
+          // and `queue` (declared-but-unenforced; the runtime resolves it to
+          // nobody, framework#3508). A stored row of either still renders,
+          // flagged "(deprecated)", but neither is offered for new authoring.
           options: [
             { value: 'manager', label: 'Manager' },
             { value: 'position', label: 'Position' },

@@ -2589,6 +2589,10 @@ const zh = {
     manageEnvironments: '管理环境',
   },
   aiModelStatus: {
+    summary: '构建 / 提问使用 {{conversational}}（{{conversationalSource}}）；结构化使用 {{structured}}（{{structuredSource}}）。',
+    summaryRouting: '路由策略：免费方案 → {{free}}，付费方案 → {{paid}}。',
+    modelUnknown: '未知',
+    sourceUnknown: '适配器未上报',
     rowConversational: 'Build / Ask 模型',
     rowStructured: '结构化（蓝图 / 种子）',
     rowReasoning: '推理强度',

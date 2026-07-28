@@ -449,6 +449,9 @@ export function ApprovalsInboxPage() {
       const res = await authFetch(`${base}/api/v1/storage/files/${encodeURIComponent(att.id)}/url`);
       if (!res.ok) throw new Error(`HTTP_${res.status}`);
       const body = await res.json().catch(() => null);
+      // Both dialects: the declared `{ success: true, data: { url } }` envelope
+      // this route answers as of objectstack#3689, and the bare `{ url }` an
+      // older server still sends — the console deploys independently of it.
       const raw = body?.data?.url ?? body?.url;
       if (!raw) throw new Error('NO_URL');
       // Signed URLs from the local adapter are relative; S3/GCS are absolute.

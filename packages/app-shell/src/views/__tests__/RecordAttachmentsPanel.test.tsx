@@ -97,11 +97,13 @@ describe('RecordAttachmentsPanel — server-denial error mapping (#2755)', () =>
 describe('RecordAttachmentsPanel — authenticated signed-URL download (#2970)', () => {
   it('fetches /files/:id/url with auth and opens the signed URL', async () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    // The declared envelope the route answers as of objectstack#3689 — the URL
+    // moved from the top level down under `data`.
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ url: '/api/v1/storage/_local/raw/tok123' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
+      new Response(
+        JSON.stringify({ success: true, data: { url: '/api/v1/storage/_local/raw/tok123' } }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
     );
     setup(makeDataSource());
     await waitFor(() => expect(screen.getByText('report.pdf')).toBeInTheDocument());
@@ -189,5 +191,32 @@ describe('RecordAttachmentsPanel — authenticated signed-URL download (#2970)',
       ),
     );
     expect(openSpy).not.toHaveBeenCalled();
+  });
+
+  // Same reasoning on the SUCCESS path (objectstack#3689): the route used to
+  // answer a bare `{ url }` with no envelope at all. The reader takes both, so
+  // whichever repo lands first, downloads keep working — and this pins that
+  // tolerance as deliberate rather than incidental.
+  it('still opens the legacy bare `{ url }` shape (older server)', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ url: '/api/v1/storage/_local/raw/legacy-tok' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    setup(makeDataSource());
+    await waitFor(() => expect(screen.getByText('report.pdf')).toBeInTheDocument());
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Download' }));
+
+    await waitFor(() =>
+      expect(openSpy).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/storage/_local/raw/legacy-tok'),
+        '_blank',
+        'noopener,noreferrer',
+      ),
+    );
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

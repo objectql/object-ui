@@ -2604,6 +2604,10 @@ const en = {
     manageEnvironments: 'Manage environments',
   },
   aiModelStatus: {
+    summary: 'Build / Ask uses {{conversational}} ({{conversationalSource}}); structured uses {{structured}} ({{structuredSource}}).',
+    summaryRouting: 'Routing policy: free plans → {{free}}, paid plans → {{paid}}.',
+    modelUnknown: 'unknown',
+    sourceUnknown: 'not reported by the adapter',
     rowConversational: 'Build / Ask model',
     rowStructured: 'Structured (blueprint / seed)',
     rowReasoning: 'Reasoning effort',
