@@ -19,7 +19,7 @@ import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveCrudAffordances } from '@object-ui/core';
 import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 
@@ -655,6 +655,21 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     schema.allowExport !== false &&
     schema.operations?.export !== false &&
     (effectiveApiOps ? effectiveApiOps.includes('export') : true);
+
+  // [#3720] Bulk-action gate for the NON-grid views (kanban / calendar /
+  // gallery / …), whose bulk bar this component renders itself — the grid path
+  // delegates to ObjectGrid, which gates its own. A declared `bulkActions`
+  // entry is a WIRING declaration, not a permission grant, so the built-in
+  // `delete` is dropped unless the object's resolved delete affordance allows
+  // it: the ADR-0103 bucket lock ∧ `userActions.delete` ∧ the server's
+  // effective API operation set (#3391). Custom action ids pass through
+  // untouched — they route through the action runner with their own gates.
+  const permittedBulkActions = React.useMemo(() => {
+    const declared = schema.bulkActions;
+    if (!declared || declared.length === 0) return declared;
+    if (resolveCrudAffordances(objectDef as any, effectiveApiOps).delete) return declared;
+    return declared.filter((a: unknown) => String(a).toLowerCase() !== 'delete');
+  }, [schema.bulkActions, objectDef, effectiveApiOps]);
 
   // Normalize exportOptions: support both ObjectUI object format and spec string[] format
   const resolvedExportOptions = React.useMemo(() => {
@@ -2458,7 +2473,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       )}
 
       {/* Bulk Actions Bar — skip for grid view since ObjectGrid renders its own BulkActionBar */}
-      {schema.bulkActions && schema.bulkActions.length > 0 && selectedRows.length > 0 && currentView !== 'grid' && (
+      {permittedBulkActions && permittedBulkActions.length > 0 && selectedRows.length > 0 && currentView !== 'grid' && (
         <div
           className="border-t border-primary/30 px-4 py-2 flex items-center gap-2 text-xs bg-primary/10 text-foreground shrink-0 shadow-sm"
           role="region"
@@ -2470,7 +2485,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
             {selectedRows.length} {selectedRows.length === 1 ? 'item' : 'items'} selected
           </span>
           <div className="flex items-center gap-1.5 ml-3">
-            {schema.bulkActions.map((action: any) => {
+            {permittedBulkActions.map((action: any) => {
               const actionStr = String(action).toLowerCase();
               const isDestructive = actionStr.includes('delete') || actionStr.includes('remove') || actionStr.includes('destroy');
               const Icon = isDestructive ? Trash2 : null;

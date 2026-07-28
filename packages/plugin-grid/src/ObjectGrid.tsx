@@ -1444,19 +1444,25 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const wantEditAction = rowActionsList.includes('edit');
   const wantDeleteAction = rowActionsList.includes('delete');
   const customRowActions = rowActionsList.filter(a => a !== 'edit' && a !== 'delete');
-  // Honor the object's CRUD affordance flags: when `userActions.edit`/`delete`
-  // is explicitly false the object opted out of the generic row Edit/Delete
-  // (e.g. sys_environment ships a dedicated Rename + cascade-Delete instead).
-  // This stops a generic "Delete" from duplicating the object's own Delete
-  // action, and a generic "Edit" the object turned off from leaking back in.
-  const { canEdit, canDelete, editPredicates, deletePredicates } = resolveRowCrudAffordances({
+  // Honor the object's resolved CRUD affordance: the ADR-0103 lifecycle bucket
+  // (`managedBy`), the `userActions.edit`/`delete` override — explicit `false`
+  // opts out of the generic row Edit/Delete (e.g. sys_environment ships a
+  // dedicated Rename + cascade-Delete instead, and the generic entries would
+  // duplicate them) — and [#3720] the server's effective API operation set, so
+  // the row kebab never offers an update/delete the server would reject.
+  // `operations` above only says whether the CONSUMER wired the affordance; it
+  // is not a permission grant, which is why the object verdict is ANDed here
+  // rather than assumed to have been applied upstream.
+  const { canEdit, canDelete, objectCanDelete, editPredicates, deletePredicates } = resolveRowCrudAffordances({
     operationsUpdate: operations?.update,
     operationsDelete: operations?.delete,
     wantEditAction,
     wantDeleteAction,
     hasOnEdit: !!onEdit,
     hasOnDelete: !!onDelete,
+    managedBy: (objectSchema as any)?.managedBy,
     userActions: (objectSchema as any)?.userActions,
+    effectiveApiOperations: effectiveApiOps,
   });
   const hasActions = !!(operations && (operations.update || operations.delete));
   const hasRowActions = customRowActions.length > 0 || rowActionDefsList.length > 0 || wantEditAction || wantDeleteAction;
@@ -1578,10 +1584,22 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   // a bulk-delete affordance is implicitly available (canDelete + onBulkDelete
   // wired by the consumer). This gives every list a multi-select + delete UX
   // out of the box without forcing each view JSON to declare bulkActions.
-  const explicitBulkActions = schema.batchActions ?? schema.bulkActions;
-  const bulkActionDefs: BulkActionDef[] = Array.isArray(schema.bulkActionDefs)
+  // [#3720] Bulk delete is the most destructive affordance on the list, so it
+  // rides the same object-level `delete` verdict as the row kebab (bucket lock
+  // ∧ userActions ∧ the server's effective operation set). An author-declared
+  // `bulkActions: ['delete']` / `bulkActionDefs[].operation === 'delete'` is a
+  // WIRING declaration, not a permission grant — so the built-in delete is
+  // filtered out of both when the verdict is off. Custom action ids and
+  // non-delete operations are untouched: they route through the action runner
+  // and carry their own gates.
+  const declaredBulkActions = schema.batchActions ?? schema.bulkActions;
+  const explicitBulkActions = objectCanDelete
+    ? declaredBulkActions
+    : declaredBulkActions?.filter((a: unknown) => String(a).toLowerCase() !== 'delete');
+  const bulkActionDefs: BulkActionDef[] = (Array.isArray(schema.bulkActionDefs)
     ? schema.bulkActionDefs
-    : [];
+    : []
+  ).filter((def: BulkActionDef) => objectCanDelete || def?.operation !== 'delete');
   const effectiveBulkActions: string[] =
     explicitBulkActions && explicitBulkActions.length > 0
       ? explicitBulkActions

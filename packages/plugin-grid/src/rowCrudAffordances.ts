@@ -16,17 +16,31 @@
  *     `operations.update` / `operations.delete` (or an explicit `'edit'` /
  *     `'delete'` in `rowActions`) AND an `onEdit` / `onDelete` callback exists.
  *
- *  2. The OBJECT's CRUD affordance flags (`userActions.edit` / `userActions.delete`).
- *     When an object sets these to **`false`** it has deliberately opted out of
- *     the generic row CRUD — typically because it ships dedicated actions
- *     instead (e.g. `sys_environment` replaces generic edit with a `Rename`
- *     action and generic delete with a cascade-teardown `Delete` action). Before
- *     this gate, the generic entries rendered anyway, producing a confusing
- *     duplicate (a generic "Delete" next to the object's own "Delete" action)
- *     and leaking a generic "Edit" the object had turned off.
+ *  2. The OBJECT's resolved CRUD affordance — the SAME shared policy the
+ *     toolbar, the record header, the form and the related lists run
+ *     (`resolveCrudAffordances` in `@object-ui/core`). It folds three layers:
  *
- * `userActions.edit` / `delete` left `undefined` (or `true`) preserves the
- * out-of-the-box behaviour — every main list keeps its Edit/Delete kebab.
+ *       a. the ADR-0103 lifecycle bucket (`managedBy`) — engine-owned
+ *          `system` / `append-only` / `better-auth` objects default their
+ *          generic edit/delete OFF;
+ *       b. the object's `userActions.edit` / `userActions.delete` overrides,
+ *          which both opt a bucket-locked object back IN and opt a `platform`
+ *          object OUT — the latter typically because it ships dedicated
+ *          actions instead (e.g. `sys_environment` replaces generic edit with
+ *          a `Rename` action and generic delete with a cascade-teardown
+ *          `Delete` action, and the generic entries would otherwise render a
+ *          confusing duplicate);
+ *       c. [#3720] the SERVER's effective API operation set for the object
+ *          (`/me/permissions` `apiOperations`, #3391) — `edit` is ANDed with
+ *          `update` and `delete` with `delete`, so a row never offers a
+ *          mutation the server would reject.
+ *
+ * Layer (c) is an INTERSECTION, never a union: a server grant cannot re-open
+ * what the bucket or `userActions` closed, and a `userActions` opt-in cannot
+ * survive a server denial. An absent effective set (unrestricted object / old
+ * backend / no `PermissionProvider`) leaves the bucket verdict untouched, and
+ * an absent `managedBy` resolves to the `platform` bucket — so every main list
+ * on an ordinary object keeps its Edit/Delete kebab out of the box.
  *
  * Since objectui#2614, `userActions.edit` / `delete` also accept an object
  * form `{ enabled?, visibleWhen?, disabledWhen? }`: `enabled` carries the
@@ -36,7 +50,7 @@
  * (they never affect the object-level `canEdit` / `canDelete` verdict).
  */
 
-import { normalizeUserAction, type RowCrudPredicates, type UserActionOverride } from '@object-ui/core';
+import { resolveCrudAffordances, type RowCrudPredicates, type UserActionOverride } from '@object-ui/core';
 
 // The `userActions.{edit,delete}` override shape (bare boolean or #2614 object
 // form) and its per-record predicates are parsed in exactly one place —
@@ -53,27 +67,47 @@ export function resolveRowCrudAffordances(opts: {
   wantDeleteAction?: boolean;
   hasOnEdit?: boolean;
   hasOnDelete?: boolean;
+  /** The object's ADR-0103 lifecycle bucket; absent → the `platform` default. */
+  managedBy?: string | null;
   /** The object's `userActions` block ({ create, edit, delete, import }). */
   userActions?: { edit?: RowCrudUserAction; delete?: RowCrudUserAction } | null;
+  /**
+   * [#3720] The server-resolved effective API operation set for this object
+   * (`/me/permissions` `apiOperations`, #3391). `undefined` / `null` (old
+   * backend, unrestricted object, no provider) leaves the object verdict
+   * untouched; an empty array means "expose nothing" → both entries hidden.
+   */
+  effectiveApiOperations?: readonly string[] | null;
 }): {
   canEdit: boolean;
   canDelete: boolean;
+  /**
+   * The OBJECT-level delete verdict, independent of the row `onDelete`
+   * wiring. BULK delete rides a different callback (`onBulkDelete`), so it
+   * gates on this rather than on `canDelete` — otherwise a consumer that
+   * wires only the bulk handler would be judged by whether the *row* handler
+   * happens to be present.
+   */
+  objectCanDelete: boolean;
   editPredicates?: RowCrudPredicates;
   deletePredicates?: RowCrudPredicates;
 } {
-  // Opt-out model (base = true): the generic Edit/Delete surface UNLESS the
-  // object explicitly disabled the flag (`false` / `{ enabled: false }`). The
-  // bucket-level lock is applied upstream via the view's `operations.*`.
-  const edit = normalizeUserAction(opts.userActions?.edit, true);
-  const del = normalizeUserAction(opts.userActions?.delete, true);
+  // The object-level verdict comes from the shared policy — bucket default,
+  // `userActions` override, then the server's effective operation set. The row
+  // gate is that verdict AND the consumer having actually wired the affordance.
+  const aff = resolveCrudAffordances(
+    { managedBy: opts.managedBy, userActions: opts.userActions },
+    opts.effectiveApiOperations,
+  );
   const canEdit =
-    !!((opts.operationsUpdate || opts.wantEditAction) && opts.hasOnEdit) && edit.enabled;
+    !!((opts.operationsUpdate || opts.wantEditAction) && opts.hasOnEdit) && aff.edit;
   const canDelete =
-    !!((opts.operationsDelete || opts.wantDeleteAction) && opts.hasOnDelete) && del.enabled;
+    !!((opts.operationsDelete || opts.wantDeleteAction) && opts.hasOnDelete) && aff.delete;
   return {
     canEdit,
     canDelete,
-    editPredicates: canEdit ? edit.predicates : undefined,
-    deletePredicates: canDelete ? del.predicates : undefined,
+    objectCanDelete: aff.delete,
+    editPredicates: canEdit ? aff.editPredicates : undefined,
+    deletePredicates: canDelete ? aff.deletePredicates : undefined,
   };
 }
