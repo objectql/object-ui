@@ -19,7 +19,7 @@ import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveCrudAffordances, normalizeListViewSchema } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveCrudAffordances, normalizeListViewSchema, rowHeightToDensityMode } from '@object-ui/core';
 import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 
@@ -676,21 +676,14 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     return schema.exportOptions;
   }, [schema.exportOptions]);
 
-  // Density Mode — rowHeight maps to density if densityMode not explicitly set
+  // Toolbar density, resolved from the spec-canonical `rowHeight` (#2890). The
+  // legacy `densityMode` is folded into it by `normalizeListViewSchema` above —
+  // it used to be read FIRST here, so a view carrying both rendered the legacy
+  // value, backwards from every other pair's canonical-wins precedence.
   const resolvedDensity = React.useMemo(() => {
-    if (schema.densityMode) return schema.densityMode;
-    if (schema.rowHeight) {
-      const map: Record<string, 'compact' | 'comfortable' | 'spacious'> = {
-        compact: 'compact',
-        short: 'compact',
-        medium: 'comfortable',
-        tall: 'spacious',
-        extra_tall: 'spacious',
-      };
-      return map[schema.rowHeight] || 'comfortable';
-    }
+    if (schema.rowHeight) return rowHeightToDensityMode(schema.rowHeight);
     return 'compact';
-  }, [schema.densityMode, schema.rowHeight]);
+  }, [schema.rowHeight]);
   const density = useDensityMode(resolvedDensity, {
     onChange: schema.onDensityChange,
   });

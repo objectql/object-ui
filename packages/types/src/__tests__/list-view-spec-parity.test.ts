@@ -89,7 +89,9 @@ const SANCTIONED_LOCAL = new Set<string>([
   'showDensity',
   'showDescription',
   'allowExport',
-  // legacy density shorthand (spec-canonical: `rowHeight`)
+  // legacy density shorthand, INPUT-ONLY since #2890: `normalizeListViewSchema`
+  // (@object-ui/core) folds it into the spec's `rowHeight` at the ListView
+  // boundary and no renderer reads it.
   'densityMode',
   // legacy row/text coloring shorthand (spec-canonical: `rowColor`)
   'color',

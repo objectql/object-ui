@@ -398,6 +398,11 @@ export const ListViewSchema = BaseSchema
     showDensity: z.boolean().optional().describe('Show density/row-height button in toolbar'),
     showDescription: z.boolean().optional().describe('Show field descriptions'),
     allowExport: z.boolean().optional().describe('Allow data export'),
+    // Legacy alias for the spec's `rowHeight`, still accepted because stored
+    // view metadata carries it. NO renderer reads it: `normalizeListViewSchema`
+    // (`@object-ui/core`) folds it into `rowHeight` at the ListView boundary
+    // (#2890). Note the vocabularies differ in size — three densities widen
+    // onto the spec's five row heights.
     densityMode: z.enum(['compact', 'comfortable', 'spacious']).optional().describe('Density mode'),
     color: z.string().optional().describe('Color field for row/card coloring'),
     fieldTextColor: z.string().optional().describe('Field for custom text color'),

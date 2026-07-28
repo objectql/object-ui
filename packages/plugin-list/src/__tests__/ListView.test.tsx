@@ -517,20 +517,38 @@ describe('ListView', () => {
     expect(densityButton).toBeInTheDocument();
   });
 
-  it('should prefer densityMode over rowHeight', () => {
+  it('should prefer the spec-canonical rowHeight over the legacy densityMode', () => {
+    // #2890: this precedence used to be inverted — the legacy key was read
+    // first, so a view carrying both rendered the legacy value, backwards from
+    // every other legacy/canonical pair.
     const schema: ListViewSchema = {
       type: 'list-view',
       objectName: 'contacts',
       viewType: 'grid',
-      fields: ['name', 'email'],
-      rowHeight: 'compact',
+      columns: ['name', 'email'],
+      rowHeight: 'tall',
+      densityMode: 'compact',
+      showDensity: true,
+    };
+
+    renderWithProvider(<ListView schema={schema} />);
+    expect(screen.getByLabelText('Density: Spacious')).toBeInTheDocument();
+  });
+
+  it('should still honor a legacy densityMode when no rowHeight is set', () => {
+    // Stored view metadata carries `densityMode`; `normalizeListViewSchema`
+    // folds it into `rowHeight` at the component boundary.
+    const schema: ListViewSchema = {
+      type: 'list-view',
+      objectName: 'contacts',
+      viewType: 'grid',
+      columns: ['name', 'email'],
       densityMode: 'spacious',
       showDensity: true,
     };
 
     renderWithProvider(<ListView schema={schema} />);
-    const densityButton = screen.getByLabelText('Density: Spacious');
-    expect(densityButton).toBeInTheDocument();
+    expect(screen.getByLabelText('Density: Spacious')).toBeInTheDocument();
   });
 
   it('should apply aria attributes to root container', () => {

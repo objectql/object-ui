@@ -11,7 +11,7 @@
 
 import { useMemo, useState, useCallback, useEffect, useRef, lazy, Suspense, type ComponentType } from 'react';
 import { useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
-import { resolveFilterPlaceholders, type FilterTokenScope } from '@object-ui/core';
+import { resolveFilterPlaceholders, DENSITY_MODE_TO_ROW_HEIGHT, type FilterTokenScope } from '@object-ui/core';
 import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState';
 import { buildListFilterKey, readListFilterState, writeListFilterState } from './listFilterStorage';
 const ObjectChart = lazy(() =>
@@ -1317,7 +1317,12 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             hiddenFields: (viewDef as any).hiddenFields ?? listSchema.hiddenFields,
             columnState: (viewDef as any).columnState ?? (listSchema as any).columnState,
             onDensityChange: (mode) => {
-                persistViewPatch(viewDef.id, viewDef, { densityMode: mode });
+                // Persist the spec-canonical `rowHeight` (#2890). Writing the
+                // legacy `densityMode` here is what kept re-seeding it into
+                // stored view metadata after every toolbar toggle.
+                persistViewPatch(viewDef.id, viewDef, {
+                    rowHeight: DENSITY_MODE_TO_ROW_HEIGHT[mode],
+                });
             },
             onSortChange: (sort: any) => {
                 persistViewPatch(viewDef.id, viewDef, { sort });

@@ -7,7 +7,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { normalizeListViewSchema } from '../normalize-list-view.js';
+import {
+  normalizeListViewSchema,
+  DENSITY_MODE_TO_ROW_HEIGHT,
+  ROW_HEIGHT_TO_DENSITY_MODE,
+} from '../normalize-list-view.js';
 
 describe('normalizeListViewSchema (#2890)', () => {
   describe('fields → columns', () => {
@@ -53,6 +57,44 @@ describe('normalizeListViewSchema (#2890)', () => {
       const twice = normalizeListViewSchema(once);
       expect(twice).toEqual(once);
       expect(twice).toBe(once); // nothing left to fold → same reference
+    });
+  });
+
+  describe('densityMode → rowHeight', () => {
+    it('folds the legacy `densityMode` into the spec-canonical `rowHeight`', () => {
+      const out = normalizeListViewSchema({ viewType: 'grid', densityMode: 'spacious' }) as Record<string, unknown>;
+      expect(out.rowHeight).toBe('tall');
+      expect('densityMode' in out).toBe(false);
+    });
+
+    it('lets the canonical key win when a view carries both', () => {
+      const out = normalizeListViewSchema({
+        viewType: 'grid',
+        rowHeight: 'extra_tall',
+        densityMode: 'compact',
+      }) as Record<string, unknown>;
+      expect(out.rowHeight).toBe('extra_tall');
+      expect('densityMode' in out).toBe(false);
+    });
+
+    it('leaves an unrecognized density value alone rather than inventing a row height', () => {
+      const out = normalizeListViewSchema({ viewType: 'grid', densityMode: 'cozy' }) as Record<string, unknown>;
+      expect(out.rowHeight).toBeUndefined();
+      expect(out.densityMode).toBe('cozy');
+    });
+
+    it('round-trips every density through the widening and back', () => {
+      // The fold widens 3 values onto 5 and the renderer narrows them back, so
+      // a folded view must render the density the author picked.
+      for (const mode of ['compact', 'comfortable', 'spacious'] as const) {
+        expect(ROW_HEIGHT_TO_DENSITY_MODE[DENSITY_MODE_TO_ROW_HEIGHT[mode]]).toBe(mode);
+      }
+    });
+
+    it('narrows every spec row height onto a density the toolbar can show', () => {
+      for (const height of ['compact', 'short', 'medium', 'tall', 'extra_tall'] as const) {
+        expect(['compact', 'comfortable', 'spacious']).toContain(ROW_HEIGHT_TO_DENSITY_MODE[height]);
+      }
     });
   });
 
