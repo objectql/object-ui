@@ -162,7 +162,7 @@ export function RecipientPickerField({
       searchPlaceholder={t('fields.recipient.search')}
       emptyText={records === null ? t('fields.recipient.loading') : t('fields.recipient.empty')}
       disabled={disabled}
-      className={className}
+      className={cn('w-full', className)}
     />
   );
 }

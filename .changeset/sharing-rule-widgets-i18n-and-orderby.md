@@ -76,6 +76,16 @@ says no, and **fails open** on every uncertainty — an unanswered hint must nev
 be the reason a permitted user cannot act; the server stays the authority
 (ADR-0057 D10).
 
+**A long option rendered straight past the combobox border.** `Combobox`'s
+trigger pinned itself to the component's `w-[200px]` default while the fields
+around it ran the full form column, and the selected label was a bare text child
+of a flex button — flex items need `truncate` AND `min-w-0` to clip, and it had
+neither. So "成员 (showcase_project_membership)" in the object picker overflowed
+the control and collided with the field beside it. The label now truncates, the
+trigger can shrink, the dropdown matches the trigger's width instead of a
+hardcoded 200px (a widened combobox used to clip its own options), and the two
+sharing-rule pickers ask for `w-full` so they line up with every other input.
+
 Hardens `evaluatePermission` while there: a role config carrying only
 `fieldPermissions` (no `actions`) made `check()` throw a TypeError that
 propagated out of the render. A permission check must not be able to crash a

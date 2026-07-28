@@ -62,16 +62,24 @@ export function Combobox({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("w-[200px] justify-between", className)}
+          className={cn("w-[200px] min-w-0 justify-between", className)}
           disabled={disabled}
         >
-          {value
-            ? options.find((option) => option.value === value)?.label
-            : placeholder}
+          {/* The label is a flex child, so it needs `truncate` + `min-w-0` of
+              its own — without them a long option ("成员
+              (showcase_project_membership)") rendered straight past the
+              button's border instead of ellipsizing (objectstack#3821). */}
+          <span className="truncate">
+            {value
+              ? options.find((option) => option.value === value)?.label
+              : placeholder}
+          </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[200px] p-0">
+      {/* Match the trigger instead of a hardcoded 200px: a combobox widened by
+          its consumer had its own options clipped in the dropdown. */}
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] min-w-[200px] p-0">
         <Command>
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>

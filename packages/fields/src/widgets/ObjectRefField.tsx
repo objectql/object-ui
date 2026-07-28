@@ -100,7 +100,10 @@ export function ObjectRefField({
       searchPlaceholder={t('fields.objectRef.search')}
       emptyText={objects === null ? t('common.loading') : t('fields.objectRef.empty')}
       disabled={disabled}
-      className={cn(className)}
+      // Fill the form column like every other input. Combobox's own
+      // `w-[200px]` is a component default that left this control stranded at
+      // a third of the row while `名称` beside it ran full width.
+      className={cn('w-full', className)}
     />
   );
 }
