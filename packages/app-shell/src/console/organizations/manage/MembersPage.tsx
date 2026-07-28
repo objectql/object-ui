@@ -25,8 +25,8 @@ import {
   DropdownMenuTrigger,
   Separator,
 } from '@object-ui/components';
-import { useAuth } from '@object-ui/auth';
-import type { AuthOrganizationMember } from '@object-ui/auth';
+import { useAuth, assignableOrgRoles, ORG_ROLE_LABELS } from '@object-ui/auth';
+import type { AuthOrganizationMember, OrgRole } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Loader2, MoreHorizontal, UserMinus, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
@@ -43,12 +43,10 @@ function getMemberInitials(name?: string): string {
     .slice(0, 2);
 }
 
-type Role = 'owner' | 'admin' | 'member';
-
 export function MembersPage() {
   const { t } = useObjectTranslation();
   const { org } = useOrgContext();
-  const { getMembers, removeMember, updateMemberRole } = useAuth();
+  const { getMembers, removeMember, updateMemberRole, activeMember } = useAuth();
 
   const [members, setMembers] = useState<AuthOrganizationMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -75,7 +73,7 @@ export function MembersPage() {
     fetchMembers();
   }, [fetchMembers]);
 
-  const handleChangeRole = async (member: AuthOrganizationMember, role: Role) => {
+  const handleChangeRole = async (member: AuthOrganizationMember, role: OrgRole) => {
     try {
       await updateMemberRole({ organizationId: org.id, memberId: member.id, role });
       toast.success(t('organization.members.roleUpdated', { defaultValue: 'Role updated' }));
@@ -175,27 +173,26 @@ export function MembersPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={() => handleChangeRole(member, 'owner')}
-                  disabled={member.role === 'owner'}
-                >
-                  <ShieldCheck className="mr-2 h-4 w-4" />
-                  {t('organization.roles.owner', { defaultValue: 'Owner' })}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleChangeRole(member, 'admin')}
-                  disabled={member.role === 'admin'}
-                >
-                  <ShieldCheck className="mr-2 h-4 w-4" />
-                  {t('organization.roles.admin', { defaultValue: 'Admin' })}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleChangeRole(member, 'member')}
-                  disabled={member.role === 'member'}
-                >
-                  <ShieldCheck className="mr-2 h-4 w-4" />
-                  {t('organization.roles.member', { defaultValue: 'Member' })}
-                </DropdownMenuItem>
+                {/* [framework #3697] Roles this actor may SET on THIS member.
+                    Mirrors better-auth's `update-member-role` route: it needs
+                    the `member:["update"]` permission (owner/admin only — a
+                    `delegated_admin` is built from `memberAc` and holds
+                    `member: []`), and only an owner may set `owner` or re-role
+                    someone who already is one. An actor who may re-role nobody
+                    gets no items rather than three that would 403. */}
+                {assignableOrgRoles(activeMember?.role, member.role).map((role) => (
+                  <DropdownMenuItem
+                    key={role}
+                    onClick={() => handleChangeRole(member, role)}
+                    disabled={member.role === role}
+                    data-testid={`member-role-${role}`}
+                  >
+                    <ShieldCheck className="mr-2 h-4 w-4" />
+                    {t(ORG_ROLE_LABELS[role].key, {
+                      defaultValue: ORG_ROLE_LABELS[role].defaultValue,
+                    })}
+                  </DropdownMenuItem>
+                ))}
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
                   onClick={() => setRemovingMember(member)}

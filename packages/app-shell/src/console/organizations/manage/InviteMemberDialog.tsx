@@ -23,13 +23,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@object-ui/components';
-import { useAuth } from '@object-ui/auth';
-import type { AuthInvitation, DelegableScope } from '@object-ui/auth';
+import { useAuth, invitableOrgRoles, ORG_ROLE_LABELS, ORG_ROLE_MEMBER } from '@object-ui/auth';
+import type { AuthInvitation, DelegableScope, OrgRole } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Loader2, Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
-
-type Role = 'owner' | 'admin' | 'member';
 
 interface InviteMemberDialogProps {
   organizationId: string;
@@ -51,10 +49,18 @@ export function InviteMemberDialog({
   onInvited,
 }: InviteMemberDialogProps) {
   const { t } = useObjectTranslation();
-  const { inviteMember, describeDelegableScope } = useAuth();
+  const { inviteMember, describeDelegableScope, activeMember } = useAuth();
+
+  // [framework #3697] The roles this issuer may actually confer. Mirrors the
+  // server's invitation role cap — a below-admin issuer (e.g. a
+  // `delegated_admin`) may invite as `member` only, and nobody may invite above
+  // their own grade. Same property as the placement picker below: it NARROWS,
+  // it does not decide; the server re-checks and rejects the whole invitation
+  // when it is out of cap.
+  const roleOptions = invitableOrgRoles(activeMember?.role);
 
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<Role>('member');
+  const [role, setRole] = useState<OrgRole>(ORG_ROLE_MEMBER);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdInvitation, setCreatedInvitation] = useState<AuthInvitation | null>(null);
@@ -74,7 +80,7 @@ export function InviteMemberDialog({
   useEffect(() => {
     if (open) {
       setEmail('');
-      setRole('member');
+      setRole(ORG_ROLE_MEMBER);
       setError(null);
       setCreatedInvitation(null);
       setCopied(false);
@@ -219,20 +225,16 @@ export function InviteMemberDialog({
                 <Label htmlFor="invite-role">
                   {t('organization.invitations.roleLabel', { defaultValue: 'Role' })}
                 </Label>
-                <Select value={role} onValueChange={(v) => setRole(v as Role)}>
+                <Select value={role} onValueChange={(v) => setRole(v as OrgRole)}>
                   <SelectTrigger id="invite-role" data-testid="invite-role-select">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="member">
-                      {t('organization.roles.member', { defaultValue: 'Member' })}
-                    </SelectItem>
-                    <SelectItem value="admin">
-                      {t('organization.roles.admin', { defaultValue: 'Admin' })}
-                    </SelectItem>
-                    <SelectItem value="owner">
-                      {t('organization.roles.owner', { defaultValue: 'Owner' })}
-                    </SelectItem>
+                    {roleOptions.map((r) => (
+                      <SelectItem key={r} value={r} data-testid={`invite-role-${r}`}>
+                        {t(ORG_ROLE_LABELS[r].key, { defaultValue: ORG_ROLE_LABELS[r].defaultValue })}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

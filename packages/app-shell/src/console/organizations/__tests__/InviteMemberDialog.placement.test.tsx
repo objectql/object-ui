@@ -27,8 +27,12 @@ vi.mock('@object-ui/i18n', () => ({
 
 const inviteMember = vi.fn();
 const describeDelegableScope = vi.fn();
-vi.mock('@object-ui/auth', () => ({
-  useAuth: () => ({ inviteMember, describeDelegableScope }),
+// Only `useAuth` is faked — the role vocabulary / narrowing helpers stay REAL,
+// so a change to the cap surfaces here instead of being mocked away. These
+// cases are about placement, so the caller is an owner (widest role list).
+vi.mock('@object-ui/auth', async (importActual) => ({
+  ...(await importActual<typeof import('@object-ui/auth')>()),
+  useAuth: () => ({ inviteMember, describeDelegableScope, activeMember: { role: 'owner' } }),
 }));
 
 // Passthrough primitives — the Select is rendered as a native <select> so the
