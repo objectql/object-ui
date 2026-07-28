@@ -40,7 +40,7 @@ ComponentRegistry.register('list-view', ListView, {
       { label: 'Map', value: 'map' },
     ], defaultValue: 'grid' },
     { name: 'columns', type: 'array', label: 'Columns' },
-    { name: 'filters', type: 'array', label: 'Filters' },
+    { name: 'filter', type: 'array', label: 'Filter' },
     { name: 'sort', type: 'array', label: 'Sort' },
     { name: 'options', type: 'object', label: 'View Options' },
   ],
@@ -48,7 +48,7 @@ ComponentRegistry.register('list-view', ListView, {
     objectName: '',
     viewType: 'grid',
     columns: [],
-    filters: [],
+    filter: [],
     sort: [],
     options: {},
   }
@@ -81,7 +81,7 @@ ComponentRegistry.register('list', ListView, {
       { label: 'Map', value: 'map' },
     ], defaultValue: 'grid' },
     { name: 'columns', type: 'array', label: 'Columns' },
-    { name: 'filters', type: 'array', label: 'Filters' },
+    { name: 'filter', type: 'array', label: 'Filter' },
     { name: 'sort', type: 'array', label: 'Sort' },
     { name: 'options', type: 'object', label: 'View Options' },
   ]

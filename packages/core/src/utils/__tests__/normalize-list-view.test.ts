@@ -98,6 +98,42 @@ describe('normalizeListViewSchema (#2890)', () => {
     });
   });
 
+  describe('filters → filter', () => {
+    it('folds the legacy `filters` into the spec-canonical `filter`', () => {
+      const out = normalizeListViewSchema({
+        viewType: 'grid',
+        filters: [['stage', '=', 'won']],
+      }) as Record<string, unknown>;
+      expect(out.filter).toEqual([['stage', '=', 'won']]);
+      expect('filters' in out).toBe(false);
+    });
+
+    it('lets the canonical key win when a view carries both', () => {
+      const out = normalizeListViewSchema({
+        viewType: 'grid',
+        filter: [['stage', '=', 'won']],
+        filters: [['stage', '=', 'lost']],
+      }) as Record<string, unknown>;
+      expect(out.filter).toEqual([['stage', '=', 'won']]);
+      expect('filters' in out).toBe(false);
+    });
+
+    it('preserves the value verbatim — the fold renames the key, it does not convert the format', () => {
+      // Both keys carry an ObjectQL FilterNode array in objectui, including the
+      // compound `['and', …]` form. Rewriting it here would change what reaches
+      // the data source.
+      const filters = ['and', ['stage', '=', 'won'], ['amount', '>', 100]];
+      const out = normalizeListViewSchema({ viewType: 'grid', filters }) as Record<string, unknown>;
+      expect(out.filter).toBe(filters);
+    });
+
+    it('ignores a non-array `filters`', () => {
+      const out = normalizeListViewSchema({ viewType: 'grid', filters: 'stage == "won"' }) as Record<string, unknown>;
+      expect(out.filter).toBeUndefined();
+      expect(out.filters).toBe('stage == "won"');
+    });
+  });
+
   describe('viewType defaulting', () => {
     it('defaults a missing view kind to the renderable `grid`', () => {
       expect(normalizeListViewSchema({ type: 'list-view' })).toEqual({ type: 'list-view', viewType: 'grid' });

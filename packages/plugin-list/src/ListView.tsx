@@ -906,7 +906,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       try {
         // Construct filter
         let finalFilter: any = [];
-        const baseFilter = schema.filters || [];
+        const baseFilter = schema.filter || [];
         const userFilter = convertFilterGroupToAST(currentFilters);
         
         
@@ -1120,7 +1120,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     fetchData();
 
     return () => { isMounted = false; };
-  }, [schema.objectName, schema.data, dataSource, schema.filters, effectivePageSize, currentSort, currentFilters, userFilterConditions, refreshKey, searchTerm, schema.searchableFields, expandFields, objectDefLoaded, schema.refreshTrigger, perms, serverPage, currentView, groupingConfig, ganttOwnsData]); // Re-fetch on filter/sort/search/refreshTrigger/perms/page change
+  }, [schema.objectName, schema.data, dataSource, schema.filter, effectivePageSize, currentSort, currentFilters, userFilterConditions, refreshKey, searchTerm, schema.searchableFields, expandFields, objectDefLoaded, schema.refreshTrigger, perms, serverPage, currentView, groupingConfig, ganttOwnsData]); // Re-fetch on filter/sort/search/refreshTrigger/perms/page change
 
   // Any change to the result-defining inputs (object, filters, sort, search,
   // grouping, page size) invalidates the current page number — snap back to
@@ -1130,7 +1130,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // from under a user who just turned it. serverPage is deliberately NOT part of
   // the signature, so turning the page never triggers a reset.
   const pageResetSignature = JSON.stringify([
-    schema.objectName, schema.filters, effectivePageSize, currentSort,
+    schema.objectName, schema.filter, effectivePageSize, currentSort,
     currentFilters, userFilterConditions, searchTerm, currentView, groupingConfig,
   ]);
   const prevPageResetSignature = React.useRef(pageResetSignature);
@@ -1299,7 +1299,13 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     const baseProps = {
       objectName: schema.objectName,
       fields: effectiveFields,
-      filters: schema.filters,
+      // Spec-canonical `filter` (#2890). Every child view — ObjectGrid,
+      // ObjectGallery, ObjectKanban, ObjectCalendar, ObjectGantt, ObjectMap,
+      // ObjectTree, ObjectChart — reads `schema.filter`; ListView was the only
+      // surface speaking `filters`, so a child that fetches its own rows (the
+      // chart branch below, and any of these rendered standalone) never saw the
+      // view's base filter at all.
+      filter: schema.filter,
       sort: currentSort,
       className: "h-full w-full",
       // Disable internal controls that clash with ListView toolbar
@@ -1495,7 +1501,10 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           type: 'object-chart',
           objectName: schema.objectName,
           chartType: chartCfg.chartType || 'bar',
-          filters: schema.filters,
+          // `ObjectChart` reads `schema.filter` and never read `filters`, so a
+          // chart list view with a base filter used to aggregate the WHOLE
+          // object (#2890).
+          filter: schema.filter,
           aggregate: {
             field: valueField,
             function: chartCfg.aggregation || 'count',
@@ -1611,7 +1620,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         .filter(Boolean);
 
       // Merge the same filter sources as the data fetch (base + user + conditions).
-      const baseFilter = schema.filters || [];
+      const baseFilter = schema.filter || [];
       const userFilter = convertFilterGroupToAST(currentFilters);
       const normalizedUserFilterConditions = normalizeFilters(userFilterConditions);
       const allFilters = [
@@ -1711,7 +1720,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       URL.revokeObjectURL(url);
     }
     setShowExport(false);
-  }, [data, effectiveFields, resolvedExportOptions, schema.objectName, schema.filters, exportPermitted, dataSource, currentFilters, userFilterConditions, currentSort, objectDef, resolveObjectLabel]);
+  }, [data, effectiveFields, resolvedExportOptions, schema.objectName, schema.filter, exportPermitted, dataSource, currentFilters, userFilterConditions, currentSort, objectDef, resolveObjectLabel]);
 
   // All available fields for hide/show (with i18n)
   const allFields = React.useMemo(() => {

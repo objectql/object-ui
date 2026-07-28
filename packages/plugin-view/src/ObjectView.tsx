@@ -1007,7 +1007,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           // already `columns`-keyed, so emitting `fields` here was a pure
           // canonical→legacy downgrade.
           columns: currentNamedViewConfig?.columns || activeView?.columns || schema.table?.fields,
-          filters: mergedFilters,
+          filter: mergedFilters,
           sort: mergedSort,
           // Propagate appearance/view-config properties for live preview
           rowHeight: activeView?.rowHeight,

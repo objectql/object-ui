@@ -87,6 +87,13 @@ export function rowHeightToDensityMode(rowHeight: unknown): DensityMode {
  * Currently folded:
  *  - `fields` → `columns` (#2890 scope A step 1)
  *  - `densityMode` → `rowHeight` (#2890 scope A step 2)
+ *  - `filters` → `filter` (#2890 scope A step 4). A key rename only: BOTH keys
+ *    carry an ObjectQL FilterNode array (`[['stage','=','won']]`) everywhere in
+ *    objectui — every consumer passes the value straight to `$filter`. The spec
+ *    types `filter` as `ViewFilterRule[]` (`{field, operator, value}` objects),
+ *    so objectui's field is typed from the spec but used as something else.
+ *    That mismatch is real and out of scope here; converting formats inside a
+ *    vocabulary fold would change what reaches the data source.
  *  - `viewType`: a missing kind, or the view CATEGORY `'list'` that AI-authored
  *    metadata stores and hosts forward verbatim, becomes the renderable `'grid'`
  *    — otherwise it reaches the renderer's typeless default branch and shows as
@@ -100,9 +107,11 @@ export function normalizeListViewSchema<T>(schema: T): T {
   const foldColumns = Array.isArray(legacyFields);
   const legacyDensity = s.densityMode;
   const foldRowHeight = typeof legacyDensity === 'string' && legacyDensity in DENSITY_MODE_TO_ROW_HEIGHT;
+  const legacyFilters = s.filters;
+  const foldFilter = Array.isArray(legacyFilters);
   const viewType = s.viewType;
   const defaultViewKind = !viewType || viewType === 'list';
-  if (!foldColumns && !foldRowHeight && !defaultViewKind) return schema;
+  if (!foldColumns && !foldRowHeight && !foldFilter && !defaultViewKind) return schema;
 
   const next: Record<string, unknown> = { ...s };
   if (foldColumns) {
@@ -114,6 +123,10 @@ export function normalizeListViewSchema<T>(schema: T): T {
       next.rowHeight = DENSITY_MODE_TO_ROW_HEIGHT[legacyDensity as DensityMode];
     }
     delete next.densityMode;
+  }
+  if (foldFilter) {
+    if (!Array.isArray(next.filter)) next.filter = legacyFilters;
+    delete next.filters;
   }
   if (defaultViewKind) next.viewType = 'grid';
   return next as T;

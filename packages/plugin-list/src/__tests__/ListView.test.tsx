@@ -2740,4 +2740,30 @@ describe('ListView — column vocabulary (#2890)', () => {
     expect(selected).toEqual(expect.arrayContaining(['name']));
     expect(selected).not.toContain('email');
   });
+
+  // ── filter vocabulary (#2890 step 4) ──────────────────────────────────────
+  // ListView was the ONLY surface reading `filters`; every child view
+  // (ObjectGrid/Gallery/Kanban/Calendar/Gantt/Map/Tree/Chart) reads `filter`.
+  const lastFilter = () => mockDataSource.find.mock.calls.at(-1)?.[1]?.$filter;
+
+  it('applies the spec-canonical `filter` as the base filter', async () => {
+    await renderWithColumns({ columns: ['name'], filter: [['stage', '=', 'won']] });
+    expect(JSON.stringify(lastFilter())).toContain('won');
+  });
+
+  it('still honors the legacy `filters` — stored view metadata carries it', async () => {
+    await renderWithColumns({ columns: ['name'], filters: [['stage', '=', 'won']] });
+    expect(JSON.stringify(lastFilter())).toContain('won');
+  });
+
+  it('lets `filter` win when a view carries both', async () => {
+    await renderWithColumns({
+      columns: ['name'],
+      filter: [['stage', '=', 'won']],
+      filters: [['stage', '=', 'lost']],
+    });
+    const applied = JSON.stringify(lastFilter());
+    expect(applied).toContain('won');
+    expect(applied).not.toContain('lost');
+  });
 });

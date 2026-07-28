@@ -78,6 +78,7 @@ const SANCTIONED_LOCAL = new Set<string>([
   // so stored metadata keeps validating and so the spec's react-blocks
   // `<ListView fields>` prop keeps a schema anchor.
   'fields',
+  // `filters` is likewise INPUT-ONLY since #2890 — folded into `filter`.
   'filters',
   // legacy toolbar visibility flags (spec-canonical: `userActions`)
   'showSearch',

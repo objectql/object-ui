@@ -218,7 +218,7 @@ export function ObjectDataPage({ dataSource, objects }: any) {
       objectName: objectDef.name,
       viewType: 'grid' as const,
       columns,
-      ...(urlFilters.length ? { filters: urlFilters } : {}),
+      ...(urlFilters.length ? { filter: urlFilters } : {}),
       kanban,
       calendar,
       gallery,

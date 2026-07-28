@@ -386,7 +386,11 @@ export const ListViewSchema = BaseSchema
     // (`@object-ui/core`) folds it into `columns` at the ListView boundary
     // (#2890). Producers must emit `columns`.
     fields: z.array(z.string()).optional().describe('Legacy alias for string[] columns'),
-    // Legacy tuple/CEL filter format (spec-canonical `filter` is imported above).
+    // Legacy alias for the spec's `filter`, still accepted because stored view
+    // metadata carries it. NO renderer reads it: `normalizeListViewSchema`
+    // (`@object-ui/core`) folds it into `filter` at the ListView boundary
+    // (#2890). Note both keys carry an ObjectQL FilterNode array at runtime,
+    // even though `filter` is typed from the spec as `ViewFilterRule[]`.
     filters: z.array(z.union([z.array(z.any()), z.string()])).optional().describe('Filter conditions (legacy)'),
     // Legacy toolbar visibility flags (spec-canonical is `userActions`; runtime dual-reads).
     showSearch: z.boolean().optional().describe('Show search in toolbar'),

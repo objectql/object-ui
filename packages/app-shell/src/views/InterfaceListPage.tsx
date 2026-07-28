@@ -366,7 +366,7 @@ export function InterfaceListPage({ page, className, onConfigChange, reserveEdit
       objectName: objectDef.name,
       viewType: (allowed[0] ?? view.type ?? 'grid'),
       columns,
-      ...(filters.length ? { filters } : {}),
+      ...(filters.length ? { filter: filters } : {}),
       ...(sort?.length ? { sort } : {}),
       grouping: view.grouping,
       rowColor: view.rowColor,

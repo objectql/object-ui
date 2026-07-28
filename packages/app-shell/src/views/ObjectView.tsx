@@ -1307,12 +1307,18 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             // through the same persistViewPatch helper which debounces and
             // batches concurrent toggles.
             sort: (viewDef as any).sort ?? listSchema.sort,
+            // The ONE place this view's effective filter is computed (#2890).
+            // It used to be computed twice — once here as `filter` for the child
+            // views, once further down as `filters` for ListView — with the two
+            // copies subtly different (only this one fell back to
+            // `listSchema.filter`; only that one ran token substitution over the
+            // URL filters). Now: base ?? listSchema, concatenated with the URL
+            // filters, and substituted as a whole.
             filter: (() => {
                 const base = (viewDef as any).filter ?? listSchema.filter;
-                const substituted = substituteFilterTokens(base, filterScope);
-                if (!urlFilters.length) return substituted;
-                const baseArr = Array.isArray(substituted) ? substituted : [];
-                return [...baseArr, ...urlFilters];
+                const baseArr = Array.isArray(base) ? base : base ? [base] : [];
+                const combined = urlFilters.length ? [...baseArr, ...urlFilters] : base;
+                return substituteFilterTokens(combined, filterScope);
             })(),
             hiddenFields: (viewDef as any).hiddenFields ?? listSchema.hiddenFields,
             columnState: (viewDef as any).columnState ?? (listSchema as any).columnState,
@@ -1444,15 +1450,8 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                         ?? resolveManagedByEmptyState((objectDef as any)?.managedBy, t, objectDef.name, (objectDef as any)?.userActions),
                 ),
             aria: viewDef.aria ?? listSchema.aria,
-            // Propagate filter/sort as default filters/sort for data flow
-            ...((() => {
-                const combined = [
-                    ...(Array.isArray(viewDef.filter) ? viewDef.filter : []),
-                    ...urlFilters,
-                ];
-                const substituted = substituteFilterTokens(combined, filterScope);
-                return Array.isArray(substituted) && substituted.length ? { filters: substituted } : {};
-            })()),
+            // (the legacy `filters` twin of the `filter` above lived here until
+            // #2890 — see the note at its single remaining computation)
             ...(viewDef.sort?.length ? { sort: viewDef.sort } : {}),
             options: {
                 kanban: {
