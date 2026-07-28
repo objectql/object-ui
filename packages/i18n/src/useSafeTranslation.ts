@@ -37,10 +37,15 @@ export function createSafeTranslation(
     // "translations not configured" fallback.
     const result = useObjectTranslation();
     const testValue = result.t(testKey);
+    // `language` is surfaced so consumers that localize dates/numbers
+    // alongside their copy (data-table, gantt) don't have to call
+    // `useObjectTranslation` a second time just to read it. With no provider
+    // it is whatever react-i18next reports, which callers may treat as
+    // "follow the runtime default".
     if (testValue === testKey) {
-      return { t: fallbackT };
+      return { t: fallbackT, language: result.language };
     }
-    return { t: result.t };
+    return { t: result.t, language: result.language };
   };
 }
 

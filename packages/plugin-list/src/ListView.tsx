@@ -20,7 +20,7 @@ import type { ListViewSchema } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
 import { resolveConditionalFormatting, buildExpandFields, buildExportFileName } from '@object-ui/core';
-import { useObjectTranslation, useObjectLabel, useSafeFieldLabel } from '@object-ui/i18n';
+import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 
 export interface ListViewProps {
@@ -266,33 +266,18 @@ const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'list.viewSettingsHint': 'Grouping, color, density, and visible fields.',
 };
 
-const fallbackListT = (key: string, options?: Record<string, unknown>) => {
-  let value = LIST_DEFAULT_TRANSLATIONS[key] || key;
-  if (options) {
-    for (const [k, v] of Object.entries(options)) {
-      value = value.replace(`{{${k}}}`, String(v));
-    }
-  }
-  return value;
-};
-
 /**
  * Safe wrapper for useObjectTranslation that falls back to English defaults
  * when I18nProvider is not available (e.g., standalone usage outside console).
+ *
+ * Delegates to `@object-ui/i18n`'s `createSafeTranslation`. The local copy
+ * this replaced wrapped the hook in try/catch — the very thing the comment on
+ * `useListViewObjectLabel` below warns against (objectui#2879).
  */
-function useListViewTranslation() {
-  try {
-    const result = useObjectTranslation();
-    const testValue = result.t('list.recordCount');
-    if (testValue === 'list.recordCount') {
-      // i18n returned the key itself — not initialized
-      return { t: fallbackListT };
-    }
-    return { t: result.t };
-  } catch {
-    return { t: fallbackListT };
-  }
-}
+const useListViewTranslation = createSafeTranslation(
+  LIST_DEFAULT_TRANSLATIONS,
+  'list.recordCount',
+);
 
 /**
  * Thin selector over useObjectLabel. The underlying hook is provider-safe

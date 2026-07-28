@@ -139,7 +139,10 @@ export default defineConfig({
           // separately.
           isolate: false,
           setupFiles: [path.resolve(__dirname, 'vitest.setup.base.ts')],
-          include: ['packages/**/*.test.ts', 'examples/**/*.test.ts'],
+          // `eslint-rules/**` holds the local ESLint plugin's RuleTester specs.
+          // They were previously matched by no project glob, so the ratchet
+          // rules shipped with tests that never ran (objectui#2879).
+          include: ['packages/**/*.test.ts', 'examples/**/*.test.ts', 'eslint-rules/**/*.test.js'],
           exclude: [...sharedExclude, ...domTsTests],
         },
       },

@@ -23,7 +23,7 @@ import {
   PopoverContent,
   PopoverTrigger
 } from "@object-ui/components"
-import { useObjectTranslation } from "@object-ui/i18n"
+import { createSafeTranslation } from "@object-ui/i18n"
 
 const DEFAULT_EVENT_COLOR = "bg-blue-100 text-blue-900 border border-blue-200"
 const STABLE_DEFAULT_DATE = new Date()
@@ -87,43 +87,11 @@ const DEFAULT_TRANSLATIONS: Record<string, string> = {
 /**
  * Safe wrapper for useObjectTranslation that falls back to English defaults
  * when I18nProvider is not available (e.g., standalone usage outside console).
+ *
+ * Delegates to `@object-ui/i18n`'s `createSafeTranslation`; the local copy this
+ * replaced wrapped the hook in try/catch (rules-of-hooks, objectui#2879).
  */
-function useCalendarTranslation() {
-  try {
-    const result = useObjectTranslation()
-    // Check if i18n is properly initialized by testing a known key
-    const testValue = result.t('calendar.today')
-    if (testValue === 'calendar.today') {
-      // i18n returned the key itself — not initialized
-      return {
-        t: (key: string, options?: Record<string, unknown>) => {
-          let value = DEFAULT_TRANSLATIONS[key] || key
-          if (options) {
-            for (const [k, v] of Object.entries(options)) {
-              value = value.replace(`{{${k}}}`, String(v))
-            }
-          }
-          return value
-        },
-        language: 'en',
-      }
-    }
-    return { t: result.t, language: result.language }
-  } catch {
-    return {
-      t: (key: string, options?: Record<string, unknown>) => {
-        let value = DEFAULT_TRANSLATIONS[key] || key
-        if (options) {
-          for (const [k, v] of Object.entries(options)) {
-            value = value.replace(`{{${k}}}`, String(v))
-          }
-        }
-        return value
-      },
-      language: 'en',
-    }
-  }
-}
+const useCalendarTranslation = createSafeTranslation(DEFAULT_TRANSLATIONS, 'calendar.today')
 
 export interface CalendarEvent {
   id: string | number

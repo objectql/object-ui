@@ -205,25 +205,26 @@ function interpolate(template: string, vars?: Record<string, unknown>): string {
 }
 
 /** Translation hook with safe English fallback for standalone usage.
- *  Mirrors the pattern in ObjectGrid.tsx — when no I18nProvider is mounted
- *  (e.g. unit tests) the hook still resolves `grid.import.*`
- *  keys via the embedded defaults so the wizard stays usable. */
+ *  When no I18nProvider is mounted (e.g. unit tests) the hook still resolves
+ *  `grid.import.*` keys via the embedded defaults so the wizard stays usable. */
 function useImportTranslation(): { t: (key: string, vars?: Record<string, unknown>) => string } {
   const fallback = (key: string, vars?: Record<string, unknown>) =>
     interpolate(IMPORT_DEFAULT_TRANSLATIONS[key] ?? key, vars);
-  try {
-    const result = useObjectTranslation();
-    const probe = result.t('grid.import.title');
-    if (probe === 'grid.import.title') return { t: fallback };
-    return {
-      t: (key, vars) => {
-        const v = result.t(key, vars as Record<string, unknown> | undefined);
-        return v === key ? fallback(key, vars) : v;
-      },
-    };
-  } catch {
-    return { t: fallback };
-  }
+  // Deliberately NOT `createSafeTranslation`: that probes one testKey and then
+  // serves defaults for everything, whereas the wizard falls back per key so a
+  // host dictionary that covers the common keys but lags on newer ones still
+  // resolves what it has. No try/catch either — `useObjectTranslation` is
+  // provider-safe, and wrapping a hook in try/catch violates rules-of-hooks
+  // (objectui#2879, same class as #2595/#2596).
+  const result = useObjectTranslation();
+  const probe = result.t('grid.import.title');
+  if (probe === 'grid.import.title') return { t: fallback };
+  return {
+    t: (key, vars) => {
+      const v = result.t(key, vars as Record<string, unknown> | undefined);
+      return v === key ? fallback(key, vars) : v;
+    },
+  };
 }
 
 /** @internal — exported solely for unit tests. */

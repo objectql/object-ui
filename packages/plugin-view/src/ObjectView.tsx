@@ -72,19 +72,18 @@ const SchemaRendererComponent: React.FC<any> = ImportedSchemaRenderer;
  * Record-create verb, shared with the runtime object pages: both surfaces
  * resolve `console.objectView.new` ("New" / 新建) so the Studio grid toolbar
  * and the running app never disagree (framework#2615 P3). Falls back to
- * English when no I18nProvider is mounted (standalone usage). The try/catch
- * mirrors plugin-grid's useGridTranslation — the hook is always attempted
- * first thing, so call order is stable.
+ * English when no I18nProvider is mounted (standalone usage) — via the
+ * key-identity probe, not a caught throw.
  */
 function useCreateVerb(): string {
-  try {
-    // eslint-disable-next-line react-hooks/rules-of-hooks -- always the first call; catch only guards a missing provider
-    const { t } = useObjectTranslation();
-    const value = t('console.objectView.new');
-    return value === 'console.objectView.new' ? 'New' : value;
-  } catch {
-    return 'New';
-  }
+  // No try/catch: `useObjectTranslation` is provider-safe (optional context
+  // read + react-i18next global-instance fallback) and never throws, so the
+  // key-identity probe below is the whole "no provider" path. Wrapping a hook
+  // in try/catch violates rules-of-hooks — a throw after it ran would desync
+  // hook order on the next render (objectui#2879, same class as #2595/#2596).
+  const { t } = useObjectTranslation();
+  const value = t('console.objectView.new');
+  return value === 'console.objectView.new' ? 'New' : value;
 }
 
 export interface ObjectViewProps {

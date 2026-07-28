@@ -11,7 +11,7 @@
  * when I18nProvider is not available (e.g., standalone usage outside console).
  */
 
-import { useObjectTranslation } from '@object-ui/i18n';
+import { createSafeTranslation } from '@object-ui/i18n';
 
 const DESIGNER_DEFAULT_TRANSLATIONS: Record<string, string> = {
   // Step labels & descriptions
@@ -193,28 +193,11 @@ const DESIGNER_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'common.edit': 'Edit',
 };
 
-function createFallbackTranslator(defaults: Record<string, string>) {
-  return (key: string, options?: Record<string, unknown>): string => {
-    let value = defaults[key] || key;
-    if (options) {
-      for (const [k, v] of Object.entries(options)) {
-        value = value.replace(`{{${k}}}`, String(v));
-      }
-    }
-    return value;
-  };
-}
-
-export function useDesignerTranslation() {
-  try {
-    const result = useObjectTranslation();
-    const testValue = result.t('appDesigner.basicInfo');
-    if (testValue === 'appDesigner.basicInfo') {
-      // i18n returned the key itself — not initialized
-      return { t: createFallbackTranslator(DESIGNER_DEFAULT_TRANSLATIONS) };
-    }
-    return { t: result.t };
-  } catch {
-    return { t: createFallbackTranslator(DESIGNER_DEFAULT_TRANSLATIONS) };
-  }
-}
+/**
+ * Delegates to `@object-ui/i18n`'s `createSafeTranslation`; the local copy this
+ * replaced wrapped the hook in try/catch (rules-of-hooks, objectui#2879).
+ */
+export const useDesignerTranslation = createSafeTranslation(
+  DESIGNER_DEFAULT_TRANSLATIONS,
+  'appDesigner.basicInfo',
+);

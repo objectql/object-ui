@@ -19,17 +19,22 @@ import { useTimelineTranslation } from './useTimelineTranslation';
 /**
  * Wrap `useObjectLabel` so the timeline keeps rendering when no
  * I18nProvider is mounted (standalone usage / unit tests).
+ *
+ * No try/catch: `useObjectLabel` delegates to the provider-safe
+ * `useObjectTranslation` and never throws, and wrapping a hook call in
+ * try/catch violates rules-of-hooks — a throw after other hooks ran would
+ * desync hook order on the next render (objectui#2879, same class as
+ * #2595/#2596). The nullish guard is the defensive default, mirroring
+ * `useSafeFieldLabel` in `@object-ui/i18n`.
  */
+const OBJECT_LABEL_FALLBACK = {
+  fieldOptionLabel: (_o: string, _f: string, _v: string, fallback: string) => fallback,
+  translateOptions: <T extends { value: string; label: string }>(_o: string, _f: string, opts: T[]) => opts,
+  fieldLabel: (_o: string, _f: string, fallback: string) => fallback,
+} as any;
+
 function useSafeObjectLabel() {
-  try {
-    return useObjectLabel();
-  } catch {
-    return {
-      fieldOptionLabel: (_o: string, _f: string, _v: string, fallback: string) => fallback,
-      translateOptions: <T extends { value: string; label: string }>(_o: string, _f: string, opts: T[]) => opts,
-      fieldLabel: (_o: string, _f: string, fallback: string) => fallback,
-    } as any;
-  }
+  return useObjectLabel() ?? OBJECT_LABEL_FALLBACK;
 }
 
 const TimelineMappingSchema = z.object({

@@ -19,6 +19,15 @@ vi.mock('@object-ui/react', async () => {
       mode: 'overlay',
       view: undefined,
     }),
+    // `useObjectLabel` was missing here. It used to be masked by a try/catch
+    // around the hook inside ObjectTimeline — which meant this mock's gap was
+    // silently absorbed by production code that had a rules-of-hooks bug
+    // (objectui#2879). With that removed, the mock has to be complete.
+    useObjectLabel: () => ({
+      fieldOptionLabel: (_o: string, _f: string, _v: string, fallback: string) => fallback,
+      translateOptions: (_o: string, _f: string, opts: unknown[]) => opts,
+      fieldLabel: (_o: string, _f: string, fallback: string) => fallback,
+    }),
     SchemaRendererContext: React.createContext(null),
   };
 });

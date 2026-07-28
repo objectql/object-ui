@@ -43,6 +43,12 @@ export default tseslint.config({ ignores: ['**/dist', '**/.next', '**/node_modul
     // new violation fails CI; the existing surfaces were converted to direct
     // idempotent commands first, so this lints clean today.
     'object-ui/no-synthetic-event-trigger': 'error',
+    // objectui#2879 ratchet — a hook called inside try/catch desyncs hook order
+    // when the catch swallows a throw. #2595/#2596 fixed this in the canonical
+    // createSafeTranslation; nine plugin-local copies kept it until #2879.
+    // Error so a tenth copy fails CI; all known sites were converted first, so
+    // this lints clean today.
+    'object-ui/no-try-catch-around-hook': 'error',
   },
 }, {
   // Type-discipline ratchet, scoped to the canonical view-schema file: a

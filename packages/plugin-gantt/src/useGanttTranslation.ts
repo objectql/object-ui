@@ -100,31 +100,31 @@ function fallback(key: string, options?: Record<string, unknown>): string {
 }
 
 export function useGanttTranslation() {
-  try {
-    const result = useObjectTranslation();
-    // `language` is a BCP-47 tag (e.g. 'zh', 'en'). We thread it into the
-    // date formatters so the calendar headers/tooltips localize to the SAME
-    // language as the chrome, instead of silently following the browser
-    // locale (which can diverge — English UI but Chinese dates).
-    const language = result.language as string | undefined;
-    // Per-key fallback. A consuming app's i18n dictionary commonly translates
-    // the *common* gantt keys (column headers, toolbar) but lags behind on
-    // newer ones (link types, dependency context-menu). i18next returns the
-    // raw key string for a miss, which would surface untranslated keys like
-    // `gantt.linkType.fs` in the UI. So for every key we let the host resolve
-    // it first and fall back to our bundled English default ONLY when the host
-    // returns the key unchanged (a miss). An all-or-nothing probe on a single
-    // key can't catch a partially-translated host dictionary.
-    const t = (key: string, options?: Record<string, unknown>): string => {
-      const hostValue = result.t(key, options as never) as unknown;
-      if (typeof hostValue === 'string' && hostValue !== key) return hostValue;
-      return fallback(key, options);
-    };
-    return { t, language };
-  } catch {
-    // No I18nProvider on the tree (standalone embed / unit tests): keep the
-    // English fallback and let dates follow the browser locale (language
-    // undefined → toLocaleDateString uses the runtime default).
-    return { t: fallback, language: undefined as string | undefined };
-  }
+  // Deliberately NOT `createSafeTranslation`: that probes a single testKey and
+  // then serves defaults for everything, which can't handle a host dictionary
+  // that translates the common gantt keys but lags on newer ones (see the
+  // per-key rationale below). No try/catch either — `useObjectTranslation` is
+  // provider-safe and wrapping a hook in try/catch violates rules-of-hooks
+  // (objectui#2879, same class as #2595/#2596).
+  const result = useObjectTranslation();
+  // `language` is a BCP-47 tag (e.g. 'zh', 'en'). We thread it into the
+  // date formatters so the calendar headers/tooltips localize to the SAME
+  // language as the chrome, instead of silently following the browser
+  // locale (which can diverge — English UI but Chinese dates).
+  const language = result.language as string | undefined;
+  // Per-key fallback. A consuming app's i18n dictionary commonly translates
+  // the *common* gantt keys (column headers, toolbar) but lags behind on
+  // newer ones (link types, dependency context-menu). i18next returns the
+  // raw key string for a miss, which would surface untranslated keys like
+  // `gantt.linkType.fs` in the UI. So for every key we let the host resolve
+  // it first and fall back to our bundled English default ONLY when the host
+  // returns the key unchanged (a miss). An all-or-nothing probe on a single
+  // key can't catch a partially-translated host dictionary.
+  const t = (key: string, options?: Record<string, unknown>): string => {
+    const hostValue = result.t(key, options as never) as unknown;
+    if (typeof hostValue === 'string' && hostValue !== key) return hostValue;
+    return fallback(key, options);
+  };
+  return { t, language };
 }
+

@@ -6,52 +6,21 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { useObjectTranslation } from '@object-ui/react';
+import { createSafeTranslation } from '@object-ui/i18n';
 
 /**
  * Create a safe translation hook with fallback to defaults.
- * Follows the same pattern as useGridTranslation / useListViewTranslation.
+ *
+ * Thin alias over `@object-ui/i18n`'s `createSafeTranslation` — this used to
+ * be a local re-implementation that wrapped the hook call in try/catch, which
+ * violates rules-of-hooks (objectui#2879, same class as #2595/#2596).
+ * `useObjectTranslation` is provider-safe and never throws, so the testKey
+ * probe alone carries the "translations not configured" fallback.
  *
  * @param defaults - Fallback English translations keyed by i18n key
  * @param testKey - A key to test if i18n is properly configured
  */
-export function createSafeTranslationHook(
-  defaults: Record<string, string>,
-  testKey: string,
-) {
-  return function useSafeTranslation() {
-    try {
-      const result = useObjectTranslation();
-      const testValue = result.t(testKey);
-      if (testValue === testKey) {
-        return {
-          t: (key: string, options?: Record<string, unknown>) => {
-            let value = defaults[key] || key;
-            if (options) {
-              for (const [k, v] of Object.entries(options)) {
-                value = value.replace(`{{${k}}}`, String(v));
-              }
-            }
-            return value;
-          },
-        };
-      }
-      return { t: result.t };
-    } catch {
-      return {
-        t: (key: string, options?: Record<string, unknown>) => {
-          let value = defaults[key] || key;
-          if (options) {
-            for (const [k, v] of Object.entries(options)) {
-              value = value.replace(`{{${k}}}`, String(v));
-            }
-          }
-          return value;
-        },
-      };
-    }
-  };
-}
+export const createSafeTranslationHook = createSafeTranslation;
 
 /**
  * Default English translations for detail view components.

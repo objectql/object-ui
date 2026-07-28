@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { useObjectTranslation } from '@object-ui/react';
+import { createSafeTranslation } from '@object-ui/i18n';
 
 /**
  * Default English translations for ObjectTimeline. Mirrors the
@@ -32,25 +32,12 @@ export const TIMELINE_DEFAULT_TRANSLATIONS: Record<string, string> = {
 
 const TEST_KEY = 'timeline.bucket.today';
 
-function fallback(key: string, options?: Record<string, unknown>): string {
-  let v = TIMELINE_DEFAULT_TRANSLATIONS[key] || key;
-  if (options) {
-    for (const [k, val] of Object.entries(options)) {
-      v = v.replace(`{{${k}}}`, String(val));
-    }
-  }
-  return v;
-}
-
-export function useTimelineTranslation() {
-  try {
-    const result = useObjectTranslation();
-    const testValue = result.t(TEST_KEY);
-    if (testValue === TEST_KEY) {
-      return { t: fallback };
-    }
-    return { t: result.t };
-  } catch {
-    return { t: fallback };
-  }
-}
+/**
+ * Was a local re-implementation that wrapped the hook in try/catch — a
+ * rules-of-hooks violation (objectui#2879, same class as #2595/#2596).
+ * `useObjectTranslation` is provider-safe, so the probe alone is enough.
+ */
+export const useTimelineTranslation = createSafeTranslation(
+  TIMELINE_DEFAULT_TRANSLATIONS,
+  TEST_KEY,
+);

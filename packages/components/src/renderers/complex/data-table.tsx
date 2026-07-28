@@ -13,7 +13,8 @@ import { resolveIcon } from '../action/resolve-icon';
 import { useGridFieldAuthoring } from '../../context/gridFieldAuthoring';
 import { ComponentRegistry } from '@object-ui/core';
 import type { DataTableSchema } from '@object-ui/types';
-import { useObjectTranslation, useRowPredicate } from '@object-ui/react';
+import { useRowPredicate } from '@object-ui/react';
+import { createSafeTranslation } from '@object-ui/i18n';
 import { 
   Table, 
   TableHeader, 
@@ -155,41 +156,12 @@ const TABLE_DEFAULT_TRANSLATIONS: Record<string, string> = {
 /**
  * Safe wrapper for useObjectTranslation that falls back to English defaults
  * when I18nProvider is not available (e.g., standalone usage).
+ *
+ * Delegates to `@object-ui/i18n`'s `createSafeTranslation` (which also
+ * surfaces `language` for the date/number formatting below); the local copy
+ * this replaced wrapped the hook in try/catch (rules-of-hooks, objectui#2879).
  */
-function useTableTranslation() {
-  try {
-    const result = useObjectTranslation();
-    const testValue = result.t('table.rowsPerPage');
-    if (testValue === 'table.rowsPerPage') {
-      return {
-        t: (key: string, options?: Record<string, unknown>) => {
-          let value = TABLE_DEFAULT_TRANSLATIONS[key] || key;
-          if (options) {
-            for (const [k, v] of Object.entries(options)) {
-              value = value.replace(`{{${k}}}`, String(v));
-            }
-          }
-          return value;
-        },
-        language: result.language || 'en',
-      };
-    }
-    return { t: result.t, language: result.language || 'en' };
-  } catch {
-    return {
-      t: (key: string, options?: Record<string, unknown>) => {
-        let value = TABLE_DEFAULT_TRANSLATIONS[key] || key;
-        if (options) {
-          for (const [k, v] of Object.entries(options)) {
-            value = value.replace(`{{${k}}}`, String(v));
-          }
-        }
-        return value;
-      },
-      language: 'en',
-    };
-  }
-}
+const useTableTranslation = createSafeTranslation(TABLE_DEFAULT_TRANSLATIONS, 'table.rowsPerPage');
 
 /**
  * Pull the most useful human-readable message out of whatever the save path

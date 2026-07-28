@@ -25,7 +25,8 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ListColumn, ViewData } from '@object-ui/types';
 import { isSystemManagedField } from '@object-ui/types';
 import type { I18nLabel } from '@objectstack/spec/ui';
-import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useObjectTranslation, useSafeFieldLabel, usePredicateScope } from '@object-ui/react';
+import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useSafeFieldLabel, usePredicateScope } from '@object-ui/react';
+import { createSafeTranslation } from '@object-ui/i18n';
 import { getCellRenderer, resolveCellRendererType, formatCurrency, formatCompactCurrency, formatDate, formatPercent, humanizeLabel, getBadgeColorClasses, FieldEditWidget, hasFieldEditWidget, DISCRETE_EDIT_TYPES, coerceToSafeValue } from '@object-ui/fields';
 import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
 import { stateMachineNextValues, isFieldInlineEditable } from './inline-edit-options';
@@ -105,39 +106,11 @@ const GRID_DEFAULT_TRANSLATIONS: Record<string, string> = {
 /**
  * Safe wrapper for useObjectTranslation that falls back to English defaults
  * when I18nProvider is not available (e.g., standalone usage).
+ *
+ * Delegates to `@object-ui/i18n`'s `createSafeTranslation`; the local copy this
+ * replaced wrapped the hook in try/catch (rules-of-hooks, objectui#2879).
  */
-function useGridTranslation() {
-  try {
-    const result = useObjectTranslation();
-    const testValue = result.t('grid.actions');
-    if (testValue === 'grid.actions') {
-      return {
-        t: (key: string, options?: Record<string, unknown>) => {
-          let value = GRID_DEFAULT_TRANSLATIONS[key] || key;
-          if (options) {
-            for (const [k, v] of Object.entries(options)) {
-              value = value.replace(`{{${k}}}`, String(v));
-            }
-          }
-          return value;
-        },
-      };
-    }
-    return { t: result.t };
-  } catch {
-    return {
-      t: (key: string, options?: Record<string, unknown>) => {
-        let value = GRID_DEFAULT_TRANSLATIONS[key] || key;
-        if (options) {
-          for (const [k, v] of Object.entries(options)) {
-            value = value.replace(`{{${k}}}`, String(v));
-          }
-        }
-        return value;
-      },
-    };
-  }
-}
+const useGridTranslation = createSafeTranslation(GRID_DEFAULT_TRANSLATIONS, 'grid.actions');
 
 /** Resolve an I18nLabel (string) to a plain string. */
 function resolveColumnLabel(label: string | I18nLabel | undefined): string | undefined {
