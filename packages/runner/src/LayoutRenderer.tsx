@@ -12,7 +12,6 @@ import {
   Bell,
   Box,
   ChevronDown,
-  Circle,
   Menu,
   Moon,
   Search,

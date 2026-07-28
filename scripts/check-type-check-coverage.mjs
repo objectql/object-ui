@@ -29,7 +29,6 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // #2911 sweep (bare `tsc --noEmit` with the `paths` override its type-checked
 // peers already carry, so the TS6059 rootDir noise is excluded).
 const DEBT = {
-  "@object-ui/runner": { errors: 14, issue: 2917, note: "no tsconfig.json at all; also imports two exports @object-ui/core does not have" },
   "@object-ui/plugin-form": { errors: 10, issue: 2919, note: "6x t() fallback-signature mismatch, 2x undefined index, 2x string|number" },
   "@object-ui/site": { errors: 7, issue: 2919, note: "TS2304 on Next's generated LayoutProps/PageProps; needs .next/types from a prior next build" },
   "@object-ui/plugin-grid": { errors: 4, issue: 2919, note: "2x t() call signature + 2x TS2367 that are closure-mutation narrowing artifacts, NOT a logic bug" },
