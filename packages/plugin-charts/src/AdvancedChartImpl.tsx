@@ -47,7 +47,7 @@ import {
   ChartConfig
 } from './ChartContainerImpl';
 import { mapScatterClick, mapTreemapClick, mapSankeyClick } from './chartDrillEvents';
-import { formatterFor, domainFor, type NormalizedAxis, type NormalizedSeries } from './normalizeChartSchema';
+import { formatterFor, domainFor, ticksFor, type NormalizedAxis, type NormalizedSeries } from './normalizeChartSchema';
 import { buildCategoryRank } from '@object-ui/core';
 
 // Default color fallback for chart series
@@ -160,6 +160,14 @@ export interface AdvancedChartImplProps {
   /** Spec `ChartConfig.title` / `.subtitle`, rendered above the plot. */
   title?: string;
   subtitle?: string;
+  /**
+   * Spec `ChartConfig.description` — the accessibility description. A chart is
+   * a picture to a screen reader; without this it announces as an unlabelled
+   * graphic, so the container carries it as `role="img"` + `aria-label`.
+   */
+  description?: string;
+  /** Spec `ChartConfig.height` — fixed plot height in pixels. */
+  height?: number;
   /** Spec `ChartConfig.annotations` — reference lines / bands. */
   annotations?: Array<Record<string, any>>;
   /** Spec `ChartConfig.interaction` — `tooltips`, `brush`. */
@@ -238,6 +246,8 @@ export default function AdvancedChartImpl({
   showDataLabels,
   title,
   subtitle,
+  description,
+  height,
   annotations,
   interaction,
 }: AdvancedChartImplProps) {
@@ -252,7 +262,15 @@ export default function AdvancedChartImpl({
   // tell ChartContainer to skip its settle re-mount — avoids a needless 1-frame
   // reflow on the dashboard's first paint (#2756). Animated callers keep the
   // heal; this object is empty for them, leaving their markup unchanged.
-  const containerProps = isAnimationActive === false ? { disableSettleRemount: true } : {};
+  // Everything every ChartContainer call site needs, so a new container-level
+  // spec prop lands on all eight chart families at once instead of one branch.
+  const containerProps = {
+    ...(isAnimationActive === false ? { disableSettleRemount: true as const } : {}),
+    // An explicit height beats the container's default `h-[350px]` class
+    // because an inline style wins over a utility class.
+    ...(height ? { style: { height } } : {}),
+    ...(description ? { role: 'img' as const, 'aria-label': description } : {}),
+  };
   const [isMobile, setIsMobile] = React.useState(false);
 
   // Recharts' top-level onClick payload: { activeLabel, activePayload, ... }
@@ -434,11 +452,32 @@ export default function AdvancedChartImpl({
     [secondaryY?.format, formatYTick],
   );
 
-  /** Recharts props derived from one spec y-axis (domain / scale / label). */
-  const yAxisSpecProps = React.useCallback((axis: NormalizedAxis | undefined) => {
+  /**
+   * Every number plotted on one side of a dual axis (or on the only axis) —
+   * the range `stepSize` lays its ticks over.
+   */
+  const axisValues = React.useCallback((side: 'left' | 'right') => {
+    const keys = series
+      .filter((s: any) => (hasDualAxis ? (s.yAxis === 'right' ? 'right' : 'left') === side : side === 'left'))
+      .map((s: any) => s.dataKey);
+    const out: number[] = [];
+    for (const row of data) {
+      for (const k of keys) {
+        const n = Number(row?.[k]);
+        if (Number.isFinite(n)) out.push(n);
+      }
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, series, hasDualAxis]);
+
+  /** Recharts props derived from one spec y-axis (domain / scale / ticks / label). */
+  const yAxisSpecProps = React.useCallback((axis: NormalizedAxis | undefined, side: 'left' | 'right' = 'left') => {
     if (!axis) return {};
     const domain = domainFor(axis);
+    const ticks = ticksFor(axis, axisValues(side));
     return {
+      ...(ticks ? { ticks } : {}),
       ...(domain ? { domain } : {}),
       // `allowDataOverflow` is what makes an explicit domain actually clip
       // rather than being silently widened to fit the data.
@@ -446,7 +485,7 @@ export default function AdvancedChartImpl({
       ...(axis.logarithmic ? { scale: 'log' as const, domain: domain ?? ([1, 'auto'] as any) } : {}),
       ...(axis.title ? { label: { value: axis.title, angle: -90, position: 'insideLeft' as const } } : {}),
     };
-  }, []);
+  }, [axisValues]);
 
   // `showGridLines` is per-axis in the spec; the renderer draws one grid, so
   // an explicit `false` on EITHER axis turns off that axis's lines.
@@ -785,7 +824,7 @@ export default function AdvancedChartImpl({
           <CartesianGrid {...gridProps} />
           <XAxis dataKey={xAxisKey} {...xAxisCommonProps} />
           <YAxis yAxisId="left" tickLine={false} axisLine={false} tickFormatter={yTickFormatter} width={48} {...yAxisSpecProps(primaryY)} />
-          <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false} tickFormatter={y2TickFormatter} width={48} {...yAxisSpecProps(secondaryY)} />
+          <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false} tickFormatter={y2TickFormatter} width={48} {...yAxisSpecProps(secondaryY, 'right')} />
           {tooltipsEnabled ? <ChartTooltip content={<ChartTooltipContent />} /> : null}
           {legendVisible ? (
             <ChartLegend
@@ -902,7 +941,7 @@ export default function AdvancedChartImpl({
                 axisLine={false}
                 tickFormatter={y2TickFormatter}
                 width={48}
-                {...yAxisSpecProps(secondaryY)}
+                {...yAxisSpecProps(secondaryY, 'right')}
               />
             ) : null}
           </>

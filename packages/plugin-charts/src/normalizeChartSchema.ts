@@ -88,6 +88,8 @@ export interface NormalizedAxis {
   format?: string;
   min?: number;
   max?: number;
+  /** Distance between ticks on this axis. */
+  stepSize?: number;
   /** Default true, per the spec schema. */
   showGridLines?: boolean;
   logarithmic?: boolean;
@@ -123,6 +125,10 @@ export interface NormalizedChartSchema {
   showDataLabels?: boolean;
   title?: string;
   subtitle?: string;
+  /** Accessibility description — announced to screen readers. */
+  description?: string;
+  /** Fixed plot height in pixels. */
+  height?: number;
   annotations?: AnyRec[];
   interaction?: AnyRec;
 }
@@ -156,6 +162,8 @@ function normalizeAxis(raw: unknown): NormalizedAxis | undefined {
   if (min !== undefined) out.min = min;
   const max = num(raw.max);
   if (max !== undefined) out.max = max;
+  const stepSize = num(raw.stepSize);
+  if (stepSize !== undefined && stepSize > 0) out.stepSize = stepSize;
   if (typeof raw.showGridLines === 'boolean') out.showGridLines = raw.showGridLines;
   if (typeof raw.logarithmic === 'boolean') out.logarithmic = raw.logarithmic;
   const position = str(raw.position);
@@ -270,6 +278,10 @@ export function normalizeChartSchema(schema: unknown): NormalizedChartSchema {
   if (title) out.title = title;
   const subtitle = label(schema.subtitle);
   if (subtitle) out.subtitle = subtitle;
+  const description = label(schema.description);
+  if (description) out.description = description;
+  const height = num(schema.height);
+  if (height !== undefined && height > 0) out.height = height;
   if (Array.isArray(schema.annotations) && schema.annotations.length) {
     out.annotations = schema.annotations.filter(isRec);
   }
@@ -319,6 +331,59 @@ export function formatterFor(format: string | undefined): ((value: any) => strin
       return String(n);
     }
   };
+}
+
+/**
+ * Explicit tick positions for an axis that declares a `stepSize`, or
+ * `undefined` to keep Recharts' automatic ticks.
+ *
+ * Recharts has no "every N units" prop — `tickCount` is a hint it may ignore
+ * and `interval` is for categorical axes — so honoring `stepSize` means
+ * handing it the tick array outright. The range comes from the axis's own
+ * `min`/`max` where declared and from the plotted values otherwise, so a step
+ * works with or without a pinned domain.
+ *
+ * `values` should be every number plotted on this axis. An empty range, a
+ * non-finite one, or a step that would produce an absurd number of ticks
+ * (>`MAX_TICKS`) yields `undefined` — a 10,000-tick axis is a wrong config,
+ * and drawing it would hang the page rather than report the mistake.
+ */
+const MAX_TICKS = 200;
+
+export function ticksFor(axis: NormalizedAxis | undefined, values: number[]): number[] | undefined {
+  const step = axis?.stepSize;
+  if (!step || step <= 0) return undefined;
+
+  const finite = values.filter((v) => Number.isFinite(v));
+  const dataMin = finite.length ? Math.min(...finite) : undefined;
+  const dataMax = finite.length ? Math.max(...finite) : undefined;
+  // A value axis conventionally starts at zero unless told otherwise, which is
+  // also what Recharts' own auto domain does for bars/areas.
+  const lo = axis.min ?? Math.min(0, dataMin ?? 0);
+  const hi = axis.max ?? dataMax;
+  if (hi === undefined || !Number.isFinite(lo) || !Number.isFinite(hi) || hi < lo) return undefined;
+
+  const start = Math.floor(lo / step) * step;
+  // An explicit `max` pins the domain, so the last tick must not overshoot it
+  // (Recharts would place a tick outside the plot). A data-derived max is not
+  // pinned, so round UP to the next step — otherwise the topmost value sits
+  // above the last gridline and the axis reads as truncated.
+  const end = axis.max !== undefined ? axis.max : Math.ceil(hi / step) * step;
+  // `(end - start) / step` is exact in decimal but not in binary: 0.5 / 0.1 is
+  // 5.000000000000001 one way and 4.999999999999999 the other, and a bare
+  // floor() drops a whole tick in the second case.
+  const count = Math.floor((end - start) / step + 1e-9) + 1;
+  if (count < 1 || count > MAX_TICKS) return undefined;
+
+  const out: number[] = [];
+  for (let i = 0; i < count; i++) {
+    // Re-derive from the index rather than accumulating, so a fractional step
+    // (0.1) does not drift into 0.30000000000000004 territory across the axis.
+    out.push(Number((start + i * step).toPrecision(12)));
+  }
+  // Make sure an explicit max is actually reachable as a tick.
+  if (axis.max !== undefined && out[out.length - 1] < axis.max) out.push(axis.max);
+  return out;
 }
 
 /**

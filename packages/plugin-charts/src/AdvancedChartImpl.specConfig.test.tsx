@@ -151,6 +151,36 @@ describe('AdvancedChartImpl — spec annotations', () => {
   });
 });
 
+describe('AdvancedChartImpl — spec container props (#3752)', () => {
+  it('announces the accessibility description', () => {
+    const { container } = render(<AdvancedChartImpl {...base} description="Invoice value by status" />);
+    const el = container.querySelector('[data-slot="chart"]');
+    expect(el?.getAttribute('role')).toBe('img');
+    expect(el?.getAttribute('aria-label')).toBe('Invoice value by status');
+  });
+
+  it('leaves the container unlabelled when no description is declared', () => {
+    // No description is not the same as an empty one — don't stamp role="img"
+    // on an unlabelled graphic, which is worse for a screen reader than a
+    // plain div it can skip.
+    const { container } = render(<AdvancedChartImpl {...base} />);
+    expect(container.querySelector('[data-slot="chart"]')?.getAttribute('role')).toBeNull();
+  });
+
+  it('applies an explicit height over the container default', () => {
+    const { container } = render(<AdvancedChartImpl {...base} height={420} />);
+    expect((container.querySelector('[data-slot="chart"]') as HTMLElement)?.style.height).toBe('420px');
+  });
+
+  it('lays y ticks at the declared stepSize', () => {
+    const { container } = render(
+      <AdvancedChartImpl {...base} yAxes={[{ field: 'total', min: 0, max: 120, stepSize: 40 }]} />,
+    );
+    const texts = Array.from(container.querySelectorAll('text')).map((t) => t.textContent ?? '');
+    for (const tick of ['0', '40', '80', '120']) expect(texts).toContain(tick);
+  });
+});
+
 describe('AdvancedChartImpl — spec interaction', () => {
   it('adds the brush when interaction.brush is on', () => {
     const { container } = render(<AdvancedChartImpl {...base} interaction={{ brush: true }} />);

@@ -61,6 +61,8 @@ export interface ChartRendererProps {
     showDataLabels?: boolean;
     title?: unknown;
     subtitle?: unknown;
+    description?: unknown;
+    height?: number;
     annotations?: Array<Record<string, any>>;
     interaction?: Record<string, any>;
     /** An author `type` rescued from the SDUI envelope's discriminator
@@ -160,6 +162,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ schema, onChartCli
         showDataLabels={props.spec.showDataLabels}
         title={props.spec.title}
         subtitle={props.spec.subtitle}
+        description={props.spec.description}
+        height={props.spec.height ?? schema.height}
         annotations={props.spec.annotations}
         interaction={props.spec.interaction}
       />

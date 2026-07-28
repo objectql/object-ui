@@ -10,7 +10,7 @@
  *      (DashboardRenderer / ObjectView / the dataset path pass it explicitly).
  */
 import { describe, it, expect } from 'vitest';
-import { normalizeChartSchema, formatterFor, domainFor } from './normalizeChartSchema';
+import { normalizeChartSchema, formatterFor, domainFor, ticksFor } from './normalizeChartSchema';
 
 describe('normalizeChartSchema — spec shape', () => {
   it('resolves the ChartConfig axis + series shape', () => {
@@ -137,6 +137,59 @@ describe('formatterFor', () => {
 
   it('passes non-numeric values through instead of printing NaN', () => {
     expect(formatterFor('$0,0.00')!('n/a')).toBe('n/a');
+  });
+});
+
+describe('normalizeChartSchema — container-level props (#3752)', () => {
+  it('carries description and height', () => {
+    const out = normalizeChartSchema({ description: 'Invoice value by status', height: 320 });
+    expect(out.description).toBe('Invoice value by status');
+    expect(out.height).toBe(320);
+  });
+
+  it('ignores a non-positive height rather than collapsing the chart', () => {
+    expect(normalizeChartSchema({ height: 0 }).height).toBeUndefined();
+    expect(normalizeChartSchema({ height: -10 }).height).toBeUndefined();
+  });
+
+  it('carries stepSize on an axis', () => {
+    expect(normalizeChartSchema({ yAxis: [{ field: 'total', stepSize: 25 }] }).yAxes?.[0].stepSize).toBe(25);
+  });
+
+  it('ignores a non-positive stepSize', () => {
+    expect(normalizeChartSchema({ yAxis: [{ field: 'total', stepSize: 0 }] }).yAxes?.[0].stepSize).toBeUndefined();
+  });
+});
+
+describe('ticksFor', () => {
+  it('lays ticks over the data range at the declared step', () => {
+    expect(ticksFor({ stepSize: 50 }, [10, 120])).toEqual([0, 50, 100, 150]);
+  });
+
+  it('honours an explicit domain over the data', () => {
+    expect(ticksFor({ min: 100, max: 300, stepSize: 100 }, [10, 20])).toEqual([100, 200, 300]);
+  });
+
+  it('reaches an explicit max the step would otherwise overshoot', () => {
+    expect(ticksFor({ min: 0, max: 25, stepSize: 10 }, [])).toEqual([0, 10, 20, 25]);
+  });
+
+  it('does not drift on a fractional step', () => {
+    expect(ticksFor({ min: 0, max: 0.5, stepSize: 0.1 }, [])).toEqual([0, 0.1, 0.2, 0.3, 0.4, 0.5]);
+  });
+
+  it('returns undefined with no stepSize — Recharts keeps its automatic ticks', () => {
+    expect(ticksFor({ min: 0, max: 100 }, [])).toBeUndefined();
+    expect(ticksFor(undefined, [])).toBeUndefined();
+  });
+
+  it('refuses an absurd tick count instead of hanging the page', () => {
+    // 100_000 / 0.5 ticks is a wrong config, not a chart.
+    expect(ticksFor({ stepSize: 0.5 }, [0, 100_000])).toBeUndefined();
+  });
+
+  it('returns undefined when there is nothing to measure', () => {
+    expect(ticksFor({ stepSize: 10 }, [])).toBeUndefined();
   });
 });
 
