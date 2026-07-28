@@ -74,6 +74,10 @@ const pt = {
     package: "Pacote",
   },
   actions: {
+    decisionOutput: {
+      help: 'Entregue ao fluxo como saída da decisão.',
+      helpMultiValue: 'Entregue ao fluxo como saída da decisão. Separe vários valores por vírgulas.',
+    },
     resultDialog: {
       defaultTitle: 'Guarde este valor agora',
       acknowledge: 'Eu o salvei',

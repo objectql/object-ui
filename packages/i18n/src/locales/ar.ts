@@ -74,6 +74,10 @@ const ar = {
     package: "الحزمة",
   },
   actions: {
+    decisionOutput: {
+      help: 'يُمرَّر إلى التدفق كمخرج للقرار.',
+      helpMultiValue: 'يُمرَّر إلى التدفق كمخرج للقرار. افصل بين القيم المتعددة بفواصل.',
+    },
     resultDialog: {
       defaultTitle: 'احفظ هذه القيمة الآن',
       acknowledge: 'لقد حفظتها',

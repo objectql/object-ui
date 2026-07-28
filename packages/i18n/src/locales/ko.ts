@@ -74,6 +74,10 @@ const ko = {
     package: "패키지",
   },
   actions: {
+    decisionOutput: {
+      help: '결정 출력으로 플로우에 전달됩니다.',
+      helpMultiValue: '결정 출력으로 플로우에 전달됩니다. 여러 값은 쉼표로 구분하세요.',
+    },
     resultDialog: {
       defaultTitle: '이 값을 지금 저장하세요',
       acknowledge: '저장했습니다',

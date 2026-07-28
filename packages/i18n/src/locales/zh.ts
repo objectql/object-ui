@@ -88,6 +88,10 @@ const zh = {
     package: '软件包',
   },
   actions: {
+    decisionOutput: {
+      help: '作为决策输出传递给流程。',
+      helpMultiValue: '作为决策输出传递给流程。多个值请用逗号分隔。',
+    },
     resultDialog: {
       defaultTitle: '请立即保存此值',
       acknowledge: '我已保存',

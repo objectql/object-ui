@@ -74,6 +74,10 @@ const ja = {
     package: "パッケージ",
   },
   actions: {
+    decisionOutput: {
+      help: '決定の出力としてフローに渡されます。',
+      helpMultiValue: '決定の出力としてフローに渡されます。複数の値はカンマで区切ってください。',
+    },
     resultDialog: {
       defaultTitle: 'この値を今すぐ保存してください',
       acknowledge: '保存しました',

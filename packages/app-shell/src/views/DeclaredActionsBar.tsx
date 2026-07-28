@@ -39,7 +39,7 @@ import {
   toPredicateInput,
 } from '@object-ui/react';
 import type { ActionDef } from '@object-ui/core';
-import { useObjectLabel } from '@object-ui/i18n';
+import { useObjectLabel, useObjectTranslation } from '@object-ui/i18n';
 import { Loader2 } from 'lucide-react';
 import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime';
 import { useAdapter } from '../providers/AdapterProvider';
@@ -103,6 +103,13 @@ const DeclaredActionButton: React.FC<{
   // ObjectView/RecordDetailView do for their toolbars. The param dialog's
   // labels localize downstream in useConsoleActionRuntime.
   const { actionLabel, actionConfirm, actionSuccess } = useObjectLabel();
+  // Chrome strings the bar itself authors — as opposed to the declared metadata
+  // above — go through the normal locale bundle. The decision-output params are
+  // synthesized here from `decision_output_defs`, so their key path is dynamic
+  // and no `_actions.<action>.params.*` entry can ever exist for them; the
+  // literal IS what renders, which is how English help text survived in a zh-CN
+  // workspace (objectui#2762 P0-3).
+  const { t } = useObjectTranslation();
 
   const recordData = record != null && typeof record === 'object' ? (record as Record<string, any>) : {};
   // `visible` fails CLOSED on a throwing predicate — mirrors action:button and
@@ -160,19 +167,19 @@ const DeclaredActionButton: React.FC<{
         if (d.type === 'user') {
           return {
             ...base, type: 'user', multiple: d.multiple === true,
-            helpText: 'Handed to the flow as a decision output.',
+            helpText: t('actions.decisionOutput.help'),
           };
         }
         const lookupObject = d.type ? OUTPUT_LOOKUP_OBJECTS[d.type] : undefined;
         if (lookupObject) {
           return {
             ...base, type: 'lookup', referenceTo: lookupObject, multiple: d.multiple === true,
-            helpText: 'Handed to the flow as a decision output.',
+            helpText: t('actions.decisionOutput.help'),
           };
         }
         return {
           ...base, type: 'text',
-          helpText: 'Handed to the flow as a decision output. Comma-separate multiple values.',
+          helpText: t('actions.decisionOutput.helpMultiValue'),
         };
       });
       const dispatch: any = {
@@ -201,7 +208,7 @@ const DeclaredActionButton: React.FC<{
     } finally {
       setLoading(false);
     }
-  }, [action, execute, loading, objectName, record, actionLabel, actionConfirm, actionSuccess]);
+  }, [action, execute, loading, objectName, record, actionLabel, actionConfirm, actionSuccess, t]);
 
   if ((action as any).visible && !isVisible) return null;
 
@@ -252,6 +259,7 @@ export function DeclaredActionsBar({
   label,
 }: DeclaredActionsBarProps) {
   const dataSource = useAdapter();
+  const { t } = useObjectTranslation();
   // Fetch the object def (and its declared actions) unless the host passed
   // them in. `useMetadataItem` no-ops when `name` is undefined.
   const { item: objectDef } = useMetadataItem('object', actionsProp ? undefined : objectName);
@@ -299,7 +307,7 @@ export function DeclaredActionsBar({
             <div className="text-xs font-medium text-muted-foreground">{label}</div>
           </>
         )}
-        <div role="toolbar" aria-label={label || 'Actions'} className="flex flex-row flex-wrap items-center gap-2">
+        <div role="toolbar" aria-label={label || t('common.actions')} className="flex flex-row flex-wrap items-center gap-2">
           {located.map((action) => (
             <DeclaredActionButton
               key={action.name}

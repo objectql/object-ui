@@ -74,6 +74,10 @@ const es = {
     package: "Paquete",
   },
   actions: {
+    decisionOutput: {
+      help: 'Se transfiere al flujo como salida de la decisión.',
+      helpMultiValue: 'Se transfiere al flujo como salida de la decisión. Separe varios valores con comas.',
+    },
     resultDialog: {
       defaultTitle: 'Guarda este valor ahora',
       acknowledge: 'Lo he guardado',

@@ -89,6 +89,10 @@ const en = {
     package: 'Package',
   },
   actions: {
+    decisionOutput: {
+      help: 'Handed to the flow as a decision output.',
+      helpMultiValue: 'Handed to the flow as a decision output. Comma-separate multiple values.',
+    },
     resultDialog: {
       defaultTitle: 'Save this value now',
       acknowledge: 'I have saved this',

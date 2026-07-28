@@ -74,6 +74,10 @@ const fr = {
     package: "Package",
   },
   actions: {
+    decisionOutput: {
+      help: 'Transmis au flux comme sortie de décision.',
+      helpMultiValue: 'Transmis au flux comme sortie de décision. Séparez les valeurs multiples par des virgules.',
+    },
     resultDialog: {
       defaultTitle: 'Enregistrez cette valeur maintenant',
       acknowledge: 'Je l\'ai enregistrée',

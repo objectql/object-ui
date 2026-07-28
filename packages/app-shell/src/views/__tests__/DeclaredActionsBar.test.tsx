@@ -41,6 +41,19 @@ vi.mock('../../providers/MetadataProvider', () => ({
 
 vi.mock('../../utils/getIcon', () => ({ getIcon: () => () => null }));
 
+// Declared metadata resolves through `useObjectLabel` (falling back to the
+// authored literal, which is what the render assertions below expect); the
+// bar's OWN chrome resolves through `t`. Marking `t` output makes it visible
+// whether a string went through the locale bundle or was baked in English.
+vi.mock('@object-ui/i18n', () => ({
+  useObjectLabel: () => ({
+    actionLabel: (_o: unknown, _n: unknown, fallback: string) => fallback,
+    actionConfirm: (_o: unknown, _n: unknown, fallback?: string) => fallback,
+    actionSuccess: (_o: unknown, _n: unknown, fallback?: string) => fallback,
+  }),
+  useObjectTranslation: () => ({ t: (key: string) => `t:${key}` }),
+}));
+
 vi.mock('@object-ui/components', () => ({
   Button: ({ children, onClick, ...props }: any) => (
     <button onClick={onClick} {...props}>{children}</button>
@@ -217,5 +230,77 @@ describe('DeclaredActionsBar', () => {
       />,
     );
     expect(empty.firstChild).toBeNull();
+  });
+});
+
+// objectui#2762 P0-3. The declared action LABELS localize via `useObjectLabel`,
+// but two strings the bar authors itself were baked in English and bypassed
+// i18n entirely — so a zh-CN workspace got 通过 / 拒绝 buttons sitting inside an
+// "Actions" toolbar, with English help text under the decision-output fields.
+//
+// The help text is the subtler one: those params are synthesized here from the
+// record's `decision_output_defs`, so their key path (`outputs.<key>`) is
+// dynamic and no `_actions.<action>.params.*` bundle entry can ever match it.
+// The runtime's `actionParamText` pass therefore always falls through to the
+// literal — the literal IS what renders, every time.
+describe('DeclaredActionsBar chrome localization (objectui#2762)', () => {
+  it('localizes the toolbar aria-label instead of hardcoding "Actions"', () => {
+    render(
+      <DeclaredActionsBar
+        objectName="sys_approval_request"
+        record={REQUEST}
+        location="record_section"
+        actions={ACTIONS as any}
+      />,
+    );
+    expect(screen.getByRole('toolbar')).toHaveAttribute('aria-label', 't:common.actions');
+  });
+
+  it('still prefers a host-supplied label over the translated default', () => {
+    render(
+      <DeclaredActionsBar
+        objectName="sys_approval_request"
+        record={REQUEST}
+        location="record_section"
+        label="决策"
+        actions={ACTIONS as any}
+      />,
+    );
+    expect(screen.getByRole('toolbar')).toHaveAttribute('aria-label', '决策');
+  });
+
+  it('localizes the decision-output help text', async () => {
+    const decideAction = {
+      name: 'approval_approve',
+      type: 'api',
+      label: 'Approve',
+      target: '/api/v1/approvals/requests/{id}/approve',
+      locations: ['record_section'],
+    };
+    render(
+      <DeclaredActionsBar
+        objectName="sys_approval_request"
+        record={{
+          ...REQUEST,
+          decision_output_defs: [
+            { key: 'reviewer', type: 'user' },
+            { key: 'owning_team', type: 'team' },
+            { key: 'notes' },
+          ],
+        }}
+        location="record_section"
+        actions={[decideAction] as any}
+      />,
+    );
+
+    fireEvent.click(screen.getByText('Approve'));
+    await waitFor(() => expect(executeSpy).toHaveBeenCalled());
+
+    const params = executeSpy.mock.calls[0][0].actionParams as Array<Record<string, unknown>>;
+    const byName = Object.fromEntries(params.map((p) => [p.name, p]));
+    expect(byName['outputs.reviewer'].helpText).toBe('t:actions.decisionOutput.help');
+    expect(byName['outputs.owning_team'].helpText).toBe('t:actions.decisionOutput.help');
+    // The free-text variant carries the extra comma-separation sentence.
+    expect(byName['outputs.notes'].helpText).toBe('t:actions.decisionOutput.helpMultiValue');
   });
 });

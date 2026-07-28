@@ -74,6 +74,10 @@ const de = {
     package: "Paket",
   },
   actions: {
+    decisionOutput: {
+      help: 'Wird dem Flow als Entscheidungsausgabe übergeben.',
+      helpMultiValue: 'Wird dem Flow als Entscheidungsausgabe übergeben. Mehrere Werte durch Komma trennen.',
+    },
     resultDialog: {
       defaultTitle: 'Diesen Wert jetzt speichern',
       acknowledge: 'Ich habe ihn gespeichert',
