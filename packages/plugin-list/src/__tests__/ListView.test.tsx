@@ -2644,3 +2644,35 @@ describe('ListView — kanban config speaks the spec vocabulary', () => {
     expect(last?.schema?.summarizeField).toBe('amount');
   });
 });
+
+// ============================================================================
+// Field collection covers the spec vocabulary (#2231)
+// ============================================================================
+describe('ListView — $select collects fields named by the spec vocabulary', () => {
+  // The per-view-type configs name fields the view must fetch. The collector
+  // only knew the legacy objectui keys, so a spec-authored config selected
+  // neither its lane field nor its card fields — the board then rendered from
+  // rows that never carried them.
+  beforeEach(() => {
+    mockDataSource.find.mockClear();
+    mockDataSource.find.mockResolvedValue([]);
+  });
+
+  it('selects the kanban lane and card fields named with spec keys', async () => {
+    const schema = {
+      type: 'list-view',
+      objectName: 'contacts',
+      viewType: 'kanban',
+      fields: ['name'],
+      kanban: { groupByField: 'stage', columns: ['owner', 'amount'], summarizeField: 'amount' },
+    } as unknown as ListViewSchema;
+
+    renderWithProvider(<ListView schema={schema} dataSource={mockDataSource} />);
+
+    await vi.waitFor(() => expect(mockDataSource.find).toHaveBeenCalled());
+    const selected = JSON.stringify(mockDataSource.find.mock.calls);
+    for (const field of ['stage', 'owner', 'amount']) {
+      expect(selected).toContain(field);
+    }
+  });
+});

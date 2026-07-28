@@ -779,12 +779,16 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     const collectViewFields = (v: any) => {
       if (!v) return;
       const candidates = [
-        v.groupField, v.groupBy,
+        // Spec keys first, then the legacy objectui aliases (#2231).
+        v.groupByField, v.groupField, v.groupBy,
+        v.summarizeField,
         v.titleField, v.cardTitle,
         v.startDateField, v.endDateField, v.dateField, v.endField,
         v.colorField, v.allDayField,
         v.coverField, v.imageField,
         v.swimlaneField, v.valueField,
+        // Spec `columns` = the fields shown on each kanban card (legacy: cardFields).
+        ...(Array.isArray(v.columns) ? v.columns : []),
         ...(Array.isArray(v.cardFields) ? v.cardFields : []),
         ...(Array.isArray(v.visibleFields) ? v.visibleFields : []),
         ...(Array.isArray(v.metaFields) ? v.metaFields : []),
@@ -994,12 +998,16 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           const collectViewFields = (v: any) => {
             if (!v) return;
             const candidates = [
-              v.groupField, v.groupBy,
+              // Spec keys first, then the legacy objectui aliases (#2231).
+              v.groupByField, v.groupField, v.groupBy,
+              v.summarizeField,
               v.titleField, v.cardTitle,
               v.startDateField, v.endDateField, v.dateField, v.endField,
               v.colorField, v.allDayField,
               v.coverField, v.imageField,
               v.swimlaneField, v.valueField,
+              // Spec `columns` = the fields shown on each kanban card (legacy: cardFields).
+              ...(Array.isArray(v.columns) ? v.columns : []),
               ...(Array.isArray(v.cardFields) ? v.cardFields : []),
               ...(Array.isArray(v.visibleFields) ? v.visibleFields : []),
               ...(Array.isArray(v.metaFields) ? v.metaFields : []),
