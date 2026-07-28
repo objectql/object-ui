@@ -192,6 +192,7 @@
   "scripts": {
     "vscode:prepublish": "pnpm run build",
     "build": "tsup",
+    "lint": "eslint .",
     "dev": "tsup --watch",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",

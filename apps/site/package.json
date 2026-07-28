@@ -5,6 +5,7 @@
   "scripts": {
     "prebuild": "pnpm --filter @object-ui/example-schema-catalog build",
     "build": "next build",
+    "lint": "eslint .",
     "dev": "next dev",
     "start": "next start",
     "types:check": "fumadocs-mdx && next typegen && tsc --noEmit",

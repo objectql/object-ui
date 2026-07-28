@@ -88,7 +88,8 @@ export default function HomePage() {
                     rel="noopener noreferrer"
                     className="inline-block transition hover:opacity-80"
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    {/* Plain <img>, not next/image: these are third-party badge
+                        endpoints that render their own SVG and need no optimisation. */}
                     <img
                       src={b.src}
                       alt={b.alt}

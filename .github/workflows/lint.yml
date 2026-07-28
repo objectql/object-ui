@@ -1,6 +1,30 @@
 name: Lint
 
+# Until #2923 this workflow was `workflow_dispatch`-only, so ESLint had never
+# gated a PR. That mattered more than it looked: `eslint.config.js` sets three
+# `object-ui/*` rules to `error` *specifically* so a new violation fails CI
+# (ADR-0054 Phase 5, #2879, and the objectql.ts ratchet), and each author
+# pre-cleaned the existing sites so the rule would lint clean. All three
+# ratchets were inert because nothing ran them.
+#
+# `--max-warnings` is deliberately not set: the 7,724 warnings repo-wide are 81%
+# `no-explicit-any`, plus React Compiler rules the config downgrades on purpose.
+# This gate is about errors.
 on:
+  push:
+    branches: [main, develop]
+    paths-ignore:
+      - '**/*.md'
+      - 'content/**'
+      - 'docs/**'
+      - '.changeset/**'
+  pull_request:
+    branches: [main, develop]
+    paths-ignore:
+      - '**/*.md'
+      - 'content/**'
+      - 'docs/**'
+      - '.changeset/**'
   workflow_dispatch:
 
 concurrency:
@@ -32,6 +56,12 @@ jobs:
         with:
           node-version: '20.x'
           cache: 'pnpm'
+
+      # Every package must run ESLint or be declared a known gap. turbo skips
+      # scriptless packages silently, so without this a package reads as clean
+      # because nothing linted it. Runs before install: only reads package.json.
+      - name: Verify lint coverage
+        run: node scripts/check-lint-coverage.mjs
 
       - name: Turbo Cache
         uses: actions/cache@v6
