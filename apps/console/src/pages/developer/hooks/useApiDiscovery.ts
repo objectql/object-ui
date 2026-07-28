@@ -45,21 +45,35 @@ function buildAuthEndpoints(authBase: string): EndpointDef[] {
 }
 
 export const SERVICE_ENDPOINT_CATALOG: Record<string, { group: string; defaultRoute: string; endpoints: ServiceEndpointEntry[] }> = {
+  // The twelve routes `buildAIRoutes()` mounts, in table order (framework#3718).
+  // `/nlq`, `/suggest` and `/insights` used to sit here with "try it" bodies and
+  // always 404'd — they were declared in the framework's `DEFAULT_AI_ROUTES` and
+  // never implemented anywhere, so this page offered three endpoints that had no
+  // server. The audited table is cloud's `packages/service-ai/src/
+  // ai-route-ledger.ts`; when a route is added or renamed there, mirror it here.
+  //
+  // `/status` and `/effective-model` are deliberately NOT SDK surface (operator
+  // diagnostics) — which is exactly why they belong on this page: it explores raw
+  // HTTP, not `client.*`.
   ai: {
     group: 'AI',
     defaultRoute: '/api/v1/ai',
     endpoints: [
-      { method: 'POST', path: '/chat', desc: 'Chat completion', bodyTemplate: { messages: [{ role: 'user', content: '' }] } },
+      // The endpoint STREAMS unless told otherwise, so the JSON template says so:
+      // without `stream: false` a "try it" here buffers an SSE body as text.
+      // `/chat/stream` below is the one that means to stream.
+      { method: 'POST', path: '/chat', desc: 'Chat completion (JSON)', bodyTemplate: { messages: [{ role: 'user', content: '' }], stream: false } },
       { method: 'POST', path: '/chat/stream', desc: 'Streaming chat (SSE)', bodyTemplate: { messages: [{ role: 'user', content: '' }] } },
       { method: 'POST', path: '/complete', desc: 'Text completion', bodyTemplate: { prompt: '' } },
       { method: 'GET', path: '/models', desc: 'List available models' },
-      { method: 'POST', path: '/nlq', desc: 'Natural language query', bodyTemplate: { query: '' } },
-      { method: 'POST', path: '/suggest', desc: 'AI-powered suggestions', bodyTemplate: { object: '', field: '', context: {} } },
-      { method: 'POST', path: '/insights', desc: 'AI-generated insights', bodyTemplate: { object: '', recordIds: [] } },
+      { method: 'GET', path: '/status', desc: 'Active LLM adapter provenance' },
+      { method: 'GET', path: '/effective-model', desc: 'Effective model ids and where they came from' },
       { method: 'POST', path: '/conversations', desc: 'Create conversation', bodyTemplate: {} },
       { method: 'GET', path: '/conversations', desc: 'List conversations' },
-      { method: 'POST', path: '/conversations/:id/messages', desc: 'Add message to conversation', bodyTemplate: { role: 'user', content: '' } },
+      { method: 'GET', path: '/conversations/:id', desc: 'Get conversation with message history' },
+      { method: 'PATCH', path: '/conversations/:id', desc: 'Update conversation (title, metadata)', bodyTemplate: { title: '' } },
       { method: 'DELETE', path: '/conversations/:id', desc: 'Delete conversation' },
+      { method: 'POST', path: '/conversations/:id/messages', desc: 'Add message to conversation', bodyTemplate: { role: 'user', content: '' } },
     ],
   },
   workflow: {
