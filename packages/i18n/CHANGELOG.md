@@ -1,5 +1,860 @@
 # @object-ui/i18n
 
+## 17.0.0
+
+### Minor Changes
+
+- 952b978: fix(detail): the approval band honors the node's `lockRecord` instead of assuming every approval locks (#2902)
+
+  A record detail page treated "a pending approval request exists" as "this
+  record is locked". An approval node declares `lockRecord` (default `true`), and
+  on `lockRecord: false` the server keeps accepting writes for the whole time
+  that node waits — so the console was asserting a lock the backend did not
+  enforce.
+
+  The label was the smaller half of it. The same conflated signal fed `canEdit`,
+  so the record-level inline-edit session was suppressed too: no pencils,
+  `enter()` a no-op. On a single-approver step — a department head or plant
+  manager, exactly the case `lockRecord: false` exists for, where the approver is
+  meant to fill in the missing detail before deciding — the capability was
+  unreachable from the UI. And a flow chaining nodes with different policies drew
+  one identical band for "edit freely" and "the server will reject your save with
+  `RECORD_LOCKED`", so the two states were indistinguishable until Save failed.
+
+  Approval state is now two signals:
+
+  - **`approvalPending`** — an approval is running. Drives the band and the recall
+    button, both meaningful whether or not the record is editable.
+  - **`locked`** — that approval also forbids edits, from the pending node's
+    `lock_record` (framework#3814, read off the same `node_config_json` snapshot
+    the server's record-lock hook reads).
+
+  The band renders two states: amber lock + "Locked for approval", or sky clock +
+  "In approval · editable", each with its own tooltip. Recall moved out of the
+  locked branch — an editable pending approval is just as recallable. Inline
+  editing stays live in the editable state.
+
+  `InlineEditProvider` takes a new optional `approvalPending` prop, defaulting to
+  `locked`, so a host that threads only `locked` renders exactly as before. The
+  record's `approval_status` field remains the fallback for backends with no
+  approvals API; it carries no node granularity, so it still reads as locked — as
+  does a pending request from a backend too old to report the policy.
+
+  New `detail.approvalPendingEditable` / `detail.approvalPendingTooltip` keys are
+  translated in all ten locales.
+
+- 2735de6: feat: render the server's effective API operation set (#3391 PR-4)
+
+  The frontend now consumes the per-object **effective API operation set** the
+  server resolves (from `/me/permissions` `apiOperations`, framework #3391) —
+  never the raw `apiMethods` — so Import/Export/New/Edit/Delete buttons match what
+  the server will actually admit, and a 405 import refusal shows a dedicated
+  message instead of silently falling back.
+
+  - **core** `resolveCrudAffordances(obj, effectiveApiOperations?)` — new optional
+    second argument intersects each affordance bit with its API operation
+    (create/import→create/import, edit→update, delete→delete, exportCsv→export).
+    Omitting it (old backend / no effective set) leaves affordances unchanged.
+  - **permissions** — `/me/permissions` response carries per-object
+    `apiOperations`; `PermissionContextValue.getObjectApiOperations(object)`
+    exposes it (undefined when absent → callers keep current behavior); `check()`
+    maps `import→allowCreate`, `export→allowRead`.
+  - **app-shell** `ObjectView` intersects its toolbar affordances with the object's
+    effective operations (Import); the platform-admin identity-import bypass is
+    unaffected.
+  - **plugin-list** `ListView` / **plugin-grid** `ObjectGrid` gate the Export
+    button (and export handler) on effective `export`; `plugin-grid` gains the
+    `@object-ui/permissions` workspace dependency.
+  - **plugin-grid** `ImportWizard` — a 405 / `OBJECT_API_METHOD_NOT_ALLOWED`
+    import refusal is detected by a new `isImportNotAllowed` predicate at every
+    catch site (async, sync, dry-run) and STOPS with a dedicated
+    `grid.import.notAllowed` message (10 locales + fallback dict) — it never falls
+    back to the sync/legacy path (which 405s too), distinct from the 404
+    route-absent fallback.
+
+  Backward-compatible: a missing effective set (unrestricted object, older
+  backend, or no permission provider) preserves the current default-allow
+  behavior everywhere.
+
+### Patch Changes
+
+- 0b3be01: fix(app-shell): give inline `lookup` action params a real record picker (#3405)
+
+  An action parameter declared inline as `{ name: 'inspector', type: 'lookup',
+reference: 'sys_user' }` always rendered as a plain text input asking the user
+  to paste a record id (UUID) — a supervisor assigning an inspector had to go
+  find that person's UUID by hand, while the same reference field picks records
+  by name in the create/edit dialog.
+
+  `paramToField()` degrades a picker param to text when it has no `referenceTo`
+  target, and `referenceTo` was only ever populated on the field-backed branch of
+  `resolveActionParams()`. The inline branch dropped the authored `reference`
+  key entirely (as did the spec schema, which stripped it as unknown), so an
+  inline picker could never reach `<LookupField>` no matter how it was authored.
+
+  - `resolveActionParam()` now maps an inline `reference` onto `referenceTo` — on
+    the inline branch, on the missing-field fallback branch, and as an override
+    on the field-backed branch (matching how every other inline value overrides
+    the resolved field).
+  - The text degradation now warns in dev naming the offending param, since with
+    `@objectstack/spec` rejecting a targetless inline picker at parse time it
+    means the metadata is broken, not merely partial.
+  - The fallback's placeholder and help text no longer claim "a picker is coming
+    soon" — the picker has shipped, and the message now says the parameter has no
+    reference object configured. Updated across all 10 locales.
+
+- 3c4d935: fix(i18n): compose the AI-model diagnostics summary client-side instead of rendering the server's English string (objectui#2886)
+
+  `CloudAiModelStatus` rendered `report.summary` verbatim — the most prominent
+  line on the panel, in English for every locale.
+
+  Reading `objectstack-ai/cloud` settled how to fix it. The server **cannot**
+  localize that string as currently built:
+
+  - `service-ai/src/effective-model.ts:117` assembles it as a hard-coded English
+    template literal, with no locale parameter;
+  - `service-ai/src/routes/ai-routes.ts:395` declares `handler: async () => …` —
+    it takes **no request argument**, so it cannot read `Accept-Language` even
+    though `createAuthenticatedFetch` has been sending it since objectui#1319.
+
+  But no server change is needed, because every ingredient of the sentence is
+  already in the structured payload: `conversational.model`,
+  `conversational.source`, `structured.model`, `structured.pinned`, and
+  `routing.{free,paid}`. The issue proposed "return structured data instead of a
+  sentence" as the better fix — the server was already doing that; the client
+  just wasn't using it.
+
+  The panel now composes the line from those fields. `sourceLabel()` already
+  produced exactly the two clauses the server hand-rolls — "pinned by X" /
+  "code default (no env override)", and "same as build/ask" for an unpinned
+  structured model — so no new source vocabulary was required.
+
+  **A dropped diagnostic, not just untranslated text.** The client's
+  `EffectiveModelReport` never declared `routing`, which the server has always
+  sent conditionally. Its only appearance anywhere was inside the English summary,
+  so non-English admins could not see the plan→model routing policy **at all**.
+  It is now declared and surfaced.
+
+  Also fixed: `attributeSource` emits the bare token `'unknown'` when the adapter
+  cannot report a model, and `sourceLabel` fell through to rendering it raw.
+
+  Four keys added to all ten packs (`summary`, `summaryRouting`, `modelUnknown`,
+  `sourceUnknown`), so the full-parity guard from objectui#2909 stays green.
+
+  The panel had **no test coverage at all**; it now has five, mutation-tested by
+  restoring `<p>{report.summary}</p>` — which fails four of them.
+
+- 4b60d2d: fix(console): make the approval timeline attachment chip show its name and open (#2820)
+
+  A decision attachment in the approval inbox timeline (审批动态) rendered a
+  nameless "附件" chip that did nothing when clicked. Three separate bugs:
+
+  - **No filename.** The chip resolved its label by fetching `/data/sys_file/{id}`
+    — a system object a regular approver cannot read — and silently fell back to a
+    generic label when that was denied. The name now comes from the attachment
+    descriptor the server returns (framework #3266), so no `sys_file` access is
+    needed and the real filename shows for every approver.
+  - **Dead click.** `openAttachment` called `window.open` _after_ an `await`, so
+    it was no longer a user gesture and the browser blocked the popup. It now opens
+    the tab synchronously up front, then points it at the signed URL once fetched.
+  - **Wrong origin.** The signed URL from the local storage adapter is
+    server-relative; `window.open` resolved it against the console origin. It is
+    now resolved against the API origin.
+  - Every open failure was swallowed silently. The user now gets a toast on
+    failure — new `approvalsInbox.attachmentOpenFailed` string across all 10
+    locales.
+
+- de5e40c: fix(approvals): Approval Center UX pass — badge nowrap, approve confirm, decision progress bar, localized declared actions (#2762)
+
+  - **Badge no longer stacks CJK text vertically (P0-1)** — `Badge` gains
+    `whitespace-nowrap` in its base variants (a badge is a single-line pill by
+    definition), and the inbox 状态 column gets a minimum width, so 待审批 can
+    never render as 待/审/批.
+  - **Quick Approve now confirms (P0-2)** — the row's right-edge ✓, the mobile
+    card button and the `a` keyboard shortcut all route through a confirmation
+    dialog before executing, mirroring the Reject flow; an irreversible decision
+    can no longer fire on a stray click.
+  - **Decision progress is visualized (P1-1)** — the drawer renders a segmented
+    progress bar (ARIA `progressbar`) for `decision_progress`, per-group chips
+    get an explicit unsatisfied ○ state next to the satisfied ✓, the eligible
+    approver count is spelled out, and the drawer pager now reads
+    "Request N of M" so it can't be misread as approval progress.
+  - **Declared action labels localize (P0-3)** — `DeclaredActionsBar` resolves
+    label / confirmText / successMessage through the `_actions.<name>.*`
+    translation convention (metadata literals as fallback), matching
+    ObjectView/RecordDetailView; with the `@objectstack/plugin-approvals`
+    bundle, the drawer shows 通过 / 拒绝 / 转签 instead of English in a zh-CN
+    workspace. New `approvalsInbox` keys shipped in all ten locales.
+
+- 1a03af6: fix(approvals): Approval Center triage + drawer readability pass (#2762 P1-2/P1-3/P1-4/P1-5/P2)
+
+  - **Decision-relevant data in the queue (P1-3)** — list rows and mobile cards
+    now surface the request's amount/total inline (detected from the snapshot,
+    preferring the server-formatted `payload_display` value), so a reviewer can
+    triage without opening each request. A sort control adds "Oldest first" and
+    "Amount (high→low)" alongside the default newest-first.
+  - **Empty applicant column (P1-4)** — flow-/system-initiated requests (no human
+    submitter) now read "Flow-initiated" with a workflow icon instead of a bare
+    person icon + "—", in the desktop table, mobile card, and drawer.
+  - **Approver chips deduped (P1-2)** — a person filling more than one approver
+    slot rendered as N identical "Waiting on" chips; they collapse to one chip
+    with a ×N count, the tooltip keeping every underlying id.
+  - **Action hierarchy (P1-5)** — `DeclaredActionsBar` maps the spec action
+    `variant` enum onto the Button variants (`primary` → filled default,
+    `danger` → destructive), so the drawer's Approve stands out and Reject reads
+    as destructive once `@objectstack/plugin-approvals` declares them.
+  - **Label polish (P2)** — `owner_id`-style resolved lookup keys render as
+    "Owner", not the awkward "Owner Id", in the drawer summary.
+
+  New `approvalsInbox` keys (`flowOrigin`, `sortBy`/`sortRecent`/`sortOldest`/
+  `sortAmount`) added to all ten locales.
+
+- 3e886eb: fix(i18n): localize FileField upload widget + approvals snapshot field labels
+
+  - `FileField` (the shared upload widget) hard-coded every visible string
+    ("Drag & drop files here", "or click to browse", "Take photo", "Uploading…",
+    size/upload validation messages, …). They now route through
+    `useObjectTranslation` with new `fields.file.*` keys, translated across all
+    10 locale bundles. This is why the approvals Approve/Reject dialog's
+    attachment dropzone was English in a Chinese console.
+  - The approvals inbox record-snapshot summary title-cased raw machine keys
+    instead of the target object's field labels. It now consumes the
+    server-sent `payload_labels` in `payloadSummary`/`decisionAmountEntry`,
+    falling back to the prettified key when absent; `approvalsApi`'s row type
+    gains `payload_labels`.
+
+- cfc675e: fix(i18n): unconditional Chinese in the chatbot confirm card and the field inspector (objectui#2884, objectui#2885)
+
+  Two issues split out of the objectui#2871 survey because neither is a language
+  _branch_ — both are copy that renders in Chinese for every user regardless of
+  locale.
+
+  **objectui#2884 — the confirm-before-change card.** Heading, buttons, hint and
+  the verb column of each change row were Chinese literals, so an English user
+  read the whole confirm gate in Chinese. They now follow the same
+  prop-with-English-default convention the plan card already uses
+  (`changesTitleLabel`, `changesConfirmLabel`, `changeVerbLabels`, …), with the
+  console passing translated values from `console.ai.*`.
+
+  The serious half was the outbound message. Clicking Confirm sent
+  `'确认修改，应用你刚才提议的改动。'` unconditionally — an English user's click
+  told the agent, in Chinese, to apply the changes, and the agent answered in
+  Chinese for the rest of the thread. That message now routes through the same
+  `convZh` (conversation-language) switch as `planApproveMessage`, so it matches
+  the language actually being spoken rather than the UI or a hard-coded literal.
+
+  Note this is deliberately _not_ "always send English": the repo already decided
+  outbound agent text follows the CONVERSATION, and the cloud confirm gate
+  (`service-ai-studio` `confirm-gate.ts` `APPROVAL_RE`) matches on approval
+  keywords. The Chinese string is unchanged, so that path is byte-for-byte what
+  the gate already accepted; `i18n.test.ts` now pins it against the mirrored gate
+  regex alongside the two plan messages.
+
+  Also in this component: the error banner's `Response failed` / `Details` /
+  `Retry` were hard-coded English, and both it and the quota banner used a bare
+  `t(key)` that renders the raw key when the chat is mounted without an
+  `I18nProvider`. Both now use `useSafeTranslate`, so they degrade to English
+  instead of to `chatbotError.title`. The `「…」` corner brackets around the
+  target-app name are now neutral quotes.
+
+  **objectui#2885 — the draft-field suffix.** `ObjectFieldInspector` appended a
+  bare `(草稿)` to draft objects in the lookup picker — the only Chinese literal
+  in a 1500-line file where the other 101 strings all go through `t(key, locale)`.
+  It now reads `engine.inspector.draftSuffix` from the Studio catalog.
+
+  The 18 new keys were added to all ten locale packs, so the objectui#2872 part
+  (a) gap held at 469/471 rather than widening.
+
+- 20df08c: fix(cloud-connection): localize the Cloud Connection panel (objectstack#3589 follow-up)
+
+  `CloudConnectionPanel` — the `cloud-connection:panel` SDUI widget that is the
+  entire body of the Cloud Connection Setup page — had no i18n at all: no
+  `@object-ui/i18n` import, and no `cloudConnection` namespace in any of the ten
+  built-in locale packs. Its siblings on neighbouring pages
+  (`marketplace:installed-list`, `mcp:connect-agent`) were already fully
+  localized, so this one page rendered a translated header above an English body
+  once the framework-side `page:header` resolution landed.
+
+  - New `cloudConnection` namespace in all ten packs (en, zh, ja, ko, de, fr, es,
+    pt, ru, ar), matching the coverage its sibling namespaces already had. Covers
+    every phase of the device-code flow: checking, error + retry, waiting
+    (approval prompt, user code, copy), bound (connection detail labels), and
+    unbound (call to action).
+  - The three hard-coded failure messages (expired request, bind failure, device
+    code request failure) are translated where they are raised, not where they
+    are rendered, since they are stored in component state.
+  - The "code is pre-filled…" line was one sentence stitched together across JSX
+    with a conditional tail and a bare `'.'`. It is now two self-contained
+    strings, so a translator never receives a dangling clause whose word order
+    they cannot change.
+  - The `bound_at` timestamp now formats with the active UI language rather than
+    the browser default, matching the surrounding copy.
+
+  Also adds a locale-parity test asserting the `cloudConnection` key set is
+  identical across all ten packs — partial coverage degrades quietly, because
+  i18next falls back to `en` and the result merely looks half-translated.
+
+- af705b9: feat(i18n): complete the locale backfill — all ten packs reach full key parity (objectui#2872)
+
+  Translates the remaining **275 keys × 8 packs = 2,200 strings**, closing
+  objectui#2872. The largest namespaces are `grid` (101, mostly the import
+  wizard), `gantt` (58) and `dashboard` (25), plus a long tail across `list`,
+  `auth`, `fields`, `marketplace`, `capability` and nine others.
+
+  Every pack is now at parity with `en`: **2,495 of 2,499 keys**, zero keys that
+  `en` lacks. The four-key remainder is the outbound-message set, absent by
+  design so `t()` falls through to English and the cloud confirm gate keeps
+  recognising it — `outbound-agent-messages.test.ts` owns that invariant.
+
+  **P3 is now enforceable.** `high-frequency-namespace-parity.test.ts` was scoped
+  to four namespaces because full parity would have been a permanently red build.
+  That restriction is obsolete, so it is replaced by
+  `all-locales-key-parity.test.ts`, which asserts:
+
+  - every pack defines every `en` key;
+  - no pack defines a key `en` lacks (objectui#2872 part b was 74 keys of exactly
+    this, hidden behind a component-private fallback);
+  - **placeholders match `en` per string** — both `{{count}}` and the single-brace
+    `{count}` form, which two `gantt.autoScheduleDlg.*` keys use on purpose
+    because their call site does a literal `.replace('{count}', …)` rather than
+    i18next interpolation. A translation that drops a placeholder renders a
+    sentence with a hole in it and no error, so this is checked mechanically
+    rather than by eye.
+
+  All three assertions were mutation-tested, including the single-brace form.
+
+  ### A bug the test suite could not have caught
+
+  The first merge pass produced **duplicate keys** in four packs: the key list is
+  the union of what is missing across all eight, but the insert ran
+  unconditionally, so packs that already had `detail.created` / `detail.updated`
+  got a second copy. Every test still passed — at runtime the later property
+  simply wins, so the parity check saw a perfectly consistent object.
+
+  `tsc` caught it as TS1117 during `turbo build`. ESLint does not flag it, and a
+  runtime test _cannot_ — the duplicate is already collapsed before JS sees the
+  object. The compiler is the only possible guard here, and CI runs it. The merge
+  script now filters per pack against what that pack actually defines.
+
+  ### Translation quality
+
+  Model-generated, and dense domain terminology (Gantt dependency types, the
+  import wizard's upsert/match-field vocabulary) is exactly where that is
+  weakest. This was raised before starting and the work was requested anyway, so
+  it ships as a **reviewable first draft, not a finished localization** — native
+  review is still worthwhile. What _is_ verified mechanically: key parity in both
+  directions, placeholder shape per string, and that no outbound agent message
+  was translated.
+
+- 0502a7c: fix(i18n): the change card's Confirm button sent text the cloud gate does not accept
+
+  The English `console.ai.changesConfirmMessage` was
+  `"Confirm the changes — apply what you just proposed."`. The cloud confirm gate
+  (`service-ai-studio` `confirm-gate.ts` `APPROVAL_RE`) recognises
+  `apply (this|the) change` — **not** "apply what". So the message failed the
+  gate, and failing the gate is silent: the agent re-proposes instead of applying,
+  and the Confirm button on the change card simply looks inert.
+
+  This affected English conversations **and all eight locales that fall back to
+  English** for that key. It is now
+  `"Confirm — apply the change you just proposed."` — singular "the change", so it
+  still matches if the gate ever tightens to a word boundary. The Chinese string
+  was always fine (`确认修改` hits the 确认-anchored clause) and is unchanged.
+
+  The same literal lives in four places — the locale pack, the
+  `ChatbotEnhanced` prop default, its doc comment, and the `AiChatPage`
+  `defaultValue` — and all four are updated together.
+
+  **Why the existing guard missed it.** `i18n.test.ts` mirrored only the _Chinese_
+  clause of `APPROVAL_RE`; the English half was reduced to "starts with Confirm,
+  contains apply" because nothing in this repo could see the real pattern. That
+  weaker assertion passed against a string the gate rejected — the guard was
+  green and the feature was broken.
+
+  The mirror is now **verbatim, both clauses**, and drives an `it.each` over every
+  outbound approval message in both `zh` and `en`. Two supporting tests keep it
+  honest: one asserting the gate stays narrow (a plain build request like
+  "帮我搭建一个 CRM" must NOT read as approval), and one asserting
+  `planAnswerMessage` does _not_ match — it answers a structure question and must
+  never read as blanket approval.
+
+  The mirror is duplicated across a repo boundary by necessity (objectui cannot
+  import from cloud); the comment says so, so the next person changing
+  `APPROVAL_RE` knows to update it here too.
+
+- c6fd752: fix(app-shell): localize the two `DeclaredActionsBar` strings that bypassed i18n (objectui#2762 P0-3)
+
+  The declared action _labels_ resolve through `useObjectLabel`, so a zh-CN
+  workspace got 通过 / 拒绝 buttons — sitting inside a toolbar whose accessible
+  name was the English literal `'Actions'`, above decision-output fields whose
+  help text read `Handed to the flow as a decision output.` Both strings are
+  authored by the bar itself rather than by metadata, and both skipped the locale
+  bundle entirely.
+
+  - `aria-label` now uses the existing `common.actions` key (a host-supplied
+    `label` still wins).
+  - The decision-output help text moves to new `actions.decisionOutput.help` /
+    `.helpMultiValue` keys, added across all ten shipped locales.
+
+  Worth being precise about why the help text needed fixing at all, since the
+  runtime _does_ localize action params: `useConsoleActionRuntime` runs every
+  param through `actionParamText`, but these params are synthesized here from the
+  record's `decision_output_defs`, so their key path (`outputs.<key>`) is dynamic
+  and no `_actions.<action>.params.*` bundle entry can ever match it. The
+  fallback is not a rare path — it is the only path, which is why the English
+  survived.
+
+  Not fixed, and deliberately: a decision output that arrives without a `label`
+  still renders a title-cased version of its machine key. That derived text
+  mirrors the framework's `humanizeFieldPath` convention, and the real fix is the
+  backend declaring the label — a client-side bundle cannot key off a dynamic
+  output name.
+
+- e05f052: feat(i18n): translate the four highest-traffic namespaces into the eight trailing locales (objectui#2872 part a)
+
+  Backfills `console`, `home`, `topbar` and `layout` — 193 keys × 8 packs, 1,544
+  strings — so a ja/ko/de/fr/es/pt/ru/ar admin sees the AI console, the home
+  screen, the top bar and the system navigation in their own language instead of
+  silently falling back to English.
+
+  The gap in those eight packs drops from **469–471 keys to 277–279**. `en` and
+  `zh` remain at exact parity (2499 : 2499, zero difference in both directions).
+
+  This is the "high-frequency namespaces only" strategy from the objectui#2872
+  discussion, not a full backfill: `grid` (101), `gantt` (58), `dashboard` (25)
+  and the long tail stay on English fallback and remain tracked there.
+
+  **Four keys are deliberately left untranslated**, and that is the load-bearing
+  part of this change:
+
+  ```
+  console.ai.planApproveMessage
+  console.ai.planApproveDefaultsMessage
+  console.ai.planAnswerMessage
+  console.ai.changesConfirmMessage
+  ```
+
+  These are not labels. They are the text a button _transmits to the agent_, and
+  the cloud confirm gate (`service-ai-studio` `confirm-gate.ts` `APPROVAL_RE`)
+  decides whether that text reads as approval. It recognises Chinese and English
+  — nothing else. `AiChatPage` therefore selects them by the language of the
+  CONVERSATION rather than of the UI, and the `t()` call is _expected_ to miss in
+  every non-Chinese pack and fall through to its English `defaultValue`.
+
+  Translating them would be an outright regression: a German user's "Build it"
+  would start sending German, the gate would stop matching, and the agent would
+  re-propose instead of building — the button looks inert while nothing visibly
+  errors.
+
+  objectui#2900 shipped precisely that bug for `changesConfirmMessage`, which had
+  been added to all ten packs. **This change removes it from the eight**,
+  restoring the English fallback. A new guard,
+  `packages/i18n/src/__tests__/outbound-agent-messages.test.ts`, pins the
+  invariant in both directions: the four keys must be absent from the eight packs
+  AND present in `en`/`zh`, while every _other_ `console.ai` label must be
+  translated — so the narrow fix can't be over-applied into an excuse for leaving
+  surrounding labels in English.
+
+  Translations are model-generated and would benefit from native review; the
+  placeholder set of every string was verified programmatically against the
+  English source.
+
+- 0502a7c: test(i18n): ratchet the four backfilled namespaces so they cannot silently erode
+
+  objectui#2903 translated `console`, `home`, `topbar` and `layout` into all ten
+  packs. Nothing stopped that from decaying: `fallbackLng: 'en'` means dropping a
+  key from `de` renders English, which reads as "not translated yet" rather than
+  "we lost this", and the missing-key handler is dev-only so CI never sees it.
+
+  This is objectui#2872's P3 (full parity test) applied **only to the namespaces
+  that are actually complete**. Full parity would fail today by ~277 keys per
+  pack with no action attached to it, which is a broken build rather than a
+  guard. Widen `RATCHETED_NAMESPACES` as each remaining namespace is translated —
+  not before.
+
+  Asserts both directions, because the packs have drifted both ways before:
+
+  - every ratcheted `en` key exists in all nine other packs;
+  - no pack defines a ratcheted key that `en` lacks — objectui#2872 part (b) was
+    exactly this failure, 74 keys deep, hidden behind a component-private
+    fallback so English "happened to" render.
+
+  The four outbound agent messages are excluded, since they are deliberately
+  absent from the eight non-gate packs; `outbound-agent-messages.test.ts` owns
+  that invariant and the two guards would otherwise contradict each other.
+
+  A non-vacuity assertion pins the ratchet at >300 keys and requires every named
+  namespace to contribute, so a rename can't quietly reduce the whole file to a
+  no-op.
+
+- faad45e: fix(fields): render `image` fields consistently and add click-to-zoom (#2836)
+
+  An `image` field rendered differently — and wrongly — on three surfaces:
+
+  - **Edit form showed broken thumbnails.** A record read back its `image` value
+    as a bare `sys_file` id (the reference form), but `readFileValue` returned an
+    id with no URL — the comment assumed the read path expands it, which the
+    edit-form data path does not. The result was `<img src="">`. `file-value` now
+    derives the stable download URL (`/api/v1/storage/files/:id`, which
+    302-redirects to a signed URL and works directly as `<img src>`) for a bare
+    id or an id-only object, so every widget and cell renderer resolves one.
+  - **Inline edit leaked the raw storage URL.** `InlineFieldInput` had no branch
+    for file-backed types and fell through to a plain text input showing
+    `/api/v1/storage/files/…`. It now renders the same upload widgets the form
+    uses (`image`/`avatar`/`signature`/`file`/`video`/`audio`).
+  - **Hard-coded English.** `ImageField`'s upload/crop/remove/alt strings now go
+    through `t('fields.image.*')` (en + zh added).
+
+  Also adds an `ImageLightbox` — click a read-only thumbnail (detail or list cell)
+  to open a full-screen preview; multiple images get prev/next navigation, a
+  position counter and arrow-key support, a single image just the image. In a
+  grid cell the click is `stopPropagation`-guarded so enlarging doesn't also open
+  the row.
+
+- 09c6a17: fix(grid): localize import result errors (objectstack#3566)
+
+  The import completion screen rendered the raw English server message verbatim —
+  e.g. `Row 6 (position): position: "装配工" matches more than one
+os_tianshun_ehr_position — use a unique value or the record id` — with the field
+  name twice, an internal object api-name, all in English, while the dry-run panel
+  already localized the same errors.
+
+  - The result list now runs through the same `formatDryRunError` path (driving
+    off the structured error `code`, resolving the api-name to its field label,
+    dropping the duplicated `<api-name>:` prefix). Threaded the error `code`
+    through `ImportResult.errors` to make this possible.
+  - Added code-driven translations for the remaining structured import errors —
+    `invalid_boolean` / `invalid_number` / `invalid_date` / `invalid_option` /
+    `required` / `AMBIGUOUS_MATCH` — with Chinese (`zh`) copy in `@object-ui/i18n`
+    alongside the existing reference errors.
+
+- ba73a02: fix(kanban): surface off-column records in an "Uncategorized" lane instead of dropping them (#2792)
+
+  Records whose `groupBy` value matched no declared column were bucketed and then silently discarded — the board rendered empty while the list footer still counted the rows, so it read as data loss (a status the board doesn't render, an edited/removed picklist option, imported legacy data, or an empty value all triggered it). They now land in a trailing "Uncategorized" lane so no record is invisible and the visible card total reconciles with the record count. Dragging a card out of that lane into a real column repairs its status; the drag handler refuses to persist a move _into_ the lane (its sentinel id is not a real option). Adds `kanban.uncategorized` to the en/zh bundles.
+
+- 9b4b952: fix(i18n): make `en` the complete source of truth for grid import and set-password (objectui#2872 b/c)
+
+  The `en` and `zh` packs had drifted in both directions, silently, because
+  `fallbackLng: 'en'` degrades a missing key into English rather than an error and
+  the missing-key handler only fires in dev.
+
+  - **74 keys existed only in `zh`.** `grid.import.*` and `auth.setPassword.*` had
+    never been added to `en`, so no other locale could translate them: the English
+    text came from call-site `defaultValue:` args and a private map inside
+    `ImportWizard`. They now live in `en`, which is what translators and
+    `os i18n extract` read.
+  - **4 `en` keys were missing from `zh`** (`console.commandPalette.title`,
+    two `console.ai.suggestions.metadataAssistant.*`, `help.keyboardShortcuts`),
+    so Chinese users saw English.
+
+  `grid.import` in particular had three disagreeing sources — the `en` pack (62
+  keys), `zh` (130) and `ImportWizard`'s own fallback map (133), union 134, no two
+  the same set. All three are now aligned on 134.
+
+  The wizard's fallback map is kept, not deleted: it is what lets the wizard render
+  with no `I18nProvider` mounted (standalone embedding, unit tests). It is instead
+  pinned to the `en` pack by a new test, so the two can no longer drift.
+
+  `SetPasswordPage` drops its now-redundant inline `defaultValue:` args; the text
+  is byte-identical, it just comes from the pack now.
+
+  Adds two guards, both mutation-verified:
+  - `en` ↔ `zh` full key parity, asserted in both directions. The other eight
+    packs are still ~357 keys behind and are tracked separately (objectui#2872
+    part a), so they are deliberately not asserted yet.
+  - `IMPORT_DEFAULT_TRANSLATIONS` ↔ `en.grid.import`, same keys and same text.
+
+- 7d46648: fix(hooks): stop calling translation hooks inside try/catch (objectui#2879)
+
+  Eleven call sites wrapped a React hook in `try`/`catch` to make it
+  "provider-safe". `useObjectTranslation` and `useObjectLabel` already are — they
+  read context optionally and fall back to react-i18next's global instance, and
+  never throw. The `catch` bought nothing and cost correctness: a throw _after_
+  the hook ran desyncs hook order on the next render, because React matches hooks
+  positionally. objectui#2595/#2596 fixed exactly this in `@object-ui/i18n`'s
+  `createSafeTranslation`; nine plugin-local re-implementations kept their own
+  copy of the bug, and two more (`ObjectTimeline`, `ObjectView`) were found by the
+  new lint rule below — `ObjectView` had even suppressed
+  `react-hooks/rules-of-hooks` inline to keep it.
+
+  - Six exact re-implementations now delegate to `createSafeTranslation`:
+    `plugin-detail`, `plugin-timeline`, `plugin-list`, `plugin-calendar`,
+    `plugin-grid`'s `ObjectGrid`, `plugin-designer`.
+  - `components`' `data-table` also delegates; `createSafeTranslation` now
+    returns `language` alongside `t` so consumers that localize dates don't need
+    a second hook call. Purely additive.
+  - `plugin-gantt` and `plugin-grid`'s `ImportWizard` keep their local hooks —
+    they fall back _per key_, which a single-probe factory cannot express and
+    which their comments justify (a host dictionary that covers common keys but
+    lags on newer ones). Only the `try`/`catch` is removed.
+  - `ObjectTimeline` and `ObjectView` call the hook directly and probe the
+    returned value, mirroring `useSafeFieldLabel`.
+
+  Adds `object-ui/no-try-catch-around-hook` (error) so a twelfth copy fails CI.
+  It only matches `use*` names, accepts member calls solely on `React` (so
+  `vi.useRealTimers()` is not a hook), and resets its try-depth inside nested
+  functions (so `renderHook(() => useThing())` inside a `try` is fine) — both
+  false positives were real code in this repo and are pinned in the rule's tests.
+
+  `eslint-rules/**/*.test.js` matched no vitest project glob, so the local
+  plugin's specs had never run in CI. They are now included; all three pass.
+
+  `ObjectTimeline`'s test mock of `@object-ui/react` omitted `useObjectLabel` —
+  the removed `try`/`catch` had been silently absorbing that gap. The mock is now
+  complete.
+
+- bb4aa25: fix(i18n): apply globalActions label overlays to actions surfaced on a record-detail action bar (objectui#3372)
+
+  On a record-detail action bar the caller passes `objectDef.name` for **every**
+  action, so a `globalAction` surfaced there (e.g. `log_call`) looked up
+  `objects.<obj>._actions.<action>.label`, missed, and leaked the English
+  metadata literal ("Log a Call") instead of its `globalActions.<action>.label`
+  overlay ("记录通话"). Object-owned actions on the same bar translated fine,
+  which is what made the gap visible.
+
+  `useObjectLabel()`'s action resolvers now mirror the canonical
+  `@objectstack/spec` resolver (`system/i18n-resolver.lookupActionField`): when an
+  action is object-scoped, the object key still wins, but `globalActions.<action>.*`
+  is consulted as a fallback before returning the literal. This applies uniformly
+  to `actionLabel`, `actionConfirm`, `actionSuccess`, `actionDescription`,
+  `actionResultDialog`, `actionParamText`, and `actionParamOptionLabel`, so a
+  globalAction resolves the same on a record-detail action bar as it does
+  everywhere else. App-namespace discovery also recognises a `globalActions`-only
+  bundle (one with no object/field entries).
+
+- 75f1cdf: fix(auth): localize the ADR-0069 remediation gate and the auth split-panel (#2870)
+
+  `RemediationOverlay` had no i18n at all. It is the full-screen gate mounted
+  unconditionally at `ConsoleShell` (`fixed inset-0 z-[200]`) that a user hits
+  when the backend returns `PASSWORD_EXPIRED` or `MFA_REQUIRED` — there is no
+  route around it, so a user who could not read English could not get back into
+  the product. That makes it a usability block rather than a cosmetic gap.
+
+  - New `auth.remediation.*` namespace in all ten locale packs, covering both
+    branches of the gate: expired-password (title, three field labels, submit /
+    submitting, mismatch and failure messages) and MFA enrolment (password step,
+    QR scan copy, backup-code disclosure, code entry, verify / verifying, and the
+    enrolment and invalid-code failures), plus the shared "sign out instead" exit.
+  - Validation and failure messages are translated where they are raised, since
+    they are held in component state and rendered later.
+  - The server-provided `remediationRequired.message` is left untouched; only the
+    empty-message fallback is localized.
+  - `AuthPageLayout`'s two marketing strings move to `auth.layout.*`. The forms it
+    wraps were already localized, so the split-panel had been rendering half in
+    the user's language and half in English.
+
+  Adds a locale-parity test over both namespaces, asserting an identical key set
+  across all ten packs, a non-empty string at every leaf, and that prose differs
+  from English (short labels like "Continue" legitimately collide). i18next falls
+  back to `en` silently and its missing-key handler is dev-only, so a key added to
+  one pack and forgotten elsewhere is invisible in whichever locales get tested by
+  hand.
+
+- 53642d4: fix(core,fields): a string `$orderby` is a clause, not a character array — and localize the sharing-rule widgets (objectstack#3821)
+
+  **The recipient picker listed nothing, ever.** `QueryParams['$orderby']` was
+  typed as `Record | string[] | SortObject[]`, so `queryParamsToRecord` sent any
+  non-array value through `Object.entries`. Handed the clause string `'name asc'`
+  — which callers do build by hand — it walked the string index by index and
+  emitted `$orderby=0 n,1 a,2 m,3 e,4 ,5 a,6 s,7 c`. The server sorted by columns
+  that don't exist and every row was filtered out, so
+  `sys_sharing_rule.recipient_id` rendered "No matches" for every recipient type
+  and no sharing rule could be created from the Console. `ObjectGrid` builds the
+  same shape from a schema-level `sort` in three places, so grids with a string
+  sort silently showed an empty table.
+
+  A string `$orderby` is now passed through verbatim (the server's OData
+  normalizer has always parsed `'name asc'`), and the type admits `string`.
+  `RecipientPickerField` additionally switched to the structured
+  `{ name: 'asc' }` form so it can't regress this way against any data source.
+
+  **The three sharing-rule authoring widgets never had translations.**
+  `ObjectRefField`, `RecipientPickerField` and `FilterConditionField` hardcoded
+  their English copy — a Chinese Console showed "Select an object", "Select a
+  user", "Search…", "No matches", "Edit as JSON". They now go through
+  `useFieldTranslation` like every other widget, with keys added under `fields.*`
+  in all ten locales.
+
+  The recipient placeholder was the interesting one: it read
+  `` `Select a ${recipientType.replace(/_/g,' ')}` ``, interpolating the enum
+  value into an English sentence — a shape no locale can translate. It is now a
+  per-type key (`fields.recipient.selectUser`, `…selectBusinessUnit`, …), so
+  "选择业务单元" and "Select a business unit" no longer have to share a structure.
+
+  **Editing a rule silently dropped its recipient.** The picker resets the stored
+  id when `recipient_type` changes, because an id valid for a user is meaningless
+  for a team. It treated the edit form's `'' → 'user'` hydration as such a change:
+  opening any saved rule blanked the recipient, and saving persisted the blank.
+  Only a non-empty predecessor now counts as a type switch.
+
+  **Building a filter submitted the surrounding form.** None of `FilterBuilder`'s
+  controls declared `type="button"`, and a bare `<button>` inside a `<form>`
+  defaults to `type="submit"`. Adding, removing or clearing a condition therefore
+  submitted the sharing-rule dialog — firing validation mid-edit, and on an
+  already-valid form saving the record before the admin was done.
+
+  **A rejected write showed the user raw server diagnostics.** The form rendered
+  `error.message` verbatim, so a sharing / RLS denial reached the dialog and the
+  toast as `FORBIDDEN: insufficient privileges to update showcase_private_note
+pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and the
+  record id to whoever hit it. Permission failures now render localized copy
+  (`form.noPermissionToSave`, added in all ten locales), with the server text kept
+  on the console for debugging; other failures still show the server's message,
+  which is the useful part, and fall back to `form.submitFailed` when there is
+  none — replacing the previously hardcoded English "An error occurred during
+  submission".
+
+  **The detail header offered "Edit" on records the user may only read.** Object
+  permissions can't express "this one record is read-only" — a read-only sharing
+  grant sits inside an object the user may otherwise edit — so the header showed
+  the primary Edit CTA, opened the form, and let the user retype a field before
+  the server rejected the save. `DetailView` now gates Edit / Delete on the
+  object-level check AND on the explain engine's record-grained verdict
+  (`POST /api/v1/security/explain` with a `recordId`, ADR-0090 D6 / ADR-0095 C2 —
+  the same pipeline the enforcement middleware runs, so button and server cannot
+  disagree). Explaining oneself needs no special permission. The probe is one
+  cached request per record, skipped entirely when the object-level check already
+  says no, and **fails open** on every uncertainty — an unanswered hint must never
+  be the reason a permitted user cannot act; the server stays the authority
+  (ADR-0057 D10).
+
+  **A long option rendered straight past the combobox border.** `Combobox`'s
+  trigger pinned itself to the component's `w-[200px]` default while the fields
+  around it ran the full form column, and the selected label was a bare text child
+  of a flex button — flex items need `truncate` AND `min-w-0` to clip, and it had
+  neither. So "成员 (showcase_project_membership)" in the object picker overflowed
+  the control and collided with the field beside it. The label now truncates, the
+  trigger can shrink, the dropdown matches the trigger's width instead of a
+  hardcoded 200px (a widened combobox used to clip its own options), and the two
+  sharing-rule pickers ask for `w-full` so they line up with every other input.
+
+  Hardens `evaluatePermission` while there: a role config carrying only
+  `fieldPermissions` (no `actions`) made `check()` throw a TypeError that
+  propagated out of the render. A permission check must not be able to crash a
+  view.
+
+  Browser-verified against the framework showcase Console in Chinese: object /
+  criteria / recipient copy is fully localized, the recipient dropdown lists real
+  users, business units and positions, a saved rule reopens with its recipient and
+  criteria intact, editing the filter no longer submits, and a rule created
+  end-to-end stores a real record id rather than free text. The criteria authored
+  in the builder is honored by the evaluator: `{"pinned":true}` on an owner-private
+  object granted the recipient exactly the matching records and nothing else.
+
+- c6aaed8: fix(i18n): retire four hand-rolled zh/en branches (objectui#2871, part 1)
+
+  Four surfaces decided their language with a hand-written `startsWith('zh')`
+  check instead of the locale packs, so the other eight shipped languages
+  silently rendered English and the strings could never be translated without a
+  code change.
+
+  - **`RecordTitleChip`** carried a private zh-CN/zh-TW dictionary behind a
+    comment claiming "components is i18n-free". That is not true —
+    `@object-ui/components` declares `@object-ui/i18n` and its sibling
+    `containers.tsx` already uses it. All four of its keys (`detail.copied`,
+    `detail.copyRecordId`, `detail.addToFavorites`, `detail.removeFromFavorites`)
+    already existed in **all ten packs**, so this deletes ~35 lines and fixes ten
+    locales with zero new translations. It renders on every record detail page.
+  - **`EnvironmentListToolbar`**'s three state-aware CTA labels move to a new
+    `environment.*` namespace. This surface had already regressed once for the
+    same reason (#844) and was fixed then with inline `{en,zh}` pairs.
+  - **`StudioAiCopilot`**'s dock title moves to the Studio catalog as
+    `engine.studio.aiCopilot`.
+  - **`StudioHomePage.relativeTime`** now uses `Intl.RelativeTimeFormat` with
+    `numeric: 'auto'` instead of five `zh ? … : …` ternaries. This is strictly
+    better than adding ten catalog keys: it covers every locale, applies the
+    correct plural rules, and yields "yesterday" / 「昨天」 rather than "1d ago".
+    Arabic gets its dual form («أسبوعين») — something a ternary cannot express.
+
+  The new `environment.*` keys are added to all ten packs, so this does not widen
+  the gap tracked by objectui#2872 part (a).
+
+  `EnvironmentListToolbar`'s tests now render inside a real `I18nProvider` pinned
+  to `en`. Without one, `t()` returns the raw key, so the previous assertions on
+  literal English would have been asserting nothing.
+
+- 263f885: fix(i18n): delete the four `pick({en,zh})` clones (objectui#2871, part 2)
+
+  Four files each carried an identical private resolver:
+
+  ```ts
+  function pick(label: I18n): string {
+    const lang = document.documentElement.getAttribute("lang") || "en";
+    return lang.toLowerCase().startsWith("zh") ? label.zh : label.en;
+  }
+  ```
+
+  Only Chinese was ever handled, so ja/ko/de/fr/es/pt/ru/ar silently rendered
+  English — and because the copy was baked into the components as inline
+  `{en, zh}` pairs, no translator could reach it. All four copies are deleted
+  along with their `I18n` type alias.
+
+  Migrated to the locale packs, **all ten languages**:
+
+  - `excelImport.*` (8 keys) — `ExcelImportBar`. The completion toast becomes a
+    proper `{{count}}` / `{{object}}` interpolation instead of a template literal
+    baked into both language variants.
+  - `cloudOnboarding.*` (5 keys) — `CloudOnboardingNext`, the Cloud welcome page.
+  - `aiModelStatus.*` (11 keys) — `CloudAiModelStatus`, including the
+    `sourceLabel()` enum→prose helper (now `t`-driven with a `{{source}}`
+    placeholder) and the three `ModelRow` labels. The conditional
+    `(HTTP nnn)` fragment becomes two whole sentences rather than a string
+    spliced mid-clause, which is not translatable into every word order.
+  - `chatbotQuota.*` (4 keys) — the AI quota banner in `ChatbotEnhanced`.
+
+  The chatbot banner keeps choosing between the server's `quota.message` (zh) and
+  `quota.messageEn` — that pair is server-owned — but now decides using the
+  console's active language instead of `navigator.language`, which had ignored
+  the in-app locale switcher entirely.
+
+  `CloudOnboardingNext`'s tests now render inside a real `I18nProvider`; without
+  one `t()` returns the raw key, so the previous assertions on literal English
+  were asserting nothing.
+
+  This completes the `pick()` cluster from #2871. The remaining
+  `startsWith('zh')` sites are the ones that classification marked KEEP —
+  `LoadingScreen` (bootstrap, selects real locale packs before i18next is up),
+  `conversationLanguage` (detects the chat's language for the agent, not UI
+  copy), `containers.tsx` (normalises author-supplied schema data; its `'与'`
+  separator is a CJK typography rule), and the Studio catalog / `field-types.ts`
+  data catalog.
+
+- dc334da: fix(i18n): close the last three zh-branch gaps (objectui#2871, part 3)
+
+  The three items the #2871 classification marked as real but _not_ a
+  migrate-the-copy fix. Each needed a different remedy.
+
+  **`LoadingScreen` — ten languages collapsed to two.** The boot splash already
+  selected real locale packs (not inline copy), but through
+  `lang.startsWith('zh') ? zh : en`, so a ja/ko/de user watched the whole startup
+  in English. It now indexes `builtInLocales` by the two-letter prefix.
+
+  Each field falls back to `en` **individually**, which matters: `console.*` is
+  one of the namespaces that trails in the non-`zh` packs (objectui#2872 part a),
+  so a whole-object swap would have rendered `undefined` on the splash rather
+  than English. `console.loadingHint` was in fact missing from all eight — added
+  here, since a blank line under the progress list is worse than an English one.
+
+  **`containers.tsx` — two language sources that could disagree.** The tab-label
+  call sites resolved `language` from `useObjectTranslation()`, then handed the
+  string to `translateLabel`, which called `detectLocale()` and read
+  `document.documentElement.lang` on its own. Those update independently, so an
+  in-app language switch could leave a tab label and its surrounding chrome in
+  different languages until the next reload. `language` is now threaded in, and
+  `detectLocale` is deleted so nothing reaches for the DOM again.
+
+  **`field-types.ts` — a two-language data catalog.** `FieldTypeMeta` carried a
+  `labelZh` column beside `label`, which capped the field-type picker at English
+  or Chinese by construction. The 46 type names and 9 category names move into
+  the Studio catalog as `engine.fieldType.<id>` / `engine.fieldCategory.<cat>`,
+  generated from the existing values so no wording changes. This removes the
+  `isZh` helper from **both** `ObjectFieldInspector` and `ObjectFormCanvas` — the
+  two files the classification listed as "keep the component, fix the catalog".
+
+  The picker's search filter previously matched `id`, the English label, and
+  `labelZh` — so searching in Japanese or German matched nothing. It now matches
+  the label as the user actually sees it.
+
 ## 16.1.0
 
 ### Minor Changes

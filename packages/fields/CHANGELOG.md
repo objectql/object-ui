@@ -1,5 +1,282 @@
 # @object-ui/fields
 
+## 17.0.0
+
+### Minor Changes
+
+- 697cda4: feat(fields): adopt the file-as-reference value shape (ObjectStack ADR-0104 D3 wave 2)
+
+  A `file`/`image` field value now reaches the UI in one of three forms, and the
+  rules for reading them live in one place — `@object-ui/fields`' new
+  `file-value` module — instead of being re-derived in each widget:
+
+  1. **Reference** — a bare `sys_file` id string, what the backend stores once
+     file-as-reference is adopted.
+  2. **Expanded** — `{ id, name, size, mimeType, url }`, what the read path
+     returns after resolving a reference.
+  3. **Legacy inline blob** — `{ file_id?, name, original_name, size, mime_type,
+url }`, the pre-reference shape this package used to build itself.
+
+  **The casing split is the bug this fixes.** The expanded form carries
+  `mimeType`; the legacy blob carries `mime_type`. `FileField`, `FileCell` and
+  `ImageField` all read only `mime_type`, so the moment a backend starts returning
+  the expanded form they stop recognising images — thumbnails silently degrade to
+  a generic file icon, with nothing pointing at a value shape as the cause.
+  `readFileValue()` accepts both.
+
+  **Uploads now submit the reference form** — the bare `sys_file` id — when the
+  upload adapter surfaced one, falling back to the legacy blob when it did not
+  (the object-URL fallback adapter, or a backend predating file-as-reference). The
+  same build therefore works against both. Action params already POSTed a bare
+  fileId; record field values now use the same contract, and
+  `serializeParamValues` shares the `fileIdOf()` extractor so the two surfaces
+  cannot drift on what counts as an id.
+
+  Because a bare id carries no name or URL, each widget remembers the display
+  details of files it just uploaded, keyed by id, so an upload renders immediately
+  rather than showing a bare token until the next read enriches it.
+
+### Patch Changes
+
+- 4b1ed7d: feat(app-shell): approval approver values become record lookups (framework #3508)
+
+  - The flow designer's approver `Value` cell now sources directory kinds from DATA
+    records instead of the metadata registry: `user` / `team` / `department` / `position`
+    render a single-select record lookup (`LookupField` over `sys_user` / `sys_team` /
+    `sys_business_unit` / `sys_position` via the DataSource adapter), with a manual-entry
+    escape hatch and a plain free-text fallback when no adapter is available (offline
+    preview). `position` commits the machine name; the others commit the record id —
+    matching the approval engine's resolution semantics.
+  - `org-membership-level` is now a strict select (owner/admin/member); a stored
+    out-of-enum value renders flagged instead of being blanked.
+  - `manager` renders as an auto-resolved (disabled) cell; `queue` is no longer offered
+    for new approver rows and stored queue rows carry a "not supported by the runtime"
+    warning.
+  - `@object-ui/fields`: `LookupField` hydrates the selected label through `id_field`
+    when it is not the primary id (e.g. `id_field: 'name'`), instead of always calling
+    `findOne` with the primary id.
+
+- 3e886eb: fix(i18n): localize FileField upload widget + approvals snapshot field labels
+
+  - `FileField` (the shared upload widget) hard-coded every visible string
+    ("Drag & drop files here", "or click to browse", "Take photo", "Uploading…",
+    size/upload validation messages, …). They now route through
+    `useObjectTranslation` with new `fields.file.*` keys, translated across all
+    10 locale bundles. This is why the approvals Approve/Reject dialog's
+    attachment dropzone was English in a Chinese console.
+  - The approvals inbox record-snapshot summary title-cased raw machine keys
+    instead of the target object's field labels. It now consumes the
+    server-sent `payload_labels` in `payloadSummary`/`decisionAmountEntry`,
+    falling back to the prettified key when absent; `approvalsApi`'s row type
+    gains `payload_labels`.
+
+- faad45e: fix(fields): render `image` fields consistently and add click-to-zoom (#2836)
+
+  An `image` field rendered differently — and wrongly — on three surfaces:
+
+  - **Edit form showed broken thumbnails.** A record read back its `image` value
+    as a bare `sys_file` id (the reference form), but `readFileValue` returned an
+    id with no URL — the comment assumed the read path expands it, which the
+    edit-form data path does not. The result was `<img src="">`. `file-value` now
+    derives the stable download URL (`/api/v1/storage/files/:id`, which
+    302-redirects to a signed URL and works directly as `<img src>`) for a bare
+    id or an id-only object, so every widget and cell renderer resolves one.
+  - **Inline edit leaked the raw storage URL.** `InlineFieldInput` had no branch
+    for file-backed types and fell through to a plain text input showing
+    `/api/v1/storage/files/…`. It now renders the same upload widgets the form
+    uses (`image`/`avatar`/`signature`/`file`/`video`/`audio`).
+  - **Hard-coded English.** `ImageField`'s upload/crop/remove/alt strings now go
+    through `t('fields.image.*')` (en + zh added).
+
+  Also adds an `ImageLightbox` — click a read-only thumbnail (detail or list cell)
+  to open a full-screen preview; multiple images get prev/next navigation, a
+  position counter and arrow-key support, a single image just the image. In a
+  grid cell the click is `stopPropagation`-guarded so enlarging doesn't also open
+  the row.
+
+- 341bfb5: fix: read spec-canonical keys for dashboard header title and field length rules
+
+  Two naming-drift closeouts (framework#1878 / framework#1891):
+
+  - `DashboardRenderer` header now falls back to the spec-canonical `label` when
+    the legacy `title` is absent (mirrors the `DashboardGridLayout` fallback from
+    #2666) — a spec-compliant dashboard gets its header title.
+  - Field validation rules now read the spec-canonical camelCase
+    `minLength`/`maxLength` (what the server record-validator enforces) with the
+    legacy snake_case `min_length`/`max_length` kept as fallback — authored
+    length constraints reach the client form.
+
+- 2f947e4: fix(page,field): consume the spec's `type`/`label`/`maxLength` keys (framework#1878 §3 naming-drift recheck)
+
+  Three forward-drifts where objectui read a different key than the spec
+  declares, so authoring the documented key silently no-oped:
+
+  - **page `type` → `pageType`** (app-shell + components): `PageSchema` declares
+    the page KIND as `type`, but `PageRenderer` reads `schema.pageType` and fell
+    back to `'record'` — and nothing mapped between them. Every non-record page
+    (`home`/`app`/`list`/`utility`) rendered with the record max-width, a wrong
+    `data-page-type` attribute, and a suppressed header. `PageView` now passes
+    `pageType` alongside the SchemaNode discriminator `type`.
+  - **page `label` → `title`** (components): `PageSchema.label` is required but the
+    region renderer read only `title`. Now dual-reads `title ?? label`, mirroring
+    the fallback `DashboardRenderer` already uses. Coupled with the above — the
+    header is gated on `pageType !== 'record'`, so both were needed for a title to
+    appear.
+  - **field `maxLength`/`minLength`** (plugin-form + fields): validation already
+    dual-read these, but `ObjectForm`'s HTML-attribute pass and `TextAreaField`
+    read `max_length` only, so a spec-authored `maxLength` gave no browser cap and
+    no character counter. Both now dual-read, matching `buildValidationRules`.
+
+  Verified in the browser against the showcase: `capability_map` (`type: 'home'`)
+  now renders `data-page-type="home"`, the `home` max-width and its page title;
+  record pages are unchanged.
+
+- 53642d4: fix(core,fields): a string `$orderby` is a clause, not a character array — and localize the sharing-rule widgets (objectstack#3821)
+
+  **The recipient picker listed nothing, ever.** `QueryParams['$orderby']` was
+  typed as `Record | string[] | SortObject[]`, so `queryParamsToRecord` sent any
+  non-array value through `Object.entries`. Handed the clause string `'name asc'`
+  — which callers do build by hand — it walked the string index by index and
+  emitted `$orderby=0 n,1 a,2 m,3 e,4 ,5 a,6 s,7 c`. The server sorted by columns
+  that don't exist and every row was filtered out, so
+  `sys_sharing_rule.recipient_id` rendered "No matches" for every recipient type
+  and no sharing rule could be created from the Console. `ObjectGrid` builds the
+  same shape from a schema-level `sort` in three places, so grids with a string
+  sort silently showed an empty table.
+
+  A string `$orderby` is now passed through verbatim (the server's OData
+  normalizer has always parsed `'name asc'`), and the type admits `string`.
+  `RecipientPickerField` additionally switched to the structured
+  `{ name: 'asc' }` form so it can't regress this way against any data source.
+
+  **The three sharing-rule authoring widgets never had translations.**
+  `ObjectRefField`, `RecipientPickerField` and `FilterConditionField` hardcoded
+  their English copy — a Chinese Console showed "Select an object", "Select a
+  user", "Search…", "No matches", "Edit as JSON". They now go through
+  `useFieldTranslation` like every other widget, with keys added under `fields.*`
+  in all ten locales.
+
+  The recipient placeholder was the interesting one: it read
+  `` `Select a ${recipientType.replace(/_/g,' ')}` ``, interpolating the enum
+  value into an English sentence — a shape no locale can translate. It is now a
+  per-type key (`fields.recipient.selectUser`, `…selectBusinessUnit`, …), so
+  "选择业务单元" and "Select a business unit" no longer have to share a structure.
+
+  **Editing a rule silently dropped its recipient.** The picker resets the stored
+  id when `recipient_type` changes, because an id valid for a user is meaningless
+  for a team. It treated the edit form's `'' → 'user'` hydration as such a change:
+  opening any saved rule blanked the recipient, and saving persisted the blank.
+  Only a non-empty predecessor now counts as a type switch.
+
+  **Building a filter submitted the surrounding form.** None of `FilterBuilder`'s
+  controls declared `type="button"`, and a bare `<button>` inside a `<form>`
+  defaults to `type="submit"`. Adding, removing or clearing a condition therefore
+  submitted the sharing-rule dialog — firing validation mid-edit, and on an
+  already-valid form saving the record before the admin was done.
+
+  **A rejected write showed the user raw server diagnostics.** The form rendered
+  `error.message` verbatim, so a sharing / RLS denial reached the dialog and the
+  toast as `FORBIDDEN: insufficient privileges to update showcase_private_note
+pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and the
+  record id to whoever hit it. Permission failures now render localized copy
+  (`form.noPermissionToSave`, added in all ten locales), with the server text kept
+  on the console for debugging; other failures still show the server's message,
+  which is the useful part, and fall back to `form.submitFailed` when there is
+  none — replacing the previously hardcoded English "An error occurred during
+  submission".
+
+  **The detail header offered "Edit" on records the user may only read.** Object
+  permissions can't express "this one record is read-only" — a read-only sharing
+  grant sits inside an object the user may otherwise edit — so the header showed
+  the primary Edit CTA, opened the form, and let the user retype a field before
+  the server rejected the save. `DetailView` now gates Edit / Delete on the
+  object-level check AND on the explain engine's record-grained verdict
+  (`POST /api/v1/security/explain` with a `recordId`, ADR-0090 D6 / ADR-0095 C2 —
+  the same pipeline the enforcement middleware runs, so button and server cannot
+  disagree). Explaining oneself needs no special permission. The probe is one
+  cached request per record, skipped entirely when the object-level check already
+  says no, and **fails open** on every uncertainty — an unanswered hint must never
+  be the reason a permitted user cannot act; the server stays the authority
+  (ADR-0057 D10).
+
+  **A long option rendered straight past the combobox border.** `Combobox`'s
+  trigger pinned itself to the component's `w-[200px]` default while the fields
+  around it ran the full form column, and the selected label was a bare text child
+  of a flex button — flex items need `truncate` AND `min-w-0` to clip, and it had
+  neither. So "成员 (showcase_project_membership)" in the object picker overflowed
+  the control and collided with the field beside it. The label now truncates, the
+  trigger can shrink, the dropdown matches the trigger's width instead of a
+  hardcoded 200px (a widened combobox used to clip its own options), and the two
+  sharing-rule pickers ask for `w-full` so they line up with every other input.
+
+  Hardens `evaluatePermission` while there: a role config carrying only
+  `fieldPermissions` (no `actions`) made `check()` throw a TypeError that
+  propagated out of the render. A permission check must not be able to crash a
+  view.
+
+  Browser-verified against the framework showcase Console in Chinese: object /
+  criteria / recipient copy is fully localized, the recipient dropdown lists real
+  users, business units and positions, a saved rule reopens with its recipient and
+  criteria intact, editing the filter no longer submits, and a rule created
+  end-to-end stores a real record id rather than free text. The criteria authored
+  in the builder is honored by the evaluator: `{"pinned":true}` on an owner-private
+  object granted the recipient exactly the matching records and nothing else.
+
+- Updated dependencies [7b21891]
+- Updated dependencies [0b3be01]
+- Updated dependencies [3c4d935]
+- Updated dependencies [4b60d2d]
+- Updated dependencies [952b978]
+- Updated dependencies [de5e40c]
+- Updated dependencies [1a03af6]
+- Updated dependencies [3e886eb]
+- Updated dependencies [cfc675e]
+- Updated dependencies [20df08c]
+- Updated dependencies [1767124]
+- Updated dependencies [8ecf5a6]
+- Updated dependencies [af705b9]
+- Updated dependencies [0502a7c]
+- Updated dependencies [7b35e4b]
+- Updated dependencies [8fb1295]
+- Updated dependencies [e16ed2d]
+- Updated dependencies [c6fd752]
+- Updated dependencies [f9bbddb]
+- Updated dependencies [dfd3705]
+- Updated dependencies [c77108c]
+- Updated dependencies [2735de6]
+- Updated dependencies [c19ac11]
+- Updated dependencies [6dee2cb]
+- Updated dependencies [e05f052]
+- Updated dependencies [0502a7c]
+- Updated dependencies [faad45e]
+- Updated dependencies [09c6a17]
+- Updated dependencies [c7cff19]
+- Updated dependencies [ba73a02]
+- Updated dependencies [cd09a7b]
+- Updated dependencies [f1abf0e]
+- Updated dependencies [f05b84e]
+- Updated dependencies [9b4b952]
+- Updated dependencies [2f947e4]
+- Updated dependencies [7d46648]
+- Updated dependencies [9b53d72]
+- Updated dependencies [bb4aa25]
+- Updated dependencies [75f1cdf]
+- Updated dependencies [662bdf9]
+- Updated dependencies [059a052]
+- Updated dependencies [53642d4]
+- Updated dependencies [8aae006]
+- Updated dependencies [c6cfdf1]
+- Updated dependencies [d147a13]
+- Updated dependencies [c6aaed8]
+- Updated dependencies [263f885]
+- Updated dependencies [dc334da]
+  - @object-ui/components@17.0.0
+  - @object-ui/i18n@17.0.0
+  - @object-ui/react@17.0.0
+  - @object-ui/types@17.0.0
+  - @object-ui/core@17.0.0
+  - @object-ui/providers@17.0.0
+
 ## 16.1.0
 
 ### Minor Changes

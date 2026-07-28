@@ -1,5 +1,72 @@
 # @object-ui/plugin-kanban
 
+## 17.0.0
+
+### Patch Changes
+
+- ba73a02: fix(kanban): surface off-column records in an "Uncategorized" lane instead of dropping them (#2792)
+
+  Records whose `groupBy` value matched no declared column were bucketed and then silently discarded — the board rendered empty while the list footer still counted the rows, so it read as data loss (a status the board doesn't render, an edited/removed picklist option, imported legacy data, or an empty value all triggered it). They now land in a trailing "Uncategorized" lane so no record is invisible and the visible card total reconciles with the record count. Dragging a card out of that lane into a real column repairs its status; the drag handler refuses to persist a move _into_ the lane (its sentinel id is not a real option). Adds `kanban.uncategorized` to the en/zh bundles.
+
+- Updated dependencies [7b21891]
+- Updated dependencies [0b3be01]
+- Updated dependencies [3c4d935]
+- Updated dependencies [4b1ed7d]
+- Updated dependencies [4b60d2d]
+- Updated dependencies [952b978]
+- Updated dependencies [de5e40c]
+- Updated dependencies [1a03af6]
+- Updated dependencies [3e886eb]
+- Updated dependencies [cfc675e]
+- Updated dependencies [20df08c]
+- Updated dependencies [1767124]
+- Updated dependencies [8ecf5a6]
+- Updated dependencies [af705b9]
+- Updated dependencies [0502a7c]
+- Updated dependencies [7b35e4b]
+- Updated dependencies [8fb1295]
+- Updated dependencies [e16ed2d]
+- Updated dependencies [c6fd752]
+- Updated dependencies [f9bbddb]
+- Updated dependencies [dfd3705]
+- Updated dependencies [c77108c]
+- Updated dependencies [2735de6]
+- Updated dependencies [697cda4]
+- Updated dependencies [c19ac11]
+- Updated dependencies [6dee2cb]
+- Updated dependencies [e05f052]
+- Updated dependencies [0502a7c]
+- Updated dependencies [faad45e]
+- Updated dependencies [09c6a17]
+- Updated dependencies [c7cff19]
+- Updated dependencies [ba73a02]
+- Updated dependencies [cd09a7b]
+- Updated dependencies [f1abf0e]
+- Updated dependencies [f05b84e]
+- Updated dependencies [9b4b952]
+- Updated dependencies [341bfb5]
+- Updated dependencies [2f947e4]
+- Updated dependencies [7d46648]
+- Updated dependencies [9b53d72]
+- Updated dependencies [bb4aa25]
+- Updated dependencies [75f1cdf]
+- Updated dependencies [662bdf9]
+- Updated dependencies [059a052]
+- Updated dependencies [53642d4]
+- Updated dependencies [8aae006]
+- Updated dependencies [c6cfdf1]
+- Updated dependencies [d147a13]
+- Updated dependencies [c6aaed8]
+- Updated dependencies [263f885]
+- Updated dependencies [dc334da]
+  - @object-ui/components@17.0.0
+  - @object-ui/plugin-detail@17.0.0
+  - @object-ui/i18n@17.0.0
+  - @object-ui/fields@17.0.0
+  - @object-ui/react@17.0.0
+  - @object-ui/types@17.0.0
+  - @object-ui/core@17.0.0
+
 ## 16.1.0
 
 ### Patch Changes

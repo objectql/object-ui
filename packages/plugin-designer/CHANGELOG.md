@@ -1,5 +1,187 @@
 # @object-ui/plugin-designer
 
+## 17.0.0
+
+### Patch Changes
+
+- 7d46648: fix(hooks): stop calling translation hooks inside try/catch (objectui#2879)
+
+  Eleven call sites wrapped a React hook in `try`/`catch` to make it
+  "provider-safe". `useObjectTranslation` and `useObjectLabel` already are — they
+  read context optionally and fall back to react-i18next's global instance, and
+  never throw. The `catch` bought nothing and cost correctness: a throw _after_
+  the hook ran desyncs hook order on the next render, because React matches hooks
+  positionally. objectui#2595/#2596 fixed exactly this in `@object-ui/i18n`'s
+  `createSafeTranslation`; nine plugin-local re-implementations kept their own
+  copy of the bug, and two more (`ObjectTimeline`, `ObjectView`) were found by the
+  new lint rule below — `ObjectView` had even suppressed
+  `react-hooks/rules-of-hooks` inline to keep it.
+
+  - Six exact re-implementations now delegate to `createSafeTranslation`:
+    `plugin-detail`, `plugin-timeline`, `plugin-list`, `plugin-calendar`,
+    `plugin-grid`'s `ObjectGrid`, `plugin-designer`.
+  - `components`' `data-table` also delegates; `createSafeTranslation` now
+    returns `language` alongside `t` so consumers that localize dates don't need
+    a second hook call. Purely additive.
+  - `plugin-gantt` and `plugin-grid`'s `ImportWizard` keep their local hooks —
+    they fall back _per key_, which a single-probe factory cannot express and
+    which their comments justify (a host dictionary that covers common keys but
+    lags on newer ones). Only the `try`/`catch` is removed.
+  - `ObjectTimeline` and `ObjectView` call the hook directly and probe the
+    returned value, mirroring `useSafeFieldLabel`.
+
+  Adds `object-ui/no-try-catch-around-hook` (error) so a twelfth copy fails CI.
+  It only matches `use*` names, accepts member calls solely on `React` (so
+  `vi.useRealTimers()` is not a hook), and resets its try-depth inside nested
+  functions (so `renderHook(() => useThing())` inside a `try` is fine) — both
+  false positives were real code in this repo and are pinned in the rule's tests.
+
+  `eslint-rules/**/*.test.js` matched no vitest project glob, so the local
+  plugin's specs had never run in CI. They are now included; all three pass.
+
+  `ObjectTimeline`'s test mock of `@object-ui/react` omitted `useObjectLabel` —
+  the removed `try`/`catch` had been silently absorbing that gap. The mock is now
+  complete.
+
+- dc7a798: fix(plugin-grid,plugin-form,plugin-designer,cli,vscode-extension): type-check the last five unchecked packages, and fix the two runtime bugs that hid there (#2919)
+
+  Closes the remaining `DEBT` entries from the #2911 sweep. Each package gains
+  `"type-check": "tsc --noEmit"` and loses its entry in
+  `scripts/check-type-check-coverage.mjs`; coverage goes 36 -> 41 of 45 and
+  outstanding errors 25 -> 5 (only #2916 `plugin-view` and #2918 `layout` remain).
+
+  **Two of these were real bugs, not just type noise.**
+
+  `@object-ui/cli` — `objectui validate` could never report a validation failure.
+  `ZodError.errors` was removed in Zod 4 (the repo is on 4.4.3), so `.errors` read
+  `undefined` and `.forEach` threw a `TypeError` that the enclosing `catch`
+  reported as `✗ Error reading or parsing schema file: Cannot read properties of
+undefined` — swallowing the very errors the command exists to print. Now reads
+  `.issues`. Verified against the built CLI: an invalid schema now prints
+  `1. Invalid input / Code: invalid_union` and exits 1.
+
+  `@object-ui/plugin-grid` — grouping a grid by a boolean column showed the raw
+  i18n key. `t('grid.booleanTrue', 'Yes')` asked for a key present in neither
+  `GRID_DEFAULT_TRANSLATIONS` nor any locale bundle, and passed the English
+  fallback as a bare second argument — which `createSafeTranslation`'s no-provider
+  translator reads as an _options object_, so the fallback never applied and the
+  header rendered the literal `grid.booleanTrue`. Switched to the `grid.yes` /
+  `grid.no` keys the boolean cell renderer (`ObjectGrid.tsx`) and
+  `BulkActionDialog` already use, with the fallback passed as `defaultValue`.
+  Covered by a new regression test, confirmed to fail against the old code.
+
+  The rest are type-only corrections that preserve runtime behaviour exactly:
+
+  - **plugin-grid** `importParsers.ts` — `scorePair`'s `score`/`reason` moved into
+    one `best` record. They were captured `let`s mutated only inside the `bump`
+    closure, which TypeScript's control-flow analysis does not track, so it still
+    believed `reason` was `'none'` at the type gate and flagged the comparisons as
+    non-overlapping (TS2367). The gate — which stops a text column being mapped
+    onto a number field — is unchanged; its two dedicated tests still pass.
+  - **plugin-form** — `SectionFieldsContext.fieldLabel` now requires `fallback`,
+    matching the `useSafeFieldLabel` producer in `@object-ui/i18n` (an omitted
+    fallback could not satisfy the `=> string` return, and all four call sites
+    already pass one). This one signature cleared six errors.
+    `MasterDetailFormSchema.recordId` widens to `string | number`, matching
+    `ObjectFormSchema` and the five envelopes that forward straight into it;
+    it is narrowed with `String()` only at the batch-transaction boundary, whose
+    `BatchTransactionOperation.id` is a string by protocol (the `isEdit` guard
+    already proves it non-null there). `deriveMasterDetail`'s column sort gets an
+    explicit `fillPriority` helper — `GridColumn.type` is optional, and a column
+    without one keeps sorting at priority 5 exactly as the old
+    `TYPE_FILL_PRIORITY[undefined] ?? 5` lookup put it.
+  - **plugin-designer** — unused `index` parameter prefixed `_`, matching the
+    `_entry` beside it.
+  - **cli** — a stale `@ts-expect-error` removed; `viteConfig` is typed `any`, so
+    the line it guarded had stopped erroring.
+  - **vscode-extension** (`object-ui`) — migrated off `moduleResolution: "node"`,
+    which is deprecated and stops working in TypeScript 7, to `node16` paired with
+    `module: "node16"` (the package has no `"type": "module"`, so node16 resolves
+    it as the CommonJS that tsup emits, and it gains the `exports`-map awareness
+    node10 lacks). Its error count was under-reported as 1: that TS5107 config
+    error masked four more. The package uses `console`/`Buffer` but sets
+    `lib: ["ES2020"]` with no DOM and never declared `@types/node` — added, with an
+    explicit `types: ["node", "vscode"]`.
+
+  Also: `plugin-grid`, `plugin-form` and `plugin-designer` gain the `baseUrl` +
+  `paths` override their type-checked plugin peers already carry, and `cli` an
+  empty `paths`. Without it the inherited root `paths` point `@object-ui/*` at
+  sibling `src/`, which is outside each project's `rootDir` and produces the ~104
+  spurious TS6059 errors noted in #2915; workspace deps instead resolve through
+  node_modules to built `.d.ts`, which `type-check`'s `dependsOn: ["^build"]`
+  guarantees exist.
+
+  Verified the gate genuinely covers all five rather than trusting the green:
+  injecting a type error into each package makes `pnpm type-check --filter <pkg>`
+  fail, which was impossible before this change.
+
+- Updated dependencies [7b21891]
+- Updated dependencies [0b3be01]
+- Updated dependencies [3c4d935]
+- Updated dependencies [4b1ed7d]
+- Updated dependencies [4b60d2d]
+- Updated dependencies [952b978]
+- Updated dependencies [de5e40c]
+- Updated dependencies [1a03af6]
+- Updated dependencies [3e886eb]
+- Updated dependencies [cfc675e]
+- Updated dependencies [20df08c]
+- Updated dependencies [1767124]
+- Updated dependencies [8ecf5a6]
+- Updated dependencies [af705b9]
+- Updated dependencies [0502a7c]
+- Updated dependencies [7b35e4b]
+- Updated dependencies [8fb1295]
+- Updated dependencies [e16ed2d]
+- Updated dependencies [c6fd752]
+- Updated dependencies [f9bbddb]
+- Updated dependencies [dfd3705]
+- Updated dependencies [c77108c]
+- Updated dependencies [2735de6]
+- Updated dependencies [697cda4]
+- Updated dependencies [c19ac11]
+- Updated dependencies [6dee2cb]
+- Updated dependencies [e05f052]
+- Updated dependencies [0502a7c]
+- Updated dependencies [faad45e]
+- Updated dependencies [553443e]
+- Updated dependencies [09c6a17]
+- Updated dependencies [c7cff19]
+- Updated dependencies [df6697f]
+- Updated dependencies [ba73a02]
+- Updated dependencies [ba45145]
+- Updated dependencies [cd09a7b]
+- Updated dependencies [f1abf0e]
+- Updated dependencies [f05b84e]
+- Updated dependencies [9b4b952]
+- Updated dependencies [341bfb5]
+- Updated dependencies [2f947e4]
+- Updated dependencies [7d46648]
+- Updated dependencies [6e8fd3c]
+- Updated dependencies [9b53d72]
+- Updated dependencies [bb4aa25]
+- Updated dependencies [75f1cdf]
+- Updated dependencies [662bdf9]
+- Updated dependencies [059a052]
+- Updated dependencies [53642d4]
+- Updated dependencies [8aae006]
+- Updated dependencies [d62fb1f]
+- Updated dependencies [c6cfdf1]
+- Updated dependencies [dc7a798]
+- Updated dependencies [d147a13]
+- Updated dependencies [c6aaed8]
+- Updated dependencies [263f885]
+- Updated dependencies [dc334da]
+  - @object-ui/components@17.0.0
+  - @object-ui/i18n@17.0.0
+  - @object-ui/fields@17.0.0
+  - @object-ui/react@17.0.0
+  - @object-ui/plugin-grid@17.0.0
+  - @object-ui/types@17.0.0
+  - @object-ui/data-objectstack@17.0.0
+  - @object-ui/core@17.0.0
+  - @object-ui/plugin-form@17.0.0
+
 ## 16.1.0
 
 ### Minor Changes

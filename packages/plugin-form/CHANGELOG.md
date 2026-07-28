@@ -1,5 +1,238 @@
 # @object-ui/plugin-form
 
+## 17.0.0
+
+### Minor Changes
+
+- f9bbddb: feat: gate detail/form edit & delete on the server's effective operation set (#3546)
+
+  PR-4 (#3391) wired the **list/toolbar** surface (ObjectView Import, ListView /
+  ObjectGrid Export) to the server-resolved effective API operation set
+  (`/me/permissions` `apiOperations`, intersected via
+  `resolveCrudAffordances(obj, effectiveApiOperations?)`). The **detail / form**
+  surfaces still gated edit/delete on the bucket + `userActions` alone. This
+  extends the same intersection to them, so the record page and its forms never
+  offer an operation the server would 405.
+
+  - **core** `isObjectInlineEditable(obj, effectiveApiOperations?)` gains the same
+    optional second argument as `resolveCrudAffordances` — inline-edit is now
+    additionally ANDed with the server allowing `update`.
+  - **app-shell** `RecordDetailView` threads the object's effective operations into
+    the synthesized Edit/Delete header actions and the record-body inline-edit
+    gate (`canEdit`); `RelatedRecordActionsBridge` intersects each **child**
+    object's Create/Edit/Delete handlers with that child's own effective set.
+  - **plugin-detail** `record:details` ANDs its inline-edit affordance with the
+    object's effective `update`.
+  - **plugin-form** `ObjectForm`'s blanket managed-object field lock also engages
+    when the server denies `update` (edit mode) / `create` (create mode).
+
+  Backward-compatible: a missing effective set (unrestricted object, older
+  backend, or no `PermissionProvider`) leaves the resolved affordance untouched —
+  the bucket/`userActions` decision wins, exactly as today. Layers on top of the
+  existing per-object `check('edit')` / `check('delete')` permission gates
+  (intersection, never union).
+
+### Patch Changes
+
+- 6dee2cb: feat(form): consume spec-aligned FormView buttons/defaults in ObjectForm
+
+  The authored `@objectstack/spec` FormViewSchema carries structured
+  `buttons.{submit,cancel,reset}.{show,label}` and `defaults`, but the form
+  renderer only read the flat renderer-invented `showSubmit`/`submitText`/
+  `showCancel`/`cancelText`/`showReset`/`initialValues`. That left the two spec
+  keys parsed-but-inert (ADR-0078) and stuck at `experimental` in the spec
+  liveness ledger.
+
+  `ObjectForm` now folds the structured shape down onto those flat props inside
+  its existing normalization pass, so every entry path (ObjectView
+  drawer/modal/page, RecordFormPage) honors it. An explicitly-set flat key still
+  wins, so metadata authored against the deprecated flat keys is unchanged.
+  `ObjectView` and `RecordFormPage` forward `buttons`/`defaults` from the spec
+  form view. `ObjectFormSchema` gains the optional `buttons`/`defaults` fields.
+
+  Refs objectstack-ai/objectstack#1894, objectstack-ai/objectstack#2998.
+
+- 2f947e4: fix(page,field): consume the spec's `type`/`label`/`maxLength` keys (framework#1878 §3 naming-drift recheck)
+
+  Three forward-drifts where objectui read a different key than the spec
+  declares, so authoring the documented key silently no-oped:
+
+  - **page `type` → `pageType`** (app-shell + components): `PageSchema` declares
+    the page KIND as `type`, but `PageRenderer` reads `schema.pageType` and fell
+    back to `'record'` — and nothing mapped between them. Every non-record page
+    (`home`/`app`/`list`/`utility`) rendered with the record max-width, a wrong
+    `data-page-type` attribute, and a suppressed header. `PageView` now passes
+    `pageType` alongside the SchemaNode discriminator `type`.
+  - **page `label` → `title`** (components): `PageSchema.label` is required but the
+    region renderer read only `title`. Now dual-reads `title ?? label`, mirroring
+    the fallback `DashboardRenderer` already uses. Coupled with the above — the
+    header is gated on `pageType !== 'record'`, so both were needed for a title to
+    appear.
+  - **field `maxLength`/`minLength`** (plugin-form + fields): validation already
+    dual-read these, but `ObjectForm`'s HTML-attribute pass and `TextAreaField`
+    read `max_length` only, so a spec-authored `maxLength` gave no browser cap and
+    no character counter. Both now dual-read, matching `buildValidationRules`.
+
+  Verified in the browser against the showcase: `capability_map` (`type: 'home'`)
+  now renders `data-page-type="home"`, the `home` max-width and its page title;
+  record pages are unchanged.
+
+- 662bdf9: fix(fls): wire the real per-caller FLS channel into import targets and grid
+  columns; remove the never-populated `field.permissions` shape (objectstack#3661)
+
+  The `permissions?: { read?, write?, edit? }` key on `@object-ui/types` field
+  definitions (Phase 3.2.6) was declared-but-never-enforced: no producer in the
+  stack ever populated it, so every guard reading it short-circuited to "allow".
+  Per ADR-0049 enforce-or-remove, the shape is deleted and the three consumers
+  now use the server-resolved `/auth/me/permissions` channel
+  (`usePermissions().checkField`) — the same channel ObjectForm/ModalForm/ListView
+  already enforce:
+
+  - **ImportWizard target fields (app-shell `ObjectView`)**: the importable
+    field set (and thus the downloadable CSV template's columns) now drops
+    fields the caller cannot edit, instead of offering columns the server's
+    FLS write gate would 403.
+  - **ObjectGrid auto-derived columns**: columns the caller cannot read are
+    dropped (same gate ListView applies), instead of a dead schema-shape check.
+  - **ObjectForm**: the redundant dead guard in field generation is removed;
+    the existing `applyFieldPerms` gate remains the real enforcement point.
+
+  BREAKING CHANGE: `@object-ui/types` field definitions no longer accept a
+  `permissions` key. It never carried data at runtime; consumers needing
+  per-caller field-level permissions must use `@object-ui/permissions`
+  (`MePermissionsProvider` + `useFieldPermissions`/`checkField`).
+
+- dc7a798: fix(plugin-grid,plugin-form,plugin-designer,cli,vscode-extension): type-check the last five unchecked packages, and fix the two runtime bugs that hid there (#2919)
+
+  Closes the remaining `DEBT` entries from the #2911 sweep. Each package gains
+  `"type-check": "tsc --noEmit"` and loses its entry in
+  `scripts/check-type-check-coverage.mjs`; coverage goes 36 -> 41 of 45 and
+  outstanding errors 25 -> 5 (only #2916 `plugin-view` and #2918 `layout` remain).
+
+  **Two of these were real bugs, not just type noise.**
+
+  `@object-ui/cli` — `objectui validate` could never report a validation failure.
+  `ZodError.errors` was removed in Zod 4 (the repo is on 4.4.3), so `.errors` read
+  `undefined` and `.forEach` threw a `TypeError` that the enclosing `catch`
+  reported as `✗ Error reading or parsing schema file: Cannot read properties of
+undefined` — swallowing the very errors the command exists to print. Now reads
+  `.issues`. Verified against the built CLI: an invalid schema now prints
+  `1. Invalid input / Code: invalid_union` and exits 1.
+
+  `@object-ui/plugin-grid` — grouping a grid by a boolean column showed the raw
+  i18n key. `t('grid.booleanTrue', 'Yes')` asked for a key present in neither
+  `GRID_DEFAULT_TRANSLATIONS` nor any locale bundle, and passed the English
+  fallback as a bare second argument — which `createSafeTranslation`'s no-provider
+  translator reads as an _options object_, so the fallback never applied and the
+  header rendered the literal `grid.booleanTrue`. Switched to the `grid.yes` /
+  `grid.no` keys the boolean cell renderer (`ObjectGrid.tsx`) and
+  `BulkActionDialog` already use, with the fallback passed as `defaultValue`.
+  Covered by a new regression test, confirmed to fail against the old code.
+
+  The rest are type-only corrections that preserve runtime behaviour exactly:
+
+  - **plugin-grid** `importParsers.ts` — `scorePair`'s `score`/`reason` moved into
+    one `best` record. They were captured `let`s mutated only inside the `bump`
+    closure, which TypeScript's control-flow analysis does not track, so it still
+    believed `reason` was `'none'` at the type gate and flagged the comparisons as
+    non-overlapping (TS2367). The gate — which stops a text column being mapped
+    onto a number field — is unchanged; its two dedicated tests still pass.
+  - **plugin-form** — `SectionFieldsContext.fieldLabel` now requires `fallback`,
+    matching the `useSafeFieldLabel` producer in `@object-ui/i18n` (an omitted
+    fallback could not satisfy the `=> string` return, and all four call sites
+    already pass one). This one signature cleared six errors.
+    `MasterDetailFormSchema.recordId` widens to `string | number`, matching
+    `ObjectFormSchema` and the five envelopes that forward straight into it;
+    it is narrowed with `String()` only at the batch-transaction boundary, whose
+    `BatchTransactionOperation.id` is a string by protocol (the `isEdit` guard
+    already proves it non-null there). `deriveMasterDetail`'s column sort gets an
+    explicit `fillPriority` helper — `GridColumn.type` is optional, and a column
+    without one keeps sorting at priority 5 exactly as the old
+    `TYPE_FILL_PRIORITY[undefined] ?? 5` lookup put it.
+  - **plugin-designer** — unused `index` parameter prefixed `_`, matching the
+    `_entry` beside it.
+  - **cli** — a stale `@ts-expect-error` removed; `viteConfig` is typed `any`, so
+    the line it guarded had stopped erroring.
+  - **vscode-extension** (`object-ui`) — migrated off `moduleResolution: "node"`,
+    which is deprecated and stops working in TypeScript 7, to `node16` paired with
+    `module: "node16"` (the package has no `"type": "module"`, so node16 resolves
+    it as the CommonJS that tsup emits, and it gains the `exports`-map awareness
+    node10 lacks). Its error count was under-reported as 1: that TS5107 config
+    error masked four more. The package uses `console`/`Buffer` but sets
+    `lib: ["ES2020"]` with no DOM and never declared `@types/node` — added, with an
+    explicit `types: ["node", "vscode"]`.
+
+  Also: `plugin-grid`, `plugin-form` and `plugin-designer` gain the `baseUrl` +
+  `paths` override their type-checked plugin peers already carry, and `cli` an
+  empty `paths`. Without it the inherited root `paths` point `@object-ui/*` at
+  sibling `src/`, which is outside each project's `rootDir` and produces the ~104
+  spurious TS6059 errors noted in #2915; workspace deps instead resolve through
+  node_modules to built `.d.ts`, which `type-check`'s `dependsOn: ["^build"]`
+  guarantees exist.
+
+  Verified the gate genuinely covers all five rather than trusting the green:
+  injecting a type error into each package makes `pnpm type-check --filter <pkg>`
+  fail, which was impossible before this change.
+
+- Updated dependencies [7b21891]
+- Updated dependencies [0b3be01]
+- Updated dependencies [3c4d935]
+- Updated dependencies [4b1ed7d]
+- Updated dependencies [4b60d2d]
+- Updated dependencies [952b978]
+- Updated dependencies [de5e40c]
+- Updated dependencies [1a03af6]
+- Updated dependencies [3e886eb]
+- Updated dependencies [cfc675e]
+- Updated dependencies [20df08c]
+- Updated dependencies [1767124]
+- Updated dependencies [8ecf5a6]
+- Updated dependencies [af705b9]
+- Updated dependencies [0502a7c]
+- Updated dependencies [7b35e4b]
+- Updated dependencies [8fb1295]
+- Updated dependencies [e16ed2d]
+- Updated dependencies [c6fd752]
+- Updated dependencies [f9bbddb]
+- Updated dependencies [dfd3705]
+- Updated dependencies [c77108c]
+- Updated dependencies [2735de6]
+- Updated dependencies [697cda4]
+- Updated dependencies [c19ac11]
+- Updated dependencies [6dee2cb]
+- Updated dependencies [e05f052]
+- Updated dependencies [0502a7c]
+- Updated dependencies [faad45e]
+- Updated dependencies [09c6a17]
+- Updated dependencies [c7cff19]
+- Updated dependencies [ba73a02]
+- Updated dependencies [cd09a7b]
+- Updated dependencies [f1abf0e]
+- Updated dependencies [f05b84e]
+- Updated dependencies [9b4b952]
+- Updated dependencies [341bfb5]
+- Updated dependencies [2f947e4]
+- Updated dependencies [7d46648]
+- Updated dependencies [9b53d72]
+- Updated dependencies [bb4aa25]
+- Updated dependencies [75f1cdf]
+- Updated dependencies [662bdf9]
+- Updated dependencies [059a052]
+- Updated dependencies [53642d4]
+- Updated dependencies [8aae006]
+- Updated dependencies [c6cfdf1]
+- Updated dependencies [d147a13]
+- Updated dependencies [c6aaed8]
+- Updated dependencies [263f885]
+- Updated dependencies [dc334da]
+  - @object-ui/components@17.0.0
+  - @object-ui/i18n@17.0.0
+  - @object-ui/fields@17.0.0
+  - @object-ui/react@17.0.0
+  - @object-ui/types@17.0.0
+  - @object-ui/core@17.0.0
+  - @object-ui/permissions@17.0.0
+
 ## 16.1.0
 
 ### Minor Changes

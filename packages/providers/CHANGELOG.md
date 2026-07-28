@@ -1,5 +1,24 @@
 # @object-ui/providers — Changelog
 
+## 17.0.0
+
+### Patch Changes
+
+- Updated dependencies [1767124]
+- Updated dependencies [8ecf5a6]
+- Updated dependencies [dfd3705]
+- Updated dependencies [6dee2cb]
+- Updated dependencies [c7cff19]
+- Updated dependencies [cd09a7b]
+- Updated dependencies [f1abf0e]
+- Updated dependencies [f05b84e]
+- Updated dependencies [662bdf9]
+- Updated dependencies [059a052]
+- Updated dependencies [53642d4]
+- Updated dependencies [8aae006]
+- Updated dependencies [d147a13]
+  - @object-ui/types@17.0.0
+
 ## 16.1.0
 
 ### Patch Changes

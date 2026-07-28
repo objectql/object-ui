@@ -1,5 +1,362 @@
 # @object-ui/core
 
+## 17.0.0
+
+### Minor Changes
+
+- f9bbddb: feat: gate detail/form edit & delete on the server's effective operation set (#3546)
+
+  PR-4 (#3391) wired the **list/toolbar** surface (ObjectView Import, ListView /
+  ObjectGrid Export) to the server-resolved effective API operation set
+  (`/me/permissions` `apiOperations`, intersected via
+  `resolveCrudAffordances(obj, effectiveApiOperations?)`). The **detail / form**
+  surfaces still gated edit/delete on the bucket + `userActions` alone. This
+  extends the same intersection to them, so the record page and its forms never
+  offer an operation the server would 405.
+
+  - **core** `isObjectInlineEditable(obj, effectiveApiOperations?)` gains the same
+    optional second argument as `resolveCrudAffordances` — inline-edit is now
+    additionally ANDed with the server allowing `update`.
+  - **app-shell** `RecordDetailView` threads the object's effective operations into
+    the synthesized Edit/Delete header actions and the record-body inline-edit
+    gate (`canEdit`); `RelatedRecordActionsBridge` intersects each **child**
+    object's Create/Edit/Delete handlers with that child's own effective set.
+  - **plugin-detail** `record:details` ANDs its inline-edit affordance with the
+    object's effective `update`.
+  - **plugin-form** `ObjectForm`'s blanket managed-object field lock also engages
+    when the server denies `update` (edit mode) / `create` (create mode).
+
+  Backward-compatible: a missing effective set (unrestricted object, older
+  backend, or no `PermissionProvider`) leaves the resolved affordance untouched —
+  the bucket/`userActions` decision wins, exactly as today. Layers on top of the
+  existing per-object `check('edit')` / `check('delete')` permission gates
+  (intersection, never union).
+
+- 2735de6: feat: render the server's effective API operation set (#3391 PR-4)
+
+  The frontend now consumes the per-object **effective API operation set** the
+  server resolves (from `/me/permissions` `apiOperations`, framework #3391) —
+  never the raw `apiMethods` — so Import/Export/New/Edit/Delete buttons match what
+  the server will actually admit, and a 405 import refusal shows a dedicated
+  message instead of silently falling back.
+
+  - **core** `resolveCrudAffordances(obj, effectiveApiOperations?)` — new optional
+    second argument intersects each affordance bit with its API operation
+    (create/import→create/import, edit→update, delete→delete, exportCsv→export).
+    Omitting it (old backend / no effective set) leaves affordances unchanged.
+  - **permissions** — `/me/permissions` response carries per-object
+    `apiOperations`; `PermissionContextValue.getObjectApiOperations(object)`
+    exposes it (undefined when absent → callers keep current behavior); `check()`
+    maps `import→allowCreate`, `export→allowRead`.
+  - **app-shell** `ObjectView` intersects its toolbar affordances with the object's
+    effective operations (Import); the platform-admin identity-import bypass is
+    unaffected.
+  - **plugin-list** `ListView` / **plugin-grid** `ObjectGrid` gate the Export
+    button (and export handler) on effective `export`; `plugin-grid` gains the
+    `@object-ui/permissions` workspace dependency.
+  - **plugin-grid** `ImportWizard` — a 405 / `OBJECT_API_METHOD_NOT_ALLOWED`
+    import refusal is detected by a new `isImportNotAllowed` predicate at every
+    catch site (async, sync, dry-run) and STOPS with a dedicated
+    `grid.import.notAllowed` message (10 locales + fallback dict) — it never falls
+    back to the sync/legacy path (which 405s too), distinct from the 404
+    route-absent fallback.
+
+  Backward-compatible: a missing effective set (unrestricted object, older
+  backend, or no permission provider) preserves the current default-allow
+  behavior everywhere.
+
+- cd09a7b: refactor(views): ListView reads the spec-canonical `columns`, with legacy `fields` folded in one normalizer (#2890 scope A step 1)
+
+  `ListViewSchema` has been derived from `@objectstack/spec/ui` since #2231, but
+  the renderer still spoke objectui's own vocabulary for the same concepts. First
+  rename closed: **`fields` → `columns`**.
+
+  Legacy acceptance does not disappear — stored view metadata in user databases
+  carries `fields` — but it now lives in exactly one place instead of being
+  re-implemented per read-site:
+
+  - **New `normalizeListViewSchema` (`@object-ui/core`)** folds `fields` into
+    `columns` (canonical wins when both are present) and drops the legacy key, so
+    a read-site that was missed fails loudly instead of quietly taking the legacy
+    path. It also absorbs the `viewType` renderability default ListView applied
+    inline. Non-mutating, idempotent, and returns its input by reference when
+    there is nothing to fold, so ListView's downstream memos keep a stable
+    dependency identity.
+  - **`ListView` normalizes once at the component boundary**, before anything
+    reads the schema. This is what guarantees the fold runs: nothing on the render
+    path parses view metadata through zod (the zod schemas serve the CLI
+    validator, the VS Code extension and tests), so a `z.preprocess` on
+    `ListViewSchema` — spec-side or local — would never execute.
+  - **Producers emit `columns`**: `ObjectView`'s `renderListView` payload,
+    `ObjectDataPage`, `InterfaceListPage` and the `list-view` registry defaults
+    had been _downgrading_ already-canonical `columns` config back to `fields`.
+
+  Two latent inconsistencies go away with it: the filter builder's
+  objectDef-not-loaded fallback now resolves `ListColumn.field` (it read only
+  `name`/`fieldName`, so object-form columns produced unnamed filter entries), and
+  the column list no longer depends on which of the two keys a host happened to
+  emit.
+
+  `fields` stays declared on `ListViewSchema` and in the drift guard's sanctioned
+  set — it is still valid input, and `@objectstack/spec`'s `react-blocks.ts`
+  sanctions it as the React-tier `<ListView fields>` prop — but it is input-only.
+
+- f1abf0e: fix(views): ListView reads the spec-canonical `filter`, so a view's base filter reaches every visualization (#2890 scope A step 4)
+
+  Third rename in the ListView vocabulary migration: **`filters` → `filter`**. Unlike
+  the first two this closes a live bug, because the fork was asymmetric.
+
+  `ListView` was the **only** surface in the repo reading `filters`. Every child
+  view — `ObjectGrid`, `ObjectGallery`, `ObjectKanban`, `ObjectCalendar`,
+  `ObjectGantt`, `ObjectMap`, `ObjectTree`, `ObjectChart` — reads `filter`, and
+  `ListView` handed them `filters`. Wherever a child fetches its own rows instead
+  of receiving `ListView`'s, the view's base filter was silently dropped:
+
+  - **a `chart` list view aggregated the whole object.** The chart branch built an
+    `object-chart` node with `filters:`; `ObjectChart` reads `schema.filter` and
+    never read `filters`, so a chart view with a base filter charted unfiltered
+    totals.
+  - the same applied to any of the other view components rendered standalone from
+    a list-view-shaped config.
+
+  Conversely, a **spec-authored** list view — one carrying `filter`, which is what
+  the spec says and what `runtime-metadata-persistence` and "Save as view" already
+  persist — rendered **unfiltered** in `ListView`, because nothing read that key.
+
+  The fold is a key rename only. Both keys carry an ObjectQL FilterNode array
+  everywhere in objectui; every consumer passes the value straight to `$filter`.
+  (The spec types `filter` as `ViewFilterRule[]` — `{field, operator, value}`
+  objects — so objectui's field is typed from the spec but used as something else.
+  That mismatch is real and left alone here: converting formats inside a
+  vocabulary fold would change what reaches the data source.)
+
+  Also collapses a duplicated computation in `app-shell`'s `ObjectView`, which
+  computed the same effective filter **twice** — once as `filter` for the child
+  views, once as `filters` for `ListView` — with the two copies subtly different
+  (only one fell back to `listSchema.filter`; only the other ran token
+  substitution over the URL filters). There is now one computation, keeping both
+  behaviors.
+
+  `filters` stays declared on `ListViewSchema` and in the drift guard's sanctioned
+  set — stored views carry it and it is still valid input — but it is input-only.
+
+- f05b84e: refactor(views): ListView resolves density from the spec-canonical `rowHeight` (#2890 scope A step 2)
+
+  Second rename in the ListView vocabulary migration: **`densityMode` → `rowHeight`**,
+  folded in the same `normalizeListViewSchema` that step 1 introduced.
+
+  Unlike `fields`/`columns` this is not a pure alias — the two vocabularies are
+  different sizes. The spec has five row heights (`compact`/`short`/`medium`/
+  `tall`/`extra_tall`); ListView's toolbar offers three densities
+  (`compact`/`comfortable`/`spacious`). Both directions now live in one place as
+  `DENSITY_MODE_TO_ROW_HEIGHT` / `ROW_HEIGHT_TO_DENSITY_MODE`, chosen so a fold
+  followed by a read is a round trip (`spacious` → `tall` → `spacious`), with the
+  narrowing collapse (`short` → `compact`, `extra_tall` → `spacious`) stated once
+  instead of being re-derived per call site.
+
+  Two behavior fixes fall out of it:
+
+  - **Precedence is no longer inverted.** `ListView` read `densityMode` _first_, so
+    a view carrying both keys rendered the legacy value — backwards from every
+    other legacy/canonical pair in the schema. The canonical key now wins.
+  - **The toolbar stops re-seeding the legacy key.** `ObjectView`'s
+    `onDensityChange` persisted `densityMode` into stored view metadata on every
+    density toggle, so the legacy vocabulary kept regrowing underneath the
+    migration. It persists `rowHeight` now.
+
+  `densityMode` stays declared on `ListViewSchema` and in the drift guard's
+  sanctioned set — stored views carry it and it is still valid input — but it is
+  input-only.
+
+### Patch Changes
+
+- 7b35e4b: fix(dashboard,charts): resolve `{current_user_id}` in widget filters (framework #3574)
+
+  A dashboard widget filtered on `{current_user_id}` rendered `0`. The token
+  reached SQL as a literal, matched no row, and nothing was logged on the client
+  or the server — a silent zero that reads as "you have no work" rather than
+  "this filter did not resolve". The same token in a list-view filter resolved
+  correctly, so a user-scoped list and a user-scoped widget over the same data
+  disagreed.
+
+  There was no shared resolver. Three ad-hoc implementations had grown up
+  independently — `ObjectView` for list views, `ObjectDataPage` for URL filter
+  triples, `NavigationRenderer` for hrefs — and each understood only the filter
+  shape its own surface used. `ObjectView`'s opened with
+  `if (!Array.isArray(filter)) return filter`, so it could not have been reused
+  by dashboard widgets even in principle: widget filters are MongoDB-style
+  objects. Widgets therefore got no resolution at all — `DatasetWidget` called
+  `resolveDateMacros` and nothing else, which is why `{today}` worked in a widget
+  and `{current_user_id}` silently did not.
+
+  - **`@object-ui/core`** — new `utils/filter-tokens.ts` with
+    `resolveContextTokens` and `resolveFilterPlaceholders`. The latter expands
+    _every_ placeholder vocabulary in one call and is what surfaces should use;
+    resolving only some of them is the whole defect. The walk handles arrays and
+    plain objects uniformly, so one resolver covers both platform filter shapes.
+  - **`@object-ui/react`** — new `FilterScopeProvider` / `useFilterScope`. The
+    renderer packages deliberately do not depend on `@object-ui/auth`, so the
+    shell supplies the session values. This is a separate context from
+    `PredicateScopeContext`, which is the expression evaluation scope and carries
+    no organization.
+  - **`@object-ui/plugin-dashboard` / `@object-ui/plugin-charts`** — all six
+    widgets that previously resolved date macros only now resolve both
+    vocabularies: `DatasetWidget`, `ObjectMetricWidget`, `ObjectDataTable`,
+    `ObjectPivotTable`, and `ObjectChart` (dataset-bound and inline paths). The
+    chart's `compareTo` comparison filter gets the session pass too — otherwise
+    the overlay series silently ignored the owner clause the primary series
+    honoured.
+  - **`@object-ui/app-shell`** — `ObjectView`'s local `substituteFilterTokens`
+    and `ObjectDataPage`'s inline `=== '{current_user_id}'` ternary now delegate
+    to the shared resolver, so both also gain `{current_org_id}` and date macros.
+    Two of the three ad-hoc implementations are gone rather than joined by a
+    fourth.
+
+  An unresolvable token is left intact rather than dropped: leaving it yields an
+  empty result, whereas dropping the clause would _widen_ the result set and show
+  a signed-out viewer everyone's data. It is no longer silent — the resolver
+  warns, naming the token, and suggests the intended spelling for known
+  near-misses (`{current_user}`, `{user_id}`, `{organization_id}`). Authoring-time
+  enforcement lands separately as `filter-token-unknown` in `@objectstack/lint`.
+
+- e16ed2d: fix(dashboard,charts): send widget `dateGranularity`/`sortBy`/`limit` to the query, and give funnels a real stage order (framework#3588)
+
+  `DatasetWidget` never read `widget.options`. Four keys an author writes there
+  change the query the server compiles, so a widget declaring
+  `options: { dateGranularity: 'month' }` grouped by the raw timestamp and drew
+  one bar per record, and `sortBy`/`sortOrder` produced no ordering at all.
+
+  - `DatasetWidget` lowers `options.dateGranularity`, `options.sortBy` +
+    `options.sortOrder`, and `options.limit` into the `DatasetSelection` it posts.
+    A `sortBy` naming something the widget does not project is dropped rather than
+    sent, so a stale sort key left by an edit degrades to "unordered" instead of
+    failing the widget against the server's stricter validation. These keys also
+    join the refetch signature, so editing one in the designer refetches instead
+    of re-rendering the previous grid.
+  - Funnel stages follow a **declared order**. `AdvancedChartImpl` sorted funnel
+    segments by value descending, unconditionally — which overrode any server
+    ordering and rendered a sales pipeline as a tidy narrowing shape whatever the
+    stages' real sequence, hiding the very anomaly (a bulge at Proposal) the chart
+    exists to show. It now honours a `categoryOrder`, which `DatasetWidget`
+    derives from the dimension field's picklist option order — the pipeline order
+    an author already declared on the object — or from an explicit
+    `options.stageOrder`. With no declared order the value-descending default is
+    unchanged, and a category missing from the order is kept (after the declared
+    ones), never dropped.
+  - New `@object-ui/core` helpers `buildCategoryOrder` / `buildCategoryRank`,
+    keyed by both the stored value and the display label like the existing
+    `buildOptionColorMap`, so ordering works whether or not the server resolved
+    the dimension's labels.
+
+  Requires the framework-side fix in objectstack#3588 for the selection keys to
+  take effect server-side.
+
+- 53642d4: fix(core,fields): a string `$orderby` is a clause, not a character array — and localize the sharing-rule widgets (objectstack#3821)
+
+  **The recipient picker listed nothing, ever.** `QueryParams['$orderby']` was
+  typed as `Record | string[] | SortObject[]`, so `queryParamsToRecord` sent any
+  non-array value through `Object.entries`. Handed the clause string `'name asc'`
+  — which callers do build by hand — it walked the string index by index and
+  emitted `$orderby=0 n,1 a,2 m,3 e,4 ,5 a,6 s,7 c`. The server sorted by columns
+  that don't exist and every row was filtered out, so
+  `sys_sharing_rule.recipient_id` rendered "No matches" for every recipient type
+  and no sharing rule could be created from the Console. `ObjectGrid` builds the
+  same shape from a schema-level `sort` in three places, so grids with a string
+  sort silently showed an empty table.
+
+  A string `$orderby` is now passed through verbatim (the server's OData
+  normalizer has always parsed `'name asc'`), and the type admits `string`.
+  `RecipientPickerField` additionally switched to the structured
+  `{ name: 'asc' }` form so it can't regress this way against any data source.
+
+  **The three sharing-rule authoring widgets never had translations.**
+  `ObjectRefField`, `RecipientPickerField` and `FilterConditionField` hardcoded
+  their English copy — a Chinese Console showed "Select an object", "Select a
+  user", "Search…", "No matches", "Edit as JSON". They now go through
+  `useFieldTranslation` like every other widget, with keys added under `fields.*`
+  in all ten locales.
+
+  The recipient placeholder was the interesting one: it read
+  `` `Select a ${recipientType.replace(/_/g,' ')}` ``, interpolating the enum
+  value into an English sentence — a shape no locale can translate. It is now a
+  per-type key (`fields.recipient.selectUser`, `…selectBusinessUnit`, …), so
+  "选择业务单元" and "Select a business unit" no longer have to share a structure.
+
+  **Editing a rule silently dropped its recipient.** The picker resets the stored
+  id when `recipient_type` changes, because an id valid for a user is meaningless
+  for a team. It treated the edit form's `'' → 'user'` hydration as such a change:
+  opening any saved rule blanked the recipient, and saving persisted the blank.
+  Only a non-empty predecessor now counts as a type switch.
+
+  **Building a filter submitted the surrounding form.** None of `FilterBuilder`'s
+  controls declared `type="button"`, and a bare `<button>` inside a `<form>`
+  defaults to `type="submit"`. Adding, removing or clearing a condition therefore
+  submitted the sharing-rule dialog — firing validation mid-edit, and on an
+  already-valid form saving the record before the admin was done.
+
+  **A rejected write showed the user raw server diagnostics.** The form rendered
+  `error.message` verbatim, so a sharing / RLS denial reached the dialog and the
+  toast as `FORBIDDEN: insufficient privileges to update showcase_private_note
+pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and the
+  record id to whoever hit it. Permission failures now render localized copy
+  (`form.noPermissionToSave`, added in all ten locales), with the server text kept
+  on the console for debugging; other failures still show the server's message,
+  which is the useful part, and fall back to `form.submitFailed` when there is
+  none — replacing the previously hardcoded English "An error occurred during
+  submission".
+
+  **The detail header offered "Edit" on records the user may only read.** Object
+  permissions can't express "this one record is read-only" — a read-only sharing
+  grant sits inside an object the user may otherwise edit — so the header showed
+  the primary Edit CTA, opened the form, and let the user retype a field before
+  the server rejected the save. `DetailView` now gates Edit / Delete on the
+  object-level check AND on the explain engine's record-grained verdict
+  (`POST /api/v1/security/explain` with a `recordId`, ADR-0090 D6 / ADR-0095 C2 —
+  the same pipeline the enforcement middleware runs, so button and server cannot
+  disagree). Explaining oneself needs no special permission. The probe is one
+  cached request per record, skipped entirely when the object-level check already
+  says no, and **fails open** on every uncertainty — an unanswered hint must never
+  be the reason a permitted user cannot act; the server stays the authority
+  (ADR-0057 D10).
+
+  **A long option rendered straight past the combobox border.** `Combobox`'s
+  trigger pinned itself to the component's `w-[200px]` default while the fields
+  around it ran the full form column, and the selected label was a bare text child
+  of a flex button — flex items need `truncate` AND `min-w-0` to clip, and it had
+  neither. So "成员 (showcase_project_membership)" in the object picker overflowed
+  the control and collided with the field beside it. The label now truncates, the
+  trigger can shrink, the dropdown matches the trigger's width instead of a
+  hardcoded 200px (a widened combobox used to clip its own options), and the two
+  sharing-rule pickers ask for `w-full` so they line up with every other input.
+
+  Hardens `evaluatePermission` while there: a role config carrying only
+  `fieldPermissions` (no `actions`) made `check()` throw a TypeError that
+  propagated out of the render. A permission check must not be able to crash a
+  view.
+
+  Browser-verified against the framework showcase Console in Chinese: object /
+  criteria / recipient copy is fully localized, the recipient dropdown lists real
+  users, business units and positions, a saved rule reopens with its recipient and
+  criteria intact, editing the filter no longer submits, and a rule created
+  end-to-end stores a real record id rather than free text. The criteria authored
+  in the builder is honored by the evaluator: `{"pinned":true}` on an owner-private
+  object granted the recipient exactly the matching records and nothing else.
+
+- Updated dependencies [1767124]
+- Updated dependencies [8ecf5a6]
+- Updated dependencies [dfd3705]
+- Updated dependencies [6dee2cb]
+- Updated dependencies [c7cff19]
+- Updated dependencies [cd09a7b]
+- Updated dependencies [f1abf0e]
+- Updated dependencies [f05b84e]
+- Updated dependencies [662bdf9]
+- Updated dependencies [059a052]
+- Updated dependencies [53642d4]
+- Updated dependencies [8aae006]
+- Updated dependencies [d147a13]
+  - @object-ui/types@17.0.0
+
 ## 16.1.0
 
 ### Minor Changes

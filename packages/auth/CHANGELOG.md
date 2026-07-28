@@ -1,5 +1,158 @@
 # @object-ui/auth
 
+## 17.0.0
+
+### Minor Changes
+
+- 8b4bc94: feat(console): group tenancy posture affordances — org switcher as write
+  context + org attribution in read views (framework ADR-0105 Phase 1)
+
+  Under the new `group` tenancy posture the server widens reads to every
+  organization the member belongs to (`organization_id IN accessible_org_ids`)
+  while writes land in the ACTIVE organization — so the console's existing
+  "which org am I in = which org's data I see" presentation becomes wrong the
+  moment a deployment switches postures. The ADR requires these affordances to
+  land WITH Phase 1, not after.
+
+  - `@object-ui/auth`: `AuthPublicConfig.features.tenancyPosture`
+    (`'single' | 'group' | 'isolated'`, exported as `TenancyPosture`) mirrors
+    the server's public auth config key. It gates nothing — `multiOrgEnabled`
+    stays the capability flag; this only tells the console how to render org
+    context.
+  - `useTenancyPosture()` (app-shell): reads the posture from the cached auth
+    config fetch; `undefined` (older server, unrecognized value, fetch failure)
+    keeps every group affordance off, so non-group deployments render
+    pixel-identical to today.
+  - `WorkspaceSwitcher`: under `group` the dropdown labels the active org
+    "Working organization" and explains the split — new records are created
+    here, views show data from all your organizations.
+  - `RecordFormPage` (create mode): org-walled objects show a "Creates in
+    <active org>" badge naming the engine's write target (ADR-0105 D5 stamps
+    `organization_id` from the active org).
+  - Default list columns (`ObjectView`, `InterfaceListPage`, `ObjectDataPage`):
+    under `group`, org-walled objects get a TRAILING `organization_id`
+    attribution column so cross-org rows are attributable at a glance.
+    Render-time only — never persisted into saved view/page metadata, and
+    business fields still lead.
+
+- 54886ca: feat(console): make the `delegated_admin` org role reachable, and narrow both role pickers to what the server will accept (framework#3697)
+
+  The framework registered a fourth organization role — `delegated_admin`, the
+  grade that may reach `/organization/invite-member` **without** being an org
+  admin, which is what finally gives ADR-0105 D8's scope-bounded issuance gate a
+  caller. objectui#2868 already shipped the placement half of that UX (units and
+  positions narrowed by `describeDelegableScope()`), but the console could not
+  select the role in the first place: `MembersPage` and `InviteMemberDialog` each
+  inlined `type Role = 'owner' | 'admin' | 'member'`, so the capability the
+  framework grew was unreachable from either screen.
+
+  **One vocabulary, not two.** The role names, labels and narrowing rules now live
+  in `@object-ui/auth`'s new `org-roles` module (`ORG_ROLES`, `ORG_ROLE_LABELS`,
+  `orgRoleGrade`, `invitableOrgRoles`, `assignableOrgRoles`) and both screens
+  consume it. Note this list still **mirrors** the server rather than deriving
+  from it — `/auth/config` publishes feature flags but no role vocabulary, so
+  there is no surface to read; objectstack-ai/objectstack#3723 tracks making one
+  list the source for all of them. Until then a server-side role addition means
+  one console edit instead of two.
+
+  **The pickers now narrow, the way the placement picker already does.** Both
+  mirror a _different_ server gate, and offering an option the server would refuse
+  is the failure they prevent:
+
+  - **Invite role** ← the framework's `beforeCreateInvitation` role cap: never
+    above the issuer's own grade, and an issuer below admin grade may invite as
+    `member` only. A `delegated_admin` who picked "Admin" would have been refused
+    with a 403; that option is simply no longer offered.
+  - **Change role** ← better-auth's `update-member-role` route: it requires the
+    `member:["update"]` permission (owner/admin only — `delegated_admin` is built
+    from `memberAc` and holds `member: []`), and only an owner may set `owner` or
+    re-role an existing owner. An actor who may re-role nobody now gets no items
+    instead of three that would 403.
+
+  Narrowing is convenience, not the boundary — the server re-checks every one of
+  these — and it fails toward _less_: an unresolved membership offers `member`
+  alone on invite, and nothing on re-role.
+
+  An ordinary invitation is unchanged: with the default role and no placement, the
+  request body is byte-identical to before.
+
+  Note for translators: `organization.roles.*` has never been defined in any
+  locale bundle — all four labels (owner/admin/member included) resolve through
+  their `defaultValue` English fallback. The new role follows the same pattern
+  rather than being the only localized one.
+
+- b5609cb: feat(console): scoped-invitation placement — invite someone straight into a
+  business unit and positions (framework ADR-0105 D8)
+
+  An invitation may now carry PLACEMENT INTENT: the business unit the invitee
+  lands in and the positions they are assigned when they accept. A plant admin's
+  invitee arrives already in the right unit and role instead of waiting on a
+  platform admin to finish the job by hand.
+
+  - `@object-ui/auth`: `inviteMember` accepts optional `businessUnitId` /
+    `positions` (passed through better-auth's invitation `additionalFields`), and
+    a new `describeDelegableScope()` reads
+    `GET /api/v1/security/my-delegable-scope`.
+  - `InviteMemberDialog`: an optional "Placement" section listing **only** the
+    units the issuer may place into and the positions they may hand out.
+    Positions appear once a unit is chosen — an unanchored assignment is refused
+    by the server, so offering it first would mislead.
+
+  The narrowing is convenience, not the boundary: the server authorizes the pair
+  against the ISSUER's `adminScope` (ADR-0090 D12) at issuance and rejects the
+  whole invitation when it is out of scope. Accordingly the section is **hidden**
+  whenever the caller has no delegable authority, or the deployment exposes no
+  delegated-administration runtime at all (the endpoint answers 501 ⇒ `null`) —
+  never a form the server would refuse. An ordinary invitation is unchanged: with
+  no placement chosen, the request body is byte-identical to before.
+
+### Patch Changes
+
+- 503d3f6: docs(auth): the org-role vocabulary is closed — correct the mirror's standing instruction (framework ADR-0108)
+
+  `org-roles.ts` carried a standing instruction that is now wrong: _"a role added
+  server-side must be added HERE too."_ There are no server-side additions left
+  to chase.
+
+  The framework used to register every declared `position` / `permission` name as
+  an organization role, so the console's list could always fall behind the
+  server's. That channel was retired (framework ADR-0108, objectstack#3723):
+  every value stored in `sys_member.role` is projected into
+  `current_user.positions`, so a business role handed out that way was capability
+  with none of the position system's controls — no `granted_by`, no validity
+  window, no scope check. `sys_member.role` is now a closed, framework-owned list
+  of `owner` / `admin` / `delegated_admin` / `member`, and an app's own business
+  roles are positions, granted through `sys_user_position` or an invitation's
+  placement (framework ADR-0105 D8).
+
+  So this mirror is now complete **by construction** rather than by vigilance.
+  Nothing about the console's behaviour changes — the four names and their labels
+  are what they already were.
+
+  Still a mirror rather than a derivation, but only for a packaging reason now:
+  the names live in `@objectstack/spec` as `BUILTIN_MEMBERSHIP_ROLES` /
+  `BUILTIN_MEMBERSHIP_ROLE_OPTIONS`, which `@object-ui/auth` cannot import yet —
+  this package takes no dependency on `@objectstack/spec`, and those constants
+  ship in the first release carrying ADR-0108 (they are absent from the published
+  16.1.0). A new test pins the list to exactly those four in display order until
+  then, so drift fails loudly instead of silently offering a value the server's
+  enforced `select` would reject.
+
+- Updated dependencies [1767124]
+- Updated dependencies [8ecf5a6]
+- Updated dependencies [dfd3705]
+- Updated dependencies [6dee2cb]
+- Updated dependencies [c7cff19]
+- Updated dependencies [cd09a7b]
+- Updated dependencies [f1abf0e]
+- Updated dependencies [f05b84e]
+- Updated dependencies [662bdf9]
+- Updated dependencies [059a052]
+- Updated dependencies [53642d4]
+- Updated dependencies [8aae006]
+- Updated dependencies [d147a13]
+  - @object-ui/types@17.0.0
+
 ## 16.1.0
 
 ### Minor Changes

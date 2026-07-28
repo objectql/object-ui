@@ -1,5 +1,251 @@
 # @object-ui/plugin-dashboard
 
+## 17.0.0
+
+### Patch Changes
+
+- 7b35e4b: fix(dashboard,charts): resolve `{current_user_id}` in widget filters (framework #3574)
+
+  A dashboard widget filtered on `{current_user_id}` rendered `0`. The token
+  reached SQL as a literal, matched no row, and nothing was logged on the client
+  or the server — a silent zero that reads as "you have no work" rather than
+  "this filter did not resolve". The same token in a list-view filter resolved
+  correctly, so a user-scoped list and a user-scoped widget over the same data
+  disagreed.
+
+  There was no shared resolver. Three ad-hoc implementations had grown up
+  independently — `ObjectView` for list views, `ObjectDataPage` for URL filter
+  triples, `NavigationRenderer` for hrefs — and each understood only the filter
+  shape its own surface used. `ObjectView`'s opened with
+  `if (!Array.isArray(filter)) return filter`, so it could not have been reused
+  by dashboard widgets even in principle: widget filters are MongoDB-style
+  objects. Widgets therefore got no resolution at all — `DatasetWidget` called
+  `resolveDateMacros` and nothing else, which is why `{today}` worked in a widget
+  and `{current_user_id}` silently did not.
+
+  - **`@object-ui/core`** — new `utils/filter-tokens.ts` with
+    `resolveContextTokens` and `resolveFilterPlaceholders`. The latter expands
+    _every_ placeholder vocabulary in one call and is what surfaces should use;
+    resolving only some of them is the whole defect. The walk handles arrays and
+    plain objects uniformly, so one resolver covers both platform filter shapes.
+  - **`@object-ui/react`** — new `FilterScopeProvider` / `useFilterScope`. The
+    renderer packages deliberately do not depend on `@object-ui/auth`, so the
+    shell supplies the session values. This is a separate context from
+    `PredicateScopeContext`, which is the expression evaluation scope and carries
+    no organization.
+  - **`@object-ui/plugin-dashboard` / `@object-ui/plugin-charts`** — all six
+    widgets that previously resolved date macros only now resolve both
+    vocabularies: `DatasetWidget`, `ObjectMetricWidget`, `ObjectDataTable`,
+    `ObjectPivotTable`, and `ObjectChart` (dataset-bound and inline paths). The
+    chart's `compareTo` comparison filter gets the session pass too — otherwise
+    the overlay series silently ignored the owner clause the primary series
+    honoured.
+  - **`@object-ui/app-shell`** — `ObjectView`'s local `substituteFilterTokens`
+    and `ObjectDataPage`'s inline `=== '{current_user_id}'` ternary now delegate
+    to the shared resolver, so both also gain `{current_org_id}` and date macros.
+    Two of the three ad-hoc implementations are gone rather than joined by a
+    fourth.
+
+  An unresolvable token is left intact rather than dropped: leaving it yields an
+  empty result, whereas dropping the clause would _widen_ the result set and show
+  a signed-out viewer everyone's data. It is no longer silent — the resolver
+  warns, naming the token, and suggests the intended spelling for known
+  near-misses (`{current_user}`, `{user_id}`, `{organization_id}`). Authoring-time
+  enforcement lands separately as `filter-token-unknown` in `@objectstack/lint`.
+
+- e16ed2d: fix(dashboard,charts): send widget `dateGranularity`/`sortBy`/`limit` to the query, and give funnels a real stage order (framework#3588)
+
+  `DatasetWidget` never read `widget.options`. Four keys an author writes there
+  change the query the server compiles, so a widget declaring
+  `options: { dateGranularity: 'month' }` grouped by the raw timestamp and drew
+  one bar per record, and `sortBy`/`sortOrder` produced no ordering at all.
+
+  - `DatasetWidget` lowers `options.dateGranularity`, `options.sortBy` +
+    `options.sortOrder`, and `options.limit` into the `DatasetSelection` it posts.
+    A `sortBy` naming something the widget does not project is dropped rather than
+    sent, so a stale sort key left by an edit degrades to "unordered" instead of
+    failing the widget against the server's stricter validation. These keys also
+    join the refetch signature, so editing one in the designer refetches instead
+    of re-rendering the previous grid.
+  - Funnel stages follow a **declared order**. `AdvancedChartImpl` sorted funnel
+    segments by value descending, unconditionally — which overrode any server
+    ordering and rendered a sales pipeline as a tidy narrowing shape whatever the
+    stages' real sequence, hiding the very anomaly (a bulge at Proposal) the chart
+    exists to show. It now honours a `categoryOrder`, which `DatasetWidget`
+    derives from the dimension field's picklist option order — the pipeline order
+    an author already declared on the object — or from an explicit
+    `options.stageOrder`. With no declared order the value-descending default is
+    unchanged, and a category missing from the order is kept (after the declared
+    ones), never dropped.
+  - New `@object-ui/core` helpers `buildCategoryOrder` / `buildCategoryRank`,
+    keyed by both the stored value and the display label like the existing
+    `buildOptionColorMap`, so ordering works whether or not the server resolved
+    the dimension's labels.
+
+  Requires the framework-side fix in objectstack#3588 for the selection keys to
+  take effect server-side.
+
+- 2cb8d78: fix(console): dispatch flow actions from every surface, and cover the screen-flow round trip (framework#3528)
+
+  The resume half of screen flows is fixed; these are the two launch-side holes
+  found while mapping every path that dispatches a `type: 'flow'` action — on
+  both, a screen flow could not even be started.
+
+  - **plugin-dashboard** — a dashboard header action only dispatched when its type
+    was `modal` or `script`. `flow` (and `api` / `form` / `navigation`) fell
+    through to `console.warn("Unknown header actionType")` and did nothing at all.
+    The click handler now routes everything that is not a raw `url` navigation
+    through the ActionRunner, which owns the type registry; there is nothing for
+    the renderer to second-guess.
+  - **app-shell** — the console-root `<ActionProvider>` was mounted with no
+    `handlers` map. It exists to give every field widget a modal handler, but an
+    `ActionProvider` also decides what a `useAction()` consumer _below_ it can
+    dispatch, so any `action:button` outside ObjectView / RecordDetailView /
+    PageView / DeclaredActionsBar bound to a runner that could only open modals:
+    a `flow` action there failed with "Flow handler not registered", and `api` /
+    `script` were equally dead. The root now carries the shared console runtime's
+    api / flow / script handlers plus its confirm / param / result / screen-flow
+    dialogs. `modal` deliberately stays on the client-side `useActionModal`
+    handler — registering it in `handlers` would take precedence over `onModal`
+    and reroute the inline-create affordance to `/api/v1/actions/...`.
+
+  Both changes ship with regression tests that were verified to fail without them.
+  Also adds the first coverage of the screen-flow seam itself, which had none:
+
+  - `FlowRunner.suspense.test.tsx` — a lazily-loaded screen body must not unwind
+    past the dialog. Reproduces the real shape (lazy body, route-level boundary
+    above the host, host state that must survive) and fails against the
+    pre-boundary runner, which is how a paused run's screen used to vanish before
+    it could be submitted.
+  - `e2e/live/screen-flow.spec.ts` — the live round trip: a row flow action
+    triggers the run, the paused screen renders, Submit POSTs to
+    `/automation/{flow}/runs/{runId}/resume` with the collected values, and the
+    flow's downstream `update_record` shows up in the list. The unit tests stub
+    the runner out of the action runtime and the runner's own tests feed it a
+    screen directly, so trigger → dialog → resume → refresh was previously only
+    ever exercised by hand.
+
+- 341bfb5: fix: read spec-canonical keys for dashboard header title and field length rules
+
+  Two naming-drift closeouts (framework#1878 / framework#1891):
+
+  - `DashboardRenderer` header now falls back to the spec-canonical `label` when
+    the legacy `title` is absent (mirrors the `DashboardGridLayout` fallback from
+    #2666) — a spec-compliant dashboard gets its header title.
+  - Field validation rules now read the spec-canonical camelCase
+    `minLength`/`maxLength` (what the server record-validator enforces) with the
+    legacy snake_case `min_length`/`max_length` kept as fallback — authored
+    length constraints reach the client form.
+
+- 5b9cf96: fix(plugin-map): drop the `maplibre-gl@6` default import, and put type-check behind a CI gate that cannot be silently skipped (#2911)
+
+  `maplibre-gl@6.0.0` removed its default export (arrived via #2848, dependabot),
+  so `ObjectMap.tsx`'s `import maplibregl from 'maplibre-gl'` has been a TS1192
+  error on `main` for a day. The binding was never used — the map instance comes
+  from `react-map-gl/maplibre`, and the stylesheet from the side-effect import on
+  the next line — so the import is simply deleted rather than rewritten to
+  `import * as`.
+
+  Removing it is runtime-neutral, which the issue had explicitly left unverified.
+  `@vis.gl/react-maplibre` (what `react-map-gl/maplibre` re-exports) does
+  `Promise.resolve(mapLib || import('maplibre-gl'))` in `components/map.js`, so it
+  loads the library itself when no `mapLib` prop is passed. Verified in a browser
+  against the `store-locator-map` catalog schema: `maplibre-gl` is fetched as its
+  own lazy chunk, the WebGL canvas comes up 800x600, and all three markers mount —
+  byte-identical probe output with and without the static import. That also matches
+  what `apps/console/src/main.tsx` already intends, where the plugin is registered
+  lazily specifically to keep `maplibre-gl` out of the initial bundle.
+
+  **The reason it survived a day of green CI is the part worth fixing.** No
+  workflow ran `type-check` at all, and `turbo build` only checks types for
+  packages whose `build` script happens to invoke `tsc` — the 22 `vite build`
+  packages transpile without checking. A sweep of all 45 packages found ten with
+  broken types, `plugin-map` merely being the one that had a script to notice it.
+
+  Adding a `pnpm type-check` job alone would not have been a gate: **turbo silently
+  skips any package with no `type-check` script**, so 17 packages read as passing
+  because nothing ran. With `plugin-map` fixed, `pnpm type-check` reports 63/63
+  green while nine packages are still broken. So:
+
+  - `plugin-ai` and `plugin-report` gain the `paths` override their type-checked
+    peers already carry, which detaches workspace deps from sibling _source_ and
+    resolves them through built `.d.ts` — the sole cause of the 104-error TS6059
+    `rootDir` floods, and the same trick their own `vite.config.ts` already applies
+    to the dts program.
+  - Seven packages gain `"type-check": "tsc --noEmit"` (`plugin-ai`,
+    `plugin-report`, `plugin-dashboard`, `create-plugin`, `console`, and the two
+    console examples). Coverage goes 28 -> 35 of 45.
+  - New `scripts/check-type-check-coverage.mjs` makes the invisibility impossible:
+    a package with no `type-check` script must be declared, with a reason, and the
+    lists only shrink — gaining a script without deleting the entry fails the
+    guard. The nine known-broken packages are recorded there with error counts
+    (`@object-ui/runner` has no `tsconfig.json` at all), tracked as follow-ups.
+  - New `Type Check` CI job runs the coverage guard first (instant, no install),
+    then `pnpm type-check`.
+
+  Both halves were proven to fail before being trusted: the guard was exercised in
+  all four of its failure modes, and re-introducing the `maplibre-gl` import turns
+  the job red again, as does a fresh error injected into `plugin-ai` — a package
+  that had no type checking whatsoever before this change.
+
+- Updated dependencies [7b21891]
+- Updated dependencies [0b3be01]
+- Updated dependencies [3c4d935]
+- Updated dependencies [4b1ed7d]
+- Updated dependencies [4b60d2d]
+- Updated dependencies [952b978]
+- Updated dependencies [de5e40c]
+- Updated dependencies [1a03af6]
+- Updated dependencies [3e886eb]
+- Updated dependencies [cfc675e]
+- Updated dependencies [20df08c]
+- Updated dependencies [1767124]
+- Updated dependencies [8ecf5a6]
+- Updated dependencies [af705b9]
+- Updated dependencies [0502a7c]
+- Updated dependencies [7b35e4b]
+- Updated dependencies [8fb1295]
+- Updated dependencies [e16ed2d]
+- Updated dependencies [c6fd752]
+- Updated dependencies [f9bbddb]
+- Updated dependencies [dfd3705]
+- Updated dependencies [c77108c]
+- Updated dependencies [2735de6]
+- Updated dependencies [697cda4]
+- Updated dependencies [c19ac11]
+- Updated dependencies [6dee2cb]
+- Updated dependencies [e05f052]
+- Updated dependencies [0502a7c]
+- Updated dependencies [faad45e]
+- Updated dependencies [09c6a17]
+- Updated dependencies [c7cff19]
+- Updated dependencies [ba73a02]
+- Updated dependencies [cd09a7b]
+- Updated dependencies [f1abf0e]
+- Updated dependencies [f05b84e]
+- Updated dependencies [9b4b952]
+- Updated dependencies [341bfb5]
+- Updated dependencies [2f947e4]
+- Updated dependencies [7d46648]
+- Updated dependencies [9b53d72]
+- Updated dependencies [bb4aa25]
+- Updated dependencies [75f1cdf]
+- Updated dependencies [662bdf9]
+- Updated dependencies [059a052]
+- Updated dependencies [53642d4]
+- Updated dependencies [8aae006]
+- Updated dependencies [c6cfdf1]
+- Updated dependencies [d147a13]
+- Updated dependencies [c6aaed8]
+- Updated dependencies [263f885]
+- Updated dependencies [dc334da]
+  - @object-ui/components@17.0.0
+  - @object-ui/i18n@17.0.0
+  - @object-ui/fields@17.0.0
+  - @object-ui/react@17.0.0
+  - @object-ui/types@17.0.0
+  - @object-ui/core@17.0.0
+
 ## 16.1.0
 
 ### Minor Changes

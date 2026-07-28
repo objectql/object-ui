@@ -1,5 +1,397 @@
 # @object-ui/components
 
+## 17.0.0
+
+### Patch Changes
+
+- 7b21891: fix(action): honor the spec `disabled` predicate on every action-rendering surface (#1885 follow-through)
+
+  The spec Action field is `disabled` (boolean | CEL — disabled when TRUE); the
+  schema has no `enabled` key. #1885 wired it in `action:button` only. Browser
+  dogfooding against the showcase found FIVE more surfaces where a spec-authored
+  `disabled` silently did nothing:
+
+  - **components** — the `action:group` leaves (inline + dropdown), `action:icon`
+    and `action:menu` still read the legacy non-spec `enabled`. They now consume
+    `disabled` as the primary control (evaluated in the same scope as `visible`),
+    with `enabled` kept as a deprecated fallback.
+  - **app-shell** — `DeclaredActionsBar` (server-declared action bar) read
+    neither; it gains `disabled` (no legacy fallback: declared actions are
+    spec-shaped and never carried `enabled`).
+  - **plugin-detail** — `record:quick_actions` HAD a `disabled` implementation,
+    but its `typeof === 'string'` split dropped the `{dialect:'cel', source}`
+    envelope the server compiles authored CEL into (#2661 routes envelopes to the
+    canonical formula engine), so the predicate never fired on real metadata. It
+    now feeds `toPredicateInput`'s result to `useCondition` whole, like every
+    other surface.
+
+  Pinned by new `DropdownActionItem` tests (disabled-when-TRUE, false-stays-
+  clickable, disabled-wins-over-enabled, boolean literal) and browser-verified
+  end-to-end against the showcase `showcase_archive_task` specimen: greyed on an
+  in-progress task, clickable on a done one (with `visible` hiding Mark Done on
+  the same screen — the hide-vs-grey contrast).
+
+- de5e40c: fix(approvals): Approval Center UX pass — badge nowrap, approve confirm, decision progress bar, localized declared actions (#2762)
+
+  - **Badge no longer stacks CJK text vertically (P0-1)** — `Badge` gains
+    `whitespace-nowrap` in its base variants (a badge is a single-line pill by
+    definition), and the inbox 状态 column gets a minimum width, so 待审批 can
+    never render as 待/审/批.
+  - **Quick Approve now confirms (P0-2)** — the row's right-edge ✓, the mobile
+    card button and the `a` keyboard shortcut all route through a confirmation
+    dialog before executing, mirroring the Reject flow; an irreversible decision
+    can no longer fire on a stray click.
+  - **Decision progress is visualized (P1-1)** — the drawer renders a segmented
+    progress bar (ARIA `progressbar`) for `decision_progress`, per-group chips
+    get an explicit unsatisfied ○ state next to the satisfied ✓, the eligible
+    approver count is spelled out, and the drawer pager now reads
+    "Request N of M" so it can't be misread as approval progress.
+  - **Declared action labels localize (P0-3)** — `DeclaredActionsBar` resolves
+    label / confirmText / successMessage through the `_actions.<name>.*`
+    translation convention (metadata literals as fallback), matching
+    ObjectView/RecordDetailView; with the `@objectstack/plugin-approvals`
+    bundle, the drawer shows 通过 / 拒绝 / 转签 instead of English in a zh-CN
+    workspace. New `approvalsInbox` keys shipped in all ten locales.
+
+- 8fb1295: fix(data-table): keep the right-pinned action column HEADER sticky on horizontal scroll (objectui#2784)
+
+  The row-actions column is pinned to the right edge by injecting `sticky right-0`
+  into the column's `className`, which reaches both the body cells and the header
+  cell. Body cells stayed pinned, but the header cell unconditionally appended a
+  `relative` position utility (it anchors the column-resize handle) — and since
+  `cn` is `tailwind-merge`, the later `relative` won over the injected `sticky`.
+  So the "操作" title scrolled away while its body cells stayed frozen.
+
+  The header now detects a right-pinned column (its `className` carries
+  `sticky` + `right-0`), skips `relative` for it (a sticky cell is already its own
+  positioning context, so the `absolute` resize handle still anchors correctly),
+  and re-asserts `sticky right-0 z-20` after `col.className` so tailwind-merge
+  keeps the pin and it stacks above the body's pinned cells (z-10). Left-frozen
+  columns, the resize handle, and non-pinned columns are unaffected.
+
+- c19ac11: fix(form): scroll and focus the first errored field on an invalid submit (#2793)
+
+  Submitting a form with a missing required field already toasts the offending field names (#2329), but in a long form the field itself stays off-screen, so the user still hunts for it. react-hook-form's native focus-on-error only reaches fields whose registered ref is a focusable native input — it silently no-ops for custom widgets (lookup / select / master-detail), which is exactly the reported case. The form renderer now disables RHF's unreliable `shouldFocusError` and, in its `onInvalid` handler, scrolls the first errored field (in visual/declared order) into view via its `data-field` wrapper and focuses a focusable control inside it — working for every field type.
+
+- 2f947e4: fix(page,field): consume the spec's `type`/`label`/`maxLength` keys (framework#1878 §3 naming-drift recheck)
+
+  Three forward-drifts where objectui read a different key than the spec
+  declares, so authoring the documented key silently no-oped:
+
+  - **page `type` → `pageType`** (app-shell + components): `PageSchema` declares
+    the page KIND as `type`, but `PageRenderer` reads `schema.pageType` and fell
+    back to `'record'` — and nothing mapped between them. Every non-record page
+    (`home`/`app`/`list`/`utility`) rendered with the record max-width, a wrong
+    `data-page-type` attribute, and a suppressed header. `PageView` now passes
+    `pageType` alongside the SchemaNode discriminator `type`.
+  - **page `label` → `title`** (components): `PageSchema.label` is required but the
+    region renderer read only `title`. Now dual-reads `title ?? label`, mirroring
+    the fallback `DashboardRenderer` already uses. Coupled with the above — the
+    header is gated on `pageType !== 'record'`, so both were needed for a title to
+    appear.
+  - **field `maxLength`/`minLength`** (plugin-form + fields): validation already
+    dual-read these, but `ObjectForm`'s HTML-attribute pass and `TextAreaField`
+    read `max_length` only, so a spec-authored `maxLength` gave no browser cap and
+    no character counter. Both now dual-read, matching `buildValidationRules`.
+
+  Verified in the browser against the showcase: `capability_map` (`type: 'home'`)
+  now renders `data-page-type="home"`, the `home` max-width and its page title;
+  record pages are unchanged.
+
+- 7d46648: fix(hooks): stop calling translation hooks inside try/catch (objectui#2879)
+
+  Eleven call sites wrapped a React hook in `try`/`catch` to make it
+  "provider-safe". `useObjectTranslation` and `useObjectLabel` already are — they
+  read context optionally and fall back to react-i18next's global instance, and
+  never throw. The `catch` bought nothing and cost correctness: a throw _after_
+  the hook ran desyncs hook order on the next render, because React matches hooks
+  positionally. objectui#2595/#2596 fixed exactly this in `@object-ui/i18n`'s
+  `createSafeTranslation`; nine plugin-local re-implementations kept their own
+  copy of the bug, and two more (`ObjectTimeline`, `ObjectView`) were found by the
+  new lint rule below — `ObjectView` had even suppressed
+  `react-hooks/rules-of-hooks` inline to keep it.
+
+  - Six exact re-implementations now delegate to `createSafeTranslation`:
+    `plugin-detail`, `plugin-timeline`, `plugin-list`, `plugin-calendar`,
+    `plugin-grid`'s `ObjectGrid`, `plugin-designer`.
+  - `components`' `data-table` also delegates; `createSafeTranslation` now
+    returns `language` alongside `t` so consumers that localize dates don't need
+    a second hook call. Purely additive.
+  - `plugin-gantt` and `plugin-grid`'s `ImportWizard` keep their local hooks —
+    they fall back _per key_, which a single-probe factory cannot express and
+    which their comments justify (a host dictionary that covers common keys but
+    lags on newer ones). Only the `try`/`catch` is removed.
+  - `ObjectTimeline` and `ObjectView` call the hook directly and probe the
+    returned value, mirroring `useSafeFieldLabel`.
+
+  Adds `object-ui/no-try-catch-around-hook` (error) so a twelfth copy fails CI.
+  It only matches `use*` names, accepts member calls solely on `React` (so
+  `vi.useRealTimers()` is not a hook), and resets its try-depth inside nested
+  functions (so `renderHook(() => useThing())` inside a `try` is fine) — both
+  false positives were real code in this repo and are pinned in the rule's tests.
+
+  `eslint-rules/**/*.test.js` matched no vitest project glob, so the local
+  plugin's specs had never run in CI. They are now included; all three pass.
+
+  `ObjectTimeline`'s test mock of `@object-ui/react` omitted `useObjectLabel` —
+  the removed `try`/`catch` had been silently absorbing that gap. The mock is now
+  complete.
+
+- 9b53d72: feat(charts): ObjectChart honors the spec `ChartConfig` author shape (objectui#2880 / framework#3729)
+
+  `ChartConfigSchema` is the chart protocol, but the renderer only ever read a
+  Recharts-flavoured internal shape — `chartType`, `xAxisKey`, `series[].dataKey`.
+  Everything an author wrote in the SPEC shape reached the renderer and was
+  silently dropped, which is exactly what ADR-0078 forbids. framework#3725
+  documented the gap by trimming the published contract down to the props that
+  actually worked; this closes it the other way round.
+
+  **S1 — one normalization boundary.** `normalizeChartSchema` translates the
+  author shape into the internal pipeline contract in a single place, rather than
+  scattering `??` fallbacks through the render tree (framework PD #12: one
+  translation is a contract mapping, N fallbacks are a second dialect):
+
+  - `type` → `chartType`, `xAxis: { field }` → `xAxisKey`, `series: [{ name }]` →
+    `series: [{ dataKey }]`
+  - the report surface's bare-string `xAxis`/`yAxis` resolve too
+  - `yAxis: [{ field }]` alone plots, with no `series` declared
+  - **internal props win**, so `DashboardRenderer`, `ObjectView` and the dataset
+    path are byte-for-byte unaffected — there is no migration
+
+  **The `type` collision.** `ChartConfig.type` is the chart family, but on any
+  surface that flattens chart config into a props bag `type` is already the SDUI
+  envelope's component discriminator. Spreading props last let an author's
+  `type="bar"` replace `object-chart` so the block stopped resolving; stamping the
+  discriminator last ate the author's value instead. The react-page wrapper now
+  keeps both: the discriminator wins the `type` slot and the author's value is
+  preserved beside it as `specType`, which the normalizer reads back.
+
+  **S2 — axis presentation.** `ChartAxis.format` drives the tick formatter (via
+  `Intl.NumberFormat`, no new dependency), `min`/`max` pin the domain,
+  `logarithmic` swaps the scale, `title` labels the axis, and `showGridLines` is
+  honored. A second `yAxis` entry (or `position: 'right'`) turns on the secondary
+  axis that `series[].yAxis` binds to — in combo charts an explicit binding now
+  beats the family-derived bar→left/line→right guess. `showLegend` is honored,
+  and `title`/`subtitle` render above the plot instead of only titling the
+  drill-down drawer.
+
+  **S3 — `series[].stack`, `annotations`, `interaction`.** Stacking passes the
+  author's group name through as Recharts' `stackId`. Annotations render as
+  `ReferenceLine` (`type: 'line'`) / `ReferenceArea` (`type: 'region'`) with the
+  declared axis, colour, style and label. `interaction.tooltips: false` suppresses
+  the hover card and `interaction.brush: true` adds the range selector;
+  `showDataLabels` prints values on the marks. `interaction.zoom` has no Recharts
+  primitive behind it and is deliberately still unimplemented rather than faked.
+
+- 53642d4: fix(core,fields): a string `$orderby` is a clause, not a character array — and localize the sharing-rule widgets (objectstack#3821)
+
+  **The recipient picker listed nothing, ever.** `QueryParams['$orderby']` was
+  typed as `Record | string[] | SortObject[]`, so `queryParamsToRecord` sent any
+  non-array value through `Object.entries`. Handed the clause string `'name asc'`
+  — which callers do build by hand — it walked the string index by index and
+  emitted `$orderby=0 n,1 a,2 m,3 e,4 ,5 a,6 s,7 c`. The server sorted by columns
+  that don't exist and every row was filtered out, so
+  `sys_sharing_rule.recipient_id` rendered "No matches" for every recipient type
+  and no sharing rule could be created from the Console. `ObjectGrid` builds the
+  same shape from a schema-level `sort` in three places, so grids with a string
+  sort silently showed an empty table.
+
+  A string `$orderby` is now passed through verbatim (the server's OData
+  normalizer has always parsed `'name asc'`), and the type admits `string`.
+  `RecipientPickerField` additionally switched to the structured
+  `{ name: 'asc' }` form so it can't regress this way against any data source.
+
+  **The three sharing-rule authoring widgets never had translations.**
+  `ObjectRefField`, `RecipientPickerField` and `FilterConditionField` hardcoded
+  their English copy — a Chinese Console showed "Select an object", "Select a
+  user", "Search…", "No matches", "Edit as JSON". They now go through
+  `useFieldTranslation` like every other widget, with keys added under `fields.*`
+  in all ten locales.
+
+  The recipient placeholder was the interesting one: it read
+  `` `Select a ${recipientType.replace(/_/g,' ')}` ``, interpolating the enum
+  value into an English sentence — a shape no locale can translate. It is now a
+  per-type key (`fields.recipient.selectUser`, `…selectBusinessUnit`, …), so
+  "选择业务单元" and "Select a business unit" no longer have to share a structure.
+
+  **Editing a rule silently dropped its recipient.** The picker resets the stored
+  id when `recipient_type` changes, because an id valid for a user is meaningless
+  for a team. It treated the edit form's `'' → 'user'` hydration as such a change:
+  opening any saved rule blanked the recipient, and saving persisted the blank.
+  Only a non-empty predecessor now counts as a type switch.
+
+  **Building a filter submitted the surrounding form.** None of `FilterBuilder`'s
+  controls declared `type="button"`, and a bare `<button>` inside a `<form>`
+  defaults to `type="submit"`. Adding, removing or clearing a condition therefore
+  submitted the sharing-rule dialog — firing validation mid-edit, and on an
+  already-valid form saving the record before the admin was done.
+
+  **A rejected write showed the user raw server diagnostics.** The form rendered
+  `error.message` verbatim, so a sharing / RLS denial reached the dialog and the
+  toast as `FORBIDDEN: insufficient privileges to update showcase_private_note
+pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and the
+  record id to whoever hit it. Permission failures now render localized copy
+  (`form.noPermissionToSave`, added in all ten locales), with the server text kept
+  on the console for debugging; other failures still show the server's message,
+  which is the useful part, and fall back to `form.submitFailed` when there is
+  none — replacing the previously hardcoded English "An error occurred during
+  submission".
+
+  **The detail header offered "Edit" on records the user may only read.** Object
+  permissions can't express "this one record is read-only" — a read-only sharing
+  grant sits inside an object the user may otherwise edit — so the header showed
+  the primary Edit CTA, opened the form, and let the user retype a field before
+  the server rejected the save. `DetailView` now gates Edit / Delete on the
+  object-level check AND on the explain engine's record-grained verdict
+  (`POST /api/v1/security/explain` with a `recordId`, ADR-0090 D6 / ADR-0095 C2 —
+  the same pipeline the enforcement middleware runs, so button and server cannot
+  disagree). Explaining oneself needs no special permission. The probe is one
+  cached request per record, skipped entirely when the object-level check already
+  says no, and **fails open** on every uncertainty — an unanswered hint must never
+  be the reason a permitted user cannot act; the server stays the authority
+  (ADR-0057 D10).
+
+  **A long option rendered straight past the combobox border.** `Combobox`'s
+  trigger pinned itself to the component's `w-[200px]` default while the fields
+  around it ran the full form column, and the selected label was a bare text child
+  of a flex button — flex items need `truncate` AND `min-w-0` to clip, and it had
+  neither. So "成员 (showcase_project_membership)" in the object picker overflowed
+  the control and collided with the field beside it. The label now truncates, the
+  trigger can shrink, the dropdown matches the trigger's width instead of a
+  hardcoded 200px (a widened combobox used to clip its own options), and the two
+  sharing-rule pickers ask for `w-full` so they line up with every other input.
+
+  Hardens `evaluatePermission` while there: a role config carrying only
+  `fieldPermissions` (no `actions`) made `check()` throw a TypeError that
+  propagated out of the render. A permission check must not be able to crash a
+  view.
+
+  Browser-verified against the framework showcase Console in Chinese: object /
+  criteria / recipient copy is fully localized, the recipient dropdown lists real
+  users, business units and positions, a saved rule reopens with its recipient and
+  criteria intact, editing the filter no longer submits, and a rule created
+  end-to-end stores a real record id rather than free text. The criteria authored
+  in the builder is honored by the evaluator: `{"pinned":true}` on an owner-private
+  object granted the recipient exactly the matching records and nothing else.
+
+- c6aaed8: fix(i18n): retire four hand-rolled zh/en branches (objectui#2871, part 1)
+
+  Four surfaces decided their language with a hand-written `startsWith('zh')`
+  check instead of the locale packs, so the other eight shipped languages
+  silently rendered English and the strings could never be translated without a
+  code change.
+
+  - **`RecordTitleChip`** carried a private zh-CN/zh-TW dictionary behind a
+    comment claiming "components is i18n-free". That is not true —
+    `@object-ui/components` declares `@object-ui/i18n` and its sibling
+    `containers.tsx` already uses it. All four of its keys (`detail.copied`,
+    `detail.copyRecordId`, `detail.addToFavorites`, `detail.removeFromFavorites`)
+    already existed in **all ten packs**, so this deletes ~35 lines and fixes ten
+    locales with zero new translations. It renders on every record detail page.
+  - **`EnvironmentListToolbar`**'s three state-aware CTA labels move to a new
+    `environment.*` namespace. This surface had already regressed once for the
+    same reason (#844) and was fixed then with inline `{en,zh}` pairs.
+  - **`StudioAiCopilot`**'s dock title moves to the Studio catalog as
+    `engine.studio.aiCopilot`.
+  - **`StudioHomePage.relativeTime`** now uses `Intl.RelativeTimeFormat` with
+    `numeric: 'auto'` instead of five `zh ? … : …` ternaries. This is strictly
+    better than adding ten catalog keys: it covers every locale, applies the
+    correct plural rules, and yields "yesterday" / 「昨天」 rather than "1d ago".
+    Arabic gets its dual form («أسبوعين») — something a ternary cannot express.
+
+  The new `environment.*` keys are added to all ten packs, so this does not widen
+  the gap tracked by objectui#2872 part (a).
+
+  `EnvironmentListToolbar`'s tests now render inside a real `I18nProvider` pinned
+  to `en`. Without one, `t()` returns the raw key, so the previous assertions on
+  literal English would have been asserting nothing.
+
+- dc334da: fix(i18n): close the last three zh-branch gaps (objectui#2871, part 3)
+
+  The three items the #2871 classification marked as real but _not_ a
+  migrate-the-copy fix. Each needed a different remedy.
+
+  **`LoadingScreen` — ten languages collapsed to two.** The boot splash already
+  selected real locale packs (not inline copy), but through
+  `lang.startsWith('zh') ? zh : en`, so a ja/ko/de user watched the whole startup
+  in English. It now indexes `builtInLocales` by the two-letter prefix.
+
+  Each field falls back to `en` **individually**, which matters: `console.*` is
+  one of the namespaces that trails in the non-`zh` packs (objectui#2872 part a),
+  so a whole-object swap would have rendered `undefined` on the splash rather
+  than English. `console.loadingHint` was in fact missing from all eight — added
+  here, since a blank line under the progress list is worse than an English one.
+
+  **`containers.tsx` — two language sources that could disagree.** The tab-label
+  call sites resolved `language` from `useObjectTranslation()`, then handed the
+  string to `translateLabel`, which called `detectLocale()` and read
+  `document.documentElement.lang` on its own. Those update independently, so an
+  in-app language switch could leave a tab label and its surrounding chrome in
+  different languages until the next reload. `language` is now threaded in, and
+  `detectLocale` is deleted so nothing reaches for the DOM again.
+
+  **`field-types.ts` — a two-language data catalog.** `FieldTypeMeta` carried a
+  `labelZh` column beside `label`, which capped the field-type picker at English
+  or Chinese by construction. The 46 type names and 9 category names move into
+  the Studio catalog as `engine.fieldType.<id>` / `engine.fieldCategory.<cat>`,
+  generated from the existing values so no wording changes. This removes the
+  `isZh` helper from **both** `ObjectFieldInspector` and `ObjectFormCanvas` — the
+  two files the classification listed as "keep the component, fix the catalog".
+
+  The picker's search filter previously matched `id`, the English label, and
+  `labelZh` — so searching in Japanese or German matched nothing. It now matches
+  the label as the user actually sees it.
+
+- Updated dependencies [0b3be01]
+- Updated dependencies [3c4d935]
+- Updated dependencies [4b60d2d]
+- Updated dependencies [952b978]
+- Updated dependencies [de5e40c]
+- Updated dependencies [1a03af6]
+- Updated dependencies [3e886eb]
+- Updated dependencies [cfc675e]
+- Updated dependencies [20df08c]
+- Updated dependencies [1767124]
+- Updated dependencies [8ecf5a6]
+- Updated dependencies [af705b9]
+- Updated dependencies [0502a7c]
+- Updated dependencies [7b35e4b]
+- Updated dependencies [e16ed2d]
+- Updated dependencies [c6fd752]
+- Updated dependencies [f9bbddb]
+- Updated dependencies [dfd3705]
+- Updated dependencies [c77108c]
+- Updated dependencies [2735de6]
+- Updated dependencies [6dee2cb]
+- Updated dependencies [e05f052]
+- Updated dependencies [0502a7c]
+- Updated dependencies [faad45e]
+- Updated dependencies [09c6a17]
+- Updated dependencies [c7cff19]
+- Updated dependencies [ba73a02]
+- Updated dependencies [cd09a7b]
+- Updated dependencies [f1abf0e]
+- Updated dependencies [f05b84e]
+- Updated dependencies [9b4b952]
+- Updated dependencies [7d46648]
+- Updated dependencies [bb4aa25]
+- Updated dependencies [75f1cdf]
+- Updated dependencies [662bdf9]
+- Updated dependencies [059a052]
+- Updated dependencies [53642d4]
+- Updated dependencies [8aae006]
+- Updated dependencies [c6cfdf1]
+- Updated dependencies [d147a13]
+- Updated dependencies [c6aaed8]
+- Updated dependencies [263f885]
+- Updated dependencies [dc334da]
+  - @object-ui/i18n@17.0.0
+  - @object-ui/react@17.0.0
+  - @object-ui/types@17.0.0
+  - @object-ui/core@17.0.0
+  - @object-ui/react-runtime@17.0.0
+  - @object-ui/sdui-parser@17.0.0
+
 ## 16.1.0
 
 ### Patch Changes

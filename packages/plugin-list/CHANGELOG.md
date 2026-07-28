@@ -1,5 +1,339 @@
 # @object-ui/plugin-list
 
+## 17.0.0
+
+### Minor Changes
+
+- 2735de6: feat: render the server's effective API operation set (#3391 PR-4)
+
+  The frontend now consumes the per-object **effective API operation set** the
+  server resolves (from `/me/permissions` `apiOperations`, framework #3391) —
+  never the raw `apiMethods` — so Import/Export/New/Edit/Delete buttons match what
+  the server will actually admit, and a 405 import refusal shows a dedicated
+  message instead of silently falling back.
+
+  - **core** `resolveCrudAffordances(obj, effectiveApiOperations?)` — new optional
+    second argument intersects each affordance bit with its API operation
+    (create/import→create/import, edit→update, delete→delete, exportCsv→export).
+    Omitting it (old backend / no effective set) leaves affordances unchanged.
+  - **permissions** — `/me/permissions` response carries per-object
+    `apiOperations`; `PermissionContextValue.getObjectApiOperations(object)`
+    exposes it (undefined when absent → callers keep current behavior); `check()`
+    maps `import→allowCreate`, `export→allowRead`.
+  - **app-shell** `ObjectView` intersects its toolbar affordances with the object's
+    effective operations (Import); the platform-admin identity-import bypass is
+    unaffected.
+  - **plugin-list** `ListView` / **plugin-grid** `ObjectGrid` gate the Export
+    button (and export handler) on effective `export`; `plugin-grid` gains the
+    `@object-ui/permissions` workspace dependency.
+  - **plugin-grid** `ImportWizard` — a 405 / `OBJECT_API_METHOD_NOT_ALLOWED`
+    import refusal is detected by a new `isImportNotAllowed` predicate at every
+    catch site (async, sync, dry-run) and STOPS with a dedicated
+    `grid.import.notAllowed` message (10 locales + fallback dict) — it never falls
+    back to the sync/legacy path (which 405s too), distinct from the 404
+    route-absent fallback.
+
+  Backward-compatible: a missing effective set (unrestricted object, older
+  backend, or no permission provider) preserves the current default-allow
+  behavior everywhere.
+
+- ba45145: feat: gate list row Edit/Delete and bulk delete on the server's effective operation set (#3720)
+
+  The **fourth** surface #3391 left open. The three earlier rounds — the toolbar
+  (objectui#2823), detail/form (#3546, objectui#2832 + #2876) and related lists
+  (#3546) — all route through `resolveCrudAffordances`. The main list's **row
+  CRUD** does not: it has its own resolver (`plugin-grid`'s
+  `resolveRowCrudAffordances`), so none of those rounds ever reached it.
+
+  Its gate was `operations ?? { update: !!onEdit, delete: !!onDelete }` — and
+  `ObjectView` wires `onEdit`/`onDelete` unconditionally while view JSON rarely
+  declares `operations`, so it was effectively always-on. A caller whose effective
+  set carried neither `update` nor `delete` still got the row kebab's Edit/Delete
+  **and** the bulk delete, the most destructive affordance on the list.
+
+  - **plugin-grid** `resolveRowCrudAffordances` now takes `managedBy` and
+    `effectiveApiOperations` and resolves the object verdict through the shared
+    `resolveCrudAffordances` policy — so the row gate is the SAME decision the
+    toolbar, record header, form and related lists make. It also returns
+    `objectCanDelete`, the object-level delete verdict that bulk delete gates on
+    (bulk rides `onBulkDelete`, a different callback from the row `onDelete`).
+  - **plugin-grid** `ObjectGrid` threads its existing `effectiveApiOps` — until
+    now fed only to Export — into the row gate, and applies the delete verdict to
+    bulk delete: the implicit `['delete']`, an author-declared
+    `bulkActions: ['delete']`, and any `bulkActionDefs` entry with
+    `operation: 'delete'`. A declared bulk action is a _wiring_ declaration, not a
+    permission grant. Custom action ids and non-delete operations pass through
+    untouched.
+  - **plugin-list** `ListView`'s own bulk bar (the non-grid views — kanban /
+    calendar / gallery; the grid path delegates to `ObjectGrid`) drops its
+    built-in `delete` under the same verdict.
+
+  Also closes the ADR-0103 gap on this chain: `rowCrudAffordances` documented the
+  bucket lock as "applied upstream via the view's `operations.*`", but the
+  all-open default meant it never was — an engine-owned `system` / `append-only` /
+  `better-auth` object leaked a generic row Edit/Delete that the engine rejects
+  (`assertEngineOwnedWriteAllowed`). Running the shared policy applies it, and a
+  `userActions` opt-in still re-opens it (e.g. `sys_user`'s `edit`).
+
+  Same semantics as the earlier rounds: **intersection, never union** — a server
+  grant cannot re-open what the bucket or `userActions` closed, and a
+  `userActions` opt-in cannot survive a server denial. A missing effective set
+  (unrestricted object, older backend, or no `PermissionProvider`) preserves the
+  current behavior.
+
+- cd09a7b: refactor(views): ListView reads the spec-canonical `columns`, with legacy `fields` folded in one normalizer (#2890 scope A step 1)
+
+  `ListViewSchema` has been derived from `@objectstack/spec/ui` since #2231, but
+  the renderer still spoke objectui's own vocabulary for the same concepts. First
+  rename closed: **`fields` → `columns`**.
+
+  Legacy acceptance does not disappear — stored view metadata in user databases
+  carries `fields` — but it now lives in exactly one place instead of being
+  re-implemented per read-site:
+
+  - **New `normalizeListViewSchema` (`@object-ui/core`)** folds `fields` into
+    `columns` (canonical wins when both are present) and drops the legacy key, so
+    a read-site that was missed fails loudly instead of quietly taking the legacy
+    path. It also absorbs the `viewType` renderability default ListView applied
+    inline. Non-mutating, idempotent, and returns its input by reference when
+    there is nothing to fold, so ListView's downstream memos keep a stable
+    dependency identity.
+  - **`ListView` normalizes once at the component boundary**, before anything
+    reads the schema. This is what guarantees the fold runs: nothing on the render
+    path parses view metadata through zod (the zod schemas serve the CLI
+    validator, the VS Code extension and tests), so a `z.preprocess` on
+    `ListViewSchema` — spec-side or local — would never execute.
+  - **Producers emit `columns`**: `ObjectView`'s `renderListView` payload,
+    `ObjectDataPage`, `InterfaceListPage` and the `list-view` registry defaults
+    had been _downgrading_ already-canonical `columns` config back to `fields`.
+
+  Two latent inconsistencies go away with it: the filter builder's
+  objectDef-not-loaded fallback now resolves `ListColumn.field` (it read only
+  `name`/`fieldName`, so object-form columns produced unnamed filter entries), and
+  the column list no longer depends on which of the two keys a host happened to
+  emit.
+
+  `fields` stays declared on `ListViewSchema` and in the drift guard's sanctioned
+  set — it is still valid input, and `@objectstack/spec`'s `react-blocks.ts`
+  sanctions it as the React-tier `<ListView fields>` prop — but it is input-only.
+
+- f1abf0e: fix(views): ListView reads the spec-canonical `filter`, so a view's base filter reaches every visualization (#2890 scope A step 4)
+
+  Third rename in the ListView vocabulary migration: **`filters` → `filter`**. Unlike
+  the first two this closes a live bug, because the fork was asymmetric.
+
+  `ListView` was the **only** surface in the repo reading `filters`. Every child
+  view — `ObjectGrid`, `ObjectGallery`, `ObjectKanban`, `ObjectCalendar`,
+  `ObjectGantt`, `ObjectMap`, `ObjectTree`, `ObjectChart` — reads `filter`, and
+  `ListView` handed them `filters`. Wherever a child fetches its own rows instead
+  of receiving `ListView`'s, the view's base filter was silently dropped:
+
+  - **a `chart` list view aggregated the whole object.** The chart branch built an
+    `object-chart` node with `filters:`; `ObjectChart` reads `schema.filter` and
+    never read `filters`, so a chart view with a base filter charted unfiltered
+    totals.
+  - the same applied to any of the other view components rendered standalone from
+    a list-view-shaped config.
+
+  Conversely, a **spec-authored** list view — one carrying `filter`, which is what
+  the spec says and what `runtime-metadata-persistence` and "Save as view" already
+  persist — rendered **unfiltered** in `ListView`, because nothing read that key.
+
+  The fold is a key rename only. Both keys carry an ObjectQL FilterNode array
+  everywhere in objectui; every consumer passes the value straight to `$filter`.
+  (The spec types `filter` as `ViewFilterRule[]` — `{field, operator, value}`
+  objects — so objectui's field is typed from the spec but used as something else.
+  That mismatch is real and left alone here: converting formats inside a
+  vocabulary fold would change what reaches the data source.)
+
+  Also collapses a duplicated computation in `app-shell`'s `ObjectView`, which
+  computed the same effective filter **twice** — once as `filter` for the child
+  views, once as `filters` for `ListView` — with the two copies subtly different
+  (only one fell back to `listSchema.filter`; only the other ran token
+  substitution over the URL filters). There is now one computation, keeping both
+  behaviors.
+
+  `filters` stays declared on `ListViewSchema` and in the drift guard's sanctioned
+  set — stored views carry it and it is still valid input — but it is input-only.
+
+- f05b84e: refactor(views): ListView resolves density from the spec-canonical `rowHeight` (#2890 scope A step 2)
+
+  Second rename in the ListView vocabulary migration: **`densityMode` → `rowHeight`**,
+  folded in the same `normalizeListViewSchema` that step 1 introduced.
+
+  Unlike `fields`/`columns` this is not a pure alias — the two vocabularies are
+  different sizes. The spec has five row heights (`compact`/`short`/`medium`/
+  `tall`/`extra_tall`); ListView's toolbar offers three densities
+  (`compact`/`comfortable`/`spacious`). Both directions now live in one place as
+  `DENSITY_MODE_TO_ROW_HEIGHT` / `ROW_HEIGHT_TO_DENSITY_MODE`, chosen so a fold
+  followed by a read is a round trip (`spacious` → `tall` → `spacious`), with the
+  narrowing collapse (`short` → `compact`, `extra_tall` → `spacious`) stated once
+  instead of being re-derived per call site.
+
+  Two behavior fixes fall out of it:
+
+  - **Precedence is no longer inverted.** `ListView` read `densityMode` _first_, so
+    a view carrying both keys rendered the legacy value — backwards from every
+    other legacy/canonical pair in the schema. The canonical key now wins.
+  - **The toolbar stops re-seeding the legacy key.** `ObjectView`'s
+    `onDensityChange` persisted `densityMode` into stored view metadata on every
+    density toggle, so the legacy vocabulary kept regrowing underneath the
+    migration. It persists `rowHeight` now.
+
+  `densityMode` stays declared on `ListViewSchema` and in the drift guard's
+  sanctioned set — stored views carry it and it is still valid input — but it is
+  input-only.
+
+### Patch Changes
+
+- ab46110: fix(list): show the real match total in the record-count status bar under server pagination
+
+  The Airtable-style record-count bar read `data.length`, but under server-side
+  pagination (#2212) `data` is only the current page window — so a 158-row result
+  paginated 100/page reported "100 条记录" on page 1 and "58 条记录" on page 2,
+  never the true total. There was no other place to see how many records the
+  query matched.
+
+  The bar now shows the server's grand total (`serverTotal`) when known, falling
+  back to `data.length` when the whole result set is in memory (non-paginated,
+  grouped and non-grid views are unchanged — `serverTotal` is null there, so the
+  count is identical to before). Browser-verified against the showcase contacts
+  list: the bar reads "158 条记录" and stays stable across pages, and switching to
+  grouped/other views correctly resets to the loaded count.
+
+- 7d46648: fix(hooks): stop calling translation hooks inside try/catch (objectui#2879)
+
+  Eleven call sites wrapped a React hook in `try`/`catch` to make it
+  "provider-safe". `useObjectTranslation` and `useObjectLabel` already are — they
+  read context optionally and fall back to react-i18next's global instance, and
+  never throw. The `catch` bought nothing and cost correctness: a throw _after_
+  the hook ran desyncs hook order on the next render, because React matches hooks
+  positionally. objectui#2595/#2596 fixed exactly this in `@object-ui/i18n`'s
+  `createSafeTranslation`; nine plugin-local re-implementations kept their own
+  copy of the bug, and two more (`ObjectTimeline`, `ObjectView`) were found by the
+  new lint rule below — `ObjectView` had even suppressed
+  `react-hooks/rules-of-hooks` inline to keep it.
+
+  - Six exact re-implementations now delegate to `createSafeTranslation`:
+    `plugin-detail`, `plugin-timeline`, `plugin-list`, `plugin-calendar`,
+    `plugin-grid`'s `ObjectGrid`, `plugin-designer`.
+  - `components`' `data-table` also delegates; `createSafeTranslation` now
+    returns `language` alongside `t` so consumers that localize dates don't need
+    a second hook call. Purely additive.
+  - `plugin-gantt` and `plugin-grid`'s `ImportWizard` keep their local hooks —
+    they fall back _per key_, which a single-probe factory cannot express and
+    which their comments justify (a host dictionary that covers common keys but
+    lags on newer ones). Only the `try`/`catch` is removed.
+  - `ObjectTimeline` and `ObjectView` call the hook directly and probe the
+    returned value, mirroring `useSafeFieldLabel`.
+
+  Adds `object-ui/no-try-catch-around-hook` (error) so a twelfth copy fails CI.
+  It only matches `use*` names, accepts member calls solely on `React` (so
+  `vi.useRealTimers()` is not a hook), and resets its try-depth inside nested
+  functions (so `renderHook(() => useThing())` inside a `try` is fine) — both
+  false positives were real code in this repo and are pinned in the rule's tests.
+
+  `eslint-rules/**/*.test.js` matched no vitest project glob, so the local
+  plugin's specs had never run in CI. They are now included; all three pass.
+
+  `ObjectTimeline`'s test mock of `@object-ui/react` omitted `useObjectLabel` —
+  the removed `try`/`catch` had been silently absorbing that gap. The mock is now
+  complete.
+
+- 8aae006: fix(views): the five per-view-type configs speak the spec vocabulary (#2231 phase 3)
+
+  `kanban`/`calendar`/`gantt`/`gallery`/`timeline` on `ListViewSchema` were the last
+  hand-written forks left after #2882 — and the fork was not cosmetic: objectui named
+  the same concepts differently from `@objectstack/spec/ui`, and several read-sites
+  only understood one of the two dialects. Two of those gaps were live bugs.
+
+  **Kanban lanes ignored the spec key.** `ListView` gated the Kanban tab on
+  `groupByField || groupField` but rendered lanes off `groupField` alone. A config
+  authored with the spec key — which is exactly what the product's own
+  `CreateViewDialog` emits — offered the tab and then grouped by whatever
+  `detectStatusField()` guessed. The spec's `columns` (the fields shown on each card)
+  was also spread onto the board verbatim, where `columns` means _lanes_, so
+  `ObjectKanban` built lanes with `undefined` id and title. `columns` now maps to
+  `cardFields` and the vocabulary keys are stripped from the passthrough.
+
+  **Timeline lost every spec key in app-shell.** `ObjectView`'s `timeline` branch was
+  a three-key whitelist while its `gallery`/`gantt` siblings had already been fixed to
+  spread-first, so a stored `timeline: { startDateField, endDateField, groupByField,
+colorField, scale }` arrived with only `titleField` and an axis pinned to the
+  `'due_date'` fallback.
+
+  Also: `plugin-view`'s `ObjectView` now reads `gallery.coverField` and
+  `timeline.startDateField` (it only understood the legacy aliases), and the dead
+  `gallery.subtitleField` is removed — three producers computed it and `ObjectGallery`
+  never read it.
+
+  The schema side now derives from the spec configs (`.partial()`, since the product
+  authors partial configs and spec marks `columns`/`titleField`/`startDateField`
+  required). `gantt` needed no local schema at all. The pre-#2231 names
+  (`groupField`, `cardFields`, `imageField`, `dateField`) remain accepted as deprecated
+  aliases so stored views keep validating; the spec key wins wherever both appear.
+  `calendar.defaultView` stays local — it has no spec counterpart.
+
+- Updated dependencies [7b21891]
+- Updated dependencies [0b3be01]
+- Updated dependencies [3c4d935]
+- Updated dependencies [4b1ed7d]
+- Updated dependencies [4b60d2d]
+- Updated dependencies [952b978]
+- Updated dependencies [de5e40c]
+- Updated dependencies [1a03af6]
+- Updated dependencies [3e886eb]
+- Updated dependencies [cfc675e]
+- Updated dependencies [20df08c]
+- Updated dependencies [1767124]
+- Updated dependencies [8ecf5a6]
+- Updated dependencies [af705b9]
+- Updated dependencies [0502a7c]
+- Updated dependencies [7b35e4b]
+- Updated dependencies [8fb1295]
+- Updated dependencies [e16ed2d]
+- Updated dependencies [c6fd752]
+- Updated dependencies [f9bbddb]
+- Updated dependencies [dfd3705]
+- Updated dependencies [c77108c]
+- Updated dependencies [2735de6]
+- Updated dependencies [697cda4]
+- Updated dependencies [c19ac11]
+- Updated dependencies [6dee2cb]
+- Updated dependencies [e05f052]
+- Updated dependencies [0502a7c]
+- Updated dependencies [faad45e]
+- Updated dependencies [09c6a17]
+- Updated dependencies [c7cff19]
+- Updated dependencies [ba73a02]
+- Updated dependencies [cd09a7b]
+- Updated dependencies [f1abf0e]
+- Updated dependencies [f05b84e]
+- Updated dependencies [9b4b952]
+- Updated dependencies [341bfb5]
+- Updated dependencies [2f947e4]
+- Updated dependencies [7d46648]
+- Updated dependencies [9b53d72]
+- Updated dependencies [bb4aa25]
+- Updated dependencies [75f1cdf]
+- Updated dependencies [662bdf9]
+- Updated dependencies [059a052]
+- Updated dependencies [53642d4]
+- Updated dependencies [8aae006]
+- Updated dependencies [c6cfdf1]
+- Updated dependencies [d147a13]
+- Updated dependencies [c6aaed8]
+- Updated dependencies [263f885]
+- Updated dependencies [dc334da]
+  - @object-ui/components@17.0.0
+  - @object-ui/i18n@17.0.0
+  - @object-ui/fields@17.0.0
+  - @object-ui/react@17.0.0
+  - @object-ui/types@17.0.0
+  - @object-ui/core@17.0.0
+  - @object-ui/permissions@17.0.0
+  - @object-ui/mobile@17.0.0
+
 ## 16.1.0
 
 ### Patch Changes

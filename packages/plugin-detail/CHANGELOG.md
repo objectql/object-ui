@@ -1,5 +1,318 @@
 # @object-ui/plugin-detail
 
+## 17.0.0
+
+### Minor Changes
+
+- 952b978: fix(detail): the approval band honors the node's `lockRecord` instead of assuming every approval locks (#2902)
+
+  A record detail page treated "a pending approval request exists" as "this
+  record is locked". An approval node declares `lockRecord` (default `true`), and
+  on `lockRecord: false` the server keeps accepting writes for the whole time
+  that node waits — so the console was asserting a lock the backend did not
+  enforce.
+
+  The label was the smaller half of it. The same conflated signal fed `canEdit`,
+  so the record-level inline-edit session was suppressed too: no pencils,
+  `enter()` a no-op. On a single-approver step — a department head or plant
+  manager, exactly the case `lockRecord: false` exists for, where the approver is
+  meant to fill in the missing detail before deciding — the capability was
+  unreachable from the UI. And a flow chaining nodes with different policies drew
+  one identical band for "edit freely" and "the server will reject your save with
+  `RECORD_LOCKED`", so the two states were indistinguishable until Save failed.
+
+  Approval state is now two signals:
+
+  - **`approvalPending`** — an approval is running. Drives the band and the recall
+    button, both meaningful whether or not the record is editable.
+  - **`locked`** — that approval also forbids edits, from the pending node's
+    `lock_record` (framework#3814, read off the same `node_config_json` snapshot
+    the server's record-lock hook reads).
+
+  The band renders two states: amber lock + "Locked for approval", or sky clock +
+  "In approval · editable", each with its own tooltip. Recall moved out of the
+  locked branch — an editable pending approval is just as recallable. Inline
+  editing stays live in the editable state.
+
+  `InlineEditProvider` takes a new optional `approvalPending` prop, defaulting to
+  `locked`, so a host that threads only `locked` renders exactly as before. The
+  record's `approval_status` field remains the fallback for backends with no
+  approvals API; it carries no node granularity, so it still reads as locked — as
+  does a pending request from a backend too old to report the policy.
+
+  New `detail.approvalPendingEditable` / `detail.approvalPendingTooltip` keys are
+  translated in all ten locales.
+
+- f9bbddb: feat: gate detail/form edit & delete on the server's effective operation set (#3546)
+
+  PR-4 (#3391) wired the **list/toolbar** surface (ObjectView Import, ListView /
+  ObjectGrid Export) to the server-resolved effective API operation set
+  (`/me/permissions` `apiOperations`, intersected via
+  `resolveCrudAffordances(obj, effectiveApiOperations?)`). The **detail / form**
+  surfaces still gated edit/delete on the bucket + `userActions` alone. This
+  extends the same intersection to them, so the record page and its forms never
+  offer an operation the server would 405.
+
+  - **core** `isObjectInlineEditable(obj, effectiveApiOperations?)` gains the same
+    optional second argument as `resolveCrudAffordances` — inline-edit is now
+    additionally ANDed with the server allowing `update`.
+  - **app-shell** `RecordDetailView` threads the object's effective operations into
+    the synthesized Edit/Delete header actions and the record-body inline-edit
+    gate (`canEdit`); `RelatedRecordActionsBridge` intersects each **child**
+    object's Create/Edit/Delete handlers with that child's own effective set.
+  - **plugin-detail** `record:details` ANDs its inline-edit affordance with the
+    object's effective `update`.
+  - **plugin-form** `ObjectForm`'s blanket managed-object field lock also engages
+    when the server denies `update` (edit mode) / `create` (create mode).
+
+  Backward-compatible: a missing effective set (unrestricted object, older
+  backend, or no `PermissionProvider`) leaves the resolved affordance untouched —
+  the bucket/`userActions` decision wins, exactly as today. Layers on top of the
+  existing per-object `check('edit')` / `check('delete')` permission gates
+  (intersection, never union).
+
+### Patch Changes
+
+- 7b21891: fix(action): honor the spec `disabled` predicate on every action-rendering surface (#1885 follow-through)
+
+  The spec Action field is `disabled` (boolean | CEL — disabled when TRUE); the
+  schema has no `enabled` key. #1885 wired it in `action:button` only. Browser
+  dogfooding against the showcase found FIVE more surfaces where a spec-authored
+  `disabled` silently did nothing:
+
+  - **components** — the `action:group` leaves (inline + dropdown), `action:icon`
+    and `action:menu` still read the legacy non-spec `enabled`. They now consume
+    `disabled` as the primary control (evaluated in the same scope as `visible`),
+    with `enabled` kept as a deprecated fallback.
+  - **app-shell** — `DeclaredActionsBar` (server-declared action bar) read
+    neither; it gains `disabled` (no legacy fallback: declared actions are
+    spec-shaped and never carried `enabled`).
+  - **plugin-detail** — `record:quick_actions` HAD a `disabled` implementation,
+    but its `typeof === 'string'` split dropped the `{dialect:'cel', source}`
+    envelope the server compiles authored CEL into (#2661 routes envelopes to the
+    canonical formula engine), so the predicate never fired on real metadata. It
+    now feeds `toPredicateInput`'s result to `useCondition` whole, like every
+    other surface.
+
+  Pinned by new `DropdownActionItem` tests (disabled-when-TRUE, false-stays-
+  clickable, disabled-wins-over-enabled, boolean literal) and browser-verified
+  end-to-end against the showcase `showcase_archive_task` specimen: greyed on an
+  in-progress task, clickable on a done one (with `visible` hiding Mark Done on
+  the same screen — the hide-vs-grey contrast).
+
+- faad45e: fix(fields): render `image` fields consistently and add click-to-zoom (#2836)
+
+  An `image` field rendered differently — and wrongly — on three surfaces:
+
+  - **Edit form showed broken thumbnails.** A record read back its `image` value
+    as a bare `sys_file` id (the reference form), but `readFileValue` returned an
+    id with no URL — the comment assumed the read path expands it, which the
+    edit-form data path does not. The result was `<img src="">`. `file-value` now
+    derives the stable download URL (`/api/v1/storage/files/:id`, which
+    302-redirects to a signed URL and works directly as `<img src>`) for a bare
+    id or an id-only object, so every widget and cell renderer resolves one.
+  - **Inline edit leaked the raw storage URL.** `InlineFieldInput` had no branch
+    for file-backed types and fell through to a plain text input showing
+    `/api/v1/storage/files/…`. It now renders the same upload widgets the form
+    uses (`image`/`avatar`/`signature`/`file`/`video`/`audio`).
+  - **Hard-coded English.** `ImageField`'s upload/crop/remove/alt strings now go
+    through `t('fields.image.*')` (en + zh added).
+
+  Also adds an `ImageLightbox` — click a read-only thumbnail (detail or list cell)
+  to open a full-screen preview; multiple images get prev/next navigation, a
+  position counter and arrow-key support, a single image just the image. In a
+  grid cell the click is `stopPropagation`-guarded so enlarging doesn't also open
+  the row.
+
+- 7d46648: fix(hooks): stop calling translation hooks inside try/catch (objectui#2879)
+
+  Eleven call sites wrapped a React hook in `try`/`catch` to make it
+  "provider-safe". `useObjectTranslation` and `useObjectLabel` already are — they
+  read context optionally and fall back to react-i18next's global instance, and
+  never throw. The `catch` bought nothing and cost correctness: a throw _after_
+  the hook ran desyncs hook order on the next render, because React matches hooks
+  positionally. objectui#2595/#2596 fixed exactly this in `@object-ui/i18n`'s
+  `createSafeTranslation`; nine plugin-local re-implementations kept their own
+  copy of the bug, and two more (`ObjectTimeline`, `ObjectView`) were found by the
+  new lint rule below — `ObjectView` had even suppressed
+  `react-hooks/rules-of-hooks` inline to keep it.
+
+  - Six exact re-implementations now delegate to `createSafeTranslation`:
+    `plugin-detail`, `plugin-timeline`, `plugin-list`, `plugin-calendar`,
+    `plugin-grid`'s `ObjectGrid`, `plugin-designer`.
+  - `components`' `data-table` also delegates; `createSafeTranslation` now
+    returns `language` alongside `t` so consumers that localize dates don't need
+    a second hook call. Purely additive.
+  - `plugin-gantt` and `plugin-grid`'s `ImportWizard` keep their local hooks —
+    they fall back _per key_, which a single-probe factory cannot express and
+    which their comments justify (a host dictionary that covers common keys but
+    lags on newer ones). Only the `try`/`catch` is removed.
+  - `ObjectTimeline` and `ObjectView` call the hook directly and probe the
+    returned value, mirroring `useSafeFieldLabel`.
+
+  Adds `object-ui/no-try-catch-around-hook` (error) so a twelfth copy fails CI.
+  It only matches `use*` names, accepts member calls solely on `React` (so
+  `vi.useRealTimers()` is not a hook), and resets its try-depth inside nested
+  functions (so `renderHook(() => useThing())` inside a `try` is fine) — both
+  false positives were real code in this repo and are pinned in the rule's tests.
+
+  `eslint-rules/**/*.test.js` matched no vitest project glob, so the local
+  plugin's specs had never run in CI. They are now included; all three pass.
+
+  `ObjectTimeline`'s test mock of `@object-ui/react` omitted `useObjectLabel` —
+  the removed `try`/`catch` had been silently absorbing that gap. The mock is now
+  complete.
+
+- 53642d4: fix(core,fields): a string `$orderby` is a clause, not a character array — and localize the sharing-rule widgets (objectstack#3821)
+
+  **The recipient picker listed nothing, ever.** `QueryParams['$orderby']` was
+  typed as `Record | string[] | SortObject[]`, so `queryParamsToRecord` sent any
+  non-array value through `Object.entries`. Handed the clause string `'name asc'`
+  — which callers do build by hand — it walked the string index by index and
+  emitted `$orderby=0 n,1 a,2 m,3 e,4 ,5 a,6 s,7 c`. The server sorted by columns
+  that don't exist and every row was filtered out, so
+  `sys_sharing_rule.recipient_id` rendered "No matches" for every recipient type
+  and no sharing rule could be created from the Console. `ObjectGrid` builds the
+  same shape from a schema-level `sort` in three places, so grids with a string
+  sort silently showed an empty table.
+
+  A string `$orderby` is now passed through verbatim (the server's OData
+  normalizer has always parsed `'name asc'`), and the type admits `string`.
+  `RecipientPickerField` additionally switched to the structured
+  `{ name: 'asc' }` form so it can't regress this way against any data source.
+
+  **The three sharing-rule authoring widgets never had translations.**
+  `ObjectRefField`, `RecipientPickerField` and `FilterConditionField` hardcoded
+  their English copy — a Chinese Console showed "Select an object", "Select a
+  user", "Search…", "No matches", "Edit as JSON". They now go through
+  `useFieldTranslation` like every other widget, with keys added under `fields.*`
+  in all ten locales.
+
+  The recipient placeholder was the interesting one: it read
+  `` `Select a ${recipientType.replace(/_/g,' ')}` ``, interpolating the enum
+  value into an English sentence — a shape no locale can translate. It is now a
+  per-type key (`fields.recipient.selectUser`, `…selectBusinessUnit`, …), so
+  "选择业务单元" and "Select a business unit" no longer have to share a structure.
+
+  **Editing a rule silently dropped its recipient.** The picker resets the stored
+  id when `recipient_type` changes, because an id valid for a user is meaningless
+  for a team. It treated the edit form's `'' → 'user'` hydration as such a change:
+  opening any saved rule blanked the recipient, and saving persisted the blank.
+  Only a non-empty predecessor now counts as a type switch.
+
+  **Building a filter submitted the surrounding form.** None of `FilterBuilder`'s
+  controls declared `type="button"`, and a bare `<button>` inside a `<form>`
+  defaults to `type="submit"`. Adding, removing or clearing a condition therefore
+  submitted the sharing-rule dialog — firing validation mid-edit, and on an
+  already-valid form saving the record before the admin was done.
+
+  **A rejected write showed the user raw server diagnostics.** The form rendered
+  `error.message` verbatim, so a sharing / RLS denial reached the dialog and the
+  toast as `FORBIDDEN: insufficient privileges to update showcase_private_note
+pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and the
+  record id to whoever hit it. Permission failures now render localized copy
+  (`form.noPermissionToSave`, added in all ten locales), with the server text kept
+  on the console for debugging; other failures still show the server's message,
+  which is the useful part, and fall back to `form.submitFailed` when there is
+  none — replacing the previously hardcoded English "An error occurred during
+  submission".
+
+  **The detail header offered "Edit" on records the user may only read.** Object
+  permissions can't express "this one record is read-only" — a read-only sharing
+  grant sits inside an object the user may otherwise edit — so the header showed
+  the primary Edit CTA, opened the form, and let the user retype a field before
+  the server rejected the save. `DetailView` now gates Edit / Delete on the
+  object-level check AND on the explain engine's record-grained verdict
+  (`POST /api/v1/security/explain` with a `recordId`, ADR-0090 D6 / ADR-0095 C2 —
+  the same pipeline the enforcement middleware runs, so button and server cannot
+  disagree). Explaining oneself needs no special permission. The probe is one
+  cached request per record, skipped entirely when the object-level check already
+  says no, and **fails open** on every uncertainty — an unanswered hint must never
+  be the reason a permitted user cannot act; the server stays the authority
+  (ADR-0057 D10).
+
+  **A long option rendered straight past the combobox border.** `Combobox`'s
+  trigger pinned itself to the component's `w-[200px]` default while the fields
+  around it ran the full form column, and the selected label was a bare text child
+  of a flex button — flex items need `truncate` AND `min-w-0` to clip, and it had
+  neither. So "成员 (showcase_project_membership)" in the object picker overflowed
+  the control and collided with the field beside it. The label now truncates, the
+  trigger can shrink, the dropdown matches the trigger's width instead of a
+  hardcoded 200px (a widened combobox used to clip its own options), and the two
+  sharing-rule pickers ask for `w-full` so they line up with every other input.
+
+  Hardens `evaluatePermission` while there: a role config carrying only
+  `fieldPermissions` (no `actions`) made `check()` throw a TypeError that
+  propagated out of the render. A permission check must not be able to crash a
+  view.
+
+  Browser-verified against the framework showcase Console in Chinese: object /
+  criteria / recipient copy is fully localized, the recipient dropdown lists real
+  users, business units and positions, a saved rule reopens with its recipient and
+  criteria intact, editing the filter no longer submits, and a rule created
+  end-to-end stores a real record id rather than free text. The criteria authored
+  in the builder is honored by the evaluator: `{"pinned":true}` on an owner-private
+  object granted the recipient exactly the matching records and nothing else.
+
+- Updated dependencies [7b21891]
+- Updated dependencies [0b3be01]
+- Updated dependencies [3c4d935]
+- Updated dependencies [4b1ed7d]
+- Updated dependencies [4b60d2d]
+- Updated dependencies [952b978]
+- Updated dependencies [de5e40c]
+- Updated dependencies [1a03af6]
+- Updated dependencies [3e886eb]
+- Updated dependencies [cfc675e]
+- Updated dependencies [20df08c]
+- Updated dependencies [1767124]
+- Updated dependencies [8ecf5a6]
+- Updated dependencies [af705b9]
+- Updated dependencies [0502a7c]
+- Updated dependencies [7b35e4b]
+- Updated dependencies [8fb1295]
+- Updated dependencies [e16ed2d]
+- Updated dependencies [c6fd752]
+- Updated dependencies [f9bbddb]
+- Updated dependencies [dfd3705]
+- Updated dependencies [c77108c]
+- Updated dependencies [2735de6]
+- Updated dependencies [697cda4]
+- Updated dependencies [c19ac11]
+- Updated dependencies [6dee2cb]
+- Updated dependencies [e05f052]
+- Updated dependencies [0502a7c]
+- Updated dependencies [faad45e]
+- Updated dependencies [09c6a17]
+- Updated dependencies [c7cff19]
+- Updated dependencies [ba73a02]
+- Updated dependencies [cd09a7b]
+- Updated dependencies [f1abf0e]
+- Updated dependencies [f05b84e]
+- Updated dependencies [9b4b952]
+- Updated dependencies [341bfb5]
+- Updated dependencies [2f947e4]
+- Updated dependencies [7d46648]
+- Updated dependencies [9b53d72]
+- Updated dependencies [bb4aa25]
+- Updated dependencies [75f1cdf]
+- Updated dependencies [662bdf9]
+- Updated dependencies [059a052]
+- Updated dependencies [53642d4]
+- Updated dependencies [8aae006]
+- Updated dependencies [c6cfdf1]
+- Updated dependencies [d147a13]
+- Updated dependencies [c6aaed8]
+- Updated dependencies [263f885]
+- Updated dependencies [dc334da]
+  - @object-ui/components@17.0.0
+  - @object-ui/i18n@17.0.0
+  - @object-ui/fields@17.0.0
+  - @object-ui/react@17.0.0
+  - @object-ui/types@17.0.0
+  - @object-ui/core@17.0.0
+  - @object-ui/permissions@17.0.0
+
 ## 16.1.0
 
 ### Minor Changes

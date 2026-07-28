@@ -1,5 +1,87 @@
 # @object-ui/data-objectstack
 
+## 17.0.0
+
+### Minor Changes
+
+- d62fb1f: feat(app-shell): toast when a save silently dropped read-only fields (framework #3431/#3455)
+
+  The framework now reports fields it LEGALLY stripped from a write (a non-system
+  caller can't seed a `readonly` field, a `readonlyWhen` predicate locked it, …)
+  via a `droppedFields` payload on the create/update response. Previously the
+  console discarded it: a value the user typed into a locked field just vanished on
+  save with a success toast and no explanation.
+
+  - **data-objectstack:** `ObjectStackAdapter` now emits a `WriteWarningEvent`
+    after a create/update whose response carried `droppedFields`, exposed through a
+    new `onWriteWarning(cb)` subscription (mirrors the existing `onMutation` bus).
+    Reads the field structurally, so an older client or a backend that never drops
+    is a no-op. New exported types: `WriteWarningEvent`, `WriteWarningListener`,
+    `DroppedFieldsEvent`.
+  - **app-shell:** `AdapterProvider` subscribes and raises a `toast.warning`
+    ("Some fields were not saved — the read-only field … could not be changed"),
+    so the strip is visible instead of silent. The write itself still succeeded;
+    status/behaviour are unchanged.
+
+### Patch Changes
+
+- 8ecf5a6: Command palette (⌘K) now surfaces record search hits from the platform's global
+  search endpoint (`GET /api/v1/search`).
+
+  Previously the palette only ran a per-object `find({ $search })` fanout (the
+  metadata-driven ADR-0061 search), which misses records that only the global
+  search index knows about — so typing a well-known record name returned no
+  records even though `/api/v1/search` served them. `ObjectStackAdapter` now
+  exposes a `searchAll(query, { limit, objects })` method that calls the unified
+  endpoint, `useRecordSearch` prefers it when present (falling back to the fanout
+  otherwise), and the palette renders the resulting record hits grouped by object.
+
+- 6e8fd3c: fix(charts): a fieldless `count` aggregate keyed its value column `undefined`, so the chart plotted nothing (framework#3701)
+
+  framework#3701 pinned down what an OBJECT-bound chart aggregate names its result
+  columns — the raw field names it was given (`groupBy` for the category, `field`
+  for the value; no `sum_`-style decoration, unlike a dataset measure), plus the
+  literal `count` when a `count` omits `field`, which is the alias the engine
+  projects `COUNT(*)` under. `os validate` now lints page sources against that
+  convention, so the paths that build these rows have to honour it exactly.
+
+  Three of the four did. The odd one out was `count` — the one function that may
+  legitimately omit `field` — because every row builder read `params.field`
+  directly:
+
+  - `aggregateRecords` / `ObjectDataSource.aggregateClientSide` emitted
+    `{ [groupBy]: key, [undefined]: value }`, i.e. a column literally named
+    `undefined` that no axis binding could ever name;
+  - the legacy analytics path was worse: it remapped the server's `count` measure
+    onto `params.field` and **deleted** the original key, so the value the server
+    did return was thrown away before the chart saw it.
+
+  All of them now resolve the column through one helper (`aggregateValueKey`) so a
+  fieldless count lands under `count`, matching the framework contract. The
+  comparison-overlay column is derived from the same key (`count__comparison`
+  instead of `undefined__comparison`), and `aggregate.field` is typed optional to
+  match the spec's `ChartAggregateSchema`. Charts that name a field are unchanged.
+
+- Updated dependencies [1767124]
+- Updated dependencies [8ecf5a6]
+- Updated dependencies [7b35e4b]
+- Updated dependencies [e16ed2d]
+- Updated dependencies [f9bbddb]
+- Updated dependencies [dfd3705]
+- Updated dependencies [2735de6]
+- Updated dependencies [6dee2cb]
+- Updated dependencies [c7cff19]
+- Updated dependencies [cd09a7b]
+- Updated dependencies [f1abf0e]
+- Updated dependencies [f05b84e]
+- Updated dependencies [662bdf9]
+- Updated dependencies [059a052]
+- Updated dependencies [53642d4]
+- Updated dependencies [8aae006]
+- Updated dependencies [d147a13]
+  - @object-ui/types@17.0.0
+  - @object-ui/core@17.0.0
+
 ## 16.1.0
 
 ### Minor Changes

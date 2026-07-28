@@ -1,5 +1,246 @@
 # @object-ui/plugin-charts
 
+## 17.0.0
+
+### Minor Changes
+
+- aa88056: feat(charts): honor `ChartAxis.stepSize`, `ChartConfig.description` and `ChartConfig.height` (framework#3752)
+
+  The tail of the declared-≠-delivered sweep from framework#3729 / #2880. Three
+  `ChartConfig` props reached the renderer and did nothing:
+
+  - **`ChartAxis.stepSize`** — Recharts has no "a tick every N units" prop
+    (`tickCount` is a hint it may ignore, `interval` is for categorical axes), so
+    honoring a step means handing it the tick array outright. `ticksFor` builds it
+    from the axis's own `min`/`max` where declared and from the plotted values
+    otherwise, so a step works with or without a pinned domain. A data-derived max
+    rounds UP to the next step (otherwise the topmost bar sits above the last
+    gridline and the axis reads as truncated); an explicit `max` clamps instead,
+    since a tick outside a pinned domain would be drawn outside the plot. A step
+    that would produce more than 200 ticks is refused rather than rendered — that
+    is a wrong config, and drawing it would hang the page instead of surfacing the
+    mistake.
+  - **`ChartConfig.description`** — the accessibility description. A chart is a
+    picture to a screen reader; the container now carries `role="img"` +
+    `aria-label`. Without a description it stays an ordinary div, because
+    stamping `role="img"` on an _unlabelled_ graphic is worse than leaving one a
+    screen reader can skip.
+  - **`ChartConfig.height`** — was read only by the legacy `ChartBarRenderer`, not
+    by the advanced path that draws every real chart. Now applied to the chart
+    container as an inline style, which beats its default `h-[350px]` class.
+
+  `height` and `description` ride on the shared container props, so they apply to
+  all eight chart families rather than one branch.
+
+- 9b53d72: feat(charts): ObjectChart honors the spec `ChartConfig` author shape (objectui#2880 / framework#3729)
+
+  `ChartConfigSchema` is the chart protocol, but the renderer only ever read a
+  Recharts-flavoured internal shape — `chartType`, `xAxisKey`, `series[].dataKey`.
+  Everything an author wrote in the SPEC shape reached the renderer and was
+  silently dropped, which is exactly what ADR-0078 forbids. framework#3725
+  documented the gap by trimming the published contract down to the props that
+  actually worked; this closes it the other way round.
+
+  **S1 — one normalization boundary.** `normalizeChartSchema` translates the
+  author shape into the internal pipeline contract in a single place, rather than
+  scattering `??` fallbacks through the render tree (framework PD #12: one
+  translation is a contract mapping, N fallbacks are a second dialect):
+
+  - `type` → `chartType`, `xAxis: { field }` → `xAxisKey`, `series: [{ name }]` →
+    `series: [{ dataKey }]`
+  - the report surface's bare-string `xAxis`/`yAxis` resolve too
+  - `yAxis: [{ field }]` alone plots, with no `series` declared
+  - **internal props win**, so `DashboardRenderer`, `ObjectView` and the dataset
+    path are byte-for-byte unaffected — there is no migration
+
+  **The `type` collision.** `ChartConfig.type` is the chart family, but on any
+  surface that flattens chart config into a props bag `type` is already the SDUI
+  envelope's component discriminator. Spreading props last let an author's
+  `type="bar"` replace `object-chart` so the block stopped resolving; stamping the
+  discriminator last ate the author's value instead. The react-page wrapper now
+  keeps both: the discriminator wins the `type` slot and the author's value is
+  preserved beside it as `specType`, which the normalizer reads back.
+
+  **S2 — axis presentation.** `ChartAxis.format` drives the tick formatter (via
+  `Intl.NumberFormat`, no new dependency), `min`/`max` pin the domain,
+  `logarithmic` swaps the scale, `title` labels the axis, and `showGridLines` is
+  honored. A second `yAxis` entry (or `position: 'right'`) turns on the secondary
+  axis that `series[].yAxis` binds to — in combo charts an explicit binding now
+  beats the family-derived bar→left/line→right guess. `showLegend` is honored,
+  and `title`/`subtitle` render above the plot instead of only titling the
+  drill-down drawer.
+
+  **S3 — `series[].stack`, `annotations`, `interaction`.** Stacking passes the
+  author's group name through as Recharts' `stackId`. Annotations render as
+  `ReferenceLine` (`type: 'line'`) / `ReferenceArea` (`type: 'region'`) with the
+  declared axis, colour, style and label. `interaction.tooltips: false` suppresses
+  the hover card and `interaction.brush: true` adds the range selector;
+  `showDataLabels` prints values on the marks. `interaction.zoom` has no Recharts
+  primitive behind it and is deliberately still unimplemented rather than faked.
+
+### Patch Changes
+
+- 7b35e4b: fix(dashboard,charts): resolve `{current_user_id}` in widget filters (framework #3574)
+
+  A dashboard widget filtered on `{current_user_id}` rendered `0`. The token
+  reached SQL as a literal, matched no row, and nothing was logged on the client
+  or the server — a silent zero that reads as "you have no work" rather than
+  "this filter did not resolve". The same token in a list-view filter resolved
+  correctly, so a user-scoped list and a user-scoped widget over the same data
+  disagreed.
+
+  There was no shared resolver. Three ad-hoc implementations had grown up
+  independently — `ObjectView` for list views, `ObjectDataPage` for URL filter
+  triples, `NavigationRenderer` for hrefs — and each understood only the filter
+  shape its own surface used. `ObjectView`'s opened with
+  `if (!Array.isArray(filter)) return filter`, so it could not have been reused
+  by dashboard widgets even in principle: widget filters are MongoDB-style
+  objects. Widgets therefore got no resolution at all — `DatasetWidget` called
+  `resolveDateMacros` and nothing else, which is why `{today}` worked in a widget
+  and `{current_user_id}` silently did not.
+
+  - **`@object-ui/core`** — new `utils/filter-tokens.ts` with
+    `resolveContextTokens` and `resolveFilterPlaceholders`. The latter expands
+    _every_ placeholder vocabulary in one call and is what surfaces should use;
+    resolving only some of them is the whole defect. The walk handles arrays and
+    plain objects uniformly, so one resolver covers both platform filter shapes.
+  - **`@object-ui/react`** — new `FilterScopeProvider` / `useFilterScope`. The
+    renderer packages deliberately do not depend on `@object-ui/auth`, so the
+    shell supplies the session values. This is a separate context from
+    `PredicateScopeContext`, which is the expression evaluation scope and carries
+    no organization.
+  - **`@object-ui/plugin-dashboard` / `@object-ui/plugin-charts`** — all six
+    widgets that previously resolved date macros only now resolve both
+    vocabularies: `DatasetWidget`, `ObjectMetricWidget`, `ObjectDataTable`,
+    `ObjectPivotTable`, and `ObjectChart` (dataset-bound and inline paths). The
+    chart's `compareTo` comparison filter gets the session pass too — otherwise
+    the overlay series silently ignored the owner clause the primary series
+    honoured.
+  - **`@object-ui/app-shell`** — `ObjectView`'s local `substituteFilterTokens`
+    and `ObjectDataPage`'s inline `=== '{current_user_id}'` ternary now delegate
+    to the shared resolver, so both also gain `{current_org_id}` and date macros.
+    Two of the three ad-hoc implementations are gone rather than joined by a
+    fourth.
+
+  An unresolvable token is left intact rather than dropped: leaving it yields an
+  empty result, whereas dropping the clause would _widen_ the result set and show
+  a signed-out viewer everyone's data. It is no longer silent — the resolver
+  warns, naming the token, and suggests the intended spelling for known
+  near-misses (`{current_user}`, `{user_id}`, `{organization_id}`). Authoring-time
+  enforcement lands separately as `filter-token-unknown` in `@objectstack/lint`.
+
+- e16ed2d: fix(dashboard,charts): send widget `dateGranularity`/`sortBy`/`limit` to the query, and give funnels a real stage order (framework#3588)
+
+  `DatasetWidget` never read `widget.options`. Four keys an author writes there
+  change the query the server compiles, so a widget declaring
+  `options: { dateGranularity: 'month' }` grouped by the raw timestamp and drew
+  one bar per record, and `sortBy`/`sortOrder` produced no ordering at all.
+
+  - `DatasetWidget` lowers `options.dateGranularity`, `options.sortBy` +
+    `options.sortOrder`, and `options.limit` into the `DatasetSelection` it posts.
+    A `sortBy` naming something the widget does not project is dropped rather than
+    sent, so a stale sort key left by an edit degrades to "unordered" instead of
+    failing the widget against the server's stricter validation. These keys also
+    join the refetch signature, so editing one in the designer refetches instead
+    of re-rendering the previous grid.
+  - Funnel stages follow a **declared order**. `AdvancedChartImpl` sorted funnel
+    segments by value descending, unconditionally — which overrode any server
+    ordering and rendered a sales pipeline as a tidy narrowing shape whatever the
+    stages' real sequence, hiding the very anomaly (a bulge at Proposal) the chart
+    exists to show. It now honours a `categoryOrder`, which `DatasetWidget`
+    derives from the dimension field's picklist option order — the pipeline order
+    an author already declared on the object — or from an explicit
+    `options.stageOrder`. With no declared order the value-descending default is
+    unchanged, and a category missing from the order is kept (after the declared
+    ones), never dropped.
+  - New `@object-ui/core` helpers `buildCategoryOrder` / `buildCategoryRank`,
+    keyed by both the stored value and the display label like the existing
+    `buildOptionColorMap`, so ordering works whether or not the server resolved
+    the dimension's labels.
+
+  Requires the framework-side fix in objectstack#3588 for the selection keys to
+  take effect server-side.
+
+- 6e8fd3c: fix(charts): a fieldless `count` aggregate keyed its value column `undefined`, so the chart plotted nothing (framework#3701)
+
+  framework#3701 pinned down what an OBJECT-bound chart aggregate names its result
+  columns — the raw field names it was given (`groupBy` for the category, `field`
+  for the value; no `sum_`-style decoration, unlike a dataset measure), plus the
+  literal `count` when a `count` omits `field`, which is the alias the engine
+  projects `COUNT(*)` under. `os validate` now lints page sources against that
+  convention, so the paths that build these rows have to honour it exactly.
+
+  Three of the four did. The odd one out was `count` — the one function that may
+  legitimately omit `field` — because every row builder read `params.field`
+  directly:
+
+  - `aggregateRecords` / `ObjectDataSource.aggregateClientSide` emitted
+    `{ [groupBy]: key, [undefined]: value }`, i.e. a column literally named
+    `undefined` that no axis binding could ever name;
+  - the legacy analytics path was worse: it remapped the server's `count` measure
+    onto `params.field` and **deleted** the original key, so the value the server
+    did return was thrown away before the chart saw it.
+
+  All of them now resolve the column through one helper (`aggregateValueKey`) so a
+  fieldless count lands under `count`, matching the framework contract. The
+  comparison-overlay column is derived from the same key (`count__comparison`
+  instead of `undefined__comparison`), and `aggregate.field` is typed optional to
+  match the spec's `ChartAggregateSchema`. Charts that name a field are unchanged.
+
+- Updated dependencies [7b21891]
+- Updated dependencies [0b3be01]
+- Updated dependencies [3c4d935]
+- Updated dependencies [4b60d2d]
+- Updated dependencies [952b978]
+- Updated dependencies [de5e40c]
+- Updated dependencies [1a03af6]
+- Updated dependencies [3e886eb]
+- Updated dependencies [cfc675e]
+- Updated dependencies [20df08c]
+- Updated dependencies [1767124]
+- Updated dependencies [8ecf5a6]
+- Updated dependencies [af705b9]
+- Updated dependencies [0502a7c]
+- Updated dependencies [7b35e4b]
+- Updated dependencies [8fb1295]
+- Updated dependencies [e16ed2d]
+- Updated dependencies [c6fd752]
+- Updated dependencies [f9bbddb]
+- Updated dependencies [dfd3705]
+- Updated dependencies [c77108c]
+- Updated dependencies [2735de6]
+- Updated dependencies [c19ac11]
+- Updated dependencies [6dee2cb]
+- Updated dependencies [e05f052]
+- Updated dependencies [0502a7c]
+- Updated dependencies [faad45e]
+- Updated dependencies [09c6a17]
+- Updated dependencies [c7cff19]
+- Updated dependencies [ba73a02]
+- Updated dependencies [cd09a7b]
+- Updated dependencies [f1abf0e]
+- Updated dependencies [f05b84e]
+- Updated dependencies [9b4b952]
+- Updated dependencies [2f947e4]
+- Updated dependencies [7d46648]
+- Updated dependencies [9b53d72]
+- Updated dependencies [bb4aa25]
+- Updated dependencies [75f1cdf]
+- Updated dependencies [662bdf9]
+- Updated dependencies [059a052]
+- Updated dependencies [53642d4]
+- Updated dependencies [8aae006]
+- Updated dependencies [c6cfdf1]
+- Updated dependencies [d147a13]
+- Updated dependencies [c6aaed8]
+- Updated dependencies [263f885]
+- Updated dependencies [dc334da]
+  - @object-ui/components@17.0.0
+  - @object-ui/i18n@17.0.0
+  - @object-ui/react@17.0.0
+  - @object-ui/types@17.0.0
+  - @object-ui/core@17.0.0
+
 ## 16.1.0
 
 ### Patch Changes

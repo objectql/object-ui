@@ -1,5 +1,1479 @@
 # @object-ui/app-shell — Changelog
 
+## 17.0.0
+
+### Minor Changes
+
+- 8b4bc94: feat(console): group tenancy posture affordances — org switcher as write
+  context + org attribution in read views (framework ADR-0105 Phase 1)
+
+  Under the new `group` tenancy posture the server widens reads to every
+  organization the member belongs to (`organization_id IN accessible_org_ids`)
+  while writes land in the ACTIVE organization — so the console's existing
+  "which org am I in = which org's data I see" presentation becomes wrong the
+  moment a deployment switches postures. The ADR requires these affordances to
+  land WITH Phase 1, not after.
+
+  - `@object-ui/auth`: `AuthPublicConfig.features.tenancyPosture`
+    (`'single' | 'group' | 'isolated'`, exported as `TenancyPosture`) mirrors
+    the server's public auth config key. It gates nothing — `multiOrgEnabled`
+    stays the capability flag; this only tells the console how to render org
+    context.
+  - `useTenancyPosture()` (app-shell): reads the posture from the cached auth
+    config fetch; `undefined` (older server, unrecognized value, fetch failure)
+    keeps every group affordance off, so non-group deployments render
+    pixel-identical to today.
+  - `WorkspaceSwitcher`: under `group` the dropdown labels the active org
+    "Working organization" and explains the split — new records are created
+    here, views show data from all your organizations.
+  - `RecordFormPage` (create mode): org-walled objects show a "Creates in
+    <active org>" badge naming the engine's write target (ADR-0105 D5 stamps
+    `organization_id` from the active org).
+  - Default list columns (`ObjectView`, `InterfaceListPage`, `ObjectDataPage`):
+    under `group`, org-walled objects get a TRAILING `organization_id`
+    attribution column so cross-org rows are attributable at a glance.
+    Render-time only — never persisted into saved view/page metadata, and
+    business fields still lead.
+
+- 4b1ed7d: feat(app-shell): approval approver values become record lookups (framework #3508)
+
+  - The flow designer's approver `Value` cell now sources directory kinds from DATA
+    records instead of the metadata registry: `user` / `team` / `department` / `position`
+    render a single-select record lookup (`LookupField` over `sys_user` / `sys_team` /
+    `sys_business_unit` / `sys_position` via the DataSource adapter), with a manual-entry
+    escape hatch and a plain free-text fallback when no adapter is available (offline
+    preview). `position` commits the machine name; the others commit the record id —
+    matching the approval engine's resolution semantics.
+  - `org-membership-level` is now a strict select (owner/admin/member); a stored
+    out-of-enum value renders flagged instead of being blanked.
+  - `manager` renders as an auto-resolved (disabled) cell; `queue` is no longer offered
+    for new approver rows and stored queue rows carry a "not supported by the runtime"
+    warning.
+  - `@object-ui/fields`: `LookupField` hydrates the selected label through `id_field`
+    when it is not the primary id (e.g. `id_field: 'name'`), instead of always calling
+    `findOne` with the primary id.
+
+- 952b978: fix(detail): the approval band honors the node's `lockRecord` instead of assuming every approval locks (#2902)
+
+  A record detail page treated "a pending approval request exists" as "this
+  record is locked". An approval node declares `lockRecord` (default `true`), and
+  on `lockRecord: false` the server keeps accepting writes for the whole time
+  that node waits — so the console was asserting a lock the backend did not
+  enforce.
+
+  The label was the smaller half of it. The same conflated signal fed `canEdit`,
+  so the record-level inline-edit session was suppressed too: no pencils,
+  `enter()` a no-op. On a single-approver step — a department head or plant
+  manager, exactly the case `lockRecord: false` exists for, where the approver is
+  meant to fill in the missing detail before deciding — the capability was
+  unreachable from the UI. And a flow chaining nodes with different policies drew
+  one identical band for "edit freely" and "the server will reject your save with
+  `RECORD_LOCKED`", so the two states were indistinguishable until Save failed.
+
+  Approval state is now two signals:
+
+  - **`approvalPending`** — an approval is running. Drives the band and the recall
+    button, both meaningful whether or not the record is editable.
+  - **`locked`** — that approval also forbids edits, from the pending node's
+    `lock_record` (framework#3814, read off the same `node_config_json` snapshot
+    the server's record-lock hook reads).
+
+  The band renders two states: amber lock + "Locked for approval", or sky clock +
+  "In approval · editable", each with its own tooltip. Recall moved out of the
+  locked branch — an editable pending approval is just as recallable. Inline
+  editing stays live in the editable state.
+
+  `InlineEditProvider` takes a new optional `approvalPending` prop, defaulting to
+  `locked`, so a host that threads only `locked` renders exactly as before. The
+  record's `approval_status` field remains the fallback for backends with no
+  approvals API; it carries no node granularity, so it still reads as locked — as
+  does a pending request from a backend too old to report the policy.
+
+  New `detail.approvalPendingEditable` / `detail.approvalPendingTooltip` keys are
+  translated in all ten locales.
+
+- 6720008: feat(approvals): dynamic decision-output fields + expression approver editing (framework#3447 P2)
+
+  - The approve/reject dialogs now render one input per author-declared decision-output key (the row's `decision_outputs`, per-request so it can't be a static action param). DeclaredActionsBar synthesizes `outputs.<key>` params; the api handler folds them into the nested `outputs` body the decide route expects. Blank optional outputs are omitted.
+  - The flow designer's approval-node approver list renders an `expression`-type approver's value as a CEL expression input (mono + syntax check) instead of a dead free-text reference box, with a placeholder teaching the three legal roots (`current.*` / `trigger.*` / `vars.*`). Flow-scope pickers are deliberately not wired in — approval expressions have their own closed root set, and offering flow-scope paths would teach exactly the spelling the runtime rejects.
+  - Static fallback descriptor gains the `Expression (CEL)` approver type, the expression-only `resolveAs` column, and the node-level `onEmptyApprovers` policy select (the online form derives all of these from the engine's published configSchema).
+
+- 7f153de: feat(approvals): typed decision-output pickers, quick-path guard, and approval-expression completion (framework#3447 follow-ups, #2829)
+
+  - Decision dialogs render TYPED decision outputs as record pickers: `decision_output_defs` (`{ key, label?, type, multiple? }`) maps `user` to the sys_user people picker and `department`/`position`/`team` to the matching system-object lookup; `multiple` collects an id array. Bare keys keep the text input.
+  - Quick decision paths (inline a/r keyboard, hover buttons, mobile card buttons, bulk apply) no longer decide a request whose node declares decision outputs (#2829) — only the drawer dialog collects those fields. Buttons render disabled with an explanation; bulk selection excludes such rows via the existing "N actionable" messaging.
+  - The approval `expression` approver input now has a scope-aware data picker and inline root validation: three groups — `current.<field>` (live at node entry), `trigger.<field>` (submit snapshot), `vars.*` (flow variables) — built by `useFlowScope` from the same materials as the condition picker but with the approval root set. `nodeOutputRefs` now models approval nodes (`<nodeId>.decision` + declared `decisionOutputs` keys), so the previous stage's outputs are pickable, and `vars.previous` is always listed so a legitimate `vars.*` reference is never flagged as out of scope.
+
+- 54886ca: feat(console): make the `delegated_admin` org role reachable, and narrow both role pickers to what the server will accept (framework#3697)
+
+  The framework registered a fourth organization role — `delegated_admin`, the
+  grade that may reach `/organization/invite-member` **without** being an org
+  admin, which is what finally gives ADR-0105 D8's scope-bounded issuance gate a
+  caller. objectui#2868 already shipped the placement half of that UX (units and
+  positions narrowed by `describeDelegableScope()`), but the console could not
+  select the role in the first place: `MembersPage` and `InviteMemberDialog` each
+  inlined `type Role = 'owner' | 'admin' | 'member'`, so the capability the
+  framework grew was unreachable from either screen.
+
+  **One vocabulary, not two.** The role names, labels and narrowing rules now live
+  in `@object-ui/auth`'s new `org-roles` module (`ORG_ROLES`, `ORG_ROLE_LABELS`,
+  `orgRoleGrade`, `invitableOrgRoles`, `assignableOrgRoles`) and both screens
+  consume it. Note this list still **mirrors** the server rather than deriving
+  from it — `/auth/config` publishes feature flags but no role vocabulary, so
+  there is no surface to read; objectstack-ai/objectstack#3723 tracks making one
+  list the source for all of them. Until then a server-side role addition means
+  one console edit instead of two.
+
+  **The pickers now narrow, the way the placement picker already does.** Both
+  mirror a _different_ server gate, and offering an option the server would refuse
+  is the failure they prevent:
+
+  - **Invite role** ← the framework's `beforeCreateInvitation` role cap: never
+    above the issuer's own grade, and an issuer below admin grade may invite as
+    `member` only. A `delegated_admin` who picked "Admin" would have been refused
+    with a 403; that option is simply no longer offered.
+  - **Change role** ← better-auth's `update-member-role` route: it requires the
+    `member:["update"]` permission (owner/admin only — `delegated_admin` is built
+    from `memberAc` and holds `member: []`), and only an owner may set `owner` or
+    re-role an existing owner. An actor who may re-role nobody now gets no items
+    instead of three that would 403.
+
+  Narrowing is convenience, not the boundary — the server re-checks every one of
+  these — and it fails toward _less_: an unresolved membership offers `member`
+  alone on invite, and nothing on re-role.
+
+  An ordinary invitation is unchanged: with the default role and no placement, the
+  request body is byte-identical to before.
+
+  Note for translators: `organization.roles.*` has never been defined in any
+  locale bundle — all four labels (owner/admin/member included) resolve through
+  their `defaultValue` English fallback. The new role follows the same pattern
+  rather than being the only localized one.
+
+- b5609cb: feat(console): scoped-invitation placement — invite someone straight into a
+  business unit and positions (framework ADR-0105 D8)
+
+  An invitation may now carry PLACEMENT INTENT: the business unit the invitee
+  lands in and the positions they are assigned when they accept. A plant admin's
+  invitee arrives already in the right unit and role instead of waiting on a
+  platform admin to finish the job by hand.
+
+  - `@object-ui/auth`: `inviteMember` accepts optional `businessUnitId` /
+    `positions` (passed through better-auth's invitation `additionalFields`), and
+    a new `describeDelegableScope()` reads
+    `GET /api/v1/security/my-delegable-scope`.
+  - `InviteMemberDialog`: an optional "Placement" section listing **only** the
+    units the issuer may place into and the positions they may hand out.
+    Positions appear once a unit is chosen — an unanchored assignment is refused
+    by the server, so offering it first would mislead.
+
+  The narrowing is convenience, not the boundary: the server authorizes the pair
+  against the ISSUER's `adminScope` (ADR-0090 D12) at issuance and rejects the
+  whole invitation when it is out of scope. Accordingly the section is **hidden**
+  whenever the caller has no delegable authority, or the deployment exposes no
+  delegated-administration runtime at all (the endpoint answers 501 ⇒ `null`) —
+  never a form the server would refuse. An ordinary invitation is unchanged: with
+  no placement chosen, the request body is byte-identical to before.
+
+- f9bbddb: feat: gate detail/form edit & delete on the server's effective operation set (#3546)
+
+  PR-4 (#3391) wired the **list/toolbar** surface (ObjectView Import, ListView /
+  ObjectGrid Export) to the server-resolved effective API operation set
+  (`/me/permissions` `apiOperations`, intersected via
+  `resolveCrudAffordances(obj, effectiveApiOperations?)`). The **detail / form**
+  surfaces still gated edit/delete on the bucket + `userActions` alone. This
+  extends the same intersection to them, so the record page and its forms never
+  offer an operation the server would 405.
+
+  - **core** `isObjectInlineEditable(obj, effectiveApiOperations?)` gains the same
+    optional second argument as `resolveCrudAffordances` — inline-edit is now
+    additionally ANDed with the server allowing `update`.
+  - **app-shell** `RecordDetailView` threads the object's effective operations into
+    the synthesized Edit/Delete header actions and the record-body inline-edit
+    gate (`canEdit`); `RelatedRecordActionsBridge` intersects each **child**
+    object's Create/Edit/Delete handlers with that child's own effective set.
+  - **plugin-detail** `record:details` ANDs its inline-edit affordance with the
+    object's effective `update`.
+  - **plugin-form** `ObjectForm`'s blanket managed-object field lock also engages
+    when the server denies `update` (edit mode) / `create` (create mode).
+
+  Backward-compatible: a missing effective set (unrestricted object, older
+  backend, or no `PermissionProvider`) leaves the resolved affordance untouched —
+  the bucket/`userActions` decision wins, exactly as today. Layers on top of the
+  existing per-object `check('edit')` / `check('delete')` permission gates
+  (intersection, never union).
+
+- 2735de6: feat: render the server's effective API operation set (#3391 PR-4)
+
+  The frontend now consumes the per-object **effective API operation set** the
+  server resolves (from `/me/permissions` `apiOperations`, framework #3391) —
+  never the raw `apiMethods` — so Import/Export/New/Edit/Delete buttons match what
+  the server will actually admit, and a 405 import refusal shows a dedicated
+  message instead of silently falling back.
+
+  - **core** `resolveCrudAffordances(obj, effectiveApiOperations?)` — new optional
+    second argument intersects each affordance bit with its API operation
+    (create/import→create/import, edit→update, delete→delete, exportCsv→export).
+    Omitting it (old backend / no effective set) leaves affordances unchanged.
+  - **permissions** — `/me/permissions` response carries per-object
+    `apiOperations`; `PermissionContextValue.getObjectApiOperations(object)`
+    exposes it (undefined when absent → callers keep current behavior); `check()`
+    maps `import→allowCreate`, `export→allowRead`.
+  - **app-shell** `ObjectView` intersects its toolbar affordances with the object's
+    effective operations (Import); the platform-admin identity-import bypass is
+    unaffected.
+  - **plugin-list** `ListView` / **plugin-grid** `ObjectGrid` gate the Export
+    button (and export handler) on effective `export`; `plugin-grid` gains the
+    `@object-ui/permissions` workspace dependency.
+  - **plugin-grid** `ImportWizard` — a 405 / `OBJECT_API_METHOD_NOT_ALLOWED`
+    import refusal is detected by a new `isImportNotAllowed` predicate at every
+    catch site (async, sync, dry-run) and STOPS with a dedicated
+    `grid.import.notAllowed` message (10 locales + fallback dict) — it never falls
+    back to the sync/legacy path (which 405s too), distinct from the 404
+    route-absent fallback.
+
+  Backward-compatible: a missing effective set (unrestricted object, older
+  backend, or no permission provider) preserves the current default-allow
+  behavior everywhere.
+
+- f1abf0e: fix(views): ListView reads the spec-canonical `filter`, so a view's base filter reaches every visualization (#2890 scope A step 4)
+
+  Third rename in the ListView vocabulary migration: **`filters` → `filter`**. Unlike
+  the first two this closes a live bug, because the fork was asymmetric.
+
+  `ListView` was the **only** surface in the repo reading `filters`. Every child
+  view — `ObjectGrid`, `ObjectGallery`, `ObjectKanban`, `ObjectCalendar`,
+  `ObjectGantt`, `ObjectMap`, `ObjectTree`, `ObjectChart` — reads `filter`, and
+  `ListView` handed them `filters`. Wherever a child fetches its own rows instead
+  of receiving `ListView`'s, the view's base filter was silently dropped:
+
+  - **a `chart` list view aggregated the whole object.** The chart branch built an
+    `object-chart` node with `filters:`; `ObjectChart` reads `schema.filter` and
+    never read `filters`, so a chart view with a base filter charted unfiltered
+    totals.
+  - the same applied to any of the other view components rendered standalone from
+    a list-view-shaped config.
+
+  Conversely, a **spec-authored** list view — one carrying `filter`, which is what
+  the spec says and what `runtime-metadata-persistence` and "Save as view" already
+  persist — rendered **unfiltered** in `ListView`, because nothing read that key.
+
+  The fold is a key rename only. Both keys carry an ObjectQL FilterNode array
+  everywhere in objectui; every consumer passes the value straight to `$filter`.
+  (The spec types `filter` as `ViewFilterRule[]` — `{field, operator, value}`
+  objects — so objectui's field is typed from the spec but used as something else.
+  That mismatch is real and left alone here: converting formats inside a
+  vocabulary fold would change what reaches the data source.)
+
+  Also collapses a duplicated computation in `app-shell`'s `ObjectView`, which
+  computed the same effective filter **twice** — once as `filter` for the child
+  views, once as `filters` for `ListView` — with the two copies subtly different
+  (only one fell back to `listSchema.filter`; only the other ran token
+  substitution over the URL filters). There is now one computation, keeping both
+  behaviors.
+
+  `filters` stays declared on `ListViewSchema` and in the drift guard's sanctioned
+  set — stored views carry it and it is still valid input — but it is input-only.
+
+- f05b84e: refactor(views): ListView resolves density from the spec-canonical `rowHeight` (#2890 scope A step 2)
+
+  Second rename in the ListView vocabulary migration: **`densityMode` → `rowHeight`**,
+  folded in the same `normalizeListViewSchema` that step 1 introduced.
+
+  Unlike `fields`/`columns` this is not a pure alias — the two vocabularies are
+  different sizes. The spec has five row heights (`compact`/`short`/`medium`/
+  `tall`/`extra_tall`); ListView's toolbar offers three densities
+  (`compact`/`comfortable`/`spacious`). Both directions now live in one place as
+  `DENSITY_MODE_TO_ROW_HEIGHT` / `ROW_HEIGHT_TO_DENSITY_MODE`, chosen so a fold
+  followed by a read is a round trip (`spacious` → `tall` → `spacious`), with the
+  narrowing collapse (`short` → `compact`, `extra_tall` → `spacious`) stated once
+  instead of being re-derived per call site.
+
+  Two behavior fixes fall out of it:
+
+  - **Precedence is no longer inverted.** `ListView` read `densityMode` _first_, so
+    a view carrying both keys rendered the legacy value — backwards from every
+    other legacy/canonical pair in the schema. The canonical key now wins.
+  - **The toolbar stops re-seeding the legacy key.** `ObjectView`'s
+    `onDensityChange` persisted `densityMode` into stored view metadata on every
+    density toggle, so the legacy vocabulary kept regrowing underneath the
+    migration. It persists `rowHeight` now.
+
+  `densityMode` stays declared on `ListViewSchema` and in the drift guard's
+  sanctioned set — stored views carry it and it is still valid input — but it is
+  input-only.
+
+- 059a052: feat(report)!: drop `SpecReportColumn`/`SpecReportGrouping` re-exports + retire the legacy ReportViewer chart fallback (#3463)
+
+  Cross-repo close-out of the ADR-0021 report cleanup (framework #3463). Upstream
+  `@objectstack/spec` removed the dead `ReportColumnSchema` / `ReportGroupingSchema`
+  and the unread report `chart.groupBy`; this drops their objectui mirrors and the
+  now-orphaned legacy report chart path.
+
+  - **types**: removed the `SpecReportColumn` / `SpecReportColumnInput` /
+    `SpecReportGrouping` / `SpecReportGroupingInput` type re-exports and the
+    `SpecReportColumnSchema` / `SpecReportGroupingSchema` value re-exports from
+    `@object-ui/types` (they aliased the deleted upstream symbols). The live
+    report shape is dataset-bound — `SpecReport` with `dataset` + `values`
+    (measure names) + `rows` / `columns` (dimension names).
+  - **app-shell**: `ReportView` now renders every report through the spec
+    `ReportRenderer` dispatcher (dataset → `DatasetReportRenderer`, stored pre-9.0
+    JSON → presentation bridge, pre-spec `{ data, columns }` → `LegacyReportRenderer`).
+    Deleted the `ReportViewer` last-resort branch, the `mapReportForViewer`
+    spec→legacy chart-section adapter (the sole producer of `xAxisField` /
+    `yAxisFields`), and the now-dead data-fetch loading flag. No shipped report
+    metadata reached the removed branch — the Studio inspector only ever writes
+    the dataset-bound shape.
+  - **plugin-report**: removed the `ReportViewer` chart-section branch. It read
+    the invented `xAxisField` / `yAxisFields` (never the spec's `xAxis` / `yAxis`)
+    and was only fed by the deleted `mapReportForViewer`. `ReportViewer` itself is
+    retained — its table / summary / text sections still back the `report-viewer`
+    registered component and the pre-9.0 presentation bridge.
+
+  **Migration**: nothing an author writes changes. TypeScript consumers importing
+  `SpecReportColumn*` / `SpecReportGrouping*` from `@object-ui/types` have no
+  replacement type — model report columns as the dataset's measure names and
+  grouping as its dimension names.
+
+- 2600e01: feat(studio): surface the `enable.searchable` toggle in ObjectSettingsPanel (#2800)
+
+  `enable.searchable` was corrected to LIVE during framework#2377 (the Global
+  Search executor gates on it — explicit `false` opts the object out of
+  cross-object search), making it the only live `enable.*` flag the Studio
+  settings panel did not expose. It now renders as an opt-out toggle (default
+  on) alongside feeds/activities/clone, with en + zh labels that point
+  field-level match configuration at `searchableFields` (ADR-0061) to avoid
+  conflating the two.
+
+### Patch Changes
+
+- 7b21891: fix(action): honor the spec `disabled` predicate on every action-rendering surface (#1885 follow-through)
+
+  The spec Action field is `disabled` (boolean | CEL — disabled when TRUE); the
+  schema has no `enabled` key. #1885 wired it in `action:button` only. Browser
+  dogfooding against the showcase found FIVE more surfaces where a spec-authored
+  `disabled` silently did nothing:
+
+  - **components** — the `action:group` leaves (inline + dropdown), `action:icon`
+    and `action:menu` still read the legacy non-spec `enabled`. They now consume
+    `disabled` as the primary control (evaluated in the same scope as `visible`),
+    with `enabled` kept as a deprecated fallback.
+  - **app-shell** — `DeclaredActionsBar` (server-declared action bar) read
+    neither; it gains `disabled` (no legacy fallback: declared actions are
+    spec-shaped and never carried `enabled`).
+  - **plugin-detail** — `record:quick_actions` HAD a `disabled` implementation,
+    but its `typeof === 'string'` split dropped the `{dialect:'cel', source}`
+    envelope the server compiles authored CEL into (#2661 routes envelopes to the
+    canonical formula engine), so the predicate never fired on real metadata. It
+    now feeds `toPredicateInput`'s result to `useCondition` whole, like every
+    other surface.
+
+  Pinned by new `DropdownActionItem` tests (disabled-when-TRUE, false-stays-
+  clickable, disabled-wins-over-enabled, boolean literal) and browser-verified
+  end-to-end against the showcase `showcase_archive_task` specimen: greyed on an
+  in-progress task, clickable on a done one (with `visible` hiding Mark Done on
+  the same screen — the hide-vs-grey contrast).
+
+- 0b3be01: fix(app-shell): give inline `lookup` action params a real record picker (#3405)
+
+  An action parameter declared inline as `{ name: 'inspector', type: 'lookup',
+reference: 'sys_user' }` always rendered as a plain text input asking the user
+  to paste a record id (UUID) — a supervisor assigning an inspector had to go
+  find that person's UUID by hand, while the same reference field picks records
+  by name in the create/edit dialog.
+
+  `paramToField()` degrades a picker param to text when it has no `referenceTo`
+  target, and `referenceTo` was only ever populated on the field-backed branch of
+  `resolveActionParams()`. The inline branch dropped the authored `reference`
+  key entirely (as did the spec schema, which stripped it as unknown), so an
+  inline picker could never reach `<LookupField>` no matter how it was authored.
+
+  - `resolveActionParam()` now maps an inline `reference` onto `referenceTo` — on
+    the inline branch, on the missing-field fallback branch, and as an override
+    on the field-backed branch (matching how every other inline value overrides
+    the resolved field).
+  - The text degradation now warns in dev naming the offending param, since with
+    `@objectstack/spec` rejecting a targetless inline picker at parse time it
+    means the metadata is broken, not merely partial.
+  - The fallback's placeholder and help text no longer claim "a picker is coming
+    soon" — the picker has shipped, and the message now says the parameter has no
+    reference object configured. Updated across all 10 locales.
+
+- cc5eca9: fix(app-shell): map raw `sys_activity` rows before rendering the inbox Activity tab
+
+  The top-bar inbox bell's Activity tab (`InboxPopover`) rendered blank rows —
+  only the relative time showed (`47m ·`), with the actor, summary, and object
+  name all missing. `AppHeader.fetchPresenceAndActivities` cast the raw
+  `sys_activity` rows straight to `ActivityItem` without renaming their fields,
+  so the popover read `a.user` / `a.description` / `a.objectName` while the rows
+  only carry plugin-audit's `actor_name` / `summary` / `object_name`.
+
+  The rows are now mapped onto `ActivityItem` (with `type` normalization, a
+  `timestamp` fallback, and an empty-`summary` filter), mirroring the mapping in
+  `useHomeInbox` so the bell and the Home dashboard stay in sync.
+
+- 3c4d935: fix(i18n): compose the AI-model diagnostics summary client-side instead of rendering the server's English string (objectui#2886)
+
+  `CloudAiModelStatus` rendered `report.summary` verbatim — the most prominent
+  line on the panel, in English for every locale.
+
+  Reading `objectstack-ai/cloud` settled how to fix it. The server **cannot**
+  localize that string as currently built:
+
+  - `service-ai/src/effective-model.ts:117` assembles it as a hard-coded English
+    template literal, with no locale parameter;
+  - `service-ai/src/routes/ai-routes.ts:395` declares `handler: async () => …` —
+    it takes **no request argument**, so it cannot read `Accept-Language` even
+    though `createAuthenticatedFetch` has been sending it since objectui#1319.
+
+  But no server change is needed, because every ingredient of the sentence is
+  already in the structured payload: `conversational.model`,
+  `conversational.source`, `structured.model`, `structured.pinned`, and
+  `routing.{free,paid}`. The issue proposed "return structured data instead of a
+  sentence" as the better fix — the server was already doing that; the client
+  just wasn't using it.
+
+  The panel now composes the line from those fields. `sourceLabel()` already
+  produced exactly the two clauses the server hand-rolls — "pinned by X" /
+  "code default (no env override)", and "same as build/ask" for an unpinned
+  structured model — so no new source vocabulary was required.
+
+  **A dropped diagnostic, not just untranslated text.** The client's
+  `EffectiveModelReport` never declared `routing`, which the server has always
+  sent conditionally. Its only appearance anywhere was inside the English summary,
+  so non-English admins could not see the plan→model routing policy **at all**.
+  It is now declared and surfaced.
+
+  Also fixed: `attributeSource` emits the bare token `'unknown'` when the adapter
+  cannot report a model, and `sourceLabel` fell through to rendering it raw.
+
+  Four keys added to all ten packs (`summary`, `summaryRouting`, `modelUnknown`,
+  `sourceUnknown`), so the full-parity guard from objectui#2909 stays green.
+
+  The panel had **no test coverage at all**; it now has five, mutation-tested by
+  restoring `<p>{report.summary}</p>` — which fails four of them.
+
+- de5e40c: fix(approvals): Approval Center UX pass — badge nowrap, approve confirm, decision progress bar, localized declared actions (#2762)
+
+  - **Badge no longer stacks CJK text vertically (P0-1)** — `Badge` gains
+    `whitespace-nowrap` in its base variants (a badge is a single-line pill by
+    definition), and the inbox 状态 column gets a minimum width, so 待审批 can
+    never render as 待/审/批.
+  - **Quick Approve now confirms (P0-2)** — the row's right-edge ✓, the mobile
+    card button and the `a` keyboard shortcut all route through a confirmation
+    dialog before executing, mirroring the Reject flow; an irreversible decision
+    can no longer fire on a stray click.
+  - **Decision progress is visualized (P1-1)** — the drawer renders a segmented
+    progress bar (ARIA `progressbar`) for `decision_progress`, per-group chips
+    get an explicit unsatisfied ○ state next to the satisfied ✓, the eligible
+    approver count is spelled out, and the drawer pager now reads
+    "Request N of M" so it can't be misread as approval progress.
+  - **Declared action labels localize (P0-3)** — `DeclaredActionsBar` resolves
+    label / confirmText / successMessage through the `_actions.<name>.*`
+    translation convention (metadata literals as fallback), matching
+    ObjectView/RecordDetailView; with the `@objectstack/plugin-approvals`
+    bundle, the drawer shows 通过 / 拒绝 / 转签 instead of English in a zh-CN
+    workspace. New `approvalsInbox` keys shipped in all ten locales.
+
+- 1a03af6: fix(approvals): Approval Center triage + drawer readability pass (#2762 P1-2/P1-3/P1-4/P1-5/P2)
+
+  - **Decision-relevant data in the queue (P1-3)** — list rows and mobile cards
+    now surface the request's amount/total inline (detected from the snapshot,
+    preferring the server-formatted `payload_display` value), so a reviewer can
+    triage without opening each request. A sort control adds "Oldest first" and
+    "Amount (high→low)" alongside the default newest-first.
+  - **Empty applicant column (P1-4)** — flow-/system-initiated requests (no human
+    submitter) now read "Flow-initiated" with a workflow icon instead of a bare
+    person icon + "—", in the desktop table, mobile card, and drawer.
+  - **Approver chips deduped (P1-2)** — a person filling more than one approver
+    slot rendered as N identical "Waiting on" chips; they collapse to one chip
+    with a ×N count, the tooltip keeping every underlying id.
+  - **Action hierarchy (P1-5)** — `DeclaredActionsBar` maps the spec action
+    `variant` enum onto the Button variants (`primary` → filled default,
+    `danger` → destructive), so the drawer's Approve stands out and Reject reads
+    as destructive once `@objectstack/plugin-approvals` declares them.
+  - **Label polish (P2)** — `owner_id`-style resolved lookup keys render as
+    "Owner", not the awkward "Owner Id", in the drawer summary.
+
+  New `approvalsInbox` keys (`flowOrigin`, `sortBy`/`sortRecent`/`sortOldest`/
+  `sortAmount`) added to all ten locales.
+
+- eea4391: fix(flow-designer): read approver value sources off the schema instead of mirroring them (framework#3508 follow-up)
+
+  The approver Value picker decided _where its candidates live_ from a local
+  table, `KIND_TO_RECORD_LOOKUP`, hand-mirrored from the spec's
+  `APPROVER_VALUE_BINDINGS`. That mirror is what made framework#3508 possible:
+  `xRef.map` names a picker KIND (`'team'`) and nothing more, so this package had
+  to pick a data source itself — and picked the metadata REGISTRY
+  (`GET /api/v1/meta/:type`), which lists no `sys_user` / `sys_team` /
+  `sys_business_unit` / `sys_position` ROWS. Candidates were always empty and the
+  control degraded to a raw-id text box.
+
+  The spec now publishes the data contract as `xRef.sources` (one entry per
+  approver type: `{ source: 'data', object, valueField }`, the closed enum
+  inline, or a non-picker marker). `json-schema-to-fields` carries it through —
+  validating each entry, dropping any that could not drive a picker — and
+  `recordLookupFor()` prefers it over the local table. A new approver type can no
+  longer leave a stale mirror behind here.
+
+  What did NOT move: presentation. Which field to display, whether to open the
+  people picker, what subtitle to show under a row stay this package's calls, so
+  the spec ships the data contract and not the look. The local table remains as
+  the fallback for a server that predates the annotation, and a `data` source for
+  a kind with no presentation entry still renders a lookup labelled by its
+  committed column — better than degrading a resolvable reference to free text.
+
+  Also corrects the approver `type` options comment in `flow-node-config.ts`: that
+  list is the OFFLINE fallback (`FlowNodeInspector` renders
+  `serverFields ?? fieldsForNodeType(...)`, so a real backend's published
+  configSchema wins). Its "indirect bindings lead, `user` last" ordering therefore
+  never reached the live picker, which followed the spec enum with `user` first —
+  the opposite of the intent. The ordering now lives in the spec's `ApproverType`
+  enum, and the comment says which list is authoritative.
+
+- 70941e8: fix(attachments): read the storage service's new error envelope so gated downloads keep their friendly copy (objectstack#3675)
+
+  `RecordAttachmentsPanel` mapped the server's fail-closed 40x codes
+  (`AUTH_REQUIRED`, `ATTACHMENT_DOWNLOAD_DENIED`) to human copy by reading
+  `code` off the top level of the error body. The storage service has moved that
+  code into the envelope its contract declares —
+  `{ success: false, error: { code, message } }` — so the top-level read now
+  returns `undefined`, and every gated download would have degraded from
+  "You don't have access to download this attachment." to the generic
+  "Download failed (403)".
+
+  The download handler now reads `body?.error?.code ?? body?.code`, mirroring how
+  the success branch two lines below already reads `body?.url ?? body?.data?.url`.
+  Both dialects on purpose: the console ships independently of the server it
+  talks to, so a current console must keep understanding an older one. A test
+  covers each shape, and the fix is mutation-checked — dropping the nested read
+  fails the two new-envelope cases.
+
+- e56a9fd: fix(list): keep the injected `owner_id` out of the auto-generated list columns
+
+  `ObjectView` renders an object's default "所有记录" tabular view (and prefills the
+  "Add View" dialog) from the object's field order when it declares no explicit
+  list view. Both paths carried their own name-based `SYSTEM_FIELDS` exclusion set
+  that — like the pre-#2702 lists in `ObjectGrid` / `InterfaceListPage` — never
+  listed `owner_id`. Because the framework's `applySystemFields` spreads its
+  injected system/audit/ownership fields to the FRONT of the field map and
+  `owner_id` is deliberately non-hidden and non-readonly (ownership is
+  reassignable), it leaked through as the leading, raw-id column on every object
+  without a declared list view (e.g. `showcase_invoice`), redundant with the
+  business `owner` (`Field.user`) column.
+
+  Both paths now derive their columns through a single shared
+  `defaultListColumnsFromObject` helper that classifies system fields via the
+  `isSystemManagedField` helper from `@object-ui/types` (the same classifier
+  #2702 introduced) — branching on the spec `system` flag with a name-set
+  fallback that includes the ownership/tenancy FKs. Auto-derived lists lead with
+  business fields again and pick up future injected fields without editing a name
+  list. Closes #2777.
+
+- 4fc4b97: feat(app-shell): localize the automations flow designer & inspector (en-US + zh-CN)
+
+  Comprehensive zh-CN localization of the metadata-admin automations surfaces —
+  the visual Flow designer, node/edge inspector, validation, and the shared editor
+  panels shown on the flow screen. Client-side per the platform's
+  `translateMetadataType` precedent; en-US is unchanged (every zh overlay falls
+  back to English, so unknown/plugin values are never hidden).
+
+  - Flow designer: node palette (labels/hints/categories + Chinese search), canvas
+    chrome & tooltips, header pills incl. enum values, preview panels, run-history
+    & debug simulator, nested-region tray, and localized default labels for
+    newly-created nodes.
+  - Node & edge inspectors: config-field labels / help / options / column headers
+    for the full engine-published `configSchema` field set (loop
+    `indexVariable`/`maxIterations`, http `durable`/`signingSecret`, connector flat
+    ids, notify's config fields, …), keyed off the raw node type so aliased types
+    localize correctly.
+  - Structural + unknown-reference validation messages (canvas banner, Problems
+    panel, debug simulator) and the Problems-panel chrome.
+  - Generic `SchemaForm` enum-option / raw-field-label localization used on the
+    flow property form, plus the History / Audit / References / Layered-diff panels
+    and the force-save dialog shown on the flow screen.
+
+- cfc675e: fix(i18n): unconditional Chinese in the chatbot confirm card and the field inspector (objectui#2884, objectui#2885)
+
+  Two issues split out of the objectui#2871 survey because neither is a language
+  _branch_ — both are copy that renders in Chinese for every user regardless of
+  locale.
+
+  **objectui#2884 — the confirm-before-change card.** Heading, buttons, hint and
+  the verb column of each change row were Chinese literals, so an English user
+  read the whole confirm gate in Chinese. They now follow the same
+  prop-with-English-default convention the plan card already uses
+  (`changesTitleLabel`, `changesConfirmLabel`, `changeVerbLabels`, …), with the
+  console passing translated values from `console.ai.*`.
+
+  The serious half was the outbound message. Clicking Confirm sent
+  `'确认修改，应用你刚才提议的改动。'` unconditionally — an English user's click
+  told the agent, in Chinese, to apply the changes, and the agent answered in
+  Chinese for the rest of the thread. That message now routes through the same
+  `convZh` (conversation-language) switch as `planApproveMessage`, so it matches
+  the language actually being spoken rather than the UI or a hard-coded literal.
+
+  Note this is deliberately _not_ "always send English": the repo already decided
+  outbound agent text follows the CONVERSATION, and the cloud confirm gate
+  (`service-ai-studio` `confirm-gate.ts` `APPROVAL_RE`) matches on approval
+  keywords. The Chinese string is unchanged, so that path is byte-for-byte what
+  the gate already accepted; `i18n.test.ts` now pins it against the mirrored gate
+  regex alongside the two plan messages.
+
+  Also in this component: the error banner's `Response failed` / `Details` /
+  `Retry` were hard-coded English, and both it and the quota banner used a bare
+  `t(key)` that renders the raw key when the chat is mounted without an
+  `I18nProvider`. Both now use `useSafeTranslate`, so they degrade to English
+  instead of to `chatbotError.title`. The `「…」` corner brackets around the
+  target-app name are now neutral quotes.
+
+  **objectui#2885 — the draft-field suffix.** `ObjectFieldInspector` appended a
+  bare `(草稿)` to draft objects in the lookup picker — the only Chinese literal
+  in a 1500-line file where the other 101 strings all go through `t(key, locale)`.
+  It now reads `engine.inspector.draftSuffix` from the Studio catalog.
+
+  The 18 new keys were added to all ten locale packs, so the objectui#2872 part
+  (a) gap held at 469/471 rather than widening.
+
+- 20df08c: fix(cloud-connection): localize the Cloud Connection panel (objectstack#3589 follow-up)
+
+  `CloudConnectionPanel` — the `cloud-connection:panel` SDUI widget that is the
+  entire body of the Cloud Connection Setup page — had no i18n at all: no
+  `@object-ui/i18n` import, and no `cloudConnection` namespace in any of the ten
+  built-in locale packs. Its siblings on neighbouring pages
+  (`marketplace:installed-list`, `mcp:connect-agent`) were already fully
+  localized, so this one page rendered a translated header above an English body
+  once the framework-side `page:header` resolution landed.
+
+  - New `cloudConnection` namespace in all ten packs (en, zh, ja, ko, de, fr, es,
+    pt, ru, ar), matching the coverage its sibling namespaces already had. Covers
+    every phase of the device-code flow: checking, error + retry, waiting
+    (approval prompt, user code, copy), bound (connection detail labels), and
+    unbound (call to action).
+  - The three hard-coded failure messages (expired request, bind failure, device
+    code request failure) are translated where they are raised, not where they
+    are rendered, since they are stored in component state.
+  - The "code is pre-filled…" line was one sentence stitched together across JSX
+    with a conditional tail and a bare `'.'`. It is now two self-contained
+    strings, so a translator never receives a dangling clause whose word order
+    they cannot change.
+  - The `bound_at` timestamp now formats with the active UI language rather than
+    the browser default, matching the surrounding copy.
+
+  Also adds a locale-parity test asserting the `cloudConnection` key set is
+  identical across all ten packs — partial coverage degrades quietly, because
+  i18next falls back to `en` and the result merely looks half-translated.
+
+- 8ecf5a6: Command palette (⌘K) now surfaces record search hits from the platform's global
+  search endpoint (`GET /api/v1/search`).
+
+  Previously the palette only ran a per-object `find({ $search })` fanout (the
+  metadata-driven ADR-0061 search), which misses records that only the global
+  search index knows about — so typing a well-known record name returned no
+  records even though `/api/v1/search` served them. `ObjectStackAdapter` now
+  exposes a `searchAll(query, { limit, objects })` method that calls the unified
+  endpoint, `useRecordSearch` prefers it when present (falling back to the fanout
+  otherwise), and the palette renders the resulting record hits grouped by object.
+
+- 0502a7c: fix(i18n): the change card's Confirm button sent text the cloud gate does not accept
+
+  The English `console.ai.changesConfirmMessage` was
+  `"Confirm the changes — apply what you just proposed."`. The cloud confirm gate
+  (`service-ai-studio` `confirm-gate.ts` `APPROVAL_RE`) recognises
+  `apply (this|the) change` — **not** "apply what". So the message failed the
+  gate, and failing the gate is silent: the agent re-proposes instead of applying,
+  and the Confirm button on the change card simply looks inert.
+
+  This affected English conversations **and all eight locales that fall back to
+  English** for that key. It is now
+  `"Confirm — apply the change you just proposed."` — singular "the change", so it
+  still matches if the gate ever tightens to a word boundary. The Chinese string
+  was always fine (`确认修改` hits the 确认-anchored clause) and is unchanged.
+
+  The same literal lives in four places — the locale pack, the
+  `ChatbotEnhanced` prop default, its doc comment, and the `AiChatPage`
+  `defaultValue` — and all four are updated together.
+
+  **Why the existing guard missed it.** `i18n.test.ts` mirrored only the _Chinese_
+  clause of `APPROVAL_RE`; the English half was reduced to "starts with Confirm,
+  contains apply" because nothing in this repo could see the real pattern. That
+  weaker assertion passed against a string the gate rejected — the guard was
+  green and the feature was broken.
+
+  The mirror is now **verbatim, both clauses**, and drives an `it.each` over every
+  outbound approval message in both `zh` and `en`. Two supporting tests keep it
+  honest: one asserting the gate stays narrow (a plain build request like
+  "帮我搭建一个 CRM" must NOT read as approval), and one asserting
+  `planAnswerMessage` does _not_ match — it answers a structure question and must
+  never read as blanket approval.
+
+  The mirror is duplicated across a repo boundary by necessity (objectui cannot
+  import from cloud); the comment says so, so the next person changing
+  `APPROVAL_RE` knows to update it here too.
+
+- 7b35e4b: fix(dashboard,charts): resolve `{current_user_id}` in widget filters (framework #3574)
+
+  A dashboard widget filtered on `{current_user_id}` rendered `0`. The token
+  reached SQL as a literal, matched no row, and nothing was logged on the client
+  or the server — a silent zero that reads as "you have no work" rather than
+  "this filter did not resolve". The same token in a list-view filter resolved
+  correctly, so a user-scoped list and a user-scoped widget over the same data
+  disagreed.
+
+  There was no shared resolver. Three ad-hoc implementations had grown up
+  independently — `ObjectView` for list views, `ObjectDataPage` for URL filter
+  triples, `NavigationRenderer` for hrefs — and each understood only the filter
+  shape its own surface used. `ObjectView`'s opened with
+  `if (!Array.isArray(filter)) return filter`, so it could not have been reused
+  by dashboard widgets even in principle: widget filters are MongoDB-style
+  objects. Widgets therefore got no resolution at all — `DatasetWidget` called
+  `resolveDateMacros` and nothing else, which is why `{today}` worked in a widget
+  and `{current_user_id}` silently did not.
+
+  - **`@object-ui/core`** — new `utils/filter-tokens.ts` with
+    `resolveContextTokens` and `resolveFilterPlaceholders`. The latter expands
+    _every_ placeholder vocabulary in one call and is what surfaces should use;
+    resolving only some of them is the whole defect. The walk handles arrays and
+    plain objects uniformly, so one resolver covers both platform filter shapes.
+  - **`@object-ui/react`** — new `FilterScopeProvider` / `useFilterScope`. The
+    renderer packages deliberately do not depend on `@object-ui/auth`, so the
+    shell supplies the session values. This is a separate context from
+    `PredicateScopeContext`, which is the expression evaluation scope and carries
+    no organization.
+  - **`@object-ui/plugin-dashboard` / `@object-ui/plugin-charts`** — all six
+    widgets that previously resolved date macros only now resolve both
+    vocabularies: `DatasetWidget`, `ObjectMetricWidget`, `ObjectDataTable`,
+    `ObjectPivotTable`, and `ObjectChart` (dataset-bound and inline paths). The
+    chart's `compareTo` comparison filter gets the session pass too — otherwise
+    the overlay series silently ignored the owner clause the primary series
+    honoured.
+  - **`@object-ui/app-shell`** — `ObjectView`'s local `substituteFilterTokens`
+    and `ObjectDataPage`'s inline `=== '{current_user_id}'` ternary now delegate
+    to the shared resolver, so both also gain `{current_org_id}` and date macros.
+    Two of the three ad-hoc implementations are gone rather than joined by a
+    fourth.
+
+  An unresolvable token is left intact rather than dropped: leaving it yields an
+  empty result, whereas dropping the clause would _widen_ the result set and show
+  a signed-out viewer everyone's data. It is no longer silent — the resolver
+  warns, naming the token, and suggests the intended spelling for known
+  near-misses (`{current_user}`, `{user_id}`, `{organization_id}`). Authoring-time
+  enforcement lands separately as `filter-token-unknown` in `@objectstack/lint`.
+
+- c6fd752: fix(app-shell): localize the two `DeclaredActionsBar` strings that bypassed i18n (objectui#2762 P0-3)
+
+  The declared action _labels_ resolve through `useObjectLabel`, so a zh-CN
+  workspace got 通过 / 拒绝 buttons — sitting inside a toolbar whose accessible
+  name was the English literal `'Actions'`, above decision-output fields whose
+  help text read `Handed to the flow as a decision output.` Both strings are
+  authored by the bar itself rather than by metadata, and both skipped the locale
+  bundle entirely.
+
+  - `aria-label` now uses the existing `common.actions` key (a host-supplied
+    `label` still wins).
+  - The decision-output help text moves to new `actions.decisionOutput.help` /
+    `.helpMultiValue` keys, added across all ten shipped locales.
+
+  Worth being precise about why the help text needed fixing at all, since the
+  runtime _does_ localize action params: `useConsoleActionRuntime` runs every
+  param through `actionParamText`, but these params are synthesized here from the
+  record's `decision_output_defs`, so their key path (`outputs.<key>`) is dynamic
+  and no `_actions.<action>.params.*` bundle entry can ever match it. The
+  fallback is not a rare path — it is the only path, which is why the English
+  survived.
+
+  Not fixed, and deliberately: a decision output that arrives without a `label`
+  still renders a title-cased version of its machine key. That derived text
+  mirrors the framework's `humanizeFieldPath` convention, and the real fix is the
+  backend declaring the label — a client-side bundle cannot key off a dynamic
+  output name.
+
+- c992915: fix(metadata-admin): drop the SkillPreview "Required Permissions" panel (framework#3686)
+
+  Upstream removed `SkillSchema.permissions` — skill invocation was never gated by
+  it. Showing a "Required Permissions" section (and a "N required perms" header
+  pill) for an unenforced list taught the wrong model: access is gated at the
+  AGENT (`access`/`permissions`, enforced at the chat route) or on the underlying
+  actions the skill's tools call.
+
+- 697cda4: feat(fields): adopt the file-as-reference value shape (ObjectStack ADR-0104 D3 wave 2)
+
+  A `file`/`image` field value now reaches the UI in one of three forms, and the
+  rules for reading them live in one place — `@object-ui/fields`' new
+  `file-value` module — instead of being re-derived in each widget:
+
+  1. **Reference** — a bare `sys_file` id string, what the backend stores once
+     file-as-reference is adopted.
+  2. **Expanded** — `{ id, name, size, mimeType, url }`, what the read path
+     returns after resolving a reference.
+  3. **Legacy inline blob** — `{ file_id?, name, original_name, size, mime_type,
+url }`, the pre-reference shape this package used to build itself.
+
+  **The casing split is the bug this fixes.** The expanded form carries
+  `mimeType`; the legacy blob carries `mime_type`. `FileField`, `FileCell` and
+  `ImageField` all read only `mime_type`, so the moment a backend starts returning
+  the expanded form they stop recognising images — thumbnails silently degrade to
+  a generic file icon, with nothing pointing at a value shape as the cause.
+  `readFileValue()` accepts both.
+
+  **Uploads now submit the reference form** — the bare `sys_file` id — when the
+  upload adapter surfaced one, falling back to the legacy blob when it did not
+  (the object-URL fallback adapter, or a backend predating file-as-reference). The
+  same build therefore works against both. Action params already POSTed a bare
+  fileId; record field values now use the same contract, and
+  `serializeParamValues` shares the `fileIdOf()` extractor so the two surfaces
+  cannot drift on what counts as an id.
+
+  Because a bare id carries no name or URL, each widget remembers the display
+  details of files it just uploaded, keyed by id, so an upload renders immediately
+  rather than showing a bare token until the next read enriches it.
+
+- 2cb8d78: fix(console): dispatch flow actions from every surface, and cover the screen-flow round trip (framework#3528)
+
+  The resume half of screen flows is fixed; these are the two launch-side holes
+  found while mapping every path that dispatches a `type: 'flow'` action — on
+  both, a screen flow could not even be started.
+
+  - **plugin-dashboard** — a dashboard header action only dispatched when its type
+    was `modal` or `script`. `flow` (and `api` / `form` / `navigation`) fell
+    through to `console.warn("Unknown header actionType")` and did nothing at all.
+    The click handler now routes everything that is not a raw `url` navigation
+    through the ActionRunner, which owns the type registry; there is nothing for
+    the renderer to second-guess.
+  - **app-shell** — the console-root `<ActionProvider>` was mounted with no
+    `handlers` map. It exists to give every field widget a modal handler, but an
+    `ActionProvider` also decides what a `useAction()` consumer _below_ it can
+    dispatch, so any `action:button` outside ObjectView / RecordDetailView /
+    PageView / DeclaredActionsBar bound to a runner that could only open modals:
+    a `flow` action there failed with "Flow handler not registered", and `api` /
+    `script` were equally dead. The root now carries the shared console runtime's
+    api / flow / script handlers plus its confirm / param / result / screen-flow
+    dialogs. `modal` deliberately stays on the client-side `useActionModal`
+    handler — registering it in `handlers` would take precedence over `onModal`
+    and reroute the inline-create affordance to `/api/v1/actions/...`.
+
+  Both changes ship with regression tests that were verified to fail without them.
+  Also adds the first coverage of the screen-flow seam itself, which had none:
+
+  - `FlowRunner.suspense.test.tsx` — a lazily-loaded screen body must not unwind
+    past the dialog. Reproduces the real shape (lazy body, route-level boundary
+    above the host, host state that must survive) and fails against the
+    pre-boundary runner, which is how a paused run's screen used to vanish before
+    it could be submitted.
+  - `e2e/live/screen-flow.spec.ts` — the live round trip: a row flow action
+    triggers the run, the paused screen renders, Submit POSTs to
+    `/automation/{flow}/runs/{runId}/resume` with the collected values, and the
+    flow's downstream `update_record` shows up in the list. The unit tests stub
+    the runner out of the action runtime and the runner's own tests feed it a
+    screen directly, so trigger → dialog → resume → refresh was previously only
+    ever exercised by hand.
+
+- ba642f8: feat(app-shell): Studio flow start node offers a "Record created or updated" trigger (#3427)
+
+  The record-change trigger now supports `record-after-write` (create OR update in
+  one flow), so the flow designer's start-node trigger picker offers a "Record
+  created or updated" option. Selecting it shows the Object and Entry-condition
+  fields, and the scope resolver puts both `record` and `previous` in scope for it
+  (`previous == null` is how an author branches the create leg) — mirroring the
+  runtime binding that fires the flow on both insert and update.
+
+- b821287: feat(studio): first-class `notify` flow node in the Studio palette + inspector
+
+  The `notify` flow node (ADR-0012 — outbound notification via the messaging
+  service) is a live built-in with a server descriptor, but Studio had no static
+  palette entry or config editor for it: `fieldsForNodeType('notify')` returned
+  `[]`, so it was only authorable by hand-editing JSON or when the running engine
+  happened to publish its descriptor (framework#1878 / framework#1895).
+
+  - Added `notify` to `NODE_PALETTE` (Integration), with a Bell icon and the
+    integration tone, canvas category, and a sensible default-config seed
+    (`channels: ['inbox']`).
+  - Added a `notify` entry to `FLOW_NODE_CONFIG` mirroring the built-in node's
+    descriptor keys: `recipients`/`channels` (stringList), `title`, `message`
+    (textarea), `topic`, `severity` (select info/warning/critical), and the
+    click-through target (`sourceObject`/`sourceId`/`url`) — all written under
+    `node.config`.
+
+  Closes the last item of the designer-authoring-gaps issue (framework#1895).
+  Unit + DOM tested (palette entry, config field kinds/paths, no inspector
+  regression). A browser dogfood pass of authoring a notify node end-to-end is
+  recommended before merge.
+
+- 6b78855: fix(app-shell): stop the flow-node repeater from committing during render (#2838)
+
+  Operating any `commitCell`-backed control in a flow node's objectList repeater —
+  checkbox, select cell, record lookup, nested list, remove-row — logged a React
+  warning:
+
+  ```
+  Cannot update a component (`MetadataResourceEditPageImpl`) while rendering a
+  different component (`FlowObjectListField`).
+  ```
+
+  `commitCell` and `removeRow` called `flush()` (which calls the parent's
+  `onCommit`) from inside their `setRows` updater. React runs updaters during the
+  render phase, so the parent's `setState` landed mid-render — the exact pattern
+  React flags. React only warns once per component pair, so whichever control the
+  author touched first "claimed" the warning and every other one looked innocent.
+
+  The handler now raises a commit-intent flag and leaves the updater pure; an
+  effect flushes after commit. Because the effect reads the rows React actually
+  applied, a commit no longer risks publishing a stale snapshot when another
+  update is already queued (typing in a cell and then hitting the row's ✕ in the
+  same tick).
+
+  The plain suites missed this because React computes an updater eagerly when the
+  fiber has no pending work — that path runs it in the handler and hides the
+  warning — and because an `onCommit: vi.fn()` parent takes no update at all. The
+  new regression test reproduces both conditions.
+
+- 072330d: fix(console): let a screen flow be completed from the developer Flow Runs page (framework#3528)
+
+  Developer → Flow Runs triggers a flow and renders the result. For a **screen**
+  flow that result is not a result — it is `{ status: 'paused', runId, screen }`,
+  and the run sits suspended until something posts to its resume endpoint. The
+  panel dumped that envelope as JSON and stopped: no screen, no Submit, no resume
+  call. Every test run of a screen flow left an orphaned `paused` row in Recent
+  Runs, and there was no way to drive one to completion from this surface.
+
+  - **console** — a paused test run now opens the same `FlowRunner` the record and
+    list surfaces use, so the screen renders for real (flat fields, multi-step
+    wizards, and `object-form` steps with their master-detail grids) and Submit
+    posts to `/automation/:flow/runs/:runId/resume`. Dismissing the runner no
+    longer strands the run: the pause is durable, so the panel keeps a "Continue
+    run" affordance to reopen the pending screen. `paused` also gets its own
+    status badge instead of falling through to the unknown-status style.
+  - **app-shell** — `FlowRunner` (and its `ScreenFlowState` / `ScreenSpec` types)
+    is now exported from the package so surfaces outside `views/` can mount the
+    one screen-flow runner rather than reimplementing it.
+  - **app-shell** — `FlowRunner` now wraps the screen body in its own `<Suspense>`
+    boundary. An `object-form` step mounts `ObjectForm`, whose field widgets are
+    lazy; that suspension used to unwind to the _host's_ nearest boundary, and on
+    a surface whose nearest boundary is the route-level one, React swapped the
+    whole page for the fallback and remounted it — destroying the host's state
+    along with this dialog. The screen vanished before it could be filled in and
+    the run stayed paused with no resume call, which is exactly the "Submit does
+    nothing" shape. Reproduced on the Flow Runs page and fixed at the source, so
+    every host that mounts the runner is covered.
+  - **app-shell** — a screen payload without `fields` no longer throws. `fields`
+    is optional on the wire (a message-only screen, or an `object-form` step from
+    a node executor that omits it), but `FlowRunner`/`ScreenView` read it
+    unguarded and blew up as the dialog mounted. Reads now go through a
+    `screenFields()` helper; the design-time builder keeps its exhaustive shape.
+
+- ddea597: feat(app-shell): surface step warnings in the Flow Runs panel (#3407)
+
+  The automation engine now attaches advisory `warnings[]` to a step whose write
+  was legally stripped by the data layer — an `update_record`/`create_record`
+  targeting a `readonly` / `readonlyWhen` field. The step still reports
+  `success` (the strip is legitimate semantics), so the run trace previously
+  looked like a clean 3ms success while the intended write never landed; the
+  only signal lived in the server WARN log.
+
+  `FlowRunsPanel` now reads `step.warnings` and renders each one amber beneath
+  its step — with a ⚠ marker on the step row — **without** recoloring the
+  status. The dropped-write signal that #3407/#3413 plumbed from the data layer
+  into the run's step log now reaches the Studio, closing the observability loop
+  the author actually looks at.
+
+- 6dee2cb: feat(form): consume spec-aligned FormView buttons/defaults in ObjectForm
+
+  The authored `@objectstack/spec` FormViewSchema carries structured
+  `buttons.{submit,cancel,reset}.{show,label}` and `defaults`, but the form
+  renderer only read the flat renderer-invented `showSubmit`/`submitText`/
+  `showCancel`/`cancelText`/`showReset`/`initialValues`. That left the two spec
+  keys parsed-but-inert (ADR-0078) and stuck at `experimental` in the spec
+  liveness ledger.
+
+  `ObjectForm` now folds the structured shape down onto those flat props inside
+  its existing normalization pass, so every entry path (ObjectView
+  drawer/modal/page, RecordFormPage) honors it. An explicitly-set flat key still
+  wins, so metadata authored against the deprecated flat keys is unchanged.
+  `ObjectView` and `RecordFormPage` forward `buttons`/`defaults` from the spec
+  form view. `ObjectFormSchema` gains the optional `buttons`/`defaults` fields.
+
+  Refs objectstack-ai/objectstack#1894, objectstack-ai/objectstack#2998.
+
+- cd09a7b: refactor(views): ListView reads the spec-canonical `columns`, with legacy `fields` folded in one normalizer (#2890 scope A step 1)
+
+  `ListViewSchema` has been derived from `@objectstack/spec/ui` since #2231, but
+  the renderer still spoke objectui's own vocabulary for the same concepts. First
+  rename closed: **`fields` → `columns`**.
+
+  Legacy acceptance does not disappear — stored view metadata in user databases
+  carries `fields` — but it now lives in exactly one place instead of being
+  re-implemented per read-site:
+
+  - **New `normalizeListViewSchema` (`@object-ui/core`)** folds `fields` into
+    `columns` (canonical wins when both are present) and drops the legacy key, so
+    a read-site that was missed fails loudly instead of quietly taking the legacy
+    path. It also absorbs the `viewType` renderability default ListView applied
+    inline. Non-mutating, idempotent, and returns its input by reference when
+    there is nothing to fold, so ListView's downstream memos keep a stable
+    dependency identity.
+  - **`ListView` normalizes once at the component boundary**, before anything
+    reads the schema. This is what guarantees the fold runs: nothing on the render
+    path parses view metadata through zod (the zod schemas serve the CLI
+    validator, the VS Code extension and tests), so a `z.preprocess` on
+    `ListViewSchema` — spec-side or local — would never execute.
+  - **Producers emit `columns`**: `ObjectView`'s `renderListView` payload,
+    `ObjectDataPage`, `InterfaceListPage` and the `list-view` registry defaults
+    had been _downgrading_ already-canonical `columns` config back to `fields`.
+
+  Two latent inconsistencies go away with it: the filter builder's
+  objectDef-not-loaded fallback now resolves `ListColumn.field` (it read only
+  `name`/`fieldName`, so object-form columns produced unnamed filter entries), and
+  the column list no longer depends on which of the two keys a host happened to
+  emit.
+
+  `fields` stays declared on `ListViewSchema` and in the drift guard's sanctioned
+  set — it is still valid input, and `@objectstack/spec`'s `react-blocks.ts`
+  sanctions it as the React-tier `<ListView fields>` prop — but it is input-only.
+
+- 66dbca5: fix(SchemaForm): render row sub-fields for `repeater` fields whose schema is a union (objectui#3379)
+
+  In Edit View Config → Columns & Filters → Sort, "Add" produced an empty row
+  with no field picker or order dropdown. A View's `sort` prop is a
+  `z.union([z.string(), z.array(z.object({ field, order }))])`, so its JSONSchema
+  is `anyOf: [string, {field,order}[]]`. The SchemaForm repeater read
+  `schema.items` at the top level — which is `undefined` for a union — and
+  derived zero sub-fields.
+
+  The repeater now resolves the union to its array branch and uses that branch's
+  `items` for both the derived field list and the per-row controls
+  (`pickSubSchema`). The legacy bare-string `sort` form remains valid in the spec
+  (its removal is a separate, deferred deprecation cycle); this is purely a
+  renderer fix.
+
+- 89eb682: fix(console): resolve a modal action's `target` as a page, not an object (#3530)
+
+  Submitting a `type: 'modal'` action failed with "Error loading form — Bad
+  Request". The console read the action's `target` as an OBJECT name and opened a
+  create form for it, so a target naming a page issued `GET
+/meta/object/<page>` — which 400s — and the dialog rendered `<ModalForm>`'s
+  error state instead of the page. Every modal action in an app hit this; the only
+  workaround was re-authoring each one as a screen flow.
+
+  The spec is explicit that for `type: 'modal'`, `target` is "the modal/page name
+  to open".
+
+  - `normalizeModalSchema` no longer guesses "object" for a string target. It
+    records the raw name and `useActionModal.resolveModalTarget` (new) resolves it
+    against metadata: **page first**, then object for back-compat. Resolution uses
+    `getItem(type, name)`, a single-item fetch, so it never eagerly loads the lazy
+    page/object lists — this hook is mounted at the console root.
+  - The `create_x` / `edit_x` prefix convention still yields an object form, but
+    now only as a fallback: a page actually named `create_opportunity` wins over
+    the object `opportunity` the name would otherwise be parsed into.
+  - A target that names neither reports what is wrong ("Modal target "x" matches
+    no page or object") instead of surfacing a downstream HTTP error.
+
+  Modal dispatch is also now the same on every console surface. `type: 'modal'`
+  was wired straight to the server-action POST in `useConsoleActionRuntime` (list
+  pages, SDUI pages, the declared-actions bar) while `RecordDetailView` opened
+  modals client-side — the same button did two different things depending on where
+  it was mounted. Both now run one rule: render `target` when it names a page or
+  object, otherwise complete the action through its server-side handler, so a
+  modal action bound to `engine.registerAction(...)` keeps working.
+
+- 2f947e4: fix(page,field): consume the spec's `type`/`label`/`maxLength` keys (framework#1878 §3 naming-drift recheck)
+
+  Three forward-drifts where objectui read a different key than the spec
+  declares, so authoring the documented key silently no-oped:
+
+  - **page `type` → `pageType`** (app-shell + components): `PageSchema` declares
+    the page KIND as `type`, but `PageRenderer` reads `schema.pageType` and fell
+    back to `'record'` — and nothing mapped between them. Every non-record page
+    (`home`/`app`/`list`/`utility`) rendered with the record max-width, a wrong
+    `data-page-type` attribute, and a suppressed header. `PageView` now passes
+    `pageType` alongside the SchemaNode discriminator `type`.
+  - **page `label` → `title`** (components): `PageSchema.label` is required but the
+    region renderer read only `title`. Now dual-reads `title ?? label`, mirroring
+    the fallback `DashboardRenderer` already uses. Coupled with the above — the
+    header is gated on `pageType !== 'record'`, so both were needed for a title to
+    appear.
+  - **field `maxLength`/`minLength`** (plugin-form + fields): validation already
+    dual-read these, but `ObjectForm`'s HTML-attribute pass and `TextAreaField`
+    read `max_length` only, so a spec-authored `maxLength` gave no browser cap and
+    no character counter. Both now dual-read, matching `buildValidationRules`.
+
+  Verified in the browser against the showcase: `capability_map` (`type: 'home'`)
+  now renders `data-page-type="home"`, the `home` max-width and its page title;
+  record pages are unchanged.
+
+- 75f1cdf: fix(auth): localize the ADR-0069 remediation gate and the auth split-panel (#2870)
+
+  `RemediationOverlay` had no i18n at all. It is the full-screen gate mounted
+  unconditionally at `ConsoleShell` (`fixed inset-0 z-[200]`) that a user hits
+  when the backend returns `PASSWORD_EXPIRED` or `MFA_REQUIRED` — there is no
+  route around it, so a user who could not read English could not get back into
+  the product. That makes it a usability block rather than a cosmetic gap.
+
+  - New `auth.remediation.*` namespace in all ten locale packs, covering both
+    branches of the gate: expired-password (title, three field labels, submit /
+    submitting, mismatch and failure messages) and MFA enrolment (password step,
+    QR scan copy, backup-code disclosure, code entry, verify / verifying, and the
+    enrolment and invalid-code failures), plus the shared "sign out instead" exit.
+  - Validation and failure messages are translated where they are raised, since
+    they are held in component state and rendered later.
+  - The server-provided `remediationRequired.message` is left untouched; only the
+    empty-message fallback is localized.
+  - `AuthPageLayout`'s two marketing strings move to `auth.layout.*`. The forms it
+    wraps were already localized, so the split-panel had been rendering half in
+    the user's language and half in English.
+
+  Adds a locale-parity test over both namespaces, asserting an identical key set
+  across all ten packs, a non-empty string at every leaf, and that prose differs
+  from English (short labels like "Continue" legitimately collide). i18next falls
+  back to `en` silently and its missing-key handler is dev-only, so a key added to
+  one pack and forgotten elsewhere is invisible in whichever locales get tested by
+  hand.
+
+- 662bdf9: fix(fls): wire the real per-caller FLS channel into import targets and grid
+  columns; remove the never-populated `field.permissions` shape (objectstack#3661)
+
+  The `permissions?: { read?, write?, edit? }` key on `@object-ui/types` field
+  definitions (Phase 3.2.6) was declared-but-never-enforced: no producer in the
+  stack ever populated it, so every guard reading it short-circuited to "allow".
+  Per ADR-0049 enforce-or-remove, the shape is deleted and the three consumers
+  now use the server-resolved `/auth/me/permissions` channel
+  (`usePermissions().checkField`) — the same channel ObjectForm/ModalForm/ListView
+  already enforce:
+
+  - **ImportWizard target fields (app-shell `ObjectView`)**: the importable
+    field set (and thus the downloadable CSV template's columns) now drops
+    fields the caller cannot edit, instead of offering columns the server's
+    FLS write gate would 403.
+  - **ObjectGrid auto-derived columns**: columns the caller cannot read are
+    dropped (same gate ListView applies), instead of a dead schema-shape check.
+  - **ObjectForm**: the redundant dead guard in field generation is removed;
+    the existing `applyFieldPerms` gate remains the real enforcement point.
+
+  BREAKING CHANGE: `@object-ui/types` field definitions no longer accept a
+  `permissions` key. It never carried data at runtime; consumers needing
+  per-caller field-level permissions must use `@object-ui/permissions`
+  (`MePermissionsProvider` + `useFieldPermissions`/`checkField`).
+
+- 4dfd14f: fix(app-shell): remove the never-firing `record-change` option from the flow trigger picker (#3427)
+
+  The Studio flow designer's start-node trigger picker offered "Record changed
+  (any)" (`record-change`), but the runtime routes it to the record-change trigger,
+  which maps it to no ObjectQL hook — so the flow binds yet **never fires**. Authoring
+  it produced a silently-dead flow. Removed the option (and dropped `record-change`
+  from the scope resolver's record/previous sets and the zh-CN labels). The common
+  "created or updated" case is covered by `record-after-write`; a companion
+  `@objectstack/lint` rule flags any hand-authored `record-change` at `os validate`
+  time.
+
+- 1bb77aa: fix(flow-runner): honor a screen field's `visibleWhen` — in rendering AND in required-enforcement (framework#3528)
+
+  A paused screen-flow rendered every declared field regardless of its
+  `visibleWhen` predicate, while still enforcing `required` over the full list.
+  Where a field is optional-by-design but required _when shown_, that combination
+  dead-ends the run: Submit blocks on an input the user was never shown, issues
+  **zero network requests**, and the flow sits paused forever.
+
+  Reproduced in Chromium against a real HotCRM dev server — on both the console
+  shipped with `@objectstack/*` 16.1.0 and current `main`:
+
+  ```
+  → POST /api/v1/automation/lead_conversion/trigger   200 {status: paused, screen}
+     rendered: ["Create Opportunity? *", "Opportunity Name *", "Opportunity Amount"]
+     click Submit (checkbox untouched)
+  → (nothing)   resume calls: 0   toasts: none   dialog: still open
+  ```
+
+  The predicate never reached the client — the framework declared `visibleWhen` on
+  the screen node's designer form but dropped it when building the paused payload
+  (fixed in objectstack#3771). This is the consumer half.
+
+  - **`visibleScreenFields(screen, values)`** is the single source of truth for
+    what is on screen. `ScreenView` renders from it and `FlowRunner.submit()`
+    validates from it, so the two can never disagree — splitting them is the bug.
+  - Predicates are **bare CEL over the screen's own field names**
+    (`createOpportunity == true`), evaluated through the canonical
+    `@objectstack/formula` engine, the same verdict the server reaches for field
+    rules. Values bind both bare and under `record.`.
+  - **Declared fields are seeded before evaluation.** An untouched checkbox holds
+    `undefined`, which CEL treats as an unknown identifier — the evaluation errors
+    and falls open, leaving the dependent field on screen in exactly the state
+    where it should be hidden. Booleans seed `false`, everything else `null`.
+  - **Fail-open is preserved for genuinely broken predicates** (syntax error, or a
+    name that is not a field on this screen), matching `resolveFieldRuleState`:
+    hiding an input on a typo would silently drop data the flow is waiting for.
+
+  Screens with no `visibleWhen` behave exactly as before.
+
+- 7e354e9: The full-page search (`/apps/:app/search`) now surfaces record hits, not just
+  metadata nav items.
+
+  Following the ⌘K command-palette fix (#3371), the search results page was still
+  matching only navigation entries (objects, dashboards, pages, reports). It now
+  runs the same global record search (`useRecordSearch` → `/api/v1/search`),
+  scoped to the app's searchable objects, and renders the record hits grouped by
+  object above the metadata matches. Both the search page and the palette now
+  resolve each object group's heading through the i18n label resolver, so
+  localized object labels display correctly instead of falling back to the raw
+  object name.
+
+- 8aae006: fix(views): the five per-view-type configs speak the spec vocabulary (#2231 phase 3)
+
+  `kanban`/`calendar`/`gantt`/`gallery`/`timeline` on `ListViewSchema` were the last
+  hand-written forks left after #2882 — and the fork was not cosmetic: objectui named
+  the same concepts differently from `@objectstack/spec/ui`, and several read-sites
+  only understood one of the two dialects. Two of those gaps were live bugs.
+
+  **Kanban lanes ignored the spec key.** `ListView` gated the Kanban tab on
+  `groupByField || groupField` but rendered lanes off `groupField` alone. A config
+  authored with the spec key — which is exactly what the product's own
+  `CreateViewDialog` emits — offered the tab and then grouped by whatever
+  `detectStatusField()` guessed. The spec's `columns` (the fields shown on each card)
+  was also spread onto the board verbatim, where `columns` means _lanes_, so
+  `ObjectKanban` built lanes with `undefined` id and title. `columns` now maps to
+  `cardFields` and the vocabulary keys are stripped from the passthrough.
+
+  **Timeline lost every spec key in app-shell.** `ObjectView`'s `timeline` branch was
+  a three-key whitelist while its `gallery`/`gantt` siblings had already been fixed to
+  spread-first, so a stored `timeline: { startDateField, endDateField, groupByField,
+colorField, scale }` arrived with only `titleField` and an axis pinned to the
+  `'due_date'` fallback.
+
+  Also: `plugin-view`'s `ObjectView` now reads `gallery.coverField` and
+  `timeline.startDateField` (it only understood the legacy aliases), and the dead
+  `gallery.subtitleField` is removed — three producers computed it and `ObjectGallery`
+  never read it.
+
+  The schema side now derives from the spec configs (`.partial()`, since the product
+  authors partial configs and spec marks `columns`/`titleField`/`startDateField`
+  required). `gantt` needed no local schema at all. The pre-#2231 names
+  (`groupField`, `cardFields`, `imageField`, `dateField`) remain accepted as deprecated
+  aliases so stored views keep validating; the spec key wins wherever both appear.
+  `calendar.defaultView` stays local — it has no spec counterpart.
+
+- d62fb1f: feat(app-shell): toast when a save silently dropped read-only fields (framework #3431/#3455)
+
+  The framework now reports fields it LEGALLY stripped from a write (a non-system
+  caller can't seed a `readonly` field, a `readonlyWhen` predicate locked it, …)
+  via a `droppedFields` payload on the create/update response. Previously the
+  console discarded it: a value the user typed into a locked field just vanished on
+  save with a success toast and no explanation.
+
+  - **data-objectstack:** `ObjectStackAdapter` now emits a `WriteWarningEvent`
+    after a create/update whose response carried `droppedFields`, exposed through a
+    new `onWriteWarning(cb)` subscription (mirrors the existing `onMutation` bus).
+    Reads the field structurally, so an older client or a backend that never drops
+    is a no-op. New exported types: `WriteWarningEvent`, `WriteWarningListener`,
+    `DroppedFieldsEvent`.
+  - **app-shell:** `AdapterProvider` subscribes and raises a `toast.warning`
+    ("Some fields were not saved — the read-only field … could not be changed"),
+    so the strip is visible instead of silent. The write itself still succeeded;
+    status/behaviour are unchanged.
+
+- c6aaed8: fix(i18n): retire four hand-rolled zh/en branches (objectui#2871, part 1)
+
+  Four surfaces decided their language with a hand-written `startsWith('zh')`
+  check instead of the locale packs, so the other eight shipped languages
+  silently rendered English and the strings could never be translated without a
+  code change.
+
+  - **`RecordTitleChip`** carried a private zh-CN/zh-TW dictionary behind a
+    comment claiming "components is i18n-free". That is not true —
+    `@object-ui/components` declares `@object-ui/i18n` and its sibling
+    `containers.tsx` already uses it. All four of its keys (`detail.copied`,
+    `detail.copyRecordId`, `detail.addToFavorites`, `detail.removeFromFavorites`)
+    already existed in **all ten packs**, so this deletes ~35 lines and fixes ten
+    locales with zero new translations. It renders on every record detail page.
+  - **`EnvironmentListToolbar`**'s three state-aware CTA labels move to a new
+    `environment.*` namespace. This surface had already regressed once for the
+    same reason (#844) and was fixed then with inline `{en,zh}` pairs.
+  - **`StudioAiCopilot`**'s dock title moves to the Studio catalog as
+    `engine.studio.aiCopilot`.
+  - **`StudioHomePage.relativeTime`** now uses `Intl.RelativeTimeFormat` with
+    `numeric: 'auto'` instead of five `zh ? … : …` ternaries. This is strictly
+    better than adding ten catalog keys: it covers every locale, applies the
+    correct plural rules, and yields "yesterday" / 「昨天」 rather than "1d ago".
+    Arabic gets its dual form («أسبوعين») — something a ternary cannot express.
+
+  The new `environment.*` keys are added to all ten packs, so this does not widen
+  the gap tracked by objectui#2872 part (a).
+
+  `EnvironmentListToolbar`'s tests now render inside a real `I18nProvider` pinned
+  to `en`. Without one, `t()` returns the raw key, so the previous assertions on
+  literal English would have been asserting nothing.
+
+- 263f885: fix(i18n): delete the four `pick({en,zh})` clones (objectui#2871, part 2)
+
+  Four files each carried an identical private resolver:
+
+  ```ts
+  function pick(label: I18n): string {
+    const lang = document.documentElement.getAttribute("lang") || "en";
+    return lang.toLowerCase().startsWith("zh") ? label.zh : label.en;
+  }
+  ```
+
+  Only Chinese was ever handled, so ja/ko/de/fr/es/pt/ru/ar silently rendered
+  English — and because the copy was baked into the components as inline
+  `{en, zh}` pairs, no translator could reach it. All four copies are deleted
+  along with their `I18n` type alias.
+
+  Migrated to the locale packs, **all ten languages**:
+
+  - `excelImport.*` (8 keys) — `ExcelImportBar`. The completion toast becomes a
+    proper `{{count}}` / `{{object}}` interpolation instead of a template literal
+    baked into both language variants.
+  - `cloudOnboarding.*` (5 keys) — `CloudOnboardingNext`, the Cloud welcome page.
+  - `aiModelStatus.*` (11 keys) — `CloudAiModelStatus`, including the
+    `sourceLabel()` enum→prose helper (now `t`-driven with a `{{source}}`
+    placeholder) and the three `ModelRow` labels. The conditional
+    `(HTTP nnn)` fragment becomes two whole sentences rather than a string
+    spliced mid-clause, which is not translatable into every word order.
+  - `chatbotQuota.*` (4 keys) — the AI quota banner in `ChatbotEnhanced`.
+
+  The chatbot banner keeps choosing between the server's `quota.message` (zh) and
+  `quota.messageEn` — that pair is server-owned — but now decides using the
+  console's active language instead of `navigator.language`, which had ignored
+  the in-app locale switcher entirely.
+
+  `CloudOnboardingNext`'s tests now render inside a real `I18nProvider`; without
+  one `t()` returns the raw key, so the previous assertions on literal English
+  were asserting nothing.
+
+  This completes the `pick()` cluster from #2871. The remaining
+  `startsWith('zh')` sites are the ones that classification marked KEEP —
+  `LoadingScreen` (bootstrap, selects real locale packs before i18next is up),
+  `conversationLanguage` (detects the chat's language for the agent, not UI
+  copy), `containers.tsx` (normalises author-supplied schema data; its `'与'`
+  separator is a CJK typography rule), and the Studio catalog / `field-types.ts`
+  data catalog.
+
+- dc334da: fix(i18n): close the last three zh-branch gaps (objectui#2871, part 3)
+
+  The three items the #2871 classification marked as real but _not_ a
+  migrate-the-copy fix. Each needed a different remedy.
+
+  **`LoadingScreen` — ten languages collapsed to two.** The boot splash already
+  selected real locale packs (not inline copy), but through
+  `lang.startsWith('zh') ? zh : en`, so a ja/ko/de user watched the whole startup
+  in English. It now indexes `builtInLocales` by the two-letter prefix.
+
+  Each field falls back to `en` **individually**, which matters: `console.*` is
+  one of the namespaces that trails in the non-`zh` packs (objectui#2872 part a),
+  so a whole-object swap would have rendered `undefined` on the splash rather
+  than English. `console.loadingHint` was in fact missing from all eight — added
+  here, since a blank line under the progress list is worse than an English one.
+
+  **`containers.tsx` — two language sources that could disagree.** The tab-label
+  call sites resolved `language` from `useObjectTranslation()`, then handed the
+  string to `translateLabel`, which called `detectLocale()` and read
+  `document.documentElement.lang` on its own. Those update independently, so an
+  in-app language switch could leave a tab label and its surrounding chrome in
+  different languages until the next reload. `language` is now threaded in, and
+  `detectLocale` is deleted so nothing reaches for the DOM again.
+
+  **`field-types.ts` — a two-language data catalog.** `FieldTypeMeta` carried a
+  `labelZh` column beside `label`, which capped the field-type picker at English
+  or Chinese by construction. The 46 type names and 9 category names move into
+  the Studio catalog as `engine.fieldType.<id>` / `engine.fieldCategory.<cat>`,
+  generated from the existing values so no wording changes. This removes the
+  `isZh` helper from **both** `ObjectFieldInspector` and `ObjectFormCanvas` — the
+  two files the classification listed as "keep the component, fix the catalog".
+
+  The picker's search filter previously matched `id`, the English label, and
+  `labelZh` — so searching in Japanese or German matched nothing. It now matches
+  the label as the user actually sees it.
+
+- Updated dependencies [7b21891]
+- Updated dependencies [0b3be01]
+- Updated dependencies [8b4bc94]
+- Updated dependencies [3c4d935]
+- Updated dependencies [4b1ed7d]
+- Updated dependencies [4b60d2d]
+- Updated dependencies [952b978]
+- Updated dependencies [de5e40c]
+- Updated dependencies [1a03af6]
+- Updated dependencies [3e886eb]
+- Updated dependencies [aa88056]
+- Updated dependencies [cfc675e]
+- Updated dependencies [20df08c]
+- Updated dependencies [1767124]
+- Updated dependencies [8ecf5a6]
+- Updated dependencies [af705b9]
+- Updated dependencies [0502a7c]
+- Updated dependencies [54886ca]
+- Updated dependencies [b5609cb]
+- Updated dependencies [7b35e4b]
+- Updated dependencies [8fb1295]
+- Updated dependencies [e16ed2d]
+- Updated dependencies [c6fd752]
+- Updated dependencies [f9bbddb]
+- Updated dependencies [dfd3705]
+- Updated dependencies [c77108c]
+- Updated dependencies [2735de6]
+- Updated dependencies [697cda4]
+- Updated dependencies [2cb8d78]
+- Updated dependencies [c19ac11]
+- Updated dependencies [6dee2cb]
+- Updated dependencies [e05f052]
+- Updated dependencies [0502a7c]
+- Updated dependencies [faad45e]
+- Updated dependencies [553443e]
+- Updated dependencies [09c6a17]
+- Updated dependencies [c7cff19]
+- Updated dependencies [df6697f]
+- Updated dependencies [ba73a02]
+- Updated dependencies [ba45145]
+- Updated dependencies [cd09a7b]
+- Updated dependencies [f1abf0e]
+- Updated dependencies [ab46110]
+- Updated dependencies [f05b84e]
+- Updated dependencies [9b4b952]
+- Updated dependencies [341bfb5]
+- Updated dependencies [2f947e4]
+- Updated dependencies [7d46648]
+- Updated dependencies [6e8fd3c]
+- Updated dependencies [9b53d72]
+- Updated dependencies [503d3f6]
+- Updated dependencies [bb4aa25]
+- Updated dependencies [75f1cdf]
+- Updated dependencies [662bdf9]
+- Updated dependencies [059a052]
+- Updated dependencies [53642d4]
+- Updated dependencies [8aae006]
+- Updated dependencies [d62fb1f]
+- Updated dependencies [c6cfdf1]
+- Updated dependencies [5b9cf96]
+- Updated dependencies [dc7a798]
+- Updated dependencies [d147a13]
+- Updated dependencies [c6aaed8]
+- Updated dependencies [263f885]
+- Updated dependencies [dc334da]
+  - @object-ui/components@17.0.0
+  - @object-ui/plugin-detail@17.0.0
+  - @object-ui/i18n@17.0.0
+  - @object-ui/auth@17.0.0
+  - @object-ui/fields@17.0.0
+  - @object-ui/react@17.0.0
+  - @object-ui/plugin-charts@17.0.0
+  - @object-ui/plugin-chatbot@17.0.0
+  - @object-ui/plugin-grid@17.0.0
+  - @object-ui/types@17.0.0
+  - @object-ui/data-objectstack@17.0.0
+  - @object-ui/core@17.0.0
+  - @object-ui/plugin-dashboard@17.0.0
+  - @object-ui/plugin-form@17.0.0
+  - @object-ui/permissions@17.0.0
+  - @object-ui/plugin-list@17.0.0
+  - @object-ui/plugin-view@17.0.0
+  - @object-ui/plugin-kanban@17.0.0
+  - @object-ui/plugin-calendar@17.0.0
+  - @object-ui/plugin-designer@17.0.0
+  - @object-ui/plugin-report@17.0.0
+  - @object-ui/layout@17.0.0
+  - @object-ui/plugin-editor@17.0.0
+  - @object-ui/collaboration@17.0.0
+  - @object-ui/providers@17.0.0
+
 ## 16.1.0
 
 ### Minor Changes

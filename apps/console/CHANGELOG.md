@@ -1,5 +1,250 @@
 # @object-ui/console
 
+## 17.0.0
+
+### Minor Changes
+
+- 6720008: feat(approvals): dynamic decision-output fields + expression approver editing (framework#3447 P2)
+
+  - The approve/reject dialogs now render one input per author-declared decision-output key (the row's `decision_outputs`, per-request so it can't be a static action param). DeclaredActionsBar synthesizes `outputs.<key>` params; the api handler folds them into the nested `outputs` body the decide route expects. Blank optional outputs are omitted.
+  - The flow designer's approval-node approver list renders an `expression`-type approver's value as a CEL expression input (mono + syntax check) instead of a dead free-text reference box, with a placeholder teaching the three legal roots (`current.*` / `trigger.*` / `vars.*`). Flow-scope pickers are deliberately not wired in — approval expressions have their own closed root set, and offering flow-scope paths would teach exactly the spelling the runtime rejects.
+  - Static fallback descriptor gains the `Expression (CEL)` approver type, the expression-only `resolveAs` column, and the node-level `onEmptyApprovers` policy select (the online form derives all of these from the engine's published configSchema).
+
+- 7f153de: feat(approvals): typed decision-output pickers, quick-path guard, and approval-expression completion (framework#3447 follow-ups, #2829)
+
+  - Decision dialogs render TYPED decision outputs as record pickers: `decision_output_defs` (`{ key, label?, type, multiple? }`) maps `user` to the sys_user people picker and `department`/`position`/`team` to the matching system-object lookup; `multiple` collects an id array. Bare keys keep the text input.
+  - Quick decision paths (inline a/r keyboard, hover buttons, mobile card buttons, bulk apply) no longer decide a request whose node declares decision outputs (#2829) — only the drawer dialog collects those fields. Buttons render disabled with an explanation; bulk selection excludes such rows via the existing "N actionable" messaging.
+  - The approval `expression` approver input now has a scope-aware data picker and inline root validation: three groups — `current.<field>` (live at node entry), `trigger.<field>` (submit snapshot), `vars.*` (flow variables) — built by `useFlowScope` from the same materials as the condition picker but with the approval root set. `nodeOutputRefs` now models approval nodes (`<nodeId>.decision` + declared `decisionOutputs` keys), so the previous stage's outputs are pickable, and `vars.previous` is always listed so a legitimate `vars.*` reference is never flagged as out of scope.
+
+### Patch Changes
+
+- 7cb199b: feat(approvals): label pending-approver chips with their group (objectui#2807)
+
+  Follow-up to #2762 P1-2. The dedupe pass collapsed repeated "waiting on"
+  chips to one with a `×N` count, but couldn't say _which_ group (finance /
+  legal / …) each pending approver represented in a 会签 (per_group) request —
+  the data wasn't there. With the framework now emitting
+  `pending_approver_groups` (`@objectstack/plugin-approvals`), the drawer:
+
+  - keys the chip collapse by **(name, group)** — the same person filling two
+    different groups stays two labeled chips (`Dev Admin · finance`,
+    `Dev Admin · legal`), while one group filled twice collapses to a single
+    chip with a count;
+  - renders the group as a muted `· <group>` sub-tag on the chip.
+
+  Degrades cleanly: with no group data (non-`per_group`, or an older backend)
+  the key is the name alone, keeping the plain dedupe + `×N` behavior.
+
+- 4b60d2d: fix(console): make the approval timeline attachment chip show its name and open (#2820)
+
+  A decision attachment in the approval inbox timeline (审批动态) rendered a
+  nameless "附件" chip that did nothing when clicked. Three separate bugs:
+
+  - **No filename.** The chip resolved its label by fetching `/data/sys_file/{id}`
+    — a system object a regular approver cannot read — and silently fell back to a
+    generic label when that was denied. The name now comes from the attachment
+    descriptor the server returns (framework #3266), so no `sys_file` access is
+    needed and the real filename shows for every approver.
+  - **Dead click.** `openAttachment` called `window.open` _after_ an `await`, so
+    it was no longer a user gesture and the browser blocked the popup. It now opens
+    the tab synchronously up front, then points it at the signed URL once fetched.
+  - **Wrong origin.** The signed URL from the local storage adapter is
+    server-relative; `window.open` resolved it against the console origin. It is
+    now resolved against the API origin.
+  - Every open failure was swallowed silently. The user now gets a toast on
+    failure — new `approvalsInbox.attachmentOpenFailed` string across all 10
+    locales.
+
+- 20bd014: fix(approvals): Approval Center density + amount emphasis (#2762 P2)
+
+  - **Column rebalance** — the inbox table gave five auto columns equal width,
+    leaving 审批事项 (Request) over-wide next to a cramped 状态 (Status). The
+    Record column (the primary content) now gets the widest share, Request a
+    moderate one, and Status/Submitted fixed widths so they never crowd.
+  - **Lead with the amount** — the drawer summary card now surfaces the
+    decision-critical amount as a filled figure at the top of the card instead
+    of burying it in the generic field grid (and drops it from that grid so it
+    shows once).
+
+  Also verified two P2 items need no change: light mode already works —
+  `ConsoleShell` mounts `ThemeProvider defaultTheme="system"` (follows the OS
+  `prefers-color-scheme`) with a `ModeToggle`, and the page's own classes carry
+  full light/dark variants; and the queue already has a bulk approve/reject
+  toolbar for the select-all/per-row selection.
+
+- 3e886eb: fix(i18n): localize FileField upload widget + approvals snapshot field labels
+
+  - `FileField` (the shared upload widget) hard-coded every visible string
+    ("Drag & drop files here", "or click to browse", "Take photo", "Uploading…",
+    size/upload validation messages, …). They now route through
+    `useObjectTranslation` with new `fields.file.*` keys, translated across all
+    10 locale bundles. This is why the approvals Approve/Reject dialog's
+    attachment dropzone was English in a Chinese console.
+  - The approvals inbox record-snapshot summary title-cased raw machine keys
+    instead of the target object's field labels. It now consumes the
+    server-sent `payload_labels` in `payloadSummary`/`decisionAmountEntry`,
+    falling back to the prettified key when absent; `approvalsApi`'s row type
+    gains `payload_labels`.
+
+- 072330d: fix(console): let a screen flow be completed from the developer Flow Runs page (framework#3528)
+
+  Developer → Flow Runs triggers a flow and renders the result. For a **screen**
+  flow that result is not a result — it is `{ status: 'paused', runId, screen }`,
+  and the run sits suspended until something posts to its resume endpoint. The
+  panel dumped that envelope as JSON and stopped: no screen, no Submit, no resume
+  call. Every test run of a screen flow left an orphaned `paused` row in Recent
+  Runs, and there was no way to drive one to completion from this surface.
+
+  - **console** — a paused test run now opens the same `FlowRunner` the record and
+    list surfaces use, so the screen renders for real (flat fields, multi-step
+    wizards, and `object-form` steps with their master-detail grids) and Submit
+    posts to `/automation/:flow/runs/:runId/resume`. Dismissing the runner no
+    longer strands the run: the pause is durable, so the panel keeps a "Continue
+    run" affordance to reopen the pending screen. `paused` also gets its own
+    status badge instead of falling through to the unknown-status style.
+  - **app-shell** — `FlowRunner` (and its `ScreenFlowState` / `ScreenSpec` types)
+    is now exported from the package so surfaces outside `views/` can mount the
+    one screen-flow runner rather than reimplementing it.
+  - **app-shell** — `FlowRunner` now wraps the screen body in its own `<Suspense>`
+    boundary. An `object-form` step mounts `ObjectForm`, whose field widgets are
+    lazy; that suspension used to unwind to the _host's_ nearest boundary, and on
+    a surface whose nearest boundary is the route-level one, React swapped the
+    whole page for the fallback and remounted it — destroying the host's state
+    along with this dialog. The screen vanished before it could be filled in and
+    the run stayed paused with no resume call, which is exactly the "Submit does
+    nothing" shape. Reproduced on the Flow Runs page and fixed at the source, so
+    every host that mounts the runner is covered.
+  - **app-shell** — a screen payload without `fields` no longer throws. `fields`
+    is optional on the wire (a message-only screen, or an `object-form` step from
+    a node executor that omits it), but `FlowRunner`/`ScreenView` read it
+    unguarded and blew up as the dialog mounted. Reads now go through a
+    `screenFields()` helper; the design-time builder keeps its exhaustive shape.
+
+- b076050: fix(console,runner): the approvals inbox renders against one ticking clock, and both packages now run ESLint
+
+  `apps/console` and `packages/runner` had no `lint` script, so `turbo run lint`
+  skipped them silently and their 17 ESLint **errors** had never been seen
+  (#2923 declared them as DEBT; this closes the gap). Both now carry
+  `"lint": "eslint ."` and the `DEBT` list in `scripts/check-lint-coverage.mjs`
+  is empty — every workspace package is linted.
+
+  What the errors actually were, once read one by one:
+
+  - **8x `react-hooks/purity` — real, and user-visible.** The approvals inbox
+    read `Date.now()` mid-render for every age tint, "5m ago" label and SLA chip.
+    Render must be pure: the output depended on when React happened to render, so
+    it disagreed with itself under StrictMode's double render and then **froze** —
+    an inbox left open kept saying "just now" and an SLA countdown never counted
+    down. The page now renders against a single `now` held in state and advanced
+    once a minute (the finest granularity anything here displays), so render is a
+    pure function of props+state _and_ the figures actually tick.
+  - Alongside that, `sla_due_at` is now parsed through a guard. A due date the
+    backend sends in a shape `Date.parse` can't read used to render as
+    "SLA NaNh left"; it now renders nothing.
+  - **1x `react-hooks/static-components` — real.** `StatusBadge` was declared
+    inside `ApprovalsInboxPage`, making it a brand-new component type on every
+    render, so React unmounted and remounted every status chip in the table each
+    time the page re-rendered. Hoisted to module scope, with the translated label
+    passed as a prop.
+  - **6x `react-hooks/static-components` — false positives** (3 in the console's
+    settings pages, 3 in the runner's `LayoutRenderer`). All six render the result
+    of `getIcon`/`getLazyIcon`, which memoises per name in a module-level cache —
+    the component reference is stable across renders and nothing is created during
+    render. The rule cannot see through the call, so these carry the same targeted
+    `eslint-disable-next-line` + justification the repo already uses at a dozen
+    icon-registry sites, and the resolvers themselves now say so in a comment.
+    (Verified rather than assumed: typing into a settings field keeps focus and
+    every character, so no state was ever being reset there.)
+  - **2 minor.** A dead `token` initializer on the console's auth preflight path
+    (`no-useless-assignment` — read, not blind-deleted: no intended write was
+    missing, every path out of the try/catch either assigns or returns), and a
+    `prefer-const` in the SDUI workbench preview.
+
+- 9b4b952: fix(i18n): make `en` the complete source of truth for grid import and set-password (objectui#2872 b/c)
+
+  The `en` and `zh` packs had drifted in both directions, silently, because
+  `fallbackLng: 'en'` degrades a missing key into English rather than an error and
+  the missing-key handler only fires in dev.
+
+  - **74 keys existed only in `zh`.** `grid.import.*` and `auth.setPassword.*` had
+    never been added to `en`, so no other locale could translate them: the English
+    text came from call-site `defaultValue:` args and a private map inside
+    `ImportWizard`. They now live in `en`, which is what translators and
+    `os i18n extract` read.
+  - **4 `en` keys were missing from `zh`** (`console.commandPalette.title`,
+    two `console.ai.suggestions.metadataAssistant.*`, `help.keyboardShortcuts`),
+    so Chinese users saw English.
+
+  `grid.import` in particular had three disagreeing sources — the `en` pack (62
+  keys), `zh` (130) and `ImportWizard`'s own fallback map (133), union 134, no two
+  the same set. All three are now aligned on 134.
+
+  The wizard's fallback map is kept, not deleted: it is what lets the wizard render
+  with no `I18nProvider` mounted (standalone embedding, unit tests). It is instead
+  pinned to the `en` pack by a new test, so the two can no longer drift.
+
+  `SetPasswordPage` drops its now-redundant inline `defaultValue:` args; the text
+  is byte-identical, it just comes from the pack now.
+
+  Adds two guards, both mutation-verified:
+  - `en` ↔ `zh` full key parity, asserted in both directions. The other eight
+    packs are still ~357 keys behind and are tracked separately (objectui#2872
+    part a), so they are deliberately not asserted yet.
+  - `IMPORT_DEFAULT_TRANSLATIONS` ↔ `en.grid.import`, same keys and same text.
+
+- 5b9cf96: fix(plugin-map): drop the `maplibre-gl@6` default import, and put type-check behind a CI gate that cannot be silently skipped (#2911)
+
+  `maplibre-gl@6.0.0` removed its default export (arrived via #2848, dependabot),
+  so `ObjectMap.tsx`'s `import maplibregl from 'maplibre-gl'` has been a TS1192
+  error on `main` for a day. The binding was never used — the map instance comes
+  from `react-map-gl/maplibre`, and the stylesheet from the side-effect import on
+  the next line — so the import is simply deleted rather than rewritten to
+  `import * as`.
+
+  Removing it is runtime-neutral, which the issue had explicitly left unverified.
+  `@vis.gl/react-maplibre` (what `react-map-gl/maplibre` re-exports) does
+  `Promise.resolve(mapLib || import('maplibre-gl'))` in `components/map.js`, so it
+  loads the library itself when no `mapLib` prop is passed. Verified in a browser
+  against the `store-locator-map` catalog schema: `maplibre-gl` is fetched as its
+  own lazy chunk, the WebGL canvas comes up 800x600, and all three markers mount —
+  byte-identical probe output with and without the static import. That also matches
+  what `apps/console/src/main.tsx` already intends, where the plugin is registered
+  lazily specifically to keep `maplibre-gl` out of the initial bundle.
+
+  **The reason it survived a day of green CI is the part worth fixing.** No
+  workflow ran `type-check` at all, and `turbo build` only checks types for
+  packages whose `build` script happens to invoke `tsc` — the 22 `vite build`
+  packages transpile without checking. A sweep of all 45 packages found ten with
+  broken types, `plugin-map` merely being the one that had a script to notice it.
+
+  Adding a `pnpm type-check` job alone would not have been a gate: **turbo silently
+  skips any package with no `type-check` script**, so 17 packages read as passing
+  because nothing ran. With `plugin-map` fixed, `pnpm type-check` reports 63/63
+  green while nine packages are still broken. So:
+
+  - `plugin-ai` and `plugin-report` gain the `paths` override their type-checked
+    peers already carry, which detaches workspace deps from sibling _source_ and
+    resolves them through built `.d.ts` — the sole cause of the 104-error TS6059
+    `rootDir` floods, and the same trick their own `vite.config.ts` already applies
+    to the dts program.
+  - Seven packages gain `"type-check": "tsc --noEmit"` (`plugin-ai`,
+    `plugin-report`, `plugin-dashboard`, `create-plugin`, `console`, and the two
+    console examples). Coverage goes 28 -> 35 of 45.
+  - New `scripts/check-type-check-coverage.mjs` makes the invisibility impossible:
+    a package with no `type-check` script must be declared, with a reason, and the
+    lists only shrink — gaining a script without deleting the entry fails the
+    guard. The nine known-broken packages are recorded there with error counts
+    (`@object-ui/runner` has no `tsconfig.json` at all), tracked as follow-ups.
+  - New `Type Check` CI job runs the coverage guard first (instant, no install),
+    then `pnpm type-check`.
+
+  Both halves were proven to fail before being trusted: the guard was exercised in
+  all four of its failure modes, and re-introducing the `maplibre-gl` import turns
+  the job red again, as does a fresh error injected into `plugin-ai` — a package
+  that had no type checking whatsoever before this change.
+  - @object-ui/react-runtime@17.0.0
+  - @object-ui/sdui-parser@17.0.0
+
 ## 16.1.0
 
 ### Patch Changes

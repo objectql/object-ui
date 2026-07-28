@@ -1,5 +1,421 @@
 # @object-ui/types
 
+## 17.0.0
+
+### Major Changes
+
+- 662bdf9: fix(fls): wire the real per-caller FLS channel into import targets and grid
+  columns; remove the never-populated `field.permissions` shape (objectstack#3661)
+
+  The `permissions?: { read?, write?, edit? }` key on `@object-ui/types` field
+  definitions (Phase 3.2.6) was declared-but-never-enforced: no producer in the
+  stack ever populated it, so every guard reading it short-circuited to "allow".
+  Per ADR-0049 enforce-or-remove, the shape is deleted and the three consumers
+  now use the server-resolved `/auth/me/permissions` channel
+  (`usePermissions().checkField`) — the same channel ObjectForm/ModalForm/ListView
+  already enforce:
+
+  - **ImportWizard target fields (app-shell `ObjectView`)**: the importable
+    field set (and thus the downloadable CSV template's columns) now drops
+    fields the caller cannot edit, instead of offering columns the server's
+    FLS write gate would 403.
+  - **ObjectGrid auto-derived columns**: columns the caller cannot read are
+    dropped (same gate ListView applies), instead of a dead schema-shape check.
+  - **ObjectForm**: the redundant dead guard in field generation is removed;
+    the existing `applyFieldPerms` gate remains the real enforcement point.
+
+  BREAKING CHANGE: `@object-ui/types` field definitions no longer accept a
+  `permissions` key. It never carried data at runtime; consumers needing
+  per-caller field-level permissions must use `@object-ui/permissions`
+  (`MePermissionsProvider` + `useFieldPermissions`/`checkField`).
+
+### Minor Changes
+
+- 1767124: feat(grid): compute all eleven spec column summary aggregations (#2890)
+
+  `ColumnSummarySchema` accepts eleven aggregation names; `useColumnSummary` computed
+  five. The other six — `none`, `count_empty`, `count_filled`, `count_unique`,
+  `percent_empty`, `percent_filled` — passed validation at authoring time and then
+  rendered a blank footer cell, with no error raised on either side.
+
+  The computation now splits into two families. Count and percent read _raw_ cell
+  values, before the numeric parse, so they work on text, select and lookup columns and
+  a value that does not parse as a number still counts as a filled row; a cell is empty
+  when it is `null`, `undefined`, `""` or an empty array. `sum`/`avg`/`min`/`max` keep
+  the existing numeric parse and column formatting.
+
+  Two behavior changes follow from the enum carrying both `count` and `count_filled`,
+  which cannot mean the same thing:
+
+  - `count` is now every row; `count_filled` is the non-empty variant. Only a column
+    whose values are all empty renders differently than before.
+  - a zero count renders `Empty: 0` instead of collapsing to a blank cell.
+
+  Column currency/percent formatting is gated to the numeric family, so `count_unique`
+  on a currency column reads `Unique: 3` and not `$3.00`. `none` and unrecognized names
+  skip the entry entirely, so a view whose columns all opt out renders no footer row.
+
+  `ListColumnSchema`'s objectui-local `{ type, field }` arm now takes its vocabulary
+  from `SpecColumnSummarySchema` by reference — it was stuck at the same five names,
+  which left the per-column `field` override unavailable for the six new aggregations.
+
+  A parity test asserts the renderer's supported set equals the spec enum in both
+  directions: a spec name the renderer omits is the bug above, and a renderer name the
+  spec omits would be local dialect (Commandment #0).
+
+  **Removed:** `useColumnSummary` from `@object-ui/react`. It was a second, unrelated
+  hook of the same name with no callers — a different API, a comment claiming it
+  implemented spec v2.0.7, and a `distinct` aggregation that is not in the spec
+  vocabulary at all (the spec calls it `count_unique`). Use `useColumnSummary` from
+  `@object-ui/plugin-grid`, which implements the spec enum.
+
+- dfd3705: feat(types)!: drop the `ObjectStack/ObjectOS/ObjectQL/ObjectUI Capabilities` re-exports (framework capabilities-descriptor prune)
+
+  Upstream `@objectstack/spec` removed the dead static capability-descriptor
+  cluster (`ObjectStackCapabilitiesSchema` / `ObjectOSCapabilitiesSchema` /
+  `ObjectQLCapabilitiesSchema` / `ObjectUICapabilitiesSchema` + their types) —
+  a never-wired fixed-boolean self-portrait whose defaults contradicted the
+  live platform (FLS/RLS/audit all `default(false)` while actually enforced).
+  This drops the `@object-ui/types` re-exports of those symbols.
+
+  **Migration**: discover real runtime capabilities at runtime, not from a
+  static schema — `GET /api/v1/discovery` (dynamic `capabilities` record with
+  declared === enforced discipline) and the `/.well-known` contract
+  (`WellKnownCapabilitiesSchema` from `@objectstack/spec/api`). No replacement
+  re-export.
+
+- 059a052: feat(report)!: drop `SpecReportColumn`/`SpecReportGrouping` re-exports + retire the legacy ReportViewer chart fallback (#3463)
+
+  Cross-repo close-out of the ADR-0021 report cleanup (framework #3463). Upstream
+  `@objectstack/spec` removed the dead `ReportColumnSchema` / `ReportGroupingSchema`
+  and the unread report `chart.groupBy`; this drops their objectui mirrors and the
+  now-orphaned legacy report chart path.
+
+  - **types**: removed the `SpecReportColumn` / `SpecReportColumnInput` /
+    `SpecReportGrouping` / `SpecReportGroupingInput` type re-exports and the
+    `SpecReportColumnSchema` / `SpecReportGroupingSchema` value re-exports from
+    `@object-ui/types` (they aliased the deleted upstream symbols). The live
+    report shape is dataset-bound — `SpecReport` with `dataset` + `values`
+    (measure names) + `rows` / `columns` (dimension names).
+  - **app-shell**: `ReportView` now renders every report through the spec
+    `ReportRenderer` dispatcher (dataset → `DatasetReportRenderer`, stored pre-9.0
+    JSON → presentation bridge, pre-spec `{ data, columns }` → `LegacyReportRenderer`).
+    Deleted the `ReportViewer` last-resort branch, the `mapReportForViewer`
+    spec→legacy chart-section adapter (the sole producer of `xAxisField` /
+    `yAxisFields`), and the now-dead data-fetch loading flag. No shipped report
+    metadata reached the removed branch — the Studio inspector only ever writes
+    the dataset-bound shape.
+  - **plugin-report**: removed the `ReportViewer` chart-section branch. It read
+    the invented `xAxisField` / `yAxisFields` (never the spec's `xAxis` / `yAxis`)
+    and was only fed by the deleted `mapReportForViewer`. `ReportViewer` itself is
+    retained — its table / summary / text sections still back the `report-viewer`
+    registered component and the pre-9.0 presentation bridge.
+
+  **Migration**: nothing an author writes changes. TypeScript consumers importing
+  `SpecReportColumn*` / `SpecReportGrouping*` from `@object-ui/types` have no
+  replacement type — model report columns as the dataset's measure names and
+  grouping as its dimension names.
+
+### Patch Changes
+
+- 8ecf5a6: Command palette (⌘K) now surfaces record search hits from the platform's global
+  search endpoint (`GET /api/v1/search`).
+
+  Previously the palette only ran a per-object `find({ $search })` fanout (the
+  metadata-driven ADR-0061 search), which misses records that only the global
+  search index knows about — so typing a well-known record name returned no
+  records even though `/api/v1/search` served them. `ObjectStackAdapter` now
+  exposes a `searchAll(query, { limit, objects })` method that calls the unified
+  endpoint, `useRecordSearch` prefers it when present (falling back to the fanout
+  otherwise), and the palette renders the resulting record hits grouped by object.
+
+- 6dee2cb: feat(form): consume spec-aligned FormView buttons/defaults in ObjectForm
+
+  The authored `@objectstack/spec` FormViewSchema carries structured
+  `buttons.{submit,cancel,reset}.{show,label}` and `defaults`, but the form
+  renderer only read the flat renderer-invented `showSubmit`/`submitText`/
+  `showCancel`/`cancelText`/`showReset`/`initialValues`. That left the two spec
+  keys parsed-but-inert (ADR-0078) and stuck at `experimental` in the spec
+  liveness ledger.
+
+  `ObjectForm` now folds the structured shape down onto those flat props inside
+  its existing normalization pass, so every entry path (ObjectView
+  drawer/modal/page, RecordFormPage) honors it. An explicitly-set flat key still
+  wins, so metadata authored against the deprecated flat keys is unchanged.
+  `ObjectView` and `RecordFormPage` forward `buttons`/`defaults` from the spec
+  form view. `ObjectFormSchema` gains the optional `buttons`/`defaults` fields.
+
+  Refs objectstack-ai/objectstack#1894, objectstack-ai/objectstack#2998.
+
+- c7cff19: feat(plugin-grid): "Import as historical data" option in the Import Wizard (framework #3479)
+
+  Adds a checkbox to the Import Wizard's options panel that sends `treatAsHistorical`
+  on the import request. When on, the server skips the object's `state_machine` rule so
+  mid-lifecycle rows — a batch of already-`closed` tickets, `closed_won` deals — aren't
+  rejected by `initialStates`. Off by default: a normal import still walks the FSM, so
+  the exemption is always an explicit opt-in.
+
+  Pairs with the framework side (objectstack #3483). `ImportRequestOptions.treatAsHistorical`
+  is added to `@object-ui/types`, and `assembleImportRequest` threads it through both the
+  inline and named-mapping request shapes (sent only when on).
+
+- cd09a7b: refactor(views): ListView reads the spec-canonical `columns`, with legacy `fields` folded in one normalizer (#2890 scope A step 1)
+
+  `ListViewSchema` has been derived from `@objectstack/spec/ui` since #2231, but
+  the renderer still spoke objectui's own vocabulary for the same concepts. First
+  rename closed: **`fields` → `columns`**.
+
+  Legacy acceptance does not disappear — stored view metadata in user databases
+  carries `fields` — but it now lives in exactly one place instead of being
+  re-implemented per read-site:
+
+  - **New `normalizeListViewSchema` (`@object-ui/core`)** folds `fields` into
+    `columns` (canonical wins when both are present) and drops the legacy key, so
+    a read-site that was missed fails loudly instead of quietly taking the legacy
+    path. It also absorbs the `viewType` renderability default ListView applied
+    inline. Non-mutating, idempotent, and returns its input by reference when
+    there is nothing to fold, so ListView's downstream memos keep a stable
+    dependency identity.
+  - **`ListView` normalizes once at the component boundary**, before anything
+    reads the schema. This is what guarantees the fold runs: nothing on the render
+    path parses view metadata through zod (the zod schemas serve the CLI
+    validator, the VS Code extension and tests), so a `z.preprocess` on
+    `ListViewSchema` — spec-side or local — would never execute.
+  - **Producers emit `columns`**: `ObjectView`'s `renderListView` payload,
+    `ObjectDataPage`, `InterfaceListPage` and the `list-view` registry defaults
+    had been _downgrading_ already-canonical `columns` config back to `fields`.
+
+  Two latent inconsistencies go away with it: the filter builder's
+  objectDef-not-loaded fallback now resolves `ListColumn.field` (it read only
+  `name`/`fieldName`, so object-form columns produced unnamed filter entries), and
+  the column list no longer depends on which of the two keys a host happened to
+  emit.
+
+  `fields` stays declared on `ListViewSchema` and in the drift guard's sanctioned
+  set — it is still valid input, and `@objectstack/spec`'s `react-blocks.ts`
+  sanctions it as the React-tier `<ListView fields>` prop — but it is input-only.
+
+- f1abf0e: fix(views): ListView reads the spec-canonical `filter`, so a view's base filter reaches every visualization (#2890 scope A step 4)
+
+  Third rename in the ListView vocabulary migration: **`filters` → `filter`**. Unlike
+  the first two this closes a live bug, because the fork was asymmetric.
+
+  `ListView` was the **only** surface in the repo reading `filters`. Every child
+  view — `ObjectGrid`, `ObjectGallery`, `ObjectKanban`, `ObjectCalendar`,
+  `ObjectGantt`, `ObjectMap`, `ObjectTree`, `ObjectChart` — reads `filter`, and
+  `ListView` handed them `filters`. Wherever a child fetches its own rows instead
+  of receiving `ListView`'s, the view's base filter was silently dropped:
+
+  - **a `chart` list view aggregated the whole object.** The chart branch built an
+    `object-chart` node with `filters:`; `ObjectChart` reads `schema.filter` and
+    never read `filters`, so a chart view with a base filter charted unfiltered
+    totals.
+  - the same applied to any of the other view components rendered standalone from
+    a list-view-shaped config.
+
+  Conversely, a **spec-authored** list view — one carrying `filter`, which is what
+  the spec says and what `runtime-metadata-persistence` and "Save as view" already
+  persist — rendered **unfiltered** in `ListView`, because nothing read that key.
+
+  The fold is a key rename only. Both keys carry an ObjectQL FilterNode array
+  everywhere in objectui; every consumer passes the value straight to `$filter`.
+  (The spec types `filter` as `ViewFilterRule[]` — `{field, operator, value}`
+  objects — so objectui's field is typed from the spec but used as something else.
+  That mismatch is real and left alone here: converting formats inside a
+  vocabulary fold would change what reaches the data source.)
+
+  Also collapses a duplicated computation in `app-shell`'s `ObjectView`, which
+  computed the same effective filter **twice** — once as `filter` for the child
+  views, once as `filters` for `ListView` — with the two copies subtly different
+  (only one fell back to `listSchema.filter`; only the other ran token
+  substitution over the URL filters). There is now one computation, keeping both
+  behaviors.
+
+  `filters` stays declared on `ListViewSchema` and in the drift guard's sanctioned
+  set — stored views carry it and it is still valid input — but it is input-only.
+
+- f05b84e: refactor(views): ListView resolves density from the spec-canonical `rowHeight` (#2890 scope A step 2)
+
+  Second rename in the ListView vocabulary migration: **`densityMode` → `rowHeight`**,
+  folded in the same `normalizeListViewSchema` that step 1 introduced.
+
+  Unlike `fields`/`columns` this is not a pure alias — the two vocabularies are
+  different sizes. The spec has five row heights (`compact`/`short`/`medium`/
+  `tall`/`extra_tall`); ListView's toolbar offers three densities
+  (`compact`/`comfortable`/`spacious`). Both directions now live in one place as
+  `DENSITY_MODE_TO_ROW_HEIGHT` / `ROW_HEIGHT_TO_DENSITY_MODE`, chosen so a fold
+  followed by a read is a round trip (`spacious` → `tall` → `spacious`), with the
+  narrowing collapse (`short` → `compact`, `extra_tall` → `spacious`) stated once
+  instead of being re-derived per call site.
+
+  Two behavior fixes fall out of it:
+
+  - **Precedence is no longer inverted.** `ListView` read `densityMode` _first_, so
+    a view carrying both keys rendered the legacy value — backwards from every
+    other legacy/canonical pair in the schema. The canonical key now wins.
+  - **The toolbar stops re-seeding the legacy key.** `ObjectView`'s
+    `onDensityChange` persisted `densityMode` into stored view metadata on every
+    density toggle, so the legacy vocabulary kept regrowing underneath the
+    migration. It persists `rowHeight` now.
+
+  `densityMode` stays declared on `ListViewSchema` and in the drift guard's
+  sanctioned set — stored views carry it and it is still valid input — but it is
+  input-only.
+
+- 53642d4: fix(core,fields): a string `$orderby` is a clause, not a character array — and localize the sharing-rule widgets (objectstack#3821)
+
+  **The recipient picker listed nothing, ever.** `QueryParams['$orderby']` was
+  typed as `Record | string[] | SortObject[]`, so `queryParamsToRecord` sent any
+  non-array value through `Object.entries`. Handed the clause string `'name asc'`
+  — which callers do build by hand — it walked the string index by index and
+  emitted `$orderby=0 n,1 a,2 m,3 e,4 ,5 a,6 s,7 c`. The server sorted by columns
+  that don't exist and every row was filtered out, so
+  `sys_sharing_rule.recipient_id` rendered "No matches" for every recipient type
+  and no sharing rule could be created from the Console. `ObjectGrid` builds the
+  same shape from a schema-level `sort` in three places, so grids with a string
+  sort silently showed an empty table.
+
+  A string `$orderby` is now passed through verbatim (the server's OData
+  normalizer has always parsed `'name asc'`), and the type admits `string`.
+  `RecipientPickerField` additionally switched to the structured
+  `{ name: 'asc' }` form so it can't regress this way against any data source.
+
+  **The three sharing-rule authoring widgets never had translations.**
+  `ObjectRefField`, `RecipientPickerField` and `FilterConditionField` hardcoded
+  their English copy — a Chinese Console showed "Select an object", "Select a
+  user", "Search…", "No matches", "Edit as JSON". They now go through
+  `useFieldTranslation` like every other widget, with keys added under `fields.*`
+  in all ten locales.
+
+  The recipient placeholder was the interesting one: it read
+  `` `Select a ${recipientType.replace(/_/g,' ')}` ``, interpolating the enum
+  value into an English sentence — a shape no locale can translate. It is now a
+  per-type key (`fields.recipient.selectUser`, `…selectBusinessUnit`, …), so
+  "选择业务单元" and "Select a business unit" no longer have to share a structure.
+
+  **Editing a rule silently dropped its recipient.** The picker resets the stored
+  id when `recipient_type` changes, because an id valid for a user is meaningless
+  for a team. It treated the edit form's `'' → 'user'` hydration as such a change:
+  opening any saved rule blanked the recipient, and saving persisted the blank.
+  Only a non-empty predecessor now counts as a type switch.
+
+  **Building a filter submitted the surrounding form.** None of `FilterBuilder`'s
+  controls declared `type="button"`, and a bare `<button>` inside a `<form>`
+  defaults to `type="submit"`. Adding, removing or clearing a condition therefore
+  submitted the sharing-rule dialog — firing validation mid-edit, and on an
+  already-valid form saving the record before the admin was done.
+
+  **A rejected write showed the user raw server diagnostics.** The form rendered
+  `error.message` verbatim, so a sharing / RLS denial reached the dialog and the
+  toast as `FORBIDDEN: insufficient privileges to update showcase_private_note
+pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and the
+  record id to whoever hit it. Permission failures now render localized copy
+  (`form.noPermissionToSave`, added in all ten locales), with the server text kept
+  on the console for debugging; other failures still show the server's message,
+  which is the useful part, and fall back to `form.submitFailed` when there is
+  none — replacing the previously hardcoded English "An error occurred during
+  submission".
+
+  **The detail header offered "Edit" on records the user may only read.** Object
+  permissions can't express "this one record is read-only" — a read-only sharing
+  grant sits inside an object the user may otherwise edit — so the header showed
+  the primary Edit CTA, opened the form, and let the user retype a field before
+  the server rejected the save. `DetailView` now gates Edit / Delete on the
+  object-level check AND on the explain engine's record-grained verdict
+  (`POST /api/v1/security/explain` with a `recordId`, ADR-0090 D6 / ADR-0095 C2 —
+  the same pipeline the enforcement middleware runs, so button and server cannot
+  disagree). Explaining oneself needs no special permission. The probe is one
+  cached request per record, skipped entirely when the object-level check already
+  says no, and **fails open** on every uncertainty — an unanswered hint must never
+  be the reason a permitted user cannot act; the server stays the authority
+  (ADR-0057 D10).
+
+  **A long option rendered straight past the combobox border.** `Combobox`'s
+  trigger pinned itself to the component's `w-[200px]` default while the fields
+  around it ran the full form column, and the selected label was a bare text child
+  of a flex button — flex items need `truncate` AND `min-w-0` to clip, and it had
+  neither. So "成员 (showcase_project_membership)" in the object picker overflowed
+  the control and collided with the field beside it. The label now truncates, the
+  trigger can shrink, the dropdown matches the trigger's width instead of a
+  hardcoded 200px (a widened combobox used to clip its own options), and the two
+  sharing-rule pickers ask for `w-full` so they line up with every other input.
+
+  Hardens `evaluatePermission` while there: a role config carrying only
+  `fieldPermissions` (no `actions`) made `check()` throw a TypeError that
+  propagated out of the render. A permission check must not be able to crash a
+  view.
+
+  Browser-verified against the framework showcase Console in Chinese: object /
+  criteria / recipient copy is fully localized, the recipient dropdown lists real
+  users, business units and positions, a saved rule reopens with its recipient and
+  criteria intact, editing the filter no longer submits, and a rule created
+  end-to-end stores a real record id rather than free text. The criteria authored
+  in the builder is honored by the evaluator: `{"pinned":true}` on an owner-private
+  object granted the recipient exactly the matching records and nothing else.
+
+- 8aae006: fix(views): the five per-view-type configs speak the spec vocabulary (#2231 phase 3)
+
+  `kanban`/`calendar`/`gantt`/`gallery`/`timeline` on `ListViewSchema` were the last
+  hand-written forks left after #2882 — and the fork was not cosmetic: objectui named
+  the same concepts differently from `@objectstack/spec/ui`, and several read-sites
+  only understood one of the two dialects. Two of those gaps were live bugs.
+
+  **Kanban lanes ignored the spec key.** `ListView` gated the Kanban tab on
+  `groupByField || groupField` but rendered lanes off `groupField` alone. A config
+  authored with the spec key — which is exactly what the product's own
+  `CreateViewDialog` emits — offered the tab and then grouped by whatever
+  `detectStatusField()` guessed. The spec's `columns` (the fields shown on each card)
+  was also spread onto the board verbatim, where `columns` means _lanes_, so
+  `ObjectKanban` built lanes with `undefined` id and title. `columns` now maps to
+  `cardFields` and the vocabulary keys are stripped from the passthrough.
+
+  **Timeline lost every spec key in app-shell.** `ObjectView`'s `timeline` branch was
+  a three-key whitelist while its `gallery`/`gantt` siblings had already been fixed to
+  spread-first, so a stored `timeline: { startDateField, endDateField, groupByField,
+colorField, scale }` arrived with only `titleField` and an axis pinned to the
+  `'due_date'` fallback.
+
+  Also: `plugin-view`'s `ObjectView` now reads `gallery.coverField` and
+  `timeline.startDateField` (it only understood the legacy aliases), and the dead
+  `gallery.subtitleField` is removed — three producers computed it and `ObjectGallery`
+  never read it.
+
+  The schema side now derives from the spec configs (`.partial()`, since the product
+  authors partial configs and spec marks `columns`/`titleField`/`startDateField`
+  required). `gantt` needed no local schema at all. The pre-#2231 names
+  (`groupField`, `cardFields`, `imageField`, `dateField`) remain accepted as deprecated
+  aliases so stored views keep validating; the spec key wins wherever both appear.
+  `calendar.defaultView` stays local — it has no spec counterpart.
+
+- d147a13: refactor(types): retire the hand-written @objectstack/spec/ui sub-schema mirrors (#2231 phase 2)
+
+  The zod schemas that carried a "Mirrors @objectstack/spec/ui X" header are now the
+  spec's schemas **by reference** instead of hand-maintained copies, closing the
+  double-maintenance / silent-divergence gap the same way #2622 did for `ListViewSchema`:
+
+  - `objectql.zod.ts` — `HttpMethodSchema`, `HttpRequestSchema`, `ViewDataSchema`,
+    `SelectionConfigSchema`, `PaginationConfigSchema` are direct re-exports.
+    `ListColumnSchema` derives from the spec base plus the two sanctioned
+    objectui-only extensions: `prefix` (ObjectGrid compound cells) and a broadened
+    `summary` (the spec `ColumnSummarySchema` enum ∪ the `{ type, field }` object
+    form `useColumnSummary` supports).
+  - `theme.zod.ts` — `ColorPaletteSchema`, `TypographySchema`, `SpacingSchema`,
+    `BorderRadiusSchema`, `ShadowSchema`, `BreakpointsSchema`, `AnimationSchema`,
+    `ZIndexSchema`, `ThemeModeSchema`, `ThemeLogoSchema`, `ThemeDefinitionSchema`
+    all resolve to the spec's schemas.
+
+  Validation deltas picked up from the spec (drift the mirrors had accumulated):
+  `ViewDataSchema` gains the `provider: 'schema'` variant; `HttpRequestSchema.method`,
+  `SelectionConfigSchema.type` and `PaginationConfigSchema.pageSize` now apply spec
+  defaults on parse; `ListColumnSchema.summary` accepts the full spec aggregation
+  vocabulary but no longer accepts arbitrary strings; `AnimationSchema.timing` keys are
+  the spec's snake_case (`ease_in` — what the runtime reads) instead of the mirror's
+  camelCase; `ThemeDefinitionSchema` gains `density`/`wcagContrast`/`rtl`/`touchTarget`/
+  `keyboardNavigation` and its `mode` default follows the spec (`'light'`).
+
+  A new drift-guard (`spec-subschema-parity.test.ts`) asserts reference identity for
+  every re-export, so re-forking — including a faithful copy — fails CI.
+
 ## 16.1.0
 
 ### Minor Changes

@@ -1,5 +1,187 @@
 # @object-ui/plugin-chatbot
 
+## 17.0.0
+
+### Patch Changes
+
+- cfc675e: fix(i18n): unconditional Chinese in the chatbot confirm card and the field inspector (objectui#2884, objectui#2885)
+
+  Two issues split out of the objectui#2871 survey because neither is a language
+  _branch_ — both are copy that renders in Chinese for every user regardless of
+  locale.
+
+  **objectui#2884 — the confirm-before-change card.** Heading, buttons, hint and
+  the verb column of each change row were Chinese literals, so an English user
+  read the whole confirm gate in Chinese. They now follow the same
+  prop-with-English-default convention the plan card already uses
+  (`changesTitleLabel`, `changesConfirmLabel`, `changeVerbLabels`, …), with the
+  console passing translated values from `console.ai.*`.
+
+  The serious half was the outbound message. Clicking Confirm sent
+  `'确认修改，应用你刚才提议的改动。'` unconditionally — an English user's click
+  told the agent, in Chinese, to apply the changes, and the agent answered in
+  Chinese for the rest of the thread. That message now routes through the same
+  `convZh` (conversation-language) switch as `planApproveMessage`, so it matches
+  the language actually being spoken rather than the UI or a hard-coded literal.
+
+  Note this is deliberately _not_ "always send English": the repo already decided
+  outbound agent text follows the CONVERSATION, and the cloud confirm gate
+  (`service-ai-studio` `confirm-gate.ts` `APPROVAL_RE`) matches on approval
+  keywords. The Chinese string is unchanged, so that path is byte-for-byte what
+  the gate already accepted; `i18n.test.ts` now pins it against the mirrored gate
+  regex alongside the two plan messages.
+
+  Also in this component: the error banner's `Response failed` / `Details` /
+  `Retry` were hard-coded English, and both it and the quota banner used a bare
+  `t(key)` that renders the raw key when the chat is mounted without an
+  `I18nProvider`. Both now use `useSafeTranslate`, so they degrade to English
+  instead of to `chatbotError.title`. The `「…」` corner brackets around the
+  target-app name are now neutral quotes.
+
+  **objectui#2885 — the draft-field suffix.** `ObjectFieldInspector` appended a
+  bare `(草稿)` to draft objects in the lookup picker — the only Chinese literal
+  in a 1500-line file where the other 101 strings all go through `t(key, locale)`.
+  It now reads `engine.inspector.draftSuffix` from the Studio catalog.
+
+  The 18 new keys were added to all ten locale packs, so the objectui#2872 part
+  (a) gap held at 469/471 rather than widening.
+
+- 0502a7c: fix(i18n): the change card's Confirm button sent text the cloud gate does not accept
+
+  The English `console.ai.changesConfirmMessage` was
+  `"Confirm the changes — apply what you just proposed."`. The cloud confirm gate
+  (`service-ai-studio` `confirm-gate.ts` `APPROVAL_RE`) recognises
+  `apply (this|the) change` — **not** "apply what". So the message failed the
+  gate, and failing the gate is silent: the agent re-proposes instead of applying,
+  and the Confirm button on the change card simply looks inert.
+
+  This affected English conversations **and all eight locales that fall back to
+  English** for that key. It is now
+  `"Confirm — apply the change you just proposed."` — singular "the change", so it
+  still matches if the gate ever tightens to a word boundary. The Chinese string
+  was always fine (`确认修改` hits the 确认-anchored clause) and is unchanged.
+
+  The same literal lives in four places — the locale pack, the
+  `ChatbotEnhanced` prop default, its doc comment, and the `AiChatPage`
+  `defaultValue` — and all four are updated together.
+
+  **Why the existing guard missed it.** `i18n.test.ts` mirrored only the _Chinese_
+  clause of `APPROVAL_RE`; the English half was reduced to "starts with Confirm,
+  contains apply" because nothing in this repo could see the real pattern. That
+  weaker assertion passed against a string the gate rejected — the guard was
+  green and the feature was broken.
+
+  The mirror is now **verbatim, both clauses**, and drives an `it.each` over every
+  outbound approval message in both `zh` and `en`. Two supporting tests keep it
+  honest: one asserting the gate stays narrow (a plain build request like
+  "帮我搭建一个 CRM" must NOT read as approval), and one asserting
+  `planAnswerMessage` does _not_ match — it answers a structure question and must
+  never read as blanket approval.
+
+  The mirror is duplicated across a repo boundary by necessity (objectui cannot
+  import from cloud); the comment says so, so the next person changing
+  `APPROVAL_RE` knows to update it here too.
+
+- 263f885: fix(i18n): delete the four `pick({en,zh})` clones (objectui#2871, part 2)
+
+  Four files each carried an identical private resolver:
+
+  ```ts
+  function pick(label: I18n): string {
+    const lang = document.documentElement.getAttribute("lang") || "en";
+    return lang.toLowerCase().startsWith("zh") ? label.zh : label.en;
+  }
+  ```
+
+  Only Chinese was ever handled, so ja/ko/de/fr/es/pt/ru/ar silently rendered
+  English — and because the copy was baked into the components as inline
+  `{en, zh}` pairs, no translator could reach it. All four copies are deleted
+  along with their `I18n` type alias.
+
+  Migrated to the locale packs, **all ten languages**:
+
+  - `excelImport.*` (8 keys) — `ExcelImportBar`. The completion toast becomes a
+    proper `{{count}}` / `{{object}}` interpolation instead of a template literal
+    baked into both language variants.
+  - `cloudOnboarding.*` (5 keys) — `CloudOnboardingNext`, the Cloud welcome page.
+  - `aiModelStatus.*` (11 keys) — `CloudAiModelStatus`, including the
+    `sourceLabel()` enum→prose helper (now `t`-driven with a `{{source}}`
+    placeholder) and the three `ModelRow` labels. The conditional
+    `(HTTP nnn)` fragment becomes two whole sentences rather than a string
+    spliced mid-clause, which is not translatable into every word order.
+  - `chatbotQuota.*` (4 keys) — the AI quota banner in `ChatbotEnhanced`.
+
+  The chatbot banner keeps choosing between the server's `quota.message` (zh) and
+  `quota.messageEn` — that pair is server-owned — but now decides using the
+  console's active language instead of `navigator.language`, which had ignored
+  the in-app locale switcher entirely.
+
+  `CloudOnboardingNext`'s tests now render inside a real `I18nProvider`; without
+  one `t()` returns the raw key, so the previous assertions on literal English
+  were asserting nothing.
+
+  This completes the `pick()` cluster from #2871. The remaining
+  `startsWith('zh')` sites are the ones that classification marked KEEP —
+  `LoadingScreen` (bootstrap, selects real locale packs before i18next is up),
+  `conversationLanguage` (detects the chat's language for the agent, not UI
+  copy), `containers.tsx` (normalises author-supplied schema data; its `'与'`
+  separator is a CJK typography rule), and the Studio catalog / `field-types.ts`
+  data catalog.
+
+- Updated dependencies [7b21891]
+- Updated dependencies [0b3be01]
+- Updated dependencies [3c4d935]
+- Updated dependencies [4b60d2d]
+- Updated dependencies [952b978]
+- Updated dependencies [de5e40c]
+- Updated dependencies [1a03af6]
+- Updated dependencies [3e886eb]
+- Updated dependencies [cfc675e]
+- Updated dependencies [20df08c]
+- Updated dependencies [1767124]
+- Updated dependencies [8ecf5a6]
+- Updated dependencies [af705b9]
+- Updated dependencies [0502a7c]
+- Updated dependencies [7b35e4b]
+- Updated dependencies [8fb1295]
+- Updated dependencies [e16ed2d]
+- Updated dependencies [c6fd752]
+- Updated dependencies [f9bbddb]
+- Updated dependencies [dfd3705]
+- Updated dependencies [c77108c]
+- Updated dependencies [2735de6]
+- Updated dependencies [c19ac11]
+- Updated dependencies [6dee2cb]
+- Updated dependencies [e05f052]
+- Updated dependencies [0502a7c]
+- Updated dependencies [faad45e]
+- Updated dependencies [09c6a17]
+- Updated dependencies [c7cff19]
+- Updated dependencies [ba73a02]
+- Updated dependencies [cd09a7b]
+- Updated dependencies [f1abf0e]
+- Updated dependencies [f05b84e]
+- Updated dependencies [9b4b952]
+- Updated dependencies [2f947e4]
+- Updated dependencies [7d46648]
+- Updated dependencies [9b53d72]
+- Updated dependencies [bb4aa25]
+- Updated dependencies [75f1cdf]
+- Updated dependencies [662bdf9]
+- Updated dependencies [059a052]
+- Updated dependencies [53642d4]
+- Updated dependencies [8aae006]
+- Updated dependencies [c6cfdf1]
+- Updated dependencies [d147a13]
+- Updated dependencies [c6aaed8]
+- Updated dependencies [263f885]
+- Updated dependencies [dc334da]
+  - @object-ui/components@17.0.0
+  - @object-ui/i18n@17.0.0
+  - @object-ui/react@17.0.0
+  - @object-ui/types@17.0.0
+  - @object-ui/core@17.0.0
+
 ## 16.1.0
 
 ### Patch Changes

@@ -1,5 +1,228 @@
 # @object-ui/react
 
+## 17.0.0
+
+### Major Changes
+
+- c77108c: refactor(spec-bridge): remove the dead page/dashboard bridges (#1892)
+
+  `SpecBridge`'s `page` and `dashboard` bridges — `bridgePage`, `bridgeDashboard`,
+  and the `SpecBridge#transformPage` / `#transformDashboard` methods — had no
+  runtime consumer. Pages render through their own renderer and dashboards
+  through `DashboardView → DashboardRenderer → DatasetWidget` (ADR-0021); neither
+  path routes through `SpecBridge`. The dashboard bridge's input shape
+  (`object` / `categoryField` / `valueField` / `aggregate`) is the pre-ADR-0021
+  widget model, which the strict `DashboardWidgetSchema` now rejects — so the
+  bridge could not receive a spec-valid dashboard even in principle.
+
+  Flagged dead by the metadata-liveness audit (framework #1878 / #1892). The
+  `list` and `form` bridges are unaffected and remain the live authoring path.
+
+  BREAKING CHANGE: the public exports `bridgePage`, `bridgeDashboard`, and the
+  `SpecBridge#transformPage` / `#transformDashboard` methods are removed. There
+  is no replacement — render pages and dashboards through their renderers
+  (`DashboardRenderer` / the page renderer) directly.
+
+### Minor Changes
+
+- 952b978: fix(detail): the approval band honors the node's `lockRecord` instead of assuming every approval locks (#2902)
+
+  A record detail page treated "a pending approval request exists" as "this
+  record is locked". An approval node declares `lockRecord` (default `true`), and
+  on `lockRecord: false` the server keeps accepting writes for the whole time
+  that node waits — so the console was asserting a lock the backend did not
+  enforce.
+
+  The label was the smaller half of it. The same conflated signal fed `canEdit`,
+  so the record-level inline-edit session was suppressed too: no pencils,
+  `enter()` a no-op. On a single-approver step — a department head or plant
+  manager, exactly the case `lockRecord: false` exists for, where the approver is
+  meant to fill in the missing detail before deciding — the capability was
+  unreachable from the UI. And a flow chaining nodes with different policies drew
+  one identical band for "edit freely" and "the server will reject your save with
+  `RECORD_LOCKED`", so the two states were indistinguishable until Save failed.
+
+  Approval state is now two signals:
+
+  - **`approvalPending`** — an approval is running. Drives the band and the recall
+    button, both meaningful whether or not the record is editable.
+  - **`locked`** — that approval also forbids edits, from the pending node's
+    `lock_record` (framework#3814, read off the same `node_config_json` snapshot
+    the server's record-lock hook reads).
+
+  The band renders two states: amber lock + "Locked for approval", or sky clock +
+  "In approval · editable", each with its own tooltip. Recall moved out of the
+  locked branch — an editable pending approval is just as recallable. Inline
+  editing stays live in the editable state.
+
+  `InlineEditProvider` takes a new optional `approvalPending` prop, defaulting to
+  `locked`, so a host that threads only `locked` renders exactly as before. The
+  record's `approval_status` field remains the fallback for backends with no
+  approvals API; it carries no node granularity, so it still reads as locked — as
+  does a pending request from a backend too old to report the policy.
+
+  New `detail.approvalPendingEditable` / `detail.approvalPendingTooltip` keys are
+  translated in all ten locales.
+
+- 1767124: feat(grid): compute all eleven spec column summary aggregations (#2890)
+
+  `ColumnSummarySchema` accepts eleven aggregation names; `useColumnSummary` computed
+  five. The other six — `none`, `count_empty`, `count_filled`, `count_unique`,
+  `percent_empty`, `percent_filled` — passed validation at authoring time and then
+  rendered a blank footer cell, with no error raised on either side.
+
+  The computation now splits into two families. Count and percent read _raw_ cell
+  values, before the numeric parse, so they work on text, select and lookup columns and
+  a value that does not parse as a number still counts as a filled row; a cell is empty
+  when it is `null`, `undefined`, `""` or an empty array. `sum`/`avg`/`min`/`max` keep
+  the existing numeric parse and column formatting.
+
+  Two behavior changes follow from the enum carrying both `count` and `count_filled`,
+  which cannot mean the same thing:
+
+  - `count` is now every row; `count_filled` is the non-empty variant. Only a column
+    whose values are all empty renders differently than before.
+  - a zero count renders `Empty: 0` instead of collapsing to a blank cell.
+
+  Column currency/percent formatting is gated to the numeric family, so `count_unique`
+  on a currency column reads `Unique: 3` and not `$3.00`. `none` and unrecognized names
+  skip the entry entirely, so a view whose columns all opt out renders no footer row.
+
+  `ListColumnSchema`'s objectui-local `{ type, field }` arm now takes its vocabulary
+  from `SpecColumnSummarySchema` by reference — it was stuck at the same five names,
+  which left the per-column `field` override unavailable for the six new aggregations.
+
+  A parity test asserts the renderer's supported set equals the spec enum in both
+  directions: a spec name the renderer omits is the bug above, and a renderer name the
+  spec omits would be local dialect (Commandment #0).
+
+  **Removed:** `useColumnSummary` from `@object-ui/react`. It was a second, unrelated
+  hook of the same name with no callers — a different API, a comment claiming it
+  implemented spec v2.0.7, and a `distinct` aggregation that is not in the spec
+  vocabulary at all (the spec calls it `count_unique`). Use `useColumnSummary` from
+  `@object-ui/plugin-grid`, which implements the spec enum.
+
+- c6cfdf1: feat(react)!: trim the dead device/preference delegates from
+  `useClientNotifications` (objectstack#3612 companion)
+
+  `registerDevice`, `getPreferences`, and `updatePreferences` delegated to
+  `@objectstack/client` methods that were deleted in objectstack#3612 — the
+  `/notifications/devices` and `/notifications/preferences` server routes they
+  targeted were never built, so every call already surfaced an error at
+  runtime. The hook keeps `fetchNotifications` and `markAsRead` (both
+  dispatcher-served and route-ledgered). Breaking only for code destructuring
+  the removed functions from the hook result; nothing in this repo did.
+
+### Patch Changes
+
+- 8ecf5a6: Command palette (⌘K) now surfaces record search hits from the platform's global
+  search endpoint (`GET /api/v1/search`).
+
+  Previously the palette only ran a per-object `find({ $search })` fanout (the
+  metadata-driven ADR-0061 search), which misses records that only the global
+  search index knows about — so typing a well-known record name returned no
+  records even though `/api/v1/search` served them. `ObjectStackAdapter` now
+  exposes a `searchAll(query, { limit, objects })` method that calls the unified
+  endpoint, `useRecordSearch` prefers it when present (falling back to the fanout
+  otherwise), and the palette renders the resulting record hits grouped by object.
+
+- 7b35e4b: fix(dashboard,charts): resolve `{current_user_id}` in widget filters (framework #3574)
+
+  A dashboard widget filtered on `{current_user_id}` rendered `0`. The token
+  reached SQL as a literal, matched no row, and nothing was logged on the client
+  or the server — a silent zero that reads as "you have no work" rather than
+  "this filter did not resolve". The same token in a list-view filter resolved
+  correctly, so a user-scoped list and a user-scoped widget over the same data
+  disagreed.
+
+  There was no shared resolver. Three ad-hoc implementations had grown up
+  independently — `ObjectView` for list views, `ObjectDataPage` for URL filter
+  triples, `NavigationRenderer` for hrefs — and each understood only the filter
+  shape its own surface used. `ObjectView`'s opened with
+  `if (!Array.isArray(filter)) return filter`, so it could not have been reused
+  by dashboard widgets even in principle: widget filters are MongoDB-style
+  objects. Widgets therefore got no resolution at all — `DatasetWidget` called
+  `resolveDateMacros` and nothing else, which is why `{today}` worked in a widget
+  and `{current_user_id}` silently did not.
+
+  - **`@object-ui/core`** — new `utils/filter-tokens.ts` with
+    `resolveContextTokens` and `resolveFilterPlaceholders`. The latter expands
+    _every_ placeholder vocabulary in one call and is what surfaces should use;
+    resolving only some of them is the whole defect. The walk handles arrays and
+    plain objects uniformly, so one resolver covers both platform filter shapes.
+  - **`@object-ui/react`** — new `FilterScopeProvider` / `useFilterScope`. The
+    renderer packages deliberately do not depend on `@object-ui/auth`, so the
+    shell supplies the session values. This is a separate context from
+    `PredicateScopeContext`, which is the expression evaluation scope and carries
+    no organization.
+  - **`@object-ui/plugin-dashboard` / `@object-ui/plugin-charts`** — all six
+    widgets that previously resolved date macros only now resolve both
+    vocabularies: `DatasetWidget`, `ObjectMetricWidget`, `ObjectDataTable`,
+    `ObjectPivotTable`, and `ObjectChart` (dataset-bound and inline paths). The
+    chart's `compareTo` comparison filter gets the session pass too — otherwise
+    the overlay series silently ignored the owner clause the primary series
+    honoured.
+  - **`@object-ui/app-shell`** — `ObjectView`'s local `substituteFilterTokens`
+    and `ObjectDataPage`'s inline `=== '{current_user_id}'` ternary now delegate
+    to the shared resolver, so both also gain `{current_org_id}` and date macros.
+    Two of the three ad-hoc implementations are gone rather than joined by a
+    fourth.
+
+  An unresolvable token is left intact rather than dropped: leaving it yields an
+  empty result, whereas dropping the clause would _widen_ the result set and show
+  a signed-out viewer everyone's data. It is no longer silent — the resolver
+  warns, naming the token, and suggests the intended spelling for known
+  near-misses (`{current_user}`, `{user_id}`, `{organization_id}`). Authoring-time
+  enforcement lands separately as `filter-token-unknown` in `@objectstack/lint`.
+
+- Updated dependencies [0b3be01]
+- Updated dependencies [3c4d935]
+- Updated dependencies [4b60d2d]
+- Updated dependencies [952b978]
+- Updated dependencies [de5e40c]
+- Updated dependencies [1a03af6]
+- Updated dependencies [3e886eb]
+- Updated dependencies [cfc675e]
+- Updated dependencies [20df08c]
+- Updated dependencies [1767124]
+- Updated dependencies [8ecf5a6]
+- Updated dependencies [af705b9]
+- Updated dependencies [0502a7c]
+- Updated dependencies [7b35e4b]
+- Updated dependencies [e16ed2d]
+- Updated dependencies [c6fd752]
+- Updated dependencies [f9bbddb]
+- Updated dependencies [dfd3705]
+- Updated dependencies [2735de6]
+- Updated dependencies [6dee2cb]
+- Updated dependencies [e05f052]
+- Updated dependencies [0502a7c]
+- Updated dependencies [faad45e]
+- Updated dependencies [09c6a17]
+- Updated dependencies [c7cff19]
+- Updated dependencies [ba73a02]
+- Updated dependencies [cd09a7b]
+- Updated dependencies [f1abf0e]
+- Updated dependencies [f05b84e]
+- Updated dependencies [9b4b952]
+- Updated dependencies [7d46648]
+- Updated dependencies [6e8fd3c]
+- Updated dependencies [bb4aa25]
+- Updated dependencies [75f1cdf]
+- Updated dependencies [662bdf9]
+- Updated dependencies [059a052]
+- Updated dependencies [53642d4]
+- Updated dependencies [8aae006]
+- Updated dependencies [d62fb1f]
+- Updated dependencies [d147a13]
+- Updated dependencies [c6aaed8]
+- Updated dependencies [263f885]
+- Updated dependencies [dc334da]
+  - @object-ui/i18n@17.0.0
+  - @object-ui/types@17.0.0
+  - @object-ui/data-objectstack@17.0.0
+  - @object-ui/core@17.0.0
+
 ## 16.1.0
 
 ### Minor Changes

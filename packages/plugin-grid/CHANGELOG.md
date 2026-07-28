@@ -1,5 +1,407 @@
 # @object-ui/plugin-grid
 
+## 17.0.0
+
+### Minor Changes
+
+- 1767124: feat(grid): compute all eleven spec column summary aggregations (#2890)
+
+  `ColumnSummarySchema` accepts eleven aggregation names; `useColumnSummary` computed
+  five. The other six — `none`, `count_empty`, `count_filled`, `count_unique`,
+  `percent_empty`, `percent_filled` — passed validation at authoring time and then
+  rendered a blank footer cell, with no error raised on either side.
+
+  The computation now splits into two families. Count and percent read _raw_ cell
+  values, before the numeric parse, so they work on text, select and lookup columns and
+  a value that does not parse as a number still counts as a filled row; a cell is empty
+  when it is `null`, `undefined`, `""` or an empty array. `sum`/`avg`/`min`/`max` keep
+  the existing numeric parse and column formatting.
+
+  Two behavior changes follow from the enum carrying both `count` and `count_filled`,
+  which cannot mean the same thing:
+
+  - `count` is now every row; `count_filled` is the non-empty variant. Only a column
+    whose values are all empty renders differently than before.
+  - a zero count renders `Empty: 0` instead of collapsing to a blank cell.
+
+  Column currency/percent formatting is gated to the numeric family, so `count_unique`
+  on a currency column reads `Unique: 3` and not `$3.00`. `none` and unrecognized names
+  skip the entry entirely, so a view whose columns all opt out renders no footer row.
+
+  `ListColumnSchema`'s objectui-local `{ type, field }` arm now takes its vocabulary
+  from `SpecColumnSummarySchema` by reference — it was stuck at the same five names,
+  which left the per-column `field` override unavailable for the six new aggregations.
+
+  A parity test asserts the renderer's supported set equals the spec enum in both
+  directions: a spec name the renderer omits is the bug above, and a renderer name the
+  spec omits would be local dialect (Commandment #0).
+
+  **Removed:** `useColumnSummary` from `@object-ui/react`. It was a second, unrelated
+  hook of the same name with no callers — a different API, a comment claiming it
+  implemented spec v2.0.7, and a `distinct` aggregation that is not in the spec
+  vocabulary at all (the spec calls it `count_unique`). Use `useColumnSummary` from
+  `@object-ui/plugin-grid`, which implements the spec enum.
+
+- 2735de6: feat: render the server's effective API operation set (#3391 PR-4)
+
+  The frontend now consumes the per-object **effective API operation set** the
+  server resolves (from `/me/permissions` `apiOperations`, framework #3391) —
+  never the raw `apiMethods` — so Import/Export/New/Edit/Delete buttons match what
+  the server will actually admit, and a 405 import refusal shows a dedicated
+  message instead of silently falling back.
+
+  - **core** `resolveCrudAffordances(obj, effectiveApiOperations?)` — new optional
+    second argument intersects each affordance bit with its API operation
+    (create/import→create/import, edit→update, delete→delete, exportCsv→export).
+    Omitting it (old backend / no effective set) leaves affordances unchanged.
+  - **permissions** — `/me/permissions` response carries per-object
+    `apiOperations`; `PermissionContextValue.getObjectApiOperations(object)`
+    exposes it (undefined when absent → callers keep current behavior); `check()`
+    maps `import→allowCreate`, `export→allowRead`.
+  - **app-shell** `ObjectView` intersects its toolbar affordances with the object's
+    effective operations (Import); the platform-admin identity-import bypass is
+    unaffected.
+  - **plugin-list** `ListView` / **plugin-grid** `ObjectGrid` gate the Export
+    button (and export handler) on effective `export`; `plugin-grid` gains the
+    `@object-ui/permissions` workspace dependency.
+  - **plugin-grid** `ImportWizard` — a 405 / `OBJECT_API_METHOD_NOT_ALLOWED`
+    import refusal is detected by a new `isImportNotAllowed` predicate at every
+    catch site (async, sync, dry-run) and STOPS with a dedicated
+    `grid.import.notAllowed` message (10 locales + fallback dict) — it never falls
+    back to the sync/legacy path (which 405s too), distinct from the 404
+    route-absent fallback.
+
+  Backward-compatible: a missing effective set (unrestricted object, older
+  backend, or no permission provider) preserves the current default-allow
+  behavior everywhere.
+
+- ba45145: feat: gate list row Edit/Delete and bulk delete on the server's effective operation set (#3720)
+
+  The **fourth** surface #3391 left open. The three earlier rounds — the toolbar
+  (objectui#2823), detail/form (#3546, objectui#2832 + #2876) and related lists
+  (#3546) — all route through `resolveCrudAffordances`. The main list's **row
+  CRUD** does not: it has its own resolver (`plugin-grid`'s
+  `resolveRowCrudAffordances`), so none of those rounds ever reached it.
+
+  Its gate was `operations ?? { update: !!onEdit, delete: !!onDelete }` — and
+  `ObjectView` wires `onEdit`/`onDelete` unconditionally while view JSON rarely
+  declares `operations`, so it was effectively always-on. A caller whose effective
+  set carried neither `update` nor `delete` still got the row kebab's Edit/Delete
+  **and** the bulk delete, the most destructive affordance on the list.
+
+  - **plugin-grid** `resolveRowCrudAffordances` now takes `managedBy` and
+    `effectiveApiOperations` and resolves the object verdict through the shared
+    `resolveCrudAffordances` policy — so the row gate is the SAME decision the
+    toolbar, record header, form and related lists make. It also returns
+    `objectCanDelete`, the object-level delete verdict that bulk delete gates on
+    (bulk rides `onBulkDelete`, a different callback from the row `onDelete`).
+  - **plugin-grid** `ObjectGrid` threads its existing `effectiveApiOps` — until
+    now fed only to Export — into the row gate, and applies the delete verdict to
+    bulk delete: the implicit `['delete']`, an author-declared
+    `bulkActions: ['delete']`, and any `bulkActionDefs` entry with
+    `operation: 'delete'`. A declared bulk action is a _wiring_ declaration, not a
+    permission grant. Custom action ids and non-delete operations pass through
+    untouched.
+  - **plugin-list** `ListView`'s own bulk bar (the non-grid views — kanban /
+    calendar / gallery; the grid path delegates to `ObjectGrid`) drops its
+    built-in `delete` under the same verdict.
+
+  Also closes the ADR-0103 gap on this chain: `rowCrudAffordances` documented the
+  bucket lock as "applied upstream via the view's `operations.*`", but the
+  all-open default meant it never was — an engine-owned `system` / `append-only` /
+  `better-auth` object leaked a generic row Edit/Delete that the engine rejects
+  (`assertEngineOwnedWriteAllowed`). Running the shared policy applies it, and a
+  `userActions` opt-in still re-opens it (e.g. `sys_user`'s `edit`).
+
+  Same semantics as the earlier rounds: **intersection, never union** — a server
+  grant cannot re-open what the bucket or `userActions` closed, and a
+  `userActions` opt-in cannot survive a server denial. A missing effective set
+  (unrestricted object, older backend, or no `PermissionProvider`) preserves the
+  current behavior.
+
+### Patch Changes
+
+- 553443e: fix(grid): validate email format in the import preview (objectstack#3566)
+
+  The ImportWizard's per-cell `validateValue` did no format check for `email`
+  columns (it fell through to `default → true`), so an obviously-bad address —
+  e.g. a non-ASCII domain like `x@柴仟.com` — passed client validation (and the
+  server dry-run) and only failed at real-import time inside better-auth, giving
+  a jarring "passed validation, then failed" experience.
+
+  - Added `isPlausibleEmail`, a single-pass structural + ASCII check that mirrors
+    the server's `isLikelyEmail`, so bad emails are flagged red in the preview
+    step before submit. No regex backtracking (same ReDoS-safety as the server).
+
+- 09c6a17: fix(grid): localize import result errors (objectstack#3566)
+
+  The import completion screen rendered the raw English server message verbatim —
+  e.g. `Row 6 (position): position: "装配工" matches more than one
+os_tianshun_ehr_position — use a unique value or the record id` — with the field
+  name twice, an internal object api-name, all in English, while the dry-run panel
+  already localized the same errors.
+
+  - The result list now runs through the same `formatDryRunError` path (driving
+    off the structured error `code`, resolving the api-name to its field label,
+    dropping the duplicated `<api-name>:` prefix). Threaded the error `code`
+    through `ImportResult.errors` to make this possible.
+  - Added code-driven translations for the remaining structured import errors —
+    `invalid_boolean` / `invalid_number` / `invalid_date` / `invalid_option` /
+    `required` / `AMBIGUOUS_MATCH` — with Chinese (`zh`) copy in `@object-ui/i18n`
+    alongside the existing reference errors.
+
+- c7cff19: feat(plugin-grid): "Import as historical data" option in the Import Wizard (framework #3479)
+
+  Adds a checkbox to the Import Wizard's options panel that sends `treatAsHistorical`
+  on the import request. When on, the server skips the object's `state_machine` rule so
+  mid-lifecycle rows — a batch of already-`closed` tickets, `closed_won` deals — aren't
+  rejected by `initialStates`. Off by default: a normal import still walks the FSM, so
+  the exemption is always an explicit opt-in.
+
+  Pairs with the framework side (objectstack #3483). `ImportRequestOptions.treatAsHistorical`
+  is added to `@object-ui/types`, and `assembleImportRequest` threads it through both the
+  inline and named-mapping request shapes (sent only when on).
+
+- df6697f: docs(plugin-grid): the "Import as historical data" wizard hint now reflects audit-timeline preservation (#3493)
+
+  `treatAsHistorical` gained a second half in framework #3493/#3497 — the import
+  write context also carries `preserveAudit`, so a historical import keeps the
+  original `updated_at`/`updated_by` and business `readonly` fields instead of
+  stamping-now / stripping them. The checkbox hint only described the
+  state-machine-skip half; it now also says the original timestamps & author are
+  preserved. The `ImportRequest.treatAsHistorical` type doc (`@object-ui/types`)
+  is updated to match. Copy-only — no behavior change (the checkbox already sent
+  `treatAsHistorical`, so the server-side extension is reached without any wiring
+  change).
+
+- 9b4b952: fix(i18n): make `en` the complete source of truth for grid import and set-password (objectui#2872 b/c)
+
+  The `en` and `zh` packs had drifted in both directions, silently, because
+  `fallbackLng: 'en'` degrades a missing key into English rather than an error and
+  the missing-key handler only fires in dev.
+
+  - **74 keys existed only in `zh`.** `grid.import.*` and `auth.setPassword.*` had
+    never been added to `en`, so no other locale could translate them: the English
+    text came from call-site `defaultValue:` args and a private map inside
+    `ImportWizard`. They now live in `en`, which is what translators and
+    `os i18n extract` read.
+  - **4 `en` keys were missing from `zh`** (`console.commandPalette.title`,
+    two `console.ai.suggestions.metadataAssistant.*`, `help.keyboardShortcuts`),
+    so Chinese users saw English.
+
+  `grid.import` in particular had three disagreeing sources — the `en` pack (62
+  keys), `zh` (130) and `ImportWizard`'s own fallback map (133), union 134, no two
+  the same set. All three are now aligned on 134.
+
+  The wizard's fallback map is kept, not deleted: it is what lets the wizard render
+  with no `I18nProvider` mounted (standalone embedding, unit tests). It is instead
+  pinned to the `en` pack by a new test, so the two can no longer drift.
+
+  `SetPasswordPage` drops its now-redundant inline `defaultValue:` args; the text
+  is byte-identical, it just comes from the pack now.
+
+  Adds two guards, both mutation-verified:
+  - `en` ↔ `zh` full key parity, asserted in both directions. The other eight
+    packs are still ~357 keys behind and are tracked separately (objectui#2872
+    part a), so they are deliberately not asserted yet.
+  - `IMPORT_DEFAULT_TRANSLATIONS` ↔ `en.grid.import`, same keys and same text.
+
+- 7d46648: fix(hooks): stop calling translation hooks inside try/catch (objectui#2879)
+
+  Eleven call sites wrapped a React hook in `try`/`catch` to make it
+  "provider-safe". `useObjectTranslation` and `useObjectLabel` already are — they
+  read context optionally and fall back to react-i18next's global instance, and
+  never throw. The `catch` bought nothing and cost correctness: a throw _after_
+  the hook ran desyncs hook order on the next render, because React matches hooks
+  positionally. objectui#2595/#2596 fixed exactly this in `@object-ui/i18n`'s
+  `createSafeTranslation`; nine plugin-local re-implementations kept their own
+  copy of the bug, and two more (`ObjectTimeline`, `ObjectView`) were found by the
+  new lint rule below — `ObjectView` had even suppressed
+  `react-hooks/rules-of-hooks` inline to keep it.
+
+  - Six exact re-implementations now delegate to `createSafeTranslation`:
+    `plugin-detail`, `plugin-timeline`, `plugin-list`, `plugin-calendar`,
+    `plugin-grid`'s `ObjectGrid`, `plugin-designer`.
+  - `components`' `data-table` also delegates; `createSafeTranslation` now
+    returns `language` alongside `t` so consumers that localize dates don't need
+    a second hook call. Purely additive.
+  - `plugin-gantt` and `plugin-grid`'s `ImportWizard` keep their local hooks —
+    they fall back _per key_, which a single-probe factory cannot express and
+    which their comments justify (a host dictionary that covers common keys but
+    lags on newer ones). Only the `try`/`catch` is removed.
+  - `ObjectTimeline` and `ObjectView` call the hook directly and probe the
+    returned value, mirroring `useSafeFieldLabel`.
+
+  Adds `object-ui/no-try-catch-around-hook` (error) so a twelfth copy fails CI.
+  It only matches `use*` names, accepts member calls solely on `React` (so
+  `vi.useRealTimers()` is not a hook), and resets its try-depth inside nested
+  functions (so `renderHook(() => useThing())` inside a `try` is fine) — both
+  false positives were real code in this repo and are pinned in the rule's tests.
+
+  `eslint-rules/**/*.test.js` matched no vitest project glob, so the local
+  plugin's specs had never run in CI. They are now included; all three pass.
+
+  `ObjectTimeline`'s test mock of `@object-ui/react` omitted `useObjectLabel` —
+  the removed `try`/`catch` had been silently absorbing that gap. The mock is now
+  complete.
+
+- 662bdf9: fix(fls): wire the real per-caller FLS channel into import targets and grid
+  columns; remove the never-populated `field.permissions` shape (objectstack#3661)
+
+  The `permissions?: { read?, write?, edit? }` key on `@object-ui/types` field
+  definitions (Phase 3.2.6) was declared-but-never-enforced: no producer in the
+  stack ever populated it, so every guard reading it short-circuited to "allow".
+  Per ADR-0049 enforce-or-remove, the shape is deleted and the three consumers
+  now use the server-resolved `/auth/me/permissions` channel
+  (`usePermissions().checkField`) — the same channel ObjectForm/ModalForm/ListView
+  already enforce:
+
+  - **ImportWizard target fields (app-shell `ObjectView`)**: the importable
+    field set (and thus the downloadable CSV template's columns) now drops
+    fields the caller cannot edit, instead of offering columns the server's
+    FLS write gate would 403.
+  - **ObjectGrid auto-derived columns**: columns the caller cannot read are
+    dropped (same gate ListView applies), instead of a dead schema-shape check.
+  - **ObjectForm**: the redundant dead guard in field generation is removed;
+    the existing `applyFieldPerms` gate remains the real enforcement point.
+
+  BREAKING CHANGE: `@object-ui/types` field definitions no longer accept a
+  `permissions` key. It never carried data at runtime; consumers needing
+  per-caller field-level permissions must use `@object-ui/permissions`
+  (`MePermissionsProvider` + `useFieldPermissions`/`checkField`).
+
+- dc7a798: fix(plugin-grid,plugin-form,plugin-designer,cli,vscode-extension): type-check the last five unchecked packages, and fix the two runtime bugs that hid there (#2919)
+
+  Closes the remaining `DEBT` entries from the #2911 sweep. Each package gains
+  `"type-check": "tsc --noEmit"` and loses its entry in
+  `scripts/check-type-check-coverage.mjs`; coverage goes 36 -> 41 of 45 and
+  outstanding errors 25 -> 5 (only #2916 `plugin-view` and #2918 `layout` remain).
+
+  **Two of these were real bugs, not just type noise.**
+
+  `@object-ui/cli` — `objectui validate` could never report a validation failure.
+  `ZodError.errors` was removed in Zod 4 (the repo is on 4.4.3), so `.errors` read
+  `undefined` and `.forEach` threw a `TypeError` that the enclosing `catch`
+  reported as `✗ Error reading or parsing schema file: Cannot read properties of
+undefined` — swallowing the very errors the command exists to print. Now reads
+  `.issues`. Verified against the built CLI: an invalid schema now prints
+  `1. Invalid input / Code: invalid_union` and exits 1.
+
+  `@object-ui/plugin-grid` — grouping a grid by a boolean column showed the raw
+  i18n key. `t('grid.booleanTrue', 'Yes')` asked for a key present in neither
+  `GRID_DEFAULT_TRANSLATIONS` nor any locale bundle, and passed the English
+  fallback as a bare second argument — which `createSafeTranslation`'s no-provider
+  translator reads as an _options object_, so the fallback never applied and the
+  header rendered the literal `grid.booleanTrue`. Switched to the `grid.yes` /
+  `grid.no` keys the boolean cell renderer (`ObjectGrid.tsx`) and
+  `BulkActionDialog` already use, with the fallback passed as `defaultValue`.
+  Covered by a new regression test, confirmed to fail against the old code.
+
+  The rest are type-only corrections that preserve runtime behaviour exactly:
+
+  - **plugin-grid** `importParsers.ts` — `scorePair`'s `score`/`reason` moved into
+    one `best` record. They were captured `let`s mutated only inside the `bump`
+    closure, which TypeScript's control-flow analysis does not track, so it still
+    believed `reason` was `'none'` at the type gate and flagged the comparisons as
+    non-overlapping (TS2367). The gate — which stops a text column being mapped
+    onto a number field — is unchanged; its two dedicated tests still pass.
+  - **plugin-form** — `SectionFieldsContext.fieldLabel` now requires `fallback`,
+    matching the `useSafeFieldLabel` producer in `@object-ui/i18n` (an omitted
+    fallback could not satisfy the `=> string` return, and all four call sites
+    already pass one). This one signature cleared six errors.
+    `MasterDetailFormSchema.recordId` widens to `string | number`, matching
+    `ObjectFormSchema` and the five envelopes that forward straight into it;
+    it is narrowed with `String()` only at the batch-transaction boundary, whose
+    `BatchTransactionOperation.id` is a string by protocol (the `isEdit` guard
+    already proves it non-null there). `deriveMasterDetail`'s column sort gets an
+    explicit `fillPriority` helper — `GridColumn.type` is optional, and a column
+    without one keeps sorting at priority 5 exactly as the old
+    `TYPE_FILL_PRIORITY[undefined] ?? 5` lookup put it.
+  - **plugin-designer** — unused `index` parameter prefixed `_`, matching the
+    `_entry` beside it.
+  - **cli** — a stale `@ts-expect-error` removed; `viteConfig` is typed `any`, so
+    the line it guarded had stopped erroring.
+  - **vscode-extension** (`object-ui`) — migrated off `moduleResolution: "node"`,
+    which is deprecated and stops working in TypeScript 7, to `node16` paired with
+    `module: "node16"` (the package has no `"type": "module"`, so node16 resolves
+    it as the CommonJS that tsup emits, and it gains the `exports`-map awareness
+    node10 lacks). Its error count was under-reported as 1: that TS5107 config
+    error masked four more. The package uses `console`/`Buffer` but sets
+    `lib: ["ES2020"]` with no DOM and never declared `@types/node` — added, with an
+    explicit `types: ["node", "vscode"]`.
+
+  Also: `plugin-grid`, `plugin-form` and `plugin-designer` gain the `baseUrl` +
+  `paths` override their type-checked plugin peers already carry, and `cli` an
+  empty `paths`. Without it the inherited root `paths` point `@object-ui/*` at
+  sibling `src/`, which is outside each project's `rootDir` and produces the ~104
+  spurious TS6059 errors noted in #2915; workspace deps instead resolve through
+  node_modules to built `.d.ts`, which `type-check`'s `dependsOn: ["^build"]`
+  guarantees exist.
+
+  Verified the gate genuinely covers all five rather than trusting the green:
+  injecting a type error into each package makes `pnpm type-check --filter <pkg>`
+  fail, which was impossible before this change.
+
+- Updated dependencies [7b21891]
+- Updated dependencies [0b3be01]
+- Updated dependencies [3c4d935]
+- Updated dependencies [4b1ed7d]
+- Updated dependencies [4b60d2d]
+- Updated dependencies [952b978]
+- Updated dependencies [de5e40c]
+- Updated dependencies [1a03af6]
+- Updated dependencies [3e886eb]
+- Updated dependencies [cfc675e]
+- Updated dependencies [20df08c]
+- Updated dependencies [1767124]
+- Updated dependencies [8ecf5a6]
+- Updated dependencies [af705b9]
+- Updated dependencies [0502a7c]
+- Updated dependencies [7b35e4b]
+- Updated dependencies [8fb1295]
+- Updated dependencies [e16ed2d]
+- Updated dependencies [c6fd752]
+- Updated dependencies [f9bbddb]
+- Updated dependencies [dfd3705]
+- Updated dependencies [c77108c]
+- Updated dependencies [2735de6]
+- Updated dependencies [697cda4]
+- Updated dependencies [c19ac11]
+- Updated dependencies [6dee2cb]
+- Updated dependencies [e05f052]
+- Updated dependencies [0502a7c]
+- Updated dependencies [faad45e]
+- Updated dependencies [09c6a17]
+- Updated dependencies [c7cff19]
+- Updated dependencies [ba73a02]
+- Updated dependencies [cd09a7b]
+- Updated dependencies [f1abf0e]
+- Updated dependencies [f05b84e]
+- Updated dependencies [9b4b952]
+- Updated dependencies [341bfb5]
+- Updated dependencies [2f947e4]
+- Updated dependencies [7d46648]
+- Updated dependencies [9b53d72]
+- Updated dependencies [bb4aa25]
+- Updated dependencies [75f1cdf]
+- Updated dependencies [662bdf9]
+- Updated dependencies [059a052]
+- Updated dependencies [53642d4]
+- Updated dependencies [8aae006]
+- Updated dependencies [c6cfdf1]
+- Updated dependencies [d147a13]
+- Updated dependencies [c6aaed8]
+- Updated dependencies [263f885]
+- Updated dependencies [dc334da]
+  - @object-ui/components@17.0.0
+  - @object-ui/i18n@17.0.0
+  - @object-ui/fields@17.0.0
+  - @object-ui/react@17.0.0
+  - @object-ui/types@17.0.0
+  - @object-ui/core@17.0.0
+  - @object-ui/permissions@17.0.0
+  - @object-ui/mobile@17.0.0
+
 ## 16.1.0
 
 ### Patch Changes

@@ -1,5 +1,140 @@
 # @object-ui/runner
 
+## 17.0.0
+
+### Patch Changes
+
+- b076050: fix(console,runner): the approvals inbox renders against one ticking clock, and both packages now run ESLint
+
+  `apps/console` and `packages/runner` had no `lint` script, so `turbo run lint`
+  skipped them silently and their 17 ESLint **errors** had never been seen
+  (#2923 declared them as DEBT; this closes the gap). Both now carry
+  `"lint": "eslint ."` and the `DEBT` list in `scripts/check-lint-coverage.mjs`
+  is empty — every workspace package is linted.
+
+  What the errors actually were, once read one by one:
+
+  - **8x `react-hooks/purity` — real, and user-visible.** The approvals inbox
+    read `Date.now()` mid-render for every age tint, "5m ago" label and SLA chip.
+    Render must be pure: the output depended on when React happened to render, so
+    it disagreed with itself under StrictMode's double render and then **froze** —
+    an inbox left open kept saying "just now" and an SLA countdown never counted
+    down. The page now renders against a single `now` held in state and advanced
+    once a minute (the finest granularity anything here displays), so render is a
+    pure function of props+state _and_ the figures actually tick.
+  - Alongside that, `sla_due_at` is now parsed through a guard. A due date the
+    backend sends in a shape `Date.parse` can't read used to render as
+    "SLA NaNh left"; it now renders nothing.
+  - **1x `react-hooks/static-components` — real.** `StatusBadge` was declared
+    inside `ApprovalsInboxPage`, making it a brand-new component type on every
+    render, so React unmounted and remounted every status chip in the table each
+    time the page re-rendered. Hoisted to module scope, with the translated label
+    passed as a prop.
+  - **6x `react-hooks/static-components` — false positives** (3 in the console's
+    settings pages, 3 in the runner's `LayoutRenderer`). All six render the result
+    of `getIcon`/`getLazyIcon`, which memoises per name in a module-level cache —
+    the component reference is stable across renders and nothing is created during
+    render. The rule cannot see through the call, so these carry the same targeted
+    `eslint-disable-next-line` + justification the repo already uses at a dozen
+    icon-registry sites, and the resolvers themselves now say so in a comment.
+    (Verified rather than assumed: typing into a settings field keeps focus and
+    every character, so no state was ever being reset there.)
+  - **2 minor.** A dead `token` initializer on the console's auth preflight path
+    (`no-useless-assignment` — read, not blind-deleted: no intended write was
+    missing, every path out of the try/catch either assigns or returns), and a
+    `prefer-const` in the SDUI workbench preview.
+
+- b39f4b3: fix(runner): type-check the package at all, and fix the `DataSource` contract violation that hid behind a broken import (#2917)
+
+  `@object-ui/runner` was the worst-covered package in the repo: `build` is
+  `vite build` (transpile only), it had no `type-check` script, and — uniquely —
+  **no `tsconfig.json` at all**. Nothing had ever type-checked it, despite it being
+  a published package.
+
+  **It was not broken at runtime.** The two bad imports were `import type`, so they
+  were erased before they could fail, and the one value import
+  (`emulateBatchTransaction`) does exist. `MockDataSource` is also unreferenced
+  anywhere in the repo. So this is a correctness and reference-quality fix, not an
+  outage.
+
+  **What the missing check actually hid.** `DataSource` and
+  `BatchTransactionOperation` were imported from `@object-ui/core`, which does not
+  export them — they live in `@object-ui/types`. Because that import never
+  resolved, `class MockDataSource implements DataSource` was silently a no-op, and
+  three separate commits maintained the class _as if_ it were being verified
+  (`62b9ab510` added `batchTransaction`, `09d9669c7` made `getObjectSchema`
+  required, `5527388b0` added input validation). With the `implements` clause
+  inert, a real contract violation survived all three:
+
+  ```ts
+  async find(resource: string, params?: any): Promise<any[]> { return []; }
+  ```
+
+  `DataSource.find` returns a `QueryResult` envelope, not a bare array. Anyone
+  copying this mock as the starting point for their own adapter — which is exactly
+  what its doc comment invites — would hand every consumer an array where `.data`
+  and `.total` are `undefined`. Now typed as `Promise<QueryResult>` and returning
+  `{ data: [], total: 0 }`.
+
+  Also in this change:
+
+  - `packages/runner/tsconfig.json` added, mirroring `apps/console` rather than the
+    library packages: `runner` is a Vite app, so it wants `bundler` resolution,
+    `allowImportingTsExtensions` (for `./App.tsx`) and `types: ["vite/client"]`
+    (for `import.meta.glob` in `MetadataLoader` and the `./index.css` side-effect
+    import). Keeping it standalone instead of extending the root config also means
+    it never inherits the root `paths`, so workspace deps resolve through built
+    `.d.ts` and the TS6059 `rootDir` class of error cannot appear.
+  - unused parameters prefixed with `_` (6x in `mockDataSource`), and an unused
+    `Circle` icon import dropped from `LayoutRenderer`.
+  - `"type-check": "tsc --noEmit"` added, and the package's `DEBT` entry deleted
+    from `scripts/check-type-check-coverage.mjs`. Coverage goes 35 -> 36 of 45 and
+    outstanding errors 46 -> 32.
+
+  Verified the gate genuinely covers the package now, rather than trusting the
+  green: injecting a type error into `runner/src/App.tsx` makes `pnpm type-check`
+  fail with `Failed: @object-ui/runner#type-check`, which was impossible before
+  this change.
+
+- Updated dependencies [7b21891]
+- Updated dependencies [952b978]
+- Updated dependencies [de5e40c]
+- Updated dependencies [aa88056]
+- Updated dependencies [1767124]
+- Updated dependencies [8ecf5a6]
+- Updated dependencies [7b35e4b]
+- Updated dependencies [8fb1295]
+- Updated dependencies [e16ed2d]
+- Updated dependencies [f9bbddb]
+- Updated dependencies [dfd3705]
+- Updated dependencies [c77108c]
+- Updated dependencies [2735de6]
+- Updated dependencies [c19ac11]
+- Updated dependencies [6dee2cb]
+- Updated dependencies [c7cff19]
+- Updated dependencies [ba73a02]
+- Updated dependencies [cd09a7b]
+- Updated dependencies [f1abf0e]
+- Updated dependencies [f05b84e]
+- Updated dependencies [2f947e4]
+- Updated dependencies [7d46648]
+- Updated dependencies [6e8fd3c]
+- Updated dependencies [9b53d72]
+- Updated dependencies [662bdf9]
+- Updated dependencies [059a052]
+- Updated dependencies [53642d4]
+- Updated dependencies [8aae006]
+- Updated dependencies [c6cfdf1]
+- Updated dependencies [d147a13]
+- Updated dependencies [c6aaed8]
+- Updated dependencies [dc334da]
+  - @object-ui/components@17.0.0
+  - @object-ui/react@17.0.0
+  - @object-ui/plugin-charts@17.0.0
+  - @object-ui/types@17.0.0
+  - @object-ui/core@17.0.0
+  - @object-ui/plugin-kanban@17.0.0
+
 ## 16.1.0
 
 ### Minor Changes
