@@ -83,15 +83,18 @@ export async function validate(schemaPath: string) {
       console.error(chalk.red('✗ Schema validation failed!\n'));
       console.error(chalk.bold('Validation Errors:'));
       
-      // Format Zod errors nicely
-      const errors = result.error.errors;
-      errors.forEach((error, index) => {
-        console.error(chalk.red(`\n${index + 1}. ${error.message}`));
-        if (error.path && error.path.length > 0) {
-          console.error(chalk.gray(`   Path: ${error.path.join(' → ')}`));
+      // Format Zod errors nicely. `.issues` is the only accessor on a Zod 4
+      // ZodError — the `.errors` alias was removed, so reading it yielded
+      // undefined and this loop threw a TypeError that the catch below
+      // reported as "Error reading or parsing schema file", hiding the very
+      // errors this command exists to print.
+      result.error.issues.forEach((issue, index) => {
+        console.error(chalk.red(`\n${index + 1}. ${issue.message}`));
+        if (issue.path && issue.path.length > 0) {
+          console.error(chalk.gray(`   Path: ${issue.path.join(' → ')}`));
         }
-        if (error.code) {
-          console.error(chalk.gray(`   Code: ${error.code}`));
+        if (issue.code) {
+          console.error(chalk.gray(`   Code: ${issue.code}`));
         }
       });
       

@@ -672,10 +672,13 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
         if (label !== undefined) return label;
       }
       // Boolean fields: render as Yes/No. We use the toolbar i18n bundle so
-      // grids without an objectName still produce a readable label.
+      // grids without an objectName still produce a readable label — the same
+      // `grid.yes`/`grid.no` keys the boolean cell renderer and the bulk-action
+      // dialog use, passed as `defaultValue` (a bare string second argument is
+      // read as an options object, so the fallback never applied).
       if (meta.type === 'boolean' || typeof value === 'boolean') {
-        if (value === true || value === 'true') return t('grid.booleanTrue', 'Yes');
-        if (value === false || value === 'false') return t('grid.booleanFalse', 'No');
+        if (value === true || value === 'true') return t('grid.yes', { defaultValue: 'Yes' });
+        if (value === false || value === 'false') return t('grid.no', { defaultValue: 'No' });
       }
       return undefined;
     };

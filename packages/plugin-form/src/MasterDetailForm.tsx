@@ -75,7 +75,14 @@ export interface MasterDetailFormSchema {
   /** Parent object name, e.g. 'expense_claim'. */
   objectName: string;
   mode?: 'create' | 'edit';
-  recordId?: string;
+  /**
+   * `string | number` to match `ObjectFormSchema` and the drawer/modal/split/
+   * tabbed/wizard envelopes that hand a record straight through to this form —
+   * a numeric primary key is a real backend shape. Narrowed to a string only at
+   * the batch-transaction boundary, whose `BatchTransactionOperation.id` is a
+   * string by protocol.
+   */
+  recordId?: string | number;
   /** Prefilled parent header values (create mode) — seeds the parent form's
    *  initial values, e.g. a conversion wizard carrying the lead/account over. */
   initialValues?: Record<string, any>;
@@ -554,7 +561,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
       const ops = isEdit
         ? buildMasterDetailEditBatch(
             schema.objectName,
-            schema.recordId!,
+            String(schema.recordId),
             parentData,
             details.filter((d) => d.relationshipField).map((d, i) => ({
               childObject: d.childObject,

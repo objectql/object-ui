@@ -33,7 +33,8 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "lint": "eslint src",
-    "test": "vitest run"
+    "test": "vitest run",
+    "type-check": "tsc --noEmit"
   },
   "keywords": [
     "objectstack",
