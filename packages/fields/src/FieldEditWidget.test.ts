@@ -11,7 +11,26 @@ import {
   FORM_FIELD_TYPES,
   INLINE_EXCLUDED_FIELD_TYPES,
   hasFieldEditWidget,
+  mapFieldTypeToFormType,
 } from './index';
+
+/**
+ * A field type the form can render — either a direct widget-map key, or a spec
+ * spelling that resolves onto one through the alias table (`secret` →
+ * `field:password`, `autonumber` → `field:auto_number`, …).
+ *
+ * `FORM_FIELD_TYPES` alone is `Object.keys(fieldWidgetMap)`, which does NOT
+ * include the alias-only spellings — see the note at index.tsx's
+ * `resolveFormWidgetType`. Using it as the definition of "a real type" made the
+ * staleness check below reject `secret`, a genuine spec field type the form
+ * renders, purely because it arrives via an alias.
+ */
+function isRenderableFormType(t: string): boolean {
+  // `text` is the alias table's fallback, so a non-`field:text` result means an
+  // explicit entry exists. `text` itself is a direct widget key, so it is
+  // already covered by the first clause and no real type is missed here.
+  return FORM_FIELD_TYPES.includes(t) || mapFieldTypeToFormType(t) !== 'field:text';
+}
 
 /**
  * Drift-guard: the inline cell editor reuses the form's field widgets, but the
@@ -34,9 +53,19 @@ describe('inline editor ↔ form widget parity', () => {
   });
 
   it('the exclusion set lists only real form types (no stale entries)', () => {
-    const known = new Set(FORM_FIELD_TYPES);
-    const stale = [...INLINE_EXCLUDED_FIELD_TYPES].filter((t) => !known.has(t));
+    const stale = [...INLINE_EXCLUDED_FIELD_TYPES].filter((t) => !isRenderableFormType(t));
     expect(stale).toEqual([]);
+  });
+
+  it('credential types are never inline-editable', () => {
+    // The grid's fallback for a type with no inline editor is a PLAIN TEXT input.
+    // Both of these are masked on read, so that input would show the mask as the
+    // value and write it straight back; `secret` also round-trips through an
+    // encrypted store (ADR-0100), so the cell holds an opaque ref, not the value.
+    for (const t of ['password', 'secret']) {
+      expect(hasFieldEditWidget(t), `${t} must not have an inline editor`).toBe(false);
+      expect(INLINE_EXCLUDED_FIELD_TYPES.has(t), `${t} must be explicitly excluded`).toBe(true);
+    }
   });
 
   it('relational fields use the standard picker inline (regression: lookup was a text box)', () => {

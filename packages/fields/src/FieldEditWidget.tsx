@@ -102,7 +102,13 @@ export const INLINE_EXCLUDED_FIELD_TYPES = new Set<string>([
   // Binary / attachment — edited from the record form, shown read-only in the grid.
   'file', 'image', 'avatar', 'signature',
   // Heavy / full editors — better in the record form than a cell.
-  'markdown', 'html', 'richtext', 'password',
+  'markdown', 'html', 'richtext',
+  // Credentials — never inline-editable. Both are masked on read, so the cell has
+  // no real value to seed an editor with, and the grid's fallback is a PLAIN TEXT
+  // input: it would render the mask as if it were the value and write it straight
+  // back. `secret` additionally round-trips through an encrypted store (ADR-0100,
+  // data/field.zod.ts) — the cell holds an opaque ref, not the secret.
+  'password', 'secret',
   // Containers / non-authorable — a sub-form / sub-grid / embedding vector
   // doesn't belong in a single cell.
   'object', 'grid', 'vector',

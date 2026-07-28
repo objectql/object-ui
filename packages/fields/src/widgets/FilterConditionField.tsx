@@ -102,7 +102,13 @@ function toArray(value: any): any[] {
   return value == null ? [] : [value];
 }
 
-function condToMongo(c: BuilderCondition, typeOf: (f: string) => string | undefined): Record<string, any> | null {
+/**
+ * Builder condition → `$`-operator criteria. Exported for tests: this is the
+ * chokepoint where a builder token becomes a spec `FieldOperatorsSchema` key,
+ * and a wrong spelling here is rejected downstream by `convertFiltersToAST`
+ * rather than at authoring time. @internal
+ */
+export function condToMongo(c: BuilderCondition, typeOf: (f: string) => string | undefined): Record<string, any> | null {
   const { field, operator, value } = c || ({} as BuilderCondition);
   if (!field) return null;
   const t = typeOf(field);
@@ -111,7 +117,11 @@ function condToMongo(c: BuilderCondition, typeOf: (f: string) => string | undefi
     case 'equals': return { [field]: cv };
     case 'notEquals': return { [field]: { $ne: cv } };
     case 'contains': return { [field]: { $contains: value } };
-    case 'notContains': return { [field]: { $ncontains: value } };
+    // `$notContains` is the spec spelling (FieldOperatorsSchema, data/filter.zod.ts).
+    // This emitted `$ncontains` — a token that appears nowhere in @objectstack/spec and
+    // that convertFiltersToAST throws on, so every "does not contain" rule authored here
+    // was rejected downstream. See kvToCondition for reading the old spelling back.
+    case 'notContains': return { [field]: { $notContains: value } };
     case 'isEmpty': return { [field]: { $in: [null, ''] } };
     case 'isNotEmpty': return { [field]: { $nin: [null, ''] } };
     case 'greaterThan':
@@ -146,7 +156,13 @@ function arraysEqual(a: any, b: any[]): boolean {
   return Array.isArray(a) && a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
-function kvToCondition(field: string, v: any, idx: number): BuilderCondition | null {
+/**
+ * Criteria → builder condition (the reverse of {@link condToMongo}). Returning
+ * `null` makes the builder refuse to load the rule ("criteria can't be
+ * represented"), so this must keep accepting spellings previously written.
+ * @internal
+ */
+export function kvToCondition(field: string, v: any, idx: number): BuilderCondition | null {
   const id = `c_${idx}_${field}`;
   if (v === null || typeof v !== 'object' || Array.isArray(v)) {
     return { id, field, operator: 'equals', value: v };
@@ -158,6 +174,10 @@ function kvToCondition(field: string, v: any, idx: number): BuilderCondition | n
     switch (op) {
       case '$ne': return { id, field, operator: 'notEquals', value: val };
       case '$contains': return { id, field, operator: 'contains', value: val };
+      // `$ncontains` is the pre-fix spelling this widget used to emit. Criteria saved
+      // before the fix still carry it, so keep reading it — dropping it here would make
+      // those rules fail to load ("criteria can't be represented") instead of migrating.
+      case '$notContains':
       case '$ncontains': return { id, field, operator: 'notContains', value: val };
       case '$gt': return { id, field, operator: 'greaterThan', value: val };
       case '$lt': return { id, field, operator: 'lessThan', value: val };
