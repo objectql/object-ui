@@ -28,6 +28,7 @@ import {
   cn,
 } from '@object-ui/components';
 import { ObjectForm } from '@object-ui/plugin-form';
+import { evalFieldPredicate } from '@object-ui/core';
 
 export interface ScreenFieldSpec {
   name: string;
@@ -37,6 +38,14 @@ export interface ScreenFieldSpec {
   options?: Array<{ value: unknown; label: string }>;
   defaultValue?: unknown;
   placeholder?: string;
+  /**
+   * Conditional-visibility predicate — bare CEL over the screen's own field
+   * names (`createOpportunity == true`), re-evaluated against the values
+   * collected so far. Omit = always visible. Read it through
+   * {@link visibleScreenFields}, never field-by-field, so rendering and
+   * `required` enforcement can never disagree (#3528).
+   */
+  visibleWhen?: string;
 }
 export interface ScreenSpec {
   nodeId: string;
@@ -71,6 +80,61 @@ export function isObjectFormScreen(screen: ScreenSpec): boolean {
 /** The screen's input fields — always an array, even when the payload omits them. */
 export function screenFields(screen: ScreenSpec): ScreenFieldSpec[] {
   return Array.isArray(screen.fields) ? screen.fields : [];
+}
+
+/**
+ * The fields actually on screen for the values collected so far — i.e. every
+ * field whose `visibleWhen` predicate holds (or that declares none).
+ *
+ * This is the list callers must use for BOTH rendering and `required`
+ * enforcement. Splitting them is the #3528 dead-end: validate the full list
+ * while rendering a subset and Submit blocks on a field the user was never
+ * shown, with no resume request ever issued.
+ *
+ * The predicate is bare CEL over the screen's own field names
+ * (`createOpportunity == true`), evaluated through the canonical
+ * `@objectstack/formula` engine — the same verdict the server reaches for
+ * field rules. Values are bound both bare and under `record.`, so either
+ * spelling resolves. A broken predicate **fails open** (field stays visible),
+ * matching `resolveFieldRuleState`: hiding an input on a typo would silently
+ * drop data the flow is waiting for.
+ */
+export function visibleScreenFields(
+  screen: ScreenSpec,
+  values: Record<string, unknown>,
+): ScreenFieldSpec[] {
+  const scope = screenPredicateScope(screen, values);
+  return screenFields(screen).filter((f) =>
+    f.visibleWhen ? evalFieldPredicate(f.visibleWhen, scope, true, undefined, scope) : true,
+  );
+}
+
+/**
+ * The scope a screen's `visibleWhen` predicates evaluate against: every
+ * DECLARED field bound to its collected value, or to a known-empty one when
+ * the user has not touched it yet.
+ *
+ * Seeding matters. An untouched checkbox holds `undefined`, and to CEL an
+ * unbound name is an *unknown identifier* — the evaluation errors and
+ * `evalFieldPredicate` falls open, leaving `createOpportunity == true` fields
+ * on screen precisely in the state where they should be hidden. Binding the
+ * declared names makes the predicate resolve to a real `false` instead.
+ *
+ * Fail-open is still the behaviour we want for a genuinely broken predicate —
+ * a syntax error, or a name that is not a field on this screen. Seeding only
+ * the declared names keeps that split intact.
+ */
+function screenPredicateScope(
+  screen: ScreenSpec,
+  values: Record<string, unknown>,
+): Record<string, unknown> {
+  const scope: Record<string, unknown> = {};
+  for (const f of screenFields(screen)) {
+    const t = (f.type || 'text').toLowerCase();
+    scope[f.name] = t === 'boolean' || t === 'checkbox' ? false : null;
+  }
+  for (const [k, v] of Object.entries(values)) if (v !== undefined) scope[k] = v;
+  return scope;
 }
 
 /** Seed flat-field values from each field's `defaultValue`. */
@@ -154,7 +218,7 @@ export function ScreenView({ screen, values, onValueChange, dataSource, objects,
 
   return (
     <div className={cn('space-y-4 py-2', className)}>
-      {screenFields(screen).map((f) => (
+      {visibleScreenFields(screen, values).map((f) => (
         <div key={f.name} className="space-y-1.5">
           <Label htmlFor={`ff-${f.name}`} className="text-sm">
             {f.label || f.name}

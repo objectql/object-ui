@@ -25,7 +25,7 @@ import {
   Button,
 } from '@object-ui/components';
 import { toast } from 'sonner';
-import { ScreenView, isObjectFormScreen, initialScreenValues, screenFields, type ScreenSpec } from './ScreenView';
+import { ScreenView, isObjectFormScreen, initialScreenValues, visibleScreenFields, type ScreenSpec } from './ScreenView';
 
 export type { ScreenSpec, ScreenFieldSpec } from './ScreenView';
 
@@ -120,7 +120,15 @@ export function FlowRunner({ state, authFetch, baseUrl, onClose, onComplete, dat
   };
 
   const submit = async () => {
-    const missing = screenFields(screen).filter(
+    // Enforce `required` over the fields ACTUALLY ON SCREEN, not the whole
+    // declared list. A `visibleWhen` field that is required *when shown* is not
+    // required while hidden — the user was never asked for it, and the flow is
+    // not waiting on it. Validating the full list here is what dead-ended
+    // #3528: HotCRM's lead conversion declares `opportunityName` required with
+    // `visibleWhen: createOpportunity == true`, so leaving the checkbox
+    // unticked blocked Submit on an input that was not on screen, and the run
+    // sat paused with no resume request ever issued.
+    const missing = visibleScreenFields(screen, values).filter(
       (f) => f.required && (values[f.name] === undefined || values[f.name] === '' || values[f.name] === null),
     );
     if (missing.length) {
