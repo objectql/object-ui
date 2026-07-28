@@ -1876,6 +1876,11 @@ const pt = {
       done: 'Concluído — ocultar',
     },
   },
+  environment: {
+    addEnvironment: "Adicionar ambiente",
+    setUpProduction: "Configure seu ambiente de produção",
+    addDevelopment: "Adicionar ambiente de desenvolvimento",
+  },
   cloudConnection: {
     checking: "Verificando a conexão…",
     retry: "Tentar novamente",

@@ -2534,6 +2534,11 @@ const en = {
       done: 'Done — hide it',
     },
   },
+  environment: {
+    addEnvironment: 'Add environment',
+    setUpProduction: 'Set up your production environment',
+    addDevelopment: 'Add development environment',
+  },
   cloudConnection: {
     checking: 'Checking connection…',
     retry: 'Try again',

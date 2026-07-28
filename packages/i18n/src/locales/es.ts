@@ -1878,6 +1878,11 @@ const es = {
       done: 'Listo — ocultar',
     },
   },
+  environment: {
+    addEnvironment: "Añadir entorno",
+    setUpProduction: "Configure su entorno de producción",
+    addDevelopment: "Añadir entorno de desarrollo",
+  },
   cloudConnection: {
     checking: "Comprobando la conexión…",
     retry: "Reintentar",

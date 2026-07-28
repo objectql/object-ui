@@ -108,20 +108,32 @@ function greetingKey(): string {
   return 'engine.home.greetingEvening';
 }
 
+/**
+ * Relative timestamp for the "recently visited" list.
+ *
+ * Uses `Intl.RelativeTimeFormat` rather than a hand-written en/zh branch
+ * (objectui#2871): the platform already knows how to say "3 days ago" in every
+ * locale the console ships, with the right plural rules and the right word
+ * order — none of which a `zh ? … : …` ternary can express. This also drops
+ * the last hard-coded strings in this file.
+ *
+ * `numeric: 'auto'` is what turns "1 day ago" into "yesterday" / 「昨天」.
+ */
 function relativeTime(iso: string, locale: string): string {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return '';
-  const diff = Date.now() - then;
-  const zh = locale.startsWith('zh');
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return zh ? '刚刚' : 'just now';
-  if (mins < 60) return zh ? `${mins} 分钟前` : `${mins}m ago`;
+  const mins = Math.floor((Date.now() - then) / 60000);
+
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+  // Negative values read as past ("3 minutes ago"); pick the coarsest unit
+  // that still has a whole number, matching the previous behaviour.
+  if (mins < 1) return rtf.format(0, 'minute');
+  if (mins < 60) return rtf.format(-mins, 'minute');
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return zh ? `${hrs} 小时前` : `${hrs}h ago`;
+  if (hrs < 24) return rtf.format(-hrs, 'hour');
   const days = Math.floor(hrs / 24);
-  if (days < 7) return zh ? `${days} 天前` : `${days}d ago`;
-  const weeks = Math.floor(days / 7);
-  return zh ? `${weeks} 周前` : `${weeks}w ago`;
+  if (days < 7) return rtf.format(-days, 'day');
+  return rtf.format(-Math.floor(days / 7), 'week');
 }
 
 export function StudioHomePage() {

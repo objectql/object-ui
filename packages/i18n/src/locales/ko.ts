@@ -1878,6 +1878,11 @@ const ko = {
       done: '완료 — 숨기기',
     },
   },
+  environment: {
+    addEnvironment: "환경 추가",
+    setUpProduction: "프로덕션 환경 설정",
+    addDevelopment: "개발 환경 추가",
+  },
   cloudConnection: {
     checking: "연결을 확인하는 중…",
     retry: "다시 시도",

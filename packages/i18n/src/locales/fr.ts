@@ -1876,6 +1876,11 @@ const fr = {
       done: 'Terminé — masquer',
     },
   },
+  environment: {
+    addEnvironment: "Ajouter un environnement",
+    setUpProduction: "Configurer votre environnement de production",
+    addDevelopment: "Ajouter un environnement de développement",
+  },
   cloudConnection: {
     checking: "Vérification de la connexion…",
     retry: "Réessayer",

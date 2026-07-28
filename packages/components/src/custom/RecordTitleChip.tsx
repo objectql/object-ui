@@ -29,43 +29,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '../ui/tooltip';
+import { useObjectTranslation } from '@object-ui/i18n';
 import { cn } from '../lib/utils';
-
-/** Inline translator — components is i18n-free, so we mirror the
- *  zh-CN / zh-TW dictionary used by `containers.tsx` for tab labels. */
-const T: Record<string, Record<string, string>> = {
-  'zh-CN': {
-    addToFavorites: '加入收藏',
-    removeFromFavorites: '从收藏移除',
-    copyRecordId: '复制记录 ID',
-    copied: '已复制',
-  },
-  'zh-TW': {
-    addToFavorites: '加入收藏',
-    removeFromFavorites: '從收藏移除',
-    copyRecordId: '複製記錄 ID',
-    copied: '已複製',
-  },
-};
-
-const detectLocale = (): string => {
-  if (typeof document !== 'undefined') {
-    const docLang = document.documentElement?.lang;
-    if (docLang) return docLang;
-  }
-  if (typeof navigator !== 'undefined' && navigator.language) {
-    return navigator.language;
-  }
-  return 'en';
-};
-
-const tt = (key: keyof typeof T['zh-CN'], fallback: string): string => {
-  const locale = detectLocale();
-  const exact = T[locale];
-  const base = locale.split('-')[0];
-  const dict = exact || (base === 'zh' ? T['zh-CN'] : undefined);
-  return (dict && dict[key]) || fallback;
-};
 
 export interface RecordTitleChipProps {
   /** Resolved title text (already interpolated against the record). */
@@ -102,6 +67,7 @@ export const RecordTitleChip: React.FC<RecordTitleChipProps> = ({
   className,
   inlineExtras,
 }) => {
+  const { t } = useObjectTranslation();
   const [internalFav, setInternalFav] = React.useState(false);
   const [idCopied, setIdCopied] = React.useState(false);
   const isFavorite = isFavoriteProp ?? internalFav;
@@ -126,11 +92,9 @@ export const RecordTitleChip: React.FC<RecordTitleChipProps> = ({
   }, [resourceId]);
 
   const favLabel = isFavorite
-    ? tt('removeFromFavorites', 'Remove from favourites')
-    : tt('addToFavorites', 'Add to favourites');
-  const copyLabel = idCopied
-    ? tt('copied', 'Copied')
-    : tt('copyRecordId', 'Copy record ID');
+    ? t('detail.removeFromFavorites')
+    : t('detail.addToFavorites');
+  const copyLabel = idCopied ? t('detail.copied') : t('detail.copyRecordId');
 
   return (
     <TooltipProvider>

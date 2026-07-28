@@ -1207,6 +1207,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.toggleRail': 'Toggle sidebar',
   'engine.studio.home': 'Back to home',
   // Pillar tab labels
+  'engine.studio.aiCopilot': 'AI copilot',
   'engine.studio.pillar.data': 'Data',
   'engine.studio.pillar.automations': 'Automations',
   'engine.studio.pillar.interfaces': 'Interfaces',
@@ -2741,6 +2742,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.toggleRail': '切换侧栏',
   'engine.studio.home': '返回主页',
   // Pillar tab labels
+  'engine.studio.aiCopilot': 'AI 副驾',
   'engine.studio.pillar.data': '数据',
   'engine.studio.pillar.automations': '自动化',
   'engine.studio.pillar.interfaces': '界面',

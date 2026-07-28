@@ -1876,6 +1876,11 @@ const ru = {
       done: 'Готово — скрыть',
     },
   },
+  environment: {
+    addEnvironment: "Добавить окружение",
+    setUpProduction: "Настройте продакшн-окружение",
+    addDevelopment: "Добавить окружение разработки",
+  },
   cloudConnection: {
     checking: "Проверка подключения…",
     retry: "Повторить",

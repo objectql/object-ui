@@ -8,6 +8,7 @@ import { useAgents } from '@object-ui/plugin-chatbot';
 import { useChatConversation } from '../../hooks/useChatConversation';
 import { chatConversationScope, chatProductOfAgent } from '../../hooks/chatScope';
 import { resolveSurfaceAgent } from '../../hooks/surfaceAgent';
+import { t } from '../metadata-admin/i18n';
 import { ChatPane, resolveApiBase, type PendingFirstMessage } from '../../console/ai/AiChatPage';
 import {
   ChatDockPanel,
@@ -127,7 +128,6 @@ export interface StudioChatDockProps {
  *    (ADR-0037 — the preview needs more width than the rail has).
  */
 export function StudioChatDock({ packageId, locale }: StudioChatDockProps): React.ReactElement | null {
-  const zh = (locale ?? '').toLowerCase().startsWith('zh');
   const navigate = useNavigate();
   const location = useLocation();
   const apiBase = React.useMemo(() => resolveApiBase(), []);
@@ -176,7 +176,7 @@ export function StudioChatDock({ packageId, locale }: StudioChatDockProps): Reac
         <ChatDockMobileSheet
           open={mobileOpen}
           onOpenChange={setMobileOpen}
-          title={zh ? 'AI 副驾' : 'AI copilot'}
+          title={t('engine.studio.aiCopilot', locale)}
           // Bridge to the package's full-page build thread; deferred so the
           // sheet closes cleanly before the route changes.
           onMaximize={openFullPage}
@@ -194,7 +194,7 @@ export function StudioChatDock({ packageId, locale }: StudioChatDockProps): Reac
   return (
     <ChatDockPanel
       dock={dock}
-      title={zh ? 'AI 副驾' : 'AI copilot'}
+      title={t('engine.studio.aiCopilot', locale)}
       onMaximize={openFullPage}
     >
       <StudioCopilotConversation

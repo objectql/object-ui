@@ -25,6 +25,7 @@ import { useEffect, useRef, useState } from 'react';
 import { SchemaRenderer } from '@object-ui/react';
 import { Button } from '@object-ui/components';
 import { Plus } from 'lucide-react';
+import { useObjectTranslation } from '@object-ui/i18n';
 import {
   decideEnvironmentCta,
   upgradeDialogSpec,
@@ -33,13 +34,6 @@ import {
 } from './entitlements';
 
 const CREATE_ACTION = 'create_environment';
-
-/** Resolve an inline {en,zh} label against the document locale. */
-function pick(label: { en: string; zh: string }): string {
-  const lang =
-    (typeof document !== 'undefined' && document.documentElement.getAttribute('lang')) || 'en';
-  return lang.toLowerCase().startsWith('zh') ? label.zh : label.en;
-}
 
 /**
  * Deep-link support (#844): `?runAction=create_environment` on the
@@ -89,6 +83,7 @@ interface Props {
 }
 
 export function EnvironmentListToolbar({ actions, entitlements, onUpgrade }: Props) {
+  const { t } = useObjectTranslation();
   const toolbarActions = (actions || []).filter((a: any) => a?.locations?.includes('list_toolbar'));
   const ctaKind = entitlements?.ready ? decideEnvironmentCta(entitlements) : null;
   const autoRunCreate = useAutoRunCreate(toolbarActions.length > 0 ? ctaKind : null);
@@ -124,7 +119,7 @@ export function EnvironmentListToolbar({ actions, entitlements, onUpgrade }: Pro
           data-testid="environment-add-upgrade"
         >
           <Plus className="h-4 w-4" />
-          <span>{pick({ en: 'Add environment', zh: '新建环境' })}</span>
+          <span>{t('environment.addEnvironment')}</span>
         </Button>
       </>
     );
@@ -134,13 +129,15 @@ export function EnvironmentListToolbar({ actions, entitlements, onUpgrade }: Pro
   // the create action's label (and promoting production setup to a primary CTA).
   // Labels are locale-aware — the metadata label is already localized by the
   // caller, but these state-aware overrides used to be hard-coded English,
-  // which flashed an English button in a zh console (#844).
+  // which flashed an English button in a zh console (#844). They now resolve
+  // from the locale packs, so all ten languages work rather than just zh
+  // (objectui#2871).
   const renderedActions = toolbarActions.map((a: any) => {
     if (a?.name !== CREATE_ACTION || ctaKind == null) return a;
     if (ctaKind === 'setup_production') {
       return {
         ...a,
-        label: pick({ en: 'Set up your production environment', zh: '创建你的生产环境' }),
+        label: t('environment.setUpProduction'),
         variant: 'primary',
         ...(autoRunCreate ? { autoTrigger: true } : {}),
       };
@@ -148,7 +145,7 @@ export function EnvironmentListToolbar({ actions, entitlements, onUpgrade }: Pro
     // add_development
     return {
       ...a,
-      label: pick({ en: 'Add development environment', zh: '新建开发环境' }),
+      label: t('environment.addDevelopment'),
       ...(autoRunCreate ? { autoTrigger: true } : {}),
     };
   });

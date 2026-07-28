@@ -2524,6 +2524,11 @@ const zh = {
       done: '完成——隐藏',
     },
   },
+  environment: {
+    addEnvironment: '新建环境',
+    setUpProduction: '创建你的生产环境',
+    addDevelopment: '新建开发环境',
+  },
   cloudConnection: {
     checking: '正在检查连接…',
     retry: '重试',

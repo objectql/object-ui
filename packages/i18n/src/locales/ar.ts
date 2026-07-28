@@ -1876,6 +1876,11 @@ const ar = {
       done: 'تم — إخفاء',
     },
   },
+  environment: {
+    addEnvironment: "إضافة بيئة",
+    setUpProduction: "إعداد بيئة الإنتاج",
+    addDevelopment: "إضافة بيئة تطوير",
+  },
   cloudConnection: {
     checking: "جارٍ التحقق من الاتصال…",
     retry: "إعادة المحاولة",

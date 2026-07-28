@@ -1878,6 +1878,11 @@ const de = {
       done: 'Fertig — ausblenden',
     },
   },
+  environment: {
+    addEnvironment: "Umgebung hinzufügen",
+    setUpProduction: "Produktionsumgebung einrichten",
+    addDevelopment: "Entwicklungsumgebung hinzufügen",
+  },
   cloudConnection: {
     checking: "Verbindung wird geprüft…",
     retry: "Erneut versuchen",

@@ -20,8 +20,22 @@ vi.mock('@object-ui/react', async (importActual) => ({
   ),
 }));
 
+import { I18nProvider } from '@object-ui/i18n';
 import { EnvironmentListToolbar } from '../EnvironmentListToolbar';
 import type { EnvironmentEntitlementsState } from '../entitlements';
+
+/**
+ * The state-aware CTA labels resolve from the locale packs (objectui#2871),
+ * so these renders need a real i18n context — asserting the English strings
+ * without one would only be asserting the raw key. Pinned to `en` and
+ * `detectBrowserLanguage: false` so the expectations stay deterministic.
+ */
+const renderToolbar = (ui: React.ReactElement) =>
+  render(
+    <I18nProvider config={{ defaultLanguage: 'en', detectBrowserLanguage: false }}>
+      {ui}
+    </I18nProvider>,
+  );
 
 const CREATE = {
   name: 'create_environment', label: 'Create Environment',
@@ -32,7 +46,7 @@ const st = (o: Partial<EnvironmentEntitlementsState>): EnvironmentEntitlementsSt
 
 describe('EnvironmentListToolbar', () => {
   it('no production env → "Set up your production environment" (primary)', () => {
-    render(<EnvironmentListToolbar actions={[CREATE]} entitlements={st({ hasProductionEnv: false })} onUpgrade={vi.fn()} />);
+    renderToolbar(<EnvironmentListToolbar actions={[CREATE]} entitlements={st({ hasProductionEnv: false })} onUpgrade={vi.fn()} />);
     const btn = screen.getByText('Set up your production environment');
     expect(btn).toBeTruthy();
     expect(btn.getAttribute('data-variant')).toBe('primary');
@@ -40,14 +54,14 @@ describe('EnvironmentListToolbar', () => {
   });
 
   it('has prod + dev allowed (paid) → "Add development environment"', () => {
-    render(<EnvironmentListToolbar actions={[CREATE]} entitlements={st({ canCreateDevelopmentEnv: true })} onUpgrade={vi.fn()} />);
+    renderToolbar(<EnvironmentListToolbar actions={[CREATE]} entitlements={st({ canCreateDevelopmentEnv: true })} onUpgrade={vi.fn()} />);
     expect(screen.getByText('Add development environment')).toBeTruthy();
     expect(screen.queryByTestId('environment-add-upgrade')).toBeNull();
   });
 
   it('has prod + dev locked (free) → upgrade button, NO create POST affordance', () => {
     const onUpgrade = vi.fn();
-    render(<EnvironmentListToolbar actions={[CREATE]} entitlements={st({ canCreateDevelopmentEnv: false, plan: 'free' })} onUpgrade={onUpgrade} />);
+    renderToolbar(<EnvironmentListToolbar actions={[CREATE]} entitlements={st({ canCreateDevelopmentEnv: false, plan: 'free' })} onUpgrade={onUpgrade} />);
     // The create action is NOT rendered as a bar button (no POST-then-403).
     expect(screen.queryByText('Create Environment')).toBeNull();
     expect(screen.queryByText('Add development environment')).toBeNull();
@@ -57,7 +71,7 @@ describe('EnvironmentListToolbar', () => {
   });
 
   it('still resolving (null) → neutral default label, no upgrade button', () => {
-    render(<EnvironmentListToolbar actions={[CREATE]} entitlements={null} onUpgrade={vi.fn()} />);
+    renderToolbar(<EnvironmentListToolbar actions={[CREATE]} entitlements={null} onUpgrade={vi.fn()} />);
     expect(screen.getByText('Create Environment')).toBeTruthy();
     expect(screen.queryByTestId('environment-add-upgrade')).toBeNull();
   });
@@ -72,7 +86,7 @@ describe('EnvironmentListToolbar — ?runAction=create_environment deep link (#8
 
   it('marks the create action autoTrigger once entitlements resolve, then strips the param', async () => {
     withRunActionParam();
-    render(<EnvironmentListToolbar actions={[CREATE]} entitlements={st({ hasProductionEnv: false })} onUpgrade={vi.fn()} />);
+    renderToolbar(<EnvironmentListToolbar actions={[CREATE]} entitlements={st({ hasProductionEnv: false })} onUpgrade={vi.fn()} />);
     const btn = screen.getByText('Set up your production environment');
     // The SchemaRenderer stub surfaces autoTrigger as data-autotrigger.
     expect(btn.getAttribute('data-autotrigger')).toBe('true');
@@ -85,7 +99,7 @@ describe('EnvironmentListToolbar — ?runAction=create_environment deep link (#8
   it('upgrade state: deep link opens the upgrade prompt instead of a create POST', async () => {
     withRunActionParam();
     const onUpgrade = vi.fn();
-    render(<EnvironmentListToolbar actions={[CREATE]} entitlements={st({ canCreateDevelopmentEnv: false, plan: 'free' })} onUpgrade={onUpgrade} />);
+    renderToolbar(<EnvironmentListToolbar actions={[CREATE]} entitlements={st({ canCreateDevelopmentEnv: false, plan: 'free' })} onUpgrade={onUpgrade} />);
     await vi.waitFor(() => expect(onUpgrade).toHaveBeenCalledTimes(1));
     expect(onUpgrade.mock.calls[0][0]).toMatchObject({ code: 'DEV_ENV_PLAN_LOCKED' });
   });

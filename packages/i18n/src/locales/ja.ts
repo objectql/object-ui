@@ -1878,6 +1878,11 @@ const ja = {
       done: '完了 — 非表示にする',
     },
   },
+  environment: {
+    addEnvironment: "環境を追加",
+    setUpProduction: "本番環境をセットアップ",
+    addDevelopment: "開発環境を追加",
+  },
   cloudConnection: {
     checking: "接続を確認しています…",
     retry: "再試行",
