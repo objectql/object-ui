@@ -243,14 +243,18 @@ const result = ButtonSchema.safeParse({
   variant: 'invalid-variant'
 });
 
-// result.error.errors:
+// result.error.issues:
 // [
 //   {
-//     code: 'invalid_enum_value',
+//     code: 'invalid_value',
+//     values: ['default', 'secondary', ...],
 //     path: ['variant'],
-//     message: "Invalid enum value. Expected 'default' | 'secondary' | ...",
+//     message: 'Invalid option: expected one of "default"|"secondary"|...',
 //   }
 // ]
+//
+// Note: the accessor is `.issues`. Zod 4 removed the `.errors` alias, so
+// `.errors` reads `undefined` rather than throwing at the access itself.
 ```
 
 ### Nested Validation

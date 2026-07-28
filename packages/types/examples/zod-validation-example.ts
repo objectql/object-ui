@@ -19,7 +19,11 @@ import {
   CardSchema,
   DataTableSchema,
   KanbanSchema,
-} from '../dist/zod/index.zod.js';
+} from '../src/zod/index.zod';
+
+// The failure accessor below is `error.issues`. Zod 4 removed the `.errors`
+// alias, so `.errors` reads `undefined` and any `.length`/`.forEach` on it
+// throws — see the same bug fixed in `objectui validate` (#2919).
 
 // Example 1: Validate a Button component
 const buttonExample = {
@@ -33,7 +37,7 @@ const buttonExample = {
 const buttonResult = ButtonSchema.safeParse(buttonExample);
 console.log('Button validation:', buttonResult.success ? 'PASSED ✓' : 'FAILED ✗');
 if (!buttonResult.success) {
-  console.error('Button errors:', buttonResult.error.errors);
+  console.error('Button errors:', buttonResult.error.issues);
 }
 
 // Example 2: Validate an Input component
@@ -49,7 +53,7 @@ const inputExample = {
 const inputResult = InputSchema.safeParse(inputExample);
 console.log('Input validation:', inputResult.success ? 'PASSED ✓' : 'FAILED ✗');
 if (!inputResult.success) {
-  console.error('Input errors:', inputResult.error.errors);
+  console.error('Input errors:', inputResult.error.issues);
 }
 
 // Example 3: Validate a Form component
@@ -77,7 +81,7 @@ const formExample = {
 const formResult = FormSchema.safeParse(formExample);
 console.log('Form validation:', formResult.success ? 'PASSED ✓' : 'FAILED ✗');
 if (!formResult.success) {
-  console.error('Form errors:', formResult.error.errors);
+  console.error('Form errors:', formResult.error.issues);
 }
 
 // Example 4: Validate a Card component
@@ -97,7 +101,7 @@ const cardExample = {
 const cardResult = CardSchema.safeParse(cardExample);
 console.log('Card validation:', cardResult.success ? 'PASSED ✓' : 'FAILED ✗');
 if (!cardResult.success) {
-  console.error('Card errors:', cardResult.error.errors);
+  console.error('Card errors:', cardResult.error.issues);
 }
 
 // Example 5: Validate a DataTable component
@@ -124,7 +128,7 @@ const dataTableExample = {
 const dataTableResult = DataTableSchema.safeParse(dataTableExample);
 console.log('DataTable validation:', dataTableResult.success ? 'PASSED ✓' : 'FAILED ✗');
 if (!dataTableResult.success) {
-  console.error('DataTable errors:', dataTableResult.error.errors);
+  console.error('DataTable errors:', dataTableResult.error.issues);
 }
 
 // Example 6: Validate a Kanban component
@@ -160,7 +164,7 @@ const kanbanExample = {
 const kanbanResult = KanbanSchema.safeParse(kanbanExample);
 console.log('Kanban validation:', kanbanResult.success ? 'PASSED ✓' : 'FAILED ✗');
 if (!kanbanResult.success) {
-  console.error('Kanban errors:', kanbanResult.error.errors);
+  console.error('Kanban errors:', kanbanResult.error.issues);
 }
 
 // Example 7: Test validation errors
@@ -175,7 +179,7 @@ const invalidButton = {
 const invalidButtonResult = ButtonSchema.safeParse(invalidButton);
 console.log('Invalid button validation:', invalidButtonResult.success ? 'PASSED (unexpected)' : 'FAILED (expected) ✓');
 if (!invalidButtonResult.success) {
-  console.log('Expected validation errors:', invalidButtonResult.error.errors.length);
+  console.log('Expected validation errors:', invalidButtonResult.error.issues.length);
 }
 
 // Summary
