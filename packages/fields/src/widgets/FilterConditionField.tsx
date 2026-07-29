@@ -144,7 +144,11 @@ function filterGroupToMongo(group: BuilderGroup, typeOf: (f: string) => string |
   const frags = (group?.conditions ?? [])
     .map((c) => condToMongo(c, typeOf))
     .filter((x): x is Record<string, any> => !!x);
-  if (frags.length === 0) return null; // empty = match all
+  // No conditions → no predicate. NOT "match all": a sharing rule with an
+  // empty criteria is refused on save, and one already stored shares nothing
+  // (objectstack#3896 / ADR-0049). `null` becomes an empty stored value, which
+  // is what the required-criteria messaging below keys off.
+  if (frags.length === 0) return null;
   if (group.logic === 'or') return { $or: frags };
   if (frags.length === 1) return frags[0];
   const keys = frags.flatMap((f) => Object.keys(f));
@@ -233,6 +237,37 @@ function mongoToFilterGroup(mongo: any): BuilderGroup | null {
   return { id: 'root', logic: 'and', conditions };
 }
 
+/**
+ * Would this criteria select EVERY record of the object?
+ *
+ * Mirrors the server's `isMatchAllCriteria` (objectstack `plugin-sharing`,
+ * #3896) closely enough to warn before the round-trip: blank, `{}`, `[]`, and
+ * the vacuous combinators. Deliberately conservative in the same direction —
+ * the cost of a false positive is one extra hint, the cost of a false negative
+ * is a save that fails with a toast. The server stays authoritative.
+ *
+ * @internal exported for tests
+ */
+export function isMatchAllCriteria(parsed: any): boolean {
+  if (parsed == null) return true;
+  if (Array.isArray(parsed)) return parsed.every(isMatchAllCriteria);
+  if (typeof parsed !== 'object') return true;
+  const entries = Object.entries(parsed);
+  if (entries.length === 0) return true;
+  for (const [key, value] of entries) {
+    if (key === '$and') {
+      if (!Array.isArray(value) || value.every(isMatchAllCriteria)) continue;
+      return false;
+    }
+    if (key === '$or') {
+      if (!Array.isArray(value) || value.length === 0 || value.some(isMatchAllCriteria)) continue;
+      return false;
+    }
+    return false;
+  }
+  return true;
+}
+
 function stringifyValue(value: string | object | undefined | null): string {
   if (value == null || value === '') return '';
   if (typeof value === 'string') return value;
@@ -291,6 +326,13 @@ export function FilterConditionField({
     [parsed],
   );
 
+  // Only flag a criteria that PARSES to match-all. Unparsable JSON has its own
+  // message (`invalidJson`) and must not collect a second, contradictory one.
+  const isEmptyCriteria = React.useMemo(
+    () => parsed.ok && isMatchAllCriteria(parsed.mongo),
+    [parsed],
+  );
+
   // Raw JSON mode: forced when the stored value can't be represented in the
   // builder; otherwise opt-in via the toggle.
   const representable = parsed.ok && group !== null;
@@ -319,9 +361,13 @@ export function FilterConditionField({
 
   if (readonly) {
     if (!rawValue.trim()) {
+      // Used to read "All records" — which was both wrong and the most
+      // dangerous thing this widget could say (objectstack#3896). A rule with
+      // no criteria has never usefully shared everything; it now shares
+      // nothing and is refused on save, so name that instead.
       return (
-        <span className={cn('text-sm text-muted-foreground', className)}>
-          {t('fields.filterCondition.allRecords')}
+        <span className={cn('text-sm text-destructive', className)}>
+          {t('fields.filterCondition.noCriteria')}
         </span>
       );
     }
@@ -352,6 +398,18 @@ export function FilterConditionField({
           value={(group ?? EMPTY_GROUP) as any}
           onChange={handleBuilderChange as any}
         />
+      )}
+      {/*
+        The server refuses to save a criteria that would select every record
+        (objectstack#3896), but that rejection only arrives as a toast after
+        the admin hits Save. Say it here, while they are still looking at the
+        empty builder — and never imply that leaving it empty means "share
+        everything", which is what this widget used to do.
+      */}
+      {isEmptyCriteria && (
+        <span className="text-xs text-destructive">
+          {t('fields.filterCondition.criteriaRequired')}
+        </span>
       )}
       <button
         type="button"

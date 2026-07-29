@@ -190,7 +190,8 @@ const ar = {
     },
     filterCondition: {
       selectObjectFirst: "اختر كائناً أولاً.",
-      allRecords: "كل السجلات",
+      noCriteria: "لا توجد معايير — لا تشارك هذه القاعدة أي شيء",
+      criteriaRequired: "أضف شرطًا واحدًا على الأقل. القاعدة بدون معايير ستشارك كل السجلات، لذا لا يمكن حفظها.",
       invalidJson: "JSON غير صالح — لن تطابق القاعدة أي سجل حتى يتم إصلاحه.",
       jsonOnly: "لا يمكن تحرير هذا المعيار إلا بصيغة JSON",
       editAsJson: "التحرير بصيغة JSON",

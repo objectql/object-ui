@@ -190,7 +190,8 @@ const ko = {
     },
     filterCondition: {
       selectObjectFirst: "먼저 객체를 선택하세요.",
-      allRecords: "모든 레코드",
+      noCriteria: "조건 없음 — 이 규칙은 아무것도 공유하지 않습니다",
+      criteriaRequired: "조건을 하나 이상 추가하세요. 조건이 없는 규칙은 모든 레코드를 공유하게 되므로 저장할 수 없습니다.",
       invalidJson: "잘못된 JSON — 수정하기 전까지 이 규칙은 어떤 레코드와도 일치하지 않습니다.",
       jsonOnly: "이 조건은 JSON으로만 편집할 수 있습니다",
       editAsJson: "JSON으로 편집",
