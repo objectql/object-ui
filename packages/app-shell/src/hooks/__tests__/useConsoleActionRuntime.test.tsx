@@ -282,6 +282,45 @@ describe('useConsoleActionRuntime — authenticated handlers', () => {
     expect(res).toMatchObject({ success: true });
   });
 
+  // [ADR-0110 D1] The action URL identifies the action by `name`. It used to
+  // post `target || name` — the handler's REGISTRATION KEY — so for a
+  // target-bound action the server resolved no declaration and silently
+  // skipped the ADR-0066 D4 capability gate and the ADR-0104 param contract
+  // (framework#3935). `target` is a binding expression, not an identity.
+  it('serverActionHandler posts the action NAME, not its target', async () => {
+    authFetchSpy.mockResolvedValue({ ok: true, json: async () => ({ success: true, data: {} }) });
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [], objectName: 'todo_task' }),
+    );
+
+    await act(async () => {
+      // app-todo's real shape — declarative name ≠ handler registration key.
+      await result.current.serverActionHandler(
+        { type: 'script', name: 'complete_task', target: 'completeTask' } as any,
+        { selectedRecords: [{ id: 'task_1' }] } as any,
+      );
+    });
+
+    const url = String(authFetchSpy.mock.calls[0][0]);
+    expect(url).toContain('/api/v1/actions/todo_task/complete_task');
+    expect(url).not.toContain('completeTask');
+  });
+
+  it('serverActionHandler refuses an action with no name rather than falling back to target', async () => {
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [], objectName: 'todo_task' }),
+    );
+
+    let res: any;
+    await act(async () => {
+      res = await result.current.serverActionHandler({ type: 'script', target: 'completeTask' } as any);
+    });
+
+    expect(res).toMatchObject({ success: false });
+    expect(String(res.error)).toMatch(/no name/i);
+    expect(authFetchSpy).not.toHaveBeenCalled();
+  });
+
   it('serverActionHandler returns a failed action error WITHOUT toasting it (the ActionRunner owns the error toast — no double toast)', async () => {
     // A script action that throws (e.g. lead_apply_convert validation) returns
     // { success:false, error } from the server. The handler must NOT toast it —
