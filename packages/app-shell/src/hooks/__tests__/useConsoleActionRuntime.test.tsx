@@ -305,6 +305,105 @@ describe('useConsoleActionRuntime — authenticated handlers', () => {
     expect((toast as any).error).not.toHaveBeenCalled();
   });
 
+  it('serverActionHandler treats an INNER success:false as a failure (objectstack#3913 — no green toast on a failed action)', async () => {
+    // A server older than objectstack#3913 wraps a handler failure as HTTP 200
+    // `{success: true, data: {success: false, error}}`. Reading only `res.ok`
+    // and the OUTER `success` reported that as a completed action and fired the
+    // green "completed" toast while swallowing the real error — the reported
+    // bug. The console must inspect the inner envelope for those servers.
+    authFetchSpy.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        success: true,
+        data: { success: false, error: "Action 'log_call' on object '*' not found" },
+      }),
+    });
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [], objectName: 'crm_call' }),
+    );
+
+    let res: any;
+    await act(async () => {
+      res = await result.current.serverActionHandler({ type: 'script', name: 'log_call' } as any);
+    });
+
+    expect(res).toEqual({ success: false, error: "Action 'log_call' on object '*' not found" });
+    expect((toast as any).error).not.toHaveBeenCalled();
+  });
+
+  it('serverActionHandler resolves a nested {error:{message}} to a STRING (objectstack#3913 wire)', async () => {
+    // Current servers answer a failed action with a real status and the nested
+    // envelope. Passing that object through as `ActionResult.error` reaches
+    // `toast.error()` as a React child and crashes the page (React #31).
+    authFetchSpy.mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({
+        success: false,
+        error: { message: "Action 'log_call' on object 'global' not found", code: 404 },
+      }),
+    });
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [] }),
+    );
+
+    let res: any;
+    await act(async () => {
+      res = await result.current.serverActionHandler({ type: 'script', name: 'log_call' } as any);
+    });
+
+    expect(res.success).toBe(false);
+    expect(typeof res.error).toBe('string');
+    expect(res.error).toBe("Action 'log_call' on object 'global' not found");
+  });
+
+  it('serverActionHandler opens a handler-returned redirectUrl (read through BOTH envelopes)', async () => {
+    // The action route wraps twice: `{success, data:{success, data: <handler>}}`.
+    // This used to read `redirectUrl` off the ACTION envelope — a level where
+    // only `success`/`data` ever live — so the convention never fired and an
+    // `opensInNewTab` action left its pre-opened tab on the spinner forever.
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue({} as any);
+    authFetchSpy.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        success: true,
+        data: { success: true, data: { redirectUrl: 'https://example.test/sso' } },
+      }),
+    });
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [], objectName: 'crm_call' }),
+    );
+
+    await act(async () => {
+      await result.current.serverActionHandler({ type: 'script', name: 'open_env' } as any);
+    });
+
+    expect(openSpy).toHaveBeenCalledWith('https://example.test/sso', '_blank');
+    openSpy.mockRestore();
+  });
+
+  it('serverActionHandler still reports success when the inner envelope says so', async () => {
+    // The success wire is unchanged by objectstack#3913 — guard against the
+    // inner-envelope check turning a good action into a failure.
+    authFetchSpy.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true, data: { success: true, data: { id: 'call_1' } } }),
+    });
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [], objectName: 'crm_call' }),
+    );
+
+    let res: any;
+    await act(async () => {
+      res = await result.current.serverActionHandler({ type: 'script', name: 'log_call' } as any);
+    });
+
+    expect(res).toMatchObject({ success: true });
+  });
+
   it('exposes ActionProvider props with the api/flow/script/modal handlers wired', () => {
     const { result } = renderHook(() =>
       useConsoleActionRuntime({ dataSource: {}, objects: [], objectName: 'inv' }),

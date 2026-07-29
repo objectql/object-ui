@@ -32,6 +32,19 @@
  * the field's declared `currency` (`Intl` symbol) + numeral `format`, never
  * the raw field name or a misleading "$".
  *
+ * Ordering (framework#3916): a report's `order` — a list of `{ by, direction }`
+ * keys, most significant first — is lowered onto the dataset selection, so the
+ * SERVER orders the whole grid (after measure-scoped filters merge and derived
+ * measures evaluate) and this renderer only places the rows it is handed. It is
+ * never a client-side re-sort: sorting here would order the truncated page
+ * rather than the query, and could not sort by a derived measure at all.
+ *
+ * For a matrix that also decides the ACROSS axis: `colHeaders` are collected in
+ * row-arrival order, so ordering the rows by the across dimension is what makes
+ * the columns read left-to-right in that order. Declaring nothing still reads
+ * correctly — the server defaults a selected time dimension to ascending, which
+ * is what makes month/quarter columns chronological out of the box.
+ *
  * Drill-down (ADR-0021 D2): when the report's `drilldown` flag is not `false`
  * and the host supplies `onDrill`, every aggregated row / matrix cell is
  * clickable and emits `{ dataset, groupKey, runtimeFilter }`. The HOST owns
@@ -109,6 +122,13 @@ interface DatasetReportLike {
   values?: string[];
   runtimeFilter?: Record<string, unknown>;
   filter?: Record<string, unknown>;
+  /**
+   * Result ordering, most significant key first (framework#3916). Each `by`
+   * names a dimension the report groups by (`rows` / `columns`) or a measure it
+   * displays (`values`). A `joined` report carries this per BLOCK, never on the
+   * container.
+   */
+  order?: Array<{ by?: unknown; direction?: unknown }>;
   /** Click-through to underlying records (default true). */
   drilldown?: boolean;
   /** Embedded chart visualization (ADR-0021): type + xAxis/yAxis over the dataset. */
@@ -153,7 +173,78 @@ function readNames(value: unknown): string[] {
   return Array.isArray(value) ? (value as unknown[]).filter((v): v is string => typeof v === 'string' && !!v) : [];
 }
 
-/** Shared fetch for one dataset selection. */
+/** A lowered ordering, keyed in significance order (first key = primary sort). */
+type SelectionOrder = Record<string, 'asc' | 'desc'>;
+
+/**
+ * Lower a report's authored `order` list into the `DatasetSelection.order` the
+ * dataset query takes (framework#3916).
+ *
+ * The array's element order becomes the object's key insertion order, which is
+ * how `DatasetSelection.order` expresses sort significance. Returns `undefined`
+ * for an absent / empty / entirely-unusable list, so the caller OMITS the field
+ * and the server's own defaults still apply — a selected time dimension comes
+ * back chronological without the author declaring anything.
+ *
+ * Deliberately permissive about the input, like `readNames` above: this reads
+ * stored report JSON, which crosses the repo boundary and may predate (or lag)
+ * the schema. An entry with no usable `by` is dropped rather than throwing —
+ * the authoring-time schema is where a malformed `order` is meant to be caught.
+ *
+ * Mirrors `reportSelectionOrder` in `@objectstack/spec/ui`; kept local because
+ * the pinned spec (`^17.0.0-rc.0`) predates that export. Swap this for the
+ * import once the dependency bump lands.
+ */
+function readOrder(value: unknown): SelectionOrder | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const out: SelectionOrder = {};
+  for (const entry of value as Array<{ by?: unknown; direction?: unknown }>) {
+    const by = entry && typeof entry === 'object' ? entry.by : undefined;
+    if (typeof by !== 'string' || !by) continue;
+    out[by] = entry.direction === 'desc' ? 'desc' : 'asc';
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/**
+ * Narrow an ordering to the keys a given selection actually projects.
+ *
+ * The server REJECTS an order key that names nothing the selection selected
+ * (a deliberate 400 — a mistyped sort key that silently returns arbitrary rows
+ * is worse than a loud failure). But one report's `order` is validated against
+ * its WHOLE selection, while this renderer issues narrower sub-selections from
+ * it: the embedded chart queries only `chart.xAxis` × `chart.yAxis`, and the
+ * flat table path drops the matrix across-dimensions. Forwarding the full list
+ * to those would turn a perfectly valid report into a failed query.
+ *
+ * So keys outside a sub-selection are dropped HERE rather than sent and
+ * rejected. This cannot mask an authoring mistake: the report's own schema
+ * already validated every key against `rows` ∪ `columns` ∪ `values`, so the
+ * only keys that can be lost are ones the narrower query genuinely has no
+ * column for.
+ */
+function scopeOrder(
+  order: SelectionOrder | undefined,
+  dimensions: string[],
+  measures: string[],
+): SelectionOrder | undefined {
+  if (!order) return undefined;
+  const selectable = new Set<string>([...dimensions, ...measures]);
+  const out: SelectionOrder = {};
+  for (const [key, direction] of Object.entries(order)) {
+    if (selectable.has(key)) out[key] = direction;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/**
+ * Shared fetch for one dataset selection.
+ *
+ * `order` (framework#3916) is scoped to what THIS selection projects before it
+ * is sent — see {@link scopeOrder}. Every report path funnels through here, so
+ * scoping once is what keeps the chart's narrow x/y sub-selection from posting
+ * an order key it never selected.
+ */
 function useDatasetRows(
   dataset: string,
   dimensions: string[],
@@ -161,6 +252,7 @@ function useDatasetRows(
   runtimeFilter: Record<string, unknown> | undefined,
   dataSource: unknown,
   totalsGroupings?: string[][],
+  order?: SelectionOrder,
 ) {
   const [state, setState] = React.useState<{
     status: 'idle' | 'loading' | 'ok' | 'error';
@@ -177,9 +269,16 @@ function useDatasetRows(
     rows: [],
   });
 
+  const scopedOrder = scopeOrder(order, dimensions, measures);
   const rfKey = JSON.stringify(runtimeFilter ?? null);
   const totalsKey = JSON.stringify(totalsGroupings ?? null);
-  const signature = `${dataset}|${dimensions.join(',')}|${measures.join(',')}|${rfKey}|${totalsKey}`;
+  // The ordering is part of the signature: it changes the ROWS the server
+  // returns (and, for a matrix, the arrival order the pivot builds its column
+  // headers from), so a report edited from asc to desc must refetch, not
+  // re-render the previous grid. `JSON.stringify` preserves key order, which is
+  // exactly the sort significance that must invalidate the cache.
+  const orderKey = JSON.stringify(scopedOrder ?? null);
+  const signature = `${dataset}|${dimensions.join(',')}|${measures.join(',')}|${rfKey}|${totalsKey}|${orderKey}`;
   React.useEffect(() => {
     const src = dataSource as DatasetCapableSource | undefined;
     if (!src || typeof src.queryDataset !== 'function') {
@@ -198,6 +297,7 @@ function useDatasetRows(
         measures,
         ...(runtimeFilter && Object.keys(runtimeFilter).length > 0 ? { runtimeFilter } : {}),
         ...(totalsGroupings ? { totals: { groupings: totalsGroupings } } : {}),
+        ...(scopedOrder ? { order: scopedOrder } : {}),
       })
       .then((res) => {
         if (!cancelled) {
@@ -267,6 +367,7 @@ function DatasetReportTable({
   runtimeFilter,
   dataSource,
   onDrill,
+  order,
 }: {
   dataset: string;
   rows: string[];
@@ -274,8 +375,9 @@ function DatasetReportTable({
   runtimeFilter?: Record<string, unknown>;
   dataSource?: unknown;
   onDrill?: (args: DatasetDrillArgs) => void;
+  order?: SelectionOrder;
 }) {
-  const state = useDatasetRows(dataset, rows, values, runtimeFilter, dataSource);
+  const state = useDatasetRows(dataset, rows, values, runtimeFilter, dataSource, undefined, order);
   const { fieldLabel } = useSafeFieldLabel();
 
   if (values.length === 0) return <EmptyMeasures dataset={dataset} />;
@@ -420,20 +522,29 @@ function DatasetReportChart({
   chart,
   runtimeFilter,
   dataSource,
+  order,
 }: {
   dataset: string;
   chart: Record<string, unknown>;
   runtimeFilter?: Record<string, unknown>;
   dataSource?: unknown;
+  order?: SelectionOrder;
 }) {
   const xAxis = typeof chart.xAxis === 'string' ? chart.xAxis : '';
   const yAxis = typeof chart.yAxis === 'string' ? chart.yAxis : '';
+  // The chart plots a NARROWER selection than the table beneath it (one
+  // dimension × one measure), so `useDatasetRows` scopes the report's order to
+  // those two columns — a "biggest first" on the plotted measure still sorts
+  // the bars; a key naming some other row dimension is simply not applicable
+  // here and is dropped rather than posted and rejected.
   const state = useDatasetRows(
     dataset,
     xAxis ? [xAxis] : [],
     yAxis ? [yAxis] : [],
     runtimeFilter,
     dataSource,
+    undefined,
+    order,
   );
   const ChartComponent = useRegistryComponent('chart');
 
@@ -499,6 +610,7 @@ function DatasetMatrixTable({
   runtimeFilter,
   dataSource,
   onDrill,
+  order,
 }: {
   dataset: string;
   rows: string[];
@@ -507,13 +619,25 @@ function DatasetMatrixTable({
   runtimeFilter?: Record<string, unknown>;
   dataSource?: unknown;
   onDrill?: (args: DatasetDrillArgs) => void;
+  order?: SelectionOrder;
 }) {
   // Row subtotals, column subtotals, and the grand total ([]), in that order.
-  const state = useDatasetRows(dataset, [...rows, ...columnsAcross], values, runtimeFilter, dataSource, [
-    rows,
-    columnsAcross,
-    [],
-  ]);
+  //
+  // #3916: the ordering rides on the PRIMARY query only — the server drops it
+  // for the totals sub-queries by design (a total covers the whole selection,
+  // and an order key may name a dimension the totals grouping doesn't have).
+  // The across-axis header sequence follows from it: `pivot` below collects
+  // `colHeaders` in row-ARRIVAL order, so ordering the rows by the across
+  // dimension is what makes the columns read left-to-right in that order.
+  const state = useDatasetRows(
+    dataset,
+    [...rows, ...columnsAcross],
+    values,
+    runtimeFilter,
+    dataSource,
+    [rows, columnsAcross, []],
+    order,
+  );
   const tt = useSafeTranslate();
   const { fieldLabel } = useSafeFieldLabel();
 
@@ -708,6 +832,11 @@ export const DatasetReportRenderer: React.FC<DatasetReportRendererProps> = ({
         {report.blocks.map((block, index) => {
           const blockFilter = mergeFilters(outerFilter, (block.runtimeFilter ?? block.filter) as Record<string, unknown> | undefined);
           const blockAcross = readNames(block.columns);
+          // #3916 — each block orders ITSELF. A joined container selects nothing
+          // of its own (the schema rejects `order` on it), and every block is an
+          // independent query over its own dataset, so there is no report-level
+          // ordering to inherit here.
+          const blockOrder = readOrder(block.order);
           const blockTable = block.type === 'matrix' && blockAcross.length > 0 ? (
             <DatasetMatrixTable
               dataset={String(block.dataset ?? '')}
@@ -717,6 +846,7 @@ export const DatasetReportRenderer: React.FC<DatasetReportRendererProps> = ({
               runtimeFilter={blockFilter}
               dataSource={dataSource}
               onDrill={drillSink}
+              order={blockOrder}
             />
           ) : (
             <DatasetReportTable
@@ -726,6 +856,7 @@ export const DatasetReportRenderer: React.FC<DatasetReportRendererProps> = ({
               runtimeFilter={blockFilter}
               dataSource={dataSource}
               onDrill={drillSink}
+              order={blockOrder}
             />
           );
           return (
@@ -750,6 +881,7 @@ export const DatasetReportRenderer: React.FC<DatasetReportRendererProps> = ({
   }
 
   const across = readNames(report.columns);
+  const reportOrder = readOrder(report.order);
   // Matrix with an across dimension → true cross-tab; without one it
   // degrades to the flat grouped table (pre-`columns` stored JSON).
   if (report.type === 'matrix' && across.length > 0) {
@@ -763,6 +895,7 @@ export const DatasetReportRenderer: React.FC<DatasetReportRendererProps> = ({
           runtimeFilter={outerFilter}
           dataSource={dataSource}
           onDrill={drillSink}
+          order={reportOrder}
         />
       </div>
     );
@@ -788,6 +921,7 @@ export const DatasetReportRenderer: React.FC<DatasetReportRendererProps> = ({
           chart={chartCfg}
           runtimeFilter={outerFilter}
           dataSource={dataSource}
+          order={reportOrder}
         />
       ) : null}
       <DatasetReportTable
@@ -797,6 +931,7 @@ export const DatasetReportRenderer: React.FC<DatasetReportRendererProps> = ({
         runtimeFilter={outerFilter}
         dataSource={dataSource}
         onDrill={drillSink}
+        order={reportOrder}
       />
     </div>
   );

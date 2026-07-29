@@ -190,7 +190,8 @@ const de = {
     },
     filterCondition: {
       selectObjectFirst: "Wählen Sie zuerst ein Objekt.",
-      allRecords: "Alle Datensätze",
+      noCriteria: "Keine Kriterien – diese Regel teilt nichts",
+      criteriaRequired: "Fügen Sie mindestens eine Bedingung hinzu. Eine Regel ohne Kriterien würde jeden Datensatz teilen und kann daher nicht gespeichert werden.",
       invalidJson: "Ungültiges JSON — die Regel trifft auf keinen Datensatz zu, bis dies behoben ist.",
       jsonOnly: "Dieses Kriterium kann nur als JSON bearbeitet werden",
       editAsJson: "Als JSON bearbeiten",

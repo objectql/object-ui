@@ -34,6 +34,7 @@ import { withPageTabsUrlSync } from '../utils/pageTabsUrlSync';
 import { RECORD_DETAIL_TAB_PARAM, RECORD_TRAIL_PARAM, decodeRecordTrail, buildRecordTrailHref } from '../urlParams';
 import { resolveActionParams } from '../utils/resolveActionParams';
 import { decisionOutputDefs, decisionOutputParams, foldDecisionOutputs } from '../utils/decisionOutputParams';
+import { interpretActionResponse } from '../utils/actionResponse';
 import { useRecordBreadcrumbTitle } from '../context/NavigationContext';
 import type { FeedItem } from '@object-ui/types';
 import type { ActionDef, ActionParamDef } from '@object-ui/core';
@@ -72,6 +73,38 @@ interface RecordDetailViewProps {
 }
 
 const FALLBACK_USER = { id: 'current-user', name: 'Demo User' };
+
+/**
+ * The `user` seeded into this view's own `<ActionProvider>` — identity plus, once
+ * resolved, the caller's system capabilities.
+ *
+ * [ADR-0066 D4 / framework#3923] `systemPermissions` is not decoration here: this
+ * provider SHADOWS the shell-level one (`useConsoleActionRuntime`) for every
+ * action on the record surface, and `ActionEngine.getActionsForLocation` reads the
+ * capability gate off `runner.getContext().user.systemPermissions`. The engine
+ * fails OPEN on `undefined` (unknown ≠ denied), so shipping identity alone
+ * silently un-gated every `record_header` / `record_more` action that declared
+ * `requiredPermissions` — the button rendered, and only the server's 403 stopped
+ * it (and only for platform action routes at that).
+ *
+ * The `permissionsLoaded` gate keeps the two states apart: `usePermissions()`
+ * returns `[]` both for "holds no capabilities" and for "no PermissionProvider /
+ * still resolving". Forwarding the latter as `[]` would flip the gate fail-CLOSED
+ * and hide gated actions in a standalone embed, so it stays `undefined` until the
+ * answer is real.
+ */
+export function resolveActionUser(
+  user: { id: string; name: string; image?: string } | null | undefined,
+  permissionsLoaded: boolean,
+  systemPermissions: string[] | undefined,
+): { id: string; name: string; avatar?: string; systemPermissions?: string[] } {
+  const identity = user
+    ? { id: user.id, name: user.name, avatar: user.image }
+    : FALLBACK_USER;
+  return permissionsLoaded
+    ? { ...identity, systemPermissions: systemPermissions ?? [] }
+    : identity;
+}
 
 /**
  * Audit field names auto-injected by the framework's `applySystemFields`.
@@ -836,27 +869,23 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         },
       );
       const json = await res.json().catch(() => null);
-      // The action route wraps the handler's return value in a {success, data}
-      // envelope. A script action that THROWS is reported as
-      // `data: { success: false, error }` while the OUTER success stays true,
-      // so we must inspect the inner envelope too — otherwise a failed action
-      // is mistaken for success and fires the green "completed" toast while the
-      // real error is swallowed.
-      const inner = json?.data;
-      const innerFailed = inner && typeof inner === 'object' && inner.success === false;
-      if (!res.ok || (json && json.success === false) || innerFailed) {
-        const errMsg = (innerFailed && inner.error) || json?.error || `Action "${targetName}" failed (HTTP ${res.status})`;
+      // Single source for the `/actions` envelope rule — shared with
+      // useConsoleActionRuntime, from which this copy drifted (it learned to
+      // inspect the inner envelope; the shared runtime had not, which is
+      // objectstack#3913's console symptom). See utils/actionResponse.
+      const outcome = interpretActionResponse(res, json, `Action "${targetName}"`);
+      if (!outcome.ok) {
         if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
         // Don't toast here. This handler always runs through the ActionRunner
         // (registered as the `script` handler on the ActionProvider below, which
         // wires `onToast`), whose post-execution hook surfaces the returned
         // `error` as one toast. Toasting again double-fired the message
         // (e.g. RECORD_LOCKED appeared twice). Mirrors useConsoleActionRuntime.
-        return { success: false, error: errMsg };
+        return { success: false, error: outcome.error };
       }
       const shouldRefresh = action.refreshAfter !== false;
       if (shouldRefresh) notifyRecordChanged();
-      const result = json?.data;
+      const result = outcome.envelope;
       // ── redirectUrl convention ────────────────────────────────────────
       // A script-action handler can return `{ redirectUrl: 'https://…' }`
       // to ask the UI to open the URL. If the action declared
@@ -864,8 +893,13 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       // (popup-blocker-safe). Otherwise we open lazily and, if blocked,
       // fall back to navigating the current tab so the user always gets
       // to the destination.
-      if (result && typeof result === 'object' && typeof (result as any).redirectUrl === 'string') {
-        const redirectUrl = (result as any).redirectUrl as string;
+      //
+      // Read off the HANDLER's return value, not the action envelope wrapping
+      // it — this used to read one level too shallow, where only
+      // `success`/`data` ever live, so the convention never fired at all.
+      const payload = outcome.payload;
+      if (payload && typeof payload === 'object' && typeof (payload as any).redirectUrl === 'string') {
+        const redirectUrl = (payload as any).redirectUrl as string;
         if (preOpenedTab) {
           try { preOpenedTab.location.href = redirectUrl; } catch {
             try { preOpenedTab.close(); } catch { /* ignore */ }
@@ -1022,7 +1056,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // are still loading (`isLoaded === false`, e.g. no PermissionProvider in a
   // standalone embed) the gate stays open — fail-open is safe because the
   // server enforces data access regardless; this is purely a UI/DX filter.
-  const { can: canOnObject, isLoaded: permissionsLoaded, getObjectApiOperations } = usePermissions();
+  const { can: canOnObject, isLoaded: permissionsLoaded, getObjectApiOperations, systemPermissions } = usePermissions();
   // [#3546] Server-resolved effective API operation set for this object
   // (`/me/permissions` `apiOperations`). Threaded as the 2nd arg into
   // `resolveRecordHeaderActionGates` for the detail header's Edit/Delete and
@@ -1290,9 +1324,12 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // Memoize so the object identity is stable across renders — otherwise
   // any effect that depends on it (e.g. the feed loader below) would
   // re-fire every render and create an infinite request loop.
+  //
+  // Carries the ADR-0066 D4 capability gate into this view's ActionProvider —
+  // see `resolveActionUser` for why that matters (framework#3923).
   const currentUser = useMemo(
-    () => (user ? { id: user.id, name: user.name, avatar: user.image } : FALLBACK_USER),
-    [user?.id, user?.name, user?.image],
+    () => resolveActionUser(user, permissionsLoaded, systemPermissions),
+    [user?.id, user?.name, user?.image, permissionsLoaded, systemPermissions],
   );
 
   // Fetch comments from API.

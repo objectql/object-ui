@@ -27,8 +27,17 @@
  * where the cookie doesn't reach the API: the button stays enabled and the
  * server does its job. A permission hint must never be the reason a permitted
  * user cannot act.
+ *
+ * The probe rides the host's AUTHENTICATED fetch (`SchemaRendererProvider`'s
+ * `apiFetch`, the same channel `provider: 'api'` view sources use), not the bare
+ * global one. A bearer-token session carries its credential in the
+ * `Authorization` header, not a cookie, so `credentials: 'include'` alone made
+ * every probe 401 on a perfectly valid admin session — the verdict then always
+ * failed open and this hook was dead weight in exactly the deployments it was
+ * written for (framework#3923 ②). Cookies stay on for cookie-session hosts.
  */
 import * as React from 'react';
+import { SchemaRendererContext } from '@object-ui/react';
 
 /** Cache keyed by `object:recordId:operation` so revisiting a record is free. */
 const verdictCache = new Map<string, boolean>();
@@ -45,6 +54,10 @@ export function useRecordEditable(
   const [allowed, setAllowed] = React.useState<boolean>(() =>
     key && verdictCache.has(key) ? verdictCache.get(key)! : true,
   );
+  // Read the context directly (not `useSchemaContext`, which throws when no
+  // provider is mounted): a standalone `detail:view` embed has no host fetch
+  // and must still degrade to the global one rather than crash the render.
+  const apiFetch = React.useContext(SchemaRendererContext)?.apiFetch;
 
   React.useEffect(() => {
     if (!enabled || !key) {
@@ -58,7 +71,8 @@ export function useRecordEditable(
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/v1/security/explain', {
+        const doFetch = apiFetch ?? fetch;
+        const res = await doFetch('/api/v1/security/explain', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -77,7 +91,7 @@ export function useRecordEditable(
     return () => {
       cancelled = true;
     };
-  }, [key, objectName, recordId, operation, enabled]);
+  }, [key, objectName, recordId, operation, enabled, apiFetch]);
 
   return allowed;
 }

@@ -113,9 +113,23 @@ export const InlineFieldInput: React.FC<InlineFieldInputProps> = ({
     );
   }
   // Picklist → real Select widget so users see localized option labels and
-  // can't free-type invalid values.
-  if (editType === 'select' && Array.isArray(field.options) && field.options.length > 0) {
-    return (
+  // can't free-type invalid values. A `multiple` picklist (spec canon: `select`
+  // + `multiple: true`; `multiselect` is the widget-level alias) selects
+  // zero-or-more values — `SelectField` delegates to the chip picker, so the
+  // value must stay an ARRAY here instead of being flattened by `String()`.
+  const isMultiSelect = editType === 'multiselect' || !!field.multiple;
+  if (
+    (editType === 'select' || editType === 'multiselect') &&
+    Array.isArray(field.options) &&
+    field.options.length > 0
+  ) {
+    return isMultiSelect ? (
+      <SelectField
+        field={{ ...(field as any), multiple: true }}
+        value={Array.isArray(value) ? value : value == null || value === '' ? [] : [value]}
+        onChange={(v) => onChange(v)}
+      />
+    ) : (
       <SelectField
         field={field as any}
         value={value == null ? '' : String(value)}

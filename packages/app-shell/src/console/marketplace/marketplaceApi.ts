@@ -248,9 +248,20 @@ export async function installPackage(input: {
   });
   let payload: any = null;
   try { payload = await res.json(); } catch { /* empty */ }
-  if (!res.ok) {
+  // A server older than objectstack#3913 reports a failed install action as
+  // HTTP 200 `{success: true, data: {success: false, error}}` — checking only
+  // `res.ok` reported a package as installed when it was not. Current servers
+  // answer with a real status, which `!res.ok` catches first.
+  const inner = payload?.data;
+  const innerFailed = !!inner && typeof inner === 'object' && inner.success === false;
+  if (!res.ok || innerFailed) {
     const code = payload?.code ?? payload?.error?.code ?? `HTTP_${res.status}`;
-    const message = payload?.error ?? payload?.message ?? res.statusText;
+    // `error` is a nested `{code, message}` object on the current wire and a
+    // plain string on the older one — read the message out of both before
+    // falling back, or a real explanation degrades into a bare status code.
+    const message = innerFailed
+      ? (inner.error ?? res.statusText)
+      : (payload?.error?.message ?? payload?.error ?? payload?.message ?? res.statusText);
     const err = new Error(typeof message === 'string' ? message : `${code}`);
     (err as any).code = code;
     (err as any).status = res.status;

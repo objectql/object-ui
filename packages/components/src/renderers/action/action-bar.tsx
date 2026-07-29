@@ -35,7 +35,7 @@ import React, { forwardRef, useMemo } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import type { ActionSchema, ActionLocation, ActionComponent } from '@object-ui/types';
 import { ACTION_LOCATIONS } from '@object-ui/types';
-import { useCondition, toPredicateInput } from '@object-ui/react';
+import { useCondition, toPredicateInput, useCapabilityGate } from '@object-ui/react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { cn } from '../../lib/utils';
 import { useIsMobile } from '../../hooks/use-mobile';
@@ -119,13 +119,21 @@ const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; 
       label: `action:bar${schema.location ? ` (${schema.location})` : ''} (visible)`,
     });
     const isMobile = useIsMobile();
+    // [ADR-0066 D4 / framework#3923] Shared capability gate — see below.
+    const mayInvoke = useCapabilityGate();
 
     // Filter business actions by location and deduplicate by name
     const filteredActions = useMemo(() => {
       const actions = schema.actions || [];
+      // [ADR-0066 D4 / framework#3923] Capability gate — this bar filters its
+      // own set instead of going through `ActionEngine.getActionsForLocation`,
+      // so without this a `list_toolbar` action declaring a capability nobody
+      // holds rendered as a live button. Same rule as the engine; unknown
+      // capabilities fail OPEN (see `useCapabilityGate`).
+      const permitted = actions.filter(a => mayInvoke((a as any)?.requiredPermissions));
       const located = !schema.location
-        ? actions
-        : actions.filter(
+        ? permitted
+        : permitted.filter(
             a => !a.locations || a.locations.length === 0 || a.locations.includes(schema.location!),
           );
       // Deduplicate by action name — keep first occurrence
@@ -163,20 +171,23 @@ const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; 
         });
       }
       return deduped;
-    }, [schema.actions, schema.location]);
+    }, [schema.actions, schema.location, mayInvoke]);
 
     // System actions: always go into the overflow menu, deduped by name,
     // never filtered by location (they're chrome, not business logic).
     const systemActions = useMemo(() => {
       const actions = schema.systemActions || [];
       const seen = new Set<string>();
+      // Chrome or not, a declared capability gates it (ADR-0066 D4) — a host
+      // that puts a gated action in this slot means the same thing by it.
       return actions.filter(a => {
+        if (!mayInvoke((a as any)?.requiredPermissions)) return false;
         if (!a.name) return true;
         if (seen.has(a.name)) return false;
         seen.add(a.name);
         return true;
       });
-    }, [schema.systemActions]);
+    }, [schema.systemActions, mayInvoke]);
 
     // Split business actions into visible inline and overflow.
     // On mobile, show fewer actions inline (default: 1).

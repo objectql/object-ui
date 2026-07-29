@@ -196,7 +196,8 @@ const en = {
     },
     filterCondition: {
       selectObjectFirst: 'Select an object first.',
-      allRecords: 'All records',
+      noCriteria: 'No criteria — this rule shares nothing',
+      criteriaRequired: 'Add at least one condition. A rule with no criteria would share every record, so it cannot be saved.',
       invalidJson: 'Invalid JSON — the rule will match no records until fixed.',
       jsonOnly: 'This criteria can only be edited as JSON',
       editAsJson: 'Edit as JSON',
