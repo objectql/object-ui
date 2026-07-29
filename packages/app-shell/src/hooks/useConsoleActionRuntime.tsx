@@ -49,6 +49,7 @@ import { EnvironmentEntitlementDialog, type EntitlementDialogState } from '../en
 import { entitlementDialogFromError, type EntitlementDialogSpec } from '../environment/entitlements';
 import { resolvePageVarTokens } from '../utils/resolvePageVarTokens';
 import { actionErrorDetail } from '../utils/actionErrorDetail';
+import { interpretActionResponse } from '../utils/actionResponse';
 
 const FALLBACK_USER = { id: 'current-user', name: 'Demo User', isPlatformAdmin: false };
 
@@ -587,32 +588,28 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
         },
       );
       const json = await res.json().catch(() => null);
-      // A server older than objectstack#3913 reports a script action that THREW
-      // as HTTP 200 `{success: true, data: {success: false, error}}` — transport
-      // success wrapping a business failure. Reading only `res.ok` and the OUTER
-      // `success` mistook that for a completed action and fired the green
-      // "completed" toast while swallowing the real error. Inspect the INNER
-      // envelope too (RecordDetailView's copy of this handler already did).
-      // Current servers answer with a real status, so `!res.ok` catches it
-      // first; this branch is what keeps the console honest against a server
-      // that has not been upgraded yet.
-      const inner = json?.data;
-      const innerFailed = !!inner && typeof inner === 'object' && (inner as any).success === false;
-      if (!res.ok || (json && json.success === false) || innerFailed) {
-        const errMsg = innerFailed
-          ? errorDetail(inner, `Action "${targetName}" failed`)
-          : errorDetail(json, `Action "${targetName}" failed (HTTP ${res.status})`);
+      // Single source for the `/actions` envelope rule — shared with
+      // RecordDetailView, whose copy of this handler drifted from it and caused
+      // objectstack#3913's console symptom. See utils/actionResponse.
+      const outcome = interpretActionResponse(res, json, `Action "${targetName}"`);
+      if (!outcome.ok) {
         if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
         // Don't toast here — the ActionRunner's post-execution hook surfaces
         // `error` as a toast (see apiHandler/flowHandler, which likewise only
         // return). Toasting here too double-fires the error (two identical toasts).
-        return { success: false, error: errMsg };
+        return { success: false, error: outcome.error };
       }
       const shouldRefresh = action.refreshAfter !== false;
       if (shouldRefresh) refresh();
-      const data = json?.data;
-      const redirectUrl = (data && typeof data === 'object' && typeof (data as any).redirectUrl === 'string')
-        ? (data as any).redirectUrl as string
+      const data = outcome.envelope;
+      // Read `redirectUrl` off the HANDLER's return value, not the action
+      // envelope wrapping it. This used to read one level too shallow, where
+      // only `success`/`data` ever live — so an action returning
+      // `{ redirectUrl }` was silently ignored and an `opensInNewTab` action
+      // left its pre-opened tab parked on the spinner page forever.
+      const payload = outcome.payload;
+      const redirectUrl = (payload && typeof payload === 'object' && typeof (payload as any).redirectUrl === 'string')
+        ? (payload as any).redirectUrl as string
         : null;
       if (redirectUrl) {
         if (preOpenedTab) {

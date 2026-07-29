@@ -358,6 +358,32 @@ describe('useConsoleActionRuntime — authenticated handlers', () => {
     expect(res.error).toBe("Action 'log_call' on object 'global' not found");
   });
 
+  it('serverActionHandler opens a handler-returned redirectUrl (read through BOTH envelopes)', async () => {
+    // The action route wraps twice: `{success, data:{success, data: <handler>}}`.
+    // This used to read `redirectUrl` off the ACTION envelope — a level where
+    // only `success`/`data` ever live — so the convention never fired and an
+    // `opensInNewTab` action left its pre-opened tab on the spinner forever.
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue({} as any);
+    authFetchSpy.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        success: true,
+        data: { success: true, data: { redirectUrl: 'https://example.test/sso' } },
+      }),
+    });
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [], objectName: 'crm_call' }),
+    );
+
+    await act(async () => {
+      await result.current.serverActionHandler({ type: 'script', name: 'open_env' } as any);
+    });
+
+    expect(openSpy).toHaveBeenCalledWith('https://example.test/sso', '_blank');
+    openSpy.mockRestore();
+  });
+
   it('serverActionHandler still reports success when the inner envelope says so', async () => {
     // The success wire is unchanged by objectstack#3913 — guard against the
     // inner-envelope check turning a good action into a failure.
