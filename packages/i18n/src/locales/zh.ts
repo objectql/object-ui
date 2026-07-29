@@ -195,7 +195,8 @@ const zh = {
     },
     filterCondition: {
       selectObjectFirst: '请先选择对象。',
-      allRecords: '全部记录',
+      noCriteria: '未设置条件 —— 该规则不共享任何记录',
+      criteriaRequired: '请至少添加一个条件。没有条件的规则会共享该对象的全部记录，因此无法保存。',
       invalidJson: 'JSON 无效 —— 修正之前该规则不会匹配任何记录。',
       jsonOnly: '该条件只能以 JSON 方式编辑',
       editAsJson: '以 JSON 编辑',

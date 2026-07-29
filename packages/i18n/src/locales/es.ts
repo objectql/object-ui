@@ -190,7 +190,8 @@ const es = {
     },
     filterCondition: {
       selectObjectFirst: "Selecciona primero un objeto.",
-      allRecords: "Todos los registros",
+      noCriteria: "Sin criterios: esta regla no comparte nada",
+      criteriaRequired: "Añade al menos una condición. Una regla sin criterios compartiría todos los registros, por lo que no se puede guardar.",
       invalidJson: "JSON no válido: la regla no coincidirá con ningún registro hasta que se corrija.",
       jsonOnly: "Este criterio solo se puede editar como JSON",
       editAsJson: "Editar como JSON",

@@ -29,7 +29,7 @@ import { AlertCircle, ChevronDown, ChevronRight, Loader2, Maximize2, Check, X } 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '../../ui/dialog';
 import { cn } from '../../lib/utils';
 import React from 'react';
-import { SchemaRendererContext, usePredicateScope, isPermissionError, extractWriteErrorMessage } from '@object-ui/react';
+import { SchemaRendererContext, usePredicateScope, isPermissionError, extractWriteErrorMessage, extractFieldErrors } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
 
 /** Inline section header rendered as a virtual field inside a flat SchemaRenderer field list.
@@ -502,6 +502,45 @@ ComponentRegistry.register('form',
       return () => subscription.unsubscribe();
     }, [form, onDirtyChangeProp]);
 
+    /**
+     * Tell the user WHICH fields are wrong, wherever the verdict came from.
+     *
+     * Toast naming the offending fields, then scroll the FIRST of them into
+     * view (in declared/visual order, not the caller's key order) and focus a
+     * control inside it — the field wrapper carries `data-field` (FormItem), so
+     * this reaches custom widgets that RHF's own focus cannot (#2793).
+     *
+     * Extracted from the client-side invalid handler so the SERVER-rejection
+     * path gets identical treatment. The two failures are the same event as far
+     * as the person filling the form is concerned; only the referee differs.
+     */
+    const announceFieldErrors = (names: string[]) => {
+      if (names.length === 0) return;
+      const labels = names.map((n) => fieldLabelByName[n] || n);
+      const MAX = 3;
+      const fieldsText = labels.slice(0, MAX).join('、') + (labels.length > MAX ? '…' : '');
+      toast.error(t('validation.formInvalid', { fields: fieldsText }));
+
+      const errored = new Set(names);
+      const firstName =
+        (fields as FormFieldConfig[])
+          .map((f) => f?.name)
+          .find((n): n is string => Boolean(n) && errored.has(n as string)) ?? names[0];
+      const root: ParentNode = formRef.current ?? document;
+      const escaped =
+        typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+          ? CSS.escape(firstName)
+          : firstName.replace(/["\\]/g, '\\$&');
+      const target = root.querySelector<HTMLElement>(`[data-field="${escaped}"]`);
+      if (target) {
+        target.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+        const focusable = target.querySelector<HTMLElement>(
+          'input:not([type="hidden"]), select, textarea, button, [tabindex]:not([tabindex="-1"]), [contenteditable="true"]',
+        );
+        focusable?.focus?.({ preventScroll: true });
+      }
+    };
+
     // Handle form submission
     const handleSubmit = form.handleSubmit(async (data) => {
       setIsSubmitting(true);
@@ -555,6 +594,37 @@ ComponentRegistry.register('form',
           form.reset();
         }
       } catch (error) {
+        // The server can reject field-by-field: `@objectstack/objectql`'s
+        // validators throw `VALIDATION_FAILED` with `fields[]`, and both the
+        // REST layer and the runtime dispatcher serve it as a 400 with those
+        // entries intact. Every form used to drop them and show one undirected
+        // toast — telling the user something was wrong, but not WHAT, on a
+        // surface that already knows how to mark the input. Mark them.
+        const fieldErrors = extractFieldErrors(error);
+        if (fieldErrors) {
+          const known = fieldErrors.filter((fe) =>
+            (fields as FormFieldConfig[]).some((f) => f?.name === fe.field),
+          );
+          for (const fe of known) {
+            form.setError(fe.field, {
+              type: 'server',
+              // Fall back to the envelope's top-level text rather than leaving
+              // a marked field with no reason next to it.
+              message: fe.message || extractWriteErrorMessage(error) || t('form.submitFailed'),
+            });
+          }
+          // Only take over the whole failure when EVERY rejected field has a
+          // visible input to carry it. If the server also rejected something
+          // this form does not render, fall through: the top-level message
+          // concatenates every field's reason, so the part the user cannot see
+          // inline is still said out loud instead of silently dropped.
+          if (known.length > 0 && known.length === fieldErrors.length) {
+            announceFieldErrors(known.map((fe) => fe.field));
+            // A fully-attributed rejection is not a form-level failure — the
+            // banner would just repeat what is now written under each input.
+            return;
+          }
+        }
         // A rejected write used to be rendered verbatim, which put raw server
         // diagnostics in front of end users — untranslated, and leaking the
         // object's machine name and the record id, e.g.
@@ -587,36 +657,7 @@ ComponentRegistry.register('form',
       // is often scrolled out of view — the user clicks 创建 and sees nothing
       // happen. Surface a toast naming the fields so the feedback is visible
       // regardless of scroll position (mirrors the server-error toast above).
-      const names = Object.keys(validationErrors || {});
-      if (names.length === 0) return;
-      const labels = names.map((n) => fieldLabelByName[n] || n);
-      const MAX = 3;
-      const fieldsText = labels.slice(0, MAX).join('、') + (labels.length > MAX ? '…' : '');
-      toast.error(t('validation.formInvalid', { fields: fieldsText }));
-
-      // #2793: the toast alone still leaves the user hunting — in a long form
-      // the offending field is off-screen. Scroll the FIRST errored field into
-      // view (in declared/visual order, not RHF's error-key order) and focus a
-      // focusable control inside it. The field wrapper carries `data-field`
-      // (FormItem); works for custom widgets that RHF's own focus can't reach.
-      const errored = new Set(names);
-      const firstName =
-        (fields as FormFieldConfig[])
-          .map((f) => f?.name)
-          .find((n): n is string => Boolean(n) && errored.has(n as string)) ?? names[0];
-      const root: ParentNode = formRef.current ?? document;
-      const escaped =
-        typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
-          ? CSS.escape(firstName)
-          : firstName.replace(/["\\]/g, '\\$&');
-      const target = root.querySelector<HTMLElement>(`[data-field="${escaped}"]`);
-      if (target) {
-        target.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
-        const focusable = target.querySelector<HTMLElement>(
-          'input:not([type="hidden"]), select, textarea, button, [tabindex]:not([tabindex="-1"]), [contenteditable="true"]',
-        );
-        focusable?.focus?.({ preventScroll: true });
-      }
+      announceFieldErrors(Object.keys(validationErrors || {}));
     });
 
     // Handle cancel

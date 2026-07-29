@@ -73,6 +73,63 @@ export function extractWriteErrorMessage(err: unknown): string | null {
   return clean || null;
 }
 
+/** One field the server rejected, normalised for `form.setError`. */
+export interface WriteFieldError {
+  /** Field name, matching the form control's `name`. */
+  field: string;
+  /** Human-readable reason, already localized by the server when it can be. */
+  message: string;
+}
+
+/**
+ * Per-field errors from a rejected write, or `null` when the failure was not
+ * field-scoped.
+ *
+ * The server has always sent these. `@objectstack/objectql`'s validators throw
+ * `{ code: 'VALIDATION_FAILED', fields: [{ field, code, message }] }`, and both
+ * the REST layer and the runtime dispatcher serve that as a 400 with `fields[]`
+ * intact. What was missing was the last hop: every form caught the rejection,
+ * showed one generic toast, and dropped `fields[]` on the floor — so a user told
+ * "Validation failed" had to guess WHICH input was wrong, on a surface that
+ * already knows how to mark it.
+ *
+ * Reads three shapes, because the error can arrive from either side of the
+ * adapter boundary:
+ *   - `validationErrors` — a `ValidationError` from `@object-ui/data-objectstack`;
+ *   - `details.fields` — the raw `@objectstack/client` error, whose `details`
+ *     falls back to the whole response body;
+ *   - `fields` — a hand-rolled error of the same shape (the server duck-types
+ *     these identically, so we do too).
+ *
+ * Entries without a usable `field` are dropped rather than guessed at: a wrong
+ * mark on an innocent input is worse than the generic toast we already show.
+ */
+export function extractFieldErrors(err: unknown): WriteFieldError[] | null {
+  const e = err as Record<string, any> | null | undefined;
+  if (!e || typeof e !== 'object') return null;
+
+  const raw: unknown =
+    (Array.isArray(e.validationErrors) && e.validationErrors) ||
+    (Array.isArray(e.details?.fields) && e.details.fields) ||
+    (Array.isArray(e.fields) && e.fields) ||
+    null;
+  if (!raw || !Array.isArray(raw)) return null;
+
+  const out: WriteFieldError[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    const rec = entry as Record<string, unknown>;
+    const field = firstString(rec.field, rec.name, rec.path);
+    if (!field) continue;
+    // `code` is the machine enum (`required`, `invalid_option`, …). It is a
+    // last resort only: the server builds `message` to be shown verbatim, and
+    // an untranslated enum in the UI reads as a bug.
+    const message = firstString(rec.message, rec.error, rec.code) ?? '';
+    out.push({ field, message });
+  }
+  return out.length > 0 ? out : null;
+}
+
 /**
  * True when a failed write was rejected for authorization reasons (HTTP 403 /
  * `PERMISSION_DENIED` / `FORBIDDEN` / a row-level-security denial). Lets a

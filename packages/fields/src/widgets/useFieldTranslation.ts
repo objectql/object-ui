@@ -58,7 +58,13 @@ const FIELD_DEFAULTS: Record<string, string> = {
   'fields.recipient.selectPosition': 'Select a position',
   'fields.recipient.selectUnitAndSubordinates': 'Select a business unit',
   'fields.filterCondition.selectObjectFirst': 'Select an object first.',
-  'fields.filterCondition.allRecords': 'All records',
+  // objectstack#3896 — this used to be 'All records'. An empty criteria never
+  // meant "share everything"; it meant the predicate was missing, and the
+  // sharing evaluator failed open on it. Such a rule is now refused on save
+  // and shares nothing, so say that rather than advertise the old bug.
+  'fields.filterCondition.noCriteria': 'No criteria — this rule shares nothing',
+  'fields.filterCondition.criteriaRequired':
+    'Add at least one condition. A rule with no criteria would share every record, so it cannot be saved.',
   'fields.filterCondition.invalidJson': 'Invalid JSON — the rule will match no records until fixed.',
   'fields.filterCondition.jsonOnly': 'This criteria can only be edited as JSON',
   'fields.filterCondition.editAsJson': 'Edit as JSON',

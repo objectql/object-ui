@@ -19,7 +19,7 @@
 
 import React from 'react';
 import { ComponentRegistry, ExpressionEvaluator, getRecordDisplayName } from '@object-ui/core';
-import { useRecordContext, useAction, usePredicateScope, usePageVariables, useInlineEdit } from '@object-ui/react';
+import { useRecordContext, useAction, useCapabilityGate, usePredicateScope, usePageVariables, useInlineEdit } from '@object-ui/react';
 import { renderChildren, cn } from '../../lib/utils';
 import { LazyIcon } from '../../lib/lazy-icon';
 import { RelatedCountStore, useRelatedCountVersion } from '../../hooks/related-count-store';
@@ -807,6 +807,8 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   // action was silently filtered out.
   const predicateScope = usePredicateScope();
   const { execute } = useAction();
+  // [ADR-0066 D4 / framework#3923] Shared capability gate — see filterAction.
+  const mayInvoke = useCapabilityGate();
   const isMobile = useIsMobile();
   const { objectLabel: tObjectLabel, actionLabel: tActionLabel } = useObjectLabel();
   const { fieldOptionLabel } = useSafeFieldLabel();
@@ -897,6 +899,22 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       }
     };
     const filterAction = (a: any): boolean => {
+      // [ADR-0066 D4 / framework#3923] Capability gate — the UI half of the
+      // dual-surface `requiredPermissions` contract.
+      //
+      // `page:header` filters its own actions rather than going through
+      // `ActionEngine.getActionsForLocation`, so the engine's gate never ran on
+      // the ONE surface `record_header` / `record_more` actions live on: a
+      // button declaring a capability nobody holds rendered, and only the
+      // server's 403 stopped it — and only for platform action routes, never
+      // for a `type: 'api'` action pointed at a custom endpoint. Same rule as
+      // the engine, so the two surfaces can't disagree: hide unless the caller
+      // holds ALL declared capabilities.
+      //
+      // Fail-OPEN when the caller's capabilities are unknown (no
+      // ActionProvider user, no host predicate scope) — unknown is not denied,
+      // and hiding on missing data is the worse regression.
+      if (!mayInvoke(a?.requiredPermissions)) return false;
       // Location filter — when `locations` is declared, require record_header
       // or record_more (the latter renders in the header's ⋯ overflow menu —
       // see renderHeaderActions; #2358 trap 2). Missing/empty `locations`

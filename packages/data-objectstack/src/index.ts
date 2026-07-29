@@ -38,6 +38,7 @@ import {
   MetadataNotFoundError,
   BulkOperationError,
   ConnectionError,
+  ValidationError,
   createErrorFromResponse,
 } from './errors';
 
@@ -281,17 +282,55 @@ export function isConcurrentUpdateError(error: unknown): error is ConcurrentUpda
 }
 
 /**
- * Convert any error thrown by the upstream client into a typed
- * `ConcurrentUpdateError` when it represents a 409 CONCURRENT_UPDATE.
- * Returns the original error untouched otherwise. Callers can simply
- * `throw normaliseClientError(err)` from their catch blocks.
+ * Convert any error thrown by the upstream client into a typed error when we
+ * recognise its shape. Returns the original error untouched otherwise, so
+ * callers can simply `throw normaliseClientError(err)` from their catch blocks.
+ *
+ * Two shapes are recognised:
+ *   - `409` + `CONCURRENT_UPDATE` → {@link ConcurrentUpdateError};
+ *   - `400` + `VALIDATION_FAILED` → {@link ValidationError}, carrying the
+ *     server's per-field entries so a form can mark the offending inputs
+ *     instead of showing one undirected toast.
  */
 export function normaliseClientError(error: unknown): unknown {
   if (!error || typeof error !== 'object') return error;
   const e = error as Record<string, unknown>;
+  // The client sets `details` to the parsed body's `details`, falling back to
+  // the WHOLE body — and the validation envelope has no `details` key, so this
+  // is where `fields[]` lands.
+  const details = (e.details ?? {}) as Record<string, unknown>;
+
+  if (e.code === 'VALIDATION_FAILED' || e.name === 'ValidationError') {
+    const rawFields = Array.isArray(details.fields)
+      ? details.fields
+      : Array.isArray((e as { fields?: unknown }).fields)
+        ? ((e as { fields: unknown[] }).fields)
+        : [];
+    const validationErrors = rawFields
+      .map((f) => {
+        const rec = (f ?? {}) as Record<string, unknown>;
+        const field = typeof rec.field === 'string' ? rec.field : undefined;
+        if (!field) return null;
+        const message =
+          typeof rec.message === 'string' && rec.message.trim()
+            ? rec.message
+            : typeof rec.code === 'string'
+              ? rec.code
+              : '';
+        return { field, message };
+      })
+      .filter((x): x is { field: string; message: string } => x !== null);
+
+    return new ValidationError(
+      typeof e.message === 'string' ? e.message : 'Validation failed',
+      validationErrors[0]?.field,
+      validationErrors,
+      { fields: rawFields },
+    );
+  }
+
   if (e.code !== 'CONCURRENT_UPDATE' && e.httpStatus !== 409) return error;
   if (e.code !== 'CONCURRENT_UPDATE') return error;
-  const details = (e.details ?? {}) as Record<string, unknown>;
   return new ConcurrentUpdateError({
     currentVersion: typeof details.currentVersion === 'string' ? details.currentVersion : null,
     currentRecord: details.currentRecord ?? null,
@@ -1022,10 +1061,18 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
 
   async create(resource: string, data: Partial<T>): Promise<T> {
     await this.connect();
-    const result = await this.client.data.create<T>(resource, data);
-    this.emitMutation({ type: 'create', resource, record: { ...result.record } });
-    this.notifyDroppedFields('create', resource, result, (result.record as { id?: string | number } | undefined)?.id);
-    return result.record;
+    try {
+      const result = await this.client.data.create<T>(resource, data);
+      this.emitMutation({ type: 'create', resource, record: { ...result.record } });
+      this.notifyDroppedFields('create', resource, result, (result.record as { id?: string | number } | undefined)?.id);
+      return result.record;
+    } catch (err) {
+      // `update` has always normalised; `create` did not, so a rejected insert
+      // reached callers as the raw client error — no typed shape to branch on,
+      // and its `fields[]` unreachable. A create is the path that most often
+      // trips required-field validation, so it needs this more, not less.
+      throw normaliseClientError(err);
+    }
   }
 
   /**

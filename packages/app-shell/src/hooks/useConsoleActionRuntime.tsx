@@ -48,6 +48,8 @@ import { resolveActionParams } from '../utils/resolveActionParams';
 import { EnvironmentEntitlementDialog, type EntitlementDialogState } from '../environment/EnvironmentEntitlementDialog';
 import { entitlementDialogFromError, type EntitlementDialogSpec } from '../environment/entitlements';
 import { resolvePageVarTokens } from '../utils/resolvePageVarTokens';
+import { actionErrorDetail } from '../utils/actionErrorDetail';
+import { interpretActionResponse } from '../utils/actionResponse';
 
 const FALLBACK_USER = { id: 'current-user', name: 'Demo User', isPlatformAdmin: false };
 
@@ -68,20 +70,11 @@ function isRecordScoped(action: ActionDef): boolean {
 }
 
 /**
- * Extract a human-readable message from an error response body. The
- * ObjectStack envelope nests it as `{ error: { code, message } }` — passing
- * that object through as `ActionResult.error` reaches `toast.error()` as a
- * React child and crashes the page (React #31). Always resolve to a string.
+ * Extract a human-readable message from an error response body — shared with
+ * `RecordDetailView`, which runs the same `/actions` request and needs the same
+ * React-#31 guard. See `../utils/actionErrorDetail`.
  */
-function errorDetail(body: unknown, fallback: string): string {
-  const b = body as { error?: unknown; message?: unknown } | null;
-  const err = b?.error;
-  if (typeof err === 'string' && err.length > 0) return err;
-  const nested = (err as { message?: unknown } | null)?.message;
-  if (typeof nested === 'string' && nested.length > 0) return nested;
-  if (typeof b?.message === 'string' && b.message.length > 0) return b.message;
-  return fallback;
-}
+const errorDetail = actionErrorDetail;
 
 export interface ConsoleActionRuntimeOptions {
   /** Adapter for generic CRUD / execute calls. */
@@ -604,19 +597,28 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
         },
       );
       const json = await res.json().catch(() => null);
-      if (!res.ok || (json && json.success === false)) {
-        const errMsg = errorDetail(json, `Action "${actionName}" failed (HTTP ${res.status})`);
+      // Single source for the `/actions` envelope rule — shared with
+      // RecordDetailView, whose copy of this handler drifted from it and caused
+      // objectstack#3913's console symptom. See utils/actionResponse.
+      const outcome = interpretActionResponse(res, json, `Action "${actionName}"`);
+      if (!outcome.ok) {
         if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
         // Don't toast here — the ActionRunner's post-execution hook surfaces
         // `error` as a toast (see apiHandler/flowHandler, which likewise only
         // return). Toasting here too double-fires the error (two identical toasts).
-        return { success: false, error: errMsg };
+        return { success: false, error: outcome.error };
       }
       const shouldRefresh = action.refreshAfter !== false;
       if (shouldRefresh) refresh();
-      const data = json?.data;
-      const redirectUrl = (data && typeof data === 'object' && typeof (data as any).redirectUrl === 'string')
-        ? (data as any).redirectUrl as string
+      const data = outcome.envelope;
+      // Read `redirectUrl` off the HANDLER's return value, not the action
+      // envelope wrapping it. This used to read one level too shallow, where
+      // only `success`/`data` ever live — so an action returning
+      // `{ redirectUrl }` was silently ignored and an `opensInNewTab` action
+      // left its pre-opened tab parked on the spinner page forever.
+      const payload = outcome.payload;
+      const redirectUrl = (payload && typeof payload === 'object' && typeof (payload as any).redirectUrl === 'string')
+        ? (payload as any).redirectUrl as string
         : null;
       if (redirectUrl) {
         if (preOpenedTab) {

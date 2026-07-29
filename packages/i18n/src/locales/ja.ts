@@ -190,7 +190,8 @@ const ja = {
     },
     filterCondition: {
       selectObjectFirst: "先にオブジェクトを選択してください。",
-      allRecords: "すべてのレコード",
+      noCriteria: "条件が未設定です — このルールは何も共有しません",
+      criteriaRequired: "条件を1つ以上追加してください。条件のないルールは全レコードを共有してしまうため、保存できません。",
       invalidJson: "JSON が不正です — 修正するまでこのルールはどのレコードにも一致しません。",
       jsonOnly: "この条件は JSON でのみ編集できます",
       editAsJson: "JSON で編集",
