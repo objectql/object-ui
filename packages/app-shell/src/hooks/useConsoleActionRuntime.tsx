@@ -48,6 +48,7 @@ import { resolveActionParams } from '../utils/resolveActionParams';
 import { EnvironmentEntitlementDialog, type EntitlementDialogState } from '../environment/EnvironmentEntitlementDialog';
 import { entitlementDialogFromError, type EntitlementDialogSpec } from '../environment/entitlements';
 import { resolvePageVarTokens } from '../utils/resolvePageVarTokens';
+import { actionErrorDetail } from '../utils/actionErrorDetail';
 
 const FALLBACK_USER = { id: 'current-user', name: 'Demo User', isPlatformAdmin: false };
 
@@ -68,20 +69,11 @@ function isRecordScoped(action: ActionDef): boolean {
 }
 
 /**
- * Extract a human-readable message from an error response body. The
- * ObjectStack envelope nests it as `{ error: { code, message } }` — passing
- * that object through as `ActionResult.error` reaches `toast.error()` as a
- * React child and crashes the page (React #31). Always resolve to a string.
+ * Extract a human-readable message from an error response body — shared with
+ * `RecordDetailView`, which runs the same `/actions` request and needs the same
+ * React-#31 guard. See `../utils/actionErrorDetail`.
  */
-function errorDetail(body: unknown, fallback: string): string {
-  const b = body as { error?: unknown; message?: unknown } | null;
-  const err = b?.error;
-  if (typeof err === 'string' && err.length > 0) return err;
-  const nested = (err as { message?: unknown } | null)?.message;
-  if (typeof nested === 'string' && nested.length > 0) return nested;
-  if (typeof b?.message === 'string' && b.message.length > 0) return b.message;
-  return fallback;
-}
+const errorDetail = actionErrorDetail;
 
 export interface ConsoleActionRuntimeOptions {
   /** Adapter for generic CRUD / execute calls. */
@@ -595,8 +587,21 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
         },
       );
       const json = await res.json().catch(() => null);
-      if (!res.ok || (json && json.success === false)) {
-        const errMsg = errorDetail(json, `Action "${targetName}" failed (HTTP ${res.status})`);
+      // A server older than objectstack#3913 reports a script action that THREW
+      // as HTTP 200 `{success: true, data: {success: false, error}}` — transport
+      // success wrapping a business failure. Reading only `res.ok` and the OUTER
+      // `success` mistook that for a completed action and fired the green
+      // "completed" toast while swallowing the real error. Inspect the INNER
+      // envelope too (RecordDetailView's copy of this handler already did).
+      // Current servers answer with a real status, so `!res.ok` catches it
+      // first; this branch is what keeps the console honest against a server
+      // that has not been upgraded yet.
+      const inner = json?.data;
+      const innerFailed = !!inner && typeof inner === 'object' && (inner as any).success === false;
+      if (!res.ok || (json && json.success === false) || innerFailed) {
+        const errMsg = innerFailed
+          ? errorDetail(inner, `Action "${targetName}" failed`)
+          : errorDetail(json, `Action "${targetName}" failed (HTTP ${res.status})`);
         if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
         // Don't toast here — the ActionRunner's post-execution hook surfaces
         // `error` as a toast (see apiHandler/flowHandler, which likewise only

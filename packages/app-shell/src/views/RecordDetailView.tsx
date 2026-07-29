@@ -33,6 +33,7 @@ import { RelatedRecordActionsBridge } from './RelatedRecordActionsBridge';
 import { withPageTabsUrlSync } from '../utils/pageTabsUrlSync';
 import { RECORD_DETAIL_TAB_PARAM, RECORD_TRAIL_PARAM, decodeRecordTrail, buildRecordTrailHref } from '../urlParams';
 import { resolveActionParams } from '../utils/resolveActionParams';
+import { actionErrorDetail } from '../utils/actionErrorDetail';
 import { useRecordBreadcrumbTitle } from '../context/NavigationContext';
 import type { FeedItem } from '@object-ui/types';
 import type { ActionDef, ActionParamDef } from '@object-ui/core';
@@ -759,15 +760,22 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       );
       const json = await res.json().catch(() => null);
       // The action route wraps the handler's return value in a {success, data}
-      // envelope. A script action that THROWS is reported as
-      // `data: { success: false, error }` while the OUTER success stays true,
-      // so we must inspect the inner envelope too — otherwise a failed action
-      // is mistaken for success and fires the green "completed" toast while the
-      // real error is swallowed.
+      // envelope. A server older than objectstack#3913 reports a script action
+      // that THROWS as `data: { success: false, error }` while the OUTER success
+      // stays true, so we must inspect the inner envelope too — otherwise a
+      // failed action is mistaken for success and fires the green "completed"
+      // toast while the real error is swallowed. Current servers answer with a
+      // real status, which `!res.ok` catches first.
       const inner = json?.data;
       const innerFailed = inner && typeof inner === 'object' && inner.success === false;
       if (!res.ok || (json && json.success === false) || innerFailed) {
-        const errMsg = (innerFailed && inner.error) || json?.error || `Action "${targetName}" failed (HTTP ${res.status})`;
+        // Always resolve to a STRING. Since objectstack#3913 a failed action
+        // answers with the nested `{error: {code, message}}` envelope — handing
+        // that object to `toast.error()` as a React child crashes the page
+        // (React #31), which the raw `json?.error` read here used to do.
+        const errMsg = innerFailed
+          ? actionErrorDetail(inner, `Action "${targetName}" failed`)
+          : actionErrorDetail(json, `Action "${targetName}" failed (HTTP ${res.status})`);
         if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
         // Don't toast here. This handler always runs through the ActionRunner
         // (registered as the `script` handler on the ActionProvider below, which
