@@ -20,6 +20,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { bearerAuthHeaders } from '../utils/authToken';
+import type { DecisionOutputDef } from '../utils/decisionOutputParams';
 
 export interface ApprovalRequestLite {
   id: string;
@@ -44,6 +45,19 @@ export interface ApprovalRequestLite {
    * have allowed. See {@link recordLockedByApproval}.
    */
   lock_record?: boolean;
+  /**
+   * Structured data THIS pending node asks the approver to submit with their
+   * decision (framework#3447 P2) — the flow reads it back as
+   * `vars.<nodeId>.<key>`, typically to route the next node's approvers.
+   *
+   * `decision_output_defs` carries the typed declaration (`type` /`multiple`),
+   * `decision_outputs` the bare key list a pre-typed backend sends; both are
+   * absent on a backend that predates the feature. The record header collects
+   * them exactly like the Approval Center does — a decision that silently
+   * skipped them left the next node reading a missing key (objectui#2955).
+   */
+  decision_outputs?: string[] | null;
+  decision_output_defs?: DecisionOutputDef[] | null;
 }
 
 /**
@@ -71,9 +85,18 @@ interface UseRecordApprovalsResult {
   latestRequest: ApprovalRequestLite | null;
   /** The current user is among the pending approvers and may record a decision. */
   canDecide: boolean;
-  approve: (input?: { comment?: string }) => Promise<ApprovalRequestLite | undefined>;
-  reject: (input?: { comment?: string }) => Promise<ApprovalRequestLite | undefined>;
+  approve: (input?: DecisionInput) => Promise<ApprovalRequestLite | undefined>;
+  reject: (input?: DecisionInput) => Promise<ApprovalRequestLite | undefined>;
   refresh: () => Promise<void>;
+}
+
+/**
+ * What an approver submits with a decision: the free-text comment, plus the
+ * node's declared decision outputs keyed by their declared `key` (objectui#2955).
+ */
+export interface DecisionInput {
+  comment?: string;
+  outputs?: Record<string, any>;
 }
 
 function apiBase() {
@@ -162,8 +185,9 @@ export function useRecordApprovals(
     && (pendingRequest.pending_approvers ?? []).includes(currentUserId);
 
   const decide = useCallback(
-    async (decision: 'approve' | 'reject', input?: { comment?: string }) => {
+    async (decision: 'approve' | 'reject', input?: DecisionInput) => {
       if (!pendingRequest) throw new Error('No pending request');
+      const outputs = input?.outputs && Object.keys(input.outputs).length > 0 ? input.outputs : undefined;
       const out = await fetchJson<{ request?: ApprovalRequestLite }>(
         `/approvals/requests/${encodeURIComponent(pendingRequest.id)}/${decision}`,
         {
@@ -171,6 +195,11 @@ export function useRecordApprovals(
           body: JSON.stringify({
             ...(currentUserId ? { actorId: currentUserId } : {}),
             ...(input?.comment ? { comment: input.comment } : {}),
+            // The node's declared decision outputs, under the same nested key
+            // the Approval Center's `type:'api'` decide actions post
+            // (objectui#2955). Omitted entirely when nothing was collected, so
+            // a node without `decisionOutputs` posts the body it always did.
+            ...(outputs ? { outputs } : {}),
           }),
         },
       );
@@ -180,8 +209,8 @@ export function useRecordApprovals(
     [pendingRequest, currentUserId, refresh],
   );
 
-  const approve = useCallback((input?: { comment?: string }) => decide('approve', input), [decide]);
-  const reject = useCallback((input?: { comment?: string }) => decide('reject', input), [decide]);
+  const approve = useCallback((input?: DecisionInput) => decide('approve', input), [decide]);
+  const reject = useCallback((input?: DecisionInput) => decide('reject', input), [decide]);
 
   return {
     loading,
