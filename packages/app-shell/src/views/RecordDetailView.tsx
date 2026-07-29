@@ -172,9 +172,13 @@ export function buildApprovalDecisionActions(
     // intent has to ride the type.
     type: 'textarea',
   };
-  const decisionParams = [
+  // `required` outputs are enforced on approve only — the server rejects a
+  // blank one there and never on reject, so the two dialogs differ in exactly
+  // that flag and nothing else.
+  const defs = decisionOutputDefs(pendingRequest);
+  const decisionParams = (decision: 'approve' | 'reject') => [
     commentParam,
-    ...decisionOutputParams(decisionOutputDefs(pendingRequest), (key: string) => t(key)),
+    ...decisionOutputParams(defs, (key: string) => t(key), { decision }),
   ];
   // A pending approval is THE decision the approver came to make, so the
   // decision buttons must outrank app `record_header` actions rather than being
@@ -194,7 +198,7 @@ export function buildApprovalDecisionActions(
       order: -100,
       locations: ['record_header'],
       refreshAfter: true,
-      actionParams: decisionParams,
+      actionParams: decisionParams('approve'),
       successMessage: t('approvals.approveSuccess', { defaultValue: 'Approved' }),
     },
     {
@@ -208,7 +212,7 @@ export function buildApprovalDecisionActions(
       locations: ['record_header'],
       refreshAfter: true,
       confirmText: t('approvals.rejectConfirm', { defaultValue: 'Reject this approval request?' }),
-      actionParams: decisionParams,
+      actionParams: decisionParams('reject'),
       successMessage: t('approvals.rejectSuccess', { defaultValue: 'Rejected' }),
     },
   ] as unknown as ActionDef[];

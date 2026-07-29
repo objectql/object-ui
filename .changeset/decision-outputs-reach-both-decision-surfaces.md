@@ -41,7 +41,13 @@ The widget mapping now lives in one place (`utils/decisionOutputParams`), so
 the two surfaces cannot drift apart again, and the round trip through param
 resolution — the stage that actually broke — is pinned by tests.
 
-Not fixed here: `DecisionOutputDef` has no `required`, so a flow author still
-cannot demand that an approver fill an output before approving. That needs the
-spec-side field first (framework), and `onEmptyApprovers` remains the only
-backstop until then.
+**And a `required` output is now enforced at the field.** The spec grew
+`decisionOutputs[].required` (the platform half of this issue, shipping in
+`@objectstack/spec` + `@objectstack/plugin-approvals`) — the server rejects an
+approve carrying no value for one, before any write. The dialog marks those params
+required, so the approver is stopped at the empty field with the Confirm button
+refusing rather than by a 400 after the round trip. Only on APPROVE: the server
+never requires them on a reject (the run leaves down the reject edge, where
+nothing reads the outputs), so the two dialogs differ in exactly that flag. On a
+backend that predates the field nothing is required, which is the behavior above
+unchanged.

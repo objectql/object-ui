@@ -103,6 +103,25 @@ describe('buildApprovalDecisionActions — decision outputs (objectui#2955)', ()
     });
   });
 
+  it('requires a `required` output to approve, but never to reject', () => {
+    const actions = byName(
+      buildApprovalDecisionActions(
+        pending({
+          decision_output_defs: [
+            { key: 'parallel_positions', type: 'position', multiple: true, required: true },
+          ],
+        }),
+        t,
+      ) as any[],
+    );
+    const paramOf = (name: string) =>
+      (actions[name].actionParams as any[]).find((p) => p.name === 'outputs.parallel_positions');
+    expect(paramOf('approve_request').required).toBe(true);
+    // Mirrors the server, which enforces `required` on approve only — a reject
+    // blocked on routing data the reject edge never reads would trap it.
+    expect(paramOf('reject_request').required).toBe(false);
+  });
+
   it('collects nothing extra when there is no pending request', () => {
     const [approve] = buildApprovalDecisionActions(null, t) as any[];
     expect((approve.actionParams as any[]).map((p) => p.name)).toEqual(['comment']);

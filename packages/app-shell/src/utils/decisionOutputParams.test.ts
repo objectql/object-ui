@@ -93,10 +93,31 @@ describe('decisionOutputParams — declaration → param', () => {
     expect(free.helpText).toBe('t:actions.decisionOutput.helpMultiValue');
   });
 
-  it('declares no output as required — the flow author cannot demand one yet', () => {
-    // `DecisionOutputDef` carries no `required` flag (objectui#2955 follow-up);
-    // until it does, a hard-required picker would be unreachable metadata.
-    expect(decisionOutputParams([{ key: 'r', type: 'user' }], t)[0].required).toBe(false);
+  it('leaves an undeclared output optional', () => {
+    expect(decisionOutputParams([{ key: 'r', type: 'user' }], t, { decision: 'approve' })[0].required)
+      .toBe(false);
+  });
+
+  it('marks a `required` output required on the APPROVE dialog', () => {
+    // The server rejects a blank required output before any write; marking it
+    // here stops the approver at the field instead of at a 400.
+    expect(
+      decisionOutputParams([{ key: 'r', type: 'position', required: true }], t, { decision: 'approve' })[0].required,
+    ).toBe(true);
+  });
+
+  it('never marks it required on the REJECT dialog', () => {
+    // Mirrors the server: a reject leaves down the reject edge where nothing
+    // reads the outputs, so demanding them would trap the rejection.
+    expect(
+      decisionOutputParams([{ key: 'r', type: 'position', required: true }], t, { decision: 'reject' })[0].required,
+    ).toBe(false);
+  });
+
+  it('requires nothing when the caller names no decision', () => {
+    // A surface that has not said which decision it is collecting for must not
+    // block — and a pre-`required` backend sends the flag on nothing anyway.
+    expect(decisionOutputParams([{ key: 'r', required: true }], t)[0].required).toBe(false);
   });
 });
 
@@ -120,6 +141,16 @@ describe('decisionOutputParams — the params survive resolution (objectui#2955)
   it('a user output reaches the widget as the user picker', () => {
     const [param] = decisionOutputParams([{ key: 'next_reviewers', type: 'user', multiple: true }], t);
     expect(widgetFor(param)).toMatchObject({ type: 'user', multiple: true });
+  });
+
+  it('the required flag survives resolution, so the dialog can block on it', () => {
+    // `paramToField` feeds `ActionParamDialog`'s required check — if the flag
+    // were dropped in resolution the dialog would submit a blank value and let
+    // the server 400 instead.
+    const [param] = decisionOutputParams(
+      [{ key: 'k', type: 'position', required: true }], t, { decision: 'approve' },
+    );
+    expect(widgetFor(param)).toMatchObject({ type: 'lookup', required: true });
   });
 
   it('an untyped output stays free text', () => {

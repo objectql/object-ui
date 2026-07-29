@@ -145,12 +145,19 @@ const DeclaredActionButton: React.FC<{
       // handler folds them into the nested `outputs` body the decide route
       // expects. A free-text output accepts comma-separated values (the
       // service accepts CSV for multi-id outputs).
-      const isDecideAction = /\/(approve|reject)$/.test(String((action as any).target ?? ''));
+      // Which decision this action records — `required` outputs are enforced
+      // on approve only (server and dialog agree), so the reject dialog offers
+      // the same fields without blocking on them.
+      const decision = /\/approve$/.test(String((action as any).target ?? ''))
+        ? 'approve' as const
+        : /\/reject$/.test(String((action as any).target ?? ''))
+          ? 'reject' as const
+          : undefined;
       // Widget mapping (typed picker vs free text) lives in the shared helper,
       // so the record header's Approve/Reject renders the same controls
       // (objectui#2955).
-      const outputParams = isDecideAction
-        ? decisionOutputParams(decisionOutputDefs(recordData), t)
+      const outputParams = decision
+        ? decisionOutputParams(decisionOutputDefs(recordData), t, { decision })
         : [];
       const dispatch: any = {
         ...rest,

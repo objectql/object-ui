@@ -41,6 +41,13 @@ export interface DecisionOutputDef {
   /** Record kind to pick (`user` / `department` / `position` / `team`); absent → free text. */
   type?: string;
   multiple?: boolean;
+  /**
+   * The approver must supply this one to APPROVE. The server enforces it
+   * (`decide()` rejects a blank required output before any write); the dialog
+   * mirrors it so the approver is stopped at the field rather than by a 400.
+   * Absent on a backend that predates the flag — then nothing is required.
+   */
+  required?: boolean;
 }
 
 /** Param-name prefix the api handler folds back into the nested `outputs` body. */
@@ -91,19 +98,23 @@ function humanizeKey(key: string): string {
  * so no `_actions.<action>.params.*` bundle entry can ever match them and the
  * literal we pass IS what renders (objectui#2762 P0-3).
  *
- * Every output is optional: `DecisionOutputDef` carries no `required` flag, so
- * a flow author cannot yet demand one (objectui#2955 follow-up) — an omitted
- * output simply isn't sent.
+ * A `required` output is marked required on the APPROVE dialog only — pass
+ * `{ decision: 'approve' }`. That mirrors the server, which enforces `required`
+ * on approve and never on reject (the run leaves down the reject edge, where
+ * nothing reads the outputs, so demanding routing data to say "no" would trap
+ * the rejection). Marking it here is what turns the server's 400 into a
+ * blocked Confirm button with the field flagged, instead of a round trip.
  */
 export function decisionOutputParams(
   defs: DecisionOutputDef[],
   t: (key: string) => string,
+  opts: { decision?: 'approve' | 'reject' } = {},
 ): Array<Record<string, unknown>> {
   return defs.filter((d) => d && d.key).map((d) => {
     const base = {
       name: `${DECISION_OUTPUT_PARAM_PREFIX}${d.key}`,
       label: d.label ?? humanizeKey(d.key),
-      required: false,
+      required: opts.decision === 'approve' && d.required === true,
     };
     if (d.type === 'user') {
       return {

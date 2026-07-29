@@ -269,6 +269,31 @@ describe('DeclaredActionsBar chrome localization (objectui#2762)', () => {
     expect(screen.getByRole('toolbar')).toHaveAttribute('aria-label', '决策');
   });
 
+  it.each([
+    ['/api/v1/approvals/requests/{id}/approve', true],
+    ['/api/v1/approvals/requests/{id}/reject', false],
+  ])('marks a required output required on %s → %s', async (target, expected) => {
+    // The server enforces `required` on approve and never on reject; the two
+    // dialogs must differ in exactly that flag (objectui#2955).
+    render(
+      <DeclaredActionsBar
+        objectName="sys_approval_request"
+        record={{
+          ...REQUEST,
+          decision_output_defs: [{ key: 'parallel_positions', type: 'position', required: true }],
+        }}
+        location="record_section"
+        actions={[{
+          name: 'decide', type: 'api', label: 'Decide', target, locations: ['record_section'],
+        }] as any}
+      />,
+    );
+    fireEvent.click(screen.getByText('Decide'));
+    await waitFor(() => expect(executeSpy).toHaveBeenCalled());
+    const params = executeSpy.mock.calls[0][0].actionParams as Array<Record<string, unknown>>;
+    expect(params[0].required).toBe(expected);
+  });
+
   it('hands the picker target under `reference`, the key that survives resolution', async () => {
     // objectui#2955: the params are spelled for `resolveActionParams`, which
     // rebuilds an inline param from a fixed key list and reads the target from
