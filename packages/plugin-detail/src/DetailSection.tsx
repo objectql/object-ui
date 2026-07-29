@@ -34,6 +34,7 @@ import { useSafeFieldLabel } from '@object-ui/react';
 import { PermissionFacetLink } from './renderers/PermissionFacetLink';
 import { NON_EDITABLE_SYSTEM_FIELDS } from './systemFields';
 import { InlineFieldInput, TEXTUAL_REF_FALLBACK_TYPES } from './InlineFieldInput';
+import { enrichDetailField } from './fieldEnrichment';
 
 /**
  * Section-header icon. `fieldGroups[].icon` declares a Lucide name (spec),
@@ -212,28 +213,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     // like select options, currency code, lookup target, etc. are
     // available in either mode.
     const objectDefField = objectSchema?.fields?.[field.name];
-    const enrichedField: Record<string, any> = { ...field };
-    if (objectDefField) {
-      if (!field.type && objectDefField.type) enrichedField.type = objectDefField.type;
-      if (objectDefField.options && !enrichedField.options) enrichedField.options = objectDefField.options;
-      if (objectDefField.currency && !enrichedField.currency) enrichedField.currency = objectDefField.currency;
-      if (objectDefField.precision !== undefined && enrichedField.precision === undefined) enrichedField.precision = objectDefField.precision;
-      if ((objectDefField as any).scale !== undefined && (enrichedField as any).scale === undefined) (enrichedField as any).scale = (objectDefField as any).scale;
-      // Numeric range/step constraints (objectui#2572 item 3) — without these
-      // the metadata's `min: 0` never reaches the numeric edit widgets.
-      if ((objectDefField as any).min !== undefined && (enrichedField as any).min === undefined) (enrichedField as any).min = (objectDefField as any).min;
-      if ((objectDefField as any).max !== undefined && (enrichedField as any).max === undefined) (enrichedField as any).max = (objectDefField as any).max;
-      if ((objectDefField as any).step !== undefined && (enrichedField as any).step === undefined) (enrichedField as any).step = (objectDefField as any).step;
-      if (objectDefField.format && !enrichedField.format) enrichedField.format = objectDefField.format;
-      // Per-field widget override (ADR-0056 P2) — carry it from the object
-      // metadata so the inline-edit widget branch (and read cell) can honor a
-      // structured editor even when the synthesized section field didn't include it.
-      if ((objectDefField as any).widget && !enrichedField.widget) enrichedField.widget = (objectDefField as any).widget;
-      const refTarget = objectDefField.reference_to || objectDefField.reference;
-      if (refTarget && !enrichedField.reference_to) enrichedField.reference_to = refTarget;
-      if (objectDefField.reference_field && !enrichedField.reference_field) enrichedField.reference_field = objectDefField.reference_field;
-      if ((objectDefField as any).dueLike !== undefined && enrichedField.dueLike === undefined) enrichedField.dueLike = (objectDefField as any).dueLike;
-    }
+    const enrichedField = enrichDetailField(field as Record<string, any>, objectDefField);
     if (objectName && Array.isArray(enrichedField.options) && enrichedField.options.length > 0) {
       enrichedField.options = translateOptions(objectName, field.name, enrichedField.options as any);
     }

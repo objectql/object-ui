@@ -20,6 +20,7 @@ import { getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
 import { useSafeFieldLabel, useInlineEdit } from '@object-ui/react';
 import { Check, X, Pencil } from 'lucide-react';
 import { InlineFieldInput, TEXTUAL_REF_FALLBACK_TYPES } from './InlineFieldInput';
+import { enrichDetailField } from './fieldEnrichment';
 import { NON_EDITABLE_SYSTEM_FIELDS } from './systemFields';
 import { useDetailTranslation } from './useDetailTranslation';
 
@@ -82,35 +83,15 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
             // Enrich field metadata from objectSchema
             const objectDefField = objectSchema?.fields?.[field.name];
             const resolvedType = field.type || objectDefField?.type;
-            // Backend object schemas use the ObjectStack-convention `reference`
-            // key (DetailSection normalizes the same pair) — without it the
-            // lookup editor has no target object to hydrate or search against.
-            const refTarget =
-              objectDefField?.reference_to || (objectDefField as any)?.reference;
-            const enrichedField = {
-              name: field.name,
-              label: field.label,
-              type: resolvedType || 'text',
-              ...(objectDefField?.options && { options: objectDefField.options }),
-              ...(objectDefField?.currency && { currency: objectDefField.currency }),
-              // The SPEC channel for a per-field currency (a bare `currency`
-              // key is designer/DB-only) — resolveFieldCurrency reads
-              // currencyConfig.defaultCurrency second (#2548).
-              ...(objectDefField?.currencyConfig && { currencyConfig: objectDefField.currencyConfig }),
-              ...(objectDefField?.precision !== undefined && { precision: objectDefField.precision }),
-              ...((objectDefField as any)?.scale !== undefined && { scale: (objectDefField as any).scale }),
-              // Numeric range/step constraints (objectui#2572 item 3) — keep in
-              // sync with DetailSection's enrichment so both editors honor them.
-              ...((objectDefField as any)?.min !== undefined && { min: (objectDefField as any).min }),
-              ...((objectDefField as any)?.max !== undefined && { max: (objectDefField as any).max }),
-              ...((objectDefField as any)?.step !== undefined && { step: (objectDefField as any).step }),
-              ...(objectDefField?.format && { format: objectDefField.format }),
-              ...(refTarget && { reference_to: refTarget }),
-              ...((objectDefField as any)?.reference_field && {
-                reference_field: (objectDefField as any).reference_field,
-              }),
-              ...((objectDefField as any)?.widget && { widget: (objectDefField as any).widget }),
-            };
+            // Shared with DetailSection (`enrichDetailField`) so the highlights
+            // strip and the details body resolve an identical field shape —
+            // including the relational keys a lookup picker needs (`multiple`,
+            // display/id fields, picker config), and the `reference` /
+            // `reference_to` spelling pair backend schemas use.
+            const enrichedField = enrichDetailField(
+              { name: field.name, label: field.label, type: resolvedType || 'text' },
+              objectDefField,
+            );
 
             // Live value = the user's draft edit for this field, else the record
             // value. Read as `draft[name] ?? data[name]` (objectui#2407 P2).
