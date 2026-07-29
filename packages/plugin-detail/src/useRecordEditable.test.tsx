@@ -18,8 +18,10 @@
  * Every uncertainty must fail OPEN — a courtesy hint may never be the reason a
  * permitted user cannot act. The server is the authority (ADR-0057 D10).
  */
+import * as React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
+import { SchemaRendererProvider } from '@object-ui/react';
 import { useRecordEditable, __clearRecordEditableCache } from './useRecordEditable';
 
 function mockExplain(body: unknown, ok = true) {
@@ -87,6 +89,39 @@ describe('useRecordEditable', () => {
     renderHook(() => useRecordEditable(undefined, 'r1'));
     renderHook(() => useRecordEditable('note', undefined));
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // ── framework#3923 ② — the probe must be AUTHENTICATED ──────────────────
+  //
+  // It shipped as a bare `fetch(..., {credentials:'include'})`. A bearer-token
+  // session keeps its credential in the `Authorization` header, not a cookie, so
+  // every probe came back 401 on a perfectly valid admin session and the verdict
+  // always failed open — the hook was inert in exactly the deployments it was
+  // written for. Route it through the host's authenticated fetch instead.
+  it('uses the host apiFetch when a SchemaRendererProvider supplies one', async () => {
+    const hostFetch = mockExplain({ record: { recordId: 'r1', visible: false } });
+    const globalFetch = mockExplain({ record: { recordId: 'r1', visible: true } });
+    vi.stubGlobal('fetch', globalFetch);
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <SchemaRendererProvider dataSource={{}} apiFetch={hostFetch}>
+        {children}
+      </SchemaRendererProvider>
+    );
+    const { result } = renderHook(() => useRecordEditable('note', 'r1'), { wrapper });
+
+    await waitFor(() => expect(result.current).toBe(false));
+    expect(hostFetch).toHaveBeenCalledTimes(1);
+    expect(globalFetch).not.toHaveBeenCalled();
+    expect(hostFetch.mock.calls[0][0]).toBe('/api/v1/security/explain');
+  });
+
+  it('falls back to the global fetch in a standalone embed (no provider)', async () => {
+    const globalFetch = mockExplain({ record: { recordId: 'r1', visible: false } });
+    vi.stubGlobal('fetch', globalFetch);
+    const { result } = renderHook(() => useRecordEditable('note', 'r1'));
+    await waitFor(() => expect(result.current).toBe(false));
+    expect(globalFetch).toHaveBeenCalledTimes(1);
   });
 
   it('memoises the verdict so revisiting a record costs nothing', async () => {

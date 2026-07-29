@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ComponentRegistry } from '@object-ui/core';
+import { ActionProvider } from '@object-ui/react';
 import { renderComponent, validateComponentRegistration } from './test-utils';
 
 // Ensure action renderers are loaded (side-effect imports via vitest.setup.tsx)
@@ -379,6 +380,56 @@ describe('ActionBar (action:bar)', () => {
       });
       const toolbar = container.querySelector('[role="toolbar"]');
       expect(toolbar?.className).toContain('flex-row');
+    });
+  });
+
+  /**
+   * [ADR-0066 D4 / framework#3923] The bar filters its own action list instead
+   * of going through `ActionEngine.getActionsForLocation`, so the engine's
+   * capability gate never reached `list_toolbar`: an action declaring a
+   * capability nobody holds rendered as a live button, with nothing behind it
+   * for a `type: 'api'` action pointed at a custom endpoint (the platform's
+   * action route — the source of the 403 — never sees that request).
+   */
+  describe('requiredPermissions capability gate', () => {
+    const Bar = ({ actions, systemActions }: { actions?: any[]; systemActions?: any[] }) => {
+      const Component = ComponentRegistry.get('action:bar')!;
+      // eslint-disable-next-line react-hooks/static-components -- registry component is stable
+      return <Component schema={{ type: 'action:bar', location: 'list_toolbar', actions, systemActions }} />;
+    };
+    const withUser = (user: unknown, props: { actions?: any[]; systemActions?: any[] }) =>
+      render(<ActionProvider context={{ user } as any}><Bar {...props} /></ActionProvider>);
+
+    const gated = { name: 'gated', label: 'Bulk Reassign', type: 'api', requiredPermissions: ['manage_users'] };
+    const plain = { name: 'plain', label: 'Export', type: 'api' };
+
+    it('hides an action whose capability the caller lacks', () => {
+      const { container } = withUser({ id: 'u1', systemPermissions: ['setup.access'] }, { actions: [gated, plain] });
+      expect(container.textContent).not.toContain('Bulk Reassign');
+      expect(container.textContent).toContain('Export');
+    });
+
+    it('shows it when the capability is held', () => {
+      const { container } = withUser({ id: 'u1', systemPermissions: ['manage_users'] }, { actions: [gated] });
+      expect(container.textContent).toContain('Bulk Reassign');
+    });
+
+    it('gates on an EMPTY held set — "holds nothing" is known, not unknown', () => {
+      const { container } = withUser({ id: 'u1', systemPermissions: [] }, { actions: [gated] });
+      expect(container.textContent).not.toContain('Bulk Reassign');
+    });
+
+    it('fails OPEN when the host never resolved capabilities', () => {
+      const { container } = withUser({ id: 'u1' }, { actions: [gated] });
+      expect(container.textContent).toContain('Bulk Reassign');
+    });
+
+    it('gates systemActions too — the overflow slot is not a bypass', () => {
+      const { container } = withUser(
+        { id: 'u1', systemPermissions: [] },
+        { actions: [plain], systemActions: [{ ...gated, label: 'Purge All' }] },
+      );
+      expect(container.textContent).not.toContain('Purge All');
     });
   });
 });

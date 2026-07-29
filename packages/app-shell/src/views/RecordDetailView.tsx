@@ -73,6 +73,38 @@ interface RecordDetailViewProps {
 const FALLBACK_USER = { id: 'current-user', name: 'Demo User' };
 
 /**
+ * The `user` seeded into this view's own `<ActionProvider>` — identity plus, once
+ * resolved, the caller's system capabilities.
+ *
+ * [ADR-0066 D4 / framework#3923] `systemPermissions` is not decoration here: this
+ * provider SHADOWS the shell-level one (`useConsoleActionRuntime`) for every
+ * action on the record surface, and `ActionEngine.getActionsForLocation` reads the
+ * capability gate off `runner.getContext().user.systemPermissions`. The engine
+ * fails OPEN on `undefined` (unknown ≠ denied), so shipping identity alone
+ * silently un-gated every `record_header` / `record_more` action that declared
+ * `requiredPermissions` — the button rendered, and only the server's 403 stopped
+ * it (and only for platform action routes at that).
+ *
+ * The `permissionsLoaded` gate keeps the two states apart: `usePermissions()`
+ * returns `[]` both for "holds no capabilities" and for "no PermissionProvider /
+ * still resolving". Forwarding the latter as `[]` would flip the gate fail-CLOSED
+ * and hide gated actions in a standalone embed, so it stays `undefined` until the
+ * answer is real.
+ */
+export function resolveActionUser(
+  user: { id: string; name: string; image?: string } | null | undefined,
+  permissionsLoaded: boolean,
+  systemPermissions: string[] | undefined,
+): { id: string; name: string; avatar?: string; systemPermissions?: string[] } {
+  const identity = user
+    ? { id: user.id, name: user.name, avatar: user.image }
+    : FALLBACK_USER;
+  return permissionsLoaded
+    ? { ...identity, systemPermissions: systemPermissions ?? [] }
+    : identity;
+}
+
+/**
  * Audit field names auto-injected by the framework's `applySystemFields`.
  * Filtered out of the auto-generated body sections — they are rendered
  * separately as a single subtle one-line `<RecordMetaFooter>` (see
@@ -940,7 +972,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // are still loading (`isLoaded === false`, e.g. no PermissionProvider in a
   // standalone embed) the gate stays open — fail-open is safe because the
   // server enforces data access regardless; this is purely a UI/DX filter.
-  const { can: canOnObject, isLoaded: permissionsLoaded, getObjectApiOperations } = usePermissions();
+  const { can: canOnObject, isLoaded: permissionsLoaded, getObjectApiOperations, systemPermissions } = usePermissions();
   // [#3546] Server-resolved effective API operation set for this object
   // (`/me/permissions` `apiOperations`). Threaded as the 2nd arg into
   // `resolveRecordHeaderActionGates` for the detail header's Edit/Delete and
@@ -1208,9 +1240,12 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // Memoize so the object identity is stable across renders — otherwise
   // any effect that depends on it (e.g. the feed loader below) would
   // re-fire every render and create an infinite request loop.
+  //
+  // Carries the ADR-0066 D4 capability gate into this view's ActionProvider —
+  // see `resolveActionUser` for why that matters (framework#3923).
   const currentUser = useMemo(
-    () => (user ? { id: user.id, name: user.name, avatar: user.image } : FALLBACK_USER),
-    [user?.id, user?.name, user?.image],
+    () => resolveActionUser(user, permissionsLoaded, systemPermissions),
+    [user?.id, user?.name, user?.image, permissionsLoaded, systemPermissions],
   );
 
   // Fetch comments from API.

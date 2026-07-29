@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@object-ui/components';
 import { Edit, Trash2, MoreVertical } from 'lucide-react';
-import { useObjectTranslation, useRowPredicate } from '@object-ui/react';
+import { useObjectTranslation, useRowPredicate, useCapabilityGate } from '@object-ui/react';
 
 const ROW_ACTION_FALLBACKS: Record<string, string> = {
   'grid.openMenu': 'Open menu',
@@ -232,17 +232,29 @@ export const RowActionMenu: React.FC<RowActionMenuProps> = ({
   maxInlineActions = 1,
 }) => {
   const t = useRowActionTranslation();
+  // [ADR-0066 D4 / framework#3923] Capability gate, applied ONCE to the whole
+  // declared set so the inline CTA, the overflow menu and `hasMenu` all agree.
+  // This surface filters its own actions instead of going through
+  // `ActionEngine.getActionsForLocation`, so the engine's gate never reached
+  // `list_item` — a row action declaring a capability nobody holds still
+  // rendered. Unknown capabilities fail OPEN (see `useCapabilityGate`); the
+  // server remains the authority.
+  const mayInvoke = useCapabilityGate();
+  const gatedActionDefs = React.useMemo(
+    () => (rowActionDefs ?? []).filter(d => mayInvoke((d as any)?.requiredPermissions)),
+    [rowActionDefs, mayInvoke],
+  );
   // Surface `variant: 'primary'` row actions inline (as the row's main CTA);
   // everything else stays in the "⋮" overflow menu. Only the first
   // `maxInlineActions` primaries render inline — any extra primaries fold into
   // the menu (kept above secondary actions) so a row never renders more inline
   // buttons than the actions column can show, which previously clipped the
   // leftmost button (e.g. "Open" hidden behind "Upgrade Plan").
-  const primaryDefs = (rowActionDefs ?? []).filter(d => d.variant === 'primary');
+  const primaryDefs = gatedActionDefs.filter(d => d.variant === 'primary');
   const inlineDefs = primaryDefs.slice(0, Math.max(0, maxInlineActions));
   const menuDefs = [
     ...primaryDefs.slice(Math.max(0, maxInlineActions)),
-    ...(rowActionDefs ?? []).filter(d => d.variant !== 'primary'),
+    ...gatedActionDefs.filter(d => d.variant !== 'primary'),
   ];
   const hasMenu = Boolean(
     (canEdit && onEdit) ||
