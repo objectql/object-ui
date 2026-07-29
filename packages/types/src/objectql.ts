@@ -1227,7 +1227,7 @@ export interface ObjectFormSchema extends BaseSchema {
 
 /**
  * ObjectView Schema
- * A complete object management interface combining ObjectTable and ObjectForm.
+ * A complete object management interface combining ObjectGrid and ObjectForm.
  * Provides list view with search, filters, and integrated create/edit dialogs.
  */
 export interface ObjectViewSchema extends BaseSchema {
