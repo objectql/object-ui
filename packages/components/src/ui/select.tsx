@@ -14,7 +14,38 @@ import { Check, ChevronDown, ChevronUp } from "lucide-react"
 
 import { cn } from "../lib/utils"
 
-const Select = SelectPrimitive.Root
+/**
+ * Radix mirrors a Select's value into a hidden native `<select>` so the value
+ * takes part in native form submission. Whenever the controlled `value` changes
+ * to one that mirror carries no `<option>` for, assigning it is a no-op — the
+ * element stays on `''` — and Radix still dispatches the synthetic `change`,
+ * which comes straight back out as `onValueChange('')`.
+ *
+ * That window is real, not theoretical: `SelectContent` mounts its items (and
+ * therefore registers the native options) a commit AFTER the trigger, so a
+ * value arriving while a form is still hydrating — an edit form whose record
+ * lands after first paint — is echoed back as an empty string and silently
+ * overwrites the field. When the wiped field is the one a `visibleWhen`
+ * predicate reads, the form latches in the broken state (#2968).
+ *
+ * `SelectItem` rejects `value=""` outright, so `''` can never be a value the
+ * user actually picked — it is always the mirror talking. Drop it. Clearing a
+ * select is done by writing `undefined`, which is untouched.
+ */
+const Select = ({
+  onValueChange,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof SelectPrimitive.Root>) => {
+  const handleValueChange = React.useCallback(
+    (next: string) => {
+      if (next === "") return
+      onValueChange?.(next)
+    },
+    [onValueChange]
+  )
+  return <SelectPrimitive.Root {...props} onValueChange={handleValueChange} />
+}
+Select.displayName = SelectPrimitive.Root.displayName
 
 const SelectGroup = SelectPrimitive.Group
 
