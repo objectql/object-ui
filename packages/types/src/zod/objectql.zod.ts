@@ -31,6 +31,7 @@ import {
   SelectionConfigSchema as SpecSelectionConfigSchema,
   PaginationConfigSchema as SpecPaginationConfigSchema,
   UserActionsConfigSchema as SpecUserActionsConfigSchema,
+  AriaPropsSchema as SpecAriaPropsSchema,
 } from '@objectstack/spec/ui';
 import { BaseSchema } from './base.zod.js';
 
@@ -309,7 +310,6 @@ const SpecListViewFields = SpecListViewSchema
     description: true,
     userFilters: true,
     userActions: true,
-    sharing: true,
     aria: true,
     conditionalFormatting: true,
     exportOptions: true,
@@ -456,16 +456,16 @@ export const ListViewSchema = BaseSchema
     userFilters: UserFiltersSchema.optional().describe('User filters configuration (accepts legacy tab shapes)'),
     // Spec `userActions` + the three toolbar toggles it does not model yet (#2890).
     userActions: UserActionsSchema.optional().describe('User action toggles for the view toolbar'),
-    sharing: z.object({
-      visibility: z.enum(['private', 'team', 'organization', 'public']).optional(),
-      enabled: z.boolean().optional(),
-      type: z.enum(['personal', 'collaborative']).optional(),
-      lockedBy: z.string().optional(),
-    }).optional().describe('Sharing configuration'),
-    aria: z.object({
-      label: z.string().optional(),
-      describedBy: z.string().optional(),
-      live: z.enum(['polite', 'assertive', 'off']).optional(),
+    // `sharing` is the spec's `ViewSharingSchema`, imported by reference above.
+    // The legacy `{ visibility, enabled }` pair folds into it at the ListView
+    // boundary (#2890) — see `normalizeListViewSchema`.
+    // ARIA — the spec's `AriaPropsSchema` (`ariaLabel` / `ariaDescribedBy` /
+    // `role`) plus `live`, which has no spec counterpart. The legacy
+    // `{ label, describedBy }` spellings fold into the canonical ones at the
+    // ListView boundary (#2890).
+    aria: SpecAriaPropsSchema.extend({
+      live: z.enum(['polite', 'assertive', 'off']).optional()
+        .describe('aria-live politeness for the list region (objectui-only — promote rather than grow this extension)'),
     }).optional().describe('ARIA attributes'),
     conditionalFormatting: z.array(z.union([
       z.object({

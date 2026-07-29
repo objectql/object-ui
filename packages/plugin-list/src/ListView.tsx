@@ -1744,10 +1744,10 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     <div
       ref={pullRef}
       className={cn('flex flex-col h-full bg-background relative min-w-0 overflow-hidden', className)}
-      {...(schema.aria?.label ? { 'aria-label': schema.aria.label } : {})}
-      {...(schema.aria?.describedBy ? { 'aria-describedby': schema.aria.describedBy } : {})}
+      {...(schema.aria?.ariaLabel ? { 'aria-label': schema.aria.ariaLabel as string } : {})}
+      {...(schema.aria?.ariaDescribedBy ? { 'aria-describedby': schema.aria.ariaDescribedBy } : {})}
       {...(schema.aria?.live ? { 'aria-live': schema.aria.live } : {})}
-      role="region"
+      role={schema.aria?.role ?? 'region'}
       aria-busy={loading || undefined}
       data-state={loading ? 'loading' : 'idle'}
     >
@@ -2242,12 +2242,12 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           )}
 
           {/* Share — supports both ObjectUI visibility model and spec personal/collaborative model */}
-          {(schema.sharing?.enabled || schema.sharing?.type) && (
+          {schema.sharing?.type && (
             <Button
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-muted-foreground hover:text-primary text-xs transition-colors duration-150"
-              title={`Sharing: ${schema.sharing?.visibility || schema.sharing?.type || 'private'}`}
+              title={`Sharing: ${schema.sharing.type}`}
               data-testid="share-button"
             >
               <Share2 className="h-3.5 w-3.5 mr-1.5" />
@@ -2271,7 +2271,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
 
           {/* --- Separator: Print/Share/Export | Search --- */}
           {(() => {
-            const hasLeftSideItems = schema.allowPrinting || (schema.sharing?.enabled || schema.sharing?.type) || (resolvedExportOptions && exportPermitted);
+            const hasLeftSideItems = schema.allowPrinting || !!schema.sharing?.type || (resolvedExportOptions && exportPermitted);
             return toolbarFlags.showSearch && hasLeftSideItems ? (
               <div className="h-5 w-px bg-border/50 mx-1 shrink-0" />
             ) : null;

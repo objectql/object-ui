@@ -76,6 +76,24 @@ const SHOW_FLAG_TO_USER_ACTION: Record<string, string> = {
 };
 
 /**
+ * Legacy `sharing.visibility` → the spec's `ViewSharing.type`. The spec models
+ * two ownership kinds; objectui's four-value audience enum collapses onto them:
+ * only `private` is personal, everything wider is collaborative.
+ */
+const VISIBILITY_TO_SHARING_TYPE: Record<string, 'personal' | 'collaborative'> = {
+  private: 'personal',
+  team: 'collaborative',
+  organization: 'collaborative',
+  public: 'collaborative',
+};
+
+/** Legacy ARIA spellings → the spec's `AriaProps` keys. */
+const ARIA_KEY_ALIASES: Record<string, string> = {
+  label: 'ariaLabel',
+  describedBy: 'ariaDescribedBy',
+};
+
+/**
  * ObjectUI's `list-view` node historically used a different vocabulary from
  * `@objectstack/spec` for the same concepts (`fields` where the spec says
  * `columns`, `viewType` where it says `type`, …). Issue #2231 closed the
@@ -116,6 +134,10 @@ const SHOW_FLAG_TO_USER_ACTION: Record<string, string> = {
  *    stays absent, because the defaults are per-toggle (search/sort/filter/
  *    rowHeight/group default ON, hideFields/rowColor default OFF) and belong to
  *    the renderer, not to the vocabulary bridge.
+ *  - `aria: { label, describedBy }` → the spec's `AriaProps`
+ *    (`{ ariaLabel, ariaDescribedBy }`), and `sharing: { visibility, enabled }`
+ *    → the spec's `ViewSharing` (`{ type }`) — #2890 scope A step 5. `aria.live`
+ *    survives untouched: it has no spec counterpart.
  *  - `filters` → `filter` (#2890 scope A step 4). A key rename only: BOTH keys
  *    carry an ObjectQL FilterNode array (`[['stage','=','won']]`) everywhere in
  *    objectui — every consumer passes the value straight to `$filter`. The spec
@@ -140,11 +162,15 @@ export function normalizeListViewSchema<T>(schema: T): T {
   const foldFilter = Array.isArray(legacyFilters);
   const legacyFlags = Object.keys(SHOW_FLAG_TO_USER_ACTION).filter((k) => typeof s[k] === 'boolean');
   const foldDescription = typeof s.showDescription === 'boolean';
+  const aria = isRecord(s.aria) ? s.aria : undefined;
+  const foldAria = !!aria && Object.keys(ARIA_KEY_ALIASES).some((k) => aria[k] !== undefined);
+  const sharing = isRecord(s.sharing) ? s.sharing : undefined;
+  const foldSharing = !!sharing && (sharing.visibility !== undefined || sharing.enabled !== undefined);
   const viewType = s.viewType;
   const defaultViewKind = !viewType || viewType === 'list';
   if (
     !foldColumns && !foldRowHeight && !foldFilter && !legacyFlags.length &&
-    !foldDescription && !defaultViewKind
+    !foldDescription && !foldAria && !foldSharing && !defaultViewKind
   ) {
     return schema;
   }
@@ -182,6 +208,35 @@ export function normalizeListViewSchema<T>(schema: T): T {
     }
     delete next.showDescription;
     next.appearance = appearance;
+  }
+  if (foldAria && aria) {
+    const nextAria: Record<string, unknown> = { ...aria };
+    for (const [legacy, canonical] of Object.entries(ARIA_KEY_ALIASES)) {
+      if (nextAria[canonical] === undefined && aria[legacy] !== undefined) {
+        nextAria[canonical] = aria[legacy];
+      }
+      delete nextAria[legacy];
+    }
+    next.aria = nextAria;
+  }
+  if (foldSharing && sharing) {
+    const nextSharing: Record<string, unknown> = { ...sharing };
+    if (nextSharing.type === undefined) {
+      const visibility = typeof sharing.visibility === 'string' ? sharing.visibility : undefined;
+      // `enabled: true` with no audience is under-specified legacy input. It
+      // used to render the share badge titled "private", so it maps to
+      // `personal` — preserving what the user saw rather than adopting the
+      // spec's `collaborative` default and silently relabeling the badge.
+      const resolved = visibility
+        ? VISIBILITY_TO_SHARING_TYPE[visibility]
+        : sharing.enabled === true
+          ? 'personal'
+          : undefined;
+      if (resolved) nextSharing.type = resolved;
+    }
+    delete nextSharing.visibility;
+    delete nextSharing.enabled;
+    next.sharing = nextSharing;
   }
   if (defaultViewKind) next.viewType = 'grid';
   return next as T;

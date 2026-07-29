@@ -340,30 +340,28 @@ describe('P1 SpecBridge Protocol Alignment', () => {
   // P2 Sharing / ExportOptions / Pagination Protocol Alignment
   // ========================================================================
   describe('P2 sharing/exportOptions/pagination alignment', () => {
-    it('should normalize spec sharing { type: personal } to { visibility: private, enabled: true }', () => {
+    // #2890: `sharing` is the spec's `ViewSharing` shape on BOTH sides now, so
+    // the bridge passes it through. It used to downgrade it here — inventing a
+    // legacy `visibility` audience and an `enabled` flag that the renderer then
+    // had to fold back into `type`.
+    it('should pass spec sharing { type: personal } through unchanged', () => {
       const bridge = new SpecBridge();
       const node = bridge.transformListView({
         name: 'personal_view',
         sharing: { type: 'personal', lockedBy: 'admin@example.com' },
       });
 
-      expect(node.sharing).toBeDefined();
-      expect(node.sharing.visibility).toBe('private');
-      expect(node.sharing.enabled).toBe(true);
-      expect(node.sharing.type).toBe('personal');
-      expect(node.sharing.lockedBy).toBe('admin@example.com');
+      expect(node.sharing).toEqual({ type: 'personal', lockedBy: 'admin@example.com' });
     });
 
-    it('should normalize spec sharing { type: collaborative } to { visibility: team, enabled: true }', () => {
+    it('should pass spec sharing { type: collaborative } through unchanged', () => {
       const bridge = new SpecBridge();
       const node = bridge.transformListView({
         name: 'collab_view',
         sharing: { type: 'collaborative' },
       });
 
-      expect(node.sharing.visibility).toBe('team');
-      expect(node.sharing.enabled).toBe(true);
-      expect(node.sharing.type).toBe('collaborative');
+      expect(node.sharing).toEqual({ type: 'collaborative' });
     });
 
     it('should preserve ObjectUI sharing format without overriding', () => {

@@ -584,7 +584,9 @@ describe('ListView', () => {
     renderWithProvider(<ListView schema={schema} />);
     const shareButton = screen.getByTestId('share-button');
     expect(shareButton).toBeInTheDocument();
-    expect(shareButton).toHaveAttribute('title', 'Sharing: team');
+    // #2890: the badge shows the spec's ownership type. The legacy four-value
+    // audience (`team`) collapses onto it — only `private` is personal.
+    expect(shareButton).toHaveAttribute('title', 'Sharing: collaborative');
   });
 
   it('should not render share button when sharing is not enabled', () => {

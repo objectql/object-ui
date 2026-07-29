@@ -204,6 +204,55 @@ describe('normalizeListViewSchema (#2890)', () => {
     });
   });
 
+  describe('aria / sharing → the spec sub-shapes', () => {
+    it('folds the legacy ARIA spellings onto the spec AriaProps keys', () => {
+      const out = normalizeListViewSchema({
+        viewType: 'grid',
+        aria: { label: 'Accounts', describedBy: 'hint', live: 'polite' },
+      }) as Record<string, Record<string, unknown>>;
+      expect(out.aria).toEqual({ ariaLabel: 'Accounts', ariaDescribedBy: 'hint', live: 'polite' });
+    });
+
+    it('keeps `role` and lets the canonical spellings win', () => {
+      const out = normalizeListViewSchema({
+        viewType: 'grid',
+        aria: { ariaLabel: 'canonical', label: 'legacy', role: 'grid' },
+      }) as Record<string, Record<string, unknown>>;
+      expect(out.aria).toEqual({ ariaLabel: 'canonical', role: 'grid' });
+    });
+
+    it('collapses the visibility audience onto the spec ownership type', () => {
+      // Only `private` is personal; every wider audience is collaborative.
+      for (const [visibility, type] of Object.entries({
+        private: 'personal',
+        team: 'collaborative',
+        organization: 'collaborative',
+        public: 'collaborative',
+      })) {
+        const out = normalizeListViewSchema({ viewType: 'grid', sharing: { visibility } }) as Record<string, unknown>;
+        expect(out.sharing).toEqual({ type });
+      }
+    });
+
+    it('maps a bare `enabled: true` to `personal` — the badge it used to render', () => {
+      const out = normalizeListViewSchema({ viewType: 'grid', sharing: { enabled: true } }) as Record<string, unknown>;
+      expect(out.sharing).toEqual({ type: 'personal' });
+    });
+
+    it('leaves `enabled: false` without a type, so the share badge stays hidden', () => {
+      const out = normalizeListViewSchema({ viewType: 'grid', sharing: { enabled: false } }) as Record<string, unknown>;
+      expect(out.sharing).toEqual({});
+    });
+
+    it('preserves `lockedBy` and lets an explicit `type` win over `visibility`', () => {
+      const out = normalizeListViewSchema({
+        viewType: 'grid',
+        sharing: { type: 'collaborative', visibility: 'private', lockedBy: 'u1' },
+      }) as Record<string, unknown>;
+      expect(out.sharing).toEqual({ type: 'collaborative', lockedBy: 'u1' });
+    });
+  });
+
   describe('viewType defaulting', () => {
     it('defaults a missing view kind to the renderable `grid`', () => {
       expect(normalizeListViewSchema({ type: 'list-view' })).toEqual({ type: 'list-view', viewType: 'grid' });

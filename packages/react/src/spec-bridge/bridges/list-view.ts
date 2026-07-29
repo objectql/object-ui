@@ -116,17 +116,10 @@ export const bridgeListView: BridgeFn<ListViewSpec> = (
 
   // P1.6 — i18n & ARIA
   if (spec.aria) node.aria = spec.aria;
-  if (spec.sharing) {
-    // Normalize spec sharing format: map type → visibility, set enabled = true
-    const sharing: Record<string, any> = { ...spec.sharing };
-    if (sharing.type && !sharing.visibility) {
-      sharing.visibility = sharing.type === 'collaborative' ? 'team' : 'private';
-    }
-    if (sharing.type && sharing.enabled == null) {
-      sharing.enabled = true;
-    }
-    node.sharing = sharing;
-  }
+  // `sharing` is already the spec's `ViewSharing` shape on both sides (#2890) —
+  // this used to DOWNGRADE it here, inventing a legacy `visibility` audience and
+  // an `enabled` flag that the renderer then had to fold back.
+  if (spec.sharing) node.sharing = spec.sharing;
   if (spec.hiddenFields) node.hiddenFields = spec.hiddenFields;
   if (spec.fieldOrder) node.fieldOrder = spec.fieldOrder;
   if (spec.description) node.description = spec.description;
