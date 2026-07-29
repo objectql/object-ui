@@ -12,6 +12,8 @@
  *    renders the SERVER-supplied subtotals/grand total; no totals in the
  *    response (older server) → no totals UI (never re-aggregated client-side)
  *  - drill-down: clickable rows/cells emit {dataset, groupKey, runtimeFilter}
+ *  - ordering (framework#3916): `report.order` / `blocks[].order` lowered onto
+ *    the selection, scoped per sub-selection, and part of the refetch key
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -597,6 +599,181 @@ describe('DatasetReportRenderer', () => {
     const args = onDrill.mock.calls[0][0];
     expect(args.groupKey).toEqual({ status: 'Backlog' });
     expect(args.objectFilter).toBeUndefined();
+  });
+
+  /**
+   * framework#3916 — a report's `order` must reach the SELECTION.
+   *
+   * The schema gained `order` on the framework side and the executor applies
+   * it, but this renderer built the selection it posts and never carried the
+   * declaration into it — so an authored ordering did nothing. These pin the
+   * lowering, its per-path scoping, and the cache key.
+   */
+  it('lowers report.order onto the selection, keys in declared order', async () => {
+    const src = makeSource({ task_metrics: [{ status: 'Backlog', est_hours: 30 }] });
+    render(
+      <DatasetReportRenderer
+        report={{
+          name: 'hours', type: 'summary', dataset: 'task_metrics',
+          rows: ['status'], values: ['est_hours'],
+          order: [{ by: 'est_hours', direction: 'desc' }, { by: 'status' }],
+        }}
+        dataSource={src}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText('Backlog')).toBeInTheDocument());
+    const order = src.calls[0].selection.order;
+    expect(order).toEqual({ est_hours: 'desc', status: 'asc' });
+    // Key ORDER is the contract — it is how sort significance survives the
+    // lowering from a list into a plain object.
+    expect(Object.keys(order)).toEqual(['est_hours', 'status']);
+  });
+
+  it('omits `order` entirely when the report declares none', async () => {
+    // Not `{}` — the field must be absent so the server's own default (a
+    // selected time dimension sorts ascending) still applies.
+    const src = makeSource({ task_metrics: [{ status: 'Backlog', est_hours: 30 }] });
+    render(
+      <DatasetReportRenderer
+        report={{ name: 'hours', type: 'summary', dataset: 'task_metrics', rows: ['status'], values: ['est_hours'] }}
+        dataSource={src}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText('Backlog')).toBeInTheDocument());
+    expect('order' in src.calls[0].selection).toBe(false);
+  });
+
+  it('matrix sends the order alongside the totals groupings', async () => {
+    const src = makeSource({
+      task_metrics: [{ status: 'Backlog', closed_month: '2026-06', est_hours: 10 }],
+    });
+    render(
+      <DatasetReportRenderer
+        report={{
+          name: 'm', type: 'matrix', dataset: 'task_metrics',
+          rows: ['status'], columns: ['closed_month'], values: ['est_hours'],
+          order: [{ by: 'closed_month', direction: 'desc' }],
+        }}
+        dataSource={src}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('dataset-matrix')).toBeInTheDocument());
+    expect(src.calls[0].selection.order).toEqual({ closed_month: 'desc' });
+    expect(src.calls[0].selection.totals).toEqual({ groupings: [['status'], ['closed_month'], []] });
+  });
+
+  it('matrix column headers follow the row order the server returned', async () => {
+    // The pivot collects colHeaders in row-ARRIVAL order, so the server's
+    // ordering IS the across-axis order — the whole point of #3916.
+    const src = makeSource({
+      task_metrics: [
+        { status: 'Backlog', closed_month: '2026-08', est_hours: 1 },
+        { status: 'Backlog', closed_month: '2026-07', est_hours: 2 },
+        { status: 'Backlog', closed_month: '2026-06', est_hours: 3 },
+      ],
+    });
+    render(
+      <DatasetReportRenderer
+        report={{
+          name: 'm', type: 'matrix', dataset: 'task_metrics',
+          rows: ['status'], columns: ['closed_month'], values: ['est_hours'],
+          order: [{ by: 'closed_month', direction: 'desc' }],
+        }}
+        dataSource={src}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('dataset-matrix')).toBeInTheDocument());
+    const headers = screen.getAllByRole('columnheader').map((el) => el.textContent);
+    expect(headers).toEqual(expect.arrayContaining(['2026-08', '2026-07', '2026-06']));
+    expect(headers.indexOf('2026-08')).toBeLessThan(headers.indexOf('2026-07'));
+    expect(headers.indexOf('2026-07')).toBeLessThan(headers.indexOf('2026-06'));
+  });
+
+  it('scopes the order to each sub-selection — the chart drops keys it does not plot', async () => {
+    // The chart queries xAxis × yAxis only. Forwarding a key naming some other
+    // row dimension would have the server reject the query outright (an order
+    // key must name something the selection projects), turning a valid report
+    // into a broken chart.
+    const src = makeSource({ task_metrics: [{ status: 'Backlog', est_hours: 30 }] });
+    render(
+      <DatasetReportRenderer
+        report={{
+          name: 'hours', type: 'summary', dataset: 'task_metrics',
+          rows: ['status', 'owner'], values: ['est_hours'],
+          chart: { type: 'bar', xAxis: 'status', yAxis: 'est_hours' },
+          order: [{ by: 'owner' }, { by: 'est_hours', direction: 'desc' }],
+        }}
+        dataSource={src}
+      />,
+    );
+    await waitFor(() => expect(src.calls.length).toBeGreaterThan(1));
+    const chartCall = src.calls.find((c) => Array.isArray(c.selection.dimensions) && c.selection.dimensions.length === 1)!;
+    const tableCall = src.calls.find((c) => Array.isArray(c.selection.dimensions) && c.selection.dimensions.length === 2)!;
+    // Chart keeps only the measure it plots; `owner` is not in its selection.
+    expect(chartCall.selection.order).toEqual({ est_hours: 'desc' });
+    // The table selects both, so it keeps the full declaration.
+    expect(tableCall.selection.order).toEqual({ owner: 'asc', est_hours: 'desc' });
+  });
+
+  it('a joined report orders per block, never from the container', async () => {
+    const src = makeSource({ task_metrics: [{ status: 'Backlog', task_count: 2 }] });
+    render(
+      <DatasetReportRenderer
+        report={{
+          name: 'j', type: 'joined',
+          blocks: [
+            { name: 'a', dataset: 'task_metrics', rows: ['status'], values: ['task_count'], order: [{ by: 'task_count', direction: 'desc' }] },
+            { name: 'b', dataset: 'task_metrics', rows: ['status'], values: ['task_count'] },
+          ],
+        }}
+        dataSource={src}
+      />,
+    );
+    await waitFor(() => expect(screen.getAllByTestId('dataset-report-block')).toHaveLength(2));
+    const withOrder = src.calls.filter((c) => 'order' in c.selection);
+    expect(withOrder).toHaveLength(1);
+    expect(withOrder[0].selection.order).toEqual({ task_count: 'desc' });
+  });
+
+  it('drops malformed order entries rather than failing the report', async () => {
+    // Stored report JSON crosses the repo boundary; the authoring-time schema
+    // is where a bad `order` is caught, not here. Deliberately violates the
+    // declared shape (that is the point), so it is built as `unknown` first.
+    const malformed: unknown = [
+      { by: 42 },                                 // non-string key
+      null,                                       // not an object at all
+      { direction: 'desc' },                      // no key
+      { by: 'status', direction: 'sideways' },    // unrecognised direction
+    ];
+    const src = makeSource({ task_metrics: [{ status: 'Backlog', est_hours: 30 }] });
+    render(
+      <DatasetReportRenderer
+        report={{
+          name: 'hours', type: 'summary', dataset: 'task_metrics',
+          rows: ['status'], values: ['est_hours'],
+          order: malformed as Array<{ by?: unknown; direction?: unknown }>,
+        }}
+        dataSource={src}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText('Backlog')).toBeInTheDocument());
+    // Only the one usable key survives; an unrecognised direction falls to asc.
+    expect(src.calls[0].selection.order).toEqual({ status: 'asc' });
+  });
+
+  it('refetches when the order changes (it changes the rows, not just the view)', async () => {
+    const src = makeSource({ task_metrics: [{ status: 'Backlog', est_hours: 30 }] });
+    const report = (direction: string) => ({
+      name: 'hours', type: 'summary', dataset: 'task_metrics',
+      rows: ['status'], values: ['est_hours'],
+      order: [{ by: 'est_hours', direction }],
+    });
+    const { rerender } = render(<DatasetReportRenderer report={report('asc')} dataSource={src} />);
+    await waitFor(() => expect(screen.getByText('Backlog')).toBeInTheDocument());
+    expect(src.calls).toHaveLength(1);
+    rerender(<DatasetReportRenderer report={report('desc')} dataSource={src} />);
+    await waitFor(() => expect(src.calls).toHaveLength(2));
+    expect(src.calls[1].selection.order).toEqual({ est_hours: 'desc' });
   });
 
   it('shows an error when the data source cannot run dataset queries', async () => {
