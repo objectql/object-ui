@@ -11,7 +11,7 @@
 
 import { useMemo, useState, useCallback, useEffect, useRef, lazy, Suspense, type ComponentType } from 'react';
 import { useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
-import { resolveFilterPlaceholders, DENSITY_MODE_TO_ROW_HEIGHT, type FilterTokenScope } from '@object-ui/core';
+import { resolveFilterPlaceholders, DENSITY_MODE_TO_ROW_HEIGHT, normalizeListViewSchema, type FilterTokenScope } from '@object-ui/core';
 import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState';
 import { buildListFilterKey, readListFilterState, writeListFilterState } from './listFilterStorage';
 const ObjectChart = lazy(() =>
@@ -1358,14 +1358,14 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             // whitelist with capability-resolvable types.
             showViewSwitcher:
                 ((viewDef.appearance ?? listSchema.appearance)?.allowedVisualizations?.length ?? 0) > 1,
-            // Propagate toolbar/display flags for all view types
-            showSearch: viewDef.showSearch ?? listSchema.showSearch,
-            showSort: viewDef.showSort ?? listSchema.showSort,
-            showFilters: viewDef.showFilters ?? listSchema.showFilters,
-            showHideFields: viewDef.showHideFields ?? listSchema.showHideFields,
-            showGroup: viewDef.showGroup ?? listSchema.showGroup,
-            showColor: viewDef.showColor ?? listSchema.showColor,
-            showDensity: viewDef.showDensity ?? listSchema.showDensity,
+            // Toolbar policy — one vocabulary (#2890). Stored views may still
+            // carry the legacy bare `show*` flags, so each side is run through
+            // `normalizeListViewSchema` (the single fold) and merged, view over
+            // list. This relay never names a legacy key itself.
+            userActions: {
+                ...(normalizeListViewSchema(listSchema ?? {}) as { userActions?: object }).userActions,
+                ...(normalizeListViewSchema(viewDef ?? {}) as { userActions?: object }).userActions,
+            },
             allowExport: viewDef.allowExport ?? listSchema.allowExport,
             exportOptions: viewDef.allowExport === false ? undefined : (viewDef.exportOptions ?? listSchema.exportOptions),
             striped: viewDef.striped ?? listSchema.striped,
@@ -1379,7 +1379,6 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             collapseAllByDefault: viewDef.collapseAllByDefault ?? listSchema.collapseAllByDefault,
             fieldTextColor: viewDef.fieldTextColor ?? listSchema.fieldTextColor,
             prefixField: viewDef.prefixField ?? listSchema.prefixField,
-            showDescription: viewDef.showDescription ?? listSchema.showDescription,
             // ViewData source override (spec `data` key): a view authored with
             // `data: {provider:'api', read, write}` must survive this explicit
             // picklist, or ObjectGantt falls back to provider:'object'.

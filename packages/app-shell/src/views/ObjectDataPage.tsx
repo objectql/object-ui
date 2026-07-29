@@ -226,13 +226,16 @@ export function ObjectDataPage({ dataSource, objects }: any) {
       appearance: { allowedVisualizations },
       showViewSwitcher: allowedVisualizations.length > 1,
       // Full list capability — this surface trades the saved-view anchor for
-      // the complete toolbar, NOT for a reduced one.
-      showSearch: true,
-      showSort: true,
-      showFilters: true,
-      showGroup: true,
-      showHideFields: true,
-      showDensity: true,
+      // the complete toolbar, NOT for a reduced one. (#2890: expressed as
+      // `userActions`, the one vocabulary, instead of bare `show*` flags.)
+      userActions: {
+        search: true,
+        sort: true,
+        filter: true,
+        rowHeight: true,
+        group: true,
+        hideFields: true,
+      },
       showRecordCount: true,
       // Deliberately NO onSortChange/onFilterChange persistence hooks: this
       // surface never writes back to any saved view (#2251).

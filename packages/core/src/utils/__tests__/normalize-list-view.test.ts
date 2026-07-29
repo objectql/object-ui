@@ -134,6 +134,76 @@ describe('normalizeListViewSchema (#2890)', () => {
     });
   });
 
+  describe('show* → userActions', () => {
+    it('folds every legacy toolbar flag onto its userActions key', () => {
+      const out = normalizeListViewSchema({
+        viewType: 'grid',
+        showSearch: false,
+        showSort: false,
+        showFilters: false,
+        showDensity: false,
+        showGroup: false,
+        showHideFields: true,
+        showColor: true,
+      }) as Record<string, unknown>;
+      expect(out.userActions).toEqual({
+        search: false,
+        sort: false,
+        filter: false,
+        rowHeight: false,
+        group: false,
+        hideFields: true,
+        rowColor: true,
+      });
+      for (const flag of ['showSearch', 'showSort', 'showFilters', 'showDensity', 'showGroup', 'showHideFields', 'showColor']) {
+        expect(flag in out).toBe(false);
+      }
+    });
+
+    it('merges into an existing userActions instead of replacing it', () => {
+      const out = normalizeListViewSchema({
+        viewType: 'grid',
+        userActions: { search: false, editInline: true },
+        showGroup: false,
+      }) as Record<string, unknown>;
+      expect(out.userActions).toEqual({ search: false, editInline: true, group: false });
+    });
+
+    it('lets the canonical key win per-flag when both are present', () => {
+      const out = normalizeListViewSchema({
+        viewType: 'grid',
+        userActions: { search: true },
+        showSearch: false,
+        showSort: false,
+      }) as Record<string, unknown>;
+      // `search` stays canonical-true; `sort` folds in from the legacy flag.
+      expect(out.userActions).toEqual({ search: true, sort: false });
+    });
+
+    it('applies no defaults — an absent flag stays absent', () => {
+      // The defaults are per-toggle and live in the renderer; baking them in
+      // here would turn "unset" into "explicitly on" and defeat the merge above.
+      const out = normalizeListViewSchema({ viewType: 'grid', showGroup: false }) as Record<string, unknown>;
+      expect(out.userActions).toEqual({ group: false });
+    });
+
+    it('ignores a non-boolean flag', () => {
+      const out = normalizeListViewSchema({ viewType: 'grid', showSearch: 'yes' }) as Record<string, unknown>;
+      expect(out.userActions).toBeUndefined();
+      expect(out.showSearch).toBe('yes');
+    });
+
+    it('folds `showDescription` into `appearance`', () => {
+      const out = normalizeListViewSchema({
+        viewType: 'grid',
+        appearance: { allowedVisualizations: ['grid'] },
+        showDescription: false,
+      }) as Record<string, unknown>;
+      expect(out.appearance).toEqual({ allowedVisualizations: ['grid'], showDescription: false });
+      expect('showDescription' in out).toBe(false);
+    });
+  });
+
   describe('viewType defaulting', () => {
     it('defaults a missing view kind to the renderable `grid`', () => {
       expect(normalizeListViewSchema({ type: 'list-view' })).toEqual({ type: 'list-view', viewType: 'grid' });

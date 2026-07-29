@@ -390,16 +390,25 @@ export function InterfaceListPage({ page, className, onConfigChange, reserveEdit
       // panel's "Add Record" config silently did nothing at runtime.
       addRecord: cfg.addRecord,
 
-      // userActions toggles → toolbar flags. Interface mode is closed by
-      // default: the advanced filter builder and view-management tools are
-      // only present when the author opted in.
-      showSearch: userActions.search !== false,
-      showSort: userActions.sort !== false,
-      showFilters: userActions.filter === true,
-      showDensity: userActions.rowHeight === true,
-      showHideFields: false,
-      showGroup: false,
-      showColor: false,
+      // userActions passes straight through to the toolbar (#2890) — this used
+      // to unpack it into bare `show*` flags, which is why the three toggles
+      // with no `userActions` key (group / hideFields / rowColor) were HARDCODED
+      // off here and hardcoded on in ObjectDataPage: two surfaces, two opposite
+      // policies, neither author-controllable. They are author-controllable now.
+      //
+      // Interface mode stays closed BY DEFAULT — the advanced filter builder,
+      // density and the view-management tools are present only when the author
+      // opted in — but "closed by default" is expressed as a default here, not
+      // as an unreachable constant.
+      userActions: {
+        search: userActions.search !== false,
+        sort: userActions.sort !== false,
+        filter: userActions.filter === true,
+        rowHeight: userActions.rowHeight === true,
+        group: userActions.group === true,
+        hideFields: userActions.hideFields === true,
+        rowColor: userActions.rowColor === true,
+      },
       allowExport: false,
       // Inline record editing is a page-authored property: a list block opts in
       // via `userActions.editInline` (default off). When on, clicking a cell

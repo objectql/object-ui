@@ -369,26 +369,32 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
 
   // Resolve toolbar visibility flags: userActions overrides showX flags
   const toolbarFlags = React.useMemo(() => {
-    const ua = schema.userActions;
+    // Every toolbar toggle reads from `userActions` (#2890). The legacy bare
+    // `show*` flags are folded into it by `normalizeListViewSchema` above, so
+    // there is no dual-read here — one vocabulary, one place.
+    //
+    // The DEFAULTS are per-toggle and deliberately asymmetric, matching what
+    // these flags have always done: the four view-shaping affordances plus
+    // grouping are on unless turned off; column visibility and row coloring are
+    // off unless turned on. (`hideFields`/`rowColor` default OFF is objectui's
+    // historical behavior, kept deliberately — flipping it would grow two
+    // buttons on every existing view.)
+    const ua = schema.userActions as Record<string, boolean | undefined> | undefined;
     const addRecordEnabled = schema.addRecord?.enabled === true && ua?.addRecordForm !== false;
-    // `refresh` is spec-canonical (`userActions.refresh`, @objectstack/spec). The
-    // installed spec type may predate the field, so read it defensively. Visible by
-    // default (opt-out via `userActions.refresh: false`), like the other toggles.
-    const uaRefresh = (ua as { refresh?: boolean } | undefined)?.refresh;
     return {
-      showSearch: ua?.search !== undefined ? ua.search : schema.showSearch !== false,
-      showSort: ua?.sort !== undefined ? ua.sort : schema.showSort !== false,
-      showFilters: ua?.filter !== undefined ? ua.filter : schema.showFilters !== false,
-      showRefresh: uaRefresh !== undefined ? uaRefresh : true,
-      showDensity: ua?.rowHeight !== undefined ? ua.rowHeight : schema.showDensity !== false,
-      showHideFields: schema.showHideFields === true,
-      showGroup: schema.showGroup !== false,
-      showColor: schema.showColor === true,
+      showSearch: ua?.search !== false,
+      showSort: ua?.sort !== false,
+      showFilters: ua?.filter !== false,
+      showRefresh: ua?.refresh !== false,
+      showDensity: ua?.rowHeight !== false,
+      showGroup: ua?.group !== false,
+      showHideFields: ua?.hideFields === true,
+      showColor: ua?.rowColor === true,
       compactToolbar: schema.compactToolbar === true,
       showAddRecord: addRecordEnabled,
       addRecordPosition: (schema.addRecord?.position === 'bottom' ? 'bottom' : 'top') as 'top' | 'bottom',
     };
-  }, [schema.userActions, schema.showSearch, schema.showSort, schema.showFilters, schema.showDensity, schema.showHideFields, schema.showGroup, schema.showColor, schema.compactToolbar, schema.addRecord, schema.userActions?.addRecordForm]);
+  }, [schema.userActions, schema.compactToolbar, schema.addRecord]);
 
   const [currentView, setCurrentView] = React.useState<ViewType>(
     (schema.viewType as ViewType)

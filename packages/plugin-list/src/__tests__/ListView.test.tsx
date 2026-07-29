@@ -1627,6 +1627,63 @@ describe('ListView', () => {
       expect(screen.queryByTitle(/density/i)).not.toBeInTheDocument();
     });
 
+    // #2890 step 3: the three toggles the spec's UserActionsConfigSchema does
+    // not model yet. Before this they were unreachable from `userActions` —
+    // hardcoded off in InterfaceListPage and on in ObjectDataPage.
+    it('should show Hide fields when userActions.hideFields is true', () => {
+      const schema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        columns: ['name', 'email'],
+        userActions: { hideFields: true },
+      } as unknown as ListViewSchema;
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.getByText('Hide fields')).toBeInTheDocument();
+    });
+
+    it('should hide Group when userActions.group is false', () => {
+      const schema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        columns: ['name', 'email'],
+        userActions: { group: false },
+      } as unknown as ListViewSchema;
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByText('Group')).not.toBeInTheDocument();
+    });
+
+    it('should keep the legacy show* flags working — stored views carry them', () => {
+      // Folded by normalizeListViewSchema, so the renderer sees only userActions.
+      const schema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        columns: ['name', 'email'],
+        showHideFields: true,
+      } as unknown as ListViewSchema;
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.getByText('Hide fields')).toBeInTheDocument();
+    });
+
+    it('should let userActions win over a conflicting legacy flag', () => {
+      const schema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        columns: ['name', 'email'],
+        userActions: { hideFields: false },
+        showHideFields: true,
+      } as unknown as ListViewSchema;
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByText('Hide fields')).not.toBeInTheDocument();
+    });
+
     it('should show toolbar buttons when userActions are true', () => {
       const schema: ListViewSchema = {
         type: 'list-view',

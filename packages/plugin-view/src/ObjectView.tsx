@@ -58,7 +58,7 @@ import {
 } from '@object-ui/components';
 import { Plus } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { buildExpandFields } from '@object-ui/core';
+import { buildExpandFields, normalizeListViewSchema } from '@object-ui/core';
 import { SchemaRenderer as ImportedSchemaRenderer } from '@object-ui/react';
 import { ViewSwitcher } from './ViewSwitcher';
 import { deriveRecordSurface } from './recordSurface';
@@ -1016,14 +1016,15 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           groupBy2: activeView?.groupBy2,
           grouping: activeView?.grouping,
           options: currentNamedViewConfig?.options || activeView,
-          // Propagate toolbar toggle flags
-          showSearch: activeView?.showSearch ?? schema.showSearch,
-          showFilters: activeView?.showFilters ?? schema.showFilters,
-          showSort: activeView?.showSort ?? schema.showSort,
-          showHideFields: activeView?.showHideFields ?? (schema as any).showHideFields,
-          showGroup: activeView?.showGroup ?? (schema as any).showGroup,
-          showColor: activeView?.showColor ?? (schema as any).showColor,
-          showDensity: activeView?.showDensity ?? (schema as any).showDensity,
+          // Toolbar policy — one vocabulary (#2890). The host node and the
+          // active view may still carry the legacy bare `show*` flags, so both
+          // go through `normalizeListViewSchema` (the single fold) and merge,
+          // view over host. `densityMode`/`rowHeight` above take the same route
+          // once step 2's fold runs at the ListView boundary.
+          userActions: {
+            ...(normalizeListViewSchema(schema ?? {}) as { userActions?: object }).userActions,
+            ...(normalizeListViewSchema(activeView ?? {}) as { userActions?: object }).userActions,
+          },
           compactToolbar: activeView?.compactToolbar ?? (schema as any).compactToolbar,
           allowExport: activeView?.allowExport ?? (schema as any).allowExport,
           // Propagate display properties

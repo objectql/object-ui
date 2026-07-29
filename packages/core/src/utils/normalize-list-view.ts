@@ -53,6 +53,28 @@ export function rowHeightToDensityMode(rowHeight: unknown): DensityMode {
   return 'comfortable';
 }
 
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === 'object' && !Array.isArray(v);
+
+/**
+ * Legacy toolbar-visibility flags → their `userActions` key (#2890 scope A
+ * step 3). The spec documents `userActions` as "which interactive actions are
+ * available to users in the view toolbar", and already carries `rowHeight` —
+ * objectui's `showDensity` under its spec name. `group` / `hideFields` /
+ * `rowColor` are the same kind of toggle and are named after the config key
+ * they gate (`grouping`, `hiddenFields`, `rowColor`), pending promotion into
+ * `UserActionsConfigSchema` upstream.
+ */
+const SHOW_FLAG_TO_USER_ACTION: Record<string, string> = {
+  showSearch: 'search',
+  showSort: 'sort',
+  showFilters: 'filter',
+  showDensity: 'rowHeight',
+  showGroup: 'group',
+  showHideFields: 'hideFields',
+  showColor: 'rowColor',
+};
+
 /**
  * ObjectUI's `list-view` node historically used a different vocabulary from
  * `@objectstack/spec` for the same concepts (`fields` where the spec says
@@ -87,6 +109,13 @@ export function rowHeightToDensityMode(rowHeight: unknown): DensityMode {
  * Currently folded:
  *  - `fields` → `columns` (#2890 scope A step 1)
  *  - `densityMode` → `rowHeight` (#2890 scope A step 2)
+ *  - the `show*` toolbar flags → `userActions` (#2890 scope A step 3), and
+ *    `showDescription` → `appearance.showDescription`. The canonical key wins
+ *    per-flag, so a view may carry `userActions` for some toggles and a legacy
+ *    flag for others. NOTE the fold does not apply any default: an absent flag
+ *    stays absent, because the defaults are per-toggle (search/sort/filter/
+ *    rowHeight/group default ON, hideFields/rowColor default OFF) and belong to
+ *    the renderer, not to the vocabulary bridge.
  *  - `filters` → `filter` (#2890 scope A step 4). A key rename only: BOTH keys
  *    carry an ObjectQL FilterNode array (`[['stage','=','won']]`) everywhere in
  *    objectui — every consumer passes the value straight to `$filter`. The spec
@@ -109,9 +138,16 @@ export function normalizeListViewSchema<T>(schema: T): T {
   const foldRowHeight = typeof legacyDensity === 'string' && legacyDensity in DENSITY_MODE_TO_ROW_HEIGHT;
   const legacyFilters = s.filters;
   const foldFilter = Array.isArray(legacyFilters);
+  const legacyFlags = Object.keys(SHOW_FLAG_TO_USER_ACTION).filter((k) => typeof s[k] === 'boolean');
+  const foldDescription = typeof s.showDescription === 'boolean';
   const viewType = s.viewType;
   const defaultViewKind = !viewType || viewType === 'list';
-  if (!foldColumns && !foldRowHeight && !foldFilter && !defaultViewKind) return schema;
+  if (
+    !foldColumns && !foldRowHeight && !foldFilter && !legacyFlags.length &&
+    !foldDescription && !defaultViewKind
+  ) {
+    return schema;
+  }
 
   const next: Record<string, unknown> = { ...s };
   if (foldColumns) {
@@ -127,6 +163,25 @@ export function normalizeListViewSchema<T>(schema: T): T {
   if (foldFilter) {
     if (!Array.isArray(next.filter)) next.filter = legacyFilters;
     delete next.filters;
+  }
+  if (legacyFlags.length) {
+    const ua: Record<string, unknown> = { ...(isRecord(next.userActions) ? next.userActions : {}) };
+    for (const flag of legacyFlags) {
+      const key = SHOW_FLAG_TO_USER_ACTION[flag];
+      if (typeof ua[key] !== 'boolean') ua[key] = s[flag];
+      delete next[flag];
+    }
+    next.userActions = ua;
+  }
+  if (foldDescription) {
+    const appearance: Record<string, unknown> = {
+      ...(isRecord(next.appearance) ? next.appearance : {}),
+    };
+    if (typeof appearance.showDescription !== 'boolean') {
+      appearance.showDescription = s.showDescription;
+    }
+    delete next.showDescription;
+    next.appearance = appearance;
   }
   if (defaultViewKind) next.viewType = 'grid';
   return next as T;

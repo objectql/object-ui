@@ -640,9 +640,9 @@ describe('ObjectView', () => {
 
       expect(renderListViewSpy).toHaveBeenCalled();
       const callSchema = renderListViewSpy.mock.calls[0]?.[0]?.schema;
-      expect(callSchema?.showSearch).toBe(false);
-      expect(callSchema?.showFilters).toBe(false);
-      expect(callSchema?.showSort).toBe(false);
+      // #2890: the payload speaks `userActions`, one vocabulary, instead of
+      // unpacking the view's toggles into bare `show*` flags.
+      expect(callSchema?.userActions).toMatchObject({ search: false, filter: false, sort: false });
     });
 
     it('should propagate showSearch/showFilters/showSort from activeView in renderListView', async () => {
@@ -671,9 +671,9 @@ describe('ObjectView', () => {
 
       expect(renderListViewSpy).toHaveBeenCalled();
       const callSchema = renderListViewSpy.mock.calls[0]?.[0]?.schema;
-      expect(callSchema?.showSearch).toBe(false);
-      expect(callSchema?.showFilters).toBe(false);
-      expect(callSchema?.showSort).toBe(false);
+      // #2890: the payload speaks `userActions`, one vocabulary, instead of
+      // unpacking the view's toggles into bare `show*` flags.
+      expect(callSchema?.userActions).toMatchObject({ search: false, filter: false, sort: false });
     });
 
     it('should propagate the ViewData `data` block (api provider) into the renderListView schema', async () => {

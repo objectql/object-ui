@@ -30,6 +30,7 @@ import {
   ColumnSummarySchema as SpecColumnSummarySchema,
   SelectionConfigSchema as SpecSelectionConfigSchema,
   PaginationConfigSchema as SpecPaginationConfigSchema,
+  UserActionsConfigSchema as SpecUserActionsConfigSchema,
 } from '@objectstack/spec/ui';
 import { BaseSchema } from './base.zod.js';
 
@@ -307,6 +308,7 @@ const SpecListViewFields = SpecListViewSchema
     label: true,
     description: true,
     userFilters: true,
+    userActions: true,
     sharing: true,
     aria: true,
     conditionalFormatting: true,
@@ -363,6 +365,31 @@ const TimelineConfig = SpecTimelineConfigSchema.partial().extend({
 
 // View-kind enum reused from spec (unwrap its `.default('grid')`) so it cannot drift.
 const ViewKindEnum = SpecListViewSchema.shape.type.removeDefault();
+
+/**
+ * User Actions — the spec's `UserActionsConfigSchema` plus the three toolbar
+ * affordances it does not model yet (#2890 scope A step 3).
+ *
+ * The spec documents this object as "which interactive actions are available to
+ * users in the view toolbar — each boolean toggles the corresponding toolbar
+ * element on/off", and already carries `rowHeight` (objectui's old
+ * `showDensity`). Grouping, column visibility and row coloring are the same kind
+ * of toggle — the spec models all three as CONFIGURATION (`grouping`,
+ * `hiddenFields`, `rowColor`) but has no "may the user change it" switch for
+ * any of them, so an author cannot express a complete toolbar policy. These
+ * three are named after the config key they gate, following the precedent
+ * `rowHeight` set.
+ *
+ * This `.extend()` is temporary: it collapses into a plain re-export once the
+ * keys land upstream. Note `UserActionsConfigSchema` is NOT `.strict()`, so
+ * before this extension an author writing `userActions: { group: false }` had
+ * it silently stripped — valid on parse, no effect at render.
+ */
+export const UserActionsSchema = SpecUserActionsConfigSchema.extend({
+  group: z.boolean().optional().describe('Allow users to group records'),
+  hideFields: z.boolean().optional().describe('Allow users to show/hide columns'),
+  rowColor: z.boolean().optional().describe('Allow users to color rows by a field value'),
+});
 
 export const ListViewSchema = BaseSchema
   // Import spec-owned fields by reference: data, filter, sort, searchableFields,
@@ -427,6 +454,8 @@ export const ListViewSchema = BaseSchema
     }).optional().describe('Enabled operations'),
     // ── Local overrides: objectui shapes are intentionally broader than spec (deferred) ──
     userFilters: UserFiltersSchema.optional().describe('User filters configuration (accepts legacy tab shapes)'),
+    // Spec `userActions` + the three toolbar toggles it does not model yet (#2890).
+    userActions: UserActionsSchema.optional().describe('User action toggles for the view toolbar'),
     sharing: z.object({
       visibility: z.enum(['private', 'team', 'organization', 'public']).optional(),
       enabled: z.boolean().optional(),
