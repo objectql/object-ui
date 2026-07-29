@@ -257,17 +257,14 @@ describe('ObjectFieldInspector — conditional rules (CEL editors, #1582)', () =
     expect(onPatch.mock.calls.at(-1)![0].fields.note.visibleWhen).toBeUndefined();
   });
 
-  it('reads legacy conditionalRequired into Required when and migrates it on edit', () => {
+  // The retired `conditionalRequired` alias (@objectstack/spec 17, #3855) is no
+  // longer read into the editor: it is not a required-predicate slot, and a
+  // draft carrying it is rejected by the spec parse with the rename
+  // prescription (see clientValidation.fieldRules.test.ts).
+  it('does not read the retired conditionalRequired alias into Required when', () => {
     stubEngine();
-    const { onPatch } = renderField(
-      { note: { type: 'text', conditionalRequired: 'record.x == 1' } },
-      'note',
-    );
-    expect(controlFor('Required when')).toHaveValue('record.x == 1');
-    fireEvent.change(controlFor('Required when'), { target: { value: 'record.x == 2' } });
-    const field = onPatch.mock.calls.at(-1)![0].fields.note;
-    expect(field.requiredWhen).toBe('record.x == 2');
-    expect(field.conditionalRequired).toBeUndefined();
+    renderField({ note: { type: 'text', conditionalRequired: 'record.x == 1' } }, 'note');
+    expect(controlFor('Required when')).toHaveValue('');
   });
 });
 

@@ -106,18 +106,17 @@ describe('resolveFieldRuleState', () => {
     expect(s.required).toBe(true);
   });
 
-  it('honors conditionalRequired as a requiredWhen alias', () => {
-    const s = resolveFieldRuleState({ conditionalRequired: "record.status == 'sent'" }, { status: 'sent' }, {});
-    expect(s.required).toBe(true);
-  });
-
-  it('prefers requiredWhen over conditionalRequired when both present', () => {
-    const s = resolveFieldRuleState(
-      { requiredWhen: "record.status == 'sent'", conditionalRequired: 'record.amount > 0' },
-      { status: 'draft', amount: 5 },
-      {},
-    );
-    // requiredWhen (status=='sent') is FALSE → not required; the alias is ignored.
+  // `conditionalRequired` was the pre-protocol-17 alias of `requiredWhen`.
+  // @objectstack/spec 17 (#3855) tombstoned it with `retiredKey`, so authoring
+  // it is now a `tsc` error AND a hard parse rejection carrying the rename
+  // prescription — it can never reach this evaluator from parsed metadata.
+  // `requiredWhen` is the only required-predicate slot (AGENTS.md #0.1).
+  it('ignores the retired conditionalRequired alias', () => {
+    // Deliberately a shape the parameter type no longer permits.
+    const legacyRules = { conditionalRequired: "record.status == 'sent'" } as unknown as Parameters<
+      typeof resolveFieldRuleState
+    >[0];
+    const s = resolveFieldRuleState(legacyRules, { status: 'sent' }, {});
     expect(s.required).toBe(false);
   });
 

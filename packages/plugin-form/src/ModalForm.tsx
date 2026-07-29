@@ -377,7 +377,7 @@ export const ModalForm: React.FC<ModalFormProps> = ({
         // the form renderer via the canonical engine (#2212).
         visibleWhen: (field as any).visibleWhen,
         readonlyWhen: (field as any).readonlyWhen,
-        requiredWhen: (field as any).requiredWhen ?? (field as any).conditionalRequired,
+        requiredWhen: (field as any).requiredWhen,
         // Field-group membership (Field.group → object.fieldGroups[].key) —
         // read by deriveFieldGroupSections for the fieldGroups fallback.
         group: (field as any).group,

@@ -86,8 +86,6 @@ export function resolveFieldRuleState(
     visibleWhen?: FieldRulePredicate;
     readonlyWhen?: FieldRulePredicate;
     requiredWhen?: FieldRulePredicate;
-    /** Back-compat alias of `requiredWhen` (spec @deprecated). */
-    conditionalRequired?: FieldRulePredicate;
   },
   record: Record<string, unknown>,
   statics: { required?: boolean; readonly?: boolean },
@@ -105,10 +103,11 @@ export function resolveFieldRuleState(
       ? evalFieldPredicate(rules.readonlyWhen, record, false, previous, scope)
       : false);
 
-  const requiredPred = rules.requiredWhen ?? rules.conditionalRequired;
   const required =
     statics.required === true ||
-    (requiredPred != null ? evalFieldPredicate(requiredPred, record, false, previous, scope) : false);
+    (rules.requiredWhen != null
+      ? evalFieldPredicate(rules.requiredWhen, record, false, previous, scope)
+      : false);
 
   return { visible, readonly, required };
 }

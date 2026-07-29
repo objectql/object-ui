@@ -139,9 +139,9 @@ field disappears as soon as you start typing in it, then re-validates
 on save.
 
 For **object** drafts the live validation goes beyond the Zod shape check:
-every field conditional rule (`visibleWhen` / `readonlyWhen` / `requiredWhen`,
-plus the deprecated `conditionalRequired` alias) is linted as a CEL predicate
-with the same `@objectstack/formula` validators the server uses. A predicate
+every field conditional rule (`visibleWhen` / `readonlyWhen` / `requiredWhen`)
+is linted as a CEL predicate with the same `@objectstack/formula` validators
+the server uses. A predicate
 that parses but references an unknown field, or references a field bare
 instead of as `record.<field>`, surfaces under its `fields.<field>.<rule>`
 path in the banner. The field inspector's *Conditional rules* editors give

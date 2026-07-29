@@ -641,15 +641,8 @@ export function ObjectFieldInspector({
           <CelPredicateField
             id={`field-rule-required-${entry.name}`}
             label={tr('designer.field.requiredWhen')}
-            // Legacy alias: `conditionalRequired` (spec @deprecated) reads into
-            // the same editor; the first edit migrates it to `requiredWhen`.
-            value={readPredicate(def.requiredWhen ?? def.conditionalRequired)}
-            onChange={(v) =>
-              patchDef({
-                requiredWhen: writePredicate(def.requiredWhen ?? def.conditionalRequired, v),
-                conditionalRequired: undefined,
-              })
-            }
+            value={readPredicate(def.requiredWhen)}
+            onChange={(v) => patchDef({ requiredWhen: writePredicate(def.requiredWhen, v) })}
             disabled={readOnly}
             placeholder="record.amount > 10000"
             objectName={typeof (draft as any).name === 'string' ? ((draft as any).name as string) : undefined}

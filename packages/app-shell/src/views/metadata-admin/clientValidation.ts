@@ -133,7 +133,7 @@ function nodeTypeAt(draft: unknown, index: number): string | undefined {
  * fail-opens at runtime, so we lint the CEL here — the same
  * `@objectstack/formula` verdict the field inspector's editor shows live.
  */
-const FIELD_RULE_KEYS = ['visibleWhen', 'readonlyWhen', 'requiredWhen', 'conditionalRequired'] as const;
+const FIELD_RULE_KEYS = ['visibleWhen', 'readonlyWhen', 'requiredWhen'] as const;
 
 /** Extract a predicate's CEL source from either wire shape (string | envelope). */
 function predicateSource(v: unknown): string | null {

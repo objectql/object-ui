@@ -83,14 +83,16 @@ describe('deriveColumns', () => {
         parent: { type: 'master_detail', reference: 'order' },
         qty: { type: 'number', label: 'Qty', readonlyWhen: "parent.status == 'paid'" },
         note: { type: 'text', label: 'Note', requiredWhen: 'record.qty >= 100' },
+        // `conditionalRequired` was retired in @objectstack/spec 17 (#3855) and
+        // is no longer read as a `requiredWhen` alias — it is now a hard parse
+        // rejection upstream, so it must not silently gate a column here.
         memo: { type: 'text', label: 'Memo', conditionalRequired: 'record.qty >= 1' },
       },
     };
     const byName = Object.fromEntries(deriveColumns(schema, { relationshipField: 'parent' }).map((c) => [c.field, c]));
     expect(byName.qty.readonlyWhen).toBe("parent.status == 'paid'");
     expect(byName.note.requiredWhen).toBe('record.qty >= 100');
-    // conditionalRequired is carried as the requiredWhen alias.
-    expect(byName.memo.requiredWhen).toBe('record.qty >= 1');
+    expect(byName.memo.requiredWhen).toBeUndefined();
   });
 
   it('keeps file/image fields as upload columns instead of dropping them (#2360)', () => {

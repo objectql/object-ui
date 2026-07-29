@@ -23,7 +23,17 @@ We express them as three optional CEL predicates on `Field`:
 | `readonlyWhen` | the field is read-only                              | **client + server**|
 | `requiredWhen` | the field is required                               | **client + server**|
 
-`conditionalRequired` is a back-compat **alias of `requiredWhen`**.
+> **Amended (2026-07-29) — the `conditionalRequired` alias is gone.**
+> This ADR originally carried `conditionalRequired` as a back-compat **alias of
+> `requiredWhen`**. `@objectstack/spec` 17 (objectstack#3855) *retired* the key:
+> it is tombstoned via `retiredKey()`, so authoring it is both a `tsc` error and
+> a hard parse rejection whose message carries the rename (and
+> `os migrate meta --from 16` rewrites it automatically). Since the producer now
+> rejects the key outright, ObjectUI no longer reads it anywhere — keeping a
+> renderer-side `??` fallback would have re-created the second dialect the
+> tombstone exists to prevent (AGENTS.md #0.1). **`requiredWhen` is the only
+> required-predicate slot.** The paragraphs below are kept as the historical
+> record of the original decision.
 
 ## Why CEL, and why the *same* engine on both ends
 
@@ -47,7 +57,8 @@ import dragged into the bundle.
 - **`requiredWhen`** — `@objectstack/objectql`'s rule-validator evaluates the
   predicate over the *merged* record (`{ ...previous, ...patch }`) and pushes a
   `{ field, code: 'required' }` violation when it is TRUE and the value is
-  missing. `conditionalRequired` is treated identically.
+  missing. (Historical: `conditionalRequired` was treated identically until the
+  spec retired the key — see the amendment above.)
 - **`readonlyWhen`** — `stripReadonlyWhenFields` drops any field from an UPDATE
   payload whose predicate is TRUE for the merged record: the incoming change is
   **ignored** (the persisted value is kept), not rejected. Update paths fetch

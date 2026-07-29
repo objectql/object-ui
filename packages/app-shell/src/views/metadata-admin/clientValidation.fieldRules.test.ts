@@ -17,7 +17,7 @@ import { __setCelFormulaLoader } from './celAuthoring';
 
 afterEach(() => __setCelFormulaLoader(undefined));
 
-const RULE_PATH = /^fields\..+\.(visibleWhen|readonlyWhen|requiredWhen|conditionalRequired)$/;
+const RULE_PATH = /^fields\..+\.(visibleWhen|readonlyWhen|requiredWhen)$/;
 
 const draftWith = (fields: unknown) => ({ name: 'account', label: 'Account', fields });
 
@@ -59,12 +59,19 @@ describe('validateMetadataDraft — object field conditional rules (real engine)
     expect(res.issues.filter((i) => RULE_PATH.test(i.path))).toEqual([]);
   });
 
-  it('lints the legacy conditionalRequired alias too', async () => {
+  // `conditionalRequired` is no longer one of OUR lint keys — @objectstack/spec
+  // 17 (#3855) retired it, so the draft is rejected by the spec parse itself,
+  // and the rejection carries the rename prescription. We assert the author
+  // still gets told, and told by the spec (AGENTS.md #0.1 — one contract).
+  it('rejects the retired conditionalRequired alias via the spec tombstone', async () => {
     const res = await validateMetadataDraft(
       'object',
-      draftWith({ status: { type: 'text', conditionalRequired: '{status} == "x"' } }),
+      draftWith({ status: { type: 'text', conditionalRequired: 'record.x == 1' } }),
     );
-    expect(res.issues.some((i) => i.path === 'fields.status.conditionalRequired')).toBe(true);
+    expect(res.ok).toBe(false);
+    const issue = res.issues.find((i) => i.path === 'fields.status.conditionalRequired');
+    expect(issue).toBeTruthy();
+    expect(issue!.message).toMatch(/requiredWhen/);
   });
 
   it('uses index paths for the ARRAY fields shape', async () => {

@@ -248,9 +248,10 @@ The object designer's field inspector (`ObjectFieldInspector`, Advanced →
   typing `record.` / `previous.` completes the object's own field names.
 - Values round-trip both wire shapes: a bare CEL string or the
   `{ dialect, source }` Expression envelope (envelope extras such as
-  `meta.rationale` are preserved on edit). The deprecated
-  `conditionalRequired` alias is read into the *Required when* editor and
-  migrated to `requiredWhen` on the first edit.
+  `meta.rationale` are preserved on edit). `requiredWhen` is the only
+  required-predicate slot — the `conditionalRequired` alias was removed in
+  `@objectstack/spec` 17 (#3855), so a draft carrying it is rejected by the
+  spec parse itself, with the rename prescription, in the same issue banner.
 - The same lint also runs draft-wide in `clientValidation.ts`
   (`validateMetadataDraft('object', …)`), so an invalid predicate on any
   field — not just the selected one — surfaces in the editor's issue banner

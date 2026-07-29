@@ -374,7 +374,6 @@ ComponentRegistry.register('form',
             visibleWhen: (f as any).visibleWhen,
             readonlyWhen: (f as any).readonlyWhen,
             requiredWhen: (f as any).requiredWhen,
-            conditionalRequired: (f as any).conditionalRequired,
           },
           ruleRecord,
           { required: !!f.required, readonly: (f as any).readonly === true },
@@ -733,7 +732,6 @@ ComponentRegistry.register('form',
                   visibleWhen,
                   readonlyWhen,
                   requiredWhen,
-                  conditionalRequired,
                   ...fieldProps
                 } = field;
 
@@ -756,7 +754,7 @@ ComponentRegistry.register('form',
                 // the UX and the persisted verdict agree. A field with no rules
                 // resolves to its static flags unchanged.
                 const ruleState = resolveFieldRuleState(
-                  { visibleWhen, readonlyWhen, requiredWhen, conditionalRequired },
+                  { visibleWhen, readonlyWhen, requiredWhen },
                   ruleRecord,
                   { required: staticRequired, readonly: staticReadonly === true },
                 );

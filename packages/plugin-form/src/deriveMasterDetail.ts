@@ -219,9 +219,9 @@ export function deriveColumns(
     if (col.type === 'file') applyFileColumnProps(col, d);
     // Field-level CEL conditional rules (B2 in grids). Carried through verbatim
     // so the grid cell evaluates them per row (against the row + `parent`
-    // header). requiredWhen falls back to the conditionalRequired alias.
+    // header).
     if (d?.readonlyWhen) col.readonlyWhen = d.readonlyWhen;
-    if (d?.requiredWhen ?? d?.conditionalRequired) col.requiredWhen = d.requiredWhen ?? d.conditionalRequired;
+    if (d?.requiredWhen) col.requiredWhen = d.requiredWhen;
     // A field carrying an arithmetic `expression` (e.g. amount = quantity *
     // unit_price) becomes a live read-only computed column. The expression may
     // be a bare string or the normalized CEL envelope `{ dialect, source }`.
@@ -272,8 +272,8 @@ export function hydrateColumns(
     }
     if (type === 'file') applyFileColumnProps(next, d);
     if (next.readonlyWhen == null && d?.readonlyWhen) next.readonlyWhen = d.readonlyWhen;
-    if (next.requiredWhen == null && (d?.requiredWhen ?? d?.conditionalRequired)) {
-      next.requiredWhen = d.requiredWhen ?? d.conditionalRequired;
+    if (next.requiredWhen == null && d?.requiredWhen) {
+      next.requiredWhen = d.requiredWhen;
     }
     const expr = typeof d?.expression === 'string' ? d.expression : d?.expression?.source;
     if (!next.computed && expr && typeof expr === 'string') {

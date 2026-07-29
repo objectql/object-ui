@@ -224,7 +224,11 @@ paid_on:   Field.date({
   prior persisted record, for transition rules like
   `"record.status == 'paid' && previous.status != 'paid'"`).
 - A predicate is `string` (treated as CEL) or `{ dialect: 'cel', source }`.
-- `conditionalRequired` is a **deprecated alias** of `requiredWhen`.
+- `requiredWhen` is the **only** required-predicate slot. The old
+  `conditionalRequired` alias was **removed** in `@objectstack/spec` 17
+  (#3855): authoring it is a `tsc` error and a parse rejection, and nothing in
+  ObjectUI reads it. Rename the key (the CEL value is unchanged), or run
+  `os migrate meta --from 16` to rewrite it automatically.
 - The form renderer re-evaluates these **reactively** as the user edits, via
   `resolveFieldRuleState` (`@object-ui/core`). Static `required: true` /
   `readonly: true` is a floor a FALSE predicate can't weaken.

@@ -567,7 +567,7 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
           // engine (same dialect the server enforces). Undefined when absent.
           visibleWhen: field.visibleWhen,
           readonlyWhen: field.readonlyWhen,
-          requiredWhen: field.requiredWhen ?? field.conditionalRequired,
+          requiredWhen: field.requiredWhen,
           // Field-group membership (Field.group → object.fieldGroups[].key).
           // Carried through so the form can auto-derive sections from the
           // object's declared field groups when no explicit sections are given.

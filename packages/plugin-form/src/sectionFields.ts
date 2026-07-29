@@ -93,7 +93,6 @@ function fromObjectSchema(fieldName: string, ctx: SectionFieldsContext): FormFie
     visibleWhen: field.visibleWhen,
     readonlyWhen: field.readonlyWhen,
     requiredWhen: field.requiredWhen,
-    conditionalRequired: field.conditionalRequired,
   } as FormField;
 }
 
