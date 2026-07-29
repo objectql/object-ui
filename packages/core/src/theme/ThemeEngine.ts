@@ -356,10 +356,6 @@ export function mergeThemes(parent: Theme, child: Partial<Theme>): Theme {
     shadows: child.shadows || parent.shadows
       ? { ...parent.shadows, ...child.shadows }
       : undefined,
-    // Deep-merge breakpoints
-    breakpoints: child.breakpoints || parent.breakpoints
-      ? { ...parent.breakpoints, ...child.breakpoints }
-      : undefined,
     // Deep-merge animation
     animation: child.animation || parent.animation
       ? {
@@ -379,17 +375,9 @@ export function mergeThemes(parent: Theme, child: Partial<Theme>): Theme {
     zIndex: child.zIndex || parent.zIndex
       ? { ...parent.zIndex, ...child.zIndex }
       : undefined,
-    // Deep-merge spacing
-    spacing: child.spacing || parent.spacing
-      ? { ...parent.spacing, ...child.spacing }
-      : undefined,
     // Deep-merge customVars
     customVars: child.customVars || parent.customVars
       ? { ...parent.customVars, ...child.customVars }
-      : undefined,
-    // Deep-merge logo
-    logo: child.logo || parent.logo
-      ? { ...parent.logo, ...child.logo }
       : undefined,
   };
 }

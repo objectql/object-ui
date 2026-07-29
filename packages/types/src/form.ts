@@ -891,8 +891,10 @@ export interface FormField {
    */
   requiredWhen?: string | { dialect?: string; source: string };
   /**
-   * @deprecated Back-compat alias of {@link requiredWhen}. Aligns with
-   * @objectstack/spec Field.conditionalRequired.
+   * @deprecated Back-compat alias of {@link requiredWhen}. No longer a spec key:
+   * `@objectstack/spec` 17 (#3855) tombstoned `Field.conditionalRequired`, so
+   * spec-parsed metadata never carries it — only hand-authored or non-spec
+   * sources still can. Use {@link requiredWhen}.
    */
   conditionalRequired?: string | { dialect?: string; source: string };
   /**

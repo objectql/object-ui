@@ -228,14 +228,10 @@ export function ThemeProvider({
     el.classList.remove('light', 'dark');
     el.classList.add(resolvedMode);
 
-    // Apply logo / favicon
-    if (resolvedTheme?.logo?.favicon && typeof document !== 'undefined') {
-      const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
-        ?? document.querySelector<HTMLLinkElement>('#favicon');
-      if (link) {
-        link.href = resolvedTheme.logo.favicon;
-      }
-    }
+    // No favicon here: spec v17 (#3494) pruned `Theme.logo`, so the key is
+    // stripped at parse and could never arrive. The live favicon comes from
+    // operator branding (`getFaviconUrl()`), applied in the console's
+    // index.html, main.tsx, and on route change.
 
     return () => {
       // Cleanup: remove injected vars

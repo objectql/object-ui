@@ -27,7 +27,6 @@ import {
   HttpRequestSchema as SpecHttpRequestSchema,
   ViewDataSchema as SpecViewDataSchema,
   ListColumnSchema as SpecListColumnSchema,
-  ColumnSummarySchema as SpecColumnSummarySchema,
   SelectionConfigSchema as SpecSelectionConfigSchema,
   PaginationConfigSchema as SpecPaginationConfigSchema,
 } from '@objectstack/spec/ui';
@@ -55,34 +54,21 @@ export const HttpRequestSchema = SpecHttpRequestSchema;
 export const ViewDataSchema = SpecViewDataSchema;
 
 /**
- * List Column Schema — derived from `@objectstack/spec/ui` `ListColumnSchema`
- * (issue #2231): spec fields flow in by reference; objectui-only extensions are
- * declared locally on top via `.extend()`.
- *  - `summary` is broadened: the spec's `ColumnSummarySchema` enum plus the
- *    `{ type, field }` object form the grid renderer supports (per-column field
- *    override — see `useColumnSummary` in `@object-ui/plugin-grid`). The old
- *    mirror's free-string arm is gone: unknown aggregation names now fail
- *    validation instead of silently rendering nothing. Both arms take their
- *    vocabulary from `SpecColumnSummarySchema` by reference, so the shorthand
- *    and the object form can never accept different aggregation names —
- *    matching the object form promoted into the spec by objectstack#3761,
- *    which this extension collapses into once that release lands.
- *  - `prefix` is objectui-only compound-cell rendering (read by `ObjectGrid`);
- *    promote it into the spec rather than growing this extension.
+ * List Column Schema — `@objectstack/spec/ui` schema re-exported by reference
+ * (issue #2231).
+ *
+ * This used to `.extend()` the spec with two objectui-only fields, each carrying
+ * a note to promote it upstream rather than grow the extension. spec v17 did
+ * exactly that (objectui#2231): `summary` is now the spec's
+ * `union([ColumnSummarySchema, ColumnSummaryConfigSchema])` — the same enum ∪
+ * `{ type, field }` form `useColumnSummary` in `@object-ui/plugin-grid` reads —
+ * and `prefix` is the spec's `ColumnPrefixSchema`. With both upstream the
+ * extension collapses to the plain re-export it always said it would become.
+ *
+ * One behavior change rides along: the spec's `prefix.type` defaults to `'text'`
+ * on parse instead of staying `undefined`, so the renderer always gets a value.
  */
-export const ListColumnSchema = SpecListColumnSchema.extend({
-  summary: z.union([
-    SpecColumnSummarySchema,
-    z.object({
-      type: SpecColumnSummarySchema,
-      field: z.string().optional().describe('Field to aggregate (defaults to column field)'),
-    }),
-  ]).optional().describe('Column footer summary/aggregation'),
-  prefix: z.object({
-    field: z.string().describe('Field name to render as prefix'),
-    type: z.enum(['badge', 'text']).optional().describe('Renderer type for the prefix'),
-  }).optional().describe('Prefix configuration for compound cell rendering (Airtable-style)'),
-});
+export const ListColumnSchema = SpecListColumnSchema;
 
 /**
  * Selection Config Schema — `@objectstack/spec/ui` schema re-exported by reference

@@ -70,7 +70,7 @@ Runs five parallel jobs:
 | **E2E Tests** | Runs Playwright end-to-end tests from the `e2e/` directory. |
 | **Build Docs** | Builds the documentation site (`apps/site`). |
 
-Uses: Node 20, pnpm (via `corepack`), Turbo remote caching.
+Uses: Node 22, pnpm (via `corepack`), Turbo remote caching.
 
 ## Performance Budget (`performance-budget.yml`)
 

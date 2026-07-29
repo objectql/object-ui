@@ -16,9 +16,9 @@ Our GitHub Actions workflows automate testing, security scanning, dependency man
 This is the main CI pipeline that ensures code quality.
 
 **Jobs**:
-- **Test**: Runs tests on Node.js 18.x and 20.x
+- **Test**: Runs tests on Node.js 22.x
   - Executes unit and integration tests
-  - Generates coverage reports (Node 20.x only)
+  - Generates coverage reports
   - Uploads coverage to Codecov
   
 - **Lint**: Checks code style and quality
@@ -32,7 +32,6 @@ This is the main CI pipeline that ensures code quality.
 **Optimizations**:
 - Uses pnpm store caching for faster dependency installation
 - Runs jobs in parallel when possible
-- Only uploads coverage on Node 20.x to save time
 
 ### 2. CodeQL Security Scan
 

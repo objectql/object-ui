@@ -649,18 +649,14 @@ export type {
   ThemeMode,
   ColorPalette,
   Typography,
-  Spacing,
   BorderRadius,
   Shadow,
-  Breakpoints,
   Animation,
   ZIndex,
-  ThemeLogo,
   ThemeSwitcherSchema,
   ThemePreviewSchema,
   // Legacy aliases
   ThemeDefinition,
-  SpacingScale,
 } from './theme';
 
 export type {
@@ -1043,7 +1039,6 @@ export type {
   GroupingConfig,
   RowColorConfig,
   RowHeight,
-  DensityMode,
   TimelineConfig,
   NavigationConfig,
   ViewSharing,
@@ -1145,7 +1140,6 @@ export type {
 // ============================================================================
 export type {
   AriaProps,
-  WcagContrastLevel,
 } from '@objectstack/spec/ui';
 
 // ============================================================================

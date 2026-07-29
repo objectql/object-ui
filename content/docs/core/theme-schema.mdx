@@ -82,7 +82,6 @@ interface ThemeDefinition {
   light?: ColorPalette;   // Light mode colors
   dark?: ColorPalette;    // Dark mode colors
   typography?: Typography;
-  spacing?: SpacingScale;
   radius?: BorderRadius;
   cssVariables?: Record<string, string>;
   tailwind?: Record<string, any>;
@@ -194,15 +193,6 @@ interface Typography {
 }
 ```
 
-## Spacing Scale
-
-```plaintext
-interface SpacingScale {
-  base?: number;               // Base spacing unit (rem)
-  scale?: Record<string, string>;  // Custom spacing values
-}
-```
-
 ## Border Radius
 
 ```plaintext
@@ -275,17 +265,6 @@ const professionalTheme: ThemeSchema = {
         lineHeight: 1.5,
         headingWeight: 600,
         bodyWeight: 400
-      },
-      
-      spacing: {
-        base: 0.25,
-        scale: {
-          '0': '0',
-          '1': '0.25rem',
-          '2': '0.5rem',
-          '4': '1rem',
-          '8': '2rem'
-        }
       },
       
       radius: {

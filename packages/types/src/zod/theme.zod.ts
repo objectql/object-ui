@@ -20,10 +20,8 @@ import { z } from 'zod';
 import {
   ColorPaletteSchema as SpecColorPaletteSchema,
   TypographySchema as SpecTypographySchema,
-  SpacingSchema as SpecSpacingSchema,
   BorderRadiusSchema as SpecBorderRadiusSchema,
   ShadowSchema as SpecShadowSchema,
-  BreakpointsSchema as SpecBreakpointsSchema,
   AnimationSchema as SpecAnimationSchema,
   ZIndexSchema as SpecZIndexSchema,
   ThemeModeSchema as SpecThemeModeSchema,
@@ -44,12 +42,6 @@ export const ColorPaletteSchema = SpecColorPaletteSchema;
 export const TypographySchema = SpecTypographySchema;
 
 /**
- * Spacing Scale Schema — `@objectstack/spec/ui` schema re-exported by reference
- * (issue #2231; formerly a hand-written mirror).
- */
-export const SpacingSchema = SpecSpacingSchema;
-
-/**
  * Border Radius Schema — `@objectstack/spec/ui` schema re-exported by reference
  * (issue #2231; formerly a hand-written mirror).
  */
@@ -60,12 +52,6 @@ export const BorderRadiusSchema = SpecBorderRadiusSchema;
  * (issue #2231; formerly a hand-written mirror).
  */
 export const ShadowSchema = SpecShadowSchema;
-
-/**
- * Breakpoints Schema — `@objectstack/spec/ui` schema re-exported by reference
- * (issue #2231; formerly a hand-written mirror).
- */
-export const BreakpointsSchema = SpecBreakpointsSchema;
 
 /**
  * Animation Schema — `@objectstack/spec/ui` schema re-exported by reference
@@ -88,18 +74,15 @@ export const ZIndexSchema = SpecZIndexSchema;
 export const ThemeModeSchema = SpecThemeModeSchema;
 
 /**
- * Theme Logo Schema — the inline `logo` object of `@objectstack/spec/ui`
- * `ThemeSchema`, unwrapped by reference so it cannot drift (issue #2231).
- */
-export const ThemeLogoSchema = SpecThemeSchema.shape.logo.unwrap();
-
-/**
  * Theme Definition Schema — `@objectstack/spec/ui` `ThemeSchema` re-exported by
- * reference (issue #2231; formerly a hand-written mirror). Differences vs the old
- * mirror: gains the spec's `density`/`wcagContrast`/`rtl`/`touchTarget`/
- * `keyboardNavigation` fields, and `mode` now defaults to the spec's `'light'`
- * (the mirror had drifted to `'auto'`). The TS type side (`Theme` in `../theme.ts`)
- * was already the spec's — this aligns the runtime validator with it.
+ * reference (issue #2231; formerly a hand-written mirror). `mode` defaults to the
+ * spec's `'light'` (the old mirror had drifted to `'auto'`). The TS type side
+ * (`Theme` in `../theme.ts`) is the spec's too, so validator and type agree.
+ *
+ * spec v17 (#3494) pruned the never-enforced `spacing`/`breakpoints`/`logo`/
+ * `density`/`wcagContrast`/`rtl`/`touchTarget`/`keyboardNavigation` keys; they are
+ * gone from this schema by reference, and their sub-schema re-exports went with
+ * them rather than surviving here as an objectui-only mirror.
  */
 export const ThemeDefinitionSchema = SpecThemeSchema;
 
@@ -156,20 +139,12 @@ export const ThemeUnionSchema = z.discriminatedUnion('type', [
 ]);
 
 /**
- * Legacy alias — use SpacingSchema
- * @deprecated
- */
-export const SpacingScaleSchema = SpacingSchema;
-
-/**
  * Export type inference helpers
  */
 export type ColorPaletteSchemaType = z.infer<typeof ColorPaletteSchema>;
 export type TypographySchemaType = z.infer<typeof TypographySchema>;
-export type SpacingSchemaType = z.infer<typeof SpacingSchema>;
 export type BorderRadiusSchemaType = z.infer<typeof BorderRadiusSchema>;
 export type ShadowSchemaType = z.infer<typeof ShadowSchema>;
-export type BreakpointsSchemaType = z.infer<typeof BreakpointsSchema>;
 export type AnimationSchemaType = z.infer<typeof AnimationSchema>;
 export type ZIndexSchemaType = z.infer<typeof ZIndexSchema>;
 export type ThemeModeSchemaType = z.infer<typeof ThemeModeSchema>;

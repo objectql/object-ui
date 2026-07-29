@@ -32,8 +32,6 @@ import type {
   ViewTabSchema,
   ViewFilterRule,
   ViewFilterRuleSchema,
-  DensityModeSchema,
-  WcagContrastLevelSchema,
 } from '../index';
 
 import type {
@@ -49,8 +47,6 @@ import {
   UserActionsConfigSchema as UserActionsConfigZod,
   ViewTabSchema as ViewTabZod,
   ViewFilterRuleSchema as ViewFilterRuleZod,
-  DensityModeSchema as DensityModeZod,
-  WcagContrastLevelSchema as WcagContrastLevelZod,
   ThemeModeSchema as ThemeModeZod,
 } from '@objectstack/spec/ui';
 
@@ -239,20 +235,6 @@ describe('v3.0.10 Spec Protocol New Types', () => {
     });
   });
 
-  describe('DensityModeSchema', () => {
-    it('should be a valid Zod schema with parse method', () => {
-      expect(DensityModeZod).toBeDefined();
-      expect(typeof DensityModeZod.parse).toBe('function');
-      expect(typeof DensityModeZod.safeParse).toBe('function');
-    });
-
-    it('should validate density mode values', () => {
-      expect(DensityModeZod.safeParse('compact').success).toBe(true);
-      expect(DensityModeZod.safeParse('regular').success).toBe(true);
-      expect(DensityModeZod.safeParse('spacious').success).toBe(true);
-    });
-  });
-
   describe('ThemeModeSchema', () => {
     it('should be a valid Zod schema with parse method', () => {
       expect(ThemeModeZod).toBeDefined();
@@ -264,19 +246,6 @@ describe('v3.0.10 Spec Protocol New Types', () => {
       expect(ThemeModeZod.safeParse('light').success).toBe(true);
       expect(ThemeModeZod.safeParse('dark').success).toBe(true);
       expect(ThemeModeZod.safeParse('auto').success).toBe(true);
-    });
-  });
-
-  describe('WcagContrastLevelSchema', () => {
-    it('should be a valid Zod schema with parse method', () => {
-      expect(WcagContrastLevelZod).toBeDefined();
-      expect(typeof WcagContrastLevelZod.parse).toBe('function');
-      expect(typeof WcagContrastLevelZod.safeParse).toBe('function');
-    });
-
-    it('should validate contrast level values', () => {
-      expect(WcagContrastLevelZod.safeParse('AA').success).toBe(true);
-      expect(WcagContrastLevelZod.safeParse('AAA').success).toBe(true);
     });
   });
 });

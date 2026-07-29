@@ -39,7 +39,7 @@
   },
   "devDependencies": {
     "@object-ui/data-objectstack": "workspace:*",
-    "@objectstack/spec": "^16.0.0-rc.0",
+    "@objectstack/spec": "^17.0.0-rc.0",
     "@vitejs/plugin-react": "^6.0.4",
     "msw": "^2.15.0",
     "typescript": "^6.0.3",

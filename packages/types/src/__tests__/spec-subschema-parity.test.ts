@@ -36,10 +36,8 @@ import {
   PaginationConfigSchema as SpecPaginationConfigSchema,
   ColorPaletteSchema as SpecColorPaletteSchema,
   TypographySchema as SpecTypographySchema,
-  SpacingSchema as SpecSpacingSchema,
   BorderRadiusSchema as SpecBorderRadiusSchema,
   ShadowSchema as SpecShadowSchema,
-  BreakpointsSchema as SpecBreakpointsSchema,
   AnimationSchema as SpecAnimationSchema,
   ZIndexSchema as SpecZIndexSchema,
   ThemeModeSchema as SpecThemeModeSchema,
@@ -56,14 +54,11 @@ import {
 import {
   ColorPaletteSchema,
   TypographySchema,
-  SpacingSchema,
   BorderRadiusSchema,
   ShadowSchema,
-  BreakpointsSchema,
   AnimationSchema,
   ZIndexSchema,
   ThemeModeSchema,
-  ThemeLogoSchema,
   ThemeDefinitionSchema,
 } from '../zod/theme.zod.js';
 
@@ -76,10 +71,8 @@ describe('spec sub-schema re-exports are the spec objects (by reference)', () =>
     ['PaginationConfigSchema', PaginationConfigSchema, SpecPaginationConfigSchema],
     ['ColorPaletteSchema', ColorPaletteSchema, SpecColorPaletteSchema],
     ['TypographySchema', TypographySchema, SpecTypographySchema],
-    ['SpacingSchema', SpacingSchema, SpecSpacingSchema],
     ['BorderRadiusSchema', BorderRadiusSchema, SpecBorderRadiusSchema],
     ['ShadowSchema', ShadowSchema, SpecShadowSchema],
-    ['BreakpointsSchema', BreakpointsSchema, SpecBreakpointsSchema],
     ['AnimationSchema', AnimationSchema, SpecAnimationSchema],
     ['ZIndexSchema', ZIndexSchema, SpecZIndexSchema],
     ['ThemeModeSchema', ThemeModeSchema, SpecThemeModeSchema],
@@ -92,50 +85,67 @@ describe('spec sub-schema re-exports are the spec objects (by reference)', () =>
   });
 });
 
-describe('ThemeLogoSchema is the spec Theme logo shape (unwrapped by reference)', () => {
-  it('accepts and round-trips the spec logo keys', () => {
-    const logo = { light: '/l.svg', dark: '/d.svg', favicon: '/f.ico' };
-    expect(ThemeLogoSchema.parse(logo)).toEqual(logo);
+/**
+ * spec v17 (#3494) pruned the never-enforced Theme keys. They were re-exported
+ * here by reference, so they left with the spec rather than surviving as an
+ * objectui-only mirror — the second de-facto contract AGENTS.md #0.1 forbids.
+ * This guards both ends: the keys stay gone from the spec schema, and objectui
+ * does not quietly grow its own replacements.
+ */
+describe('spec v17 pruned Theme keys stay pruned (#3494)', () => {
+  const PRUNED = [
+    'spacing',
+    'breakpoints',
+    'logo',
+    'density',
+    'wcagContrast',
+    'rtl',
+    'touchTarget',
+    'keyboardNavigation',
+  ];
+
+  it.each(PRUNED)('the spec Theme schema has no `%s` key', (key) => {
+    const shape = (SpecThemeSchema as unknown as { shape: Record<string, unknown> }).shape;
+    expect(
+      key in shape,
+      `spec v17 pruned Theme.${key}; if the spec brought it back, re-export it ` +
+        `by reference instead of hand-writing a mirror`,
+    ).toBe(false);
   });
 
-  it('has exactly the spec inline-logo key set', () => {
-    const specLogoShape = (SpecThemeSchema.shape.logo.unwrap() as { shape: Record<string, unknown> }).shape;
-    const ouiLogoShape = (ThemeLogoSchema as unknown as { shape: Record<string, unknown> }).shape;
-    expect(Object.keys(ouiLogoShape).sort()).toEqual(Object.keys(specLogoShape).sort());
+  it('objectui does not re-add a mirror of the pruned sub-schemas', async () => {
+    const themeZod = await import('../zod/theme.zod.js');
+    for (const name of ['SpacingSchema', 'SpacingScaleSchema', 'BreakpointsSchema', 'ThemeLogoSchema']) {
+      expect(
+        name in themeZod,
+        `'${name}' is gone from @objectstack/spec/ui — do not reintroduce it as an objectui-local schema`,
+      ).toBe(false);
+    }
   });
 });
 
-describe('ListColumnSchema derives from the spec (extend, not fork)', () => {
+/**
+ * spec v17 promoted objectui's last two local ListColumn extensions upstream
+ * (objectui#2231), so the `.extend()` collapsed into a plain re-export. These
+ * assertions now guard that collapse: the schema stays the spec object itself,
+ * and the `summary` / `prefix` shapes the grid renderer depends on keep working
+ * through it.
+ */
+describe('ListColumnSchema is the spec schema (the extension collapsed)', () => {
   const specShape = (SpecListColumnSchema as unknown as { shape: Record<string, unknown> }).shape;
   const ouiShape = (ListColumnSchema as unknown as { shape: Record<string, unknown> }).shape;
 
-  /**
-   * objectui-only ListColumn fields — sanctioned local extensions. Each should be
-   * promoted into `@objectstack/spec` rather than grown here.
-   */
-  const SANCTIONED_LOCAL = new Set<string>([
-    // Airtable-style compound-cell prefix — read by ObjectGrid's cell renderer.
-    'prefix',
-  ]);
-  // `summary` is intentionally overridden (spec enum ∪ { type, field } object form
-  // supported by plugin-grid's useColumnSummary) — asserted separately below.
-  const OVERRIDDEN = new Set<string>(['summary']);
-
-  it('every spec field is present (spec fields flow in by reference)', () => {
-    const missing = Object.keys(specShape).filter((k) => !(k in ouiShape));
-    expect(missing, 'spec ListColumn fields missing from objectui — the derivation dropped them').toEqual([]);
+  it('is the spec schema itself, not a copy or an extension', () => {
+    expect(
+      ListColumnSchema,
+      'ListColumnSchema must be SpecListColumnSchema by reference — if a local field ' +
+        'is needed again, promote it into @objectstack/spec instead of re-extending here',
+    ).toBe(SpecListColumnSchema);
   });
 
-  it('spec fields are the spec schemas by reference (except sanctioned overrides)', () => {
-    for (const k of Object.keys(specShape)) {
-      if (OVERRIDDEN.has(k)) continue;
-      expect(ouiShape[k], `ListColumnSchema.${k} must flow in from the spec by reference`).toBe(specShape[k]);
-    }
-  });
-
-  it('objectui-only fields are exactly the sanctioned set', () => {
+  it('carries no objectui-only fields', () => {
     const localOnly = Object.keys(ouiShape).filter((k) => !(k in specShape));
-    expect(localOnly.sort()).toEqual([...SANCTIONED_LOCAL].sort());
+    expect(localOnly.sort()).toEqual([]);
   });
 
   it('summary keeps the spec enum as its by-reference base arm', () => {
@@ -147,17 +157,33 @@ describe('ListColumnSchema derives from the spec (extend, not fork)', () => {
     );
   });
 
-  it('the object arm draws its aggregation names from the same spec enum', () => {
+  it('the object arm accepts exactly the same aggregation vocabulary', () => {
     // Both arms must accept the same vocabulary: a name valid as the string
     // shorthand but rejected in the `{ type, field }` form (or vice versa)
     // means the per-column `field` override is unavailable for that
     // aggregation for no reason the author can see.
-    const summary = ouiShape.summary as { unwrap(): { def: { options: unknown[] } } };
-    const objectArm = summary.unwrap().def.options[1] as { shape: Record<string, unknown> };
-    expect(
-      objectArm.shape.type,
-      'summary object arm `type` must be the spec ColumnSummarySchema by reference',
-    ).toBe(SpecColumnSummarySchema);
+    //
+    // Asserted behaviorally rather than by identity: the spec builds the object
+    // arm through `lazySchema`, whose Proxy resolves `.shape.type` to the inner
+    // enum instead of the exported schema object, so a `toBe` check would test
+    // the wrapper rather than the vocabulary it is meant to protect.
+    const vocabulary = (SpecColumnSummarySchema as unknown as { options: string[] }).options;
+    expect(vocabulary.length, 'spec ColumnSummarySchema should be a non-empty enum').toBeGreaterThan(0);
+
+    for (const agg of vocabulary) {
+      expect(
+        ListColumnSchema.shape.summary.safeParse(agg).success,
+        `summary shorthand "${agg}" must parse`,
+      ).toBe(true);
+      expect(
+        ListColumnSchema.shape.summary.safeParse({ type: agg, field: 'amount' }).success,
+        `summary object form { type: "${agg}" } must parse — both arms share one vocabulary`,
+      ).toBe(true);
+    }
+
+    // …and neither arm accepts a name outside it.
+    expect(ListColumnSchema.shape.summary.safeParse('median').success).toBe(false);
+    expect(ListColumnSchema.shape.summary.safeParse({ type: 'median' }).success).toBe(false);
   });
 
   it('summary accepts every spec aggregation and the renderer object form', () => {
@@ -167,5 +193,14 @@ describe('ListColumnSchema derives from the spec (extend, not fork)', () => {
     expect(ListColumnSchema.shape.summary.safeParse({ type: 'sum', field: 'amount' }).success).toBe(true);
     // The old mirror's free-string arm is gone — unknown aggregations fail loudly.
     expect(ListColumnSchema.shape.summary.safeParse('median').success).toBe(false);
+  });
+
+  it('prefix parses the compound-cell form and defaults `type` to text', () => {
+    const parsed = ListColumnSchema.shape.prefix.parse({ field: 'status' });
+    // spec v17 made `type` a ZodDefault, so ObjectGrid's cell renderer always
+    // gets a value where the old objectui-local schema left it undefined.
+    expect(parsed).toEqual({ field: 'status', type: 'text' });
+    expect(ListColumnSchema.shape.prefix.safeParse({ field: 'status', type: 'badge' }).success).toBe(true);
+    expect(ListColumnSchema.shape.prefix.safeParse({ field: 'status', type: 'pill' }).success).toBe(false);
   });
 });

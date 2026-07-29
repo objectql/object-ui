@@ -37,12 +37,6 @@ export type { ColorPalette } from '@objectstack/spec/ui';
 export type { Typography } from '@objectstack/spec/ui';
 
 /**
- * Spacing Scale Configuration
- * Canonical definition from @objectstack/spec/ui.
- */
-export type { Spacing } from '@objectstack/spec/ui';
-
-/**
  * Border Radius Configuration
  * Canonical definition from @objectstack/spec/ui.
  */
@@ -53,12 +47,6 @@ export type { BorderRadius } from '@objectstack/spec/ui';
  * Canonical definition from @objectstack/spec/ui.
  */
 export type { Shadow } from '@objectstack/spec/ui';
-
-/**
- * Responsive Breakpoints Configuration
- * Canonical definition from @objectstack/spec/ui.
- */
-export type { Breakpoints } from '@objectstack/spec/ui';
 
 /**
  * Animation Configuration
@@ -86,28 +74,12 @@ export type { ThemeMode } from '@objectstack/spec/ui';
 import type {
   ColorPalette,
   Typography,
-  Spacing,
   BorderRadius,
   Shadow,
-  Breakpoints,
   Animation,
   ZIndex,
   ThemeMode,
 } from '@objectstack/spec/ui';
-
-/**
- * Logo / Branding Assets
- * ObjectUI-specific convenience type matching the inline logo object
- * in @objectstack/spec ThemeSchema.
- */
-export interface ThemeLogo {
-  /** Logo URL for light mode */
-  light?: string;
-  /** Logo URL for dark mode */
-  dark?: string;
-  /** Favicon URL */
-  favicon?: string;
-}
 
 /**
  * Complete Theme Definition
@@ -132,22 +104,16 @@ export interface Theme {
   colors: ColorPalette;
   /** Typography design tokens */
   typography?: Typography;
-  /** Spacing scale */
-  spacing?: Spacing;
   /** Border radius scale */
   borderRadius?: BorderRadius;
   /** Shadow scale */
   shadows?: Shadow;
-  /** Responsive breakpoint definitions */
-  breakpoints?: Breakpoints;
   /** Animation duration and timing */
   animation?: Animation;
   /** Z-index layering system */
   zIndex?: ZIndex;
   /** Arbitrary CSS custom properties */
   customVars?: Record<string, string>;
-  /** Logo/branding assets */
-  logo?: ThemeLogo;
   /** Extend another theme by name */
   extends?: string;
 }
@@ -235,8 +201,3 @@ export interface ThemePreviewSchema extends BaseSchema {
  * @deprecated Use `Theme` instead. Kept for backward compatibility.
  */
 export type ThemeDefinition = Theme;
-
-/**
- * @deprecated Use `Spacing` instead. Kept for backward compatibility.
- */
-export type SpacingScale = Spacing;

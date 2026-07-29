@@ -51,20 +51,25 @@ The schemas that used to be hand-written "mirrors" of `@objectstack/spec/ui` are
 spec's schemas **by reference**, so they cannot drift:
 
 - `objectql.zod.ts`: `HttpMethodSchema`, `HttpRequestSchema`, `ViewDataSchema`,
-  `SelectionConfigSchema`, `PaginationConfigSchema` are direct re-exports;
-  `ListColumnSchema` is the spec base plus two sanctioned objectui-only extensions
-  (`prefix`, and a broadened `summary` that also accepts the `{ type, field }` object
-  form the grid renderer supports).
-- `theme.zod.ts`: `ColorPaletteSchema`, `TypographySchema`, `SpacingSchema`,
-  `BorderRadiusSchema`, `ShadowSchema`, `BreakpointsSchema`, `AnimationSchema`,
-  `ZIndexSchema`, `ThemeModeSchema`, `ThemeLogoSchema`, `ThemeDefinitionSchema` all
-  resolve to the spec's schemas.
+  `ListColumnSchema`, `SelectionConfigSchema`, `PaginationConfigSchema` are direct
+  re-exports. `ListColumnSchema` used to add two objectui-only fields on top of the
+  spec base; spec v17 promoted both upstream (objectui#2231) — `summary` now accepts
+  the `{ type, field }` object form natively and `prefix` is the spec's
+  `ColumnPrefixSchema` — so the extension collapsed into a plain re-export.
+- `theme.zod.ts`: `ColorPaletteSchema`, `TypographySchema`, `BorderRadiusSchema`,
+  `ShadowSchema`, `AnimationSchema`, `ZIndexSchema`, `ThemeModeSchema`,
+  `ThemeDefinitionSchema` all resolve to the spec's schemas. `SpacingSchema`,
+  `BreakpointsSchema` and `ThemeLogoSchema` are gone: spec v17 pruned the
+  never-enforced `spacing` / `breakpoints` / `logo` Theme keys (objectstack#3494),
+  and re-exports by reference leave when the referent does.
 
 A drift-guard test (`__tests__/spec-subschema-parity.test.ts`) asserts reference
 identity — a faithful copy fails it too, because a copy is a fork. **Do not re-fork
-these**: fix or extend the schema upstream in `@objectstack/spec`, or (for genuinely
-objectui-only renderer concerns) extend locally via `.extend()` on the spec base and
-sanction the field in the parity test.
+these**: fix or extend the schema upstream in `@objectstack/spec`. The `ListColumn`
+history is the worked example of why: the two local extensions were each tagged
+"promote this upstream rather than grow the extension", and once the spec adopted
+them the local code deleted itself. A local `.extend()` is a last resort for a
+genuinely objectui-only renderer concern, and it should be born with that same note.
 
 ## Installation
 

@@ -27,7 +27,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '20.x'
+          node-version: '22.x'
           # No `cache: 'pnpm'` here: this job never runs `pnpm install`, so the
           # pnpm store doesn't exist and setup-node's post-job cache save fails
           # with "Path Validation Error", which marks the whole job as failed.
