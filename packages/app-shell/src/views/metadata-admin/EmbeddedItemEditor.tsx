@@ -22,6 +22,7 @@ import { Button } from '@object-ui/components';
 import { SchemaForm, type SchemaFormIssue } from './SchemaForm';
 import { useMetadataClient, useMetadataTypes } from './useMetadata';
 import { useMetadataLocale, t, tFormat, translateValidationMessage } from './i18n';
+import { errorCodeIsAnyOf } from '@object-ui/types';
 
 export interface EmbeddedItemEditorProps {
   parentType: string;
@@ -104,7 +105,7 @@ export function EmbeddedItemEditor({
     } catch (err: any) {
       // Validation issues from the parent save apply to the embedded
       // path. Try to scope them back to this item.
-      if (err?.status === 422 || err?.code === 'invalid_metadata' || err?.code === 'invalid_payload') {
+      if (err?.status === 422 || errorCodeIsAnyOf(err, ['INVALID_METADATA', 'INVALID_PAYLOAD'])) {
         const raw = err?.body?.issues ?? [];
         const mapped: SchemaFormIssue[] = (Array.isArray(raw) ? raw : []).map((x: any) => {
           const fullPath = Array.isArray(x.path) ? x.path.join('.') : String(x.path ?? '');

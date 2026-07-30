@@ -78,6 +78,7 @@ import { useAiSurfaceEnabled } from '../hooks/useAiSurface';
 import { getProductName, getLogoUrl } from '../runtime-config';
 import { LocalizedSidebarTrigger } from './LocalizedSidebarTrigger';
 import { PreviewBadge } from './PreviewBadge';
+import { errorCodeIs } from '@object-ui/types';
 
 function humanizeSlug(slug: string): string {
   return slug.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -253,7 +254,7 @@ export function AppHeader({
     // registered on the server. Either signal means the feature is
     // unavailable — disable it for the rest of the page.
     const isMissingResource = (err: any): boolean =>
-      err?.httpStatus === 404 || err?.status === 404 || err?.code === 'object_not_found';
+      err?.httpStatus === 404 || err?.status === 404 || errorCodeIs(err, 'OBJECT_NOT_FOUND');
 
     // Tenant-wide presence ("who else is online?") is intentionally NOT
     // probed here. Presence is real-time ephemeral state that does not
@@ -343,7 +344,7 @@ export function AppHeader({
     const MAX_BACKOFF_MS = 120_000;
     let backoffMs = ACTIVE_INTERVAL_MS;
     const isMissingResource = (err: any): boolean =>
-      err?.httpStatus === 404 || err?.status === 404 || err?.code === 'object_not_found';
+      err?.httpStatus === 404 || err?.status === 404 || errorCodeIs(err, 'OBJECT_NOT_FOUND');
     const READ_STATES = new Set(['read', 'clicked', 'dismissed']);
     const fetchOnce = async () => {
       if (notifInFlightRef.current) return;

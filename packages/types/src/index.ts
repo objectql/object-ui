@@ -1184,3 +1184,5 @@ export type {
   WidgetRegistryEvent,
   WidgetRegistryListener,
 } from './widget';
+
+export { errorCodeIs, errorCodeIsAnyOf } from './error-code';

@@ -8,6 +8,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getRecordDisplayName as defaultDisplayName } from '@object-ui/core';
+import { errorCodeIs } from '@object-ui/types';
 
 // ADR-0079: the global-search default display-name resolver is now the ONE
 // shared `getRecordDisplayName` from `@object-ui/core` (honors titleFormat →
@@ -321,7 +322,7 @@ export function useRecordSearch(opts: UseRecordSearchOptions): UseRecordSearchRe
             // last real error so the UI can show a non-blocking hint.
             const status = err?.httpStatus ?? err?.status;
             const code = err?.code;
-            if (status === 404 || code === 'object_not_found') continue;
+            if (status === 404 || errorCodeIs(err, 'OBJECT_NOT_FOUND')) continue;
             lastError = err instanceof Error ? err : new Error(String(err));
             continue;
           }

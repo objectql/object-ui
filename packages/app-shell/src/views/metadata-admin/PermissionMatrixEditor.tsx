@@ -76,6 +76,7 @@ import { useMetadataClient, useMetadataTypes, type RichMetadataTypeEntry } from 
 import { resolveResourceConfig } from './registry';
 import { t as translate, useMetadataLocale } from './i18n';
 import { PermissionAdvancedFacets } from './PermissionAdvancedFacets';
+import { errorCodeIs } from '@object-ui/types';
 import {
   mergePermissionSlice,
   scopePermissionSet,
@@ -578,7 +579,7 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
       }
       setDestructive(null);
     } catch (err: any) {
-      if (err?.status === 409 && err?.code === 'destructive_change') {
+      if (err?.status === 409 && errorCodeIs(err, 'DESTRUCTIVE_CHANGE')) {
         const issues = err?.body?.issues ?? [];
         setDestructive({ issues: Array.isArray(issues) ? issues : [], pending: payload });
       } else {

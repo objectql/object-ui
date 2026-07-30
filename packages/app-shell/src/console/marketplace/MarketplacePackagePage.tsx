@@ -65,6 +65,7 @@ import { emitMetadataRefresh } from '../../assistant/assistantBus';
 import { useMetadata } from '../../providers/MetadataProvider';
 import { SuggestedBindingsPanel, type SuggestedBindingsStrings } from '../../components/SuggestedBindingsPanel';
 import type { SuggestedBinding } from '../../services/suggestedBindingsApi';
+import { errorCodeIs } from '@object-ui/types';
 
 export function MarketplacePackagePage() {
   const navigate = useNavigate();
@@ -332,11 +333,11 @@ export function MarketplacePackagePage() {
     } catch (e: any) {
       const code = e?.code;
       let msg = e?.message ?? String(e);
-      if (code === 'manifest_conflict') {
+      if (errorCodeIs(e, 'MANIFEST_CONFLICT')) {
         msg = t('marketplace.install.localManifestConflict', { message: msg });
-      } else if (code === 'unauthorized') {
+      } else if (errorCodeIs(e, 'UNAUTHENTICATED')) {
         msg = t('marketplace.install.localUnauthorized');
-      } else if (code === 'marketplace_unavailable') {
+      } else if (errorCodeIs(e, 'MARKETPLACE_UNAVAILABLE')) {
         msg = t('marketplace.install.localMarketplaceUnavailable');
       }
       setLocalResult({ ok: false, message: msg });

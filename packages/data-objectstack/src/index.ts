@@ -26,6 +26,7 @@ import type {
   ImportJobUndoResult,
   ListImportJobsOptions,
 } from '@object-ui/types';
+import { errorCodeIsAnyOf } from '@object-ui/types';
 import {
   convertFiltersToAST,
   emulateBatchTransaction,
@@ -236,7 +237,7 @@ export function is404Error(error: unknown): boolean {
     return true;
   }
   const code = typeof err.code === 'string' ? err.code : '';
-  return code === 'object_not_found' || code === 'record_not_found';
+  return errorCodeIsAnyOf({ code }, ['OBJECT_NOT_FOUND', 'RECORD_NOT_FOUND']);
 }
 
 /**
@@ -356,7 +357,7 @@ function createQuietHttpLogger(): any {
     const errBody = meta.error;
     if (errBody && typeof errBody === 'object') {
       const code = (errBody as Record<string, unknown>).code;
-      if (code === 'object_not_found' || code === 'record_not_found') return true;
+      if (errorCodeIsAnyOf({ code }, ['OBJECT_NOT_FOUND', 'RECORD_NOT_FOUND'])) return true;
     }
     return false;
   };

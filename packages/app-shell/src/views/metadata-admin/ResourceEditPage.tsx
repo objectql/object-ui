@@ -115,6 +115,7 @@ import { JsonSourceEditor } from './JsonSourceEditor';
 import { validateMetadataDraft, hasClientValidator } from './clientValidation';
 import { describeIssuePath } from './issuePath';
 import { buildCreateModeBody } from './createBody';
+import { errorCodeIs, errorCodeIsAnyOf } from '@object-ui/types';
 
 // react-resizable-panels' `direction` prop type does not always narrow
 // cleanly in our TS config; cast at the boundary (precedent:
@@ -1133,7 +1134,7 @@ function MetadataResourceEditPageImpl({
       }
     } catch (err: any) {
       // Map destructive change → confirmation dialog.
-      if (err?.status === 409 && err?.code === 'destructive_change') {
+      if (err?.status === 409 && errorCodeIs(err, 'DESTRUCTIVE_CHANGE')) {
         const i = err?.body?.issues ?? [];
         setDestructiveIssues(Array.isArray(i) ? i : []);
         setPendingItem(draft);
@@ -1143,11 +1144,11 @@ function MetadataResourceEditPageImpl({
       // so this MUST precede the generic invalid_metadata branch below).
       // Surface an actionable message guiding the author to pick or create a
       // writable base rather than mangling it into phantom field issues.
-      else if (err?.code === 'writable_package_required') {
+      else if (errorCodeIs(err, 'WRITABLE_PACKAGE_REQUIRED')) {
         setError(t('engine.package.writableRequired', locale));
       }
       // Map schema validation → inline field errors.
-      else if (err?.status === 422 || err?.code === 'invalid_metadata' || err?.code === 'invalid_payload') {
+      else if (err?.status === 422 || errorCodeIsAnyOf(err, ['INVALID_METADATA', 'INVALID_PAYLOAD'])) {
         const i = err?.body?.issues ?? [];
         let mapped: SchemaFormIssue[] = (Array.isArray(i) ? i : []).map((x: any) => ({
           path: Array.isArray(x.path) ? x.path.join('.') : String(x.path ?? ''),

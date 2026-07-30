@@ -62,6 +62,7 @@ import {
 } from '@object-ui/components';
 import { useMetadataLocale, t, tFormat } from './i18n';
 import { PackageFormDialog } from './PackageFormDialog';
+import { errorCodeIs } from '@object-ui/types';
 
 /* -------------------------------------------------------------------------- */
 /* Types + API                                                                 */
@@ -346,8 +347,8 @@ export function PackageDetailSheet({
             // error. Say "rolled back because X", not "{n} failed" (which reads
             // as a partial publish that no longer exists).
             const failedList = Array.isArray(r.failed) ? r.failed : [];
-            const causal = failedList.find((f) => f?.code !== 'batch_aborted' && f?.error);
-            if (failedList.some((f) => f?.code === 'batch_aborted')) {
+            const causal = failedList.find((f) => !errorCodeIs(f, 'BATCH_ABORTED') && f?.error);
+            if (failedList.some((f) => errorCodeIs(f, 'BATCH_ABORTED'))) {
               throw new Error(tFormat('engine.packages.detail.publishDraftsRolledBack', locale, {
                 cause: causal ? `${causal.type ?? '?'}/${causal.name ?? '?'}: ${causal.error}` : String(r.failedCount),
               }));
