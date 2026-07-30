@@ -138,6 +138,27 @@ describe('form renderer — fieldTabs (#2959)', () => {
     expect(screen.getByTestId('form-tab-panel:detail')).toHaveAttribute('data-state', 'active');
   });
 
+  it('keeps the tab schema keys off the <form> DOM element', () => {
+    // Callers/the SDUI dispatch spread the whole form node at the top level too,
+    // so a FormSchema key that isn't consumed leaks onto the DOM and React logs
+    // "does not recognize the `fieldTabs` prop on a DOM element".
+    const Form = ComponentRegistry.get('form')!;
+    const { container } = render(
+      <Form
+        schema={{ type: 'form', fields: FIELDS, fieldTabs: TABS }}
+        // The top-level spread that reproduces the leak.
+        fields={FIELDS}
+        fieldTabs={TABS}
+        defaultFieldTab="detail"
+        fieldTabsPosition="top"
+      />,
+    );
+    const form = container.querySelector('form')!;
+    for (const attr of ['fieldtabs', 'defaultfieldtab', 'fieldtabsposition']) {
+      expect(form.hasAttribute(attr)).toBe(false);
+    }
+  });
+
   it('renders fields no tab claims instead of dropping them', () => {
     const { container } = renderTabbedForm({
       fieldTabs: [

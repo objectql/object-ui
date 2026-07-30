@@ -1151,6 +1151,9 @@ ComponentRegistry.register('form',
           columns: _columns,
           validationMode: _validationMode,
           disabled: _disabledProp,
+          fieldTabs: _fieldTabs,
+          defaultFieldTab: _defaultFieldTab,
+          fieldTabsPosition: _fieldTabsPosition,
 	        ...formProps
 	    } = props;
 
@@ -1195,13 +1198,19 @@ ComponentRegistry.register('form',
                 value={activeFieldTab}
                 onValueChange={setPickedFieldTab}
                 orientation={isVerticalFieldTabs ? 'vertical' : 'horizontal'}
-                className={cn('w-full', isVerticalFieldTabs && 'flex gap-4')}
+                // Always a flex container: `order-last` on the strip is what
+                // puts it after the panels for `bottom`/`right`, and `order`
+                // only applies to flex children.
+                className={cn('flex w-full', isVerticalFieldTabs ? 'gap-4' : 'flex-col')}
               >
                 <TabsList
                   className={cn(
-                    'mb-4',
-                    isVerticalFieldTabs && 'h-auto flex-col',
-                    (fieldTabsPosition === 'bottom' || fieldTabsPosition === 'right') && 'order-last',
+                    // `self-start` keeps the strip its content's size instead of
+                    // being stretched by the flex container above.
+                    'self-start',
+                    isVerticalFieldTabs
+                      ? cn('h-auto flex-col', fieldTabsPosition === 'right' && 'order-last')
+                      : fieldTabsPosition === 'bottom' ? 'order-last mt-4' : 'mb-4',
                   )}
                 >
                   {fieldTabGroups.map((group) => (
