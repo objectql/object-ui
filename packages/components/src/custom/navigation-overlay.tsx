@@ -64,7 +64,7 @@ import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
-} from '../ui/resizable';
+} from './resizable';
 import { usePopperAwareInteractOutside } from './mobile-dialog-content';
 
 /** Navigation mode type — matches ViewNavigationConfig.mode */

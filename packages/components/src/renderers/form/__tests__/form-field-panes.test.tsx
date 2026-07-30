@@ -214,4 +214,24 @@ describe('FormSchema.fieldPanes — one form across the split (#2153)', () => {
     const separator = container.querySelector('[role="separator"]')!;
     expect(separator.getAttribute('aria-disabled')).not.toBe('true');
   });
+
+  it('gives a vertical split a full-width divider, not a 1px sliver', () => {
+    // `fieldPanesOrientation: 'vertical'` stacks the panes, so the divider is a
+    // horizontal rule. It used to render as a 1px-wide vertical sliver: the
+    // Shadcn handle styled that case with `data-[panel-group-direction=vertical]`
+    // variants, which react-resizable-panels v4 never triggers. The form renders
+    // through `custom/resizable`, which re-keys them onto the separator's own
+    // `aria-orientation` — see custom/resizable.tsx and
+    // __tests__/resizable-orientation.test.tsx.
+    const { container } = renderSplitForm({ fieldPanesOrientation: 'vertical' });
+    const separator = container.querySelector('[role="separator"]')!;
+
+    expect(separator.getAttribute('aria-orientation')).toBe('horizontal');
+    expect([...separator.classList]).toContain('aria-[orientation=horizontal]:w-full');
+
+    // …and the default (side-by-side) split still gets the vertical divider.
+    cleanup();
+    const sideBySide = renderSplitForm().container.querySelector('[role="separator"]')!;
+    expect(sideBySide.getAttribute('aria-orientation')).toBe('vertical');
+  });
 });

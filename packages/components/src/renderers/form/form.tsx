@@ -24,7 +24,7 @@ import {
 } from '../../ui/select';
 import { renderChildren } from '../../lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../../ui/resizable';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../../custom/resizable';
 import { Alert, AlertDescription } from '../../ui/alert';
 import { toast } from '../../ui/sonner';
 import { AlertCircle, ChevronDown, ChevronRight, Loader2, Maximize2, Check, X } from 'lucide-react';

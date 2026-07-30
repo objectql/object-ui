@@ -36,7 +36,11 @@ export * from './pagination';
 export * from './popover';
 export * from './progress';
 export * from './radio-group';
-export * from './resizable';
+// NOT re-exported: `./resizable` ships v3-era `data-[panel-group-direction]`
+// styles that react-resizable-panels v4 never triggers, so its handle has no
+// stacked-group appearance. `custom/resizable.tsx` wraps it and owns the public
+// `Resizable*` names — exporting both here would also collide (TS2308), since
+// `src/index.ts` star-exports `./ui` and `./custom` side by side.
 export * from './scroll-area';
 export * from './select';
 export * from './separator';

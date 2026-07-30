@@ -9,11 +9,11 @@
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import type { ResizableSchema } from '@object-ui/types';
-import { 
-  ResizablePanelGroup, 
-  ResizablePanel, 
-  ResizableHandle 
-} from '../../ui';
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle
+} from '../../custom/resizable';
 import { renderChildren } from '../../lib/utils';
 
 ComponentRegistry.register('resizable', 
