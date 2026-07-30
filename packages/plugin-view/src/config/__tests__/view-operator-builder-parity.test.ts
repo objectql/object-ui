@@ -31,15 +31,18 @@ import { specToBuilderOperator, __CANONICAL_TO_BUILDER } from '../view-config-ut
 /**
  * Canonical view operators the FilterBuilder cannot express.
  *
- * `starts_with`/`ends_with`: no such operator in the builder's vocabulary.
- * `is_null`/`is_not_null`: distinct from `is_empty`/`is_not_empty`, which the
- * builder does have — folding them together would rewrite the author's operator
- * on the next save.
+ * Empty — every one of the 19 now maps. It was `starts_with`, `ends_with`,
+ * `is_null`, `is_not_null` until #2942 gave the builder `startsWith`/`endsWith`/
+ * `isNull`/`isNotNull`.
  *
- * Shrink this list by adding the operator to the FilterBuilder, never by
- * mapping onto a near-equivalent.
+ * Shrink it by adding the operator to the FilterBuilder, never by mapping onto a
+ * near-equivalent: `is_null` → `isEmpty` would rewrite a NULL predicate into an
+ * empty-string one on the next save.
  */
-const NO_BUILDER_EQUIVALENT = ['starts_with', 'ends_with', 'is_null', 'is_not_null'];
+const NO_BUILDER_EQUIVALENT: string[] = [];
+
+/** Case- and separator-insensitive key, matching the module's own `fold`. */
+const fold = (op: string) => op.toLowerCase().replace(/[\s_-]+/g, '');
 
 describe('CANONICAL_TO_BUILDER', () => {
   it('covers every canonical view operator, and nothing else', () => {
@@ -54,11 +57,34 @@ describe('CANONICAL_TO_BUILDER', () => {
     expect(notRenderable).toEqual([]);
   });
 
+  /**
+   * The guard that catches drift in the direction the hand-kept gap list could
+   * not: the builder GAINING an operator this table still calls unmappable.
+   * `starts_with` and `startsWith` fold to the same key, so an unmapped operator
+   * whose folded name matches a folded builder id is an omission by definition —
+   * which is exactly how #2942's four new operators went unnoticed here.
+   */
+  it('leaves nothing unmapped that the builder can already draw', () => {
+    const byFolded = new Map(FILTER_BUILDER_OPERATORS.map(id => [fold(id), id]));
+    const missed = Object.entries(__CANONICAL_TO_BUILDER)
+      .filter(([, id]) => id === null)
+      .filter(([op]) => byFolded.has(fold(op)))
+      .map(([op]) => `${op} -> ${byFolded.get(fold(op))} exists but is unmapped`);
+    expect(missed).toEqual([]);
+  });
+
   it('records exactly the documented gaps', () => {
     const unmapped = Object.entries(__CANONICAL_TO_BUILDER)
       .filter(([, id]) => id === null)
       .map(([op]) => op);
     expect(unmapped.sort()).toEqual([...NO_BUILDER_EQUIVALENT].sort());
+  });
+
+  it('keeps the NULL and empty-string predicates distinct', () => {
+    expect(__CANONICAL_TO_BUILDER.is_null).toBe('isNull');
+    expect(__CANONICAL_TO_BUILDER.is_not_null).toBe('isNotNull');
+    expect(__CANONICAL_TO_BUILDER.is_empty).toBe('isEmpty');
+    expect(__CANONICAL_TO_BUILDER.is_not_empty).toBe('isNotEmpty');
   });
 });
 
@@ -102,12 +128,21 @@ describe('specToBuilderOperator', () => {
     }
   });
 
-  it('returns an unmapped operator unchanged rather than coercing it', () => {
+  it('returns an unrecognised operator unchanged rather than coercing it', () => {
     // Visible in the UI as an incomplete condition row beats a silent rewrite
     // to `equals`, which would drop the author's predicate on the next save.
-    expect(specToBuilderOperator('is_null')).toBe('is_null');
-    expect(specToBuilderOperator('starts_with')).toBe('starts_with');
     expect(specToBuilderOperator('totally_made_up')).toBe('totally_made_up');
+    expect(specToBuilderOperator('$regex')).toBe('$regex');
+  });
+
+  it('resolves the four operators #2942 made expressible', () => {
+    expect(specToBuilderOperator('starts_with')).toBe('startsWith');
+    expect(specToBuilderOperator('ends_with')).toBe('endsWith');
+    expect(specToBuilderOperator('is_null')).toBe('isNull');
+    expect(specToBuilderOperator('is_not_null')).toBe('isNotNull');
+    // …without collapsing them onto the empty-string pair.
+    expect(specToBuilderOperator('is_empty')).toBe('isEmpty');
+    expect(specToBuilderOperator('is_not_empty')).toBe('isNotEmpty');
   });
 
   it('defaults an absent operator to equals', () => {

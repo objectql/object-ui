@@ -28,21 +28,26 @@ import type { ViewFilterOperator } from '@objectstack/spec/ui';
  * operator added to the spec's view vocabulary fails to compile here instead
  * of reaching the builder as a raw spelling its dropdown cannot select.
  *
- * The four `null`s are honest gaps, not oversights. `starts_with`/`ends_with`
- * have no FilterBuilder operator at all, and `is_null`/`is_not_null` carry a
- * NULL/empty distinction that `isEmpty`/`isNotEmpty` erase — folding them onto
- * the near-equivalent would silently rewrite the author's operator the next
- * time the view was saved. An unmapped operator instead reaches the builder
- * unchanged and shows up as a condition row the author must complete, which is
- * the failure we want: visible, and lossless until they touch it.
+ * **Every canonical operator now maps.** The four that did not —
+ * `starts_with`/`ends_with`/`is_null`/`is_not_null` — were unmapped because the
+ * FilterBuilder had no such operator; #2942 added `startsWith`/`endsWith`/
+ * `isNull`/`isNotNull` to it, and this table did not follow, so a stored view
+ * carrying them still reached the builder as a raw spelling it could by then
+ * have rendered. The parity guard catches that class now: a canonical operator
+ * whose name folds onto a builder id it is not mapped to fails the test.
+ *
+ * `is_null`/`is_not_null` map to `isNull`/`isNotNull` and NOT to
+ * `isEmpty`/`isNotEmpty` — the builder now draws both pairs, and folding the
+ * NULL predicate onto the empty-string one would silently rewrite the author's
+ * operator the next time the view was saved.
  */
 const CANONICAL_TO_BUILDER: Record<ViewFilterOperator, string | null> = {
     'equals': 'equals',
     'not_equals': 'notEquals',
     'contains': 'contains',
     'not_contains': 'notContains',
-    'starts_with': null,
-    'ends_with': null,
+    'starts_with': 'startsWith',
+    'ends_with': 'endsWith',
     'greater_than': 'greaterThan',
     'less_than': 'lessThan',
     'greater_than_or_equal': 'greaterOrEqual',
@@ -51,8 +56,8 @@ const CANONICAL_TO_BUILDER: Record<ViewFilterOperator, string | null> = {
     'not_in': 'notIn',
     'is_empty': 'isEmpty',
     'is_not_empty': 'isNotEmpty',
-    'is_null': null,
-    'is_not_null': null,
+    'is_null': 'isNull',
+    'is_not_null': 'isNotNull',
     'before': 'before',
     'after': 'after',
     'between': 'between',
