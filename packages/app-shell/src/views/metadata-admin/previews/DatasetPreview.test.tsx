@@ -78,6 +78,25 @@ describe('DatasetPreview', () => {
     expect(alert.textContent).toMatch(/not declared/);
   });
 
+  // objectstack#3891 retired the framework's degraded analytics fallback, so a
+  // deployment without @objectstack/service-analytics can't run dataset
+  // previews at all. That is a missing capability, not a mistake in the dataset
+  // the author is editing — so it must NOT read as a red "your draft is broken"
+  // alert.
+  it('shows a "capability not installed" empty state, not an error alert', async () => {
+    const err = Object.assign(
+      new Error('Analytics capability is not installed on this deployment — POST /analytics/dataset/query is unavailable.'),
+      { code: 'ANALYTICS_NOT_INSTALLED' },
+    );
+    queryDataset.mockRejectedValue(err);
+    render(<DatasetPreview {...baseProps} draft={draft} />);
+
+    expect(await screen.findByText(/Analytics capability not installed/i)).toBeInTheDocument();
+    // Names the fix, and does not blame the draft.
+    expect(screen.getByText(/@objectstack\/service-analytics/)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('prompts to add a measure when none are defined', () => {
     render(<DatasetPreview {...baseProps} draft={{ ...draft, measures: [] }} />);
     expect(screen.getByText(/Add a measure/i)).toBeInTheDocument();

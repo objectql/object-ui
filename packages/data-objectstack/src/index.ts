@@ -241,6 +241,107 @@ export function is404Error(error: unknown): boolean {
 }
 
 /**
+ * Thrown when the deployment has no analytics capability installed
+ * (framework#3891 / #4019).
+ *
+ * The framework retired its degraded in-kernel analytics fallback — it dropped
+ * the caller's RLS/tenant scope and ignored the contract filter, so it answered
+ * 200 with over-broad numbers. `@objectstack/service-analytics` is now the
+ * domain's only implementation, and a deployment without it answers:
+ *
+ *   - `POST /api/v1/analytics/query` → **404** (the routes aren't even mounted);
+ *   - `POST /api/v1/analytics/dataset/query` → **501 NOT_IMPLEMENTED**.
+ *
+ * Neither is a bug to report as a stack trace: it is a deployment that hasn't
+ * installed the capability. This error carries a message a UI can show as-is.
+ */
+export class AnalyticsNotInstalledError extends Error {
+  readonly code = 'ANALYTICS_NOT_INSTALLED';
+  /** The surface that was unavailable, for the message a host renders. */
+  readonly surface: string;
+  constructor(surface: string, detail?: string) {
+    super(
+      `Analytics capability is not installed on this deployment — ${surface} is unavailable. ` +
+      'Install @objectstack/service-analytics and mount AnalyticsServicePlugin to enable it.' +
+      (detail ? ` (server said: ${detail})` : ''),
+    );
+    this.name = 'AnalyticsNotInstalledError';
+    this.surface = surface;
+  }
+}
+
+/** True when `error` is an {@link AnalyticsNotInstalledError} (or its wire twin). */
+export function isAnalyticsNotInstalledError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  return (error as { code?: unknown }).code === 'ANALYTICS_NOT_INSTALLED';
+}
+
+/**
+ * Thrown when the server REJECTED the analytics query body (HTTP 400 —
+ * `VALIDATION_FAILED` since framework#4010 validates `/analytics/query` at the
+ * entry against the canonical bare `AnalyticsQuery` shape).
+ *
+ * Distinct from {@link AnalyticsNotInstalledError} on purpose: this one is a
+ * defect in what WE sent, so it must never be answered with the client-side
+ * fallback. Numbers produced by a different code path would look plausible and
+ * bury the contract violation — the misdirection framework#3878 documented.
+ */
+export class AnalyticsQueryRejectedError extends Error {
+  readonly code = 'ANALYTICS_QUERY_REJECTED';
+  /** The server's own error code (e.g. `VALIDATION_FAILED`), when it sent one. */
+  readonly serverCode?: string;
+  constructor(detail?: string, serverCode?: string) {
+    super(
+      `Analytics rejected the query: ${detail ?? 'the request body does not match the AnalyticsQuery contract'}`,
+    );
+    this.name = 'AnalyticsQueryRejectedError';
+    this.serverCode = serverCode;
+  }
+}
+
+/**
+ * Classify a FAILED analytics call so the caller knows whether to degrade or
+ * to surface the failure.
+ *
+ * `@objectstack/client`'s fetch wrapper throws on a non-2xx, decorating the
+ * error with the semantic `code` string and the numeric `httpStatus` (the
+ * ADR-0112 / framework#3842 shape this repo already reads elsewhere). Two
+ * outcomes must NOT be conflated:
+ *
+ *   - **`not-installed`** — the deployment has no analytics service. Since
+ *     framework#3891 retired the degraded in-kernel shim, that is a 404 (the
+ *     routes aren't mounted at all, framework#4019) or a 501 `NOT_IMPLEMENTED`
+ *     (REST's dataset route with no service behind it). Degrading to a
+ *     client-side aggregate over a scoped `find()` is CORRECT here.
+ *   - **`rejected`** — the server refused OUR body (400 `VALIDATION_FAILED`;
+ *     framework#4010 validates `/analytics/query` at the entry). Degrading
+ *     would answer our own contract violation with plausible numbers from a
+ *     different code path and bury it — the misdirection framework#3878
+ *     documented. It must be surfaced.
+ *
+ * Anything else (5xx, network) is `unknown`: degrade, but silently — it is a
+ * transient failure, not a deployment that is missing a capability.
+ */
+export function classifyAnalyticsFailure(
+  error: unknown,
+): { kind: 'not-installed' | 'rejected' | 'unknown'; code?: string; message?: string } {
+  const err = (error ?? {}) as Record<string, unknown>;
+  const code = typeof err.code === 'string' ? err.code : undefined;
+  const message = typeof err.message === 'string' ? err.message : undefined;
+  const status =
+    typeof err.httpStatus === 'number' ? err.httpStatus
+    : typeof err.status === 'number' ? err.status
+    : typeof err.statusCode === 'number' ? err.statusCode
+    : undefined;
+
+  if (code === 'VALIDATION_FAILED' || status === 400) return { kind: 'rejected', code, message };
+  if (status === 404 || status === 501 || code === 'NOT_IMPLEMENTED' || code === 'ROUTE_NOT_FOUND') {
+    return { kind: 'not-installed', code, message };
+  }
+  return { kind: 'unknown', code, message };
+}
+
+/**
  * Thrown by `update()` / `delete()` when the server returns
  * `409 CONCURRENT_UPDATE` — i.e. the record was modified by someone else
  * between when the caller last read it and when they attempted to write.
@@ -509,6 +610,8 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   private reconnectAttempts: number = 0;
   private baseUrl: string;
   private token?: string;
+  /** One "analytics capability is missing" console line per adapter, not per widget. */
+  private analyticsCapabilityWarned = false;
   private fetchImpl: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
   // In-flight find() requests keyed by resource + serialized params.
   // Coalesces concurrent identical reads (e.g. React StrictMode double-mount,
@@ -2709,6 +2812,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       }
 
       const data = await this.client.analytics.query(payload);
+
       const rawRows: any[] = Array.isArray(data) ? data
         : data?.rows && Array.isArray(data.rows) ? data.rows
         : data?.data && Array.isArray(data.data) ? data.data
@@ -2728,10 +2832,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         return true;
       });
       if (measureMissing) {
-        const result = await this.find(resource as any, params.filter ? { $filter: params.filter } as any : undefined);
-        const records = result.data || [];
-        if (records.length === 0) return [];
-        return this.aggregateClientSide(records, params);
+        return await this.aggregateViaFind(resource, params);
       }
 
       // Map measure keys back to the object-bound result column so consumers
@@ -2747,18 +2848,67 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         }
         return mapped;
       });
-    } catch {
-      // If the analytics endpoint is not available, fall back to
-      // find() + client-side aggregation. Crucially, forward the same
-      // filter so the fallback aggregates over the SAME row set the
-      // server-side analytics query would have — otherwise the KPI
-      // silently sums the whole table and lies to the user.
-      const result = await this.find(resource as any, params.filter ? { $filter: params.filter } as any : undefined);
-      const records = result.data || [];
-      if (records.length === 0) return [];
+    } catch (e) {
+      const failure = classifyAnalyticsFailure(e);
 
-      return this.aggregateClientSide(records, params);
+      // The server refused OUR body — that is a defect in this adapter's
+      // request, not a deployment without the capability. Answering it with
+      // the client-side path would produce plausible numbers and bury the
+      // contract violation, the misdirection framework#3878 documented.
+      if (failure.kind === 'rejected') {
+        throw new AnalyticsQueryRejectedError(failure.message, failure.code);
+      }
+
+      // The capability is absent (404 — framework#4019 stops mounting the
+      // routes when no analytics service is registered — or 501). Say so ONCE
+      // so an operator sees a missing capability rather than charts that
+      // quietly read from a slower path forever.
+      if (failure.kind === 'not-installed') {
+        this.warnAnalyticsCapabilityOnce(failure.message);
+      }
+
+      // Degrade to find() + client-side aggregation. `aggregateViaFind`
+      // forwards the same filter, so the fallback aggregates over the SAME row
+      // set the server-side query would have — and `find()` is server-scoped,
+      // so RLS still applies.
+      return await this.aggregateViaFind(resource, params);
     }
+  }
+
+  /**
+   * Client-side aggregation over a server-scoped `find()` — the fallback used
+   * whenever the analytics endpoint cannot answer (capability absent, network
+   * failure, or a result whose measure came back missing).
+   *
+   * Forwarding `params.filter` is load-bearing: without it the fallback
+   * aggregates the whole table while the caller believes it applied a filter,
+   * which is the "KPI silently sums everything" failure this adapter has
+   * guarded against since the widget filter was threaded through.
+   */
+  private async aggregateViaFind(resource: string, params: any): Promise<any[]> {
+    const result = await this.find(
+      resource as any,
+      params.filter ? ({ $filter: params.filter } as any) : undefined,
+    );
+    const records = result.data || [];
+    if (records.length === 0) return [];
+    return this.aggregateClientSide(records, params);
+  }
+
+  /**
+   * Say "the analytics capability isn't installed" ONCE per adapter, not once
+   * per widget: a dashboard fans out one aggregate() per KPI, and N identical
+   * console lines read like N different failures.
+   */
+  private warnAnalyticsCapabilityOnce(detail?: string): void {
+    if (this.analyticsCapabilityWarned) return;
+    this.analyticsCapabilityWarned = true;
+    console.warn(
+      '[OBJECTSTACKDataSource] analytics capability unavailable — aggregating client-side ' +
+      'from a scoped find(). Numbers stay correct but the semantic layer (cubes, joins, ' +
+      'server-side rollups) is off. Install @objectstack/service-analytics to enable it.' +
+      (detail ? ` Server said: ${detail}` : ''),
+    );
   }
 
   /**
@@ -2840,6 +2990,16 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         const errBody = await res.json();
         detail = errBody?.message || errBody?.error || JSON.stringify(errBody);
       } catch { /* non-JSON error body */ }
+      // "The capability isn't installed" is not a stack trace to show an
+      // author (framework#3891): the REST dataset route answers 501
+      // NOT_IMPLEMENTED when no analytics service provides `queryDataset`, and
+      // a host that doesn't mount the route at all answers 404. Both mean the
+      // same thing and both get a message a UI can render verbatim; anything
+      // else (a compile error like "relationship not declared in include") is
+      // a real authoring error and keeps its server detail.
+      if (res.status === 501 || res.status === 404) {
+        throw new AnalyticsNotInstalledError('POST /analytics/dataset/query', detail || undefined);
+      }
       throw new Error(`Dataset query failed: ${res.status} ${res.statusText}${detail ? ` — ${detail}` : ''}`);
     }
 

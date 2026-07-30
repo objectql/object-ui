@@ -17,7 +17,7 @@
  */
 
 import * as React from 'react';
-import { Loader2, BarChart3, AlertTriangle } from 'lucide-react';
+import { Loader2, BarChart3, AlertTriangle, PackageOpen } from 'lucide-react';
 import { useAdapter } from '../../../providers/AdapterProvider';
 import type { MetadataPreviewProps } from '../preview-registry';
 import { PreviewShell, PreviewEmptyState, PreviewErrorBoundary } from './PreviewShell';
@@ -39,7 +39,11 @@ type Row = Record<string, unknown>;
 type PreviewState =
   | { status: 'idle' | 'loading'; rows: Row[]; error?: undefined }
   | { status: 'ok'; rows: Row[]; fields?: DatasetResultField[]; object?: string; error?: undefined }
-  | { status: 'error'; rows: Row[]; error: string };
+  | { status: 'error'; rows: Row[]; error: string }
+  // The deployment has no analytics capability (framework#3891) — not an
+  // authoring mistake, so it reads as a "this needs installing" empty state
+  // rather than a red banner blaming the dataset the author just wrote.
+  | { status: 'not-installed'; rows: Row[]; error?: undefined };
 
 export function DatasetPreview({ draft }: MetadataPreviewProps) {
   const adapter = useAdapter();
@@ -75,6 +79,10 @@ export function DatasetPreview({ draft }: MetadataPreviewProps) {
         object: result?.object,
       });
     } catch (e) {
+      if ((e as { code?: string })?.code === 'ANALYTICS_NOT_INSTALLED') {
+        setState({ status: 'not-installed', rows: [] });
+        return;
+      }
       setState({ status: 'error', rows: [], error: String((e as Error)?.message ?? e) });
     }
   }, [adapter, draft, dimensionNames, measureNames, canRun]);
@@ -157,6 +165,14 @@ export function DatasetPreview({ draft }: MetadataPreviewProps) {
             <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
             <span className="break-words">{state.error}</span>
           </div>
+        )}
+
+        {state.status === 'not-installed' && (
+          <PreviewEmptyState
+            icon={<PackageOpen className="h-8 w-8" />}
+            title="Analytics capability not installed"
+            description="This deployment has no analytics service, so dataset previews can't run. Install @objectstack/service-analytics and mount AnalyticsServicePlugin — the dataset definition itself is fine."
+          />
         )}
 
         {state.status === 'ok' && state.rows.length === 0 && (

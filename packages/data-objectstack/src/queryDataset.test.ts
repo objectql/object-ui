@@ -7,7 +7,11 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ObjectStackAdapter, clearSharedDiscoveryCache } from './index';
+import {
+  ObjectStackAdapter,
+  clearSharedDiscoveryCache,
+  isAnalyticsNotInstalledError,
+} from './index';
 
 /** A fetch mock that answers discovery + records the dataset-query POST. */
 function makeFetch(datasetResponse: { ok: boolean; status?: number; body: unknown }) {
@@ -79,5 +83,50 @@ describe('ObjectStackAdapter.queryDataset', () => {
     const { fetchImpl } = makeFetch({ ok: false, status: 400, body: { code: 'DATASET_INVALID', message: 'relationship not declared' } });
     const adapter = new ObjectStackAdapter({ baseUrl: 'http://localhost:3000', autoReconnect: false, fetch: fetchImpl as any });
     await expect(adapter.queryDataset(inlineDataset as any, selection)).rejects.toThrow(/relationship not declared/);
+  });
+
+  // framework#3891 retired the degraded in-kernel analytics fallback, so a
+  // deployment without @objectstack/service-analytics answers 501 (REST route
+  // present, no service) or 404 (framework#4019 stopped mounting the routes).
+  // Neither is an authoring mistake — the caller gets a typed, readable error
+  // instead of `Dataset query failed: 501 Not Implemented — …`.
+  describe('analytics capability absent', () => {
+    it('maps 501 NOT_IMPLEMENTED to a readable ANALYTICS_NOT_INSTALLED error', async () => {
+      const { fetchImpl } = makeFetch({
+        ok: false,
+        status: 501,
+        body: {
+          code: 'NOT_IMPLEMENTED',
+          message: 'Analytics dataset query is not available on this deployment (no analytics service with queryDataset).',
+        },
+      });
+      const adapter = new ObjectStackAdapter({ baseUrl: 'http://localhost:3000', autoReconnect: false, fetch: fetchImpl as any });
+
+      const err = await adapter.queryDataset(inlineDataset as any, selection).catch((e) => e);
+
+      expect(isAnalyticsNotInstalledError(err)).toBe(true);
+      expect(err.code).toBe('ANALYTICS_NOT_INSTALLED');
+      expect(err.message).toContain('Analytics capability is not installed');
+      expect(err.message).toContain('@objectstack/service-analytics');
+    });
+
+    it('maps a 404 (routes not mounted) the same way', async () => {
+      const { fetchImpl } = makeFetch({ ok: false, status: 404, body: { error: 'Not found' } });
+      const adapter = new ObjectStackAdapter({ baseUrl: 'http://localhost:3000', autoReconnect: false, fetch: fetchImpl as any });
+
+      const err = await adapter.queryDataset(inlineDataset as any, selection).catch((e) => e);
+
+      expect(isAnalyticsNotInstalledError(err)).toBe(true);
+    });
+
+    it('leaves a real compile error alone (it is NOT a missing capability)', async () => {
+      const { fetchImpl } = makeFetch({ ok: false, status: 400, body: { message: 'relationship not declared in include' } });
+      const adapter = new ObjectStackAdapter({ baseUrl: 'http://localhost:3000', autoReconnect: false, fetch: fetchImpl as any });
+
+      const err = await adapter.queryDataset(inlineDataset as any, selection).catch((e) => e);
+
+      expect(isAnalyticsNotInstalledError(err)).toBe(false);
+      expect(String(err.message)).toContain('relationship not declared');
+    });
   });
 });
