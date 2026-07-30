@@ -17,6 +17,7 @@
  */
 
 import { z } from 'zod';
+import { ChartTypeSchema as SpecChartTypeSchema } from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
 
 /**
@@ -204,17 +205,16 @@ export const TreeViewSchema = BaseSchema.extend({
 });
 
 /**
- * Chart Type Enum
+ * Chart Type Enum — `@objectstack/spec/ui` schema re-exported **by reference**
+ * (issue #2231; formerly a hand-written mirror).
+ *
+ * The mirror had drifted to 7 of the spec's 19 values, and because it was
+ * re-exported under the spec's own symbol name, an importer of
+ * `@object-ui/types` could not tell which `ChartTypeSchema` they had. That is
+ * how #2901 came to be filed against the wrong side of the contract: it read
+ * this copy as the protocol and concluded the renderer had outgrown it.
  */
-export const ChartTypeSchema = z.enum([
-  'line',
-  'bar',
-  'area',
-  'pie',
-  'donut',
-  'radar',
-  'scatter',
-]);
+export const ChartTypeSchema = SpecChartTypeSchema;
 
 /**
  * Chart Series Schema

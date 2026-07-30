@@ -19,6 +19,7 @@
  * @packageDocumentation
  */
 import { z } from 'zod';
+import type { ActionType as SpecActionType } from '@objectstack/spec/ui';
 
 // ============================================================================
 // Spec-Canonical Action Sub-types — imported from @objectstack/spec/ui
@@ -66,15 +67,18 @@ export type ActionComponent =
   | 'action:group';      // Action group/dropdown
 
 /**
- * Action execution type
- * Canonical definition from @objectstack/spec/ui ActionSchema.type.
+ * Action execution type — derived from `@objectstack/spec`'s `ActionType` enum
+ * (issue #2231/#2901; formerly a hand-written union).
+ *
+ * `script` | `url` | `modal` | `flow` | `api` | `form`
+ *
+ * The previous union claimed to be the "canonical definition from
+ * @objectstack/spec" and was missing `form` — so a host app typing against
+ * `@object-ui/types` got a type error on `type: 'form'` even though
+ * `ActionRunner.executeForm` implements it. Derived now, so the claim is
+ * enforced by the compiler rather than asserted in a comment.
  */
-export type ActionType = 
-  | 'script'             // Execute JavaScript/expression
-  | 'url'                // Navigate to URL
-  | 'modal'              // Open modal dialog
-  | 'flow'               // Start workflow/automation
-  | 'api';               // Call API endpoint
+export type ActionType = z.infer<typeof SpecActionType>;
 
 /**
  * Field type for action parameters

@@ -30,6 +30,8 @@
  * migration window.
  */
 
+import type { z } from 'zod';
+import type { ReportType as SpecReportType } from '@objectstack/spec/ui';
 import type { BaseSchema, SchemaNode } from './base';
 import type { ChartSchema } from './data-display';
 import type { DataSource } from './data';
@@ -329,12 +331,19 @@ export interface ReportExportConfig {
 }
 
 /**
- * Report Type
- * - tabular: flat table
- * - summary: grouped with subtotals
- * - matrix: pivot table
+ * Report Type — derived from `@objectstack/spec`'s `ReportType` enum (issue
+ * #2231/#2901; formerly a hand-written union).
+ *
+ * - `tabular` — flat list, no grouping
+ * - `summary` — row-wise grouping with aggregations
+ * - `matrix`  — row × column pivot
+ * - `joined`  — multiple independent report blocks stacked
+ *
+ * The mirror was missing `joined`, so a spec-valid joined report did not
+ * type-check against `ReportSchema.reportType`. Derived rather than restated so
+ * a report format the spec adds cannot go missing here.
  */
-export type ReportType = 'tabular' | 'summary' | 'matrix';
+export type ReportType = z.infer<typeof SpecReportType>;
 
 /**
  * Report Schema - Main report configuration

@@ -17,6 +17,7 @@
  */
 
 import { z } from 'zod';
+import { PageTypeSchema as SpecPageTypeSchema } from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
 
 /**
@@ -253,9 +254,16 @@ export const PageVariableSchema = z.object({
 });
 
 /**
- * Page Type Schema
+ * Page Type Schema — `@objectstack/spec/ui` schema re-exported **by reference**
+ * (issue #2231; formerly a hand-written mirror).
+ *
+ * The mirror was missing `list`, so a spec-valid `list` page failed validation
+ * here — and it shadowed the spec's export under the same symbol name, so an
+ * importer could not tell the two apart. Note the sibling TS `PageType` in
+ * `layout.ts` had drifted the OPPOSITE way (it carried five visualization names
+ * the spec explicitly repudiates); both now come from the spec.
  */
-export const PageTypeSchema = z.enum(['record', 'home', 'app', 'utility']);
+export const PageTypeSchema = SpecPageTypeSchema;
 
 /**
  * Page Schema - Top-level page layout

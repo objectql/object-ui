@@ -16,6 +16,7 @@
  * @packageDocumentation
  */
 
+import type { PageType as SpecPageType } from '@objectstack/spec/ui';
 import type { BaseSchema, SchemaNode } from './base';
 
 /**
@@ -425,26 +426,38 @@ export interface AspectRatioSchema extends BaseSchema {
 }
 
 /**
- * Page Type
- * Determines page behavior and default layout template.
- * Aligned with @objectstack/spec Page.type
+ * List visualization names that are still accepted in the `pageType` slot.
+ *
+ * These are **not** page kinds. `@objectstack/spec` `ui/page.zod.ts` states it
+ * outright: they are visualizations of a `list` page, selected via
+ * `interfaceConfig.appearance.allowedVisualizations`. They are retained here as
+ * a **named, sanctioned local extension** (issue #2231's prescription) pending
+ * the "visualizations are not page types" cleanup, so that the spec-owned half
+ * of `PageType` can be derived while the objectui-only half stays visible
+ * instead of hiding inside a hand-written union.
+ *
+ * Narrowing this to `never` is the cleanup; it is a breaking type change for
+ * anyone assigning `pageType: 'kanban'`, so it is a separate decision.
  */
-export type PageType =
-  | 'record'
-  | 'home'
-  | 'app'
-  | 'utility'
-  // The roadmap page types (dashboard/form/record_detail/record_review/overview/
-  // blank) were removed: they have no renderer and were dropped from
-  // @objectstack/spec PageTypeSchema (framework#2265, enforce-or-remove).
-  // NOTE: grid/list/gallery/kanban/calendar/timeline below are list
-  // VISUALIZATIONS, not page kinds — retained pending a separate cleanup.
+export type PageVisualizationAlias =
   | 'grid'
-  | 'list'
   | 'gallery'
   | 'kanban'
   | 'calendar'
   | 'timeline';
+
+/**
+ * Page Type
+ * Determines page behavior and default layout template.
+ *
+ * The spec-owned half is `@objectstack/spec`'s `PageType` **by reference**
+ * (issue #2231/#2901; formerly a hand-written union). That mirror had drifted in
+ * BOTH directions at once — it carried the five visualization names above, which
+ * the spec explicitly repudiates, while the sibling zod `PageTypeSchema` in
+ * `zod/layout.zod.ts` was missing `list`. Three disagreeing definitions of one
+ * vocabulary lived in this package.
+ */
+export type PageType = SpecPageType | PageVisualizationAlias;
 
 /**
  * Page Variable
