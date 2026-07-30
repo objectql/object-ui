@@ -34,20 +34,7 @@ import {
 } from '@object-ui/app-shell';
 import { ChatbotEnhanced } from '@object-ui/plugin-chatbot';
 
-interface ResolvedShare {
-  link: {
-    id: string;
-    token: string;
-    object_name: string;
-    record_id: string;
-    permission: 'view' | 'comment' | 'edit';
-    audience: string;
-    expires_at?: string | null;
-    label?: string | null;
-  };
-  record: Record<string, unknown>;
-  redactedFields?: string[];
-}
+import { normalizeResolvedShare, type ResolvedShare } from './shared-record-shape';
 
 function resolveServerUrl(): string {
   const env = (import.meta as any).env ?? {};
@@ -102,18 +89,8 @@ export default function SharedRecordPage() {
           setLoading(false);
           return;
         }
-        const body = (await res.json()) as
-          | { data: ResolvedShare }
-          | { record: unknown; link: ResolvedShare['link']; redactFields?: string[] };
-        const resolved: ResolvedShare =
-          'data' in body
-            ? body.data
-            : {
-                record: body.record as Record<string, unknown>,
-                link: body.link,
-                redactedFields: (body as any).redactFields,
-              };
-        setData(resolved);
+        // Both envelopes fold to the same shape here — see `normalizeResolvedShare`.
+        setData(normalizeResolvedShare(await res.json()));
         setNeedsPassword(false);
       } catch (e: any) {
         setError(e?.message ?? 'Failed to load shared content.');
