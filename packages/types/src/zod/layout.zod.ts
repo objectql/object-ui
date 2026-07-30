@@ -18,10 +18,11 @@
 
 import { z } from 'zod';
 import {
+  PageSchema as SpecPageSchema,
   PageTypeSchema as SpecPageTypeSchema,
   PageVariableSchema as SpecPageVariableSchema,
 } from '@objectstack/spec/ui';
-import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
+import { BaseSchema, SchemaNodeSchema, specFieldsExcept } from './base.zod.js';
 
 /**
  * Div Schema - Basic HTML container
@@ -273,10 +274,41 @@ export const PageVariableSchema = SpecPageVariableSchema;
 export const PageTypeSchema = SpecPageTypeSchema;
 
 /**
- * Page Schema - Top-level page layout
- * Aligned with @objectstack/spec PageSchema
+ * Spec-owned Page fields, flowing in **by reference** (objectstack#4115).
+ *
+ * `BaseSchema` is `.passthrough()` while the spec's `PageSchema` is strict, so
+ * before this derivation every spec-only key rode through objectui completely
+ * unvalidated — `interfaceConfig`, `kind`, `slots`, `source`, `requires` and
+ * `aria` were neither checked nor even declared. `source` was the sharpest
+ * hole: `kind: 'html' | 'react'` pages carry their body in `source`, so a
+ * source-authored page could not be expressed here at all.
+ *
+ * Omitted, each for a stated reason:
+ *  - `name`/`label`/`description` — component-envelope keys owned by BaseSchema;
+ *  - `type` — the names genuinely collide: spec's `type` IS the page kind
+ *    (`record|app|utility|list|home`), objectui's is the component
+ *    discriminator (`'page'`) and the kind lives on `pageType` below.
+ *    Reconciling the two is a rename decision tracked separately;
+ *  - `regions` — objectui's `PageRegionSchema` adds `type`/`className` and
+ *    widens `width`; migration deferred (it is its own ledger entry).
+ *
+ * `.partial()` guarantees no *future* spec field can become required and
+ * silently invalidate stored objectui pages.
  */
-export const PageSchema = BaseSchema.extend({
+const SpecPageFields = specFieldsExcept(SpecPageSchema.shape, [
+  'name',
+  'label',
+  'description',
+  'type',
+  'regions',
+] as const);
+
+/**
+ * Page Schema — top-level page layout, derived from `@objectstack/spec/ui`
+ * `PageSchema` (see {@link SpecPageFields}). The drift guard is
+ * `__tests__/page-app-dashboard-spec-parity.test.ts`.
+ */
+export const PageSchema = BaseSchema.extend(SpecPageFields.shape).extend({
   type: z.literal('page'),
   title: z.string().optional().describe('Page title'),
   icon: z.string().optional().describe('Page icon (Lucide icon name)'),

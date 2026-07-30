@@ -148,6 +148,36 @@ const BaseSchemaCore = z.object({
 export const BaseSchema = BaseSchemaCore;
 
 /**
+ * A spec schema's fields, minus the keys objectui declares locally, as an
+ * all-optional shape ready for `BaseSchema.extend(…)` (objectstack#4115).
+ *
+ * `BaseSchema` is `.passthrough()` while the spec's document schemas are
+ * strict, so a renderer node that does not declare the spec's fields lets
+ * every one of them ride through *unvalidated*. Spreading this result back in
+ * makes them validated again without closing the node to renderer props.
+ *
+ * Two deliberate properties:
+ *  - **by reference** — a field the spec adds is picked up automatically
+ *    rather than re-typed (and the per-node drift guard fails if it was never
+ *    triaged);
+ *  - **`.partial()`** — no future spec field can become required and silently
+ *    invalidate payloads objectui has already stored.
+ *
+ * Reads `.shape` rather than calling `SpecSchema.omit({…}).partial()` because
+ * zod 4 refuses `.omit()` on an object carrying refinements — spec's
+ * `PageSchema` has one, so the idiomatic form throws at import time.
+ */
+export function specFieldsExcept<T extends z.ZodRawShape, K extends keyof T & string>(
+  shape: T,
+  omit: readonly K[],
+) {
+  const kept = Object.fromEntries(
+    Object.entries(shape).filter(([key]) => !omit.includes(key as K)),
+  ) as Omit<T, K>;
+  return z.object(kept).partial();
+}
+
+/**
  * Component Input Configuration
  */
 export const ComponentInputSchema = z.object({

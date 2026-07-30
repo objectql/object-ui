@@ -17,7 +17,8 @@
  */
 
 import { z } from 'zod';
-import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
+import { DashboardSchema as SpecDashboardSchema } from '@objectstack/spec/ui';
+import { BaseSchema, SchemaNodeSchema, specFieldsExcept } from './base.zod.js';
 import { DASHBOARD_COLOR_VARIANTS, DASHBOARD_WIDGET_TYPES } from '../designer.js';
 
 /**
@@ -322,7 +323,40 @@ export const GlobalFilterSchema = z.object({
 /**
  * Dashboard Schema - Dashboard component
  */
-export const DashboardSchema = BaseSchema.extend({
+/**
+ * Spec-owned Dashboard fields, flowing in **by reference** (objectstack#4115).
+ *
+ * `BaseSchema` is `.passthrough()` while the spec's `DashboardSchema` is
+ * strict, so before this derivation every spec-only key rode through objectui
+ * unvalidated — `header`, `refreshInterval`, `performance`, `aria`,
+ * `protection` and the `_lock*`/`_package*`/`_provenance` package-lock
+ * envelope were neither checked nor declared.
+ *
+ * Omitted, each for a stated reason:
+ *  - `name`/`label`/`description` — component-envelope keys owned by BaseSchema;
+ *  - `widgets`/`globalFilters`/`dateRange` — objectui's element schemas are
+ *    their own ledger entries (the local widget still carries the legacy
+ *    `component` envelope the spec has no room for, and both local configs are
+ *    deliberately looser than spec's); migration deferred.
+ *
+ * `.partial()` guarantees no *future* spec field can become required and
+ * silently invalidate stored objectui dashboards.
+ */
+const SpecDashboardFields = specFieldsExcept(SpecDashboardSchema.shape, [
+  'name',
+  'label',
+  'description',
+  'widgets',
+  'globalFilters',
+  'dateRange',
+] as const);
+
+/**
+ * Dashboard Schema — the objectui dashboard renderer node, derived from
+ * `@objectstack/spec/ui` `DashboardSchema` (see {@link SpecDashboardFields}).
+ * The drift guard is `__tests__/page-app-dashboard-spec-parity.test.ts`.
+ */
+export const DashboardSchema = BaseSchema.extend(SpecDashboardFields.shape).extend({
   type: z.literal('dashboard'),
   columns: z.number().optional().describe('Number of columns'),
   gap: z.number().optional().describe('Grid gap'),

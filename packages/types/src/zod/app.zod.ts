@@ -17,7 +17,8 @@
  */
 
 import { z } from 'zod';
-import { BaseSchema } from './base.zod.js';
+import { AppSchema as SpecAppSchema } from '@objectstack/spec/ui';
+import { BaseSchema, specFieldsExcept } from './base.zod.js';
 
 // ============================================================================
 // Unified NavigationItem Schema
@@ -151,7 +152,42 @@ export const AppContextSelectorSchema = z.object({
 /**
  * App Schema - Top-level application configuration
  */
-export const AppSchema = BaseSchema.extend({
+/**
+ * Spec-owned App fields, flowing in **by reference** (objectstack#4115).
+ *
+ * `BaseSchema` is `.passthrough()` while the spec's `AppSchema` is strict, so
+ * before this derivation 23 spec-only keys rode through objectui completely
+ * unvalidated — `branding`, `sharing`, `embed`, `objects`, `apis`,
+ * `requiredPermissions`, `homePageId`, `protection` and the whole
+ * `_lock*`/`_package*`/`_provenance` package-lock envelope. A typo in any of
+ * them (`brading: {…}`) was invisible, and a packaged app round-tripped
+ * through this schema lost nothing only by luck.
+ *
+ * Omitted, each for a stated reason:
+ *  - `name`/`label`/`description` — component-envelope keys owned by BaseSchema;
+ *  - `navigation`/`areas`/`contextSelectors` — objectui's element schemas are
+ *    their own ledger entries (they drift from the spec's on `badgeVariant`,
+ *    `expanded`/`defaultOpen`, `visible` and target-field requiredness);
+ *    migrating them is a separate, larger decision.
+ *
+ * `.partial()` guarantees no *future* spec field can become required and
+ * silently invalidate stored objectui apps.
+ */
+const SpecAppFields = specFieldsExcept(SpecAppSchema.shape, [
+  'name',
+  'label',
+  'description',
+  'navigation',
+  'areas',
+  'contextSelectors',
+] as const);
+
+/**
+ * App Schema — the objectui app-shell renderer node, derived from
+ * `@objectstack/spec/ui` `AppSchema` (see {@link SpecAppFields}). The drift
+ * guard is `__tests__/page-app-dashboard-spec-parity.test.ts`.
+ */
+export const AppSchema = BaseSchema.extend(SpecAppFields.shape).extend({
   type: z.literal('app'),
   name: z.string().optional().describe('Application name (system ID)'),
   title: z.string().optional().describe('Display title'),
