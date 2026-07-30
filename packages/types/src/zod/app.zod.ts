@@ -27,7 +27,7 @@ import { BaseSchema } from './base.zod.js';
  * Navigation Item Type enum
  */
 export const NavigationItemTypeSchema = z.enum([
-  'object', 'dashboard', 'page', 'report', 'url', 'group', 'separator', 'action',
+  'object', 'dashboard', 'page', 'report', 'url', 'component', 'group', 'separator', 'action',
 ]);
 
 /**
@@ -50,6 +50,8 @@ export const NavigationItemSchema: z.ZodType<any> = z.lazy(() => z.object({
   reportName: z.string().optional().describe('Target report name (type: report)'),
   url: z.string().optional().describe('Target URL (type: url)'),
   target: z.enum(['_blank', '_self']).optional().describe('Link target (type: url)'),
+  componentRef: z.string().optional().describe('Target component reference (type: component) — colon-joined ComponentRegistry key e.g. metadata:resource, routed to /component/<ns>/<name>'),
+  params: z.record(z.string(), z.unknown()).optional().describe('Extra parameters (type: component | page) — serialised as querystring; string values support {current_user_id}/{current_org_id}'),
 
   // Grouping
   children: z.array(z.lazy(() => NavigationItemSchema)).optional().describe('Child items (type: group)'),

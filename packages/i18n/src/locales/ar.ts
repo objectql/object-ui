@@ -1071,6 +1071,7 @@ const ar = {
     navTypeGroup: "مجموعة",
     navTypeSeparator: "فاصل",
     navTypeAction: "إجراء",
+    navTypeComponent: "مكوّن",
     navEditIcon: "تعديل الأيقونة",
     navToggleVisible: "تبديل الرؤية",
     navHidden: "مخفي",

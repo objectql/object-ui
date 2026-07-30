@@ -120,6 +120,28 @@ describe('AppSchemaRenderer', () => {
     expect(pageLink?.getAttribute('href')).toBe('/apps/crm/page/settings');
   });
 
+  // #2918 — `type: 'component'` is part of the nav vocabulary; the sidebar
+  // renders it as a link to the ComponentRegistry route.
+  it('renders a component navigation item with its /component href', () => {
+    const schema: AppSchema = {
+      type: 'app',
+      name: 'crm',
+      title: 'Sales CRM',
+      navigation: [
+        {
+          id: 'nc',
+          type: 'component',
+          label: 'Permissions',
+          icon: 'Puzzle',
+          componentRef: 'setup:permission_matrix',
+        },
+      ],
+    };
+    renderApp(schema);
+    const link = screen.getByText('Permissions').closest('a');
+    expect(link?.getAttribute('href')).toBe('/apps/crm/component/setup/permission_matrix');
+  });
+
   // --- Legacy menu migration ---
 
   it('renders legacy menu items converted to NavigationItem', () => {

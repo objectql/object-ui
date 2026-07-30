@@ -89,6 +89,7 @@ const DESIGNER_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'appDesigner.navTypeGroup': 'Group',
   'appDesigner.navTypeSeparator': 'Separator',
   'appDesigner.navTypeAction': 'Action',
+  'appDesigner.navTypeComponent': 'Component',
   'appDesigner.navEditIcon': 'Edit icon',
   'appDesigner.navToggleVisible': 'Toggle visibility',
   'appDesigner.navHidden': 'Hidden',

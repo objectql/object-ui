@@ -212,3 +212,69 @@ describe('resolveActiveNavItem — single winner across the tree', () => {
     }
   });
 });
+
+// ============================================================================
+// component targets (#2918) — the renderer half predates the vocabulary; these
+// items now typecheck as NavigationItem without casts.
+// ============================================================================
+
+describe('resolveHref — component targets', () => {
+  function componentItem(extra: Partial<NavigationItem> = {}): NavigationItem {
+    return { id: 'nav_comp', type: 'component', label: 'Comp', ...extra };
+  }
+
+  it('componentRef → /component/<ns>/<name>', () => {
+    const { href, external } = resolveHref(
+      componentItem({ componentRef: 'setup:permission_matrix' }),
+      BASE,
+    );
+    expect(href).toBe(`${BASE}/component/setup/permission_matrix`);
+    expect(external).toBe(false);
+  });
+
+  it('params are serialised as querystring (non-strings as JSON)', () => {
+    const { href } = resolveHref(
+      componentItem({ componentRef: 'foo:bar', params: { mode: 'compact', page: 2 } }),
+      BASE,
+    );
+    expect(href.startsWith(`${BASE}/component/foo/bar?`)).toBe(true);
+    const q = queryOf(href);
+    expect(q.get('mode')).toBe('compact');
+    expect(q.get('page')).toBe('2');
+  });
+
+  it('missing componentRef → dead link', () => {
+    expect(resolveHref(componentItem(), BASE).href).toBe('#');
+  });
+
+  it('metadata:directory → /metadata', () => {
+    const { href } = resolveHref(
+      componentItem({ componentRef: 'metadata:directory' }),
+      BASE,
+    );
+    expect(href).toBe(`${BASE}/metadata`);
+  });
+
+  it('metadata:resource + params.type/name → nested /metadata path', () => {
+    expect(
+      resolveHref(componentItem({ componentRef: 'metadata:resource', params: { type: 'object' } }), BASE).href,
+    ).toBe(`${BASE}/metadata/object`);
+    expect(
+      resolveHref(
+        componentItem({ componentRef: 'metadata:resource', params: { type: 'object', name: 'task' } }),
+        BASE,
+      ).href,
+    ).toBe(`${BASE}/metadata/object/task`);
+  });
+
+  it('metadata extra params: templates resolve via context, unresolved are dropped', () => {
+    const item = componentItem({
+      componentRef: 'metadata:resource',
+      params: { type: 'object', package: '{active_package}' },
+    });
+    const scoped = resolveHref(item, BASE, { contextValues: { active_package: 'crm_core' } });
+    expect(scoped.href).toBe(`${BASE}/metadata/object?package=crm_core`);
+    const unscoped = resolveHref(item, BASE);
+    expect(unscoped.href).toBe(`${BASE}/metadata/object`);
+  });
+});

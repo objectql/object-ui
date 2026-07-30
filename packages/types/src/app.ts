@@ -34,6 +34,7 @@ export type NavigationItemType =
   | 'page'
   | 'report'
   | 'url'
+  | 'component'
   | 'group'
   | 'separator'
   | 'action';
@@ -120,6 +121,22 @@ export interface NavigationItem {
 
   /** Link target (for type: 'url') */
   target?: '_blank' | '_self';
+
+  /**
+   * Target component reference (for type: 'component') — a colon-joined
+   * `ComponentRegistry` key (e.g. `metadata:resource`, `setup:permission_matrix`)
+   * identifying a first-party UI shipped with the platform. Routed to
+   * `/component/<ns>/<name>`. Mirrors `@objectstack/spec` `ComponentNavItem`.
+   */
+  componentRef?: string;
+
+  /**
+   * Extra parameters (for type: 'component' | 'page') — serialised as
+   * querystring so the same component/page can be reused across nav entries
+   * with different inputs (e.g. `params: { type: 'object' }`). String values
+   * support the same template variables as `recordId`.
+   */
+  params?: Record<string, unknown>;
 
   // -- Grouping --
 

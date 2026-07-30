@@ -1071,6 +1071,7 @@ const ko = {
     navTypeGroup: "그룹",
     navTypeSeparator: "구분선",
     navTypeAction: "작업",
+    navTypeComponent: "컴포넌트",
     navEditIcon: "아이콘 편집",
     navToggleVisible: "가시성 토글",
     navHidden: "숨김",

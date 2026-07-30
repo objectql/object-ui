@@ -1071,6 +1071,7 @@ const de = {
     navTypeGroup: "Gruppe",
     navTypeSeparator: "Trenner",
     navTypeAction: "Aktion",
+    navTypeComponent: "Komponente",
     navEditIcon: "Symbol bearbeiten",
     navToggleVisible: "Sichtbarkeit umschalten",
     navHidden: "Ausgeblendet",

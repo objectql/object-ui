@@ -220,11 +220,11 @@ function MobileBottomNav({
         else if (item.type === 'report') href = item.reportName ? `${basePath}/report/${item.reportName}` : '#';
         else if (item.type === 'url') href = item.url ?? '#';
         else if (item.type === 'component') {
-          const ref = (item as any).componentRef as string | undefined;
+          const ref = item.componentRef;
           if (ref) {
             const segs = ref.split(':').filter(Boolean);
             href = `${basePath}/component/${segs.join('/')}`;
-            const navParams = (item as any).params as Record<string, unknown> | undefined;
+            const navParams = item.params;
             if (navParams) {
               const usp = new URLSearchParams();
               for (const [k, v] of Object.entries(navParams)) {
