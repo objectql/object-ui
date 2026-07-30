@@ -173,7 +173,14 @@ export interface ActionSchema {
   /** Action execution type */
   type: ActionType;
   
-  /** Target for the action (URL, script name, etc.) */
+  /**
+   * Target for the action (URL, script name, etc.) — the **only** handler slot.
+   *
+   * The `execute` alias was removed in `@objectstack/spec` 17 (#3855); this
+   * interface no longer declares it, so `execute: '…'` now fails `tsc` at the
+   * authoring site instead of binding a second handler nothing agrees on
+   * (#3713, #3856). Rename to `target`; the value is unchanged.
+   */
   target?: string;
 
   /**
@@ -197,9 +204,6 @@ export interface ActionSchema {
    */
   openIn?: 'self' | 'new-tab';
 
-  /** Script to execute (for type: 'script') */
-  execute?: string;
-  
   /** API endpoint (for type: 'api') */
   endpoint?: string;
   
@@ -283,9 +287,9 @@ export interface ActionSchema {
    * URL to the clipboard — UI side-effects that are not part of the domain
    * action protocol and therefore need not be serialized over the wire.
    *
-   * When present, `onClick` takes precedence over `type` / `target` /
-   * `execute`. Prefer {@link ActionEngine}-routed actions for anything that
-   * could originate from server-driven metadata.
+   * When present, `onClick` takes precedence over `type` / `target`. Prefer
+   * {@link ActionEngine}-routed actions for anything that could originate from
+   * server-driven metadata.
    */
   onClick?: () => void | Promise<void>;
 }

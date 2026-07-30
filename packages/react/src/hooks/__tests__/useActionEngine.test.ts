@@ -11,7 +11,7 @@ describe('useActionEngine', () => {
     {
       name: 'mark_complete',
       type: 'script',
-      execute: 'true',
+      target: 'true',
       locations: ['list_toolbar', 'record_header'],
       bulkEnabled: true,
     },
@@ -30,7 +30,7 @@ describe('useActionEngine', () => {
     {
       name: 'global_search',
       type: 'script',
-      execute: 'true',
+      target: 'true',
       locations: ['global_nav'],
       shortcut: 'ctrl+k',
     },

@@ -99,7 +99,6 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
           // Static "open in new tab" switch for url actions — forward so the
           // runner's executeUrl honors it (dropped, the toggle is silently lost).
           openIn: (schema as any).openIn,
-          execute: schema.execute,
           endpoint: schema.endpoint,
           method: schema.method,
           ...paramsPayload,

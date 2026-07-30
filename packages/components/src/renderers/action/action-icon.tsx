@@ -62,7 +62,6 @@ const ActionIconRenderer = forwardRef<HTMLButtonElement, ActionIconProps>(
           name: schema.name,
           target: schema.target,
           openIn: (schema as any).openIn,
-          execute: schema.execute,
           endpoint: schema.endpoint,
           method: schema.method,
           params: schema.params as Record<string, any> | undefined,

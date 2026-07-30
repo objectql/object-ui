@@ -151,7 +151,10 @@ export function ActionPreview({ name, draft }: MetadataPreviewProps) {
   const label = localize(d.label) || actionName;
   const icon = (d.icon as string | undefined) || undefined;
   const type = String(d.type ?? 'script');
-  const target = (d.target as string | undefined) ?? (d.execute as string | undefined);
+  // `target` only: the `execute` alias was removed in @objectstack/spec 17
+  // (#3855, #3856). Reading it here would preview a draft as bound when the
+  // spec rejects it at save, which is the opposite of what a preview is for.
+  const target = d.target as string | undefined;
   const variant = (d.variant as string | undefined) || undefined;
   const component = String(d.component ?? '');
   const locations = Array.isArray(d.locations) ? (d.locations as string[]) : [];

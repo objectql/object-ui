@@ -194,13 +194,13 @@ describe('ActionRunner', () => {
     it('should evaluate script expression', async () => {
       const result = await runner.execute({
         type: 'script',
-        execute: 'record.id + 100',
+        target: 'record.id + 100',
       });
       expect(result.success).toBe(true);
       expect(result.data).toBe(101);
     });
 
-    it('should evaluate script from the canonical target field', async () => {
+    it('should evaluate a script expression against the data scope', async () => {
       const result = await runner.execute({
         type: 'script',
         target: 'data.name',
@@ -209,17 +209,21 @@ describe('ActionRunner', () => {
       expect(result.data).toBe('Test');
     });
 
-    it('should prefer canonical target over the deprecated execute alias', async () => {
-      // Spec >=16.1 folds `execute` into `target` at parse, so the two keys only
-      // coexist on raw metadata. When they do, canonical wins — the same
-      // precedence ActionPreview and the spec's own fold already use.
+    it('should not read the retired execute alias, and should prescribe the rename', async () => {
+      // `execute` was removed in @objectstack/spec 17 (#3855) — the parser now
+      // rejects it outright, so no parsed action can carry it and the runner has
+      // exactly one handler slot (#3856). Pinned as a test because the failure
+      // mode of re-adding `target || execute` is invisible: it type-checks (
+      // ActionDef is open-ended) and it runs, it just resurrects the two-slot
+      // ambiguity that had one action running different scripts on each side of
+      // the wire (#3713).
       const result = await runner.execute({
         type: 'script',
-        target: 'data.name',
         execute: 'record.id + 100',
       });
-      expect(result.success).toBe(true);
-      expect(result.data).toBe('Test');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('`execute` was removed');
+      expect(result.error).toContain('`target`');
     });
 
     it('should fail when no script provided', async () => {
@@ -264,7 +268,7 @@ describe('ActionRunner', () => {
     it('should return data as undefined for expressions referencing missing vars', async () => {
       const result = await runner.execute({
         type: 'script',
-        execute: 'data.nonExistent',
+        target: 'data.nonExistent',
       });
       // ExpressionEvaluator returns undefined for missing properties (doesn't throw)
       expect(result.success).toBe(true);
@@ -875,7 +879,7 @@ describe('ActionRunner', () => {
   describe('executeAction', () => {
     it('should execute an action with the convenience function', async () => {
       const result = await executeAction(
-        { type: 'script', execute: '1 + 2' },
+        { type: 'script', target: '1 + 2' },
         { data: {} },
       );
       expect(result.success).toBe(true);

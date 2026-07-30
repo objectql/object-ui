@@ -128,9 +128,15 @@ export interface ActionDef {
    * reveal dialog rendering `result.data` (see ResultDialogSpec).
    */
   resultDialog?: ResultDialogSpec;
-  /** Script/expression to execute (for type: 'script') */
-  execute?: string;
-  /** Target URL or identifier (for type: 'url', 'modal', 'flow') */
+  /**
+   * The one handler slot: script name/expression for `type: 'script'`, URL for
+   * `'url'`, flow name for `'flow'`, modal/page for `'modal'`, endpoint for
+   * `'api'`, FormView name for `'form'`.
+   *
+   * The `execute` alias was REMOVED in @objectstack/spec 17 (#3855) and is not
+   * read here (#3856) — don't re-add it. Two handler slots is how one action ran
+   * one script server-side and a different one client-side (#3713).
+   */
   target?: string;
   /**
    * Action body (spec `ActionSchema.body` — `HookBodySchema`). Opaque here:
@@ -718,18 +724,17 @@ export class ActionRunner {
    * Supports ${} template expressions referencing data, record, user context.
    */
   private async executeScript(action: ActionDef): Promise<ActionResult> {
-    // `target` is the canonical binding; `execute` is its deprecated alias
-    // (@objectstack/spec ActionSchema). Canonical wins when both are present,
-    // matching the spec's own fold and ActionPreview's `target ?? execute`.
-    // Spec >=16.1 folds `execute` into `target` and drops it at parse, so this
-    // only bites on raw, unparsed metadata — where the two readers used to
-    // disagree. Alias-only authoring still works via the fallback.
-    const script = action.target || action.execute;
+    // `target` is the only handler slot. The `execute` alias was removed in
+    // @objectstack/spec 17 (#3855), which rejects an authored `execute` at parse
+    // with the rename prescription — so parsed metadata cannot carry it and a
+    // `target || execute` fallback could only ever evaluate to `target` (#3856).
+    const script = action.target;
     if (!script) {
       // A spec `body` IS a script — this runner just cannot run one (see the
       // `body` field docs). Saying "no script provided" would send the author
       // hunting for a missing field they actually wrote, so name the real
-      // cause and the remedy instead.
+      // cause and the remedy instead. Checked before the retired `execute` key:
+      // a `body` action ignores `target`, so "rename it" would be wrong advice.
       if (action.body != null) {
         return {
           success: false,
@@ -737,6 +742,20 @@ export class ActionRunner {
             'Action body must be executed server-side — this client runner does not interpret ' +
             '`body` (sandboxed JS needs an isolated VM; expression bodies use the formula engine). ' +
             'Register a `script` handler that POSTs to /api/v1/actions/{object}/{action}.',
+        };
+      }
+      // ActionDef is open-ended (`[key: string]: any`), so hand-authored
+      // metadata that never passed through the spec parser still compiles with
+      // the retired key. Carry the same prescription the spec's tombstone does,
+      // for the same reason: a bare "no script provided" reads as "you forgot a
+      // field" to an author who did write one.
+      if (typeof action.execute === 'string') {
+        return {
+          success: false,
+          error:
+            '`execute` was removed in @objectstack/spec 17 — rename the key to `target`. ' +
+            'The value (a script name or expression) is unchanged. ' +
+            'Run `os migrate meta --from 16` to rewrite it automatically.',
         };
       }
       return { success: false, error: 'No script provided for script action' };

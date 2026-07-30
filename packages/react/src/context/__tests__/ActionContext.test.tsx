@@ -66,7 +66,7 @@ describe('ActionContext', () => {
       await act(async () => {
         actionResult = await result.current.execute({
           type: 'script',
-          execute: 'true',
+          target: 'true',
           toast: { showOnSuccess: true },
           successMessage: 'Done!',
         });
@@ -117,8 +117,8 @@ describe('ActionContext', () => {
       let chainResult: any;
       await act(async () => {
         chainResult = await result.current.executeChain([
-          { type: 'script', execute: 'true' },
-          { type: 'script', execute: 'true' },
+          { type: 'script', target: 'true' },
+          { type: 'script', target: 'true' },
         ]);
       });
 
@@ -162,7 +162,7 @@ describe('ActionContext', () => {
       await act(async () => {
         await result.current.execute({
           type: 'script',
-          execute: 'true',
+          target: 'true',
           toast: { showOnSuccess: true },
           successMessage: 'Saved!',
         });

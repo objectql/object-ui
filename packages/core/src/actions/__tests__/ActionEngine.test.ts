@@ -96,7 +96,7 @@ describe('ActionEngine', () => {
 
   describe('dispatch', () => {
     it('executes mapped actions for an event', async () => {
-      engine.registerAction({ name: 'log', type: 'script', execute: '"logged"' });
+      engine.registerAction({ name: 'log', type: 'script', target: '"logged"' });
       engine.addMapping({ event: 'row:click', actionName: 'log' });
 
       const results = await engine.dispatch('row:click');
@@ -111,7 +111,7 @@ describe('ActionEngine', () => {
 
     it('skips actions when mapping condition is false', async () => {
       engine = new ActionEngine({ data: { status: 'locked' } });
-      engine.registerAction({ name: 'edit', type: 'script', execute: '"edited"' });
+      engine.registerAction({ name: 'edit', type: 'script', target: '"edited"' });
       engine.addMapping({ 
         event: 'row:click', 
         actionName: 'edit',
@@ -126,7 +126,7 @@ describe('ActionEngine', () => {
   describe('handleShortcut', () => {
     it('executes action for matching shortcut', async () => {
       engine.registerAction(
-        { name: 'save', type: 'script', execute: '"saved"' },
+        { name: 'save', type: 'script', target: '"saved"' },
         { shortcut: 'ctrl+s' }
       );
 
@@ -137,7 +137,7 @@ describe('ActionEngine', () => {
 
     it('normalizes shortcut key order', async () => {
       engine.registerAction(
-        { name: 'save', type: 'script', execute: '"saved"' },
+        { name: 'save', type: 'script', target: '"saved"' },
         { shortcut: 'ctrl+shift+s' }
       );
 
@@ -156,7 +156,7 @@ describe('ActionEngine', () => {
   describe('executeBulk', () => {
     it('executes action on multiple records sequentially', async () => {
       engine.registerAction(
-        { name: 'approve', type: 'script', execute: '"approved"' },
+        { name: 'approve', type: 'script', target: '"approved"' },
         { bulkEnabled: true }
       );
 
