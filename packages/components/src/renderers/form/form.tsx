@@ -461,7 +461,18 @@ ComponentRegistry.register('form',
     const baselineRef = React.useRef<Record<string, unknown>>(
       (defaultValues ?? {}) as Record<string, unknown>,
     );
-    React.useEffect(() => {
+    // LAYOUT effect, deliberately — not a passive one. A passive effect runs a
+    // commit LATER than the render that produced the new values, so there is a
+    // window in which the new inputs are already mounted and interactive but the
+    // form still holds the old record. Anything typed in that window is
+    // destroyed: the pending `reset()` overwrites the whole record with
+    // `defaultValues`, silently dropping the field the user just filled. A
+    // layout effect runs synchronously inside the same commit, before the
+    // browser can paint or deliver a keystroke to those inputs, so the window
+    // does not exist. This surfaced as a flaky wizard test (#2982): a step
+    // transition changes `defaultValues`, and a value entered on the new step
+    // before the deferred reset landed vanished from the create payload.
+    React.useLayoutEffect(() => {
       let key: string;
       try { key = JSON.stringify(defaultValues ?? {}); } catch { key = String(Date.now()); }
       if (lastDefaultsKey.current === key) return;
@@ -474,8 +485,17 @@ ComponentRegistry.register('form',
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [defaultValues]);
 
-    // Watch for form changes - only track changes when onAction is available
-    React.useEffect(() => {
+    // Watch for form changes - only track changes when onAction is available.
+    // LAYOUT effect to stay in the same phase as the `defaultValues` reset
+    // above. React runs every layout DESTROY (mutation phase) before any layout
+    // CREATE, so a caller passing a fresh `onAction` each render — the common
+    // case, it is usually an inline arrow — has this subscription torn down
+    // before the reset runs and re-established after. That is what keeps a
+    // reset from being reported as a user edit. Leaving this passive while the
+    // reset is layout-phase inverts the order: the reset fires into the still
+    // live previous subscription and a record landing looks like the user
+    // editing every field it filled (#2968).
+    React.useLayoutEffect(() => {
       if (onAction) {
         const subscription = form.watch((data) => {
           onAction({
@@ -492,8 +512,9 @@ ComponentRegistry.register('form',
     // accidental discard of unsaved input). We compute it via a normalized
     // comparison against the pristine baseline (see computeDirty) rather than
     // react-hook-form's `isDirty`, which false-positives on fields that
-    // self-normalize their empty value on mount.
-    React.useEffect(() => {
+    // self-normalize their empty value on mount. Layout-phase for the same
+    // ordering reason as the subscription above.
+    React.useLayoutEffect(() => {
       const subscription = form.watch((values) => {
         onDirtyChangeProp?.(
           computeDirty(baselineRef.current, values as Record<string, unknown>),
