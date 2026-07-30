@@ -182,6 +182,38 @@ The `previewMode` object contains:
 | `expiresInSeconds` | `number` | `0` | Session duration (0 = no expiry) |
 | `bannerMessage` | `string` | — | UI banner message |
 
+### useNotifications / useNotificationsByPresentation
+
+`NotificationProvider` implements the spec `NotificationSchema`. A notification's
+`severity` picks its icon and tone; its `displayType` picks the **surface** that
+renders it — and each of the five spec types has a distinct one:
+
+| `displayType` | Presentation | Rendered by | Auto-dismiss |
+| --- | --- | --- | --- |
+| `toast` | transient overlay | the `onToast` delegate | yes |
+| `snackbar` | bottom-anchored bar, one at a time, one action | `<NotificationSnackbar />` | yes |
+| `banner` | page-width strip in the content flow | `<NotificationBanners />` | no |
+| `alert` | blocking acknowledgement dialog (FIFO) | `<NotificationAlerts />` | no |
+| `inline` | in place, at the raising surface | `<NotificationInline />` | no |
+
+The surface components ship in `@object-ui/components`; mount them where they
+belong (a banner is in flow, an inline notification sits next to its raiser).
+`onToast` receives **only** `toast` items — it used to receive all five, which is
+why every type looked like a toast.
+
+```tsx
+const { notify } = useNotifications()
+
+notify({ title: 'Saved', severity: 'success' })                     // toast (spec default)
+notify({ title: 'Viewing a draft', severity: 'warning', displayType: 'banner' })
+notify({ title: 'Fix 2 fields', severity: 'error', displayType: 'inline', scope: 'contact-form' })
+```
+
+A surface component subscribes with `useNotificationsByPresentation(type, scope?)`,
+which also registers the surface — raising a `banner` with no banner surface
+mounted warns in dev instead of vanishing. See the
+[notifications guide](https://objectui.org/docs/guide/notifications).
+
 ## API Reference
 
 See [full documentation](https://objectui.org/api/react) for detailed API reference.

@@ -14,26 +14,97 @@
  * NotificationActionSchema from @objectstack/spec v2.0.7.
  */
 
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 /** Notification severity levels aligned with NotificationSeveritySchema */
 export type NotificationSeverityLevel = 'info' | 'success' | 'warning' | 'error';
 
 /**
- * Notification display type — the spec `NotificationTypeSchema`
+ * Notification presentation — the spec `NotificationTypeSchema`
  * (`ui/notification.zod.ts`: toast / snackbar / banner / alert / inline).
- * This union used to claim alignment while carrying a renderer-local `modal`
- * and missing `alert` / `inline` (#2942); `modal` stays accepted as a
- * deprecated legacy spelling for stored items.
+ * Every member has a DISTINCT presentation; see {@link NOTIFICATION_PRESENTATIONS}.
  */
-export type NotificationDisplayType =
+export type NotificationPresentation =
   | 'toast'
   | 'snackbar'
   | 'banner'
   | 'alert'
-  | 'inline'
+  | 'inline';
+
+/**
+ * Notification display type as AUTHORED. Identical to
+ * {@link NotificationPresentation} plus the deprecated renderer-local `modal`
+ * spelling, which stored items may still carry (#2942) and which resolves to
+ * `alert`. Use {@link resolveNotificationPresentation} to get the presentation.
+ */
+export type NotificationDisplayType =
+  | NotificationPresentation
   /** @deprecated renderer dialect — never in the spec; presented as `alert` */
   | 'modal';
+
+/**
+ * Where a presentation is rendered.
+ *
+ * - `delegate` — handed to the provider's `onToast` callback; the host owns the
+ *   overlay (sonner in the console). Historically EVERY type took this path,
+ *   which is why a `banner` surfaced as a toast (#3014).
+ * - everything else names a surface component that subscribes to the context
+ *   and renders the items in place. `@object-ui/components` ships one per
+ *   surface (`NotificationSnackbar` / `NotificationBanners` /
+ *   `NotificationAlerts` / `NotificationInline`).
+ */
+export type NotificationSurface = 'delegate' | 'snackbar' | 'banner' | 'alert' | 'inline';
+
+export interface NotificationPresentationBehavior {
+  /** The surface responsible for rendering this presentation. */
+  surface: NotificationSurface;
+  /**
+   * Whether the presentation auto-dismisses when the raiser declares no
+   * `duration`. A toast/snackbar is transient by definition; a banner is a
+   * persistent strip and an alert is a blocking acknowledgement, so neither may
+   * evaporate on the shared 5s timer. An explicit `duration` always wins.
+   */
+  transient: boolean;
+}
+
+/**
+ * The presentation table — one entry per spec `NotificationTypeSchema` member.
+ *
+ * Typed as `Record<NotificationPresentation, …>`, so adding a member to the
+ * spec enum fails type-check here until its presentation is decided, rather
+ * than silently falling back to a toast.
+ */
+export const NOTIFICATION_PRESENTATIONS: Record<
+  NotificationPresentation,
+  NotificationPresentationBehavior
+> = {
+  toast: { surface: 'delegate', transient: true },
+  snackbar: { surface: 'snackbar', transient: true },
+  banner: { surface: 'banner', transient: false },
+  alert: { surface: 'alert', transient: false },
+  inline: { surface: 'inline', transient: false },
+};
+
+/**
+ * Resolve an authored `displayType` to the presentation that renders it:
+ * the spec default (`toast`) when absent, and `alert` for the deprecated
+ * `modal` dialect.
+ */
+export function resolveNotificationPresentation(
+  displayType?: NotificationDisplayType,
+): NotificationPresentation {
+  if (displayType === 'modal') return 'alert';
+  if (displayType && displayType in NOTIFICATION_PRESENTATIONS) return displayType;
+  return 'toast';
+}
 
 /**
  * Notification position — the spec `NotificationPositionSchema`
@@ -65,9 +136,9 @@ export type NotificationPositionValue =
  * tests (#2942), which fail the moment `NotificationTypeSchema` /
  * `NotificationPositionSchema` and these sets drift in either direction.
  */
-export const SUPPORTED_NOTIFICATION_DISPLAY_TYPES: ReadonlySet<string> = new Set([
-  'toast', 'snackbar', 'banner', 'alert', 'inline',
-]);
+export const SUPPORTED_NOTIFICATION_DISPLAY_TYPES: ReadonlySet<string> = new Set(
+  Object.keys(NOTIFICATION_PRESENTATIONS),
+);
 export const SUPPORTED_NOTIFICATION_POSITIONS: ReadonlySet<string> = new Set([
   'top_left', 'top_center', 'top_right', 'bottom_left', 'bottom_center', 'bottom_right',
 ]);
@@ -85,10 +156,33 @@ export interface NotificationItem {
   title: string;
   message?: string;
   severity: NotificationSeverityLevel;
+  /**
+   * The presentation the raiser asked for. Materialized by `notify()` — stored
+   * items always carry a resolved {@link NotificationPresentation}, never
+   * `modal` and never `undefined`.
+   */
   displayType?: NotificationDisplayType;
   actions?: NotificationActionButton[];
-  /** Duration in ms (0 = persistent). Default: 5000 */
+  /**
+   * Duration in ms (0 = persistent). Defaults to the configured duration for
+   * TRANSIENT presentations (toast / snackbar) and to persistent for the rest —
+   * a banner that evaporates after 5s is not a banner.
+   */
   duration?: number;
+  /**
+   * Whether the surface offers a dismiss control (spec `dismissible`, default
+   * `true`). Only meaningful for the persistent presentations — a transient
+   * one dismisses itself.
+   */
+  dismissible?: boolean;
+  /**
+   * `inline` only — names the surface that raised it, so the matching
+   * `<NotificationInline scope="…" />` renders it in place instead of every
+   * inline outlet on the page showing every inline notification. Renderer-local
+   * routing metadata, not a spec field: the spec describes what a notification
+   * IS, not which React subtree hosts it.
+   */
+  scope?: string;
   /** Whether the notification has been read */
   read?: boolean;
   /** Timestamp */
@@ -113,7 +207,14 @@ export interface NotificationProviderProps {
   children: React.ReactNode;
   /** System configuration */
   config?: NotificationSystemConfig;
-  /** External toast handler (e.g., Sonner) for rendering toasts */
+  /**
+   * External toast handler (e.g. Sonner) — the `toast` presentation's surface.
+   *
+   * Called ONLY for `displayType: 'toast'`. It used to receive every
+   * notification, which is why the other four spec types all surfaced as
+   * toasts (#3014); they now render through their own surface components,
+   * which subscribe via {@link useNotificationsByPresentation}.
+   */
   onToast?: (notification: NotificationItem) => void;
 }
 
@@ -142,22 +243,58 @@ interface NotificationContextValue {
   clearAll: () => void;
   /** System configuration */
   config: NotificationSystemConfig;
+  /**
+   * Announce that a surface is mounted and will render `surface` items.
+   * Returns the unregister callback. Surfaces call this from an effect; the
+   * provider uses it only to warn (dev builds) when a notification is raised
+   * with nothing on screen able to present it.
+   */
+  registerSurface: (surface: NotificationSurface) => () => void;
 }
 
 let notificationCounter = 0;
+
+/** Dev-build check — same idiom as `SchemaRenderer`'s `__DEV__`. */
+const __DEV__ = (() => {
+  try {
+    return (globalThis as { process?: { env?: { NODE_ENV?: string } } }).process?.env?.NODE_ENV
+      !== 'production';
+  } catch {
+    return true;
+  }
+})();
+
+/** Dev-only guidance for a presentation raised with no surface mounted. */
+const SURFACE_HINTS: Record<NotificationSurface, string> = {
+  delegate: 'pass `onToast` to <NotificationProvider>',
+  snackbar: 'mount <NotificationSnackbar /> from @object-ui/components',
+  banner: 'mount <NotificationBanners /> from @object-ui/components',
+  alert: 'mount <NotificationAlerts /> from @object-ui/components',
+  inline: 'mount <NotificationInline /> from @object-ui/components at the raising surface',
+};
 
 const NotificationCtx = createContext<NotificationContextValue | null>(null);
 
 /**
  * NotificationProvider — Provides a spec-driven notification system.
  *
+ * Each spec display type is presented by its own surface. `toast` is delegated
+ * to the host (`onToast`); the other four are rendered by surface components
+ * that subscribe to this context — mount them where they belong:
+ * `NotificationSnackbar` / `NotificationAlerts` anywhere inside the provider,
+ * `NotificationBanners` at the top of the content area, and
+ * `NotificationInline` in the surface that raises the notification.
+ *
  * @example
  * ```tsx
  * <NotificationProvider
- *   config={{ position: 'top-right', defaultDuration: 5000, maxVisible: 5 }}
+ *   config={{ position: 'top_right', defaultDuration: 5000, maxVisible: 5 }}
  *   onToast={(n) => toast[n.severity](n.title, { description: n.message })}
  * >
+ *   <NotificationBanners />
  *   <App />
+ *   <NotificationSnackbar />
+ *   <NotificationAlerts />
  * </NotificationProvider>
  * ```
  */
@@ -180,16 +317,31 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
+  // Surfaces currently mounted, by presentation surface. A ref (not state) so
+  // `notify` can read the live set without re-creating itself on every mount.
+  const mountedSurfaces = useRef<Map<NotificationSurface, number>>(new Map());
+
+  const registerSurface = useCallback((surface: NotificationSurface) => {
+    const counts = mountedSurfaces.current;
+    counts.set(surface, (counts.get(surface) ?? 0) + 1);
+    return () => {
+      const next = (counts.get(surface) ?? 1) - 1;
+      if (next > 0) counts.set(surface, next);
+      else counts.delete(surface);
+    };
+  }, []);
+
   const notify = useCallback(
     (input: Omit<NotificationItem, 'id' | 'createdAt' | 'read'>): string => {
       const id = `notification-${++notificationCounter}`;
+      // Materialize the declared presentation (spec default: toast; the legacy
+      // `modal` dialect presents as its nearest spec family, alert) so every
+      // stored item carries the presentation that will render it (#2942).
+      const presentation = resolveNotificationPresentation(input.displayType);
+      const { surface, transient } = NOTIFICATION_PRESENTATIONS[presentation];
       const notification: NotificationItem = {
         ...input,
-        // Materialize the declared presentation (spec default: toast; the
-        // legacy `modal` dialect presents as its nearest spec family, alert)
-        // so the delegate can branch on it — it used to be stored and never
-        // read anywhere (#2942).
-        displayType: input.displayType === 'modal' ? 'alert' : (input.displayType ?? 'toast'),
+        displayType: presentation,
         id,
         createdAt: new Date(),
         read: false,
@@ -197,13 +349,28 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
 
       setNotifications((prev) => [notification, ...prev]);
 
-      // Delegate to external toast handler if provided
-      if (onToast) {
-        onToast(notification);
+      // Route to the presentation's surface. `onToast` is the `toast` surface —
+      // it used to receive EVERY type, so a banner/alert/inline notification
+      // presented as a toast (#3014). The other four are rendered by the
+      // surface components subscribing through the context below.
+      if (surface === 'delegate') onToast?.(notification);
+
+      // A surface-rendered presentation with no surface mounted is invisible —
+      // the "silently absent" shape this whole issue is about. Say so loudly in
+      // dev. `toast` is exempt: a provider with no `onToast` is the supported
+      // store-only mode (a notification centre with no overlay).
+      if (__DEV__ && surface !== 'delegate' && (mountedSurfaces.current.get(surface) ?? 0) === 0) {
+        console.warn(
+          `[NotificationProvider] "${notification.title}" declares displayType ` +
+            `'${presentation}' but no ${presentation} surface is mounted, so it will ` +
+            `not be shown. To present it, ${SURFACE_HINTS[surface]}.`,
+        );
       }
 
-      // Auto-dismiss non-persistent notifications
-      const duration = input.duration ?? config.defaultDuration ?? 5000;
+      // Auto-dismiss transient presentations. A banner/alert/inline stays until
+      // it is dismissed unless the raiser asked for a duration explicitly —
+      // sharing the toast timer made "persistent" presentations evaporate.
+      const duration = input.duration ?? (transient ? config.defaultDuration ?? 5000 : 0);
       if (duration > 0) {
         setTimeout(() => {
           setNotifications((prev) => prev.filter((n) => n.id !== id));
@@ -276,6 +443,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       dismiss,
       clearAll,
       config,
+      registerSurface,
     }),
     [
       notifications,
@@ -290,6 +458,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       dismiss,
       clearAll,
       config,
+      registerSurface,
     ],
   );
 
@@ -323,4 +492,37 @@ export function useNotifications(): NotificationContextValue {
  */
 export function useHasNotificationProvider(): boolean {
   return useContext(NotificationCtx) !== null;
+}
+
+/**
+ * Subscribe to the live notifications for ONE presentation — the contract a
+ * surface component implements (`@object-ui/components` ships one per spec
+ * type). Registering also tells the provider the surface exists, so raising a
+ * `banner` with no banner surface mounted warns in dev instead of vanishing.
+ *
+ * Items come back newest-first, matching `notifications`. A surface that wants
+ * FIFO order (an `alert` queue) reverses them itself.
+ *
+ * @param presentation the spec display type this surface renders
+ * @param scope optional `inline` routing key — when set, only items raised with
+ *   the same `scope` are returned; when omitted, only unscoped items are.
+ */
+export function useNotificationsByPresentation(
+  presentation: NotificationPresentation,
+  scope?: string,
+): NotificationItem[] {
+  const { notifications, registerSurface } = useNotifications();
+  const { surface } = NOTIFICATION_PRESENTATIONS[presentation];
+
+  useEffect(() => registerSurface(surface), [registerSurface, surface]);
+
+  return useMemo(
+    () =>
+      notifications.filter(
+        (n) =>
+          resolveNotificationPresentation(n.displayType) === presentation &&
+          (presentation !== 'inline' || (n.scope ?? undefined) === scope),
+      ),
+    [notifications, presentation, scope],
+  );
 }

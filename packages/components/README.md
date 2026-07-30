@@ -150,6 +150,32 @@ function MyComponent() {
 - `link` - Link component
 - `breadcrumb` - Breadcrumb navigation
 
+## Notification Surfaces
+
+Direct-import React components (not schema blocks) that render the notifications
+raised through `NotificationProvider` from `@object-ui/react`. One per spec
+`displayType`, so a `banner` no longer presents as a toast:
+
+| Component | `displayType` | Where to mount it |
+| --- | --- | --- |
+| `<NotificationSnackbar />` | `snackbar` | anywhere inside the provider — it anchors itself bottom-center |
+| `<NotificationBanners />` | `banner` | top of the content area (it takes space in the flow) |
+| `<NotificationAlerts />` | `alert` | anywhere inside the provider — blocking dialog, FIFO queue |
+| `<NotificationInline scope="…" />` | `inline` | in the surface that raises them |
+
+`toast` stays with the host's `onToast` delegate (sonner in the console). See the
+[notifications guide](https://objectui.org/docs/guide/notifications).
+
+```tsx
+import { NotificationBanners, NotificationAlerts } from '@object-ui/components';
+
+<main>
+  <NotificationBanners />
+  <Outlet />
+  <NotificationAlerts />
+</main>
+```
+
 ## Customization
 
 ### Override Styles

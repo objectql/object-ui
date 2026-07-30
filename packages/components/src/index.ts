@@ -56,6 +56,9 @@ export {
 export * from './ui';
 export * from './custom';
 
+// Export the notification surfaces — one per spec `displayType` (#3014).
+export * from './notifications';
+
 // Export hooks
 export { useConfigDraft } from './hooks/use-config-draft';
 export type { UseConfigDraftOptions, UseConfigDraftReturn } from './hooks/use-config-draft';
