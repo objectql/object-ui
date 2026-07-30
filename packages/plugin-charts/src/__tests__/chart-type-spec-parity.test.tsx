@@ -52,12 +52,37 @@ describe('plugin-charts covers the spec chart-type vocabulary', () => {
     ).toEqual([]);
   });
 
-  it("the only renderer-local dialect is the documented 'combo'", () => {
+  it('carries no renderer-local dialect beyond the tracked exceptions', () => {
+    /**
+     * Dialect this renderer is knowingly ahead of the resolved spec on. Each
+     * entry needs a promote-or-delete decision (objectui#2945) — the set is an
+     * upper bound, not an expectation, so it shrinks silently as the spec
+     * adopts a name and only GROWING it fails.
+     *
+     * `combo`: promoted into `ChartTypeSchema` by framework#4070, which is not
+     * in a published spec version yet. When objectui bumps to a spec that
+     * includes it, this entry becomes dead weight — drop it then; nothing
+     * fails in the meantime.
+     */
+    const TRACKED_DIALECT = new Set(['combo']);
     const implemented = [...RENDERABLE, ...SINGLE_VALUE_CHART_TYPES, ...TABULAR_CHART_TYPES];
-    const dialect = implemented.filter((name) => !specNames.includes(name));
-    // `combo` is tracked in #2945 ("promote or delete"); anything else
-    // appearing here is NEW dialect and needs the same decision first.
-    expect(dialect).toEqual(['combo']);
+    const untracked = implemented.filter(
+      (name) => !specNames.includes(name) && !TRACKED_DIALECT.has(name),
+    );
+    expect(
+      untracked,
+      'new renderer-local chart dialect — promote it into @objectstack/spec or delete it (objectui#2945)',
+    ).toEqual([]);
+
+    // Report entries the spec has since adopted, so the list gets pruned
+    // instead of quietly accumulating stale exceptions.
+    const adopted = [...TRACKED_DIALECT].filter((name) => specNames.includes(name));
+    if (adopted.length > 0) {
+      // eslint-disable-next-line no-console
+      console.info(
+        `[chart-type parity] the spec now defines ${adopted.join(', ')} — remove them from TRACKED_DIALECT.`,
+      );
+    }
   });
 });
 
