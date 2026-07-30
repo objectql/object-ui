@@ -13,6 +13,11 @@ const mockFetch = vi.fn(async () => ({
 }));
 vi.mock('@object-ui/auth', () => ({ createAuthenticatedFetch: () => mockFetch }));
 
+// Toasts are the only observable output of the error path.
+const toastError = vi.fn();
+const toastSuccess = vi.fn();
+vi.mock('sonner', () => ({ toast: { error: (...a: unknown[]) => toastError(...a), success: (...a: unknown[]) => toastSuccess(...a) } }));
+
 // Stub the param dialog: when open, expose a button that resolves with values —
 // lets us drive the collect-params promise without the heavy field renderers.
 vi.mock('../ActionParamDialog', () => ({
@@ -31,7 +36,11 @@ vi.mock('../ActionResultDialog', () => ({
 
 import { MetadataTypeActions } from './MetadataTypeActions';
 
-beforeEach(() => mockFetch.mockClear());
+beforeEach(() => {
+  mockFetch.mockClear();
+  toastError.mockClear();
+  toastSuccess.mockClear();
+});
 
 describe('MetadataTypeActions', () => {
   it('runs an api action without params directly (no dialog)', async () => {
@@ -78,5 +87,73 @@ describe('MetadataTypeActions', () => {
     fireEvent.click(screen.getByTitle('Probe'));
     await waitFor(() => expect(screen.getByTestId('result-dialog')).toBeTruthy());
     expect(screen.getByTestId('result-dialog').textContent).toContain('done');
+  });
+
+  // ── framework#3843: the declared `{ success, data }` envelope ──────────────
+  // Service route modules (`/api/v1/datasources`, `/api/v1/packages`,
+  // `/api/settings`, …) answer `BaseResponseSchema`, so an action's payload
+  // arrives under `data`. Both shapes are accepted so this repo is not coupled
+  // to the framework's module-by-module merge order.
+
+  it('unwraps the { success, data } envelope before binding the result dialog', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => ({ success: true, data: { message: 'connection ok', latencyMs: 7 } }),
+    } as never);
+    render(
+      <MetadataTypeActions
+        location="record_header"
+        recordId="ds1"
+        entry={{ actions: [{ name: 'probe', label: 'Probe', type: 'api', target: '/api/v1/x', locations: ['record_header'], resultDialog: { fields: [{ path: 'message' }] } }] }}
+      />,
+    );
+    fireEvent.click(screen.getByTitle('Probe'));
+    await waitFor(() => expect(screen.getByTestId('result-dialog')).toBeTruthy());
+    const shown = screen.getByTestId('result-dialog').textContent ?? '';
+    expect(shown).toContain('connection ok');
+    // The wrapper itself must not reach the dialog's `path` bindings.
+    expect(JSON.parse(shown)).toEqual({ message: 'connection ok', latencyMs: 7 });
+  });
+
+  it('reads the failure message out of the nested error object, not "[object Object]"', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      statusText: 'Bad Request',
+      json: async () => ({ success: false, error: { code: 'datasource_admin_error', message: 'duplicate name' } }),
+    } as never);
+    render(
+      <MetadataTypeActions
+        location="record_header"
+        recordId="ds1"
+        entry={{ actions: [{ name: 'probe', label: 'Probe', type: 'api', target: '/api/v1/x', locations: ['record_header'] }] }}
+      />,
+    );
+    fireEvent.click(screen.getByTitle('Probe'));
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    const msg = String(toastError.mock.calls[0][0]);
+    expect(msg).toContain('duplicate name');
+    expect(msg).not.toContain('[object Object]');
+  });
+
+  it('still reads a pre-envelope bare-string error — merge order is not a coupling', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      statusText: 'Service Unavailable',
+      json: async () => ({ error: 'datasource_admin_unavailable' }),
+    } as never);
+    render(
+      <MetadataTypeActions
+        location="record_header"
+        recordId="ds1"
+        entry={{ actions: [{ name: 'probe', label: 'Probe', type: 'api', target: '/api/v1/x', locations: ['record_header'] }] }}
+      />,
+    );
+    fireEvent.click(screen.getByTitle('Probe'));
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    expect(String(toastError.mock.calls[0][0])).toContain('datasource_admin_unavailable');
   });
 });

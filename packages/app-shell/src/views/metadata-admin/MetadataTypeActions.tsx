@@ -155,16 +155,39 @@ export function MetadataTypeActions({ entry, location, recordId, onAfter }: Meta
       if (method !== 'GET' && method !== 'DELETE') init.body = JSON.stringify(params);
 
       const res = await authFetch(url, init);
-      let data: Record<string, unknown> | null = null;
+      let body: Record<string, unknown> | null = null;
       try {
-        data = (await res.json()) as Record<string, unknown>;
+        body = (await res.json()) as Record<string, unknown>;
       } catch {
         /* non-JSON / empty body — fall back to status text */
       }
 
-      if (!res.ok || (data && data.success === false)) {
+      // framework#3843: the service route modules now answer the declared
+      // `{ success, data }` envelope (`BaseResponseSchema`), so the payload a
+      // `resultDialog` binds to — and the `message` the success toast reads —
+      // lives under `data` rather than at the top level. Unwrap it here, in the
+      // one place every `type: 'api'` action passes through.
+      //
+      // Deliberately tolerant of an already-unwrapped body: endpoints an action
+      // may target are converted module by module (framework#3675 → #3689 →
+      // #3843), so this repo must not be coupled to the merge order of that
+      // sequence. Same reason the two attachment openers read
+      // `body?.url ?? body?.data?.url` for framework#3689.
+      const data =
+        body && typeof body.success === 'boolean' && 'data' in body
+          ? (body.data as Record<string, unknown> | null)
+          : body;
+
+      if (!res.ok || (body && body.success === false)) {
+        // `error` is `{ code, message }` in the envelope, and was a bare string
+        // before it — read both so a partially-converted backend still explains
+        // itself instead of toasting "[object Object]".
+        const err = body?.error as { message?: string } | string | undefined;
         const detail =
-          (data?.error as string) || (data?.message as string) || `HTTP ${res.status} ${res.statusText}`.trim();
+          (typeof err === 'object' && err !== null ? err.message : undefined) ||
+          (typeof err === 'string' ? err : undefined) ||
+          (body?.message as string) ||
+          `HTTP ${res.status} ${res.statusText}`.trim();
         toast.error(`${action.errorMessage ? `${action.errorMessage}: ` : ''}${title}: ${detail}`);
         return;
       }

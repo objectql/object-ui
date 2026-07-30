@@ -172,14 +172,40 @@ export function DatasourceResourcePage(_props: { type?: string }): React.ReactEl
   const [loading, setLoading] = React.useState(true);
   const [busy, setBusy] = React.useState<string | null>(null);
 
+  /**
+   * Fetch + unwrap the declared response envelope.
+   *
+   * framework#3843 moved `/api/v1/datasources/*` onto `BaseResponseSchema`, so
+   * every body is now `{ success, data }` / `{ success: false, error: { code,
+   * message } }`. Unwrapping here keeps all nine call sites below reading their
+   * payload key unchanged (`data.datasources`, `data.drivers`, `data.tables`,
+   * `{ draft }`, …) — the keys did not change, only their depth.
+   *
+   * Both shapes are accepted on purpose, error and success alike. This is the
+   * same tolerance the console already carries for framework#3689 (the
+   * attachment openers' `body?.url ?? body?.data?.url`), and it exists so the
+   * two repos are not coupled by merge order: a console on either side of the
+   * framework change talks to a backend on either side of it. It is a migration
+   * device, not a permanent second contract — the producer is the authority
+   * (framework Prime Directive #12).
+   */
   const api = React.useCallback(
     async (path: string, init?: RequestInit) => {
       const res = await authFetch(`${SERVER}${path}`, { credentials: 'include', headers: { 'Content-Type': 'application/json' }, ...init });
       const text = await res.text();
       let body: any = text;
       try { body = JSON.parse(text); } catch { /* keep text */ }
-      if (!res.ok) throw new Error((body && (body.message || body.error)) || `HTTP ${res.status}`);
-      return body;
+      if (!res.ok) {
+        // `error` is `{ code, message }` post-#3843 and was a bare string
+        // before it; without the first read this threw "[object Object]".
+        const detail =
+          (body && typeof body.error === 'object' && body.error?.message) ||
+          (body && typeof body.error === 'string' ? body.error : undefined) ||
+          (body && body.message) ||
+          `HTTP ${res.status}`;
+        throw new Error(detail);
+      }
+      return body && typeof body.success === 'boolean' && 'data' in body ? body.data : body;
     },
     [authFetch],
   );
