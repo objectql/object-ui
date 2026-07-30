@@ -463,7 +463,7 @@ describe('useConsoleActionRuntime — authenticated handlers', () => {
  * mounted it. Both now run this rule: render `target` when it names a page (or
  * object), else complete the action server-side.
  */
-describe('modalActionHandler — open the target, else run it server-side', () => {
+describe('modalActionHandler — a modal action is CLIENT-SIDE ONLY (objectstack#3959)', () => {
   it('opens the resolved target client-side and never POSTs to /actions', async () => {
     resolveTargetSpy.mockResolvedValue({ content: { name: 'log_call', type: 'utility' } });
     const { result } = renderHook(() =>
@@ -479,11 +479,14 @@ describe('modalActionHandler — open the target, else run it server-side', () =
     expect(authFetchSpy).not.toHaveBeenCalled();
   });
 
-  it('falls back to the server action when the target names no page or object', async () => {
-    // The modal was the param dialog the runner already collected — the action
-    // still has to run, so it goes to its registered server handler.
+  // This test used to assert the opposite — that an unresolvable target fell
+  // back to POSTing /actions, "how a modal action bound to registerAction still
+  // runs". It never ran: the framework rejects type:'modal' over REST with a
+  // 400 (headlessActionTypeError), so the fallthrough turned an authoring
+  // mistake into a confusing round-trip and let apps ship handlers no
+  // declaration could address (objectstack#3959).
+  it('reports an unresolvable target instead of POSTing to /actions', async () => {
     resolveTargetSpy.mockResolvedValue(null);
-    authFetchSpy.mockResolvedValue({ ok: true, json: async () => ({ success: true, data: { ok: 1 } }) });
     const { result } = renderHook(() =>
       useConsoleActionRuntime({ dataSource: {}, objects: [], objectName: 'crm_call' }),
     );
@@ -496,9 +499,11 @@ describe('modalActionHandler — open the target, else run it server-side', () =
     });
 
     expect(modalHandlerSpy).not.toHaveBeenCalled();
-    expect(authFetchSpy).toHaveBeenCalledTimes(1);
-    expect(authFetchSpy.mock.calls[0][0]).toContain('/api/v1/actions/crm_call/log_call');
-    expect(r.success).toBe(true);
+    expect(authFetchSpy).not.toHaveBeenCalled();
+    expect(r.success).toBe(false);
+    // The message must name the action, the dud target, and the way out.
+    expect(String(r.error)).toContain('log_call');
+    expect(String(r.error)).toMatch(/type:'script' with params/);
   });
 
   it('prefers an inline `modal` descriptor over `target`', async () => {

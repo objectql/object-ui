@@ -662,20 +662,36 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
   const { modalHandler, modalElement, resolveModalTarget } = useActionModal(dataSource);
 
   /**
-   * `type: 'modal'` dispatch. The action's `target` names the page to open
-   * (spec: "the modal/page name to open"), so try to render it client-side
-   * first. When it names neither a page nor an object there is nothing to
-   * render — the modal was the param dialog the runner already collected — so
-   * complete the action through its server-side handler, which is how a modal
-   * action bound to `engine.registerAction(...)` (or an inline `body`) still
-   * runs.
+   * `type: 'modal'` dispatch — CLIENT-SIDE ONLY. The action's `target` names
+   * the page to open (spec: "the modal/page name to open"); rendering it is
+   * the whole of what a modal action does.
+   *
+   * [objectstack#3959] This used to fall through to `serverActionHandler` when
+   * the target resolved to neither a page nor an object, documented as "how a
+   * modal action bound to `engine.registerAction(...)` still runs". It never
+   * ran: the framework's `headlessActionTypeError` rejects `type: 'modal'`
+   * over REST with a 400, because a modal has no server dispatch. The
+   * fallthrough only converted an authoring mistake — a target naming no
+   * page — into a confusing round-trip, and it let apps ship handlers no
+   * declaration could address (app-todo's `deferTask` / `setReminder` sat dead
+   * for exactly this reason).
+   *
+   * An unresolvable target is now reported as what it is. To collect input and
+   * then run server-side, declare `type: 'script'` with `params`: the runner
+   * collects the same dialog and the handler runs with those values.
    */
-  const modalActionHandler = useCallback(async (action: ActionDef, context?: ActionContext): Promise<ActionResult> => {
+  const modalActionHandler = useCallback(async (action: ActionDef, _context?: ActionContext): Promise<ActionResult> => {
     const schema = (action as any).modal ?? action.target ?? (action as any).params?.schema;
     const descriptor = schema != null ? await resolveModalTarget(schema) : null;
     if (descriptor) return modalHandler(descriptor);
-    return serverActionHandler(action, context);
-  }, [resolveModalTarget, modalHandler, serverActionHandler]);
+    return {
+      success: false,
+      error:
+        `Action "${action.name}" is type:'modal' but its target ` +
+        `${schema != null ? `"${String(schema)}" ` : ''}names no page or object to open. ` +
+        `Point it at a page, or use type:'script' with params to collect input and run a handler.`,
+    };
+  }, [resolveModalTarget, modalHandler]);
 
   const actionProviderProps = useMemo(() => ({
     context: {
