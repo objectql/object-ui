@@ -132,7 +132,18 @@ export function AppContent() {
   // rendering fell open (restricted fields rendered editable).
   const authFetch = useMemo(() => createAuthenticatedFetch(), []);
   return (
-    <MePermissionsProvider endpoint={endpoint} fetcher={authFetch} loadingFallback={<LoadingScreen />}>
+    <MePermissionsProvider
+      endpoint={endpoint}
+      fetcher={authFetch}
+      loadingFallback={<LoadingScreen />}
+      // Without this, the provider's error state renders `loadingFallback` too —
+      // an eternal spinner with a `retry` nobody can reach. The provider already
+      // re-attempts a transient failure (a cold environment kernel answers 503 +
+      // `Retry-After` while it warms, objectstack#4159); this is what the user
+      // sees once those are exhausted, and `LoadingScreen` has carried the
+      // error + retry affordance all along.
+      errorFallback={(err, retry) => <LoadingScreen error={err.message} onRetry={retry} />}
+    >
       <LocalizationFetchProvider endpoint={localizationEndpoint}>
         <UploadProvider adapter={uploadAdapter}>
           <DefaultAppContent extraRoutes={systemRoutes} extraRoutesNoApp={systemRoutes} />

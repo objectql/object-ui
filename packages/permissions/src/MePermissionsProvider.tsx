@@ -7,6 +7,13 @@
  */
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import {
+  PermissionsFetchError,
+  backoffMs,
+  isTransientFailure,
+  parseRetryAfterMs,
+  sleep,
+} from './retry';
 import type {
   PermissionAction,
   PermissionCheckResult,
@@ -65,6 +72,27 @@ export interface MePermissionsProviderProps {
   loadingFallback?: React.ReactNode;
   /** Rendered when load fails */
   errorFallback?: (err: Error, retry: () => void) => React.ReactNode;
+  /**
+   * How many times to re-attempt a TRANSIENT failure before giving up — a
+   * response that says "not now" (`TRANSIENT_STATUS` in `./retry`) or a network
+   * error. `0` disables retrying.
+   *
+   * This exists because "not now" is a real answer from this endpoint. On a
+   * multi-tenant host it is served by the environment kernel that owns the
+   * session, and a cold one answers `503` + `Retry-After` while it warms
+   * (objectstack#4159). Without a retry the provider keeps `loadingFallback`
+   * on screen forever, because a consumer that passes no `errorFallback` — the
+   * console does exactly that — renders the loading node for the error state
+   * too, and nothing ever calls `retry`.
+   *
+   * @default 3
+   */
+  maxRetries?: number;
+  /**
+   * Base for the exponential backoff between retries, in ms. A `Retry-After`
+   * header on the response wins over it. @default 500
+   */
+  retryBaseDelayMs?: number;
   /** Children */
   children: React.ReactNode;
 }
@@ -88,34 +116,75 @@ export function MePermissionsProvider({
   initialPermissions,
   loadingFallback = null,
   errorFallback,
+  maxRetries = 3,
+  retryBaseDelayMs = 500,
   children,
 }: MePermissionsProviderProps) {
   const [data, setData] = useState<MePermissionsResponse | null>(initialPermissions ?? null);
   const [error, setError] = useState<Error | null>(null);
   const [loading, setLoading] = useState(!initialPermissions);
 
-  const fetchPermissions = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  /**
+   * Run the fetch, re-attempting a transient failure.
+   *
+   * `token` cancels an in-flight attempt. Retries put real time (a backoff, or
+   * a server-stated `Retry-After`) between the request and the `setState`, and
+   * during that window the effect may be torn down — by an unmount, or by
+   * `endpoint`/`fetcher` changing. Without the token a superseded attempt would
+   * still land, so a slow answer for the OLD endpoint could overwrite a fast
+   * answer for the new one.
+   */
+  const fetchPermissions = useCallback(
+    async (token?: { cancelled: boolean }) => {
+      const live = () => !token?.cancelled;
+      setLoading(true);
+      setError(null);
       const doFetch = fetcher ?? fetch;
-      const res = await doFetch(endpoint, {
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-      });
-      if (!res.ok) throw new Error(`Permissions endpoint returned ${res.status}`);
-      const json = (await res.json()) as MePermissionsResponse;
-      setData(json);
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-    } finally {
-      setLoading(false);
-    }
-  }, [endpoint, fetcher]);
+      const attempts = Math.max(0, maxRetries) + 1;
+      for (let attempt = 0; attempt < attempts; attempt++) {
+        try {
+          const res = await doFetch(endpoint, {
+            credentials: 'include',
+            headers: { Accept: 'application/json' },
+          });
+          if (!res.ok) {
+            throw new PermissionsFetchError(
+              res.status,
+              parseRetryAfterMs(res.headers?.get?.('Retry-After'), Date.now()),
+            );
+          }
+          const json = (await res.json()) as MePermissionsResponse;
+          if (!live()) return;
+          setData(json);
+          setLoading(false);
+          return;
+        } catch (e) {
+          const err = e instanceof Error ? e : new Error(String(e));
+          if (!isTransientFailure(err) || attempt === attempts - 1) {
+            if (!live()) return;
+            setError(err);
+            setLoading(false);
+            return;
+          }
+          // `loading` stays true across the wait, so the fail-closed loading
+          // state holds and the recovery is invisible to consumers.
+          const stated = err instanceof PermissionsFetchError ? err.retryAfterMs : undefined;
+          await sleep(backoffMs(attempt, retryBaseDelayMs, stated));
+          if (!live()) return;
+        }
+      }
+    },
+    [endpoint, fetcher, maxRetries, retryBaseDelayMs],
+  );
+
+  /** The `retry` handed to `errorFallback` — uncancelled, it is user-initiated. */
+  const retry = useCallback(() => { void fetchPermissions(); }, [fetchPermissions]);
 
   useEffect(() => {
     if (initialPermissions) return;
-    void fetchPermissions();
+    const token = { cancelled: false };
+    void fetchPermissions(token);
+    return () => { token.cancelled = true; };
   }, [fetchPermissions, initialPermissions]);
 
   const checkField = useCallback(
@@ -232,7 +301,7 @@ export function MePermissionsProvider({
 
   if (loading && !data) return <>{loadingFallback}</>;
   if (error && !data) {
-    if (errorFallback) return <>{errorFallback(error, fetchPermissions)}</>;
+    if (errorFallback) return <>{errorFallback(error, retry)}</>;
     return <>{loadingFallback}</>;
   }
 
