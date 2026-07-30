@@ -33,6 +33,7 @@
     "lint:coverage": "node scripts/check-lint-coverage.mjs",
     "type-check": "turbo run type-check",
     "type-check:coverage": "node scripts/check-type-check-coverage.mjs",
+    "check:spec-symbols": "node scripts/check-spec-symbol-derivation.mjs",
     "cli": "node packages/cli/dist/cli.js",
     "objectui": "node packages/cli/dist/cli.js",
     "create-plugin": "node packages/create-plugin/dist/index.js",

@@ -1,0 +1,617 @@
+#!/usr/bin/env node
+/**
+ * A spec-named symbol must be DERIVED from `@objectstack/spec`, not hand-written.
+ *
+ * The failure class (objectstack#4115): objectui declares a local type or const
+ * under the SAME NAME as a `@objectstack/spec` export, with a doc comment
+ * claiming spec canonicity — and the declaration has drifted, or is one spec
+ * release away from drifting. Every audited instance had:
+ *
+ *   ActionType            "canonical definition from @objectstack/spec"  → hand union, missing `form`   (#2231/#2901)
+ *   ChartType             (sibling schema re-exported under spec's name) → 7 of 19 members             (objectui#2944)
+ *   ActionLocation + 2    "single source of truth… re-export here"       → re-DECLARED union + z.enum   (#4074)
+ *   ActionParamFieldType  "aligned with the field types available in spec" → 16 of 49 members           (#4074)
+ *
+ * What makes this class expensive is specific to agent-driven development: an
+ * agent reads the comment, takes it as ground truth, and builds on it. #2901 was
+ * filed with a backwards premise because the fork was re-exported under the
+ * spec's own symbol name. A wrong canonical-claim is not stale documentation —
+ * it is a planted premise for the next session.
+ *
+ * This guard lands the rule AS THE CHECK, not as an AGENTS.md paragraph. A
+ * prose-only rule is precisely the "declared ≠ enforced" landmine the whole
+ * thread is about (#4074, objectui#3009 — where a guard file's own header
+ * falsely claimed its checks were "the real enforcement" for the entire interval
+ * during which nothing compiled them).
+ *
+ * ── What counts as derived ───────────────────────────────────────────────────
+ * Both of the repo's sanctioned forms pass, because both bind the local name to
+ * the spec at compile time:
+ *
+ *   export type { ActionLocation } from '@objectstack/spec/ui';   // re-export
+ *   export type ActionType = z.infer<typeof SpecActionType>;      // derivation
+ *
+ * A declaration is derived only when the spec reference sits in a STRUCTURAL
+ * position — a type alias's own type node, an interface's `extends`, a const's
+ * initializer. A spec name merely *mentioned* inside a members block does not
+ * count, because that is what a hand-written fork looks like:
+ *
+ *   export interface ActionSchema { locations?: ActionLocation[] }   // NOT derived
+ *
+ * Consts are stricter still: object and array literals are not descended into.
+ * `export const ACTION_LOCATIONS = [...SpecLocations]` is a COPY, and a faithful
+ * copy passes every value comparison — reference identity is the only check that
+ * distinguishes a re-export from a fork (objectui#3003, and the insight already
+ * written down in `spec-subschema-parity.test.ts`).
+ *
+ * Run:  node scripts/check-spec-symbol-derivation.mjs
+ * Exit: 0 = OK, 1 = a spec-named symbol is hand-written, or the allowlist is stale
+ */
+
+import ts from "typescript";
+import { createRequire } from "module";
+import { readFileSync, readdirSync, statSync } from "fs";
+import { resolve, dirname, join, relative } from "path";
+import { fileURLToPath } from "url";
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+// ── Allowlist ────────────────────────────────────────────────────────────────
+// Same governance as `check-type-check-coverage.mjs`'s DEBT map: declared,
+// reasoned, shrink-only. An entry that no longer matches a real violation is
+// stale and fails this guard, so the list cannot outlive the code it excuses.
+//
+// A same-name symbol that is narrower or wider ON PURPOSE belongs here with that
+// purpose written down — at which point the comment is load-bearing instead of
+// decorative. A symbol that is *supposed* to be the spec's should be imported
+// instead; that is the whole point of the check.
+//
+// Key format: "<package>:<symbol>".
+const ALLOW = {
+  "@object-ui/types:ActionSchema": {
+    reason:
+      "Two deliberate objectui-side shapes, both documented at their declaration. " +
+      "`ui-action.ts` is a renderer VIEW over the spec's action — it carries renderer-only " +
+      "fields the spec does not model, while importing the spec-owned parts it does share " +
+      "(`ActionLocation`, `ActionType`). `crud.ts` is the explicitly @deprecated legacy " +
+      "shape kept for backward compatibility and slated for removal in a future major.",
+    issue: 4115,
+  },
+};
+
+// ── Untriaged collisions (the ledger) ────────────────────────────────────────
+// Same governance as `check-type-check-coverage.mjs`'s DEBT map: declared,
+// shrink-only. These are the same-name symbols that predate this guard and have
+// not been triaged one-by-one yet. This check exists to stop the BLEEDING — a
+// new fork fails on the PR that writes it — not to retro-fix 166 symbols at once.
+//
+// Named symbols rather than a per-package COUNT, deliberately: a count is a
+// budget. It lets the next fork land as long as an unrelated one was fixed in
+// the same PR, and it makes the failure message point at whichever collisions
+// happen to sort first instead of at the one just written. The list is longer;
+// it is also the thing that names the new symbol at the moment it appears.
+//
+// To burn one down: import/derive it from the spec, rename it to a declared
+// local dialect (`ObjectUiLocal…`, with a tripwire test asserting the spec does
+// not own the name), or move it to ALLOW with the reason it deliberately
+// differs. Then delete it from this list — leaving it here fails the ratchet.
+const DEBT_ISSUE = 4115;
+const DEBT = {
+  "@object-ui/types": [
+    "ActionParam",
+    "AppContextSelectorSchema",
+    "AppSchema",
+    "BatchOperationResult",
+    "BreakpointName",
+    "CacheStrategy",
+    "ChartSeries",
+    "ChartSeriesSchema",
+    "ConditionalValidation",
+    "CreateExportJobRequest",
+    "CreateExportJobResult",
+    "CrossFieldValidation",
+    "DashboardSchema",
+    "DashboardWidgetSchema",
+    "DatasourceSchema",
+    "DriverInterface",
+    "EventHandler",
+    "ExportJobStatus",
+    "ExpressionSchema",
+    "FeedItemType",
+    "FileMetadata",
+    "FilterCondition",
+    "FilterConditionSchema",
+    "FilterOperator",
+    "FormField",
+    "FormFieldSchema",
+    "FormatValidation",
+    "GestureConfig",
+    "GestureType",
+    "GlobalFilterSchema",
+    "GroupByNode",
+    "ImportJobStatus",
+    "ImportRowResult",
+    "ImportWriteMode",
+    "JoinNode",
+    "JoinStrategy",
+    "JoinedReportBlock",
+    "ListViewSchema",
+    "MutationEvent",
+    "NavigationArea",
+    "NavigationAreaSchema",
+    "NavigationItem",
+    "NavigationItemSchema",
+    "ObjectIndex",
+    "ObjectPermission",
+    "OfflineConfig",
+    "PageRegion",
+    "PageRegionSchema",
+    "PageSchema",
+    "PageVariable",
+    "PageVariableSchema",
+    "PermissionAction",
+    "QueryAST",
+    "QuerySchema",
+    "ReportSchedule",
+    "ReportSchema",
+    "ResponsiveConfig",
+    "ScriptValidation",
+    "SelectOption",
+    "SelectOptionSchema",
+    "SharingRule",
+    "SpanSchema",
+    "StateMachineValidation",
+    "Theme",
+    "ThemeSchema",
+    "ValidationError",
+    "ValidationRule",
+    "ValidationRuleSchema",
+    "WidgetManifest",
+    "WidgetSource",
+    "WindowFunction",
+  ],
+  "@object-ui/app-shell": [
+    "ConversationSummary",
+    "DecisionOutputDef",
+    "ExplainDecision",
+    "ExplainLayer",
+    "ExplainMatchedRule",
+    "ExplainRecordAttribution",
+    "ExternalCatalog",
+    "ExternalColumn",
+    "ExternalTable",
+    "FieldGroup",
+    "FieldInput",
+    "FilterCondition",
+    "FlowEdge",
+    "FlowNode",
+    "GenerateDraftOpts",
+    "InstalledPackage",
+    "ObjectDraft",
+    "PackageManifest",
+    "PageHeaderProps",
+    "PluginPermissions",
+    "RemoteTable",
+    "RuntimeConfig",
+    "SchemaDiffEntry",
+    "SchemaDiffEntryKind",
+    "SchemaValidationResult",
+    "ScreenFieldSpec",
+    "ScreenSpec",
+    "isAggregatedViewContainer",
+  ],
+  "@object-ui/core": [
+    "ActionHandler",
+    "CONTEXT_TOKENS",
+    "ChartSeries",
+    "CrudAffordances",
+    "PluginDefinition",
+    "ResponsiveStyles",
+    "RowCrudPredicates",
+    "RowHeight",
+    "StyleMap",
+    "ValidationError",
+    "ValidationResult",
+    "defineView",
+    "resolveCrudAffordances",
+  ],
+  "@object-ui/auth": [
+    "AuthProvider",
+    "AuthProviderConfig",
+    "AuthSession",
+    "AuthUser",
+    "DelegableScope",
+    "TenancyPosture",
+  ],
+  "@object-ui/components": [
+    "Field",
+    "FilterCondition",
+    "ShareLink",
+    "ShareLinkAudience",
+    "ShareLinkPermission",
+    "SortItem",
+  ],
+  "@object-ui/react": [
+    "ConflictResolutionStrategy",
+    "NavigationConfig",
+    "OfflineCacheConfig",
+    "OfflineConfig",
+    "OfflineStrategy",
+    "PerformanceConfig",
+  ],
+  "@object-ui/data-objectstack": [
+    "CacheStats",
+    "DroppedFieldsEvent",
+    "MetadataSaveOptions",
+    "SecurityPolicy",
+    "ValidationError",
+  ],
+  "@object-ui/plugin-chatbot": [
+    "MessageContent",
+    "PendingActionRow",
+    "PendingActionStatus",
+    "Tool",
+  ],
+  "@object-ui/plugin-list": [
+    "ListView",
+    "UserFilters",
+    "ViewTab",
+  ],
+  "@object-ui/fields": [
+    "FieldWidgetProps",
+    "isFileIdToken",
+  ],
+  "@object-ui/layout": [
+    "Page",
+    "PageHeaderProps",
+  ],
+  "@object-ui/plugin-detail": [
+    "FeedFilterMode",
+    "ObjectFieldLike",
+  ],
+  "@object-ui/plugin-grid": [
+    "ColumnSummaryConfig",
+    "isMultiValueField",
+  ],
+  "@object-ui/collaboration": [
+    "RealtimeConfig",
+  ],
+  "@object-ui/plugin-charts": [
+    "ChartConfig",
+  ],
+  "@object-ui/plugin-form": [
+    "FormSection",
+  ],
+  "@object-ui/providers": [
+    "Theme",
+  ],
+  "@object-ui/runner": [
+    "App",
+  ],
+  "@object-ui/sdui-parser": [
+    "ValidationResult",
+  ],
+};
+
+// Files under these paths are not objectui's own authored surface.
+//   - `ui/` is the Shadcn no-touch zone (AGENTS.md #7): upstream 3rd-party files
+//     overwritten by sync scripts, so a collision there is not ours to fix.
+const SKIP_PATH_SEGMENTS = [`${"components"}/src/ui/`];
+
+const isSpecModule = (m) => m === "@objectstack/spec" || m.startsWith("@objectstack/spec/");
+
+// ── 1. Enumerate every `@objectstack/spec` export name, per subpath ──────────
+// Types AND values: the drifted symbols in the table above are mostly types, and
+// a runtime `import()` only sees values. The compiler's own view of each
+// subpath's `.d.ts` is the only source that covers both.
+function specExportNames() {
+  const require = createRequire(import.meta.url);
+  let pkgPath;
+  try {
+    pkgPath = require.resolve("@objectstack/spec/package.json");
+  } catch {
+    console.error(
+      "❌  cannot resolve @objectstack/spec — run `pnpm install` first.\n" +
+        "    This guard reads the spec's own type declarations; it cannot fall back to a\n" +
+        "    hardcoded name list without becoming the stale copy it exists to prevent."
+    );
+    process.exit(1);
+  }
+  const pkgDir = dirname(pkgPath);
+  const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+
+  const entries = [];
+  for (const [sub, cond] of Object.entries(pkg.exports ?? {})) {
+    if (typeof cond !== "object" || cond === null) continue;
+    const dts = cond?.import?.types ?? cond?.require?.types;
+    if (!dts) continue;
+    entries.push({ sub: sub === "." ? "@objectstack/spec" : `@objectstack/spec${sub.slice(1)}`, file: resolve(pkgDir, dts) });
+  }
+
+  const program = ts.createProgram(
+    entries.map((e) => e.file),
+    {
+      noEmit: true,
+      skipLibCheck: true,
+      strict: false,
+      target: ts.ScriptTarget.ESNext,
+      module: ts.ModuleKind.ESNext,
+      moduleResolution: ts.ModuleResolutionKind.Bundler,
+    }
+  );
+  const checker = program.getTypeChecker();
+
+  const names = new Map(); // name -> Set<subpath>
+  for (const entry of entries) {
+    const sf = program.getSourceFile(entry.file);
+    if (!sf) continue;
+    const moduleSymbol = checker.getSymbolAtLocation(sf);
+    if (!moduleSymbol) continue;
+    for (const exported of checker.getExportsOfModule(moduleSymbol)) {
+      const name = exported.getName();
+      if (!names.has(name)) names.set(name, new Set());
+      names.get(name).add(entry.sub);
+    }
+  }
+  return names;
+}
+
+// ── 2. Scan objectui's authored source for exported declarations ─────────────
+function sourceFiles() {
+  const out = [];
+  const pkgsDir = resolve(root, "packages");
+  for (const pkg of readdirSync(pkgsDir)) {
+    const srcDir = join(pkgsDir, pkg, "src");
+    try {
+      if (!statSync(srcDir).isDirectory()) continue;
+    } catch {
+      continue;
+    }
+    walk(srcDir, out);
+  }
+  return out;
+}
+
+function walk(dir, out) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      // Tests do not publish a surface, so a local type there cannot be mistaken
+      // for the spec's by an importer. Keeps the signal on the public API.
+      if (entry.name === "node_modules" || entry.name === "dist" || entry.name === "__tests__") continue;
+      walk(full, out);
+      continue;
+    }
+    if (!/\.tsx?$/.test(entry.name) || /\.d\.ts$/.test(entry.name)) continue;
+    if (/\.test\.tsx?$/.test(entry.name) || /\.stories\.tsx?$/.test(entry.name)) continue;
+    out.push(full);
+  }
+}
+
+const packageNameCache = new Map();
+function packageNameFor(file) {
+  const rel = relative(root, file);
+  const pkgDir = rel.split("/").slice(0, 2).join("/");
+  if (!packageNameCache.has(pkgDir)) {
+    let name = pkgDir;
+    try {
+      name = JSON.parse(readFileSync(resolve(root, pkgDir, "package.json"), "utf8")).name ?? pkgDir;
+    } catch {
+      /* keep the directory name */
+    }
+    packageNameCache.set(pkgDir, name);
+  }
+  return packageNameCache.get(pkgDir);
+}
+
+const hasExportModifier = (node) =>
+  node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) ?? false;
+
+/**
+ * Does this subtree reference a name bound to a spec import?
+ *
+ * `skipLiterals` stops the walk at object/array literals and type-literal member
+ * blocks: a spec name mentioned inside a members block is a hand-written shape
+ * that merely USES a spec type, which is exactly what a fork looks like.
+ */
+function referencesSpec(node, bindings, skipLiterals) {
+  let found = false;
+  const visit = (n) => {
+    if (found || !n) return;
+    if (skipLiterals) {
+      if (ts.isTypeLiteralNode(n) || ts.isObjectLiteralExpression(n) || ts.isArrayLiteralExpression(n)) return;
+    }
+    if (ts.isIdentifier(n) && bindings.has(n.text)) {
+      found = true;
+      return;
+    }
+    ts.forEachChild(n, visit);
+  };
+  ts.forEachChild(node, visit);
+  return found;
+}
+
+function scanFile(file, specNames) {
+  const text = readFileSync(file, "utf8");
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, /\.tsx$/.test(file) ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+
+  // Local names bound to a `@objectstack/spec` import in THIS file.
+  const specBindings = new Set();
+  for (const stmt of sf.statements) {
+    if (!ts.isImportDeclaration(stmt) || !ts.isStringLiteral(stmt.moduleSpecifier)) continue;
+    if (!isSpecModule(stmt.moduleSpecifier.text)) continue;
+    const clause = stmt.importClause;
+    if (!clause) continue;
+    if (clause.name) specBindings.add(clause.name.text);
+    const named = clause.namedBindings;
+    if (named && ts.isNamespaceImport(named)) specBindings.add(named.name.text);
+    if (named && ts.isNamedImports(named)) for (const el of named.elements) specBindings.add(el.name.text);
+  }
+
+  const findings = [];
+  const record = (name, kind, derived, node) => {
+    if (!specNames.has(name) || derived) return;
+    const { line } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
+    findings.push({ name, kind, file, line: line + 1, subpaths: [...specNames.get(name)] });
+  };
+
+  for (const stmt of sf.statements) {
+    // `export { X } from '…'` / `export { X }` / `export type { X } from '…'`
+    if (ts.isExportDeclaration(stmt)) {
+      const fromModule = stmt.moduleSpecifier && ts.isStringLiteral(stmt.moduleSpecifier) ? stmt.moduleSpecifier.text : null;
+      // `export * from '…'` exports names this AST pass cannot attribute. When it
+      // re-exports the spec it is derivation by definition; when it re-exports a
+      // sibling, that sibling's own declaration is scanned on its own turn.
+      if (!stmt.exportClause || !ts.isNamedExports(stmt.exportClause)) continue;
+      // A barrel re-exporting a module this scan already covers — a relative path
+      // or a `@object-ui/*` sibling — is not a second finding. Whatever it points
+      // at gets judged at its own declaration site; reporting the barrel too would
+      // just make one fork look like four, and would make the fix land in the
+      // barrel rather than at the declaration.
+      if (fromModule && (fromModule.startsWith(".") || fromModule.startsWith("@object-ui/"))) continue;
+      for (const el of stmt.exportClause.elements) {
+        const exportedName = el.name.text;
+        const localName = (el.propertyName ?? el.name).text;
+        const derived = fromModule
+          ? isSpecModule(fromModule) // re-export straight from the spec
+          : specBindings.has(localName); // `import { X } from spec; export { X }`
+        record(exportedName, "re-export", derived, el);
+      }
+      continue;
+    }
+
+    if (!hasExportModifier(stmt)) continue;
+
+    if (ts.isTypeAliasDeclaration(stmt)) {
+      record(stmt.name.text, "type", referencesSpec(stmt, specBindings, true), stmt);
+    } else if (ts.isInterfaceDeclaration(stmt)) {
+      // Only `extends` counts — see the header.
+      const extendsSpec = (stmt.heritageClauses ?? []).some((h) => referencesSpec(h, specBindings, false));
+      record(stmt.name.text, "interface", extendsSpec, stmt);
+    } else if (ts.isClassDeclaration(stmt) && stmt.name) {
+      const extendsSpec = (stmt.heritageClauses ?? []).some((h) => referencesSpec(h, specBindings, false));
+      record(stmt.name.text, "class", extendsSpec, stmt);
+    } else if (ts.isVariableStatement(stmt)) {
+      for (const decl of stmt.declarationList.declarations) {
+        if (!ts.isIdentifier(decl.name)) continue;
+        record(decl.name.text, "const", decl.initializer ? referencesSpec(decl, specBindings, true) : false, decl);
+      }
+    } else if (ts.isEnumDeclaration(stmt)) {
+      // An enum cannot be derived from anything — a spec-named one is a fork.
+      record(stmt.name.text, "enum", false, stmt);
+    } else if (ts.isFunctionDeclaration(stmt) && stmt.name) {
+      record(stmt.name.text, "function", false, stmt);
+    }
+  }
+  return findings;
+}
+
+// ── 3. Report ────────────────────────────────────────────────────────────────
+const specNames = specExportNames();
+const files = sourceFiles().filter((f) => !SKIP_PATH_SEGMENTS.some((seg) => f.includes(seg)));
+
+const violations = [];
+for (const file of files) violations.push(...scanFile(file, specNames));
+
+const matchedAllowKeys = new Set();
+const unallowed = [];
+for (const v of violations) {
+  const pkg = packageNameFor(v.file);
+  const key = `${pkg}:${v.name}`;
+  if (ALLOW[key]) {
+    matchedAllowKeys.add(key);
+    continue;
+  }
+  unallowed.push({ ...v, pkg, key });
+}
+
+const byPackage = new Map();
+for (const v of unallowed) {
+  if (!byPackage.has(v.pkg)) byPackage.set(v.pkg, []);
+  byPackage.get(v.pkg).push(v);
+}
+
+// `--ledger` regenerates the DEBT block from the working tree, so the list is
+// never hand-maintained (and so burning symbols down is a mechanical edit).
+if (process.argv.includes("--ledger")) {
+  const lines = [...byPackage.entries()]
+    .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
+    .map(([pkg, found]) => {
+      const names = [...new Set(found.map((v) => v.name))].sort();
+      return `  ${JSON.stringify(pkg)}: [\n` + names.map((n) => `    ${JSON.stringify(n)},`).join("\n") + `\n  ],`;
+    });
+  console.log("const DEBT = {\n" + lines.join("\n") + "\n};");
+  process.exit(0);
+}
+
+const errors = [];
+
+// 1. A collision that is not in the ledger is NEW. This is the half that stops
+//    the bleeding: a fresh fork fails on the PR that writes it, by name.
+for (const [pkg, found] of byPackage) {
+  const declared = new Set(DEBT[pkg] ?? []);
+  const fresh = found.filter((v) => !declared.has(v.name));
+  if (fresh.length === 0) continue;
+  errors.push(
+    `${pkg} declares ${fresh.length} spec-named symbol${fresh.length === 1 ? "" : "s"} the spec already owns:\n` +
+      fresh
+        .map(
+          (v) =>
+            `        ${v.kind} \`${v.name}\`  ${relative(root, v.file)}:${v.line}  ` +
+            `(exported by \`${v.subpaths.join("`, `")}\`)`
+        )
+        .join("\n") +
+      `\n      Import it (\`export type { X } from '@objectstack/spec/…'\`), derive it\n` +
+      `      (\`export type X = z.infer<typeof SpecX>\`), or — if it deliberately differs — rename it\n` +
+      `      to a declared dialect (\`ObjectUiLocalX\`, with a tripwire test asserting the spec does\n` +
+      `      not own the name) or add an ALLOW entry with the reason.`
+  );
+}
+
+// 2. Ratchet — a ledger entry whose symbol is fixed (or gone) must be deleted.
+//    Left in, it reserves the name: the next fork under it would land silently.
+for (const [pkg, names] of Object.entries(DEBT)) {
+  const live = new Set((byPackage.get(pkg) ?? []).map((v) => v.name));
+  const stale = names.filter((n) => !live.has(n));
+  if (stale.length === 0) continue;
+  errors.push(
+    `${pkg} lists ${stale.length} symbol${stale.length === 1 ? "" : "s"} in DEBT that no longer collide` +
+      ` — \`${stale.join("`, `")}\`.\n` +
+      `      Delete them from scripts/check-spec-symbol-derivation.mjs (\`--ledger\` regenerates the\n` +
+      `      block) so the names cannot be re-forked silently` +
+      `${DEBT_ISSUE ? ` (and close #${DEBT_ISSUE} once the ledger is empty)` : ""}.`
+  );
+}
+
+// 3. Ratchet — an ALLOW entry that excuses nothing is stale and must go, or it
+//    silently keeps a name reserved for a future fork.
+for (const key of Object.keys(ALLOW)) {
+  if (!matchedAllowKeys.has(key)) {
+    errors.push(
+      `${key} is in ALLOW but no longer collides with a spec export name — the symbol was\n` +
+        `      renamed, removed, or is now imported from the spec. Delete the entry so the\n` +
+        `      exemption cannot be inherited by a future fork under the same name.`
+    );
+  }
+}
+
+const outstanding = Object.values(DEBT).reduce((sum, names) => sum + names.length, 0);
+
+if (errors.length === 0) {
+  console.log(
+    `✅  spec symbol derivation: ${files.length} files scanned against ${specNames.size} spec export names; ` +
+      `${Object.keys(ALLOW).length} declared dialect${Object.keys(ALLOW).length === 1 ? "" : "s"}, ` +
+      `${outstanding} untriaged collision${outstanding === 1 ? "" : "s"} in ${Object.keys(DEBT).length} packages.`
+  );
+  process.exit(0);
+}
+
+console.error("❌  a spec-named symbol is hand-written, not derived:\n");
+for (const message of errors) console.error(`    • ${message}\n`);
+console.error(
+  "A local declaration under a spec export's name is read by the next agent as the spec's own\n" +
+    "definition — that is how #2901 was filed with a backwards premise. See\n" +
+    "https://github.com/objectstack-ai/objectstack/issues/4115 for the four symbols that had\n" +
+    "already drifted when this guard was written."
+);
+process.exit(1);

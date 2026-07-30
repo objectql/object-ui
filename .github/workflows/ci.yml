@@ -75,6 +75,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # A local type/const declared under a `@objectstack/spec` export's NAME reads
+      # to the next agent as the spec's own definition — four such symbols had
+      # already drifted from the spec they claimed to be (objectstack#4115). Needs
+      # the install (it reads the spec's own `.d.ts`) but not the build, so it runs
+      # before the expensive steps.
+      - name: Verify spec-named symbols are derived, not hand-written
+        run: pnpm check:spec-symbols
+
       - name: Turbo Cache
         uses: actions/cache@v6
         with:
