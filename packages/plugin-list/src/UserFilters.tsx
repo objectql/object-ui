@@ -47,6 +47,28 @@ interface ResolvedField {
 
 const LOOKUP_LIKE_TYPES = new Set(['lookup', 'master_detail', 'user', 'owner']);
 
+/**
+ * Selection arity for every filter control type the spec's
+ * `UserFilterFieldSchema.type` (`ui/view.zod.ts`) publishes. The enum names
+ * BOTH `select` and `multi-select`, so `select` necessarily means
+ * single-choice — rendering it as accumulating checkboxes made a single-choice
+ * filter silently accept many values (#2941).
+ *
+ * Applies to the AUTHORED `type` only: when the author omits it, the control
+ * is inferred from the field definition and keeps the historical multi-check
+ * UX. Exported for the spec-parity test, which fails the moment the spec's
+ * vocabulary and this table drift in either direction.
+ */
+export const FILTER_CONTROL_ARITY: Record<string, 'single' | 'multiple'> = {
+  select: 'single',
+  'multi-select': 'multiple',
+  boolean: 'multiple',
+  // Dead controls today (their popovers render "No options" — #2942); their
+  // arity is still declared so the vocabulary stays fully mapped.
+  'date-range': 'single',
+  text: 'single',
+};
+
 export interface UserFiltersProps {
   config: NonNullable<ListViewSchema['userFilters']>;
   /** Object definition for auto-deriving field options */
@@ -289,6 +311,14 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, 
   const { fieldLabel, translateOptions } = useSafeFieldLabel();
   const moreLabel = useMoreLabel();
   const objectName: string | undefined = objectDef?.name;
+  // Fields whose AUTHORED control type is single-choice (`type: 'select'`).
+  // Keyed off the raw config, not the resolved field: `resolveFields` back-fills
+  // `type` from the object definition, and an inferred type must keep the
+  // historical multi-check UX (#2941).
+  const singleChoiceFields = React.useMemo(
+    () => new Set(fields.filter(f => FILTER_CONTROL_ARITY[f.type ?? ''] === 'single').map(f => f.field)),
+    [fields],
+  );
   const [selectedValues, setSelectedValues] = React.useState<
     Record<string, (string | number | boolean)[]>
   >(() => {
@@ -301,6 +331,11 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, 
       const restored = initialSelections?.[f.field];
       if (restored && restored.length > 0) {
         init[f.field] = restored;
+      }
+      // A single-choice control can never hold more than one value, whatever
+      // an author default or a hand-edited URL claims.
+      if (singleChoiceFields.has(f.field) && (init[f.field]?.length ?? 0) > 1) {
+        init[f.field] = init[f.field].slice(0, 1);
       }
     });
     return init;
@@ -389,6 +424,7 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, 
   const renderBadge = (f: ResolvedField) => {
     const selected = selectedValues[f.field] || [];
     const hasSelection = selected.length > 0;
+    const singleChoice = singleChoiceFields.has(f.field);
     const isLookupLike =
       LOOKUP_LIKE_TYPES.has(f.type || '') &&
       f.options.length === 0 &&
@@ -467,15 +503,21 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, 
                     )}
                   >
                     <input
-                      type="checkbox"
+                      type={singleChoice ? 'radio' : 'checkbox'}
+                      name={singleChoice ? `user-filter-${f.field}` : undefined}
                       checked={selected.includes(opt.value)}
                       onChange={() => {
-                        const next = selected.includes(opt.value)
-                          ? selected.filter(v => v !== opt.value)
-                          : [...selected, opt.value];
+                        // Single-choice replaces the selection; multi toggles
+                        // the clicked value in place (#2941). Clearing a
+                        // single-choice pick is the badge ×.
+                        const next = singleChoice
+                          ? [opt.value]
+                          : selected.includes(opt.value)
+                            ? selected.filter(v => v !== opt.value)
+                            : [...selected, opt.value];
                         handleChange(f.field, next);
                       }}
-                      className="rounded border-input"
+                      className={singleChoice ? 'border-input' : 'rounded border-input'}
                     />
                     {opt.color && (
                       <span

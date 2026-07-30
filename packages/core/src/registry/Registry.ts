@@ -108,6 +108,14 @@ export class Registry<T = any> {
    * load completes.
    */
   private listeners = new Set<() => void>();
+  /**
+   * Bumped whenever the set of KNOWN types changes — a registration, an
+   * unregistration, or a new lazy stub. A cheap cache key for consumers that
+   * derive something from the whole registry (whitelists, manifests, palettes)
+   * and need to rebuild when it grows. Counting types is not a substitute: a
+   * registration paired with an unregistration leaves the count untouched.
+   */
+  private version = 0;
 
   /**
    * Register a component with optional namespace support.
@@ -230,6 +238,10 @@ export class Registry<T = any> {
     if (meta?.namespace && !meta?.skipFallback) {
       this.lazyEntries.set(type, entry);
     }
+    // Bump the version but do NOT notify: the set of KNOWN types grew, so
+    // whitelists and manifests must rebuild, but nothing new can render yet —
+    // waking every subscriber for each stub at boot would be pure churn.
+    this.version++;
   }
 
   /**
@@ -274,6 +286,7 @@ export class Registry<T = any> {
   }
 
   private notify() {
+    this.version++;
     for (const listener of this.listeners) {
       try {
         listener();
@@ -281,6 +294,14 @@ export class Registry<T = any> {
         console.error('[Registry] listener error', err);
       }
     }
+  }
+
+  /**
+   * Monotonic counter of changes to the set of known types. Rebuild anything
+   * derived from the whole registry when this moves — see {@link getKnownTypes}.
+   */
+  getVersion(): number {
+    return this.version;
   }
 
   /**
@@ -356,12 +377,48 @@ export class Registry<T = any> {
   }
   
   /**
-   * Get all registered component types.
-   * 
+   * Get all LOADED component types — what can be rendered right now.
+   *
+   * Pending `registerLazy` stubs are not included; use {@link getKnownTypes}
+   * for the question "is this a type this app knows about", which is what a
+   * whitelist or manifest wants (objectui#2953).
+   *
    * @returns Array of all component type identifiers
    */
   getAllTypes(): string[] {
     return Array.from(this.components.keys());
+  }
+
+  /**
+   * Every type the registry can resolve — loaded registrations PLUS pending
+   * lazy stubs, deduped. Both the bare and namespaced keys are included, as
+   * they are in {@link getAllTypes}.
+   *
+   * This is the set to build a whitelist or a manifest from. Keying one off
+   * `getAllTypes()` instead makes it depend on which plugin chunks happen to
+   * have loaded: a lazily-registered block gets rejected as unknown, and
+   * whether it does varies by session (objectui#2953).
+   */
+  getKnownTypes(): string[] {
+    return Array.from(new Set([...this.components.keys(), ...this.lazyEntries.keys()]));
+  }
+
+  /**
+   * Metadata for `type` — from the loaded registration when there is one,
+   * otherwise from a pending `registerLazy` stub.
+   *
+   * Use this when you need to know what a type IS (namespace, container-ness,
+   * declared inputs). {@link getConfig} answers a different question — "can I
+   * render this right now" — and is deliberately loaded-only, since callers
+   * read `.component` off it.
+   *
+   * A stub carries only what `registerLazy` was given, so `inputs` is usually
+   * absent until the chunk loads. Consumers should treat that as "not yet
+   * known", not as "declares no props".
+   */
+  getMeta(type: string, namespace?: string): ComponentMeta | undefined {
+    const key = namespace ? `${namespace}:${type}` : type;
+    return this.components.get(key) ?? this.lazyEntries.get(key)?.meta;
   }
 
   /**

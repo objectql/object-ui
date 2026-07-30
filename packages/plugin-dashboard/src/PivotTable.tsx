@@ -97,6 +97,17 @@ function displayKey(key: string, labels?: Record<string, string>): string {
   return labels?.[key] ?? key;
 }
 
+/**
+ * The aggregations this pivot computes — the renderer half of the spec's
+ * `ChartAggregateFunctionSchema` (`ui/chart.zod.ts`), the UI-side subset the
+ * spec deliberately carved out of the engine's 8-name `AggregationFunction`.
+ * Engine-level names (`count_distinct`, `array_agg`, `string_agg`) used to
+ * fall into a `default:` branch that returned a SUM — a plausible wrong total
+ * with no signal (#2941). They now short-circuit to a visible notice before
+ * any cell is computed. Exported for the spec-parity test.
+ */
+export const PIVOT_AGGREGATIONS: ReadonlySet<string> = new Set(['sum', 'count', 'avg', 'min', 'max']);
+
 /** Aggregate an array of numbers with the given function. */
 function aggregate(values: number[], fn: PivotAggregation): number {
   if (values.length === 0) return 0;
@@ -112,7 +123,10 @@ function aggregate(values: number[], fn: PivotAggregation): number {
     case 'max':
       return Math.max(...values);
     default:
-      return values.reduce((a, b) => a + b, 0);
+      // Unreachable: the component refuses to render out-of-vocabulary
+      // aggregations. NaN (never a silent sum) is the tripwire if a new call
+      // site skips that gate.
+      return Number.NaN;
   }
 }
 
@@ -227,6 +241,26 @@ export const PivotTable: React.FC<PivotTableProps> = ({ schema, className, rowLa
   }, [data, rowField, columnField, valueField, aggregation]);
 
   const fmt = (v: number) => formatValue(v, format);
+
+  // Out-of-vocabulary aggregation (e.g. the engine-level `count_distinct`
+  // arriving through untyped SDUI JSON): refuse loudly instead of quietly
+  // summing every cell (#2941). Placed after the hooks so their order stays
+  // stable across renders.
+  if (!PIVOT_AGGREGATIONS.has(aggregation)) {
+    return (
+      <div className={cn('overflow-auto', className)} data-testid="pivot-unsupported-aggregation">
+        {title && (
+          <h3 className="text-sm font-semibold mb-2">{title}</h3>
+        )}
+        <div role="alert" className="flex flex-col items-center justify-center py-8 text-destructive">
+          <p className="text-xs">
+            Unsupported aggregation &ldquo;{String(aggregation)}&rdquo; — this pivot table renders{' '}
+            {[...PIVOT_AGGREGATIONS].join(', ')}.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (data.length === 0) {
     return (

@@ -537,9 +537,26 @@ export const WizardForm: React.FC<WizardFormProps> = ({
                 }}
               />
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                No fields configured for this step
-              </div>
+              // A step can legitimately have NO inputs — a final "Review"/confirm
+              // step is the canonical case (this component's own usage example
+              // ends on `{ label: 'Step 3: Review', fields: [] }`). The footer
+              // Next/Create buttons submit the step form *natively* by id, so
+              // that form has to exist even when there is nothing to fill in:
+              // without it the buttons point at a missing target, the click does
+              // nothing at all, and a wizard that ends on a review step can never
+              // be completed. Submitting contributes no new values — the record
+              // is whatever the earlier steps accumulated in `formData`.
+              <form
+                id={stepFormId}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void handleStepSubmit({});
+                }}
+              >
+                <div className="text-center py-8 text-muted-foreground">
+                  No fields configured for this step
+                </div>
+              </form>
             )}
           </FormSection>
         )}

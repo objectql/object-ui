@@ -11,7 +11,10 @@
  * use, so the numbers (and the server-resolved dimension display labels)
  * match everywhere.
  *
- * - `summary` / `tabular` → one grouped table (`rows` + `values`).
+ * - `tabular` → the selection as a simple list (`rows` + `values`), no totals.
+ * - `summary` → the same table plus a SERVER-computed grand-total footer
+ *   (`totals: { groupings: [[]] }`) — the declared type picks the branch
+ *   (#2941), the data shape never does.
  * - `matrix` → a true cross-tab (ADR-0021 D2): `rows` down × `columns`
  *   across, measures in the cells. One dataset query over all dimensions,
  *   pivoted client-side. Totals (per-row subtotals, per-column subtotals,
@@ -359,7 +362,18 @@ function NoRows() {
 
 const DRILL_CLASS = 'cursor-pointer hover:bg-accent/40';
 
-/** One dataset-bound table: fetch via `queryDataset`, render `rows` + `values`. */
+/**
+ * One dataset-bound table: fetch via `queryDataset`, render `rows` + `values`.
+ *
+ * `withTotals` is what tells a `summary` report ("grouped by row") apart from
+ * a `tabular` one ("simple list") at the same selection (#2941): a summary
+ * additionally asks the SAME query for its grand total
+ * (`totals: { groupings: [[]] }`) and renders it as a footer row. The total is
+ * server-aggregated — never recombined from the bucket rows here, which the
+ * ADR-0021 governance red line forbids (an `avg` cannot be recombined) — so an
+ * older server that returns no `totals` renders the plain table, exactly like
+ * the matrix path.
+ */
 function DatasetReportTable({
   dataset,
   rows,
@@ -368,6 +382,7 @@ function DatasetReportTable({
   dataSource,
   onDrill,
   order,
+  withTotals,
 }: {
   dataset: string;
   rows: string[];
@@ -376,9 +391,21 @@ function DatasetReportTable({
   dataSource?: unknown;
   onDrill?: (args: DatasetDrillArgs) => void;
   order?: SelectionOrder;
+  withTotals?: boolean;
 }) {
-  const state = useDatasetRows(dataset, rows, values, runtimeFilter, dataSource, undefined, order);
+  // With no grouping dimensions the single result row already IS the grand
+  // total — requesting totals would only duplicate it.
+  const state = useDatasetRows(
+    dataset,
+    rows,
+    values,
+    runtimeFilter,
+    dataSource,
+    withTotals && rows.length > 0 ? [[]] : undefined,
+    order,
+  );
   const { fieldLabel } = useSafeFieldLabel();
+  const tt = useSafeTranslate();
 
   if (values.length === 0) return <EmptyMeasures dataset={dataset} />;
   if (state.status === 'loading' || state.status === 'idle') return <FetchStates status={state.status} />;
@@ -410,6 +437,11 @@ function DatasetReportTable({
 
   const { measureField, headerLabel } = buildDatasetFieldHelpers(state.fields, state.object, fieldLabel);
   const columns = [...rows, ...values];
+  // Server-supplied grand total (`dimensions: []`); absent → no totals row.
+  const grandTotal = withTotals
+    ? state.totals?.find((t) => Array.isArray(t.dimensions) && t.dimensions.length === 0)?.rows?.[0]
+    : undefined;
+  const totalText = tt('report.total', 'Total');
   return (
     <div className="overflow-auto max-h-[70vh] rounded-md border">
       <table className="w-full text-xs">
@@ -439,6 +471,20 @@ function DatasetReportTable({
               ))}
             </tr>
           ))}
+          {grandTotal && (
+            <tr className="border-t bg-muted/30 font-medium" data-testid="dataset-report-total-row">
+              {rows.length > 0 && (
+                <td colSpan={rows.length} className="px-2 py-1 whitespace-nowrap">
+                  {totalText}
+                </td>
+              )}
+              {values.map((measure) => (
+                <td key={measure} className="px-2 py-1 tabular-nums whitespace-nowrap">
+                  {formatMeasure(grandTotal[measure], measureField(measure)?.format, measureField(measure)?.currency)}
+                </td>
+              ))}
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
@@ -446,31 +492,88 @@ function DatasetReportTable({
 }
 
 /**
- * Report chart type → the generic chart component's `chartType`. Families that
- * aren't a cartesian/categorical series (gauge / kpi / metric / funnel /
- * treemap / sankey / bullet / table / pivot) fall back to a bar so the
- * visualization still renders; the grouped table beneath always carries the
- * exact numbers, so the fallback never hides data.
+ * Resolve a report's declared `type` — the spec's `ReportType`
+ * (`ui/report.zod.ts`: `tabular | summary | matrix | joined`) — to the
+ * presentation it renders. The DECLARED type picks the branch; it is never
+ * inferred from the data shape. Before this, `tabular` and `summary` shared
+ * one branch and the visual difference was read off whether `rows` happened
+ * to be non-empty — a `tabular` report that declared `rows` silently rendered
+ * exactly like a `summary` (#2941). An absent/out-of-spec value falls back to
+ * `tabular`, the spec's own declared default.
+ *
+ * Exported for the spec-parity test, which fails the moment `ReportType` and
+ * this dispatch drift in either direction.
  */
-function mapReportChartType(t: unknown): string {
+export function resolveReportPresentation(type: unknown): 'tabular' | 'summary' | 'matrix' | 'joined' {
+  switch (type) {
+    case 'summary':
+      return 'summary';
+    case 'matrix':
+      return 'matrix';
+    case 'joined':
+      return 'joined';
+    case 'tabular':
+    default:
+      return 'tabular';
+  }
+}
+
+/** How a report renders its embedded chart for one spec `ChartTypeSchema` value. */
+export type ReportChartPlan =
+  /** A categorical series the generic chart component draws distinctly. */
+  | { kind: 'series'; chartType: string }
+  /** Single-value family — one dimensionless dataset query, shown as a number. */
+  | { kind: 'single_value' }
+  /** Tabular family — the grouped table beneath IS the rendering; no duplicate chart. */
+  | { kind: 'tabular' }
+  /** Out-of-spec value (stored dialect / typo) — surfaced, never a silent bar. */
+  | { kind: 'unsupported'; type: string };
+
+/**
+ * Classify a report chart type into its rendering plan — every value of the
+ * spec's `ChartTypeSchema` (`ui/chart.zod.ts`, 19 names), each on the branch
+ * its family demands. The old mapping collapsed 10 of the 19 to a BAR — a
+ * plausible wrong picture with no warning (#2941). Now:
+ *
+ * - the 12 series families reach the generic chart component verbatim
+ *   (`column` is its documented vertical-bar alias; `horizontal-bar` stays
+ *   horizontal instead of silently flipping vertical);
+ * - the single-value families (`gauge` / `solid-gauge` / `metric` / `kpi` /
+ *   `bullet`) render the measure as a number — the spec's own comment calls
+ *   them "honest single-value variants pending a real dial/target renderer";
+ * - `table` / `pivot` add no duplicate chart: the grouped table that always
+ *   renders beneath the chart slot is exactly the tabular presentation;
+ * - anything else is out-of-spec and gets a visible notice.
+ *
+ * Exported for the spec-parity test, which fails the moment `ChartTypeSchema`
+ * and this classification drift in either direction.
+ */
+export function planReportChart(t: unknown): ReportChartPlan {
   switch (t) {
-    case 'line':
-      return 'line';
-    case 'area':
-      return 'area';
-    case 'pie':
-      return 'pie';
-    case 'donut':
-      return 'donut';
-    case 'radar':
-      return 'radar';
-    case 'scatter':
-      return 'scatter';
     case 'bar':
     case 'column':
     case 'horizontal-bar':
+    case 'line':
+    case 'area':
+    case 'pie':
+    case 'donut':
+    case 'funnel':
+    case 'scatter':
+    case 'treemap':
+    case 'sankey':
+    case 'radar':
+      return { kind: 'series', chartType: t };
+    case 'gauge':
+    case 'solid-gauge':
+    case 'metric':
+    case 'kpi':
+    case 'bullet':
+      return { kind: 'single_value' };
+    case 'table':
+    case 'pivot':
+      return { kind: 'tabular' };
     default:
-      return 'bar';
+      return { kind: 'unsupported', type: String(t) };
   }
 }
 
@@ -532,24 +635,52 @@ function DatasetReportChart({
 }) {
   const xAxis = typeof chart.xAxis === 'string' ? chart.xAxis : '';
   const yAxis = typeof chart.yAxis === 'string' ? chart.yAxis : '';
+  const plan = planReportChart(chart.type);
   // The chart plots a NARROWER selection than the table beneath it (one
   // dimension × one measure), so `useDatasetRows` scopes the report's order to
   // those two columns — a "biggest first" on the plotted measure still sorts
   // the bars; a key naming some other row dimension is simply not applicable
   // here and is dropped rather than posted and rejected.
+  //
+  // A single-value chart (metric / kpi / gauge…) instead queries the measure
+  // with NO dimension: the server hands back its one pre-aggregated grand
+  // total, so the number shown is governed by the semantic layer, never a
+  // client-side recombination (the ADR-0021 red line). Plans that render no
+  // chart at all select no measures, which parks the hook in `idle`.
+  const wantsQuery = plan.kind === 'series' || plan.kind === 'single_value';
   const state = useDatasetRows(
     dataset,
-    xAxis ? [xAxis] : [],
-    yAxis ? [yAxis] : [],
+    plan.kind === 'series' && xAxis ? [xAxis] : [],
+    wantsQuery && yAxis ? [yAxis] : [],
     runtimeFilter,
     dataSource,
     undefined,
     order,
   );
   const ChartComponent = useRegistryComponent('chart');
+  const { fieldLabel } = useSafeFieldLabel();
 
-  // A chart needs both an x (dimension) and y (measure); without them, skip.
-  if (!xAxis || !yAxis) return null;
+  const title = typeof chart.title === 'string' ? chart.title : undefined;
+
+  // `table` / `pivot`: the grouped table rendered beneath this slot IS the
+  // tabular presentation — a duplicate chart would say nothing new.
+  if (plan.kind === 'tabular') return null;
+  if (plan.kind === 'unsupported') {
+    // Out-of-spec chart type in stored metadata: say so instead of drawing a
+    // silently wrong bar (#2941). The table beneath still carries the numbers.
+    return (
+      <div
+        className="rounded-md border border-dashed bg-muted/20 px-3 py-2 text-xs text-muted-foreground"
+        data-testid="dataset-report-chart-unsupported"
+      >
+        Chart type &ldquo;{plan.type}&rdquo; is not a spec chart type — the grouped table below carries this report&rsquo;s numbers.
+      </div>
+    );
+  }
+
+  // A series chart needs both an x (dimension) and y (measure); a
+  // single-value chart needs only the measure. Without them, skip.
+  if (plan.kind === 'series' ? !xAxis || !yAxis : !yAxis) return null;
   if (state.status === 'loading' || state.status === 'idle') {
     return (
       <div className="flex items-center gap-2 p-4 text-xs text-muted-foreground">
@@ -559,18 +690,34 @@ function DatasetReportChart({
   }
   // On error or empty, fall back silently to the table beneath.
   if (state.status === 'error' || state.rows.length === 0) return null;
+
+  if (plan.kind === 'single_value') {
+    const { measureField, headerLabel } = buildDatasetFieldHelpers(state.fields, state.object, fieldLabel);
+    const mf = measureField(yAxis);
+    return (
+      <div className="rounded-md border bg-card p-3" data-testid="dataset-report-metric">
+        {title ? <h3 className="mb-2 text-sm font-semibold">{title}</h3> : null}
+        <div className="flex flex-col gap-0.5 py-2">
+          <span className="text-2xl font-semibold tabular-nums">
+            {formatMeasure(state.rows[0]?.[yAxis], mf?.format, mf?.currency)}
+          </span>
+          <span className="text-xs text-muted-foreground">{headerLabel(yAxis)}</span>
+        </div>
+      </div>
+    );
+  }
+
   // The chart component is registered lazily; until it resolves render nothing
   // (the grouped table beneath still shows the exact numbers).
   if (!ChartComponent) return null;
 
-  const title = typeof chart.title === 'string' ? chart.title : undefined;
   return (
     <div className="rounded-md border bg-card p-3" data-testid="dataset-report-chart">
       {title ? <h3 className="mb-2 text-sm font-semibold">{title}</h3> : null}
       {/* eslint-disable-next-line react-hooks/static-components -- ChartComponent is a stable registry lookup (useRegistryComponent), not a component created during render */}
       <ChartComponent
         schema={{
-          chartType: mapReportChartType(chart.type),
+          chartType: plan.chartType,
           data: state.rows,
           xAxisKey: xAxis,
           series: [{ dataKey: yAxis }],
@@ -819,9 +966,11 @@ export const DatasetReportRenderer: React.FC<DatasetReportRendererProps> = ({
   );
   // ADR-0021 D2: `drilldown` defaults on; the host must still supply a sink.
   const drillSink = report.drilldown === false ? undefined : onDrill;
+  // The DECLARED type drives the branch (#2941) — never the data shape.
+  const presentation = resolveReportPresentation(report.type);
 
   // Joined → a vertical stack of dataset-bound blocks.
-  if (report.type === 'joined' && Array.isArray(report.blocks)) {
+  if (presentation === 'joined' && Array.isArray(report.blocks)) {
     return (
       <div
         className={className}
@@ -837,7 +986,12 @@ export const DatasetReportRenderer: React.FC<DatasetReportRendererProps> = ({
           // independent query over its own dataset, so there is no report-level
           // ordering to inherit here.
           const blockOrder = readOrder(block.order);
-          const blockTable = block.type === 'matrix' && blockAcross.length > 0 ? (
+          // Same type-driven dispatch as the top level: a block's declared
+          // type picks its presentation (`JoinedReportBlockSchema.type`
+          // defaults to `tabular`). A grouped block (summary, or a matrix
+          // without across-dimensions) carries the totals footer.
+          const blockPresentation = resolveReportPresentation(block.type);
+          const blockTable = blockPresentation === 'matrix' && blockAcross.length > 0 ? (
             <DatasetMatrixTable
               dataset={String(block.dataset ?? '')}
               rows={readNames(block.rows)}
@@ -857,6 +1011,7 @@ export const DatasetReportRenderer: React.FC<DatasetReportRendererProps> = ({
               dataSource={dataSource}
               onDrill={drillSink}
               order={blockOrder}
+              withTotals={blockPresentation === 'summary' || blockPresentation === 'matrix'}
             />
           );
           return (
@@ -883,8 +1038,8 @@ export const DatasetReportRenderer: React.FC<DatasetReportRendererProps> = ({
   const across = readNames(report.columns);
   const reportOrder = readOrder(report.order);
   // Matrix with an across dimension → true cross-tab; without one it
-  // degrades to the flat grouped table (pre-`columns` stored JSON).
-  if (report.type === 'matrix' && across.length > 0) {
+  // degrades to the grouped (summary) table (pre-`columns` stored JSON).
+  if (presentation === 'matrix' && across.length > 0) {
     return (
       <div className={className} data-testid="dataset-report" data-report-name={report.name}>
         <DatasetMatrixTable
@@ -901,10 +1056,13 @@ export const DatasetReportRenderer: React.FC<DatasetReportRendererProps> = ({
     );
   }
 
-  // summary / tabular (and matrix without `columns`) → a grouped table,
-  // preceded by the embedded chart visualization when the report declares one
-  // (ADR-0021: the chart plots the dataset's yAxis measure across the xAxis
-  // dimension; the table beneath always carries the exact numbers).
+  // summary → grouped table with the server-computed totals footer;
+  // tabular → the same selection as a simple list, no totals (the declared
+  // type is what separates them, #2941). A matrix without `columns` degrades
+  // to the summary presentation — it is a grouped type. Either is preceded by
+  // the embedded chart visualization when the report declares one (ADR-0021:
+  // the chart plots the dataset's yAxis measure across the xAxis dimension;
+  // the table beneath always carries the exact numbers).
   const chartCfg =
     report.chart && typeof report.chart === 'object' && (report.chart as { type?: unknown }).type
       ? (report.chart as Record<string, unknown>)
@@ -914,6 +1072,7 @@ export const DatasetReportRenderer: React.FC<DatasetReportRendererProps> = ({
       className={`${className ?? ''} flex flex-col gap-3`}
       data-testid="dataset-report"
       data-report-name={report.name}
+      data-report-presentation={presentation}
     >
       {chartCfg ? (
         <DatasetReportChart
@@ -932,6 +1091,7 @@ export const DatasetReportRenderer: React.FC<DatasetReportRendererProps> = ({
         dataSource={dataSource}
         onDrill={drillSink}
         order={reportOrder}
+        withTotals={presentation === 'summary' || presentation === 'matrix'}
       />
     </div>
   );

@@ -183,6 +183,31 @@ function formatActionLabel(action: string): string {
 }
 
 /**
+ * Resolve the spec `AddRecordConfigSchema.position` (`ui/view.zod.ts`:
+ * `top | bottom | both`) to the two render slots. A binary ternary used to
+ * collapse `both` to `top`, so the bottom button never rendered (#2941).
+ *
+ * An absent or unrecognized value keeps this renderer's historical `top`
+ * placement. (The spec's own default is `bottom`; spec-parsed metadata
+ * arrives with it materialized, but raw stored JSON predating the spec
+ * default relied on `top` — moving it is a UX change out of scope here.)
+ *
+ * Exported for the spec-parity test, which fails the moment the spec's
+ * position vocabulary and this mapping drift in either direction.
+ */
+export function resolveAddRecordPlacement(position: unknown): { top: boolean; bottom: boolean } {
+  switch (position) {
+    case 'bottom':
+      return { top: false, bottom: true };
+    case 'both':
+      return { top: true, bottom: true };
+    case 'top':
+    default:
+      return { top: true, bottom: false };
+  }
+}
+
+/**
  * Normalize an array of filter conditions, expanding `in`/`not in` operators
  * and ensuring consistent AST structure.
  */
@@ -414,6 +439,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     // buttons on every existing view.)
     const ua = schema.userActions as Record<string, boolean | undefined> | undefined;
     const addRecordEnabled = schema.addRecord?.enabled === true && ua?.addRecordForm !== false;
+    const addRecordPlacement = resolveAddRecordPlacement(schema.addRecord?.position);
     return {
       showSearch: ua?.search !== false,
       showSort: ua?.sort !== false,
@@ -424,8 +450,12 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       showHideFields: ua?.hideFields === true,
       showColor: ua?.rowColor === true,
       compactToolbar: schema.compactToolbar === true,
+      // Position-independent switch (empty-state CTA) + the two placement
+      // slots. `position: 'both'` renders both buttons — it used to collapse
+      // to `top` through a binary ternary (#2941).
       showAddRecord: addRecordEnabled,
-      addRecordPosition: (schema.addRecord?.position === 'bottom' ? 'bottom' : 'top') as 'top' | 'bottom',
+      showAddRecordTop: addRecordEnabled && addRecordPlacement.top,
+      showAddRecordBottom: addRecordEnabled && addRecordPlacement.bottom,
     };
   }, [schema.userActions, schema.compactToolbar, schema.addRecord]);
 
@@ -2367,7 +2397,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           )}
 
           {/* Add Record (top position) */}
-          {toolbarFlags.showAddRecord && toolbarFlags.addRecordPosition === 'top' && (
+          {toolbarFlags.showAddRecordTop && (
             <Button
               variant="ghost"
               size="sm"
@@ -2504,7 +2534,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       </div>
 
       {/* Add Record (bottom position) */}
-      {toolbarFlags.showAddRecord && toolbarFlags.addRecordPosition === 'bottom' && (
+      {toolbarFlags.showAddRecordBottom && (
         <div className="border-t px-2 sm:px-4 py-1 bg-background shrink-0">
           <Button
             variant="ghost"
