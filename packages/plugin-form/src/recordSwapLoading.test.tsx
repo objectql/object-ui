@@ -1,0 +1,206 @@
+/**
+ * ObjectUI
+ * Copyright (c) 2024-present ObjectStack Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+/**
+ * Swapping `recordId` on a MOUNTED sectioned form must not show the old record.
+ *
+ * `loading` in these four containers was only ever set `true` once, by
+ * `useState(true)`, and thereafter only ever set `false`. So a `recordId` change
+ * re-entered the fetch effect WITHOUT going back through the loading branch: the
+ * form stayed mounted showing — and accepting edits to — record A's values, with
+ * no indication that a different record had been asked for, until B's response
+ * landed and replaced them in place. Anything typed in that window belonged to A
+ * on screen and to B on submit.
+ *
+ * The same effect also had no staleness guard, so two overlapping fetches landed
+ * in COMPLETION order rather than request order: ask for B then C, and a slow B
+ * arriving last left the form showing B while the caller had asked for C.
+ *
+ * Both are the same defect from the user's side — the form displays a record
+ * nobody asked for — so both are pinned here. `ObjectForm` already did the right
+ * thing (it re-enters loading before the fetch), which is why this only ever
+ * reproduced on the sectioned variants.
+ */
+
+import React from 'react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { registerAllFields } from '@object-ui/fields';
+import { ModalForm } from './ModalForm';
+import { DrawerForm } from './DrawerForm';
+import { TabbedForm } from './TabbedForm';
+import { SplitForm } from './SplitForm';
+
+registerAllFields();
+
+const SECTIONS = [{ name: 'basics', label: 'Basics', fields: ['title'] }];
+
+/** A `findOne` whose every response is resolved by the test, by record id. */
+function deferredDataSource() {
+  const pending = new Map<string, (v: unknown) => void>();
+  return {
+    ds: {
+      getObjectSchema: vi.fn().mockResolvedValue({
+        name: 'task',
+        fields: { title: { type: 'text', label: 'Title' } },
+      }),
+      create: vi.fn(),
+      update: vi.fn(),
+      findOne: vi.fn(
+        (_obj: string, id: string) =>
+          new Promise((resolve) => {
+            pending.set(id, resolve as (v: unknown) => void);
+          }),
+      ),
+    } as any,
+    /**
+     * Resolve the read for `id` with that record's payload, waiting for the
+     * request to actually be issued first — the fetch effect is gated on
+     * `getObjectSchema` resolving, so `findOne` is a tick or two behind render.
+     */
+    async land(id: string, title: string) {
+      const resolve = await waitFor(() => {
+        const r = pending.get(id);
+        if (!r) throw new Error(`no in-flight findOne for ${id}`);
+        return r;
+      });
+      pending.delete(id);
+      resolve({ id, title });
+      // Let the resulting state updates flush.
+      await waitFor(() => {});
+    },
+  };
+}
+
+const titleInput = () =>
+  document.body.querySelector<HTMLInputElement>('[data-field="title"] input');
+
+const schemaFor = (formType: string, recordId: string) =>
+  ({
+    type: 'object-form',
+    formType,
+    objectName: 'task',
+    mode: 'edit',
+    recordId,
+    sections: SECTIONS,
+    // Overlay variants only.
+    open: true,
+    onOpenChange: vi.fn(),
+  }) as any;
+
+beforeEach(() => vi.clearAllMocks());
+afterEach(() => cleanup());
+
+describe.each([
+  ['ModalForm', ModalForm, 'modal'],
+  ['DrawerForm', DrawerForm, 'drawer'],
+  ['TabbedForm', TabbedForm, 'tabbed'],
+  ['SplitForm', SplitForm, 'split'],
+] as const)('%s — recordId swap', (_name, Form, formType) => {
+  it('does not keep showing the previous record while the new one loads', async () => {
+    const { ds, land } = deferredDataSource();
+    const { rerender } = render(
+      <Form schema={schemaFor(formType, 'r1')} dataSource={ds} />,
+    );
+
+    await land('r1', 'Record One');
+    await waitFor(() => expect(titleInput()?.value).toBe('Record One'));
+
+    // The caller asks for a different record. B's read is still in flight.
+    rerender(<Form schema={schemaFor(formType, 'r2')} dataSource={ds} />);
+
+    // Record A must be off screen — showing it here invites the user to edit
+    // values that will be submitted against record B.
+    expect(titleInput()?.value ?? null).not.toBe('Record One');
+
+    await land('r2', 'Record Two');
+    await waitFor(() => expect(titleInput()?.value).toBe('Record Two'));
+  });
+
+  it('ignores a stale response that lands after a newer one', async () => {
+    const { ds, land } = deferredDataSource();
+    const { rerender } = render(
+      <Form schema={schemaFor(formType, 'r1')} dataSource={ds} />,
+    );
+    await land('r1', 'Record One');
+    await waitFor(() => expect(titleInput()?.value).toBe('Record One'));
+
+    // Two swaps in flight; the SECOND is what the caller wants.
+    rerender(<Form schema={schemaFor(formType, 'r2')} dataSource={ds} />);
+    rerender(<Form schema={schemaFor(formType, 'r3')} dataSource={ds} />);
+
+    // Responses come back out of order — r3 first, then the slower r2.
+    await land('r3', 'Record Three');
+    await land('r2', 'Record Two');
+
+    // Request order wins, not completion order.
+    await waitFor(() => expect(titleInput()?.value).toBe('Record Three'));
+    expect(titleInput()?.value).not.toBe('Record Two');
+  });
+});
+
+/**
+ * Hiding the form to load the next record UNMOUNTS the inner renderer, and that
+ * renderer is the only thing that reports dirtiness (`onDirtyChange`) — it gets
+ * no chance to report `false` on its way out. Left alone, the overlay's guards
+ * (#2998) would stay armed for input belonging to a record no longer on screen:
+ * a plain refresh would prompt, and closing would ask to discard nothing.
+ */
+describe.each([
+  ['ModalForm', ModalForm, 'modal'],
+  ['DrawerForm', DrawerForm, 'drawer'],
+] as const)('%s — swapping records clears the unsaved-input guard', (_name, Form, formType) => {
+  it('stops blocking unload once the previous record is gone', async () => {
+    const { ds, land } = deferredDataSource();
+    const { rerender } = render(
+      <Form schema={schemaFor(formType, 'r1')} dataSource={ds} />,
+    );
+    await land('r1', 'Record One');
+    await waitFor(() => expect(titleInput()?.value).toBe('Record One'));
+
+    // Dirty record A, and prove the guard is armed.
+    fireEvent.change(titleInput() as HTMLInputElement, { target: { value: 'edited' } });
+    await waitFor(() => {
+      const evt = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(evt);
+      expect(evt.defaultPrevented).toBe(true);
+    });
+
+    rerender(<Form schema={schemaFor(formType, 'r2')} dataSource={ds} />);
+
+    // A's edits went with A — nothing unsaved is on screen to protect.
+    const armed = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(armed);
+    expect(armed.defaultPrevented).toBe(false);
+  });
+});
+
+describe('create mode is unaffected', () => {
+  it('never enters the loading state for a form with no recordId', async () => {
+    const { ds } = deferredDataSource();
+    render(
+      <ModalForm
+        schema={{
+          type: 'object-form',
+          formType: 'modal',
+          objectName: 'task',
+          mode: 'create',
+          sections: SECTIONS,
+          open: true,
+          onOpenChange: vi.fn(),
+        } as any}
+        dataSource={ds}
+      />,
+    );
+
+    // Renders straight to an empty form; `findOne` is never called.
+    await waitFor(() => expect(titleInput()).not.toBeNull());
+    expect(titleInput()?.value).toBe('');
+    expect(ds.findOne).not.toHaveBeenCalled();
+  });
+});

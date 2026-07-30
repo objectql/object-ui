@@ -290,8 +290,24 @@ export const ModalForm: React.FC<ModalFormProps> = ({
     fetchSchema();
   }, [schema.objectName, dataSource]);
 
+  // The record whose data `formData` currently holds. The fetch effect reads it
+  // to tell a genuine record SWAP from a re-run of its own making —
+  // `initialData`/`initialValues` are objects callers commonly rebuild every
+  // render, and flashing the loading state for those would thrash.
+  const loadedRecordIdRef = useRef<string | number | undefined>(undefined);
+
   // Fetch initial data
   useEffect(() => {
+    // A `recordId` change re-enters this effect with the form still MOUNTED on
+    // the previous record, which needs handling on two fronts (pinned by
+    // recordSwapLoading.test.tsx):
+    //  - go back to the loading state, so record A's values are not left on
+    //    screen AND EDITABLE while B is in flight, to be swapped underneath in
+    //    place when it lands. Anything typed there read as A's on screen but
+    //    would have been submitted against B.
+    //  - ignore a response that is no longer the one being awaited, so two
+    //    overlapping reads land in REQUEST order, not completion order.
+    let cancelled = false;
     const fetchData = async () => {
       if (schema.mode === 'create' || !schema.recordId) {
         setFormData(schema.initialData || schema.initialValues || {});
@@ -305,19 +321,33 @@ export const ModalForm: React.FC<ModalFormProps> = ({
         return;
       }
 
+      // Only a change of RECORD hides the form. Hiding it UNMOUNTS the inner
+      // renderer, which is the only thing that reports dirtiness — it cannot
+      // emit a final `onDirtyChange(false)` on its way out, so clear the flag
+      // here or the close/unload guards stay armed for input that belongs to a
+      // record no longer on screen.
+      if (loadedRecordIdRef.current !== schema.recordId) {
+        setLoading(true);
+        setIsDirty(false);
+      }
+
       try {
         const data = await dataSource.findOne(schema.objectName, schema.recordId);
+        if (cancelled) return;
+        loadedRecordIdRef.current = schema.recordId;
         setFormData(data || {});
       } catch (err) {
+        if (cancelled) return;
         setError(err as Error);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     if (objectSchema || !dataSource) {
       fetchData();
     }
+    return () => { cancelled = true; };
   }, [objectSchema, schema.mode, schema.recordId, schema.initialData, schema.initialValues, dataSource, schema.objectName]);
 
   // Build form fields from section config
