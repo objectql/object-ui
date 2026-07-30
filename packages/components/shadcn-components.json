@@ -53,7 +53,8 @@
     "badge": {
       "source": "https://ui.shadcn.com/r/styles/default/badge.json",
       "dependencies": [],
-      "registryDependencies": []
+      "registryDependencies": [],
+      "localEdits": "Adds `whitespace-nowrap`: a badge is a single-line pill by definition, and without it CJK labels (e.g. 待审批) break per-character inside a cramped table cell and stack vertically (objectui#2762 P0-1). The reasoning is also comment-documented in the file."
     },
     "breadcrumb": {
       "source": "https://ui.shadcn.com/r/styles/default/breadcrumb.json",
@@ -75,7 +76,8 @@
       ],
       "registryDependencies": [
         "button"
-      ]
+      ],
+      "localEdits": "Tailwind v4 syntax: upstream still ships v3’s `[--var]` arbitrary values, which on Tailwind 4.x compile to a bare custom-property name instead of `var(--var)` — invalid CSS that browsers drop. Applied repo-wide in 925051db6. Here it covers `h-`, `w-`, `px-`, `size-` and `max-w-` on `--cell-size`."
     },
     "card": {
       "source": "https://ui.shadcn.com/r/styles/default/card.json",
@@ -97,7 +99,8 @@
         "recharts",
         "lucide-react"
       ],
-      "registryDependencies": []
+      "registryDependencies": [],
+      "localEdits": "Three local edits. (1) The container is `block … w-full` rather than upstream’s `flex justify-center`: a flex box gives ResponsiveContainer no measurable width, so charts render axes but no marks (#1634, commit 9b163173b). (2) Tooltip/Legend props are hand-written instead of derived from Recharts’ own types, which did not type-check here (2e11aa72f). (3) Tailwind v4 syntax: upstream still ships v3’s `[--var]` arbitrary values, which on Tailwind 4.x compile to a bare custom-property name instead of `var(--var)` — invalid CSS that browsers drop. Applied repo-wide in 925051db6."
     },
     "checkbox": {
       "source": "https://ui.shadcn.com/r/styles/default/checkbox.json",
@@ -120,7 +123,8 @@
       ],
       "registryDependencies": [
         "dialog"
-      ]
+      ],
+      "localEdits": "Two local additions to CommandDialog. (1) `contentProps`, so callers can attach a stable locator/ARIA name to the underlying dialog element — a `data-testid` spread onto CommandDialog lands on the Radix Dialog root, which renders no DOM (ADR-0054 C4). (2) `sr-only` DialogTitle/DialogDescription, which Radix requires for an accessible name. Upstream has neither, and drops each addition together with its usages — so syncing deletes ~38 lines and still type-checks clean. Verified: `--update command --force` compiles."
     },
     "context-menu": {
       "source": "https://ui.shadcn.com/r/styles/default/context-menu.json",
@@ -248,7 +252,8 @@
       "dependencies": [
         "radix-ui"
       ],
-      "registryDependencies": []
+      "registryDependencies": [],
+      "localEdits": "Wraps SelectPrimitive.Root to swallow `onValueChange(\"\")`. Radix mirrors the value into a hidden native `<select>`; SelectContent registers its options a commit AFTER the trigger mounts, so a value arriving mid-hydration (an edit form whose record lands after first paint) finds no matching `<option>`, and Radix echoes back an empty string that silently wipes the field — latching the form when a `visibleWhen` predicate reads it (#2968). SelectItem rejects `value=\"\"`, so `\"\"` is never a real user choice. Also tailwind v4 syntax: upstream still ships v3’s `[--var]` arbitrary values, which on Tailwind 4.x compile to a bare custom-property name instead of `var(--var)` — invalid CSS that browsers drop. Applied repo-wide in 925051db6."
     },
     "separator": {
       "source": "https://ui.shadcn.com/r/styles/default/separator.json",
@@ -262,7 +267,8 @@
       "dependencies": [
         "radix-ui"
       ],
-      "registryDependencies": []
+      "registryDependencies": [],
+      "localEdits": "Adds a `hideOverlay` prop that suppresses `<SheetOverlay />`, for sheets that must not dim the page behind them. Upstream renders the overlay unconditionally."
     },
     "sidebar": {
       "source": "https://ui.shadcn.com/r/styles/default/sidebar.json",
@@ -275,7 +281,8 @@
         "sheet",
         "skeleton",
         "tooltip"
-      ]
+      ],
+      "localEdits": "Three systematic edits, not 24 independent ones. (1) Tailwind v4 syntax: upstream still ships v3’s `[--var]` arbitrary values, which on Tailwind 4.x compile to a bare custom-property name instead of `var(--var)` — invalid CSS that browsers drop. Applied repo-wide in 925051db6. (2) `theme(spacing.4)` → `1rem`: cosmetic only — verified that Tailwind 4.3.3 still resolves the v3 `theme()` dot-notation, and both spellings compile to the identical `calc(var(--sidebar-width-icon) + 1rem)`. Unlike (1) this one is NOT load-bearing; it is just avoiding a deprecated idiom. (3) `data-collapsible` is set unconditionally and each rule qualified with `group-data-[state=collapsed]:`, where upstream blanks the attribute when expanded — same result, but the attribute stays in the DOM for styling and test locators. Also carries an `eslint-disable react-hooks/purity` the skeleton’s random width needs under this repo’s lint config; syncing removes it and Lint fails."
     },
     "skeleton": {
       "source": "https://ui.shadcn.com/r/styles/default/skeleton.json",
@@ -287,7 +294,8 @@
       "dependencies": [
         "radix-ui"
       ],
-      "registryDependencies": []
+      "registryDependencies": [],
+      "localEdits": "Forwards `aria-label` to `SliderPrimitive.Thumb`. Upstream renders the Thumb with only a className, so the accessible name never reaches the element screen readers focus."
     },
     "sonner": {
       "source": "https://ui.shadcn.com/r/styles/default/sonner.json",
@@ -308,7 +316,8 @@
     "table": {
       "source": "https://ui.shadcn.com/r/styles/default/table.json",
       "dependencies": [],
-      "registryDependencies": []
+      "registryDependencies": [],
+      "localEdits": "Adds `containerClassName` to override the scroll-wrapper `<div>`. The wrapper is its own `overflow-auto` container by default; inside an already-bounded scroll region (DataTable’s `flex-1 min-h-0 overflow-auto`) that creates a SECOND, height-unbounded scroll container whose horizontal scrollbar sits below every row, reachable only after scrolling to the last one. `containerClassName=\"overflow-visible\"` hands both axes to the outer container. Rationale is spelled out in the file’s JSDoc."
     },
     "tabs": {
       "source": "https://ui.shadcn.com/r/styles/default/tabs.json",

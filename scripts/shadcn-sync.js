@@ -256,7 +256,12 @@ async function checkComponent(name, manifest) {
         // `--update` refuses these; the local lines would be deleted.
         status = 'modified';
         message = `${localOnly.length} local line(s) upstream lacks — --update would refuse`;
-        if (upstreamOnly.length > 0) message += `, ${upstreamOnly.length} upstream line(s) pending`;
+        // Deliberately NOT "N updates available". Both counts are set
+        // differences, so a line we edited locally appears on both sides: once
+        // as ours, once as the upstream original it replaced. For a modified
+        // component this number is mostly the mirror image of its own local
+        // edits, not new upstream work waiting to be collected.
+        if (upstreamOnly.length > 0) message += `, ${upstreamOnly.length} not matching upstream verbatim`;
         // Divergence with a recorded reason is a decision; divergence without
         // one is an open question. Surfacing the split makes the untriaged
         // components a visible to-do instead of undifferentiated noise.
