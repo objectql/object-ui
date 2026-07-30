@@ -6,42 +6,31 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Badge,
   Button,
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Input,
   Label,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
   Progress,
   ScrollArea,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Switch,
-  Textarea,
 } from '@object-ui/components';
-import { AlertTriangle, Check, CheckCircle2, ChevronsUpDown, Loader2, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Loader2, XCircle } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/react';
+import { getLazyFieldWidget } from '@object-ui/fields';
 import type { BulkActionDef, BulkActionParam } from '@object-ui/types';
 import { useBulkExecutor, type BulkExecutorOptions, type BulkResult } from '../hooks/useBulkExecutor';
 import { isMultiValueField, type MultiValueFieldDef } from '../hooks/multiValueFields';
+import {
+  bulkParamToField,
+  fieldNeedsDataSource,
+  isLookupishParam,
+  lookupTargetObject,
+} from './bulkParamToField';
 
 export interface BulkActionDialogProps {
   /** The action being executed. */
@@ -50,12 +39,20 @@ export interface BulkActionDialogProps {
   rows: Array<Record<string, unknown>>;
   /** Object resource name (passed to the executor + lookup loader). */
   resource: string;
-  /** Data source used by the executor + lookup-param loader. */
+  /**
+   * Data source used by the executor and threaded into the lookup/user param
+   * widgets (candidate search) + the confirm step's id→label resolution.
+   */
   dataSource: BulkExecutorOptions['dataSource'] & {
     find?: (
       resource: string,
       query?: Record<string, unknown>,
     ) => Promise<{ data?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>>;
+    findOne?: (
+      resource: string,
+      id: string | number,
+      params?: Record<string, unknown>,
+    ) => Promise<Record<string, unknown> | null>;
   };
   /** Open state. */
   open: boolean;
@@ -129,7 +126,11 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
 
   const [step, setStep] = useState<Step>('params');
   const [values, setValues] = useState<Record<string, unknown>>(initialParamValues);
-  const [lookupCache, setLookupCache] = useState<Record<string, LookupOption[]>>({});
+  // Confirm-step display labels for picker params: param name → id → label.
+  // Resolved lazily (findOne per selected id) when the user reaches the
+  // confirm step — the params step needs no preloaded option list because the
+  // picker widgets fetch their own candidates (#3064).
+  const [lookupLabels, setLookupLabels] = useState<Record<string, Record<string, string>>>({});
   const { run, undo, retry, progress, result, reset } = useBulkExecutor({ resource, dataSource, objectFields, runAction });
   const [retrying, setRetrying] = useState<string | null>(null);
   const [undoing, setUndoing] = useState(false);
@@ -162,6 +163,7 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
     if (!open) return;
     reset();
     setValues(initialParamValues);
+    setLookupLabels({});
     setUndoneAt(null);
     setUndoing(false);
     setRetrying(null);
@@ -169,39 +171,51 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
     setStep(params.length === 0 ? 'confirm' : 'params');
   }, [open, def?.name, initialParamValues, params.length, reset]);
 
-  // Eagerly load lookup options for any lookup param. Cheap for the MVP since
-  // most CRM lookups (users, queues) cap out at a few hundred rows.
+  // Resolve picker-param ids into display labels for the confirm step. The
+  // widgets show labels while picking, but the committed value is just id(s);
+  // a failed or impossible resolution silently falls back to showing the raw
+  // id — purely cosmetic, so no error surface needed here.
   useEffect(() => {
-    if (!open) return;
-    if (typeof dataSource.find !== 'function') return;
-    const lookups = params.filter(p => p.type === 'lookup' && p.object && !lookupCache[p.name]);
-    if (lookups.length === 0) return;
+    if (step !== 'confirm') return;
+    if (typeof dataSource.findOne !== 'function') return;
     let cancelled = false;
     (async () => {
-      const next: Record<string, LookupOption[]> = {};
-      for (const p of lookups) {
-        try {
-          const res = await dataSource.find!(p.object as string, { $top: 200 });
-          const items = Array.isArray(res) ? res : (res?.data ?? []);
-          const labelField = typeof p.labelField === 'string' ? p.labelField : undefined;
-          next[p.name] = items.map(r => ({
-            value: String(r.id ?? r._id ?? ''),
-            label: String(
-              (labelField ? r[labelField] : undefined)
-              ?? r.name ?? r.full_name ?? r.email ?? r.id ?? '(unnamed)',
-            ),
-          })).filter(o => o.value);
-        } catch {
-          next[p.name] = [];
+      const updates: Record<string, Record<string, string>> = {};
+      for (const p of params) {
+        const target = lookupTargetObject(p);
+        if (!isLookupishParam(p) || !target) continue;
+        const v = values[p.name];
+        const ids = (Array.isArray(v) ? v : v == null || v === '' ? [] : [v]).map(String);
+        for (const id of ids) {
+          if (lookupLabels[p.name]?.[id]) continue;
+          try {
+            const rec = await dataSource.findOne!(target, id);
+            if (!rec) continue;
+            const labelField = typeof p.labelField === 'string' ? p.labelField : undefined;
+            const label =
+              (labelField ? rec[labelField] : undefined)
+              ?? rec.name ?? rec.full_name ?? rec.email;
+            if (label != null) (updates[p.name] ??= {})[id] = String(label);
+          } catch {
+            // Leave the id unresolved; describeValue falls back to the raw id.
+          }
         }
       }
-      if (!cancelled) setLookupCache(prev => ({ ...prev, ...next }));
+      if (!cancelled && Object.keys(updates).length > 0) {
+        setLookupLabels(prev => {
+          const next = { ...prev };
+          for (const [name, labels] of Object.entries(updates)) {
+            next[name] = { ...next[name], ...labels };
+          }
+          return next;
+        });
+      }
     })();
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, def?.name]);
+  }, [step]);
 
   const paramsValid = useMemo(() => {
     for (const p of params) {
@@ -221,12 +235,12 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
   const describeValue = useCallback((param: BulkActionParam | undefined, v: unknown): string => {
     if (v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0)) return '—';
     if (typeof v === 'boolean') return v ? t('grid.yes', { defaultValue: 'Yes' }) : t('grid.no', { defaultValue: 'No' });
-    const optSource: LookupOption[] = param?.type === 'lookup'
-      ? (lookupCache[param.name] ?? [])
+    const optSource: LookupOption[] = param && isLookupishParam(param)
+      ? Object.entries(lookupLabels[param.name] ?? {}).map(([value, label]) => ({ value, label }))
       : (param?.options ?? []).map(o => ({ value: String(o.value), label: String(o.label) }));
     const labelOf = (x: unknown) => optSource.find(o => o.value === String(x))?.label ?? String(x);
     return Array.isArray(v) ? v.map(labelOf).join(', ') : labelOf(v);
-  }, [t, lookupCache]);
+  }, [t, lookupLabels]);
 
   const maxRecords = def?.maxRecords ?? Infinity;
   const overLimit = rows.length > maxRecords;
@@ -330,7 +344,7 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
                 param={p}
                 multiple={isParamMultiple(p)}
                 value={values[p.name]}
-                lookupOptions={lookupCache[p.name]}
+                dataSource={dataSource}
                 onChange={(v) => setValues(prev => ({ ...prev, [p.name]: v }))}
               />
             ))}
@@ -511,215 +525,48 @@ interface ParamFieldProps {
   multiple: boolean;
   value: unknown;
   onChange: (v: unknown) => void;
-  lookupOptions?: LookupOption[];
+  /** Threaded into picker widgets (lookup/user) for candidate search. */
+  dataSource: BulkActionDialogProps['dataSource'];
 }
 
-const ParamField: React.FC<ParamFieldProps> = ({ param, multiple, value, onChange, lookupOptions }) => {
-  const { t } = useObjectTranslation();
+/**
+ * One param row: label → shared form field widget → help text. The widget is
+ * the SAME component the object form (and ActionParamDialog, ADR-0059) renders
+ * for that field type, resolved via `bulkParamToField` + `getLazyFieldWidget`
+ * — so a `lookup` param gets the searchable record picker with its own
+ * loading/error/empty states (#3064) and a `sys_user` target gets the form's
+ * PeoplePicker. Widgets stay lazy behind `<Suspense>` so opening a dialog only
+ * loads the widgets its params actually use.
+ */
+const ParamField: React.FC<ParamFieldProps> = ({ param, multiple, value, onChange, dataSource }) => {
   const id = `bulk-param-${param.name}`;
-  const label = (
-    <Label htmlFor={id} className="text-xs">
-      {param.label ?? param.name}
-      {param.required && <span className="text-destructive ml-0.5">*</span>}
-    </Label>
-  );
-
-  // Assigned by every switch branch (including `default`) before it's read
-  // below — no dead initializer needed.
-  let control: React.ReactNode;
-  switch (param.type) {
-    case 'boolean':
-      control = (
-        <Switch
-          id={id}
-          checked={!!value}
-          onCheckedChange={onChange}
-        />
-      );
-      break;
-    case 'textarea':
-      control = (
-        <Textarea
-          id={id}
-          value={(value as string) ?? ''}
-          onChange={e => onChange(e.target.value)}
-          placeholder={param.placeholder}
-        />
-      );
-      break;
-    case 'select': {
-      const options = (param.options ?? []).map(o => ({ value: String(o.value), label: o.label }));
-      control = multiple ? (
-        <MultiSelectControl
-          id={id}
-          options={options}
-          value={value}
-          onChange={onChange}
-          placeholder={param.placeholder ?? t('grid.bulk.selectPlaceholder', { defaultValue: 'Select…' })}
-        />
-      ) : (
-        <Select value={value !== undefined && value !== null ? String(value) : ''} onValueChange={onChange}>
-          <SelectTrigger id={id}>
-            <SelectValue placeholder={param.placeholder ?? t('grid.bulk.selectPlaceholder', { defaultValue: 'Select…' })} />
-          </SelectTrigger>
-          <SelectContent>
-            {options.map(o => (
-              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      );
-      break;
-    }
-    case 'lookup': {
-      const opts = lookupOptions ?? [];
-      const loadingPlaceholder = opts.length === 0
-        ? t('grid.bulk.loading', { defaultValue: 'Loading…' })
-        : (param.placeholder ?? t('grid.bulk.selectPlaceholder', { defaultValue: 'Select…' }));
-      control = multiple ? (
-        <MultiSelectControl
-          id={id}
-          options={opts}
-          value={value}
-          onChange={onChange}
-          placeholder={loadingPlaceholder}
-        />
-      ) : (
-        <Select value={(value as string) ?? ''} onValueChange={onChange}>
-          <SelectTrigger id={id}>
-            <SelectValue placeholder={loadingPlaceholder} />
-          </SelectTrigger>
-          <SelectContent>
-            {opts.map(o => (
-              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      );
-      break;
-    }
-    case 'date':
-      control = (
-        <Input
-          id={id}
-          type="date"
-          value={(value as string) ?? ''}
-          onChange={e => onChange(e.target.value === '' ? undefined : e.target.value)}
-          placeholder={param.placeholder}
-        />
-      );
-      break;
-    case 'datetime':
-      control = (
-        <Input
-          id={id}
-          type="datetime-local"
-          value={(value as string) ?? ''}
-          onChange={e => onChange(e.target.value === '' ? undefined : e.target.value)}
-          placeholder={param.placeholder}
-        />
-      );
-      break;
-    case 'number':
-      control = (
-        <Input
-          id={id}
-          type="number"
-          value={(value as number | string) ?? ''}
-          onChange={e => onChange(e.target.value === '' ? undefined : Number(e.target.value))}
-          placeholder={param.placeholder}
-        />
-      );
-      break;
-    default:
-      control = (
-        <Input
-          id={id}
-          type="text"
-          value={(value as string) ?? ''}
-          onChange={e => onChange(e.target.value)}
-          placeholder={param.placeholder}
-        />
-      );
-  }
+  const field = useMemo(() => bulkParamToField(param, multiple), [param, multiple]);
+  // getLazyFieldWidget caches per type, and the useMemo keeps the reference
+  // hook-stable for a given param (react-hooks/static-components).
+  const Widget = useMemo(() => getLazyFieldWidget(field.type), [field.type]);
+  // Only picker widgets receive the dataSource — the simple widgets spread
+  // unknown props toward the DOM.
+  const dataSourceProps = fieldNeedsDataSource(field) ? { dataSource } : {};
 
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        {label}
+        <Label htmlFor={id} className="text-xs">
+          {param.label ?? param.name}
+          {param.required && <span className="text-destructive ml-0.5">*</span>}
+        </Label>
       </div>
-      {control}
+      <Suspense fallback={<div className="h-9 w-full animate-pulse rounded-md bg-muted" aria-hidden="true" />}>
+        {/* eslint-disable-next-line react-hooks/static-components -- getLazyFieldWidget returns a per-type cached lazy component (stable identity), not a component created during render */}
+        <Widget
+          id={id}
+          value={value ?? null}
+          onChange={onChange}
+          field={field}
+          {...dataSourceProps}
+        />
+      </Suspense>
       {param.help && <p className="text-[11px] text-muted-foreground">{param.help}</p>}
     </div>
-  );
-};
-
-interface MultiSelectControlProps {
-  id: string;
-  options: LookupOption[];
-  value: unknown;
-  onChange: (v: string[]) => void;
-  placeholder?: string;
-}
-
-/**
- * Popover + Command multi-select used for `multiple` select/lookup params. The
- * value is a string array (written straight into the patch to match a
- * multi-value backend field). Search filters the already-loaded option set.
- */
-const MultiSelectControl: React.FC<MultiSelectControlProps> = ({ id, options, value, onChange, placeholder }) => {
-  const { t } = useObjectTranslation();
-  const [open, setOpen] = useState(false);
-  const selected = Array.isArray(value) ? (value as unknown[]).map(String) : [];
-  const labelOf = (v: string) => options.find(o => o.value === v)?.label ?? v;
-  const toggle = (v: string) => {
-    const next = selected.includes(v) ? selected.filter(x => x !== v) : [...selected, v];
-    onChange(next);
-  };
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          id={id}
-          type="button"
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="w-full justify-between h-auto min-h-9 font-normal"
-        >
-          <span className="flex flex-wrap gap-1 items-center text-left">
-            {selected.length === 0 && (
-              <span className="text-muted-foreground">
-                {placeholder ?? t('grid.bulk.selectPlaceholder', { defaultValue: 'Select…' })}
-              </span>
-            )}
-            {selected.map(v => (
-              <Badge key={v} variant="secondary" className="font-normal">{labelOf(v)}</Badge>
-            ))}
-          </span>
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-        <Command>
-          <CommandInput placeholder={t('grid.bulk.searchPlaceholder', { defaultValue: 'Search…' })} />
-          <CommandList>
-            <CommandEmpty>{t('grid.bulk.noOptions', { defaultValue: 'No options.' })}</CommandEmpty>
-            <CommandGroup>
-              {options.map(o => {
-                const checked = selected.includes(o.value);
-                return (
-                  <CommandItem key={o.value} value={o.label} onSelect={() => toggle(o.value)}>
-                    <Check className={`mr-2 h-4 w-4 ${checked ? 'opacity-100' : 'opacity-0'}`} />
-                    {o.label}
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
   );
 };

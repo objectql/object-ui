@@ -127,11 +127,11 @@ describe('BulkActionDialog — schema fallback when param.multiple is omitted (#
       />,
     );
 
-    // Schema says multi → the combobox (Popover multi-select) renders, not a
-    // single-select trigger that collapses to one value.
-    fireEvent.click(screen.getByRole('combobox'));
-    fireEvent.click(await screen.findByText('Frontend'));
-    fireEvent.click(await screen.findByText('Design'));
+    // Schema says multi → the shared MultiSelectField (toggle chips) renders,
+    // not a single-select trigger that collapses to one value.
+    await screen.findByTestId('multiselect-labels');
+    fireEvent.click(screen.getByTestId('multiselect-option-frontend'));
+    fireEvent.click(screen.getByTestId('multiselect-option-design'));
 
     const next = screen.getByRole('button', { name: 'Next' });
     await waitFor(() => expect(next).toBeEnabled());
