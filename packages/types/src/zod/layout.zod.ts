@@ -35,7 +35,7 @@ export const DivSchema = BaseSchema.extend({
 /**
  * Span Schema - Inline text container
  */
-export const SpanSchema = BaseSchema.extend({
+export const TextSpanSchema = BaseSchema.extend({
   type: z.literal('span'),
   value: z.string().optional().describe('Text content'),
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional(),
@@ -329,7 +329,7 @@ export const PageSchema = BaseSchema.extend(SpecPageFields.shape).extend({
  */
 export const LayoutSchema = z.discriminatedUnion('type', [
   DivSchema,
-  SpanSchema,
+  TextSpanSchema,
   TextSchema,
   ImageSchema,
   IconSchema,

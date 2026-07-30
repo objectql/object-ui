@@ -33,7 +33,7 @@ export interface DivSchema extends BaseSchema {
 /**
  * Text span component for inline text
  */
-export interface SpanSchema extends BaseSchema {
+export interface TextSpanSchema extends BaseSchema {
   type: 'span';
   /**
    * Text content
@@ -652,7 +652,7 @@ export interface PageSlotMap {
  */
 export type LayoutSchema =
   | DivSchema
-  | SpanSchema
+  | TextSpanSchema
   | TextSchema
   | ImageSchema
   | IconSchema

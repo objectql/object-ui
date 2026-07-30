@@ -95,7 +95,7 @@ export interface BaseFieldMetadata {
   /**
    * Custom validation function or rules
    */
-  validate?: ValidationFunction | ValidationRule;
+  validate?: ValidationFunction | FieldConstraints;
   
   /**
    * Field dependencies (Phase 3.2.3)
@@ -133,7 +133,7 @@ export type ValidationFunction = (value: any) => boolean | string | Promise<bool
 /**
  * Validation rule type
  */
-export type ValidationRule = {
+export type FieldConstraints = {
   required?: boolean | string;
   minLength?: number;
   maxLength?: number;
@@ -665,7 +665,7 @@ export interface GridColumnDefinition {
   /**
    * Validation rules
    */
-  validate?: ValidationRule;
+  validate?: FieldConstraints;
 }
 
 export interface ColorFieldMetadata extends BaseFieldMetadata {

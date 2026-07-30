@@ -23,7 +23,7 @@ import {
   clearSharedDiscoveryCache,
   readTransactionalBatchCapability,
 } from './index';
-import type { MutationEvent } from '@object-ui/types';
+import type { DataSourceMutationEvent } from '@object-ui/types';
 
 function makeDS(stub: Record<string, any>) {
   const ds: any = new ObjectStackAdapter({
@@ -49,8 +49,8 @@ describe('ObjectStackAdapter.onMutation', () => {
       .mockResolvedValue({ record: { id: 'r1', account: 'acc-1' } });
     const ds = makeDS({ update });
 
-    const events: MutationEvent[] = [];
-    const unsub = ds.onMutation((e: MutationEvent) => events.push(e));
+    const events: DataSourceMutationEvent[] = [];
+    const unsub = ds.onMutation((e: DataSourceMutationEvent) => events.push(e));
 
     await ds.update('showcase_project', 'r1', { account: 'acc-1' });
 
@@ -67,8 +67,8 @@ describe('ObjectStackAdapter.onMutation', () => {
   it('emits a create event with the new record', async () => {
     const create = vi.fn().mockResolvedValue({ record: { id: 'new', name: 'X' } });
     const ds = makeDS({ create });
-    const events: MutationEvent[] = [];
-    ds.onMutation((e: MutationEvent) => events.push(e));
+    const events: DataSourceMutationEvent[] = [];
+    ds.onMutation((e: DataSourceMutationEvent) => events.push(e));
 
     await ds.create('showcase_project', { name: 'X' });
 
@@ -83,8 +83,8 @@ describe('ObjectStackAdapter.onMutation', () => {
       .mockResolvedValueOnce({ deleted: true })
       .mockResolvedValueOnce({ deleted: false });
     const ds = makeDS({ delete: del });
-    const events: MutationEvent[] = [];
-    ds.onMutation((e: MutationEvent) => events.push(e));
+    const events: DataSourceMutationEvent[] = [];
+    ds.onMutation((e: DataSourceMutationEvent) => events.push(e));
 
     await ds.delete('showcase_project', 'r1');
     await ds.delete('showcase_project', 'r2');
@@ -97,8 +97,8 @@ describe('ObjectStackAdapter.onMutation', () => {
   it('emits a single bulk event per bulkUpdate call (not per id)', async () => {
     const updateMany = vi.fn().mockResolvedValue({ succeeded: 3, failed: 0, results: [] });
     const ds = makeDS({ updateMany });
-    const events: MutationEvent[] = [];
-    ds.onMutation((e: MutationEvent) => events.push(e));
+    const events: DataSourceMutationEvent[] = [];
+    ds.onMutation((e: DataSourceMutationEvent) => events.push(e));
 
     await ds.bulkUpdate('showcase_project', ['a', 'b', 'c'], { archived: true });
 
@@ -108,8 +108,8 @@ describe('ObjectStackAdapter.onMutation', () => {
   it('does not emit when a bulk operation affected zero rows', async () => {
     const updateMany = vi.fn().mockResolvedValue({ succeeded: 0, failed: 0, results: [] });
     const ds = makeDS({ updateMany });
-    const events: MutationEvent[] = [];
-    ds.onMutation((e: MutationEvent) => events.push(e));
+    const events: DataSourceMutationEvent[] = [];
+    ds.onMutation((e: DataSourceMutationEvent) => events.push(e));
 
     await ds.bulkUpdate('showcase_project', ['a'], { archived: true });
 
@@ -160,8 +160,8 @@ describe('ObjectStackAdapter.batchTransaction mutation events', () => {
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       ),
     );
-    const events: MutationEvent[] = [];
-    ds.onMutation((e: MutationEvent) => events.push(e));
+    const events: DataSourceMutationEvent[] = [];
+    ds.onMutation((e: DataSourceMutationEvent) => events.push(e));
 
     await ds.batchTransaction([
       { object: 'ehr_task_version', action: 'create', data: { name: 'Task version A' } },
@@ -183,8 +183,8 @@ describe('ObjectStackAdapter.batchTransaction mutation events', () => {
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       ),
     );
-    const events: MutationEvent[] = [];
-    ds.onMutation((e: MutationEvent) => events.push(e));
+    const events: DataSourceMutationEvent[] = [];
+    ds.onMutation((e: DataSourceMutationEvent) => events.push(e));
 
     await ds.batchTransaction([
       { object: 'ehr_task_version', action: 'update', id: 'p1', data: { name: 'Renamed' } },
@@ -208,8 +208,8 @@ describe('ObjectStackAdapter.batchTransaction mutation events', () => {
         headers: { 'Content-Type': 'application/json' },
       }),
     );
-    const events: MutationEvent[] = [];
-    ds.onMutation((e: MutationEvent) => events.push(e));
+    const events: DataSourceMutationEvent[] = [];
+    ds.onMutation((e: DataSourceMutationEvent) => events.push(e));
 
     await ds.batchTransaction([{ object: 'ehr_task_version', data: { name: 'X' } }]);
 
@@ -225,8 +225,8 @@ describe('ObjectStackAdapter.batchTransaction mutation events', () => {
         headers: { 'Content-Type': 'application/json' },
       }),
     );
-    const events: MutationEvent[] = [];
-    ds.onMutation((e: MutationEvent) => events.push(e));
+    const events: DataSourceMutationEvent[] = [];
+    ds.onMutation((e: DataSourceMutationEvent) => events.push(e));
 
     await expect(
       ds.batchTransaction([{ object: 'ehr_task_version', action: 'create', data: {} }]),
@@ -265,8 +265,8 @@ describe('ObjectStackAdapter.batchTransaction fallback (no server atomicity)', (
     const create = vi.fn(async (_o: string, d: any) => ({ record: { id: 'p1', ...d } }));
     const { ds, batchTransaction } = makeFallbackDS({ batchStatus: 404, clientData: { create } });
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const events: MutationEvent[] = [];
-    ds.onMutation((e: MutationEvent) => events.push(e));
+    const events: DataSourceMutationEvent[] = [];
+    ds.onMutation((e: DataSourceMutationEvent) => events.push(e));
 
     const res = await ds.batchTransaction([{ object: 'proj', action: 'create', data: { name: 'A' } }]);
 
@@ -311,8 +311,8 @@ describe('ObjectStackAdapter.batchTransaction fallback (no server atomicity)', (
     ds.connected = true;
     ds.connectionState = 'connected';
     ds.client = { data: { batchTransaction: sdkBatch } };
-    const events: MutationEvent[] = [];
-    ds.onMutation((e: MutationEvent) => events.push(e));
+    const events: DataSourceMutationEvent[] = [];
+    ds.onMutation((e: DataSourceMutationEvent) => events.push(e));
 
     const res = await ds.batchTransaction([{ object: 'proj', action: 'create', data: { name: 'A' } }]);
 
@@ -335,8 +335,8 @@ describe('ObjectStackAdapter.bulk mutation events', () => {
   it('emits a single create event per bulk create call', async () => {
     const createMany = vi.fn().mockResolvedValue([{ id: 'c1' }, { id: 'c2' }]);
     const ds = makeDS({ createMany });
-    const events: MutationEvent[] = [];
-    ds.onMutation((e: MutationEvent) => events.push(e));
+    const events: DataSourceMutationEvent[] = [];
+    ds.onMutation((e: DataSourceMutationEvent) => events.push(e));
 
     await ds.bulk('ehr_task_check_item', 'create', [{ label: 'a' }, { label: 'b' }]);
 
@@ -346,8 +346,8 @@ describe('ObjectStackAdapter.bulk mutation events', () => {
   it('does not emit when a bulk create returned zero records', async () => {
     const createMany = vi.fn().mockResolvedValue([]);
     const ds = makeDS({ createMany });
-    const events: MutationEvent[] = [];
-    ds.onMutation((e: MutationEvent) => events.push(e));
+    const events: DataSourceMutationEvent[] = [];
+    ds.onMutation((e: DataSourceMutationEvent) => events.push(e));
 
     await ds.bulk('ehr_task_check_item', 'create', [{ label: 'a' }]);
 
@@ -357,8 +357,8 @@ describe('ObjectStackAdapter.bulk mutation events', () => {
   it('emits a single delete event per bulk delete call', async () => {
     const deleteMany = vi.fn().mockResolvedValue(undefined);
     const ds = makeDS({ deleteMany });
-    const events: MutationEvent[] = [];
-    ds.onMutation((e: MutationEvent) => events.push(e));
+    const events: DataSourceMutationEvent[] = [];
+    ds.onMutation((e: DataSourceMutationEvent) => events.push(e));
 
     await ds.bulk('ehr_task_check_item', 'delete', [{ id: 'c1' }, { id: 'c2' }] as any);
 
@@ -368,8 +368,8 @@ describe('ObjectStackAdapter.bulk mutation events', () => {
   it('emits a single update event per bulk update call', async () => {
     const updateMany = vi.fn().mockResolvedValue([{ id: 'c1' }]);
     const ds = makeDS({ updateMany });
-    const events: MutationEvent[] = [];
-    ds.onMutation((e: MutationEvent) => events.push(e));
+    const events: DataSourceMutationEvent[] = [];
+    ds.onMutation((e: DataSourceMutationEvent) => events.push(e));
 
     await ds.bulk('ehr_task_check_item', 'update', [{ id: 'c1', label: 'x' }] as any);
 
@@ -379,8 +379,8 @@ describe('ObjectStackAdapter.bulk mutation events', () => {
   it('bulk create failure emits nothing', async () => {
     const createMany = vi.fn().mockRejectedValue(new Error('boom'));
     const ds = makeDS({ createMany });
-    const events: MutationEvent[] = [];
-    ds.onMutation((e: MutationEvent) => events.push(e));
+    const events: DataSourceMutationEvent[] = [];
+    ds.onMutation((e: DataSourceMutationEvent) => events.push(e));
 
     await expect(ds.bulk('ehr_task_check_item', 'create', [{ label: 'a' }])).rejects.toThrow();
 
@@ -481,8 +481,8 @@ describe('ObjectStackAdapter.batchTransaction capability gate (#2693 / framework
       batchStatus: 200,
       batchBody: { results: [{ id: 'p1', name: 'A' }, { id: 'c1', proj: 'p1' }] },
     });
-    const events: MutationEvent[] = [];
-    ds.onMutation((e: MutationEvent) => events.push(e));
+    const events: DataSourceMutationEvent[] = [];
+    ds.onMutation((e: DataSourceMutationEvent) => events.push(e));
 
     const res = await ds.batchTransaction([
       { object: 'proj', action: 'create', data: { name: 'A' } },

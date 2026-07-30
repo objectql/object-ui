@@ -11,7 +11,7 @@ import type {
   FromNode,
   WhereNode,
   JoinNode,
-  GroupByNode,
+  GroupByClauseNode,
   OrderByNode,
   LimitNode,
   OffsetNode,
@@ -210,7 +210,7 @@ export class QueryASTBuilder {
     };
   }
 
-  private buildGroupBy(fields: string[]): GroupByNode {
+  private buildGroupBy(fields: string[]): GroupByClauseNode {
     return {
       type: 'group_by',
       fields: fields.map(field => this.buildField(field)),

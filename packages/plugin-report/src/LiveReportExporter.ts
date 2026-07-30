@@ -20,11 +20,11 @@
 import type {
   DataSource,
   QueryParams,
-  ReportSchema,
+  ReportComponentSchema,
   ReportExportFormat,
   ReportExportConfig,
   ReportField,
-  ReportSchedule,
+  ReportScheduleConfig,
 } from '@object-ui/types';
 import { exportReport } from './ReportExportEngine';
 
@@ -78,8 +78,8 @@ export interface LiveExportResult {
  * Schedule trigger callback
  */
 export type ScheduleTriggerCallback = (
-  report: ReportSchema,
-  schedule: ReportSchedule,
+  report: ReportComponentSchema,
+  schedule: ReportScheduleConfig,
 ) => void;
 
 /**
@@ -95,7 +95,7 @@ export type ScheduleTriggerCallback = (
  * ```
  */
 export async function exportWithLiveData(
-  report: ReportSchema,
+  report: ReportComponentSchema,
   options: LiveExportOptions,
 ): Promise<LiveExportResult> {
   const {
@@ -159,7 +159,7 @@ export async function exportWithLiveData(
  * ```
  */
 export function exportExcelWithFormulas(
-  report: ReportSchema,
+  report: ReportComponentSchema,
   data: any[],
   options: {
     columns?: ExcelColumnConfig[];
@@ -243,7 +243,7 @@ export function exportExcelWithFormulas(
  * ```
  */
 export function createScheduleTrigger(
-  report: ReportSchema,
+  report: ReportComponentSchema,
   dataSource: DataSource,
   resource: string,
   onComplete: ScheduleTriggerCallback,

@@ -156,7 +156,7 @@ export interface APIConfig {
 /**
  * Event handler configuration
  */
-export interface EventHandler {
+export interface UIEventHandler {
   /**
    * Event type
    */
@@ -229,7 +229,7 @@ export interface EventHandler {
      */
     actions?: Array<{
       label: string;
-      handler?: EventHandler;
+      handler?: UIEventHandler;
     }>;
   };
   /**
@@ -279,43 +279,43 @@ export interface EventableSchema extends BaseSchema {
   /**
    * Event handlers configuration
    */
-  events?: EventHandler[];
+  events?: UIEventHandler[];
   /**
    * Click handler
    */
-  onClick?: EventHandler | string;
+  onClick?: UIEventHandler | string;
   /**
    * Change handler
    */
-  onChange?: EventHandler | string;
+  onChange?: UIEventHandler | string;
   /**
    * Submit handler
    */
-  onSubmit?: EventHandler | string;
+  onSubmit?: UIEventHandler | string;
   /**
    * Focus handler
    */
-  onFocus?: EventHandler | string;
+  onFocus?: UIEventHandler | string;
   /**
    * Blur handler
    */
-  onBlur?: EventHandler | string;
+  onBlur?: UIEventHandler | string;
   /**
    * Mouse enter handler
    */
-  onMouseEnter?: EventHandler | string;
+  onMouseEnter?: UIEventHandler | string;
   /**
    * Mouse leave handler
    */
-  onMouseLeave?: EventHandler | string;
+  onMouseLeave?: UIEventHandler | string;
   /**
    * Key down handler
    */
-  onKeyDown?: EventHandler | string;
+  onKeyDown?: UIEventHandler | string;
   /**
    * Key up handler
    */
-  onKeyUp?: EventHandler | string;
+  onKeyUp?: UIEventHandler | string;
 }
 
 /**
@@ -442,7 +442,7 @@ export interface ExpressionContext {
 /**
  * Expression schema for dynamic values
  */
-export interface ExpressionSchema {
+export interface ExpressionNodeSchema {
   /**
    * Expression type
    */
@@ -469,4 +469,4 @@ export interface ExpressionSchema {
 export type APISchema =
   | EventableSchema
   | DataFetchableSchema
-  | ExpressionSchema;
+  | ExpressionNodeSchema;

@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { ReportSchema, ReportExportConfig, ReportExportFormat, ReportField } from '@object-ui/types';
+import type { ReportComponentSchema, ReportExportConfig, ReportExportFormat, ReportField } from '@object-ui/types';
 
 /**
  * Report Export Engine
@@ -16,7 +16,7 @@ import type { ReportSchema, ReportExportConfig, ReportExportFormat, ReportField 
 /**
  * Export report data as CSV
  */
-export function exportAsCSV(report: ReportSchema, data: any[], config?: ReportExportConfig): void {
+export function exportAsCSV(report: ReportComponentSchema, data: any[], config?: ReportExportConfig): void {
   const fields = report.fields || [];
   const headers = fields.map((f: ReportField) => f.label || f.name);
   const rows = data.map((row: Record<string, any>) => fields.map((f: ReportField) => {
@@ -40,7 +40,7 @@ export function exportAsCSV(report: ReportSchema, data: any[], config?: ReportEx
 /**
  * Export report data as JSON
  */
-export function exportAsJSON(report: ReportSchema, data: any[], config?: ReportExportConfig): void {
+export function exportAsJSON(report: ReportComponentSchema, data: any[], config?: ReportExportConfig): void {
   const exportData = {
     title: report.title,
     description: report.description,
@@ -54,7 +54,7 @@ export function exportAsJSON(report: ReportSchema, data: any[], config?: ReportE
 /**
  * Export report as HTML (printable format)
  */
-export function exportAsHTML(report: ReportSchema, data: any[], config?: ReportExportConfig): void {
+export function exportAsHTML(report: ReportComponentSchema, data: any[], config?: ReportExportConfig): void {
   const fields = report.fields || [];
   const orientation = validateOrientation(config?.orientation);
   const pageSize = validatePageSize(config?.pageSize);
@@ -93,7 +93,7 @@ ${report.description ? `<p class="description">${escapeHTML(report.description)}
 /**
  * Export report as PDF using browser print
  */
-export function exportAsPDF(report: ReportSchema, data: any[], config?: ReportExportConfig): void {
+export function exportAsPDF(report: ReportComponentSchema, data: any[], config?: ReportExportConfig): void {
   const fields = report.fields || [];
   const orientation = validateOrientation(config?.orientation);
   const pageSize = validatePageSize(config?.pageSize);
@@ -148,7 +148,7 @@ ${report.description ? `<p class="description">${escapeHTML(report.description)}
 /**
  * Export report as Excel-compatible CSV (with BOM for proper UTF-8 in Excel)
  */
-export function exportAsExcel(report: ReportSchema, data: any[], config?: ReportExportConfig): void {
+export function exportAsExcel(report: ReportComponentSchema, data: any[], config?: ReportExportConfig): void {
   const fields = report.fields || [];
   const headers = fields.map((f: ReportField) => f.label || f.name);
   const rows = data.map((row: Record<string, any>) => fields.map((f: ReportField) => {
@@ -174,7 +174,7 @@ export function exportAsExcel(report: ReportSchema, data: any[], config?: Report
  */
 export function exportReport(
   format: ReportExportFormat, 
-  report: ReportSchema, 
+  report: ReportComponentSchema, 
   data: any[], 
   config?: ReportExportConfig
 ): void {

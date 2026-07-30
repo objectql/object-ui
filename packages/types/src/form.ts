@@ -720,7 +720,7 @@ export interface InputOTPSchema extends BaseSchema {
 /**
  * Form validation rule
  */
-export interface ValidationRule {
+export interface FieldValidationRules {
   /**
    * Required field validation
    */
@@ -918,7 +918,7 @@ export interface FormField {
   /**
    * Validation rules
    */
-  validation?: ValidationRule;
+  validation?: FieldValidationRules;
   /**
    * Conditional rendering
    */

@@ -124,12 +124,6 @@ export const ThemePreviewSchema = BaseSchema.extend({
 });
 
 /**
- * Legacy alias — use ThemeComponentSchema
- * @deprecated
- */
-export const ThemeSchema = ThemeComponentSchema;
-
-/**
  * Union of all theme component schemas (for AnyComponentSchema union).
  */
 export const ThemeUnionSchema = z.discriminatedUnion('type', [
@@ -149,6 +143,6 @@ export type AnimationSchemaType = z.infer<typeof AnimationSchema>;
 export type ZIndexSchemaType = z.infer<typeof ZIndexSchema>;
 export type ThemeModeSchemaType = z.infer<typeof ThemeModeSchema>;
 export type ThemeDefinitionSchemaType = z.infer<typeof ThemeDefinitionSchema>;
-export type ThemeSchemaType = z.infer<typeof ThemeSchema>;
+export type ThemeComponentSchemaType = z.infer<typeof ThemeComponentSchema>;
 export type ThemeSwitcherSchemaType = z.infer<typeof ThemeSwitcherSchema>;
 export type ThemePreviewSchemaType = z.infer<typeof ThemePreviewSchema>;

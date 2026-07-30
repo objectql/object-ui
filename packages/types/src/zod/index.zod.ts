@@ -65,7 +65,7 @@ export {
 // ============================================================================
 export {
   DivSchema,
-  SpanSchema,
+  TextSpanSchema,
   TextSchema,
   ImageSchema,
   IconSchema,
@@ -98,7 +98,7 @@ export {
   ComboboxOptionSchema,
   CommandItemSchema,
   CommandGroupSchema,
-  ValidationRuleSchema,
+  FieldConstraintsSchema,
   FieldConditionSchema,
   ButtonSchema,
   InputSchema,
@@ -219,7 +219,7 @@ export {
   CalendarEventSchema,
   CalendarViewSchema,
   FilterOperatorSchema,
-  FilterConditionSchema,
+  FilterBuilderConditionSchema,
   FilterGroupSchema,
   FilterFieldSchema,
   FilterBuilderSchema,
@@ -290,7 +290,6 @@ export {
   ZIndexSchema,
   ThemeModeSchema,
   ThemeDefinitionSchema,
-  ThemeSchema,
   ThemeComponentSchema,
   ThemeUnionSchema,
   ThemeSwitcherSchema,
@@ -307,10 +306,10 @@ export {
   ReportSectionSchema,
   ReportScheduleSchema,
   ReportExportConfigSchema,
-  ReportSchema,
+  ReportComponentSchema,
   ReportBuilderSchema,
   ReportViewerSchema,
-  ReportComponentSchema,
+  ReportUnionSchema,
 } from './reports.zod.js';
 
 export {
@@ -355,7 +354,7 @@ import { ComplexSchema } from './complex.zod.js';
 import { ObjectQLComponentSchema } from './objectql.zod.js';
 import { CRUDComponentSchema } from './crud.zod.js';
 import { ThemeUnionSchema } from './theme.zod.js';
-import { ReportComponentSchema } from './reports.zod.js';
+import { ReportUnionSchema } from './reports.zod.js';
 import { BlockComponentSchema } from './blocks.zod.js';
 import { ViewComponentSchema } from './views.zod.js';
 
@@ -376,7 +375,7 @@ export const AnyComponentSchema = z.union([
   ObjectQLComponentSchema,
   CRUDComponentSchema,
   ThemeUnionSchema,
-  ReportComponentSchema,
+  ReportUnionSchema,
   BlockComponentSchema,
   ViewComponentSchema,
 ]);

@@ -10,7 +10,7 @@ import { ObjectStackClient, type QueryOptions as ObjectStackQueryOptions } from 
 import type {
   DataSource,
   BatchTransactionOperation,
-  MutationEvent,
+  DataSourceMutationEvent,
   QueryParams,
   QueryResult,
   GlobalSearchResult,
@@ -658,7 +658,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   // create/update/delete so data-bound views (ListView, ObjectView, kanban,
   // calendar) auto-refresh — the interface ListView relies on to reflect
   // inline-edit "Save All" writes without a manual reload.
-  private mutationListeners = new Set<(event: MutationEvent<T>) => void>();
+  private mutationListeners = new Set<(event: DataSourceMutationEvent<T>) => void>();
 
   // Subscribers registered via onWriteWarning(). Emitted after a create/update
   // whose response carried `droppedFields` (framework #3431/#3455) so the app
@@ -1073,7 +1073,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    * Notify all mutation subscribers. A throwing listener must not break the
    * mutation or starve the other subscribers, so each is isolated.
    */
-  private emitMutation(event: MutationEvent<T>): void {
+  private emitMutation(event: DataSourceMutationEvent<T>): void {
     for (const listener of this.mutationListeners) {
       try {
         listener(event);
@@ -1089,7 +1089,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    * mutation (e.g. inline-edit "Save All", which writes through `update` and
    * must repaint the list without a manual reload).
    */
-  onMutation(callback: (event: MutationEvent<T>) => void): () => void {
+  onMutation(callback: (event: DataSourceMutationEvent<T>) => void): () => void {
     this.mutationListeners.add(callback);
     return () => {
       this.mutationListeners.delete(callback);
@@ -1476,7 +1476,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   }
 
   /**
-   * Emit one MutationEvent per committed operation so the invalidation bus
+   * Emit one DataSourceMutationEvent per committed operation so the invalidation bus
    * (#2269) sees writes that went through /batch exactly like single
    * create/update/delete calls — master-detail ModalForm saves otherwise leave
    * related lists and count badges stale (#2582). `results` is index-aligned

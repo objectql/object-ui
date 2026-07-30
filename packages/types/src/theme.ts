@@ -127,7 +127,7 @@ export interface Theme {
  *
  * Used by SchemaRenderer to render a theme manager component.
  */
-export interface ThemeSchema extends BaseSchema {
+export interface ThemeComponentSchema extends BaseSchema {
   type: 'theme';
 
   /** Current theme mode */

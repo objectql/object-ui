@@ -127,7 +127,7 @@ export const ReportExportConfigSchema = z.object({
 /**
  * Report Schema
  */
-export const ReportSchema = BaseSchema.extend({
+export const ReportComponentSchema = BaseSchema.extend({
   type: z.literal('report'),
   title: z.string().optional().describe('Report title'),
   description: z.string().optional().describe('Report description'),
@@ -152,7 +152,7 @@ export const ReportSchema = BaseSchema.extend({
  */
 export const ReportBuilderSchema = BaseSchema.extend({
   type: z.literal('report-builder'),
-  report: ReportSchema.optional().describe('Initial report configuration'),
+  report: ReportComponentSchema.optional().describe('Initial report configuration'),
   dataSources: z.array(z.any()).optional().describe('Available data sources'),
   availableFields: z.array(ReportFieldSchema).optional().describe('Available fields'),
   showPreview: z.boolean().optional().describe('Show preview'),
@@ -165,7 +165,7 @@ export const ReportBuilderSchema = BaseSchema.extend({
  */
 export const ReportViewerSchema = BaseSchema.extend({
   type: z.literal('report-viewer'),
-  report: ReportSchema.optional().describe('Report to display'),
+  report: ReportComponentSchema.optional().describe('Report to display'),
   data: z.array(z.any()).optional().describe('Report data'),
   showToolbar: z.boolean().optional().describe('Show toolbar'),
   allowExport: z.boolean().optional().describe('Allow export'),
@@ -176,8 +176,8 @@ export const ReportViewerSchema = BaseSchema.extend({
 /**
  * Union of all report schemas
  */
-export const ReportComponentSchema = z.discriminatedUnion('type', [
-  ReportSchema,
+export const ReportUnionSchema = z.discriminatedUnion('type', [
+  ReportComponentSchema,
   ReportBuilderSchema,
   ReportViewerSchema,
 ]);
@@ -194,6 +194,6 @@ export type ReportGroupBySchemaType = z.infer<typeof ReportGroupBySchema>;
 export type ReportSectionSchemaType = z.infer<typeof ReportSectionSchema>;
 export type ReportScheduleSchemaType = z.infer<typeof ReportScheduleSchema>;
 export type ReportExportConfigSchemaType = z.infer<typeof ReportExportConfigSchema>;
-export type ReportSchemaType = z.infer<typeof ReportSchema>;
+export type ReportComponentSchemaType = z.infer<typeof ReportComponentSchema>;
 export type ReportBuilderSchemaType = z.infer<typeof ReportBuilderSchema>;
 export type ReportViewerSchemaType = z.infer<typeof ReportViewerSchema>;

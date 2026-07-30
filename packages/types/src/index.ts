@@ -90,7 +90,7 @@ export type {
 // ============================================================================
 export type {
   DivSchema,
-  SpanSchema,
+  TextSpanSchema,
   TextSchema,
   ImageSchema,
   IconSchema,
@@ -132,7 +132,7 @@ export type {
   FileUploadSchema,
   DatePickerSchema,
   CalendarSchema,
-  ValidationRule,
+  FieldValidationRules,
   FieldCondition,
   DependsOnInput,
   FormField,
@@ -247,8 +247,8 @@ export type {
   CalendarViewMode,
   CalendarEvent,
   CalendarViewSchema,
-  FilterOperator,
-  FilterCondition,
+  FilterBuilderOperator,
+  FilterBuilderCondition,
   FilterGroup,
   FilterBuilderSchema,
   FilterField,
@@ -284,7 +284,7 @@ export type {
   FileUploadResult,
   AggregateParams,
   AggregateResult,
-  MutationEvent,
+  DataSourceMutationEvent,
   ExportJobStatus,
   ExportJobFormat,
   CreateExportJobRequest,
@@ -460,7 +460,7 @@ export type {
   WhereNode,
   JoinNode,
   JoinStrategy,
-  GroupByNode,
+  GroupByClauseNode,
   OrderByNode,
   LimitNode,
   OffsetNode,
@@ -558,7 +558,7 @@ export type {
   MobileOverrides,
   PWAConfig,
   PWAIcon,
-  CacheStrategy,
+  FetchCacheStrategy,
   OfflineConfig,
   OfflineRoute,
   GestureType,
@@ -623,12 +623,12 @@ export type {
   HTTPMethod,
   APIRequest,
   APIConfig,
-  EventHandler,
+  UIEventHandler,
   EventableSchema,
   DataFetchConfig,
   DataFetchableSchema,
   ExpressionContext,
-  ExpressionSchema,
+  ExpressionNodeSchema,
   APISchema,
 } from './api-types';
 
@@ -655,7 +655,7 @@ import type { AppSchema } from './app';
 export type {
   // Theme System (aligned with @objectstack/spec)
   Theme,
-  ThemeSchema,
+  ThemeComponentSchema,
   ThemeMode,
   ColorPalette,
   Typography,
@@ -673,7 +673,7 @@ export type {
   // Report Presentation Layer (ObjectUI-specific UX enhancements:
   // sections, schedule, export presets, conditional formatting, etc.).
   // For the protocol-level Report definition, use `Spec*` exports below.
-  ReportSchema,
+  ReportComponentSchema,
   ReportType,
   ReportExportFormat,
   ReportScheduleFrequency,
@@ -682,7 +682,7 @@ export type {
   ReportFilter,
   ReportGroupBy,
   ReportSection,
-  ReportSchedule,
+  ReportScheduleConfig,
   ReportExportConfig,
   ReportBuilderSchema,
   ReportViewerSchema,
@@ -692,7 +692,7 @@ export type {
 // Spec Report Bridge
 //
 // Authoritative report protocol from @objectstack/spec, re-exported under
-// `Spec*` names so they coexist with the legacy presentation `ReportSchema`.
+// `Spec*` names so they coexist with the legacy presentation `ReportComponentSchema`.
 // See `./spec-report.ts` for the layering rationale.
 // ---------------------------------------------------------------------------
 export type {
@@ -889,7 +889,7 @@ export type {
   ActionResult,
   ActionExecutor,
   BatchOperationConfig,
-  BatchOperationResult,
+  BatchOperationSummary,
   TransactionIsolationLevel,
   TransactionConfig,
   TransactionResult,

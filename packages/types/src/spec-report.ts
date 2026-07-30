@@ -20,7 +20,7 @@
  *    the data shape that survives storage, transport, AI generation, and
  *    cross-stack reuse. Mirrors `@objectstack/spec` exactly.
  *
- * 2. **Presentation layer (`reports.ts`, kept as `ReportSchema`):** How the
+ * 2. **Presentation layer (`reports.ts`, kept as `ReportComponentSchema`):** How the
  *    ObjectUI runtime *renders* a report — sections, toolbar config, schedule
  *    UI, conditional formatting, export buttons. These are ObjectUI-specific
  *    UX enhancements that the protocol does not (and should not) prescribe.
@@ -149,11 +149,11 @@ export function mapAggregateToQL(aggregate: SpecReportAggregate): QLAggregationF
 }
 
 // ---------------------------------------------------------------------------
-// Adapter: spec Report → legacy presentation ReportSchema
+// Adapter: spec Report → legacy presentation ReportComponentSchema
 // ---------------------------------------------------------------------------
 
 // Lightweight structural type for the legacy presentation schema. We don't
-// import `ReportSchema` from `./reports` here to avoid a circular module load
+// import `ReportComponentSchema` from `./reports` here to avoid a circular module load
 // at type-resolution time (some downstream tooling crashes on that). The shape
 // is intentionally permissive: the adapter only fills the fields it knows about.
 export interface LegacyReportPresentationLike {
@@ -187,7 +187,7 @@ function resolveLabel(label: unknown, fallback: string): string {
 }
 
 /**
- * Convert a spec `Report` into the legacy presentation `ReportSchema` so the
+ * Convert a spec `Report` into the legacy presentation `ReportComponentSchema` so the
  * existing `ReportRenderer`/`ReportViewer` can render it during migration.
  *
  * Since the ADR-0021 single-form cutover (`@objectstack/spec` 9.0) a report is
@@ -235,7 +235,7 @@ export function specReportToPresentation(report: SpecReport): LegacyReportPresen
 
 /**
  * Type guard: does this object look like a spec `Report` (vs. a legacy
- * presentation `ReportSchema`)?
+ * presentation `ReportComponentSchema`)?
  *
  * Heuristic (spec 9.0, dataset-bound): spec reports carry `name` + a report
  * `type` and are **not** the legacy presentation shape (which carries

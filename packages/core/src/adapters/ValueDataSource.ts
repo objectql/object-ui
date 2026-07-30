@@ -12,7 +12,7 @@
 import type {
   DataSource,
   BatchTransactionOperation,
-  MutationEvent,
+  DataSourceMutationEvent,
   QueryParams,
   QueryResult,
   AggregateParams,
@@ -233,7 +233,7 @@ function selectFields<T>(record: T, fields?: string[]): T {
 export class ValueDataSource<T = any> implements DataSource<T> {
   private items: T[];
   private idField: string | undefined;
-  private mutationListeners = new Set<(event: MutationEvent<T>) => void>();
+  private mutationListeners = new Set<(event: DataSourceMutationEvent<T>) => void>();
 
   constructor(config: ValueDataSourceConfig<T>) {
     // Deep clone to prevent external mutation
@@ -242,7 +242,7 @@ export class ValueDataSource<T = any> implements DataSource<T> {
   }
 
   /** Notify all mutation subscribers */
-  private emitMutation(event: MutationEvent<T>): void {
+  private emitMutation(event: DataSourceMutationEvent<T>): void {
     for (const listener of this.mutationListeners) {
       try { listener(event); } catch (err) { console.warn('ValueDataSource: mutation listener error', err); }
     }
@@ -453,7 +453,7 @@ export class ValueDataSource<T = any> implements DataSource<T> {
   // Mutation subscription (P2 — Event Bus)
   // -----------------------------------------------------------------------
 
-  onMutation(callback: (event: MutationEvent<T>) => void): () => void {
+  onMutation(callback: (event: DataSourceMutationEvent<T>) => void): () => void {
     this.mutationListeners.add(callback);
     return () => { this.mutationListeners.delete(callback); };
   }

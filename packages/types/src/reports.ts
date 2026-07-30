@@ -20,8 +20,8 @@
  *   authoritative spec `Report` under `SpecReport`. JSON authored
  *   against the spec must work with ObjectUI without rewriting.
  *
- * - **Presentation (this file):** `ReportSchema`, `ReportSection`,
- *   `ReportSchedule`, etc. Drive the legacy `ReportRenderer` /
+ * - **Presentation (this file):** `ReportComponentSchema`, `ReportSection`,
+ *   `ReportScheduleConfig`, etc. Drive the legacy `ReportRenderer` /
  *   `ReportViewer` / `ReportBuilder`. Will be gradually thinned as
  *   spec-native renderers take over (see plugin-report roadmap).
  *
@@ -243,7 +243,7 @@ export interface ReportSection {
 /**
  * Report Schedule Configuration
  */
-export interface ReportSchedule {
+export interface ReportScheduleConfig {
   /**
    * Schedule enabled
    */
@@ -340,7 +340,7 @@ export interface ReportExportConfig {
  * - `joined`  — multiple independent report blocks stacked
  *
  * The mirror was missing `joined`, so a spec-valid joined report did not
- * type-check against `ReportSchema.reportType`. Derived rather than restated so
+ * type-check against `ReportComponentSchema.reportType`. Derived rather than restated so
  * a report format the spec adds cannot go missing here.
  */
 export type ReportType = z.infer<typeof SpecReportType>;
@@ -348,7 +348,7 @@ export type ReportType = z.infer<typeof SpecReportType>;
 /**
  * Report Schema - Main report configuration
  */
-export interface ReportSchema extends BaseSchema {
+export interface ReportComponentSchema extends BaseSchema {
   type: 'report';
 
   /**
@@ -394,7 +394,7 @@ export interface ReportSchema extends BaseSchema {
   /**
    * Schedule configuration
    */
-  schedule?: ReportSchedule;
+  schedule?: ReportScheduleConfig;
 
   /**
    * Default export format
@@ -466,7 +466,7 @@ export interface ReportBuilderSchema extends BaseSchema {
   /**
    * Initial report configuration
    */
-  report?: ReportSchema;
+  report?: ReportComponentSchema;
 
   /**
    * Available data sources
@@ -503,7 +503,7 @@ export interface ReportViewerSchema extends BaseSchema {
   /**
    * Report to display
    */
-  report?: ReportSchema;
+  report?: ReportComponentSchema;
 
   /**
    * Report data

@@ -225,7 +225,7 @@ export interface CalendarViewSchema extends BaseSchema {
 /**
  * Filter operator
  */
-export type FilterOperator =
+export type FilterBuilderOperator =
   | 'equals'
   | 'not_equals'
   | 'contains'
@@ -244,7 +244,7 @@ export type FilterOperator =
 /**
  * Filter condition
  */
-export interface FilterCondition {
+export interface FilterBuilderCondition {
   /**
    * Field to filter
    */
@@ -252,7 +252,7 @@ export interface FilterCondition {
   /**
    * Filter operator
    */
-  operator: FilterOperator;
+  operator: FilterBuilderOperator;
   /**
    * Filter value
    */
@@ -271,7 +271,7 @@ export interface FilterGroup {
   /**
    * Filter conditions or nested groups
    */
-  conditions: (FilterCondition | FilterGroup)[];
+  conditions: (FilterBuilderCondition | FilterGroup)[];
 }
 
 /**
@@ -326,7 +326,7 @@ export interface FilterField {
   /**
    * Available operators for this field
    */
-  operators?: FilterOperator[];
+  operators?: FilterBuilderOperator[];
   /**
    * Options (for select type)
    */

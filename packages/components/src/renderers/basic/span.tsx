@@ -7,11 +7,11 @@
  */
 
 import { ComponentRegistry } from '@object-ui/core';
-import type { SpanSchema } from '@object-ui/types';
+import type { TextSpanSchema } from '@object-ui/types';
 import { renderChildren } from '../../lib/utils';
 import { forwardRef } from 'react';
 
-const SpanRenderer = forwardRef<HTMLSpanElement, { schema: SpanSchema; className?: string; [key: string]: any }>(
+const SpanRenderer = forwardRef<HTMLSpanElement, { schema: TextSpanSchema; className?: string; [key: string]: any }>(
   ({ schema, className, ...props }, ref) => {
     // Deprecation warning
     if (process.env.NODE_ENV !== 'production') {

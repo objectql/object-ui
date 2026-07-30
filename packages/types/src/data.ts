@@ -608,7 +608,7 @@ export interface DataSource<T = any> {
    * unsub?.();
    * ```
    */
-  onMutation?(callback: (event: MutationEvent<T>) => void): () => void;
+  onMutation?(callback: (event: DataSourceMutationEvent<T>) => void): () => void;
 
   /**
    * Initiate an asynchronous export job for a resource (server-driven streaming export).
@@ -1113,7 +1113,7 @@ export interface ExportJobProgressInfo {
  * Describes a mutation that occurred on a DataSource.
  * Emitted by `DataSource.onMutation` subscribers after create/update/delete.
  */
-export interface MutationEvent<T = any> {
+export interface DataSourceMutationEvent<T = any> {
   /** The type of mutation that occurred */
   type: 'create' | 'update' | 'delete';
   /** The resource (object) name that was mutated */

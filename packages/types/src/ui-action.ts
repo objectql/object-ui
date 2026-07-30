@@ -554,7 +554,7 @@ export interface BatchOperationConfig {
 }
 
 /** Batch operation result */
-export interface BatchOperationResult {
+export interface BatchOperationSummary {
   /** Total items processed */
   total: number;
   /** Successfully processed count */

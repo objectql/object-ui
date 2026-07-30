@@ -68,7 +68,7 @@ export const CommandGroupSchema = z.object({
 /**
  * Validation Rule Schema
  */
-export const ValidationRuleSchema = z.object({
+export const FieldConstraintsSchema = z.object({
   required: z.boolean().optional().describe('Whether field is required'),
   minLength: z.number().optional().describe('Minimum length'),
   maxLength: z.number().optional().describe('Maximum length'),
@@ -382,7 +382,7 @@ export const FormFieldSchema = z.object({
   disabled: z.boolean().optional().describe('Disabled flag'),
   placeholder: z.string().optional().describe('Placeholder text'),
   options: z.array(SelectOptionSchema).optional().describe('Options for select/radio'),
-  validation: ValidationRuleSchema.optional().describe('Validation rules'),
+  validation: FieldConstraintsSchema.optional().describe('Validation rules'),
   condition: FieldConditionSchema.optional().describe('Conditional display'),
   colSpan: z.number().optional().describe('Column span in grid layout'),
 });

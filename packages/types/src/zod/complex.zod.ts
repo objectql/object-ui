@@ -122,7 +122,7 @@ export const FilterOperatorSchema = z.enum([
 /**
  * Filter Condition Schema
  */
-export const FilterConditionSchema: z.ZodType<any> = z.lazy(() =>
+export const FilterBuilderConditionSchema: z.ZodType<any> = z.lazy(() =>
   z.object({
     field: z.string().describe('Field name'),
     operator: FilterOperatorSchema.describe('Filter operator'),
@@ -136,7 +136,7 @@ export const FilterConditionSchema: z.ZodType<any> = z.lazy(() =>
 export const FilterGroupSchema: z.ZodType<any> = z.lazy(() =>
   z.object({
     operator: z.enum(['and', 'or']).describe('Group operator'),
-    conditions: z.array(z.union([FilterConditionSchema, FilterGroupSchema])).describe('Conditions or sub-groups'),
+    conditions: z.array(z.union([FilterBuilderConditionSchema, FilterGroupSchema])).describe('Conditions or sub-groups'),
   })
 );
 
@@ -160,8 +160,8 @@ export const FilterFieldSchema = z.object({
 export const FilterBuilderSchema = BaseSchema.extend({
   type: z.literal('filter-builder'),
   fields: z.array(FilterFieldSchema).describe('Available filter fields'),
-  defaultValue: z.union([FilterConditionSchema, FilterGroupSchema]).optional().describe('Default filter value'),
-  value: z.union([FilterConditionSchema, FilterGroupSchema]).optional().describe('Controlled filter value'),
+  defaultValue: z.union([FilterBuilderConditionSchema, FilterGroupSchema]).optional().describe('Default filter value'),
+  value: z.union([FilterBuilderConditionSchema, FilterGroupSchema]).optional().describe('Controlled filter value'),
   onChange: z.function().optional().describe('Change handler'),
   allowGroups: z.boolean().optional().describe('Allow grouped conditions'),
   maxDepth: z.number().optional().describe('Maximum nesting depth'),

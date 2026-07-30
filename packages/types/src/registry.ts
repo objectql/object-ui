@@ -8,7 +8,7 @@
 
 import type {
   DivSchema,
-  SpanSchema,
+  TextSpanSchema,
   TextSchema,
   ImageSchema,
   IconSchema,
@@ -103,7 +103,7 @@ import type {
 export interface SchemaRegistry {
   // Layout
   'div': DivSchema;
-  'span': SpanSchema;
+  'span': TextSpanSchema;
   'text': TextSchema;
   'image': ImageSchema;
   'icon': IconSchema;

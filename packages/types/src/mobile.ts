@@ -111,14 +111,14 @@ export interface PWAIcon {
 }
 
 /** Offline caching strategy */
-export type CacheStrategy = 'cache-first' | 'network-first' | 'stale-while-revalidate' | 'network-only' | 'cache-only';
+export type FetchCacheStrategy = 'cache-first' | 'network-first' | 'stale-while-revalidate' | 'network-only' | 'cache-only';
 
 /** Offline configuration */
 export interface OfflineConfig {
   /** Enable offline support */
   enabled: boolean;
   /** Default caching strategy */
-  defaultStrategy: CacheStrategy;
+  defaultStrategy: FetchCacheStrategy;
   /** Routes with specific caching strategies */
   routes?: OfflineRoute[];
   /** Maximum cache size in bytes */
@@ -138,7 +138,7 @@ export interface OfflineRoute {
   /** URL pattern (glob or regex) */
   pattern: string;
   /** Caching strategy for this route */
-  strategy: CacheStrategy;
+  strategy: FetchCacheStrategy;
   /** Cache name */
   cacheName?: string;
   /** Cache expiration override */

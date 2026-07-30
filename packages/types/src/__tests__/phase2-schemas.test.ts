@@ -1,16 +1,16 @@
 /**
  * Tests for Phase 2 Schema Definitions
- * Testing AppSchema, ThemeSchema, ReportSchema, BlockSchema, and Enhanced ActionSchema
+ * Testing AppSchema, ThemeComponentSchema, ReportComponentSchema, BlockSchema, and Enhanced ActionSchema
  */
 import { describe, it, expect } from 'vitest';
 import {
   AppSchema,
   AppActionSchema,
   AppMenuItemSchema,
-  ThemeSchema,
+  ThemeComponentSchema,
   ThemeSwitcherSchema,
   ThemePreviewSchema,
-  ReportSchema,
+  ReportComponentSchema,
   ReportBuilderSchema,
   ReportViewerSchema,
   BlockSchema,
@@ -111,8 +111,8 @@ describe('Phase 2: AppSchema Zod Validation', () => {
   });
 });
 
-describe('Phase 2: ThemeSchema Zod Validation', () => {
-  it('should validate a complete ThemeSchema', () => {
+describe('Phase 2: ThemeComponentSchema Zod Validation', () => {
+  it('should validate a complete ThemeComponentSchema', () => {
     const theme = {
       type: 'theme',
       mode: 'dark',
@@ -144,7 +144,7 @@ describe('Phase 2: ThemeSchema Zod Validation', () => {
       storageKey: 'app-theme',
     };
 
-    const result = ThemeSchema.safeParse(theme);
+    const result = ThemeComponentSchema.safeParse(theme);
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.mode).toBe('dark');
@@ -167,8 +167,8 @@ describe('Phase 2: ThemeSchema Zod Validation', () => {
   });
 });
 
-describe('Phase 2: ReportSchema Zod Validation', () => {
-  it('should validate a complete ReportSchema', () => {
+describe('Phase 2: ReportComponentSchema Zod Validation', () => {
+  it('should validate a complete ReportComponentSchema', () => {
     const report = {
       type: 'report',
       title: 'Monthly Sales Report',
@@ -228,7 +228,7 @@ describe('Phase 2: ReportSchema Zod Validation', () => {
       showPrintButton: true,
     };
 
-    const result = ReportSchema.safeParse(report);
+    const result = ReportComponentSchema.safeParse(report);
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.fields).toHaveLength(2);

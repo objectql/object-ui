@@ -60,7 +60,7 @@ export type {
   MobileOverrides,
   PWAConfig,
   PWAIcon,
-  CacheStrategy,
+  FetchCacheStrategy,
   OfflineConfig,
   OfflineRoute,
   GestureType,

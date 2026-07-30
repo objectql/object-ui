@@ -18,7 +18,7 @@
 
 // Import existing base types to avoid duplication
 import type { SortConfig as BaseSortConfig } from './objectql';
-import type { FilterOperator as BaseFilterOperator } from './complex';
+import type { FilterBuilderOperator as BaseFilterOperator } from './complex';
 
 // Spec-owned vocabulary, bound rather than re-declared (objectstack#4115). The
 // spec exports both of these as zod enums, not as types, so they are derived
@@ -109,7 +109,7 @@ export interface JoinNode extends QueryASTNode {
 /**
  * GROUP BY clause node
  */
-export interface GroupByNode extends QueryASTNode {
+export interface GroupByClauseNode extends QueryASTNode {
   type: 'group_by';
   fields: FieldNode[];
   having?: OperatorNode;
@@ -285,7 +285,7 @@ export interface QueryAST {
   from: FromNode;
   joins?: JoinNode[];
   where?: WhereNode;
-  group_by?: GroupByNode;
+  group_by?: GroupByClauseNode;
   order_by?: OrderByNode;
   limit?: LimitNode;
   offset?: OffsetNode;
