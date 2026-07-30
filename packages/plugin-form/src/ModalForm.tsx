@@ -456,6 +456,20 @@ export const ModalForm: React.FC<ModalFormProps> = ({
     }
   }, [confirmOnDiscard, isDirty, finalizeClose]);
 
+  // Browser-native "leave site?" prompt on tab close / reload while the form
+  // is dirty. The in-app guard above only covers Radix close paths (backdrop,
+  // Escape, the X) — a refresh bypasses them all and the input is gone.
+  useEffect(() => {
+    if (!isOpen || !isDirty || !confirmOnDiscard) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // Required for Chrome to actually show the prompt.
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isOpen, isDirty, confirmOnDiscard]);
+
   // The explicit Cancel button is an *intentional* discard, so it closes
   // immediately — no "Discard changes?" prompt. The unsaved-changes guard only
   // intercepts *accidental* closes (backdrop click, Escape, the X), which Radix

@@ -203,3 +203,58 @@ describe('DrawerForm unsaved-changes guard', () => {
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Browser refresh / tab close while dirty. The Radix close guard above never
+ * sees an unload — only a `beforeunload` listener can intercept it, so a dirty
+ * overlay must register one (and a pristine one must not, or every navigation
+ * away from the app would prompt).
+ */
+function fireBeforeUnload(): Event {
+  const evt = new Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(evt);
+  return evt;
+}
+
+describe.each([
+  ['ModalForm', ModalForm],
+  ['DrawerForm', DrawerForm],
+] as const)('%s beforeunload guard', (_name, Form) => {
+  it('does not block unload while the form is pristine', async () => {
+    render(
+      <Form
+        schema={{ objectName: 'task', mode: 'create', open: true, onOpenChange: vi.fn() } as any}
+        dataSource={ds}
+      />,
+    );
+    await waitFor(() => {
+      if (!document.querySelector('input')) throw new Error('form not ready');
+    });
+
+    expect(fireBeforeUnload().defaultPrevented).toBe(false);
+  });
+
+  it('blocks unload while the form is dirty', async () => {
+    render(
+      <Form
+        schema={{ objectName: 'task', mode: 'create', open: true, onOpenChange: vi.fn() } as any}
+        dataSource={ds}
+      />,
+    );
+    await dirtyTheForm();
+
+    await waitFor(() => expect(fireBeforeUnload().defaultPrevented).toBe(true));
+  });
+
+  it('does not block unload when confirmOnDiscard is false, even dirty', async () => {
+    render(
+      <Form
+        schema={{ objectName: 'task', mode: 'create', open: true, confirmOnDiscard: false, onOpenChange: vi.fn() } as any}
+        dataSource={ds}
+      />,
+    );
+    await dirtyTheForm();
+
+    expect(fireBeforeUnload().defaultPrevented).toBe(false);
+  });
+});
