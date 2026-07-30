@@ -12,6 +12,17 @@
  * only shrink: once a package gains the script, its entry has to be deleted or
  * this guard fails.
  *
+ * The same question applies one level down, to TESTS (objectstack#4118): a
+ * package tsconfig excludes test files — correctly, it is the BUILD config and
+ * they would emit into `dist` — and for most packages no other `tsc` invocation
+ * read them either. Tests are where agents encode their understanding of a
+ * contract, so unchecked tests let a wrong understanding accumulate silently and
+ * then READ AS EVIDENCE: objectui#3009 found `spec-derived-unions.test.ts` had
+ * built its whole contract on `satisfies` checks that never ran, under a header
+ * calling them "the real enforcement". Reverting a derived alias produced zero
+ * errors. So the second half of this guard: a package with test files either
+ * type-checks them or carries a TEST_DEBT entry with a measured error count.
+ *
  * Run:  node scripts/check-type-check-coverage.mjs
  * Exit: 0 = OK, 1 = coverage regressed or the lists are stale
  */
@@ -58,8 +69,64 @@ const CHECKED_BY_OWN_BUILD = {
   },
 };
 
+// ── Known gaps: tests that nothing type-checks ───────────────────────────────
+// Packages whose tests do not compile yet, so they cannot chain a
+// `tsconfig.test.json` from `type-check`. Every entry is real debt: fix the
+// errors, add the config, then delete the entry.
+//
+// Counts are MEASURED, not estimated — a temp tsconfig per package lifting only
+// the test exclusion, against `main` at the time of the sweep, with the same
+// template the wired-up packages use (`noEmit`, `composite: false`, `paths: {}`,
+// plus `lib`/`types` where the tests need them). Errors resolvable in that
+// config are excluded, so these are code-tier only.
+//
+// The two dominant codes are not random, and each has a playbook:
+//   - TS2741/TS2739 "missing required properties" — authoring fixtures typed as
+//     PARSED OUTPUT, whose `.default()` fields are required. Type them as the
+//     input surface (`z.input`), the fix objectstack#4074 applied in `types`.
+//   - TS2339/TS2353 "property does not exist" — implementation wider than the
+//     type, the dialect problem. Declare the dialect next to the vocabulary it
+//     extends (see scripts/check-spec-symbol-derivation.mjs), don't widen the
+//     type to silence it.
+const TEST_DEBT = {
+  "@object-ui/core": { errors: 72, issue: 4118, note: "TS2741x32, TS2322x17 — mostly the input-vs-output fixture confusion" },
+  "@object-ui/app-shell": { errors: 53, issue: 4118, note: "TS2339x24 — implementation wider than the type" },
+  "@object-ui/components": { errors: 31, issue: 4118, note: "TS7006x12, TS7031x12 — untyped test callback params" },
+  "@object-ui/react": { errors: 27, issue: 4118, note: "TS2769x9 — overload mismatch on render helpers" },
+  "@object-ui/i18n": { errors: 13, issue: 4118, note: "TS2769x9" },
+  "@object-ui/plugin-form": { errors: 12, issue: 4118, note: "TS2322x10" },
+  "@object-ui/plugin-dashboard": { errors: 6, issue: 4118 },
+  "@object-ui/plugin-list": { errors: 6, issue: 4118, note: "TS2353x3 — dialect keys" },
+  "@object-ui/permissions": { errors: 5, issue: 4118, note: "TS2741x5" },
+  "@object-ui/plugin-detail": { errors: 5, issue: 4118, note: "TS2353x3 — dialect keys" },
+  "@object-ui/plugin-gantt": { errors: 3, issue: 4118 },
+  "@object-ui/auth": { errors: 2, issue: 4118 },
+  "@object-ui/plugin-chatbot": { errors: 2, issue: 4118 },
+  "@object-ui/plugin-grid": { errors: 2, issue: 4118 },
+  "@object-ui/plugin-map": { errors: 1, issue: 4118 },
+};
+
 // ── Collect workspace packages ───────────────────────────────────────────────
 const GROUPS = ["packages", "apps", "examples"];
+
+function countTestFiles(dir) {
+  let n = 0;
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      if (entry.name === "node_modules" || entry.name === "dist") continue;
+      n += countTestFiles(join(dir, entry.name));
+    } else if (/\.test\.tsx?$/.test(entry.name)) {
+      n++;
+    }
+  }
+  return n;
+}
 
 function collect() {
   const out = [];
@@ -80,19 +147,36 @@ function collect() {
       }
       const pkg = JSON.parse(readFileSync(manifest, "utf8"));
       if (!pkg.name) continue;
-      let hasTsconfig = true;
+      let tsconfig = null;
       try {
-        statSync(resolve(root, dir, "tsconfig.json"));
+        tsconfig = readFileSync(resolve(root, dir, "tsconfig.json"), "utf8");
       } catch {
-        hasTsconfig = false;
+        /* no tsconfig */
       }
+      let testConfig = null;
+      try {
+        testConfig = readFileSync(resolve(root, dir, "tsconfig.test.json"), "utf8");
+      } catch {
+        /* no test config */
+      }
+      const typeCheck = pkg.scripts?.["type-check"] ?? "";
       out.push({
         name: pkg.name,
         dir,
         hasScript: Boolean(pkg.scripts?.["type-check"]),
+        typeCheck,
         build: pkg.scripts?.build,
         hasBuild: Boolean(pkg.scripts?.build),
-        hasTsconfig,
+        hasTsconfig: tsconfig !== null,
+        testFiles: countTestFiles(resolve(root, dir, "src")),
+        // A package tsconfig that never excludes a test glob compiles its tests
+        // as part of the build program, so they are already covered.
+        buildExcludesTests: tsconfig !== null && /\*\.test\./.test(tsconfig),
+        hasTestConfig: testConfig !== null,
+        testConfig,
+        // The config existing is not the same as anything running it — that gap
+        // IS objectui#3009. `type-check` has to chain it.
+        chainsTestConfig: /-p\s+tsconfig\.test\.json/.test(typeCheck),
       });
     }
   }
@@ -190,11 +274,96 @@ for (const [name, spec] of Object.entries(CHECKED_BY_OWN_BUILD)) {
   }
 }
 
+// ── 5. Tests are code too (objectstack#4118) ─────────────────────────────────
+// Only asked of packages that are type-checked at all: one whose whole package
+// is unchecked is already covered by DEBT above, and stacking a second entry on
+// it would just make the same gap look like two.
+const testsCovered = (pkg) => !pkg.buildExcludesTests || (pkg.hasTestConfig && pkg.chainsTestConfig);
+
+for (const pkg of packages) {
+  if (!pkg.hasScript || pkg.testFiles === 0) continue;
+
+  // 5a. A `tsconfig.test.json` nothing runs is the objectui#3009 shape exactly:
+  //     a file that looks like enforcement while no `tsc` invocation reads it.
+  if (pkg.hasTestConfig && !pkg.chainsTestConfig) {
+    errors.push(
+      `${pkg.name} (${pkg.dir}) has a tsconfig.test.json that its "type-check" script never runs,\n` +
+        `      so the file looks like enforcement while nothing compiles it — the exact shape of\n` +
+        `      objectui#3009. Chain it:  "type-check": "tsc --noEmit && tsc -p tsconfig.test.json"`
+    );
+    continue;
+  }
+
+  // 5b. A config that emits, or that does not actually include the tests, would
+  //     pass 5a while checking nothing.
+  if (pkg.hasTestConfig && pkg.chainsTestConfig) {
+    if (!/"noEmit"\s*:\s*true/.test(pkg.testConfig)) {
+      errors.push(
+        `${pkg.name} (${pkg.dir}): tsconfig.test.json must set "noEmit": true — it is a checking\n` +
+          `      project, and emitting would put test output in the published dist.`
+      );
+    }
+    if (!/\*\.test\./.test(pkg.testConfig)) {
+      errors.push(
+        `${pkg.name} (${pkg.dir}): tsconfig.test.json does not "include" any test glob, so it\n` +
+          `      compiles nothing. Add  "include": ["src/**/*.test.ts", "src/**/*.test.tsx"]`
+      );
+    }
+    continue;
+  }
+
+  // 5c. Undeclared gap — tests exist and nothing reads them.
+  if (!testsCovered(pkg) && !TEST_DEBT[pkg.name]) {
+    errors.push(
+      `${pkg.name} (${pkg.dir}) has ${pkg.testFiles} test file${pkg.testFiles === 1 ? "" : "s"} that no \`tsc\`\n` +
+        `      invocation reads: its tsconfig.json excludes them (correctly — it is the build config)\n` +
+        `      and no tsconfig.test.json chains off "type-check". An unchecked test can assert a\n` +
+        `      contract the compiler never checked, and then read as evidence that the contract holds.\n` +
+        `      Add a tsconfig.test.json (see packages/types/tsconfig.test.json) and chain it, or add a\n` +
+        `      TEST_DEBT entry with the measured error count.`
+    );
+  }
+}
+
+// 6. Ratchet — a declared test gap that has been closed must leave the list.
+for (const [name, spec] of Object.entries(TEST_DEBT)) {
+  const pkg = byName.get(name);
+  if (!pkg) {
+    errors.push(`${name} is listed in TEST_DEBT but is not a workspace package any more — delete the entry.`);
+    continue;
+  }
+  if (pkg.testFiles === 0) {
+    errors.push(`${name} is listed in TEST_DEBT but has no test files any more — delete the entry.`);
+    continue;
+  }
+  // A package that is not type-checked AT ALL is already declared in DEBT. A
+  // second entry here would make one gap read as two, and would survive the day
+  // DEBT is paid off, so the test gap has to be re-measured then anyway.
+  if (!pkg.hasScript) {
+    errors.push(
+      `${name} is listed in TEST_DEBT but has no "type-check" script, so its whole package is\n` +
+        `      unchecked and DEBT already declares that. Delete the TEST_DEBT entry; add it back with\n` +
+        `      a fresh measurement once the package type-checks at all.`
+    );
+    continue;
+  }
+  if (testsCovered(pkg)) {
+    errors.push(
+      `${name} type-checks its tests now — delete its TEST_DEBT entry so the gap cannot reopen` +
+        `${spec.issue ? ` (and close #${spec.issue} if the list is empty)` : ""}.`
+    );
+  }
+}
+
 // ── Report ───────────────────────────────────────────────────────────────────
 const checked = packages.filter((p) => p.hasScript).length;
 const debtCount = Object.keys(DEBT).length;
 const debtErrors = Object.values(DEBT).reduce((sum, d) => sum + d.errors, 0);
 const byBuild = Object.keys(CHECKED_BY_OWN_BUILD).length;
+
+const withTests = packages.filter((p) => p.hasScript && p.testFiles > 0);
+const testsChecked = withTests.filter(testsCovered).length;
+const testDebtErrors = Object.values(TEST_DEBT).reduce((sum, d) => sum + d.errors, 0);
 
 if (errors.length === 0) {
   console.log(
@@ -202,6 +371,10 @@ if (errors.length === 0) {
       `${byBuild} via their own build, ` +
       `${debtCount} known-broken (${debtErrors} errors outstanding), ` +
       `${NOT_COMPILED.length} not compiled.`
+  );
+  console.log(
+    `✅  test type-check coverage: ${testsChecked}/${withTests.length} packages compile their tests, ` +
+      `${Object.keys(TEST_DEBT).length} declared debt (${testDebtErrors} errors outstanding).`
   );
   process.exit(0);
 }
@@ -212,6 +385,8 @@ for (const message of errors) {
 }
 console.error(
   "\nA package with no `type-check` script is not passing — turbo skips it and CI sees nothing.\n" +
+    "An excluded TEST file is not passing either — nothing compiles it, so what it asserts about\n" +
+    "a contract was never checked (objectstack#4118).\n" +
     "See https://github.com/objectstack-ai/objectui/issues/2911 for why this guard exists."
 );
 process.exit(1);

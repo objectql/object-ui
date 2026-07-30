@@ -27,8 +27,11 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsc --noEmit && tsc -p tsconfig.test.json",
     "lint": "eslint ."
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@object-ui/core": "workspace:*",
+    "@object-ui/react": "workspace:*"
+  }
 }
