@@ -149,6 +149,43 @@ export function resolveDefaultAgentName(
   return agents[0].name;
 }
 
+/**
+ * Pull the agent list out of whatever `GET /api/v1/ai/agents` answered.
+ *
+ * This route is served by more than one producer and is mid-migration onto the
+ * platform's declared `{ success: true, data }` envelope
+ * (objectstack#4053), so three shapes have to read the same:
+ *
+ *   [ … ]                                  a bare array
+ *   { agents: [ … ] }                      today's shape, both producers
+ *   { success: true, data: … }             the declared envelope, whose `data`
+ *                                          may be the array or `{ agents }`
+ *
+ * The envelope is detected the way `ObjectStackClient.unwrapResponse` detects
+ * it — a **boolean** `success` — so the two agree on what counts as one.
+ *
+ * Reading the envelope BEFORE any producer emits it is deliberate, and it is the
+ * whole point of doing this ahead of the conversion. An unrecognised shape here
+ * does not throw or warn: it yields an empty list, and `useAiSurfaceEnabled`
+ * turns an empty list into "hide the entire AI surface". That is also the
+ * CORRECT behaviour for a seat-less user or a Community-Edition deployment with
+ * no `service-ai` — so a parse miss is indistinguishable from the legitimate
+ * hidden state, with no error, no 403 and no log to notice it by. Teaching the
+ * consumer first means the producer can convert on its own schedule instead of
+ * having to land in lockstep with this file.
+ */
+export function extractAgentList(payload: unknown): RawAgent[] {
+  const isEnvelope =
+    !!payload && typeof payload === 'object' && !Array.isArray(payload) &&
+    typeof (payload as { success?: unknown }).success === 'boolean';
+
+  const body = isEnvelope ? (payload as { data?: unknown }).data : payload;
+
+  if (Array.isArray(body)) return body as RawAgent[];
+  const agents = (body as { agents?: unknown } | null | undefined)?.agents;
+  return Array.isArray(agents) ? (agents as RawAgent[]) : [];
+}
+
 function normalize(raw: RawAgent[]): AgentDescriptor[] {
   return raw
     .filter((a) => typeof a?.name === 'string' && a.name.length > 0)
@@ -196,9 +233,8 @@ function fetchAgentsCached(
   })
     .then(async (res) => {
       if (!res.ok) throw new Error(`Failed to load agents (${res.status})`);
-      const payload = (await res.json()) as { agents?: RawAgent[] } | RawAgent[];
-      const list = Array.isArray(payload) ? payload : payload?.agents ?? [];
-      return normalize(list);
+      // Bare array, `{ agents }`, or the declared envelope — see `extractAgentList`.
+      return normalize(extractAgentList(await res.json()));
     })
     .then((normalized) => {
       agentsCache.set(apiBase, { data: normalized, timestamp: Date.now() });
