@@ -44,6 +44,7 @@ import { useGroupedData } from './useGroupedData';
 import { GroupRow } from './GroupRow';
 import { useColumnSummary } from './useColumnSummary';
 import { resolveRowCrudAffordances } from './rowCrudAffordances';
+import { resolveLegacyRowActions } from './resolveLegacyRowActions';
 import { RowActionMenu, formatActionLabel } from './components/RowActionMenu';
 import { BulkActionBar } from './components/BulkActionBar';
 import { BulkActionDialog } from './components/BulkActionDialog';
@@ -1446,7 +1447,16 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const rowActionDefsList: any[] = Array.isArray((schema as any).rowActionDefs) ? (schema as any).rowActionDefs : [];
   const wantEditAction = rowActionsList.includes('edit');
   const wantDeleteAction = rowActionsList.includes('delete');
-  const customRowActions = rowActionsList.filter(a => a !== 'edit' && a !== 'delete');
+  // Legacy `rowActions` carry a bare action NAME, which the runner cannot
+  // execute on its own — resolve each against the object's declared actions so
+  // it dispatches as a real def (and so a name that duplicates an existing
+  // `list_item` def stops rendering a dead twin of it). See
+  // `resolveLegacyRowActions` for the full rationale (objectui#2960).
+  const { defs: resolvedRowActionDefs, unresolved: customRowActions } = resolveLegacyRowActions({
+    rowActions: rowActionsList.filter(a => a !== 'edit' && a !== 'delete'),
+    rowActionDefs: rowActionDefsList,
+    objectActions: (objectSchema as any)?.actions,
+  });
   // Honor the object's resolved CRUD affordance: the ADR-0103 lifecycle bucket
   // (`managedBy`), the `userActions.edit`/`delete` override — explicit `false`
   // opts out of the generic row Edit/Delete (e.g. sys_environment ships a
@@ -1468,7 +1478,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     effectiveApiOperations: effectiveApiOps,
   });
   const hasActions = !!(operations && (operations.update || operations.delete));
-  const hasRowActions = customRowActions.length > 0 || rowActionDefsList.length > 0 || wantEditAction || wantDeleteAction;
+  const hasRowActions = customRowActions.length > 0 || resolvedRowActionDefs.length > 0 || wantEditAction || wantDeleteAction;
 
   const columnsWithActions = (hasActions || hasRowActions) ? [
     ...persistedColumns,
@@ -1489,7 +1499,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
         <RowActionMenu
           row={row}
           rowActions={customRowActions}
-          rowActionDefs={rowActionDefsList}
+          rowActionDefs={resolvedRowActionDefs as any[]}
           maxInlineActions={(schema as any).maxInlineRowActions ?? 1}
           canEdit={canEdit}
           canDelete={canDelete}

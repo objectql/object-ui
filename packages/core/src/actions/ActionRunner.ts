@@ -884,10 +884,40 @@ export class ActionRunner {
     };
   }
 
+  /**
+   * Terminal fallback for a dispatch the switch above did not recognize: no
+   * known `type`, no registered handler, no `navigate` / `api` / `endpoint` /
+   * `onClick`. Some schema-only shapes are still runnable here — an action
+   * whose whole payload is a `redirect`, or an explicit `reload` / `close`
+   * directive — so this stays a real execution path.
+   *
+   * What it must never do is report success for an action it did not run. It
+   * used to return `{ success: true, reload: true, close: true }` for a
+   * COMPLETELY EMPTY schema, which is how a legacy string row action —
+   * dispatched as `{ type: '<action name>' }`, the name landing in the `type`
+   * slot — reached the user as a green "Action completed successfully" toast
+   * having issued zero requests (objectui#2960). An unresolvable dispatch is a
+   * wiring bug; surface it instead of laundering it into a success.
+   */
   private async executeActionSchema(action: ActionDef): Promise<ActionResult> {
+    const hasApi = !!(action.api || action.endpoint);
+    // `reload`/`close` default to true downstream, so only an EXPLICIT `true`
+    // counts as declared intent — otherwise every empty schema would look like
+    // it asked for a reload and slip back through this guard.
+    const declaresBehavior =
+      hasApi || !!action.onClick || !!action.redirect
+      || action.reload === true || action.close === true;
+    if (!declaresBehavior) {
+      const label = action.name || action.type || action.actionType || 'action';
+      return {
+        success: false,
+        error: `Action "${label}" is not executable: no handler is registered under that name and it declares no api, endpoint, navigate, redirect or onClick.`,
+      };
+    }
+
     const result: ActionResult = { success: true };
 
-    if (action.api || action.endpoint) {
+    if (hasApi) {
       const apiResult = await this.executeAPI(action);
       if (!apiResult.success) return apiResult;
       result.data = apiResult.data;

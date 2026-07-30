@@ -56,6 +56,57 @@ describe('ActionRunner', () => {
   });
 
   // ==========================================================================
+  // Unresolvable dispatch (objectui#2960)
+  // ==========================================================================
+
+  describe('unresolvable dispatch', () => {
+    it('fails loudly when the schema declares nothing executable', async () => {
+      // A legacy string row action reaches the runner as `{ type: <name> }` —
+      // the NAME in the `type` slot. It matches no built-in type and no
+      // registered handler, so there is nothing to run. This used to return
+      // `{ success: true, reload: true, close: true }` after issuing zero
+      // requests.
+      const result = await runner.execute({ type: 'convert_lead', params: { record: { id: 1 } } });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('convert_lead');
+      expect(result.reload).toBeUndefined();
+    });
+
+    it('does not toast success for an action it never ran', async () => {
+      const toastHandler = vi.fn();
+      runner.setToastHandler(toastHandler);
+
+      await runner.execute({ type: 'convert_lead' });
+
+      expect(toastHandler).toHaveBeenCalledTimes(1);
+      expect(toastHandler).toHaveBeenCalledWith(
+        expect.stringContaining('convert_lead'),
+        expect.objectContaining({ type: 'error' }),
+      );
+    });
+
+    it('still runs a handler registered under the action name', async () => {
+      // The by-name dispatch path is how consumers wire custom row actions;
+      // the guard must not close it.
+      const handler = vi.fn().mockResolvedValue({ success: true });
+      runner.registerHandler('convert_lead', handler);
+
+      const result = await runner.execute({ type: 'convert_lead' });
+
+      expect(result.success).toBe(true);
+      expect(handler).toHaveBeenCalledOnce();
+    });
+
+    it('still runs a typeless action that only declares a redirect', async () => {
+      const result = await runner.execute({ redirect: '/leads/1' });
+
+      expect(result.success).toBe(true);
+      expect(result.redirect).toBe('/leads/1');
+    });
+  });
+
+  // ==========================================================================
   // Conditions and disabled
   // ==========================================================================
 
