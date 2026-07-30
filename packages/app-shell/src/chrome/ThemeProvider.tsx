@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useState } from "react"
 
-type Theme = "dark" | "light" | "system"
+// `auto` is the spec's OS-following mode (ThemeModeSchema, ui/theme.zod.ts);
+// `system` is this provider's pre-spec spelling, kept for stored values.
+type Theme = "dark" | "light" | "auto" | "system"
 
 type ThemeProviderProps = {
   children: React.ReactNode
@@ -35,7 +37,10 @@ export function ThemeProvider({
 
     root.classList.remove("light", "dark")
 
-    if (theme === "system") {
+    // Branching on `system` alone sent the spec's `auto` into
+    // `classList.add('auto')` — a class no Tailwind variant matches, locking
+    // the light theme with the OS preference ignored (#2942).
+    if (theme === "auto" || theme === "system") {
       const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
         .matches
         ? "dark"

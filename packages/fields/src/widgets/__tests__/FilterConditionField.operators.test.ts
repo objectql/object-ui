@@ -21,14 +21,17 @@
  * still carry.
  */
 import { describe, it, expect } from 'vitest';
+import { FieldOperatorsSchema } from '@objectstack/spec/data';
 import { condToMongo, kvToCondition } from '../FilterConditionField';
 
-/** The `$`-prefixed operator keys of the spec's `FieldOperatorsSchema`. */
-const SPEC_OPERATORS = new Set([
-  '$eq', '$ne', '$gt', '$gte', '$lt', '$lte', '$in', '$nin',
-  '$between', '$contains', '$notContains', '$startsWith', '$endsWith',
-  '$null', '$exists',
-]);
+/**
+ * The `$`-prefixed operator keys of the spec's `FieldOperatorsSchema` —
+ * DERIVED from the schema (#2942), so a 16th operator landing in the spec
+ * fails the reachability test below instead of drifting unnoticed.
+ */
+const SPEC_OPERATORS = new Set(
+  Object.keys((FieldOperatorsSchema as unknown as { shape?: Record<string, unknown> }).shape ?? {}),
+);
 
 const noTypes = () => undefined;
 
@@ -45,6 +48,7 @@ describe('condToMongo emits only spec operator spellings', () => {
     'equals', 'notEquals', 'contains', 'notContains', 'isEmpty', 'isNotEmpty',
     'greaterThan', 'lessThan', 'greaterOrEqual', 'lessOrEqual', 'in', 'notIn',
     'before', 'after',
+    'startsWith', 'endsWith', 'isNull', 'isNotNull', 'exists', 'notExists',
   ];
 
   it.each(builderOperators)('%s emits a spec-defined operator', (operator) => {
@@ -67,6 +71,38 @@ describe('condToMongo emits only spec operator spellings', () => {
   });
 });
 
+describe('every spec field operator is reachable from the builder (#2942)', () => {
+  it('reads a non-empty operator vocabulary from the spec', () => {
+    expect([...SPEC_OPERATORS].length, 'could not read FieldOperatorsSchema.shape').toBeGreaterThan(0);
+  });
+
+  it('some builder operator emits every spec $-token', () => {
+    const builderOperators = [
+      'equals', 'notEquals', 'contains', 'notContains', 'isEmpty', 'isNotEmpty',
+      'greaterThan', 'lessThan', 'greaterOrEqual', 'lessOrEqual', 'in', 'notIn',
+      'before', 'after', 'between',
+      'startsWith', 'endsWith', 'isNull', 'isNotNull', 'exists', 'notExists',
+    ];
+    const emitted = new Set<string>();
+    for (const operator of builderOperators) {
+      const value = operator === 'in' || operator === 'notIn' ? ['a'] : operator === 'between' ? [1, 5] : 'a';
+      const frag = condToMongo({ id: 'c1', field: 'f', operator, value } as any, noTypes);
+      for (const op of operatorsOf(frag)) emitted.add(op);
+    }
+    // `$eq` is the spec's IMPLICIT equality form — `equals` deliberately
+    // emits the bare `{ field: value }` shape, never an explicit `$eq`.
+    // `$between` stays covered by the `$gte`+`$lte` pair `between` emits
+    // (kvToCondition reads that pair back as `between`).
+    const unreachable = [...SPEC_OPERATORS].filter(
+      (op) => op !== '$eq' && op !== '$between' && !emitted.has(op),
+    );
+    expect(
+      unreachable,
+      'FieldOperatorsSchema accepts these but no builder operator can author them',
+    ).toEqual([]);
+  });
+});
+
 describe('kvToCondition round-trips what condToMongo writes', () => {
   const cases: Array<[string, unknown]> = [
     ['notEquals', 'a'],
@@ -76,6 +112,12 @@ describe('kvToCondition round-trips what condToMongo writes', () => {
     ['lessThan', 1],
     ['greaterOrEqual', 1],
     ['lessOrEqual', 1],
+    ['startsWith', 'a'],
+    ['endsWith', 'a'],
+    ['isNull', ''],
+    ['isNotNull', ''],
+    ['exists', ''],
+    ['notExists', ''],
   ];
 
   it.each(cases)('%s survives the round trip', (operator, value) => {

@@ -1201,6 +1201,9 @@ importers:
         specifier: ^3.6.0
         version: 3.6.0
     devDependencies:
+      '@objectstack/spec':
+        specifier: ^17.0.0-rc.0
+        version: 17.0.0-rc.0(ai@7.0.37(zod@4.4.3))
       '@types/react':
         specifier: 19.2.17
         version: 19.2.17
@@ -1300,6 +1303,9 @@ importers:
         specifier: workspace:*
         version: link:../types
     devDependencies:
+      '@objectstack/spec':
+        specifier: ^17.0.0-rc.0
+        version: 17.0.0-rc.0(ai@7.0.37(zod@4.4.3))
       '@types/react':
         specifier: 19.2.17
         version: 19.2.17
@@ -1472,6 +1478,9 @@ importers:
         specifier: ^3.10.1
         version: 3.10.1(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react-is@19.2.6)(react@19.2.8)(redux@5.0.1)
     devDependencies:
+      '@objectstack/spec':
+        specifier: ^17.0.0-rc.0
+        version: 17.0.0-rc.0(ai@7.0.37(zod@4.4.3))
       '@types/react':
         specifier: 19.2.17
         version: 19.2.17
@@ -2500,6 +2509,9 @@ importers:
         specifier: 19.2.8
         version: 19.2.8(react@19.2.8)
     devDependencies:
+      '@objectstack/spec':
+        specifier: ^17.0.0-rc.0
+        version: 17.0.0-rc.0(ai@7.0.37(zod@4.4.3))
       '@types/react':
         specifier: 19.2.17
         version: 19.2.17

@@ -29,7 +29,43 @@ export interface NavigationConfig {
   view?: string;
   preventNavigation?: boolean;
   openNewTab?: boolean;
+  /** Spec `NavigationConfig.size` (#2578) — coarse overlay bucket. */
+  size?: 'auto' | 'sm' | 'md' | 'lg' | 'xl' | 'full';
+  /** @deprecated [#2578 → `size`] explicit pixel/percent width. */
   width?: string | number;
+}
+
+/**
+ * Pixel cap per overlay `size` bucket, clamped to the viewport at render —
+ * mirrors `plugin-view/src/recordSurface.ts` (`OVERLAY_SIZE_PX`), which owns
+ * the `size: 'auto'` field-count derivation this layer cannot perform (no
+ * object schema here). Kept in lockstep by the spec-parity test.
+ *
+ * Before #2942 this hook only read the deprecated `width`, so an authored
+ * `size` bucket was silently ignored by every host except app-shell (which
+ * pre-resolves it before calling in).
+ */
+const OVERLAY_SIZE_WIDTHS: Record<'sm' | 'md' | 'lg' | 'xl' | 'full', string> = {
+  sm: 'min(92vw, 480px)',
+  md: 'min(92vw, 720px)',
+  lg: 'min(92vw, 960px)',
+  xl: 'min(92vw, 1200px)',
+  full: 'min(92vw, 1600px)',
+};
+
+/**
+ * Resolve the overlay width from a NavigationConfig: an explicit `width` wins
+ * (app-shell pre-resolves `size` into it); otherwise a declared bucket maps
+ * through {@link OVERLAY_SIZE_WIDTHS}. `'auto'`/absent stays `undefined` — the
+ * host's default width — because deriving `auto` needs the object's field
+ * count, which only schema-aware hosts have. Exported for the parity test.
+ */
+export function resolveOverlayWidth(navigation: NavigationConfig | undefined): string | number | undefined {
+  if (!navigation) return undefined;
+  if (navigation.width !== undefined) return navigation.width;
+  const size = navigation.size;
+  if (size && size !== 'auto') return OVERLAY_SIZE_WIDTHS[size];
+  return undefined;
 }
 
 export type NavigationMode = NavigationConfig['mode'];
@@ -124,7 +160,7 @@ export function useNavigationOverlay(
   const [selectedRecord, setSelectedRecord] = useState<Record<string, unknown> | null>(null);
 
   const mode: NavigationMode = navigation?.mode ?? 'page';
-  const width = navigation?.width;
+  const width = resolveOverlayWidth(navigation);
   const view = navigation?.view;
   const isOverlay = mode === 'drawer' || mode === 'modal' || mode === 'split' || mode === 'popover';
 

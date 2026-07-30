@@ -30,7 +30,11 @@ export function ThemeProvider({
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark');
 
-    if (theme === 'system') {
+    // The spec's OS-following mode is `auto` (ThemeModeSchema, ui/theme.zod.ts);
+    // `system` is this provider's pre-spec spelling, kept for stored values.
+    // Branching on `system` alone sent `auto` into `classList.add('auto')` —
+    // a class no Tailwind variant matches, locking the light theme (#2942).
+    if (theme === 'auto' || theme === 'system') {
       const systemTheme = window.matchMedia('(prefers-color-scheme: dark)')
         .matches
         ? 'dark'

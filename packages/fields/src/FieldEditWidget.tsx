@@ -44,6 +44,9 @@ import { LocationField } from './widgets/LocationField';
 import { GeolocationField } from './widgets/GeolocationField';
 import { CodeField } from './widgets/CodeField';
 import { QRCodeField } from './widgets/QRCodeField';
+// The FORM's spec-alias table (`json` → `field:code`, `tree` → `field:lookup`,
+// …) — inline resolution reuses it so spec spellings get the form's decision.
+import { mapFieldTypeToFormType } from './field-type-alias';
 
 /**
  * Field types that edit in place with a dedicated widget. Keyed by the raw
@@ -122,9 +125,39 @@ export const DISCRETE_EDIT_TYPES = new Set<string>([
   'boolean', 'toggle', 'select', 'status', 'radio', 'rating',
 ]);
 
+/**
+ * Resolve a field type to its inline-editing key: the raw type when the
+ * widget/exclusion tables name it directly, otherwise its form-alias target
+ * (`mapFieldTypeToFormType`, `field:` prefix stripped).
+ *
+ * The tables are keyed by the FORM's spellings, but spec field types reach
+ * this layer in the SPEC's spellings — `json`, `tree`, `composite`, `record`,
+ * `repeater`, `video`, `audio`, `autonumber` are aliases in the form map and
+ * were keys in NEITHER table here, so the grid silently fell back to a plain
+ * text input for all of them: typing over structured JSON or a hierarchy ref
+ * is a value-corruption path (#2942). Resolving through the same alias table
+ * the form uses gives each spec type the form's own decision: `json` → the
+ * code editor, `tree` → the lookup picker, and the container/computed/binary
+ * families → their documented exclusions.
+ */
+function resolveInlineEditType(type: string): string {
+  if (type in EDIT_WIDGETS || INLINE_EXCLUDED_FIELD_TYPES.has(type)) return type;
+  return mapFieldTypeToFormType(type).replace(/^field:/, '');
+}
+
 /** True when a field type has a dedicated in-place edit widget. */
 export function hasFieldEditWidget(type: string | undefined): boolean {
-  return !!type && type in EDIT_WIDGETS;
+  return !!type && resolveInlineEditType(type) in EDIT_WIDGETS;
+}
+
+/**
+ * True when a field type is deliberately NOT inline-editable (alias-aware:
+ * `composite` resolves to the excluded `object`, `video` to `file`, …).
+ * Grid hosts must treat these as read-only cells — falling back to a plain
+ * text editor is exactly the corruption path the exclusion exists to close.
+ */
+export function isInlineExcludedFieldType(type: string | undefined): boolean {
+  return !!type && INLINE_EXCLUDED_FIELD_TYPES.has(resolveInlineEditType(type));
 }
 
 /**
@@ -148,8 +181,9 @@ export function FieldEditWidget({
   onChange,
   readonly,
 }: FieldWidgetProps<any>): React.ReactElement | null {
-  const Widget = field?.type ? EDIT_WIDGETS[field.type] : undefined;
+  const resolved = field?.type ? resolveInlineEditType(field.type) : undefined;
+  const Widget = resolved ? EDIT_WIDGETS[resolved] : undefined;
   if (!Widget) return null;
-  const compactProps = field?.type && COMPACT_EDIT_TYPES.has(field.type) ? { compact: true } : {};
+  const compactProps = resolved && COMPACT_EDIT_TYPES.has(resolved) ? { compact: true } : {};
   return <Widget field={field} value={value} onChange={onChange} readonly={readonly} {...(compactProps as any)} />;
 }

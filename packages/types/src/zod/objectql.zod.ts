@@ -255,6 +255,10 @@ const UserFilterTabSchema = z
  * User Filters Configuration Schema (Airtable Interfaces-style)
  */
 const UserFiltersSchema = z.object({
+  // AUTHORING contract (ADR-0053): `toggle` is deliberately not authorable —
+  // new configs can only write dropdown/tabs. The RENDERER still honors
+  // stored `toggle` metadata (spec ADR-0047 §3.4a keeps it in ITS enum "so
+  // existing configs keep rendering") — see plugin-list `UserFilters`.
   element: z.enum(['dropdown', 'tabs']).describe('UI element type'),
   fields: z.array(UserFilterFieldSchema).optional().describe('Field-level filters'),
   tabs: z.array(UserFilterTabSchema).optional().describe('Named filter presets'),

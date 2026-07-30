@@ -47,7 +47,7 @@ import {
   ChartConfig
 } from './ChartContainerImpl';
 import { mapScatterClick, mapTreemapClick, mapSankeyClick } from './chartDrillEvents';
-import { formatterFor, domainFor, ticksFor, type NormalizedAxis, type NormalizedSeries } from './normalizeChartSchema';
+import { formatterFor, domainFor, ticksFor, RENDERABLE, SINGLE_VALUE_CHART_TYPES, TABULAR_CHART_TYPES, type NormalizedAxis, type NormalizedSeries } from './normalizeChartSchema';
 import { buildCategoryRank } from '@object-ui/core';
 
 // Default color fallback for chart series
@@ -570,6 +570,54 @@ export default function AdvancedChartImpl({
     ...(xAxisSpec?.title ? { label: { value: xAxisSpec.title, position: 'insideBottom' as const, offset: -4 } } : {}),
     ...(!isMobile && hasLongLabels && { angle: -35, textAnchor: 'end' as const, height: 60 }),
   }), [isMobile, hasLongLabels, xTickFormatter, xAxisSpec?.title]);
+
+  // #2942 — the non-series spec families used to fall through the component
+  // map's `|| BarChart` into a bar shell whose series marks all returned
+  // null: grid, axes, tooltip and legend rendered with NO data marks,
+  // indistinguishable from an empty dataset. Reachable because ChartRenderer
+  // resolves `schema.chartType ?? spec.chartType` without going through
+  // `normalizeChartSchema`'s RENDERABLE gate. Single-value families render
+  // the measure as a number (the spec's own framing for them); tabular ones
+  // say which component owns the rendering; unknown values are named instead
+  // of guessed at.
+  if (chartType && SINGLE_VALUE_CHART_TYPES.has(chartType)) {
+    const dataKey = series[0]?.dataKey || 'value';
+    const raw = data[0]?.[dataKey];
+    const num = typeof raw === 'number' ? raw : Number(raw);
+    const label = series[0]?.label ?? (config?.[dataKey] as { label?: unknown } | undefined)?.label ?? dataKey;
+    return (
+      <div className={className} data-testid="advanced-chart-single-value">
+        <div className="flex flex-col gap-1 py-4">
+          <span className="text-3xl font-semibold tabular-nums">
+            {Number.isFinite(num) ? new Intl.NumberFormat().format(num) : String(raw ?? '—')}
+          </span>
+          <span className="text-xs text-muted-foreground">{String(label)}</span>
+        </div>
+      </div>
+    );
+  }
+  if (chartType && TABULAR_CHART_TYPES.has(chartType)) {
+    return (
+      <div
+        className={`rounded-md border border-dashed bg-muted/20 px-3 py-2 text-xs text-muted-foreground ${className ?? ''}`}
+        data-testid="advanced-chart-tabular-notice"
+        role="note"
+      >
+        Chart type &ldquo;{chartType}&rdquo; is tabular — render it with the data-table / pivot components; a chart block draws series charts.
+      </div>
+    );
+  }
+  if (chartType && !RENDERABLE.has(chartType)) {
+    return (
+      <div
+        className={`rounded-md border border-dashed bg-muted/20 px-3 py-2 text-xs text-muted-foreground ${className ?? ''}`}
+        data-testid="advanced-chart-unknown-type"
+        role="note"
+      >
+        Chart type &ldquo;{chartType}&rdquo; is not a spec chart type — nothing was drawn.
+      </div>
+    );
+  }
 
   // Pie and Donut charts
   if (chartType === 'pie' || chartType === 'donut') {

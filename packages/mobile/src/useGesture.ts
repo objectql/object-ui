@@ -41,6 +41,12 @@ export function useGesture<T extends HTMLElement = HTMLElement>(
   const ref = useRef<T>(null);
   const startRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // Real double-tap needs the PREVIOUS tap's timestamp — the old
+  // implementation fired on every single qualifying tap (#2942).
+  const lastTapRef = useRef<number>(0);
+  // Two-touch tracking for pinch/rotate: initial + latest distance/angle
+  // between the two touch points.
+  const twoTouchRef = useRef<{ d0: number; a0: number; d1: number; a1: number } | null>(null);
 
   const { type, onGesture, threshold = 50, longPressDuration = 500, enabled = true } = options;
 
@@ -49,6 +55,16 @@ export function useGesture<T extends HTMLElement = HTMLElement>(
       if (!enabled) return;
       const touch = e.touches[0];
       startRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+
+      // Pinch/rotate baseline — distance and angle between the two touches.
+      if ((type === 'pinch' || type === 'rotate') && e.touches.length >= 2) {
+        const [t1, t2] = [e.touches[0], e.touches[1]];
+        const dx2 = t2.clientX - t1.clientX;
+        const dy2 = t2.clientY - t1.clientY;
+        const d = Math.hypot(dx2, dy2);
+        const a = (Math.atan2(dy2, dx2) * 180) / Math.PI;
+        twoTouchRef.current = { d0: d, a0: a, d1: d, a1: a };
+      }
 
       if (type === 'long-press') {
         longPressTimerRef.current = setTimeout(() => {
@@ -89,13 +105,40 @@ export function useGesture<T extends HTMLElement = HTMLElement>(
         velocity,
       };
 
+      // Pinch / rotate resolve from the two-touch delta, not the single-touch
+      // path below. Fired once on release, like the other discrete gestures.
+      if (type === 'pinch' || type === 'rotate') {
+        const t2 = twoTouchRef.current;
+        twoTouchRef.current = null;
+        startRef.current = null;
+        if (!t2 || t2.d0 <= 0) return;
+        const scale = t2.d1 / t2.d0;
+        // Normalize the angle delta into (-180, 180].
+        let rotation = t2.a1 - t2.a0;
+        if (rotation > 180) rotation -= 360;
+        if (rotation <= -180) rotation += 360;
+        if (type === 'pinch' && Math.abs(scale - 1) >= 0.1) {
+          onGesture({ ...context, scale });
+        } else if (type === 'rotate' && Math.abs(rotation) >= 15) {
+          onGesture({ ...context, rotation });
+        }
+        return;
+      }
+
       // Detect gesture type
       if (type === 'tap' && distance < 10 && duration < 300) {
         onGesture(context);
       } else if (type === 'double-tap') {
-        // Double-tap handled separately (simplified)
+        // Two qualifying taps within 350ms — a single tap must NOT fire
+        // (it used to, collapsing double-tap into tap, #2942).
         if (distance < 10 && duration < 300) {
-          onGesture(context);
+          const now = Date.now();
+          if (now - lastTapRef.current <= 350) {
+            lastTapRef.current = 0;
+            onGesture(context);
+          } else {
+            lastTapRef.current = now;
+          }
         }
       } else if (distance >= threshold) {
         const absX = Math.abs(dx);
@@ -126,10 +169,18 @@ export function useGesture<T extends HTMLElement = HTMLElement>(
     [type, onGesture, threshold, enabled],
   );
 
-  const handleTouchMove = useCallback(() => {
+  const handleTouchMove = useCallback((e: TouchEvent) => {
     // Cancel long-press if finger moves
     if (type === 'long-press') {
       clearTimeout(longPressTimerRef.current);
+    }
+    // Track the latest two-touch distance/angle for pinch/rotate.
+    if ((type === 'pinch' || type === 'rotate') && twoTouchRef.current && e.touches.length >= 2) {
+      const [t1, t2] = [e.touches[0], e.touches[1]];
+      const dx2 = t2.clientX - t1.clientX;
+      const dy2 = t2.clientY - t1.clientY;
+      twoTouchRef.current.d1 = Math.hypot(dx2, dy2);
+      twoTouchRef.current.a1 = (Math.atan2(dy2, dx2) * 180) / Math.PI;
     }
   }, [type]);
 

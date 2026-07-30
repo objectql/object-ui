@@ -54,7 +54,7 @@ export type ChartFamily =
   | 'treemap' | 'sankey'
   | 'combo';
 
-const RENDERABLE = new Set<string>([
+export const RENDERABLE = new Set<string>([
   'bar', 'column', 'horizontal-bar',
   'line', 'area',
   'pie', 'donut', 'funnel',
@@ -72,10 +72,30 @@ const RENDERABLE = new Set<string>([
  * whether a bare `type` is a chart family or the SDUI envelope's component
  * discriminator, and getting THAT wrong would break the block outright.
  */
+/**
+ * The spec's single-value chart families (`ChartTypeSchema`, whose own
+ * comment calls gauge/solid-gauge/bullet "honest single-value variants
+ * pending a real dial/target renderer"). The chart draws these as a number —
+ * they used to fall through the cartesian component map's `|| BarChart` into
+ * a bar SHELL whose series marks all returned null: grid, axes, tooltip and
+ * legend rendered with no data marks, indistinguishable from an empty
+ * dataset (#2942). Exported for the dispatch and the spec-parity test.
+ */
+export const SINGLE_VALUE_CHART_TYPES: ReadonlySet<string> = new Set([
+  'gauge', 'solid-gauge', 'metric', 'kpi', 'bullet',
+]);
+
+/**
+ * The spec's tabular chart families — a table is not a series chart; these
+ * render through the data-table / pivot components, and the chart block says
+ * so instead of drawing the same silent empty plot (#2942).
+ */
+export const TABULAR_CHART_TYPES: ReadonlySet<string> = new Set(['table', 'pivot']);
+
 const CHART_TYPES = new Set<string>([
   ...RENDERABLE,
-  'gauge', 'solid-gauge', 'metric', 'kpi', 'bullet',
-  'table', 'pivot',
+  ...SINGLE_VALUE_CHART_TYPES,
+  ...TABULAR_CHART_TYPES,
 ]);
 
 export type AnyRec = Record<string, any>;

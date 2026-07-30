@@ -31,7 +31,87 @@ import {
 import { renderChildren, cn } from '@object-ui/components';
 
 // Constants
-const MILLISECONDS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
+/**
+ * The spec's timeline scale vocabulary (`ui/view.zod.ts`
+ * `TimelineConfigSchema.scale`). Exported for the spec-parity test.
+ */
+export const TIMELINE_SCALES: ReadonlySet<string> = new Set([
+  'hour', 'day', 'week', 'month', 'quarter', 'year',
+]);
+
+/**
+ * Resolve the axis scale for the gantt variant. The spec key is `scale`;
+ * `timeScale` is this renderer's pre-spec dialect, kept for stored JSON —
+ * before #2942 ONLY `timeScale` was read, so every spec-authored `scale`
+ * (all six values) was silently ignored. An absent/unknown value keeps the
+ * renderer's historical `month` default. The `vertical` / `horizontal`
+ * variants are sequential event feeds with no time axis, so `scale` has
+ * nothing to bucket there by construction.
+ */
+export function resolveTimelineScale(schema: { scale?: unknown; timeScale?: unknown }): string {
+  const raw = schema.scale ?? schema.timeScale;
+  return typeof raw === 'string' && TIMELINE_SCALES.has(raw) ? raw : 'month';
+}
+
+/**
+ * Gantt header labels for one scale across [minDate, maxDate]. Every spec
+ * scale produces a non-empty header row — `hour` / `quarter` / `year` used to
+ * fall through the month/week/day chain and return `[]`, blanking the axis
+ * (#2942). Exported for the spec-parity test.
+ */
+export function generateTimeScaleHeaders(scale: string, minDate: string, maxDate: string): string[] {
+  const headers: string[] = [];
+  const start = new Date(minDate);
+  const end = new Date(maxDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return headers;
+  const current = new Date(start);
+  switch (scale) {
+    case 'hour':
+      while (current <= end) {
+        headers.push(current.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric' }));
+        current.setHours(current.getHours() + 1);
+      }
+      break;
+    case 'day':
+      while (current <= end) {
+        headers.push(current.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+        current.setDate(current.getDate() + 1);
+      }
+      break;
+    case 'week': {
+      let week = 1;
+      while (current <= end) {
+        headers.push(`Week ${week++}`);
+        current.setDate(current.getDate() + 7);
+      }
+      break;
+    }
+    case 'quarter':
+      current.setMonth(Math.floor(current.getMonth() / 3) * 3, 1);
+      while (current <= end) {
+        headers.push(`Q${Math.floor(current.getMonth() / 3) + 1} ${current.getFullYear()}`);
+        current.setMonth(current.getMonth() + 3);
+      }
+      break;
+    case 'year':
+      // Snap to the calendar-year start so every year touched by the range
+      // gets a bucket (mirrors the quarter snap above).
+      current.setMonth(0, 1);
+      while (current <= end) {
+        headers.push(String(current.getFullYear()));
+        current.setFullYear(current.getFullYear() + 1);
+      }
+      break;
+    case 'month':
+    default:
+      while (current <= end) {
+        headers.push(current.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
+        current.setMonth(current.getMonth() + 1);
+      }
+      break;
+  }
+  return headers;
+}
 
 // Helper function to calculate date range from items
 function calculateDateRange(items: any[]): { minDate: string; maxDate: string } {
@@ -266,51 +346,14 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
       const minDate = schema.minDate || dateRange.minDate;
       const maxDate = schema.maxDate || dateRange.maxDate;
 
-      // Generate time scale headers (months, weeks, etc.)
-      const timeScale = schema.timeScale || 'month';
-      const generateTimeHeaders = () => {
-        const headers: string[] = [];
-        const start = new Date(minDate);
-        const end = new Date(maxDate);
-
-        if (timeScale === 'month') {
-          const current = new Date(start);
-          while (current <= end) {
-            headers.push(
-              current.toLocaleDateString('en-US', {
-                month: 'short',
-                year: 'numeric',
-              })
-            );
-            current.setMonth(current.getMonth() + 1);
-          }
-        } else if (timeScale === 'week') {
-          const current = new Date(start);
-          while (current <= end) {
-            headers.push(
-              `Week ${Math.ceil(
-                (current.getTime() - start.getTime()) / MILLISECONDS_PER_WEEK
-              ) + 1}`
-            );
-            current.setDate(current.getDate() + 7);
-          }
-        } else if (timeScale === 'day') {
-          const current = new Date(start);
-          while (current <= end) {
-            headers.push(
-              current.toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-              })
-            );
-            current.setDate(current.getDate() + 1);
-          }
-        }
-
-        return headers;
-      };
-
-      const timeHeaders = generateTimeHeaders();
+      // Generate time scale headers — the spec `scale` key drives this
+      // (legacy `timeScale` kept for stored JSON); every spec scale produces
+      // a header row (#2942).
+      const timeHeaders = generateTimeScaleHeaders(
+        resolveTimelineScale(schema as { scale?: unknown; timeScale?: unknown }),
+        minDate,
+        maxDate,
+      );
 
       return (
         <TimelineGantt className={cn("overflow-x-auto [-webkit-overflow-scrolling:touch]", className)} {...props}>

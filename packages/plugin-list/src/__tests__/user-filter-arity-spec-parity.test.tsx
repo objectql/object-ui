@@ -17,7 +17,7 @@
  * the authored contract.
  *
  * Contract under test:
- * - parity: `FILTER_CONTROL_ARITY` maps exactly the spec's vocabulary;
+ * - parity: `FILTER_CONTROL_KINDS` maps exactly the spec's vocabulary;
  * - authored `type: 'select'` renders radios and replaces the pick;
  * - authored `type: 'multi-select'` (and an omitted, inferred type) keeps
  *   accumulating checkboxes;
@@ -27,7 +27,7 @@ import * as React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { UserFilterFieldSchema } from '@objectstack/spec/ui';
-import { UserFilters, FILTER_CONTROL_ARITY } from '../UserFilters';
+import { UserFilters, FILTER_CONTROL_KINDS } from '../UserFilters';
 
 const objectDef = {
   name: 'tasks',
@@ -52,7 +52,7 @@ function specControlTypes(): string[] {
   return Array.isArray(options) ? [...options] : [];
 }
 
-describe('FILTER_CONTROL_ARITY covers the spec user-filter control vocabulary', () => {
+describe('FILTER_CONTROL_KINDS covers the spec user-filter control vocabulary', () => {
   const specNames = specControlTypes();
 
   it('reads a non-empty enum from the spec', () => {
@@ -60,15 +60,15 @@ describe('FILTER_CONTROL_ARITY covers the spec user-filter control vocabulary', 
   });
 
   it('declares an arity for every control type the spec accepts', () => {
-    const undeclared = specNames.filter((name) => !(name in FILTER_CONTROL_ARITY));
+    const undeclared = specNames.filter((name) => !(name in FILTER_CONTROL_KINDS));
     expect(
       undeclared,
-      'these pass schema validation with no declared selection arity — add them to FILTER_CONTROL_ARITY',
+      'these pass schema validation with no declared control kind — add them to FILTER_CONTROL_KINDS',
     ).toEqual([]);
   });
 
   it('does not declare control types the spec rejects', () => {
-    const extra = Object.keys(FILTER_CONTROL_ARITY).filter((name) => !specNames.includes(name));
+    const extra = Object.keys(FILTER_CONTROL_KINDS).filter((name) => !specNames.includes(name));
     expect(
       extra,
       'these are renderer-local dialect — promote them into @objectstack/spec instead',
@@ -147,5 +147,72 @@ describe("filter type 'select' is single-choice", () => {
     );
 
     expect(onFilterChange).toHaveBeenLastCalledWith([['status', 'in', ['todo']]]);
+  });
+});
+
+describe("Tier 2 (#2942): 'toggle' element and range/text controls render", () => {
+  it("element: 'toggle' renders the filter bar instead of deleting it", () => {
+    const onFilterChange = vi.fn();
+    render(
+      <UserFilters
+        config={{ element: 'toggle', fields: [{ field: 'status', defaultValues: ['todo'] }] } as any}
+        objectDef={objectDef}
+        data={[]}
+        onFilterChange={onFilterChange}
+      />,
+    );
+
+    // The whole bar used to vanish (`default: return null`).
+    expect(screen.getByTestId('user-filters-toggle')).toBeInTheDocument();
+    const btn = screen.getByTestId('filter-toggle-status');
+    // Default-active toggle emitted its filter on mount; clicking it off clears.
+    expect(onFilterChange).toHaveBeenLastCalledWith([['status', 'in', ['todo']]]);
+    fireEvent.click(btn);
+    expect(onFilterChange).toHaveBeenLastCalledWith([]);
+  });
+
+  it("'date-range' renders a from/to pair and emits >=/<= bounds", () => {
+    const onFilterChange = vi.fn();
+    render(
+      <UserFilters
+        config={{ element: 'dropdown', fields: [{ field: 'due_date', type: 'date-range' }] } as any}
+        objectDef={objectDef}
+        data={[]}
+        onFilterChange={onFilterChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('filter-badge-due_date'));
+    expect(screen.getByTestId('filter-range-due_date')).toBeInTheDocument();
+    expect(screen.queryByText('No options')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('filter-range-due_date-from'), { target: { value: '2026-01-01' } });
+    expect(onFilterChange).toHaveBeenLastCalledWith([['due_date', '>=', '2026-01-01']]);
+
+    fireEvent.change(screen.getByTestId('filter-range-due_date-to'), { target: { value: '2026-02-01' } });
+    expect(onFilterChange).toHaveBeenLastCalledWith([
+      ['due_date', '>=', '2026-01-01'],
+      ['due_date', '<=', '2026-02-01'],
+    ]);
+  });
+
+  it("'text' renders a search input and emits a contains query on Enter", () => {
+    const onFilterChange = vi.fn();
+    render(
+      <UserFilters
+        config={{ element: 'dropdown', fields: [{ field: 'name', type: 'text' }] } as any}
+        objectDef={objectDef}
+        data={[]}
+        onFilterChange={onFilterChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('filter-badge-name'));
+    const input = screen.getByTestId('filter-text-name');
+    expect(screen.queryByText('No options')).not.toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: 'acme' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onFilterChange).toHaveBeenLastCalledWith([['name', 'contains', 'acme']]);
   });
 });

@@ -7,10 +7,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { FieldType } from '@objectstack/spec/data';
 import {
   FORM_FIELD_TYPES,
   INLINE_EXCLUDED_FIELD_TYPES,
   hasFieldEditWidget,
+  isInlineExcludedFieldType,
   mapFieldTypeToFormType,
 } from './index';
 
@@ -85,6 +87,47 @@ describe('inline editor ↔ form widget parity', () => {
     for (const t of ['color', 'address', 'location', 'geolocation', 'code', 'qrcode']) {
       expect(hasFieldEditWidget(t)).toBe(true);
       expect(INLINE_EXCLUDED_FIELD_TYPES.has(t)).toBe(false);
+    }
+  });
+});
+
+/**
+ * #2942 — the guard above iterates FORM_FIELD_TYPES (the form widget-map
+ * keys), so a SPEC field type that reaches the form only through the alias
+ * table could sit in neither set and silently fall back to the grid's plain
+ * text input: `json`, `composite`, `record`, `repeater`, `tree`, `video`,
+ * `audio`, `autonumber` all did. This pins the contract at the spec boundary:
+ * every `FieldType` member must resolve (alias-aware) to an inline editor or
+ * a documented exclusion.
+ */
+describe('inline editor ↔ SPEC FieldType parity (#2942)', () => {
+  const specTypes: string[] = Array.isArray((FieldType as { options?: readonly string[] }).options)
+    ? [...(FieldType as { options: readonly string[] }).options]
+    : [];
+
+  it('reads a non-empty enum from the spec', () => {
+    expect(specTypes, 'could not read FieldType.options from the spec').not.toEqual([]);
+  });
+
+  it('every spec field type resolves to an inline decision (editor or exclusion)', () => {
+    const undecided = specTypes.filter(
+      (t) => !hasFieldEditWidget(t) && !isInlineExcludedFieldType(t),
+    );
+    // If this fails: a spec field type would fall back to a plain text input
+    // inline. Give it a widget (EDIT_WIDGETS / the alias table) or a
+    // documented exclusion (INLINE_EXCLUDED_FIELD_TYPES).
+    expect(undecided).toEqual([]);
+  });
+
+  it('the structured/computed spec spellings are closed corruption paths', () => {
+    // Excluded (alias-aware): editing these through a text box corrupts the value.
+    for (const t of ['composite', 'record', 'repeater', 'video', 'audio', 'autonumber']) {
+      expect(isInlineExcludedFieldType(t), `${t} must be excluded from inline editing`).toBe(true);
+      expect(hasFieldEditWidget(t), `${t} must not resolve to an editor`).toBe(false);
+    }
+    // Editable through their form widgets: json → code editor, tree → lookup picker.
+    for (const t of ['json', 'tree']) {
+      expect(hasFieldEditWidget(t), `${t} must resolve to its form widget`).toBe(true);
     }
   });
 });

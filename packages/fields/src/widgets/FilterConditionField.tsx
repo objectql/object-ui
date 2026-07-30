@@ -122,8 +122,18 @@ export function condToMongo(c: BuilderCondition, typeOf: (f: string) => string |
     // that convertFiltersToAST throws on, so every "does not contain" rule authored here
     // was rejected downstream. See kvToCondition for reading the old spelling back.
     case 'notContains': return { [field]: { $notContains: value } };
+    // String-specific spec operators — previously unreachable from the
+    // builder UI even though FieldOperatorsSchema accepts them (#2942).
+    case 'startsWith': return { [field]: { $startsWith: value } };
+    case 'endsWith': return { [field]: { $endsWith: value } };
     case 'isEmpty': return { [field]: { $in: [null, ''] } };
     case 'isNotEmpty': return { [field]: { $nin: [null, ''] } };
+    // Null / existence spec operators. Distinct from isEmpty/isNotEmpty,
+    // which also treat '' as empty.
+    case 'isNull': return { [field]: { $null: true } };
+    case 'isNotNull': return { [field]: { $null: false } };
+    case 'exists': return { [field]: { $exists: true } };
+    case 'notExists': return { [field]: { $exists: false } };
     case 'greaterThan':
     case 'after': return { [field]: { $gt: cv } };
     case 'lessThan':
@@ -187,6 +197,10 @@ export function kvToCondition(field: string, v: any, idx: number): BuilderCondit
       case '$lt': return { id, field, operator: 'lessThan', value: val };
       case '$gte': return { id, field, operator: 'greaterOrEqual', value: val };
       case '$lte': return { id, field, operator: 'lessOrEqual', value: val };
+      case '$startsWith': return { id, field, operator: 'startsWith', value: val };
+      case '$endsWith': return { id, field, operator: 'endsWith', value: val };
+      case '$null': return { id, field, operator: val === false ? 'isNotNull' : 'isNull', value: '' };
+      case '$exists': return { id, field, operator: val === false ? 'notExists' : 'exists', value: '' };
       case '$in':
         return arraysEqual(val, [null, ''])
           ? { id, field, operator: 'isEmpty', value: '' }

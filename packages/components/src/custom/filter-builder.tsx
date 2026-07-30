@@ -71,6 +71,16 @@ const defaultOperators = [
   { value: "between", label: "Between" },
   { value: "in", label: "In" },
   { value: "notIn", label: "Not in" },
+  // String-specific spec operators ($startsWith / $endsWith) — they validated
+  // at the data layer but were unreachable from this dropdown (#2942).
+  { value: "startsWith", label: "Starts with" },
+  { value: "endsWith", label: "Ends with" },
+  // Null / existence spec operators ($null / $exists). Distinct from
+  // isEmpty/isNotEmpty, which also treat '' as empty.
+  { value: "isNull", label: "Is null" },
+  { value: "isNotNull", label: "Is not null" },
+  { value: "exists", label: "Is set" },
+  { value: "notExists", label: "Is not set" },
 ] as const
 
 /**
@@ -121,16 +131,23 @@ const useSafeFilterTranslation = createSafeTranslation(
     'filterBuilder.operators.between': 'Between',
     'filterBuilder.operators.in': 'In',
     'filterBuilder.operators.notIn': 'Not in',
+    'filterBuilder.operators.startsWith': 'Starts with',
+    'filterBuilder.operators.endsWith': 'Ends with',
+    'filterBuilder.operators.isNull': 'Is null',
+    'filterBuilder.operators.isNotNull': 'Is not null',
+    'filterBuilder.operators.exists': 'Is set',
+    'filterBuilder.operators.notExists': 'Is not set',
   },
   'filterBuilder.where',
 )
 
-const textOperators = ["equals", "notEquals", "contains", "notContains", "isEmpty", "isNotEmpty"]
-const numberOperators = ["equals", "notEquals", "greaterThan", "lessThan", "greaterOrEqual", "lessOrEqual", "isEmpty", "isNotEmpty"]
+const NULLNESS_OPERATORS = ["isNull", "isNotNull", "exists", "notExists"]
+const textOperators = ["equals", "notEquals", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", ...NULLNESS_OPERATORS]
+const numberOperators = ["equals", "notEquals", "greaterThan", "lessThan", "greaterOrEqual", "lessOrEqual", "isEmpty", "isNotEmpty", ...NULLNESS_OPERATORS]
 const booleanOperators = ["equals", "notEquals"]
-const dateOperators = ["equals", "notEquals", "before", "after", "between", "isEmpty", "isNotEmpty"]
-const selectOperators = ["equals", "notEquals", "in", "notIn", "isEmpty", "isNotEmpty"]
-const lookupOperators = ["equals", "notEquals", "in", "notIn", "isEmpty", "isNotEmpty"]
+const dateOperators = ["equals", "notEquals", "before", "after", "between", "isEmpty", "isNotEmpty", ...NULLNESS_OPERATORS]
+const selectOperators = ["equals", "notEquals", "in", "notIn", "isEmpty", "isNotEmpty", ...NULLNESS_OPERATORS]
+const lookupOperators = ["equals", "notEquals", "in", "notIn", "isEmpty", "isNotEmpty", ...NULLNESS_OPERATORS]
 
 /** Field types that share the same operator/input behavior as number (numeric comparison operators, number input) */
 const numberLikeTypes = ["number", "currency", "percent", "rating"]
@@ -256,7 +273,7 @@ function FilterBuilder({
   }
 
   const needsValueInput = (operator: string) => {
-    return !["isEmpty", "isNotEmpty"].includes(operator)
+    return !["isEmpty", "isNotEmpty", "isNull", "isNotNull", "exists", "notExists"].includes(operator)
   }
 
   const getInputType = (fieldValue: string) => {

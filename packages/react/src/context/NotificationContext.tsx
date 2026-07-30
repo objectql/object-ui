@@ -19,17 +19,58 @@ import React, { createContext, useCallback, useContext, useMemo, useState } from
 /** Notification severity levels aligned with NotificationSeveritySchema */
 export type NotificationSeverityLevel = 'info' | 'success' | 'warning' | 'error';
 
-/** Notification display type aligned with NotificationTypeSchema */
-export type NotificationDisplayType = 'toast' | 'banner' | 'snackbar' | 'modal';
+/**
+ * Notification display type — the spec `NotificationTypeSchema`
+ * (`ui/notification.zod.ts`: toast / snackbar / banner / alert / inline).
+ * This union used to claim alignment while carrying a renderer-local `modal`
+ * and missing `alert` / `inline` (#2942); `modal` stays accepted as a
+ * deprecated legacy spelling for stored items.
+ */
+export type NotificationDisplayType =
+  | 'toast'
+  | 'snackbar'
+  | 'banner'
+  | 'alert'
+  | 'inline'
+  /** @deprecated renderer dialect — never in the spec; presented as `alert` */
+  | 'modal';
 
-/** Notification position aligned with NotificationPositionSchema */
+/**
+ * Notification position — the spec `NotificationPositionSchema`
+ * (underscore spellings). The hyphen forms are this context's historical
+ * dialect, kept accepted for stored items.
+ */
 export type NotificationPositionValue =
+  | 'top_left'
+  | 'top_center'
+  | 'top_right'
+  | 'bottom_left'
+  | 'bottom_center'
+  | 'bottom_right'
+  /** @deprecated legacy spelling — use `top_left` */
   | 'top-left'
+  /** @deprecated legacy spelling — use `top_center` */
   | 'top-center'
+  /** @deprecated legacy spelling — use `top_right` */
   | 'top-right'
+  /** @deprecated legacy spelling — use `bottom_left` */
   | 'bottom-left'
+  /** @deprecated legacy spelling — use `bottom_center` */
   | 'bottom-center'
+  /** @deprecated legacy spelling — use `bottom_right` */
   | 'bottom-right';
+
+/**
+ * The spec vocabularies this context implements — exported for the parity
+ * tests (#2942), which fail the moment `NotificationTypeSchema` /
+ * `NotificationPositionSchema` and these sets drift in either direction.
+ */
+export const SUPPORTED_NOTIFICATION_DISPLAY_TYPES: ReadonlySet<string> = new Set([
+  'toast', 'snackbar', 'banner', 'alert', 'inline',
+]);
+export const SUPPORTED_NOTIFICATION_POSITIONS: ReadonlySet<string> = new Set([
+  'top_left', 'top_center', 'top_right', 'bottom_left', 'bottom_center', 'bottom_right',
+]);
 
 /** Action button on a notification */
 export interface NotificationActionButton {
@@ -144,6 +185,11 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       const id = `notification-${++notificationCounter}`;
       const notification: NotificationItem = {
         ...input,
+        // Materialize the declared presentation (spec default: toast; the
+        // legacy `modal` dialect presents as its nearest spec family, alert)
+        // so the delegate can branch on it — it used to be stored and never
+        // read anywhere (#2942).
+        displayType: input.displayType === 'modal' ? 'alert' : (input.displayType ?? 'toast'),
         id,
         createdAt: new Date(),
         read: false,

@@ -48,25 +48,27 @@ interface ResolvedField {
 const LOOKUP_LIKE_TYPES = new Set(['lookup', 'master_detail', 'user', 'owner']);
 
 /**
- * Selection arity for every filter control type the spec's
- * `UserFilterFieldSchema.type` (`ui/view.zod.ts`) publishes. The enum names
- * BOTH `select` and `multi-select`, so `select` necessarily means
- * single-choice — rendering it as accumulating checkboxes made a single-choice
- * filter silently accept many values (#2941).
+ * Control kind for every filter control type the spec's
+ * `UserFilterFieldSchema.type` (`ui/view.zod.ts`) publishes:
+ *
+ * - the enum names BOTH `select` and `multi-select`, so `select` necessarily
+ *   means single-choice — rendering it as accumulating checkboxes made a
+ *   single-choice filter silently accept many values (#2941);
+ * - `date-range` and `text` used to be dead controls — the chip rendered and
+ *   the popover said the literal "No options" (#2942). They now render a
+ *   from/to date pair and a search input.
  *
  * Applies to the AUTHORED `type` only: when the author omits it, the control
  * is inferred from the field definition and keeps the historical multi-check
  * UX. Exported for the spec-parity test, which fails the moment the spec's
  * vocabulary and this table drift in either direction.
  */
-export const FILTER_CONTROL_ARITY: Record<string, 'single' | 'multiple'> = {
-  select: 'single',
-  'multi-select': 'multiple',
-  boolean: 'multiple',
-  // Dead controls today (their popovers render "No options" — #2942); their
-  // arity is still declared so the vocabulary stays fully mapped.
-  'date-range': 'single',
-  text: 'single',
+export const FILTER_CONTROL_KINDS: Record<string, 'single-choice' | 'multi-choice' | 'range' | 'text'> = {
+  select: 'single-choice',
+  'multi-select': 'multi-choice',
+  boolean: 'multi-choice',
+  'date-range': 'range',
+  text: 'text',
 };
 
 export interface UserFiltersProps {
@@ -155,7 +157,10 @@ export function UserFilters({
   initialSelections,
   onSelectionsChange,
 }: UserFiltersProps) {
-  switch (config.element) {
+  // The AUTHORING type (ADR-0053) only admits dropdown/tabs; stored metadata
+  // still carries the spec-deprecated `toggle`, which must keep rendering
+  // (ADR-0047 §3.4a) — hence the wider comparand.
+  switch (config.element as 'dropdown' | 'tabs' | 'toggle') {
     case 'dropdown':
       return (
         <DropdownFilters
@@ -179,6 +184,20 @@ export function UserFilters({
           className={className}
           initialTab={typeof initialSelections?._tab?.[0] === 'string' ? (initialSelections._tab[0] as string) : undefined}
           onSelectionsChange={onSelectionsChange}
+        />
+      );
+    // DEPRECATED in the spec (ADR-0047 §3.4a: "kept in the enum so existing
+    // configs keep rendering; do not author new `toggle` filters") — but the
+    // compatibility promise is the renderer's to keep, and `default: return
+    // null` was deleting the ENTIRE filter bar for stored toggle configs
+    // (#2942). Authoring tooling no longer offers it; this branch only keeps
+    // old metadata working.
+    case 'toggle':
+      return (
+        <ToggleFilters
+          fields={config.fields || []}
+          onFilterChange={onFilterChange}
+          className={className}
         />
       );
     default:
@@ -311,12 +330,12 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, 
   const { fieldLabel, translateOptions } = useSafeFieldLabel();
   const moreLabel = useMoreLabel();
   const objectName: string | undefined = objectDef?.name;
-  // Fields whose AUTHORED control type is single-choice (`type: 'select'`).
-  // Keyed off the raw config, not the resolved field: `resolveFields` back-fills
-  // `type` from the object definition, and an inferred type must keep the
-  // historical multi-check UX (#2941).
-  const singleChoiceFields = React.useMemo(
-    () => new Set(fields.filter(f => FILTER_CONTROL_ARITY[f.type ?? ''] === 'single').map(f => f.field)),
+  // Control kind per field, from the AUTHORED type only. Keyed off the raw
+  // config, not the resolved field: `resolveFields` back-fills `type` from
+  // the object definition, and an inferred type must keep the historical
+  // multi-check UX (#2941).
+  const controlKinds = React.useMemo(
+    () => new Map(fields.map(f => [f.field, FILTER_CONTROL_KINDS[f.type ?? '']])),
     [fields],
   );
   const [selectedValues, setSelectedValues] = React.useState<
@@ -333,8 +352,9 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, 
         init[f.field] = restored;
       }
       // A single-choice control can never hold more than one value, whatever
-      // an author default or a hand-edited URL claims.
-      if (singleChoiceFields.has(f.field) && (init[f.field]?.length ?? 0) > 1) {
+      // an author default or a hand-edited URL claims. (A `range` holds its
+      // [from, to] pair; `text` its one query — both self-limit.)
+      if (controlKinds.get(f.field) === 'single-choice' && (init[f.field]?.length ?? 0) > 1) {
         init[f.field] = init[f.field].slice(0, 1);
       }
     });
@@ -369,12 +389,30 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, 
 
   const emitFilters = React.useCallback(
     (next: Record<string, (string | number | boolean)[]>) => {
-      const conditions = Object.entries(next)
-        .filter(([, v]) => v.length > 0)
-        .map(([field, values]) => [field, 'in', values]);
+      // Condition shape per control kind (#2942): a `range` lowers to
+      // >=/<= bounds, `text` to a contains query; option controls keep the
+      // historical `in` set.
+      const conditions = Object.entries(next).flatMap(([field, values]) => {
+        if (values.length === 0) return [];
+        switch (controlKinds.get(field)) {
+          case 'range': {
+            const [from, to] = values as [unknown?, unknown?];
+            const bounds: Array<[string, string, unknown]> = [];
+            if (from !== undefined && from !== '') bounds.push([field, '>=', from]);
+            if (to !== undefined && to !== '') bounds.push([field, '<=', to]);
+            return bounds;
+          }
+          case 'text': {
+            const query = String(values[0] ?? '').trim();
+            return query ? [[field, 'contains', query] as [string, string, unknown]] : [];
+          }
+          default:
+            return [[field, 'in', values] as [string, string, unknown]];
+        }
+      });
       onFilterChange(conditions);
     },
-    [onFilterChange],
+    [onFilterChange, controlKinds],
   );
 
   const handleChange = (field: string, values: (string | number | boolean)[]) => {
@@ -423,8 +461,11 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, 
 
   const renderBadge = (f: ResolvedField) => {
     const selected = selectedValues[f.field] || [];
-    const hasSelection = selected.length > 0;
-    const singleChoice = singleChoiceFields.has(f.field);
+    const kind = controlKinds.get(f.field);
+    // A range stores ['', to] / [from, ''] placeholders — count real values.
+    const activeCount = selected.filter(v => v !== '' && v !== undefined && v !== null).length;
+    const hasSelection = activeCount > 0;
+    const singleChoice = kind === 'single-choice';
     const isLookupLike =
       LOOKUP_LIKE_TYPES.has(f.type || '') &&
       f.options.length === 0 &&
@@ -446,7 +487,7 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, 
             <span className="truncate max-w-[100px]">{f.label || f.field}</span>
             {hasSelection && (
               <span className="text-[10px] text-muted-foreground/80 tabular-nums">
-                {selected.length}
+                {activeCount}
               </span>
             )}
             {hasSelection ? (
@@ -487,6 +528,50 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, 
                 }}
               />
             </div>
+          ) : kind === 'range' ? (
+            // Authored `type: 'date-range'` — a from/to day-granularity pair.
+            // Used to render the literal "No options" dead control (#2942).
+            <div className="space-y-2 p-1" data-testid={`filter-range-${f.field}`}>
+              {([0, 1] as const).map((slot) => (
+                <label key={slot} className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="w-8 shrink-0">{slot === 0 ? 'From' : 'To'}</span>
+                  <input
+                    type="date"
+                    data-testid={`filter-range-${f.field}-${slot === 0 ? 'from' : 'to'}`}
+                    value={String(selected[slot] ?? '')}
+                    onChange={(e) => {
+                      const next: (string | number | boolean)[] = [
+                        String(selected[0] ?? ''),
+                        String(selected[1] ?? ''),
+                      ];
+                      next[slot] = e.target.value;
+                      handleChange(f.field, next[0] === '' && next[1] === '' ? [] : next);
+                    }}
+                    className="h-7 flex-1 rounded border border-input bg-background px-2 text-xs text-foreground"
+                  />
+                </label>
+              ))}
+            </div>
+          ) : kind === 'text' ? (
+            // Authored `type: 'text'` — a contains query, committed on Enter /
+            // blur so typing doesn't refire the list query per keystroke.
+            <input
+              type="search"
+              data-testid={`filter-text-${f.field}`}
+              defaultValue={String(selected[0] ?? '')}
+              placeholder={f.label || f.field}
+              onBlur={(e) => {
+                const q = e.target.value.trim();
+                handleChange(f.field, q ? [q] : []);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const q = (e.target as HTMLInputElement).value.trim();
+                  handleChange(f.field, q ? [q] : []);
+                }
+              }}
+              className="h-8 w-full rounded border border-input bg-background px-2 text-xs text-foreground"
+            />
           ) : (
             <div className="max-h-60 overflow-y-auto space-y-0.5" data-testid={`filter-options-${f.field}`}>
               {f.options.length === 0 ? (

@@ -10,7 +10,9 @@ export interface MetadataProviderProps {
   children: ReactNode;
 }
 
-export type Theme = 'light' | 'dark' | 'system';
+// `auto` is the spec's OS-following mode (ThemeModeSchema); `system` is the
+// pre-spec spelling, kept accepted for stored preferences.
+export type Theme = 'light' | 'dark' | 'auto' | 'system';
 
 export interface ThemeProviderProps {
   defaultTheme?: Theme;

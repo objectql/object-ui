@@ -18,6 +18,14 @@ export interface UseSpecGestureOptions {
   onPinch?: (scale: number) => void;
   /** Callback when a long-press gesture is detected */
   onLongPress?: () => void;
+  /** Callback when a double-tap gesture is detected */
+  onDoubleTap?: () => void;
+  /** Callback when a pan/drag gesture is detected (any-direction move) */
+  onPan?: (direction: string) => void;
+  /** Callback when a rotate gesture is detected (degrees, CW positive) */
+  onRotate?: (rotation: number) => void;
+  /** Fallback for gestures without a dedicated callback */
+  onGesture?: (context: { type: string; direction?: string; scale?: number; rotation?: number }) => void;
 }
 
 const SWIPE_DIRECTION_MAP: Record<string, GestureType> = {
@@ -25,6 +33,28 @@ const SWIPE_DIRECTION_MAP: Record<string, GestureType> = {
   right: 'swipe-right',
   up: 'swipe-up',
   down: 'swipe-down',
+};
+
+/**
+ * Spec `GestureTypeSchema` (`ui/touch.zod.ts`) → the recognizer type
+ * `useGesture` implements. The spec's `drag` and `pan` are one recognizer
+ * (any-direction move past the threshold); `swipe` resolves per configured
+ * direction, so it maps through {@link SWIPE_DIRECTION_MAP} instead.
+ * Exported for the spec-parity test.
+ *
+ * Before #2942 the hook never read `config.type` at all — it branched on
+ * which SUB-OBJECT was present (`swipe` / `pinch` / `longPress`), so
+ * `pan` / `drag` / `rotate` / `double_tap` (types with no sub-object) all
+ * fell through to the `'tap'` initializer and fired on a tap.
+ */
+export const SPEC_GESTURE_TYPE_MAP: Record<string, GestureType> = {
+  swipe: 'swipe-left', // per-direction; resolved via SWIPE_DIRECTION_MAP
+  pinch: 'pinch',
+  long_press: 'long-press',
+  double_tap: 'double-tap',
+  drag: 'pan',
+  pan: 'pan',
+  rotate: 'rotate',
 };
 
 /**
@@ -43,28 +73,63 @@ const SWIPE_DIRECTION_MAP: Record<string, GestureType> = {
 export function useSpecGesture<T extends HTMLElement = HTMLElement>(
   options: UseSpecGestureOptions,
 ) {
-  const { config, onSwipe, onPinch, onLongPress } = options;
+  const { config, onSwipe, onPinch, onLongPress, onDoubleTap, onPan, onRotate, onGesture: onAny } = options;
   const enabled = config.enabled ?? true;
+
+  // The DECLARED type drives recognition (#2942) — `config.type` is required
+  // by the spec's `GestureConfigSchema`. The sub-object presence checks below
+  // only back-fill legacy configs that predate the type field.
+  const declared: string | undefined =
+    typeof (config as { type?: unknown }).type === 'string'
+      ? ((config as { type?: string }).type as string)
+      : config.swipe
+        ? 'swipe'
+        : config.longPress
+          ? 'long_press'
+          : config.pinch
+            ? 'pinch'
+            : undefined;
 
   let gestureType: GestureType = 'tap';
   let threshold: number | undefined;
   let longPressDuration: number | undefined;
-  let onGesture: (ctx: { direction?: string; scale?: number }) => void = () => {};
+  let onGesture: (ctx: { direction?: string; scale?: number; rotation?: number }) => void = () => {};
+  const fallback = (ctx: { type: string; direction?: string; scale?: number; rotation?: number }) => onAny?.(ctx);
 
-  if (config.swipe && onSwipe) {
-    const dir = Array.isArray(config.swipe.direction)
-      ? config.swipe.direction[0]
-      : config.swipe.direction;
-    gestureType = (dir && SWIPE_DIRECTION_MAP[dir]) ?? 'swipe-left';
-    threshold = config.swipe.threshold;
-    onGesture = (ctx) => onSwipe(ctx.direction ?? dir ?? 'left');
-  } else if (config.longPress && onLongPress) {
-    gestureType = 'long-press';
-    longPressDuration = config.longPress.duration;
-    onGesture = () => onLongPress();
-  } else if (config.pinch && onPinch) {
-    gestureType = 'pinch';
-    onGesture = (ctx) => onPinch(ctx.scale ?? 1);
+  switch (declared) {
+    case 'swipe': {
+      const dir = Array.isArray(config.swipe?.direction)
+        ? config.swipe?.direction[0]
+        : (config.swipe?.direction as string | undefined);
+      gestureType = (dir ? SWIPE_DIRECTION_MAP[dir] : undefined) ?? 'swipe-left';
+      threshold = config.swipe?.threshold;
+      onGesture = (ctx) => (onSwipe ? onSwipe(ctx.direction ?? dir ?? 'left') : fallback({ type: 'swipe', ...ctx }));
+      break;
+    }
+    case 'long_press':
+      gestureType = 'long-press';
+      longPressDuration = config.longPress?.duration;
+      onGesture = () => (onLongPress ? onLongPress() : fallback({ type: 'long_press' }));
+      break;
+    case 'pinch':
+      gestureType = 'pinch';
+      onGesture = (ctx) => (onPinch ? onPinch(ctx.scale ?? 1) : fallback({ type: 'pinch', ...ctx }));
+      break;
+    case 'double_tap':
+      gestureType = 'double-tap';
+      onGesture = () => (onDoubleTap ? onDoubleTap() : fallback({ type: 'double_tap' }));
+      break;
+    case 'pan':
+    case 'drag':
+      gestureType = 'pan';
+      onGesture = (ctx) => (onPan ? onPan(ctx.direction ?? 'left') : fallback({ type: declared, ...ctx }));
+      break;
+    case 'rotate':
+      gestureType = 'rotate';
+      onGesture = (ctx) => (onRotate ? onRotate(ctx.rotation ?? 0) : fallback({ type: 'rotate', ...ctx }));
+      break;
+    default:
+      break;
   }
 
   return useGesture<T>({

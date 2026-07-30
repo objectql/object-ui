@@ -50,6 +50,37 @@ function groupData(data: any[], groupBy: ReportGroupBy[]): GroupedData[] | null 
   return result;
 }
 
+/**
+ * Compute one summary value for a report column. Covers every
+ * `ReportAggregationType` member (`@object-ui/types/reports.ts`) — `distinct`
+ * used to fall into `default: return ''` and render a blank cell while the
+ * type accepted it (#2942). Exported for the coverage guard, whose sample
+ * table is `Record<ReportAggregationType, …>` so a new member fails
+ * type-check until it computes here.
+ */
+export function computeReportAggregation(
+  data: Record<string, any>[] | undefined,
+  fieldName: string,
+  aggregation?: string,
+): string | number {
+  if (!data) return 0;
+  const values = data.map((item: Record<string, any>) => Number(item[fieldName]) || 0);
+  switch (aggregation) {
+    case 'count': return data.length;
+    case 'sum': return values.reduce((sum: number, v: number) => sum + v, 0);
+    case 'avg': return values.length > 0
+      ? (values.reduce((sum: number, v: number) => sum + v, 0) / values.length).toFixed(2)
+      : 0;
+    case 'min': return values.length > 0 ? Math.min(...values) : 0;
+    case 'max': return values.length > 0 ? Math.max(...values) : 0;
+    // Distinct values of the RAW field (numeric coercion would fold distinct
+    // strings together).
+    case 'distinct':
+      return new Set(data.map((item: Record<string, any>) => item[fieldName])).size;
+    default: return '';
+  }
+}
+
 export interface ReportViewerProps {
   schema: ReportViewerSchema;
   /** Callback to refresh data */
@@ -88,20 +119,8 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({ schema, onRefresh })
     onRefresh?.();
   };
 
-  const computeAggregation = (fieldName: string, aggregation?: string): string | number => {
-    if (!data) return 0;
-    const values = data.map((item: Record<string, any>) => Number(item[fieldName]) || 0);
-    switch (aggregation) {
-      case 'count': return data.length;
-      case 'sum': return values.reduce((sum: number, v: number) => sum + v, 0);
-      case 'avg': return values.length > 0
-        ? (values.reduce((sum: number, v: number) => sum + v, 0) / values.length).toFixed(2)
-        : 0;
-      case 'min': return values.length > 0 ? Math.min(...values) : 0;
-      case 'max': return values.length > 0 ? Math.max(...values) : 0;
-      default: return '';
-    }
-  };
+  const computeAggregation = (fieldName: string, aggregation?: string): string | number =>
+    computeReportAggregation(data, fieldName, aggregation);
 
   // Evaluate conditional formatting rules for a cell
   const getCellStyle = (fieldName: string, value: any): React.CSSProperties | undefined => {
