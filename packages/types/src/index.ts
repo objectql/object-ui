@@ -428,8 +428,6 @@ export type {
   MasterDetailFieldMetadata,
   FieldMetadata,
   ObjectTrigger,
-  ObjectPermission,
-  SharingRule,
   ObjectSchemaMetadata,
   ObjectIndex,
   ObjectRelationship,

@@ -785,73 +785,6 @@ export interface ObjectTrigger {
 }
 
 /**
- * Object permission configuration (Phase 3.1.4)
- */
-export interface ObjectPermission {
-  /**
-   * Permission profile name
-   */
-  profile?: string;
-  /**
-   * Role-based permissions
-   */
-  roles?: string[];
-  /**
-   * CRUD permissions
-   */
-  create?: boolean;
-  read?: boolean;
-  update?: boolean;
-  delete?: boolean;
-  /**
-   * Record-level permissions
-   */
-  record_level?: {
-    /**
-     * User can only access own records
-     */
-    own_records_only?: boolean;
-    /**
-     * Sharing rules
-     */
-    sharing_rules?: SharingRule[];
-  };
-  /**
-   * Field-level permissions
-   */
-  field_permissions?: Record<string, {
-    read?: boolean;
-    edit?: boolean;
-  }>;
-}
-
-/**
- * Sharing rule configuration
- */
-export interface SharingRule {
-  /**
-   * Rule name
-   */
-  name: string;
-  /**
-   * Criteria for sharing
-   */
-  criteria?: Record<string, any>;
-  /**
-   * Access level granted
-   */
-  access_level: 'read' | 'edit' | 'full';
-  /**
-   * Share with users/roles
-   */
-  share_with?: {
-    users?: string[];
-    roles?: string[];
-    groups?: string[];
-  };
-}
-
-/**
  * Object schema definition
  * Phase 3.1: Enhanced with inheritance, triggers, permissions, and caching
  */
@@ -875,11 +808,6 @@ export interface ObjectSchemaMetadata {
    * Fields definition
    */
   fields: Record<string, FieldMetadata>;
-  
-  /**
-   * Permissions (Phase 3.1.4: Enhanced permissions)
-   */
-  permissions?: ObjectPermission;
   
   /**
    * Parent object to inherit from (Phase 3.1.2)

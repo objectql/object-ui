@@ -37,37 +37,40 @@ import {
   Star,
   Tag,
 } from 'lucide-react';
+import type { ObjectAccessScope, ObjectPermission, FieldPermission } from '@objectstack/spec/security';
 import type { MetadataPreviewProps } from '../preview-registry';
 import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell';
 
-interface ObjectPermission {
-  allowCreate?: boolean;
-  allowRead?: boolean;
-  allowEdit?: boolean;
-  allowDelete?: boolean;
-  allowTransfer?: boolean;
-  allowRestore?: boolean;
-  allowPurge?: boolean;
-  viewAllRecords?: boolean;
-  modifyAllRecords?: boolean;
-}
-
-interface FieldPermission {
-  readable?: boolean;
-  editable?: boolean;
-}
-
+/**
+ * Boolean capabilities, in matrix-column order.
+ *
+ * Typed against the spec's `ObjectPermission` so a capability the spec adds
+ * cannot stay invisible here indefinitely — the hand-written copy this
+ * replaced was missing `allowExport` outright, so a permission set granting
+ * export rendered identically to one that did not (objectstack#4115).
+ */
 const CAPS: Array<{ key: keyof ObjectPermission; short: string; long: string; danger?: boolean }> = [
   { key: 'allowCreate', short: 'C', long: 'Create' },
   { key: 'allowRead', short: 'R', long: 'Read' },
   { key: 'allowEdit', short: 'U', long: 'Edit' },
   { key: 'allowDelete', short: 'D', long: 'Delete' },
+  { key: 'allowExport', short: 'E', long: 'Export' },
   { key: 'allowTransfer', short: 'T', long: 'Transfer' },
   { key: 'allowRestore', short: 'Re', long: 'Restore' },
   { key: 'allowPurge', short: 'P', long: 'Purge', danger: true },
   { key: 'viewAllRecords', short: 'V*', long: 'View All', danger: true },
   { key: 'modifyAllRecords', short: 'M*', long: 'Modify All', danger: true },
 ];
+
+/** Access-depth axis (ADR-0057), narrowest first — also the widening order. */
+const SCOPE_ORDER: ObjectAccessScope[] = ['own', 'own_and_reports', 'unit', 'unit_and_below', 'org'];
+const SCOPE_LABEL: Record<ObjectAccessScope, string> = {
+  own: 'own',
+  own_and_reports: 'own+reports',
+  unit: 'unit',
+  unit_and_below: 'unit+below',
+  org: 'org',
+};
 
 interface Warning {
   object: string;
@@ -81,6 +84,16 @@ function findWarnings(objects: Record<string, ObjectPermission>): Warning[] {
     if (p.allowDelete && !p.allowRead) out.push({ object: obj, message: 'Delete granted without Read.' });
     if (p.modifyAllRecords && !p.viewAllRecords) out.push({ object: obj, message: 'Modify All without View All — modifications may target invisible records.' });
     if (p.allowPurge && !p.allowDelete) out.push({ object: obj, message: 'Purge (hard delete) granted without Delete.' });
+    // Same class as Modify-All-without-View-All, one axis down: a write scope
+    // wider than the read scope lets a user edit records they cannot see.
+    const read = p.readScope ? SCOPE_ORDER.indexOf(p.readScope) : -1;
+    const write = p.writeScope ? SCOPE_ORDER.indexOf(p.writeScope) : -1;
+    if (read >= 0 && write > read) {
+      out.push({
+        object: obj,
+        message: `Write scope (${SCOPE_LABEL[p.writeScope!]}) is wider than read scope (${SCOPE_LABEL[p.readScope!]}) — edits may target invisible records.`,
+      });
+    }
   }
   return out;
 }
@@ -167,6 +180,9 @@ export function PermissionPreview({ name, draft }: MetadataPreviewProps) {
                           {c.short}
                         </th>
                       ))}
+                      <th className="px-2 py-1.5 text-left font-medium" title="Read / write access depth (ADR-0057)">
+                        Scope
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -183,6 +199,17 @@ export function PermissionPreview({ name, draft }: MetadataPreviewProps) {
                               </td>
                             );
                           })}
+                          <td className="px-2 py-1 whitespace-nowrap text-[10px] text-muted-foreground">
+                            {p.readScope || p.writeScope ? (
+                              <>
+                                <span title="Read scope">{p.readScope ? SCOPE_LABEL[p.readScope] : '—'}</span>
+                                <span className="mx-1 opacity-50">/</span>
+                                <span title="Write scope">{p.writeScope ? SCOPE_LABEL[p.writeScope] : '—'}</span>
+                              </>
+                            ) : (
+                              <span className="opacity-40">default</span>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}
