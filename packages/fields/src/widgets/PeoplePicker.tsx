@@ -320,10 +320,22 @@ export function PeoplePicker({
     () => query.records.map(r => String(getPersonId(r, idField))).join(' '),
     [query.records, idField],
   );
-  useEffect(() => {
+  // The reset runs in the RENDER PHASE (the "adjusting state during render"
+  // pattern), NOT in an effect. An effect flushes asynchronously after the
+  // render that delivered the records — so a reset queued by their arrival
+  // could land AFTER a subsequent ArrowDown and eat the just-set cursor.
+  // That is the residual ArrowDown→Enter flake the signature key above did
+  // not close (CI reproduced it under load), and a real fast-fingers UX bug:
+  // rows appear, the user presses ArrowDown, the highlight vanishes.
+  // Resetting during the same render that shows the new rows makes the
+  // ordering deterministic — by the time the rows are visible, the reset
+  // has already happened.
+  const cursorEpoch = `${query.search}\u0000${recordsSignature}`;
+  const [seenCursorEpoch, setSeenCursorEpoch] = useState(cursorEpoch);
+  if (seenCursorEpoch !== cursorEpoch) {
+    setSeenCursorEpoch(cursorEpoch);
     setActiveIndex(-1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query.search, recordsSignature]);
+  }
   // Keep it in range if the list shrinks.
   useEffect(() => {
     setActiveIndex(i => (i >= navList.length ? navList.length - 1 : i));

@@ -189,6 +189,26 @@ describe('PeoplePicker', () => {
     expect(onSelect).toHaveBeenCalledWith('u1');
   });
 
+  it('keyboard: cursor resets when the results are replaced by a search', async () => {
+    // Pins the semantics the render-phase reset must preserve: a NEW result
+    // set does not inherit the previous set's cursor. (The reset moved out of
+    // an effect into the render phase so it can never land AFTER a subsequent
+    // ArrowDown — the CI flake on the test above.)
+    const ds = makeDataSource();
+    render(
+      <PeoplePicker {...baseProps} dataSource={ds} onSelect={vi.fn()} onSelectRecords={vi.fn()} onOpenChange={vi.fn()} />,
+    );
+    await waitFor(() => expect(screen.getByText('Amy Lin')).toBeTruthy());
+    const search = screen.getByTestId('people-picker-search');
+    fireEvent.keyDown(search, { key: 'ArrowDown' });
+    await waitFor(() =>
+      expect(screen.getAllByTestId('person-row')[0].getAttribute('data-active')).toBe('true'),
+    );
+    fireEvent.change(search, { target: { value: 'bob' } });
+    await waitFor(() => expect(screen.getAllByTestId('person-row')).toHaveLength(1));
+    expect(screen.getAllByTestId('person-row')[0].getAttribute('data-active')).not.toBe('true');
+  });
+
   it('keyboard: Backspace on empty search removes the last chip (multi)', async () => {
     const ds = makeDataSource();
     render(
