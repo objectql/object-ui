@@ -12,6 +12,14 @@
  *   text | number | boolean | select  — scalar props
  *   string-list                       — an array of strings (e.g. field names)
  *   array (+ itemFields)              — an array of objects (e.g. tab items)
+ *   json                              — a nested object edited as raw JSON, for
+ *                                       props whose shape the inspector cannot
+ *                                       yet render as fields (e.g. an inline
+ *                                       action). Curating it matters even
+ *                                       though "Advanced" also renders JSON:
+ *                                       Advanced only lists keys the block
+ *                                       ALREADY has, so it can edit such a prop
+ *                                       but never add one.
  */
 
 /** Where a field/field-list picker resolves its object from:
@@ -26,6 +34,7 @@ export type BlockPropField =
   | { name: string; label: string; kind: 'select'; options: Array<{ value: string; label: string }> }
   | { name: string; label: string; kind: 'string-list'; placeholder?: string }
   | { name: string; label: string; kind: 'array'; itemFields: BlockPropField[]; addLabel?: string }
+  | { name: string; label: string; kind: 'json'; placeholder?: string }
   | { name: string; label: string; kind: 'color'; options?: Array<{ value: string; label: string }> }
   // Schema-driven pickers — dropdowns populated from the live metadata.
   | { name: string; label: string; kind: 'object-picker'; placeholder?: string }
@@ -238,6 +247,17 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
       ],
     },
     { name: 'icon', label: 'Icon', kind: 'text', placeholder: 'lucide icon name' },
+    // Without `action` a button renders inert, and the generic "Advanced"
+    // section can only edit properties the block ALREADY has — so a button
+    // created in Studio had no way to become interactive at all. The spec
+    // declares the prop as `InlineActionSchema` (objectstack#4135); a JSON
+    // editor is the honest fit until the inspector can render a nested schema.
+    {
+      name: 'action',
+      label: 'Action',
+      kind: 'json',
+      placeholder: '{ "type": "url", "target": "/environments" }',
+    },
   ],
 
   // ── Layout containers ─────────────────────────────────────────────────────

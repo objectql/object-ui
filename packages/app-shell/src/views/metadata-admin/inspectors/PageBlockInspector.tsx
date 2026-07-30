@@ -123,8 +123,11 @@ function safeStringify(value: unknown): string {
 
 /** Editable JSON field for object/array properties — commits on blur so a
  *  half-typed value never trips the parser. Empty clears the property. */
-function InspectorJsonField({ label, value, onCommit, disabled }: {
+function InspectorJsonField({ label, value, onCommit, disabled, placeholder }: {
   label: string; value: unknown; onCommit: (v: unknown) => void; disabled?: boolean;
+  /** Shown while the property is unset — the expected shape, since an empty
+   *  JSON textarea tells an author nothing about what to type. */
+  placeholder?: string;
 }) {
   const initial = React.useMemo(() => safeStringify(value), [value]);
   const [text, setText] = React.useState(initial);
@@ -150,6 +153,7 @@ function InspectorJsonField({ label, value, onCommit, disabled }: {
         onChange={(e) => setText(e.target.value)}
         onBlur={commit}
         disabled={disabled}
+        placeholder={placeholder}
         spellCheck={false}
         rows={Math.min(12, Math.max(2, text.split('\n').length))}
         className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs font-mono outline-none focus:ring-1 focus:ring-primary resize-y disabled:opacity-60"
@@ -403,6 +407,15 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
           <InspectorSelectField key={k} label={f.label}
             value={read(f.name) != null ? String(read(f.name)) : undefined}
             options={f.options} onCommit={(v) => write(f.name, v)} disabled={readOnly} />
+        );
+      case 'json':
+        // Same editor the "Advanced" section uses, but reachable for a prop the
+        // block does not have yet — Advanced enumerates existing keys only, so
+        // without this a curated JSON prop could be edited and never added.
+        return (
+          <InspectorJsonField key={k} label={f.label} value={read(f.name)}
+            placeholder={f.placeholder}
+            onCommit={(v) => write(f.name, v)} disabled={readOnly} />
         );
       case 'string-list': {
         const arr = Array.isArray(read(f.name)) ? (read(f.name) as unknown[]) : [];

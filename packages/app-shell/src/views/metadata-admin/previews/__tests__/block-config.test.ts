@@ -31,7 +31,7 @@ describe('block-config', () => {
 
   it('every field (incl. nested array items) has a name, label and valid kind', () => {
     const kinds = new Set([
-      'text', 'number', 'boolean', 'select', 'string-list', 'array',
+      'text', 'number', 'boolean', 'select', 'string-list', 'array', 'json',
       'object-picker', 'field-picker', 'field-list', 'color',
     ]);
     const check = (f: any, path: string) => {
@@ -102,6 +102,29 @@ describe('page palette ↔ spec PageComponentType coverage', () => {
     expect((BLOCK_TYPE_META as any)['ai:chat_window']).toBeUndefined();
     expect(blockHasConfig('ai:chat_window')).toBe(false);
     expect(PALETTE_EXCLUSIONS['ai:chat_window']).toBeTruthy();
+  });
+
+  it('element:button offers an action editor — without it the button is inert', () => {
+    // The generic "Advanced" section enumerates keys the block ALREADY has
+    // (`Object.keys(blockProps)`), so it can edit an existing `action` but can
+    // never add one. A button created in Studio therefore had no path to
+    // becoming interactive at all. The spec declares the prop as
+    // `InlineActionSchema` (objectstack#4135).
+    const action = BLOCK_CONFIG['element:button'].find((f) => f.name === 'action');
+    expect(action, 'element:button must expose an `action` field').toBeDefined();
+    expect(action!.kind).toBe('json');
+  });
+
+  it('every json field carries a placeholder showing the expected shape', () => {
+    // An empty JSON textarea tells an author nothing. The placeholder is the
+    // only affordance a raw-JSON editor has, so a json field without one is a
+    // blank box.
+    const missing = Object.entries(BLOCK_CONFIG).flatMap(([type, fields]) =>
+      fields
+        .filter((f) => f.kind === 'json' && !(f as { placeholder?: string }).placeholder)
+        .map((f) => `${type}.${f.name}`),
+    );
+    expect(missing).toEqual([]);
   });
 
   it('a block with a config panel is a block the palette offers', () => {
