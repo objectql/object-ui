@@ -89,7 +89,7 @@ describe('kind:\'react\' scope eligibility', () => {
     (tag) => {
       const cfg = ComponentRegistry.getPublicConfigs().find((c: any) => c.type === tag);
       // Missing from PUBLIC_BLOCKS, or marked isContainer, => dropped from the
-      // scope of every kind:'react' page (react-page.tsx:56-58).
+      // scope of every kind:'react' page (react-page.tsx:64-66).
       expect(cfg).toBeTruthy();
       expect((cfg as any).isContainer).toBeFalsy();
     },
@@ -116,7 +116,7 @@ function Page() {
     expect(await findByTestId('list-view-double')).toBeTruthy();
     expect(await findByTestId('object-form-double')).toBeTruthy();
     // The failure mode this guards: `ReferenceError: ListView is not defined`
-    // surfaced through ReactRunner's fallback (react-page.tsx:170-175).
+    // surfaced through ReactRunner's fallback (react-page.tsx:186-191).
     expect(queryByText('React page error')).toBeNull();
   });
 
@@ -129,7 +129,7 @@ function Page() {
     await findByTestId('list-view-double');
 
     // Flat JSX props are folded into the schema bag, and the discriminator wins
-    // the `type` slot (react-page.tsx:71-76).
+    // the `type` slot (react-page.tsx:79-84).
     expect(captured.listView.schema).toMatchObject({
       type: 'list-view',
       objectName: 'showcase_project',
@@ -140,7 +140,7 @@ function Page() {
     // apps/console/src/sdui-workbench-preview.tsx is built on onRowClick.
     expect(typeof captured.listView.onRowClick).toBe('function');
     // The wrapper stamps the live adapter in, since list-view reads dataSource
-    // from props rather than from context (react-page.tsx:52-55).
+    // from props rather than from context (react-page.tsx:61-63).
     expect(captured.listView.schema.dataSource).toBe(adapter);
   });
 
@@ -223,7 +223,7 @@ function Page() {
     // Proves the assertions above are meaningful: when a block really is absent
     // from scope, the author sees this.
     //
-    // The panel is ReactRunner's own `fallback` (react-page.tsx:170-175).
+    // The panel is ReactRunner's own `fallback` (react-page.tsx:186-191).
     // Pinning it also pins objectui#2954: `getDerivedStateFromProps` used to
     // re-transpile on every render and reset `error: null`, so the recovery
     // render rebuilt the same throwing element and the error escaped PAST this
