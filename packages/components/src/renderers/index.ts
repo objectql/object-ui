@@ -16,3 +16,7 @@ import './overlay';
 import './disclosure';
 import './complex';
 import './action';
+// Registers placeholders for the page blocks the Studio palette offers but no
+// package renders yet, so they don't red-box in hosts that skip the optional
+// `registerPlaceholders()` bootstrap (#2943). The rest stay opt-in.
+import './placeholders';

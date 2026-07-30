@@ -64,7 +64,7 @@ export type BlockTypeId =
   // global:*
   | 'global:search'
   // ai:*
-  | 'ai:chat_window' | 'ai:suggestion'
+  | 'ai:suggestion'
   // element:*
   | 'element:text' | 'element:number' | 'element:image' | 'element:divider'
   | 'element:button' | 'element:definition-list' | 'element:repeater';
@@ -113,7 +113,12 @@ export const BLOCK_TYPE_META: Record<BlockTypeId, Omit<BlockTypeMeta, 'id'>> = {
   'global:search':      { label: 'Global search',       category: 'navigation', Icon: Search },
 
   // AI
-  'ai:chat_window':     { label: 'AI chat window',      category: 'ai', Icon: Bot },
+  // `ai:chat_window` is deliberately NOT in the palette: the floating chat
+  // overlay (plugin-chatbot) is the canonical entry point and there is no
+  // inline page-level renderer — `components/renderers/placeholders.tsx`
+  // documents that exclusion. The palette used to offer it (with a config
+  // panel), so an author dragged a block Studio advertised and got a red
+  // "Unknown component type" box (#2943). See PALETTE_EXCLUSIONS.
   'ai:suggestion':      { label: 'AI suggestion',       category: 'ai', Icon: Sparkles },
 
   // Elements
@@ -124,6 +129,34 @@ export const BLOCK_TYPE_META: Record<BlockTypeId, Omit<BlockTypeMeta, 'id'>> = {
   'element:button':         { label: 'Button',          category: 'element', Icon: MousePointerClick },
   'element:definition-list': { label: 'Definition list', category: 'element', Icon: List },
   'element:repeater':       { label: 'Repeater',        category: 'element', Icon: Rows3 },
+};
+
+/**
+ * Every spec `PageComponentType` the page palette deliberately does NOT offer,
+ * each with the reason it is unauthorable. This is the inverse of the old
+ * guard (#2943): `block-config.test.ts` used to hand-assert a few exclusions,
+ * which locks drift IN — a new spec block type could land and simply never
+ * appear in the palette, unnoticed. The test now derives coverage from
+ * `PageComponentType` and requires every value to be either in
+ * {@link BLOCK_TYPE_META} or listed here, so a new one fails until someone
+ * decides about it.
+ *
+ * A palette entry with no renderer is the failure this closes: `ai:chat_window`
+ * was offered WITH a config panel while `placeholders.tsx` deliberately
+ * excluded it to force a loud error — an author dragged a block Studio
+ * advertised and got a red box.
+ */
+export const PALETTE_EXCLUSIONS: Record<string, string> = {
+  // Shell singletons — chrome the app shell owns, not page content.
+  'app:launcher': 'shell singleton — the app shell renders it, not a page',
+  'global:notifications': 'shell singleton — lives in the app shell header',
+  'user:profile': 'shell singleton — lives in the app shell header',
+  // No renderer, by decision.
+  'ai:chat_window': 'no inline renderer — the floating chat overlay (plugin-chatbot) is canonical',
+  'element:filter': 'no renderer — list surfaces own filtering (userFilters / filter builder)',
+  'element:form': 'no renderer — use the object-bound `object-form` block',
+  'element:record_picker': 'no renderer — record picking is a field widget, not a page block',
+  'element:text_input': 'no renderer — bare inputs belong to a form, not a page block',
 };
 
 export const CATEGORY_LABEL_EN: Record<BlockCategory, string> = {

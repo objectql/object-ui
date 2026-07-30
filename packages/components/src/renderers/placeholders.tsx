@@ -102,11 +102,40 @@ const PROTOCOL_COMPONENTS = [
   'ai:input', 'ai:suggestion', 'ai:feedback'
 ];
 
-export function registerPlaceholders() {
-    PROTOCOL_COMPONENTS.forEach(type => {
-        // Only register if not already registered (to avoid overwriting real implementations)
-        if (!ComponentRegistry.get(type)) {
-            ComponentRegistry.register(type, PlaceholderRenderer, { namespace: 'protocol-placeholder' });
-        }
-    });
+/**
+ * Page blocks the Studio palette OFFERS but no package renders yet.
+ *
+ * These are registered eagerly (see the side-effect call below, reached through
+ * the `./renderers` barrel) rather than waiting for a host to opt in via
+ * {@link registerPlaceholders} — which only `apps/console` does. A block Studio
+ * advertises must not render a red "Unknown component type" panel in every
+ * other host just because that host didn't call an optional bootstrap (#2943).
+ *
+ * Deliberately NARROW: the rest of {@link PROTOCOL_COMPONENTS} stays opt-in so
+ * a genuinely missing renderer keeps failing loudly, which is what makes the
+ * misconfiguration get fixed at the source (the same reasoning that keeps
+ * `ai:chat_window` out of this file entirely — and, since #2943, out of the
+ * palette too).
+ */
+export const PALETTE_PLACEHOLDER_BLOCKS = [
+  'nav:menu', 'nav:breadcrumb', 'global:search', 'ai:suggestion',
+];
+
+/** Register one placeholder, never overwriting a real implementation. */
+function registerPlaceholder(type: string) {
+    if (!ComponentRegistry.get(type)) {
+        ComponentRegistry.register(type, PlaceholderRenderer, { namespace: 'protocol-placeholder' });
+    }
 }
+
+/**
+ * Register placeholders for the whole protocol vocabulary. Opt-in: hosts that
+ * want every declared component to render *something* (the console's preview
+ * gallery) call this; others keep the loud unknown-type error.
+ */
+export function registerPlaceholders() {
+    PROTOCOL_COMPONENTS.forEach(registerPlaceholder);
+}
+
+// Palette-offered page blocks render everywhere, in every host (see above).
+PALETTE_PLACEHOLDER_BLOCKS.forEach(registerPlaceholder);

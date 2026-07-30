@@ -36,6 +36,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { isObjectProvider } from './utils';
+import { classifyWidgetType, METRIC_LIKE_TYPES } from './widgetDispatch';
 import { DatasetWidget } from './DatasetWidget';
 import { DashboardFilterBar } from './DashboardFilterBar';
 
@@ -104,55 +105,10 @@ const CHART_COLORS = [
 ];
 
 /**
- * Spec-level `ChartType` families normalized to a base type that the chart
- * implementation (plugin-charts/AdvancedChartImpl) actually renders. The
- * widget `type` taxonomy is broader than the set of distinct visual renderers;
- * several families collapse onto a shared renderer (e.g. stacked / grouped /
- * column bars all render through the bar chart). Keeps the dashboard from
- * surfacing a raw "Unknown component type" for a perfectly meaningful chart.
+ * Chart-family vocabularies live in `./widgetDispatch`, shared with
+ * `DashboardGridLayout` and asserted against `ChartTypeSchema` — the three
+ * dashboard surfaces used to restate them independently and disagree (#2943).
  */
-const CHART_TYPE_ALIASES: Record<string, string> = {
-  column: 'bar',
-  'stacked-bar': 'bar',
-  'grouped-bar': 'bar',
-  'bi-polar-bar': 'bar',
-  spline: 'line',
-  'step-line': 'line',
-  'stacked-area': 'area',
-  pyramid: 'funnel',
-  bubble: 'scatter',
-};
-
-/**
- * Chart types the renderer can draw (after alias normalization). Anything
- * outside this set that is still a chart family renders a clean
- * "not-yet-supported" placeholder instead of a raw error box.
- */
-const SUPPORTED_CHART_TYPES = new Set([
-  'bar', 'horizontal-bar', 'line', 'area', 'pie', 'donut', 'scatter', 'funnel', 'radar',
-  'treemap', 'sankey',
-]);
-
-/**
- * Single-value "performance" widgets that render as a metric card rather than
- * a chart (gauge/kpi/bullet are all one number with optional target).
- */
-const METRIC_LIKE_TYPES = new Set(['gauge', 'solid-gauge', 'kpi', 'bullet']);
-
-/**
- * Chart families that have no dedicated renderer yet (Recharts cannot draw
- * them and no approximation reads honestly). These render a labelled
- * placeholder so the dashboard stays clean instead of dumping the widget JSON
- * under a red "Unknown component type" error.
- */
-const UNSUPPORTED_CHART_TYPES = new Set([
-  // Safety net: chart families dropped from the ChartType protocol (they need
-  // richer data — OHLC / per-record distributions — or a geo dependency).
-  // Kept here so any stale dashboard still referencing them renders a clean
-  // placeholder rather than a raw "Unknown component type" error.
-  'sunburst', 'word-cloud', 'choropleth', 'bubble-map', 'gl-map',
-  'heatmap', 'waterfall', 'box-plot', 'violin', 'candlestick', 'stock',
-]);
 
 /**
  * Chart sub-types that have a meaningful drill-down interaction.
@@ -498,12 +454,15 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
                 return LEGACY_RETIRED_WIDGET_SCHEMA;
             }
 
-            // Normalize spec-level chart families onto a renderer-supported base
-            // type (e.g. column→bar, spline→line). 'horizontal-bar' uses BarChart
-            // with vertical layout; 'funnel'/'radar' have their own renderers.
-            const resolvedWidgetType = (widgetType && CHART_TYPE_ALIASES[widgetType]) || widgetType;
+            // One shared classification (./widgetDispatch): resolves spec-level
+            // aliases onto a renderer-supported base family (column→bar,
+            // spline→line) and names the single-value / tabular / unsupported
+            // families explicitly, so no widget type reaches the passthrough
+            // return below and renders a red "Unknown component type" (#2943).
+            const dispatch = classifyWidgetType(widgetType);
+            const resolvedWidgetType = dispatch.chartType ?? widgetType;
 
-            if (resolvedWidgetType && SUPPORTED_CHART_TYPES.has(resolvedWidgetType)) {
+            if (dispatch.family === 'series' && dispatch.chartType) {
                 const xAxisKey = options.xField || 'name';
                 const yField = options.yField || 'value';
 
@@ -532,7 +491,7 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
                         // Deterministic first paint inside the grid — no entrance
                         // animation to freeze at height 0 (#2756).
                         isAnimationActive: false,
-                        drillDown: options.drillDown ?? defaultChartDrill(resolvedWidgetType),
+                        drillDown: options.drillDown ?? defaultChartDrill(dispatch.chartType),
                         compareTo: (widget as any).compareTo,
                         className: "h-[200px] sm:h-[250px] md:h-[300px]"
                     };
@@ -557,7 +516,45 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
                 };
             }
 
-            if (widgetType === 'table') {
+            // Single-value families (gauge / solid-gauge / kpi / bullet, and the
+            // `metric` widget spelling) render as a metric card. The knowledge
+            // was already here as METRIC_LIKE_TYPES — it just picked a grid span
+            // and never routed the widget, so four spec chart types fell through
+            // to a red error box (#2943).
+            if (dispatch.family === 'metric') {
+                const label = resolveLabel(widget.title) || widgetType;
+                // provider: 'object' — ObjectMetricWidget aggregates server-side.
+                if (isObjectProvider(widgetData)) {
+                    const providerAgg = widgetData.aggregate;
+                    return {
+                        type: 'object-metric',
+                        ...options,
+                        objectName: widgetData.object,
+                        label,
+                        aggregate: providerAgg ? {
+                            field: providerAgg.field,
+                            function: providerAgg.function,
+                            groupBy: providerAgg.groupBy,
+                        } : undefined,
+                        filter: widgetData.filter || widget.filter,
+                    };
+                }
+                // Static value: an inline `options.value`, else the first row's
+                // measure from an inline data array.
+                const rows = Array.isArray(widgetData) ? widgetData : widgetData?.items || [];
+                const valueField = options.yField || 'value';
+                return {
+                    type: 'metric',
+                    ...options,
+                    label,
+                    value: options.value ?? rows[0]?.[valueField] ?? '—',
+                };
+            }
+
+            if (dispatch.family === 'table') {
+                // `list` shares table semantics (raw records) but never carries
+                // search / pagination chrome.
+                const isList = widgetType === 'list';
                 // provider: 'object' — use ObjectDataTable for async data loading.
                 // Default-on drill-to-record: a click opens the record in a drawer.
                 if (isObjectProvider(widgetData)) {
@@ -568,8 +565,8 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
                         objectName: widgetData.object,
                         dataProvider: widgetData,
                         filter: widgetData.filter || widget.filter,
-                        searchable: widget.searchable ?? false,
-                        pagination: widget.pagination ?? false,
+                        searchable: isList ? false : (widget.searchable ?? false),
+                        pagination: isList ? false : (widget.pagination ?? false),
                         drillDown: options.drillDown ?? { enabled: true, mode: 'record' as const },
                         className: "border-0"
                     };
@@ -579,7 +576,7 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
                 return {
                     type: 'data-table',
                     ...options,
-                    data: widgetData?.items || [],
+                    data: Array.isArray(widgetData) ? widgetData : widgetData?.items || [],
                     searchable: false,
                     pagination: false,
                     className: "border-0"
@@ -592,45 +589,14 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
             // ObjectPivotTable / PivotTable components remain public SDUI blocks for
             // other surfaces. A non-dataset pivot reaching here is stale metadata —
             // show the retired placeholder rather than a blank grid.
-            if (widgetType === 'pivot') {
+            if (dispatch.family === 'pivot') {
                 return LEGACY_RETIRED_WIDGET_SCHEMA;
-            }
-
-            // List widget — render as a compact rows-only data table.
-            // List shares table semantics (raw records) but typically without
-            // search / pagination chrome.
-            if (widgetType === 'list') {
-                // provider: 'object' — default-on drill-to-record (a list row is a
-                // record), same policy as the table widget.
-                if (isObjectProvider(widgetData)) {
-                    const { data: _data, ...restOptions } = options;
-                    return {
-                        type: 'object-data-table',
-                        ...restOptions,
-                        objectName: widgetData.object,
-                        dataProvider: widgetData,
-                        filter: widgetData.filter || widget.filter,
-                        searchable: false,
-                        pagination: false,
-                        drillDown: options.drillDown ?? { enabled: true, mode: 'record' as const },
-                        className: "border-0",
-                    };
-                }
-
-                return {
-                    type: 'data-table',
-                    ...options,
-                    data: Array.isArray(widgetData) ? widgetData : widgetData?.items || [],
-                    searchable: false,
-                    pagination: false,
-                    className: "border-0",
-                };
             }
 
             // Custom widget — caller must supply `widget.component` (a full
             // UIComponent schema).  When missing, render a friendly placeholder
             // instead of falling through (which produced 0×0 chart errors).
-            if (widgetType === 'custom') {
+            if (dispatch.family === 'custom') {
                 return {
                     type: 'text',
                     value: 'Custom widget — set `component` to a UIComponent schema.',
@@ -643,7 +609,7 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
             // Known chart family with no dedicated renderer yet → clean labelled
             // placeholder instead of falling through to a raw "Unknown component
             // type" error box that dumps the widget JSON.
-            if (widgetType && UNSUPPORTED_CHART_TYPES.has(widgetType)) {
+            if (dispatch.family === 'unsupported') {
                 return {
                     type: 'text',
                     value: `「${widgetType}」chart type is not supported yet`,

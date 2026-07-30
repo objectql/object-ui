@@ -6,6 +6,7 @@ import { Edit, GripVertical, Save, X, RefreshCw } from 'lucide-react';
 import { SchemaRenderer, useHasDndProvider, useDnd } from '@object-ui/react';
 import type { DashboardSchema, DashboardWidgetSchema } from '@object-ui/types';
 import { isObjectProvider } from './utils';
+import { classifyWidgetType } from './widgetDispatch';
 
 /** Bridges editMode transitions to the ObjectUI DnD system when a DndProvider is present. */
 function DndEditModeBridge({ editMode }: { editMode: boolean }) {
@@ -170,7 +171,12 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
 
     const widgetType = widget.type;
     const options = (widget.options || {}) as Record<string, any>;
-    if (widgetType === 'bar' || widgetType === 'horizontal-bar' || widgetType === 'line' || widgetType === 'area' || widgetType === 'pie' || widgetType === 'donut' || widgetType === 'scatter' || widgetType === 'funnel') {
+    // One shared classification (./widgetDispatch) — this surface used to name
+    // 8 chart families by hand while DatasetWidget covered all 19, so radar /
+    // treemap / sankey and the single-value families fell through to a red
+    // "Unknown component type" box (#2943).
+    const dispatch = classifyWidgetType(widgetType);
+    if (dispatch.family === 'series' && dispatch.chartType) {
       const widgetData = (widget as any).data || options.data;
       const xAxisKey = options.xField || 'name';
       const yField = options.yField || 'value';
@@ -188,7 +194,7 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
         const effectiveYField = effectiveAggregate?.field || yField;
         return {
           type: 'object-chart',
-          chartType: widgetType,
+          chartType: dispatch.chartType,
           objectName: widgetData.object,
           aggregate: effectiveAggregate,
           xAxisKey: xAxisKey,
@@ -204,7 +210,7 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
 
       return {
         type: 'chart',
-        chartType: widgetType,
+        chartType: dispatch.chartType,
         data: dataItems,
         xAxisKey: xAxisKey,
         series: [{ dataKey: yField }],
@@ -215,7 +221,36 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
       };
     }
 
-    if (widgetType === 'table') {
+    // Single-value families render as a metric card, not a chart (#2943).
+    if (dispatch.family === 'metric') {
+      const widgetData = (widget as any).data || options.data;
+      const label = widget.title || widgetType;
+      if (isObjectProvider(widgetData)) {
+        const providerAgg = widgetData.aggregate;
+        return {
+          type: 'object-metric',
+          ...options,
+          objectName: widgetData.object,
+          label,
+          aggregate: providerAgg ? {
+            field: providerAgg.field,
+            function: providerAgg.function,
+            groupBy: providerAgg.groupBy,
+          } : undefined,
+          filter: widgetData.filter || widget.filter,
+        };
+      }
+      const rows = Array.isArray(widgetData) ? widgetData : widgetData?.items || [];
+      const valueField = options.yField || 'value';
+      return {
+        type: 'metric',
+        ...options,
+        label,
+        value: options.value ?? rows[0]?.[valueField] ?? '—',
+      };
+    }
+
+    if (dispatch.family === 'table') {
       const widgetData = (widget as any).data || options.data;
 
       // provider: 'object' — pass through object config for async data loading
@@ -243,7 +278,7 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
       };
     }
 
-    if (widgetType === 'pivot') {
+    if (dispatch.family === 'pivot') {
       const widgetData = (widget as any).data || options.data;
 
       // provider: 'object' — pass through object config for async data loading
@@ -262,6 +297,16 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
         type: 'pivot',
         ...options,
         data: Array.isArray(widgetData) ? widgetData : widgetData?.items || [],
+      };
+    }
+
+    if (dispatch.family === 'unsupported') {
+      return {
+        type: 'text',
+        value: `「${widgetType}」chart type is not supported yet`,
+        variant: 'caption',
+        align: 'center',
+        className: 'flex h-full w-full items-center justify-center rounded border border-dashed bg-muted/20 p-4 text-muted-foreground',
       };
     }
 

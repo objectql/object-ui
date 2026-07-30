@@ -349,10 +349,9 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
   ],
 
   // ── AI ────────────────────────────────────────────────────────────────────
-  'ai:chat_window': [
-    { name: 'agentName', label: 'Agent', kind: 'text', placeholder: 'agent name' },
-    { name: 'placeholder', label: 'Input placeholder', kind: 'text' },
-  ],
+  // No `ai:chat_window` panel: the block is not in the palette (no inline
+  // renderer — see block-types.ts PALETTE_EXCLUSIONS, #2943). A config panel
+  // for an unauthorable block is how the contradiction stayed invisible.
   'ai:input': [
     { name: 'agentName', label: 'Agent', kind: 'text', placeholder: 'agent name' },
     { name: 'placeholder', label: 'Input placeholder', kind: 'text' },
