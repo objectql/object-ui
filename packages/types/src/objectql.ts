@@ -296,7 +296,9 @@ export interface BulkActionParam {
 /**
  * Bulk action operation kind. Determines which `dataSource` method the executor
  * calls per batch. `custom` defers entirely to `onComplete` event handlers and
- * is intended for callouts (notify/export/...) that don't mutate records.
+ * is intended for callouts (notify/export/...) that don't mutate records —
+ * UNLESS the def carries {@link BulkActionDef.actionDef}, in which case the
+ * executor dispatches that action through the action runner once per record.
  */
 export type BulkActionOperation = 'update' | 'delete' | 'custom';
 
@@ -305,11 +307,16 @@ export type BulkActionOperation = 'update' | 'delete' | 'custom';
  *
  * The grid renders one button per def in the BulkActionBar. Clicking it opens
  * the BulkActionDialog: params form → confirm → progress → result. The executor
- * batches selected records via `dataSource.bulk(resource, op, items)`.
+ * batches selected records via `dataSource.bulk(resource, op, items)` — or, for
+ * a def derived from an object action ({@link BulkActionDef.actionDef}),
+ * dispatches that action once per record through the action runner.
  *
- * Pair with the legacy `bulkActions: string[]` field — `bulkActionDefs` takes
- * precedence when both are set, but legacy IDs still render alongside as
- * fallback buttons.
+ * Three sources feed the bar (folded by `resolveBulkActions` in plugin-grid):
+ * defs authored inline in the view JSON, object actions declaring the spec's
+ * `bulkEnabled: true`, and the legacy `bulkActions: string[]` names — each of
+ * which is resolved against `objectDef.actions` and promoted to a def when it
+ * matches one. Names that match nothing still render as by-name buttons, since
+ * a consumer may have registered a runner handler under exactly that name.
  */
 export interface BulkActionDef {
   /** Stable identifier — also used as the action key in audit logs. */
@@ -337,12 +344,30 @@ export interface BulkActionDef {
   confirmText?: string;
   /** Custom Confirm button label (default: "Run"). */
   confirmLabel?: string;
-  /** Permission / feature gate expression — hides the button when it evaluates falsy. */
-  visible?: string;
+  /**
+   * Permission / feature gate predicate — hides the button when it evaluates
+   * falsy. Accepts the spec's `ExpressionInput` shape (a bare CEL string, or
+   * the `{ dialect, source }` envelope `objectstack build` emits) so a def
+   * derived from an object action can forward `action.visible` untouched.
+   */
+  visible?: string | { dialect?: string; source: string };
   /** Max records the action will operate on; selection above this is blocked. */
   maxRecords?: number;
   /** Batch size for the executor loop (default: 200). */
   batchSize?: number;
+  /**
+   * Source object `ActionDef` when this entry was DERIVED from
+   * `objectDef.actions` — either the spec's `bulkEnabled: true` declaration or
+   * a legacy `bulkActions: ['<name>']` entry resolved by name (objectui#3002).
+   *
+   * Presence of this key changes what `operation: 'custom'` means: instead of
+   * a per-row no-op, the executor dispatches THIS action through the action
+   * runner once per selected record, with the row attached as `_rowRecord` so
+   * `recordIdParam` injection works exactly as it does for a `list_item` row
+   * action. Params and confirmation are collected once by the BulkActionDialog
+   * and handed to the runner as values, so it never re-prompts per record.
+   */
+  actionDef?: Record<string, unknown>;
 }
 
 /**

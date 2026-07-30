@@ -55,9 +55,14 @@ const BulkActionButton: React.FC<{
 export interface BulkActionBarProps {
   /** Array of selected row records */
   selectedRows: any[];
-  /** Bulk/batch action identifiers (legacy string list) */
+  /**
+   * Bulk/batch action identifiers (legacy string list) that resolved to no
+   * declared action — dispatched by name for consumers that registered a
+   * runner handler under it. Names that DID resolve arrive in `actionDefs`
+   * instead (see `resolveBulkActions`), so the two lists never overlap.
+   */
   actions: string[];
-  /** Rich action definitions — takes precedence over string ids when both present. */
+  /** Rich action definitions — authored inline or derived from the object. */
   actionDefs?: BulkActionDef[];
   /** Callback when a legacy string-id bulk action button is clicked */
   onAction?: (action: string, selectedRows: any[]) => void;
@@ -182,7 +187,12 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
             onActionDef={onActionDef}
           />
         ))}
-        {!hasDefs && hasLegacy && actions.map(action => {
+        {/* Legacy names render ALONGSIDE defs, not only in their absence: after
+            `resolveBulkActions` folds every resolvable name into `actionDefs`,
+            what's left here is a disjoint set (a handler-registered name the
+            object never declared). Hiding it whenever any def existed made a
+            view that mixes both silently lose half its buttons. */}
+        {hasLegacy && actions.map(action => {
           const actionStr = String(action).toLowerCase();
           const isDestructive = actionStr.includes('delete') || actionStr.includes('remove') || actionStr.includes('destroy');
           const Icon = isDestructive ? Trash2 : null;

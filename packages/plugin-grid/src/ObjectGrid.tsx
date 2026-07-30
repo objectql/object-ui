@@ -45,6 +45,7 @@ import { GroupRow } from './GroupRow';
 import { useColumnSummary } from './useColumnSummary';
 import { resolveRowCrudAffordances } from './rowCrudAffordances';
 import { resolveLegacyRowActions } from './resolveLegacyRowActions';
+import { resolveBulkActions } from './resolveBulkActions';
 import { RowActionMenu, formatActionLabel } from './components/RowActionMenu';
 import { BulkActionBar } from './components/BulkActionBar';
 import { BulkActionDialog } from './components/BulkActionDialog';
@@ -236,7 +237,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   // Tenant default currency (ADR-0053) backstops amount cells that lack a code.
   const { currency: tenantCurrency } = useLocalization();
   const { t } = useGridTranslation();
-  const { fieldLabel: resolveFieldLabel, translateOptions } = useSafeFieldLabel();
+  const { fieldLabel: resolveFieldLabel, translateOptions, actionLabel: resolveActionLabel } = useSafeFieldLabel();
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [useCardView, setUseCardView] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -1633,13 +1634,34 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const explicitBulkActions = objectCanDelete
     ? declaredBulkActions
     : declaredBulkActions?.filter((a: unknown) => String(a).toLowerCase() !== 'delete');
-  const bulkActionDefs: BulkActionDef[] = (Array.isArray(schema.bulkActionDefs)
-    ? schema.bulkActionDefs
-    : []
-  ).filter((def: BulkActionDef) => objectCanDelete || def?.operation !== 'delete');
+  // Legacy `bulkActions` carry a bare action NAME, which the runner cannot
+  // execute on its own, and the object's own `bulkEnabled: true` actions were
+  // never surfaced at all — resolve both against `objectDef.actions` so they
+  // dispatch as real defs. See `resolveBulkActions` (objectui#3002). The
+  // canonical `'delete'` is held back: it routes to `onBulkDelete` (which owns
+  // confirm + refresh), not the runner, even if the object declares an action
+  // that happens to be named `delete`.
+  const legacyBulkNames = (explicitBulkActions ?? []).filter(
+    (a: unknown) => String(a).toLowerCase() !== 'delete',
+  );
+  const { defs: resolvedBulkDefs, unresolved: unresolvedBulkActions } = resolveBulkActions({
+    bulkActions: legacyBulkNames,
+    bulkActionDefs: Array.isArray(schema.bulkActionDefs) ? schema.bulkActionDefs : [],
+    objectActions: (objectSchema as any)?.actions,
+    localizeLabel: (actionName, fallback) =>
+      resolveActionLabel(schema.objectName, actionName, fallback),
+  });
+  const bulkActionDefs: BulkActionDef[] = resolvedBulkDefs.filter(
+    (def: BulkActionDef) => objectCanDelete || def?.operation !== 'delete',
+  );
+  // Names still dispatched by string: the unresolved ones, plus `'delete'`
+  // when the author asked for it — or the implicit bulk-delete affordance.
+  const keptDeleteAction = (explicitBulkActions ?? []).filter(
+    (a: unknown) => String(a).toLowerCase() === 'delete',
+  );
   const effectiveBulkActions: string[] =
     explicitBulkActions && explicitBulkActions.length > 0
-      ? explicitBulkActions
+      ? [...unresolvedBulkActions, ...keptDeleteAction]
       : canDelete && onBulkDelete && bulkActionDefs.length === 0
         ? ['delete']
         : [];
@@ -1722,6 +1744,47 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       setActiveBulkDef(def);
       setActiveBulkRows(expanded);
     })();
+  };
+
+  // Per-record executor for a DERIVED bulk action (objectui#3002) — one
+  // declared object action applied to each selected record through the action
+  // runner. The dialog already collected params and took the confirmation, so
+  // this dispatch strips both from the def: leaving them on would make the
+  // runner re-prompt once per record. Toasts are muted for the same reason —
+  // the dialog's progress/result panel is the single report for the whole run.
+  // (Plain function for the same reason as `resolveBulkRows` above: this point
+  // in the body is past render paths that short-circuit, so a hook here would
+  // tripwire the rules-of-hooks balance.)
+  const runBulkActionRecord = async (
+    def: BulkActionDef,
+    row: Record<string, unknown>,
+    params: Record<string, unknown>,
+  ): Promise<void> => {
+    const source = def.actionDef as Record<string, any> | undefined;
+    if (!source) return;
+    const {
+      params: _declaredParams,
+      actionParams: _actionParams,
+      confirmText: _confirmText,
+      confirm: _confirm,
+      // A one-shot reveal (2FA code, fresh OAuth secret) is a single-record
+      // affordance by construction, and the runner AWAITS acknowledgement —
+      // one modal per record would stall the run behind N dialogs.
+      resultDialog: _resultDialog,
+      ...rest
+    } = source;
+    const res = await executeAction({
+      ...rest,
+      // `_rowRecord` is the same row-context key the list_item path attaches,
+      // so `recordIdParam` / `recordIdField` injection behaves identically.
+      params: { ...params, _rowRecord: row },
+      toast: { showOnSuccess: false, showOnError: false },
+    } as any);
+    // Reject so the executor records this row under its own id in the result
+    // (and the error CSV) instead of counting a failed action as succeeded.
+    if (!res?.success) {
+      throw new Error(res?.error || `Action ${def.name} failed`);
+    }
   };
   const handleBulkDialogClose = (result?: BulkResult | null) => {
     setActiveBulkDef(null);
@@ -2539,6 +2602,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       dataSource={dataSource as any}
       resource={schema.objectName ?? ''}
       objectFields={objectSchema?.fields}
+      runAction={runBulkActionRecord}
     />
   );
 

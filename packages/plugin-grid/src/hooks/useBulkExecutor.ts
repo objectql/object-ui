@@ -80,6 +80,30 @@ export interface BulkExecutorOptions {
       ids: ReadonlyArray<string | number>,
     ) => Promise<number>;
   };
+  /**
+   * Per-record dispatcher for a DERIVED bulk action — one declared object
+   * action (`bulkEnabled: true`, or a legacy `bulkActions` name resolved
+   * against `objectDef.actions`) applied to N selected records (objectui#3002).
+   *
+   * Such a def carries `operation: 'custom'` plus `def.actionDef`; the data
+   * source has no idea what the action does, so the grid injects this to run it
+   * through the action runner. Client fan-out — one dispatch per record — is
+   * the only semantics the single-record action contract supports (`params` /
+   * `recordIdParam` / `visible` are all per-record); a server-side "take every
+   * id at once" variant would need its own spec key and endpoint contract.
+   *
+   * MUST reject on failure: the executor attributes per-row errors from the
+   * rejection reason, so resolving on a failed action would report it as a
+   * success (the exact #2960 failure mode this whole path exists to kill).
+   *
+   * When absent, `operation: 'custom'` keeps its historical meaning: no
+   * mutation, the consumer wires `onComplete`.
+   */
+  runAction?: (
+    def: BulkActionDef,
+    row: Record<string, unknown>,
+    params: Record<string, unknown>,
+  ) => Promise<unknown>;
 }
 
 /**
@@ -102,7 +126,7 @@ export interface BulkExecutorOptions {
  *   Soft (`succeeded < total`) shortfalls surface as a single aggregate
  *   error entry per batch — see comments inline.
  */
-export function useBulkExecutor({ resource, dataSource, objectFields }: BulkExecutorOptions) {
+export function useBulkExecutor({ resource, dataSource, objectFields, runAction }: BulkExecutorOptions) {
   const [progress, setProgress] = useState<BulkProgress>({
     total: 0,
     done: 0,
@@ -196,6 +220,14 @@ export function useBulkExecutor({ resource, dataSource, objectFields }: BulkExec
           label = 'bulk delete';
         }
 
+        // Row lookup for the runner path, which needs the whole record (not
+        // just its id) to attach as `_rowRecord`.
+        const rowById = new Map<string, Record<string, unknown>>();
+        for (const row of batch) {
+          const id = row.id != null ? String(row.id) : '';
+          if (id) rowById.set(id, row);
+        }
+
         const perRow = (id: string): Promise<unknown> => {
           switch (def.operation) {
             case 'delete':
@@ -203,8 +235,13 @@ export function useBulkExecutor({ resource, dataSource, objectFields }: BulkExec
             case 'update':
               return dataSource.update(resource, id, buildPatch());
             case 'custom':
-              // No mutation — caller wires onComplete events for callouts.
-              return Promise.resolve();
+              // A DERIVED def (`actionDef` present) runs its object action once
+              // per record through the injected runner. Without one, this is
+              // the historical callout shape — no mutation, caller wires
+              // onComplete.
+              return def.actionDef && runAction
+                ? runAction(def, rowById.get(id) ?? { id }, { ...params })
+                : Promise.resolve();
             default:
               return Promise.reject(new Error(`Unknown operation: ${def.operation}`));
           }
@@ -237,7 +274,7 @@ export function useBulkExecutor({ resource, dataSource, objectFields }: BulkExec
       }
       return finalResult;
     },
-    [resource, dataSource, objectFields],
+    [resource, dataSource, objectFields, runAction],
   );
 
   /**
@@ -303,7 +340,11 @@ export function useBulkExecutor({ resource, dataSource, objectFields }: BulkExec
             await dataSource.update(resource, rowId, patch);
             break;
           case 'custom':
-            return true;
+            // A derived def re-dispatches the action for real; a plain callout
+            // def has nothing to retry, so it reports success unchanged.
+            if (!last.def.actionDef || !runAction) return true;
+            await runAction(last.def, row, { ...last.params });
+            break;
           default:
             return false;
         }
@@ -324,7 +365,7 @@ export function useBulkExecutor({ resource, dataSource, objectFields }: BulkExec
         return false;
       }
     },
-    [resource, dataSource, objectFields],
+    [resource, dataSource, objectFields, runAction],
   );
 
   return { run, undo, retry, progress, result, reset };

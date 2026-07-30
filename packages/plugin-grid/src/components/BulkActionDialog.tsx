@@ -72,6 +72,13 @@ export interface BulkActionDialogProps {
    * an array, instead of silently degrading to single-select + scalar.
    */
   objectFields?: Record<string, MultiValueFieldDef>;
+  /**
+   * Per-record dispatcher for a def DERIVED from an object action
+   * (objectui#3002) — see {@link BulkExecutorOptions.runAction}. The dialog's
+   * params → confirm steps are what let one action run over N records without
+   * the runner re-prompting per record.
+   */
+  runAction?: BulkExecutorOptions['runAction'];
 }
 
 type Step = 'params' | 'confirm' | 'running' | 'result';
@@ -95,6 +102,7 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
   onClose,
   labelKey = 'name',
   objectFields,
+  runAction,
 }) => {
   const { t } = useObjectTranslation();
   const params = def?.params ?? [];
@@ -122,7 +130,7 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
   const [step, setStep] = useState<Step>('params');
   const [values, setValues] = useState<Record<string, unknown>>(initialParamValues);
   const [lookupCache, setLookupCache] = useState<Record<string, LookupOption[]>>({});
-  const { run, undo, retry, progress, result, reset } = useBulkExecutor({ resource, dataSource, objectFields });
+  const { run, undo, retry, progress, result, reset } = useBulkExecutor({ resource, dataSource, objectFields, runAction });
   const [retrying, setRetrying] = useState<string | null>(null);
   const [undoing, setUndoing] = useState(false);
   const [undoneAt, setUndoneAt] = useState<number | null>(null);
@@ -423,7 +431,10 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
                             <span className="text-muted-foreground">{e.id}:</span> {e.error}
                           </div>
                         </div>
-                        {def.operation !== 'custom' && (
+                        {/* A plain `custom` callout has nothing to re-run, but
+                            a DERIVED def (#3002) re-dispatches its object
+                            action for that one record — same as update/delete. */}
+                        {(def.operation !== 'custom' || !!def.actionDef) && (
                           <Button
                             variant="ghost"
                             size="sm"
