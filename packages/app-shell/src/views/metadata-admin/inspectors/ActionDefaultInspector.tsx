@@ -30,6 +30,7 @@
 
 import * as React from 'react';
 import { Plus, Trash2 } from 'lucide-react';
+import type { ActionLocation } from '@objectstack/spec/ui';
 import {
   Button, Label, Textarea,
 } from '@object-ui/components';
@@ -107,16 +108,32 @@ const PARAM_TYPE_OPTS = [
   { value: 'lookup', label: 'Lookup' },
 ];
 
-/** Canonical action locations (mirrors spec ACTION_LOCATIONS) with friendly labels. */
-const LOCATIONS: Array<{ value: string; label: string }> = [
-  { value: 'record_header', label: 'Record header' },
-  { value: 'record_more', label: 'Record · more menu' },
-  { value: 'record_section', label: 'Record · section' },
-  { value: 'record_related', label: 'Record · related list' },
-  { value: 'list_toolbar', label: 'List toolbar' },
-  { value: 'list_item', label: 'List · row' },
-  { value: 'global_nav', label: 'Global nav / command palette' },
-];
+/**
+ * Friendly labels for the spec's action locations.
+ *
+ * The vocabulary belongs to `ActionLocation` (spec `ACTION_LOCATIONS`). This
+ * used to restate all seven values under a "mirrors spec ACTION_LOCATIONS"
+ * comment with nothing enforcing it (objectui#3017). Typing the map as a TOTAL
+ * `Record<ActionLocation, string>` makes the compiler the mechanism: a location
+ * the spec ADDS is a missing-key error here rather than a silently absent
+ * dropdown entry, and one it REMOVES is an excess-property error.
+ *
+ * Insertion order is the display order — an authoring-friendly grouping
+ * (record → list → global), deliberately not the spec's declaration order.
+ */
+const LOCATION_LABELS: Record<ActionLocation, string> = {
+  record_header: 'Record header',
+  record_more: 'Record · more menu',
+  record_section: 'Record · section',
+  record_related: 'Record · related list',
+  list_toolbar: 'List toolbar',
+  list_item: 'List · row',
+  global_nav: 'Global nav / command palette',
+};
+
+const LOCATIONS: Array<{ value: ActionLocation; label: string }> = (
+  Object.keys(LOCATION_LABELS) as ActionLocation[]
+).map((value) => ({ value, label: LOCATION_LABELS[value] }));
 
 /** Per-type binding hints for the single `target` field. */
 const TARGET_FIELD: Record<string, { label: string; placeholder: string; hint: string }> = {

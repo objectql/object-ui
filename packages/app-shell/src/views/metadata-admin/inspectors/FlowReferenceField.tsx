@@ -39,6 +39,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@object-ui/components';
 import { Pencil, Search } from 'lucide-react';
+import { APPROVER_VALUE_SOURCES } from '@objectstack/spec/automation';
 import { useAdapter } from '@object-ui/react';
 import { LookupField } from '@object-ui/fields';
 import type { FlowReferenceSpec, ReferenceKind, RefValueSource } from './flow-node-config';
@@ -100,12 +101,61 @@ export interface RecordLookupBinding {
   /** Secondary-line fields for people rows. */
   subtitle?: string[];
 }
-export const KIND_TO_RECORD_LOOKUP: Partial<Record<ReferenceKind, RecordLookupBinding>> = {
-  user: { object: 'sys_user', valueField: 'id', displayField: 'name', picker: 'search', subtitle: ['email'] },
-  team: { object: 'sys_team', valueField: 'id', displayField: 'name' },
-  department: { object: 'sys_business_unit', valueField: 'id', displayField: 'name' },
-  position: { object: 'sys_position', valueField: 'name', displayField: 'label' },
-};
+/**
+ * PRESENTATION for the directory-backed kinds — which column to show, whether
+ * to open the people picker, what subtitle to put under a row.
+ *
+ * Deliberately local: the spec publishes the data contract only and says so.
+ * Everything below this line is objectui's call; everything above it (which
+ * object, which column is committed) now comes from the spec.
+ */
+const RECORD_LOOKUP_PRESENTATION = {
+  user: { displayField: 'name', picker: 'search', subtitle: ['email'] },
+  team: { displayField: 'name' },
+  department: { displayField: 'name' },
+  position: { displayField: 'label' },
+} as const satisfies Partial<
+  Record<ReferenceKind, Omit<RecordLookupBinding, 'object' | 'valueField'>>
+>;
+
+/**
+ * The older-server fallback, DERIVED from the spec's published binding.
+ *
+ * `object` / `valueField` used to be hand-written here, under a comment saying
+ * this table "mirrors `APPROVER_VALUE_BINDINGS` … import it once a published
+ * release carries the export". `@objectstack/spec@17` carries it, so this now
+ * reads `APPROVER_VALUE_SOURCES` and composes objectui's presentation on top
+ * (objectui#3017).
+ *
+ * That matters more here than anywhere else in the designer: the FIRST copy of
+ * this data contract was wrong — every directory kind was wired to the metadata
+ * registry, which holds no `sys_user` / `sys_team` / `sys_business_unit` /
+ * `sys_position` ROWS, so candidates came back empty, the control degraded to
+ * free text, and `sales_manager` got typed into a field that accepts three
+ * values (framework #3508). Spec answered by publishing the binding with a
+ * `satisfies` that makes an undeclared `ApproverType` a compile error; reading
+ * it here is what finally carries that guarantee across the repo boundary.
+ *
+ * A kind whose spec source is not `data` is skipped rather than thrown on — a
+ * module-level throw would white-screen the designer over a vocabulary change.
+ * `FlowReferenceField.specDerivation.test.ts` asserts the table is non-vacuous
+ * and still covers every kind with presentation.
+ */
+export const KIND_TO_RECORD_LOOKUP: Partial<Record<ReferenceKind, RecordLookupBinding>> =
+  Object.fromEntries(
+    Object.entries(RECORD_LOOKUP_PRESENTATION).flatMap(([kind, presentation]) => {
+      const source = APPROVER_VALUE_SOURCES[kind as keyof typeof APPROVER_VALUE_SOURCES];
+      if (!source || source.source !== 'data') return [];
+      return [[
+        kind,
+        {
+          object: source.object,
+          valueField: source.valueField as RecordLookupBinding['valueField'],
+          ...presentation,
+        },
+      ]];
+    }),
+  );
 
 /**
  * better-auth org-membership tiers. `org-membership-level` is intentionally NOT
