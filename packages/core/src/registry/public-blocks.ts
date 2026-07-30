@@ -43,7 +43,11 @@ export const PUBLIC_BLOCKS: readonly string[] = [
   'record:highlights',
   'record:related_list',
   'record:path',
-  'line_items',
+  // `record:`-prefixed, like its four siblings above. @object-ui/plugin-form
+  // registers this one with `skipFallback: true`, so the bare `line_items` key
+  // it was listed under here never existed — the block has shipped all along
+  // but could never resolve through the contract (objectui#2953 follow-up).
+  'record:line_items',
   // ── Tier B — layout / content primitives ──────────────────────────────────
   'flex',
   'grid',

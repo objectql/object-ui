@@ -51,6 +51,7 @@ const EXPECTED_COVERED = [
   'record:highlights',
   'record:related_list',
   'record:path',
+  'record:line_items',
   'flex',
   'grid',
   'stack',
@@ -71,13 +72,19 @@ const EXPECTED_COVERED = [
 ];
 
 /**
- * Curated tags with no renderer behind them yet. `PUBLIC_BLOCKS` is documented
- * as aspirational-safe (an unregistered tag is skipped), so a gap is allowed —
- * but it should be a listed, reviewable gap rather than a silent one, since
- * "advertised in the contract, absent at runtime" is what an AI-authored page
- * trips over.
+ * Curated tags with no renderer behind them yet — currently none.
+ *
+ * `PUBLIC_BLOCKS` is documented as aspirational-safe (an unregistered tag is
+ * skipped), so a gap is allowed, but it has to be a listed, reviewable gap
+ * rather than a silent one: "advertised in the contract, absent at runtime" is
+ * exactly what an AI-authored page trips over.
+ *
+ * The one entry that used to sit here, `line_items`, was not aspirational at
+ * all — it was a misspelling of `record:line_items`, whose renderer has shipped
+ * in @object-ui/plugin-form all along. Keeping the list empty is what surfaces
+ * the next one of those.
  */
-const EXPECTED_UNIMPLEMENTED = ['line_items'];
+const EXPECTED_UNIMPLEMENTED: string[] = [];
 
 /**
  * The curated tags that reach the contract through a PENDING lazy stub in this
