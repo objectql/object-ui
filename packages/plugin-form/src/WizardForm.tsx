@@ -16,13 +16,27 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import type { FormField, DataSource } from '@object-ui/types';
 import { Button, cn, toast } from '@object-ui/components';
-import { Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { AlertCircle, Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { resolveFieldRuleState } from '@object-ui/core';
+import { createSafeTranslation } from '@object-ui/i18n';
 import { FormSection } from './FormSection';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
-import { sectionFormLayout } from './autoLayout';
+import { applyAutoColSpan, containerGridColsFor } from './autoLayout';
 import { resolveSuccessNavigate, isSameOriginUrl, type SubmitBehavior } from './successBehavior';
 import type { FormSectionConfig } from './TabbedForm';
+
+// Falls back to English when no i18n provider is mounted.
+const useWizardTranslation = createSafeTranslation(
+  {
+    'wizard.missingRequired': 'Please complete the required fields: {{fields}}',
+  },
+  'wizard.missingRequired',
+);
+
+/** Empty for the purposes of a required check: '' / null / undefined / []. */
+const isEmptyValue = (v: unknown): boolean =>
+  v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
 
 export interface WizardFormSchema {
   type: 'object-form';
@@ -49,10 +63,23 @@ export interface WizardFormSchema {
   sections: FormSectionConfig[];
   
   /**
-   * Allow navigation to any step (not just sequential)
+   * Allow navigation to any step (not just sequential).
+   *
+   * This is navigation freedom, NOT an exemption from the object's rules: the
+   * final submit still checks every step's required fields and sends the user
+   * back to the first step that has one outstanding (#2959's validation half —
+   * react-hook-form only validates the fields currently mounted, so a step
+   * nobody opened used to reach the server unvalidated).
    * @default false
    */
   allowSkip?: boolean;
+
+  /**
+   * Grid width for each step (1–4). Aligns with @objectstack/spec
+   * FormView.columns and OUTRANKS the per-step `columns`, which says how densely
+   * that step fills the grid. Omitted = the step's own `columns`, else 1.
+   */
+  columns?: number;
   
   /**
    * Show step indicators
@@ -181,6 +208,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
   className,
 }) => {
   const { fieldLabel } = useSafeFieldLabel();
+  const { t } = useWizardTranslation();
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
@@ -188,6 +216,10 @@ export const WizardForm: React.FC<WizardFormProps> = ({
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [submitting, setSubmitting] = useState(false);
+  // Steps the final submit found an outstanding required field on, so their
+  // indicator can say so — a rejection on a step the user is not looking at is
+  // otherwise invisible and the submit just appears to do nothing.
+  const [invalidSteps, setInvalidSteps] = useState<Set<number>>(new Set());
   // Terminal state for `submitBehavior: { kind: 'thank-you' | 'next-record' }`.
   // Without this the last step's form stayed mounted and fully filled after a
   // successful create, with nothing disabling "Create" — a second click fired
@@ -284,15 +316,85 @@ export const WizardForm: React.FC<WizardFormProps> = ({
     return [];
   }, [currentStep, totalSteps, schema.sections, buildSectionFields]);
 
+  /**
+   * Required fields the record does not satisfy, grouped by the STEP that
+   * declares them.
+   *
+   * react-hook-form only validates the fields currently MOUNTED, and a wizard
+   * mounts one step at a time. Sequential navigation is safe (Next validates the
+   * step you are leaving), but `allowSkip` jumps straight to any step — so a
+   * required field on a step nobody opened was never registered, never
+   * validated, and simply absent from the create payload, with nothing on screen
+   * saying so. The final submit therefore re-checks the WHOLE declared field set
+   * here.
+   *
+   * Uses the canonical rule engine (`resolveFieldRuleState`), the same one the
+   * form renderer and the server's rule-validator use, so a conditionally
+   * required/hidden field gets the same verdict from all three rather than a
+   * second, divergent dialect.
+   */
+  const missingRequiredByStep = useCallback(
+    (record: Record<string, any>): Map<number, string[]> => {
+      const out = new Map<number, string[]>();
+      schema.sections.forEach((section, index) => {
+        for (const field of buildSectionFields(section)) {
+          const name = field?.name;
+          if (!name || (field as any).hidden === true) continue;
+          const state = resolveFieldRuleState(
+            {
+              visibleWhen: (field as any).visibleWhen,
+              readonlyWhen: (field as any).readonlyWhen,
+              requiredWhen: (field as any).requiredWhen,
+            },
+            record,
+            { required: !!field.required, readonly: (field as any).readonly === true },
+          );
+          // A hidden or read-only field is not the user's to fill in.
+          if (!state.visible || state.readonly || !state.required) continue;
+          if (!isEmptyValue(record[name])) continue;
+          out.set(index, [...(out.get(index) ?? []), (field as any).label || name]);
+        }
+      });
+      return out;
+    },
+    [schema.sections, buildSectionFields],
+  );
+
   // Handle step data collection (merge partial data into formData)
   const handleStepSubmit = useCallback(async (stepData: Record<string, any>) => {
     const mergedData = { ...formData, ...stepData };
     setFormData(mergedData);
-    
+
     // Mark step as completed
     setCompletedSteps(prev => new Set(prev).add(currentStep));
+    // This step just cleared its own validation, so drop any marker it carried.
+    setInvalidSteps(prev => {
+      if (!prev.has(currentStep)) return prev;
+      const next = new Set(prev);
+      next.delete(currentStep);
+      return next;
+    });
 
     if (isLastStep) {
+      // Gate the submit on the FULL field set, not just this step's (see
+      // missingRequiredByStep) — then point the user at the first step that is
+      // short something, instead of letting the server answer with a 400 that
+      // names fields the user cannot even see.
+      const missing = missingRequiredByStep(mergedData);
+      if (missing.size > 0) {
+        setInvalidSteps(new Set(missing.keys()));
+        const labels = [...missing.values()].flat();
+        const MAX = 3;
+        toast.error(
+          t('wizard.missingRequired', {
+            fields: labels.slice(0, MAX).join(', ') + (labels.length > MAX ? '…' : ''),
+          }),
+        );
+        goToStep(Math.min(...missing.keys()));
+        return;
+      }
+      setInvalidSteps(new Set());
+
       // Final submission
       setSubmitting(true);
       try {
@@ -371,7 +473,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
       // Move to next step
       goToStep(currentStep + 1);
     }
-  }, [formData, currentStep, isLastStep, schema, dataSource]);
+  }, [formData, currentStep, isLastStep, schema, dataSource, missingRequiredByStep, t]);
 
   // Navigation
   const goToStep = useCallback((step: number) => {
@@ -431,9 +533,17 @@ export const WizardForm: React.FC<WizardFormProps> = ({
   }
 
   const currentSection = schema.sections[currentStep];
+  const clampCol = (n: unknown): number | undefined =>
+    typeof n === 'number' && n > 0 ? Math.min(Math.floor(n), 4) : undefined;
+  const stepGridColumns = clampCol(schema.columns) ?? clampCol(currentSection?.columns) ?? 1;
+  const stepFieldContainerClass = containerGridColsFor(stepGridColumns);
 
   return (
-    <div className={cn('w-full', className, schema.className)}>
+    // `@container`: the step's field grid is sized with container queries
+    // (`@md:grid-cols-2` …), which need a container ancestor to resolve against —
+    // without one the classes are inert and a multi-column step silently stayed
+    // single-column. Same wrapper TabbedForm / SplitForm carry.
+    <div className={cn('w-full @container', className, schema.className)}>
       {/* Step Indicator */}
       {schema.showStepIndicator !== false && (
         <nav aria-label="Progress" className="mb-8">
@@ -442,6 +552,8 @@ export const WizardForm: React.FC<WizardFormProps> = ({
               const isActive = index === currentStep;
               const isCompleted = completedSteps.has(index);
               const isClickable = schema.allowSkip || isCompleted || index <= currentStep;
+              // The last submit found a required field outstanding on this step.
+              const hasError = invalidSteps.has(index);
 
               return (
                 <li
@@ -474,17 +586,24 @@ export const WizardForm: React.FC<WizardFormProps> = ({
                     )}
                     onClick={() => handleStepClick(index)}
                     disabled={!isClickable}
+                    data-testid={`wizard-step:${section.name || index}`}
+                    data-error={hasError || undefined}
                   >
                     {/* Step circle - smaller on mobile */}
                     <span
                       className={cn(
                         'flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-full text-xs sm:text-sm font-medium transition-colors',
-                        isCompleted && 'bg-primary text-primary-foreground',
-                        isActive && !isCompleted && 'border-2 border-primary bg-background text-primary',
-                        !isActive && !isCompleted && 'border-2 border-muted bg-background text-muted-foreground'
+                        // An outstanding required field outranks the completed
+                        // tick: the step needs attention, whatever else it is.
+                        hasError && 'border-2 border-destructive bg-background text-destructive',
+                        !hasError && isCompleted && 'bg-primary text-primary-foreground',
+                        !hasError && isActive && !isCompleted && 'border-2 border-primary bg-background text-primary',
+                        !hasError && !isActive && !isCompleted && 'border-2 border-muted bg-background text-muted-foreground'
                       )}
                     >
-                      {isCompleted ? (
+                      {hasError ? (
+                        <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4" aria-hidden />
+                      ) : isCompleted ? (
                         <Check className="h-3 w-3 sm:h-4 sm:w-4" />
                       ) : (
                         index + 1
@@ -495,7 +614,9 @@ export const WizardForm: React.FC<WizardFormProps> = ({
                     <span className="ml-2 sm:ml-3 text-xs sm:text-sm font-medium hidden sm:block">
                       <span
                         className={cn(
-                          isActive ? 'text-foreground' : 'text-muted-foreground'
+                          hasError
+                            ? 'text-destructive'
+                            : isActive ? 'text-foreground' : 'text-muted-foreground'
                         )}
                       >
                         {section.label || `Step ${index + 1}`}
@@ -528,7 +649,19 @@ export const WizardForm: React.FC<WizardFormProps> = ({
                   id: stepFormId,
                   // Multi-column on the field container inside the form, not a
                   // grid around the whole form (which leaves columns empty).
-                  ...sectionFormLayout(currentSectionFields, currentSection.columns || 1),
+                  //
+                  // Grid width: the form view's own `columns` first (spec
+                  // FormView.columns — it was being dropped, so a view that
+                  // declared 3 columns rendered single-column here while the same
+                  // metadata gave 3 in a modal), else this step's own `columns`.
+                  // Unlike the tabbed/split hosts there is no widest-section
+                  // fallback: wizard steps never share a viewport, so there is no
+                  // shared grid to size, and each step keeps its authored width.
+                  fields: stepGridColumns > 1
+                    ? applyAutoColSpan(currentSectionFields, stepGridColumns, clampCol(currentSection.columns))
+                    : currentSectionFields,
+                  columns: stepGridColumns,
+                  ...(stepFieldContainerClass ? { fieldContainerClass: stepFieldContainerClass } : {}),
                   layout: 'vertical' as const,
                   defaultValues: formData,
                   showSubmit: false,

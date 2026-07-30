@@ -69,9 +69,11 @@ A sectioned form renders as ONE grid. The form view's `columns` (spec
 densely that section fills it. The view's value wins; without it the grid takes
 the widest section's density, and without either it is single-column.
 
-`ObjectForm` (simple), `ModalForm`, `TabbedForm` and `SplitForm` all resolve it
-that way, so the same metadata lays out identically in every host. The grid is
-applied to the field container inside the form, never wrapped around the `<form>`.
+`ObjectForm` (simple), `ModalForm`, `TabbedForm`, `SplitForm` and `WizardForm` all
+resolve it that way, so the same metadata lays out identically in every host
+(`WizardForm` has no widest-section fallback — its steps never share a viewport,
+so each keeps its own authored width). The grid is applied to the field container
+inside the form, never wrapped around the `<form>`.
 
 ### Tabbed field layout (`fieldTabs`)
 
@@ -101,6 +103,20 @@ inactive tab unmount along with its values).
 - Needs at least two tabs; ignored when the form uses `children`.
 
 `ModalForm` (`contentLayout: 'tabbed'`) and `TabbedForm` build on this.
+
+### Wizard steps and `allowSkip`
+
+`allowSkip` lets the user jump to any step from the indicator instead of walking
+through them in order. It is navigation freedom, not an exemption from the
+object's rules: the **final submit checks every step's required fields**, and if
+something is outstanding it returns the user to the first step that has one, marks
+that step's indicator (`data-error="true"`), and names the fields in a toast —
+nothing is sent. Conditional rules are respected (`visibleWhen` / `requiredWhen`
+are evaluated on the same canonical engine as the renderer and the server).
+
+This matters because react-hook-form only validates the fields currently mounted,
+and a wizard mounts one step at a time — so a required field on a step nobody
+opened used to be absent from the payload with nothing on screen saying so.
 
 ### Split field layout (`fieldPanes`)
 

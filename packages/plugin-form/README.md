@@ -94,8 +94,10 @@ A sectioned form renders as ONE grid, and two keys decide its shape:
 
 The view's `columns` wins; without it the grid takes the widest section's
 density, and without either it is single-column. Every sectioned host resolves it
-the same way — `ObjectForm` (simple), `ModalForm`, `TabbedForm`, `SplitForm` —
-so one piece of metadata lays out identically wherever it is rendered.
+the same way — `ObjectForm` (simple), `ModalForm`, `TabbedForm`, `SplitForm`,
+`WizardForm` — so one piece of metadata lays out identically wherever it is
+rendered. (`WizardForm` has no widest-section fallback: its steps never share a
+viewport, so each step keeps its own authored width.)
 
 The grid is applied to the field container **inside** the form, never wrapped
 around the `<form>` (which would put the whole form in cell 1 and leave the other
@@ -131,6 +133,26 @@ the renderer distribute the fields:
 - Needs at least two tabs, and is ignored when the form uses `children`.
 
 `ModalForm` (`contentLayout: 'tabbed'`) and `TabbedForm` are built on this.
+
+### Wizard steps and `allowSkip`
+
+`allowSkip` lets the user jump to any step from the indicator instead of walking
+through them in order. It is **navigation** freedom, not an exemption from the
+object's rules:
+
+- Next validates the step you are leaving, as always.
+- The **final submit checks every step's required fields** — not just the last
+  one's — and if something is outstanding it sends the user to the first step
+  that has one, marks that step's indicator (`data-error="true"`), and names the
+  fields in a toast. Nothing is sent.
+- Conditional rules are respected: a field whose `visibleWhen` is false, or whose
+  `requiredWhen` is false, is not demanded. The check runs on the same canonical
+  engine as the renderer and the server's rule-validator, so all three agree.
+
+This matters because react-hook-form only validates the fields currently
+**mounted**, and a wizard mounts one step at a time — so a required field on a
+step nobody opened used to be absent from the payload with nothing on screen
+saying so (#2959's validation half, in a wizard).
 
 ### Split field layout (`fieldPanes`)
 
