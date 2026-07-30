@@ -135,6 +135,7 @@ export type {
   ValidationRule,
   FieldCondition,
   FormField,
+  FormFieldTab,
   ComboboxSchema,
   CommandSchema,
   InputOTPSchema,

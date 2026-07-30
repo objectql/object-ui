@@ -15,11 +15,10 @@
 
 import React, { useState, useCallback } from 'react';
 import type { FormField, DataSource } from '@object-ui/types';
-import { Tabs, TabsContent, TabsList, TabsTrigger, cn } from '@object-ui/components';
-import { FormSection } from './FormSection';
+import { cn } from '@object-ui/components';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
-import { sectionFormLayout } from './autoLayout';
+import { applyAutoColSpan, containerGridColsFor } from './autoLayout';
 
 export interface FormSectionConfig {
   /**
@@ -50,11 +49,15 @@ export interface FormSectionConfig {
 
   /**
    * Custom CSS class for the section's Card wrapper.
+   *
+   * Unused in the tabbed layout: all tabs share ONE form (#2959), so a tab's
+   * panel has no per-section Card to carry it.
    */
   className?: string;
 
   /**
-   * Custom CSS class for the section's field grid.
+   * Custom CSS class for the section's field grid — applied to this tab's panel
+   * grid (overrides the shared column classes).
    */
   gridClassName?: string;
 }
@@ -182,9 +185,11 @@ export const TabbedForm: React.FC<TabbedFormProps> = ({
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const [activeTab, setActiveTab] = useState<string>(
-    schema.defaultTab || schema.sections[0]?.name || schema.sections[0]?.label || 'tab-0'
-  );
+  // Which tab opens first. The live tab state belongs to the form renderer from
+  // here on — it owns the panels, so only it can jump to the tab holding a
+  // rejected field on a failed submit (#2959).
+  const initialTab =
+    schema.defaultTab || schema.sections[0]?.name || schema.sections[0]?.label || 'tab-0';
 
   // Fetch object schema
   React.useEffect(() => {
@@ -303,81 +308,68 @@ export const TabbedForm: React.FC<TabbedFormProps> = ({
     );
   }
 
-  // Collect all fields across all sections for the form
-  const allFields: FormField[] = schema.sections.flatMap(section => buildSectionFields(section));
+  // ONE form for ALL tabs (#2959). A SchemaRenderer per tab gave each tab its
+  // own react-hook-form instance, and Radix unmounted the inactive panel — so
+  // every tab the user left behind lost its input and only the visible tab's
+  // fields reached the submit payload. The renderer now owns the tab strip and
+  // panels (`fieldTabs`): all panels stay mounted inside a single <form>, which
+  // is also what lets cross-tab conditions and validation see every field.
+  //
+  // Multi-column stays on the field container INSIDE the form: each tab's fields
+  // carry their own colSpan against the shared grid (sectionFormLayout parity),
+  // never a grid wrapped around the form — that would leave the extra columns
+  // empty (#2128).
+  const clampCol = (n: unknown): number | undefined =>
+    typeof n === 'number' && n > 0 ? Math.min(Math.floor(n), 4) : undefined;
+  const declaredCols = schema.sections
+    .map((s) => clampCol(s.columns))
+    .filter((c): c is number => c != null);
+  const formColumns = declaredCols.length ? Math.max(...declaredCols) : 1;
+  const containerFieldClass = containerGridColsFor(formColumns);
 
-  // Build the overall form schema
-  const formSchema = {
-    type: 'form' as const,
-    fields: allFields,
-    layout: 'vertical' as const,
-    defaultValues: formData,
-    submitLabel: schema.submitText || (schema.mode === 'create' ? 'Create' : 'Update'),
-    cancelLabel: schema.cancelText,
-    showSubmit: schema.showSubmit !== false && schema.mode !== 'view',
-    showCancel: schema.showCancel !== false,
-    onSubmit: handleSubmit,
-    onCancel: handleCancel,
-  };
+  const tabGroups = schema.sections.map((section, index) => {
+    const body = buildSectionFields(section);
+    return {
+      key: getTabValue(section, index),
+      label: section.label || `Tab ${index + 1}`,
+      description: section.description,
+      containerClass: section.gridClassName,
+      fields: formColumns > 1
+        ? applyAutoColSpan(body, formColumns, clampCol(section.columns))
+        : body,
+    };
+  });
 
-  // Determine orientation based on tabPosition
-  const isVertical = schema.tabPosition === 'left' || schema.tabPosition === 'right';
+  const allFields: FormField[] = tabGroups.flatMap((g) => g.fields);
 
   return (
-    <div className={cn('w-full', className, schema.className)}>
-      <Tabs 
-        value={activeTab} 
-        onValueChange={setActiveTab}
-        orientation={isVertical ? 'vertical' : 'horizontal'}
-        className={cn(isVertical && 'flex gap-4')}
-      >
-        <TabsList className={cn(
-          isVertical ? 'flex-col h-auto' : '',
-          schema.tabPosition === 'bottom' && 'order-last',
-          schema.tabPosition === 'right' && 'order-last'
-        )}>
-          {schema.sections.map((section, index) => (
-            <TabsTrigger
-              key={getTabValue(section, index)}
-              value={getTabValue(section, index)}
-              className={isVertical ? 'w-full justify-start' : ''}
-            >
-              {section.label || `Tab ${index + 1}`}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
-        <div className="flex-1">
-          {schema.sections.map((section, index) => (
-            <TabsContent
-              key={getTabValue(section, index)}
-              value={getTabValue(section, index)}
-              className="mt-0"
-            >
-              <FormSection
-                description={section.description}
-                columns={1}
-                className={section.className}
-                gridClassName={section.gridClassName}
-              >
-                {/* Render fields for this section. Multi-column is applied to
-                    the field container inside the form (sectionFormLayout), not
-                    by wrapping the form in a grid — which would leave the extra
-                    columns empty. */}
-                <SchemaRenderer
-                  schema={{
-                    ...formSchema,
-                    ...sectionFormLayout(buildSectionFields(section), section.columns || 1),
-                    // Only show buttons on the last tab or always visible
-                    showSubmit: schema.showSubmit !== false && schema.mode !== 'view',
-                    showCancel: schema.showCancel !== false,
-                  }} 
-                />
-              </FormSection>
-            </TabsContent>
-          ))}
-        </div>
-      </Tabs>
+    <div className={cn('w-full @container', className, schema.className)}>
+      <SchemaRenderer
+        schema={{
+          type: 'form' as const,
+          objectName: schema.objectName,
+          fields: allFields,
+          columns: formColumns,
+          ...(containerFieldClass ? { fieldContainerClass: containerFieldClass } : {}),
+          layout: 'vertical' as const,
+          defaultValues: formData,
+          submitLabel: schema.submitText || (schema.mode === 'create' ? 'Create' : 'Update'),
+          cancelLabel: schema.cancelText,
+          showSubmit: schema.showSubmit !== false && schema.mode !== 'view',
+          showCancel: schema.showCancel !== false,
+          onSubmit: handleSubmit,
+          onCancel: handleCancel,
+          fieldTabs: tabGroups.map((g) => ({
+            key: g.key,
+            label: g.label,
+            description: g.description,
+            fields: g.fields.map((f) => f.name),
+            containerClass: g.containerClass,
+          })),
+          defaultFieldTab: initialTab,
+          fieldTabsPosition: schema.tabPosition || 'top',
+        }}
+      />
     </div>
   );
 };

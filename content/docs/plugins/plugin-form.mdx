@@ -62,6 +62,35 @@ interface FormField {
 }
 ```
 
+### Tabbed field layout (`fieldTabs`)
+
+A sectioned form stays **one** form: declare the tabs on it and the renderer
+distributes the fields into panels, instead of rendering a form per section
+(which strands every section but the first outside the submit, and lets an
+inactive tab unmount along with its values).
+
+```plaintext
+{
+  type: 'form',
+  fields: [/* every tab's fields, in one flat list */],
+  fieldTabs: [
+    { key: 'basics', label: 'Basics', fields: ['subject', 'status'] },
+    { key: 'detail', label: 'Detail', description: 'Anything else', fields: ['description'] },
+  ],
+  defaultFieldTab?: 'basics',       // defaults to the first tab
+  fieldTabsPosition?: 'top',        // 'top' | 'bottom' | 'left' | 'right'
+}
+```
+
+- Panels are force-mounted and only CSS-hidden, so a tab the user leaves keeps
+  its values **and** its validation.
+- A failed submit activates the tab holding the first offending field and marks
+  every tab with a rejected field — client rules and server `fields[]` alike.
+- Fields no tab claims render above the tab strip rather than disappearing.
+- Needs at least two tabs; ignored when the form uses `children`.
+
+`ModalForm` (`contentLayout: 'tabbed'`) and `TabbedForm` build on this.
+
 ## Usage
 
 ### Auto-registration (Side-effect Import)

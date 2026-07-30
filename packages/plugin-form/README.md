@@ -83,6 +83,37 @@ interface FormField {
 }
 ```
 
+### Tabbed field layout (`fieldTabs`)
+
+A sectioned form is **one** form. Instead of rendering a form per section — which
+strands every section but the first outside the submit, and (in tabs) lets the
+inactive panel unmount with its values — declare tabs on the single form and let
+the renderer distribute the fields:
+
+```typescript
+{
+  type: 'form',
+  fields: [/* every tab's fields, in one flat list */],
+  fieldTabs: [
+    { key: 'basics', label: 'Basics', fields: ['subject', 'status'] },
+    { key: 'detail', label: 'Detail', description: 'Anything else', fields: ['description'] },
+  ],
+  defaultFieldTab?: 'basics',                    // defaults to the first tab
+  fieldTabsPosition?: 'top',                     // 'top' | 'bottom' | 'left' | 'right'
+}
+```
+
+- All panels are **force-mounted** and only CSS-hidden, so a tab the user leaves
+  keeps its values *and* its validation (react-hook-form skips unmounted fields,
+  which is how a required field on an unopened tab used to reach the server).
+- A failed submit **activates the tab holding the first offending field** and
+  marks every tab with a rejected field (`data-error` on the trigger) — for both
+  client-side rules and server `fields[]` rejections.
+- Fields no tab claims render above the tab strip rather than disappearing.
+- Needs at least two tabs, and is ignored when the form uses `children`.
+
+`ModalForm` (`contentLayout: 'tabbed'`) and `TabbedForm` are built on this.
+
 ## Examples
 
 ### Basic Form
