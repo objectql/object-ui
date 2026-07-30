@@ -18,8 +18,13 @@ const browser = await chromium.launch();
 try {
   const page = await browser.newPage();
   await page.goto(`${BASE}/dev/manifest-dump.html`, { waitUntil: 'networkidle', timeout: 120_000 });
-  const json = await page.waitForFunction(() => globalThis.__MANIFEST, null, { timeout: 120_000 })
+  // The page sets exactly one of these. Waiting only on __MANIFEST would turn
+  // any generation failure into a silent 120s timeout instead of its message.
+  const json = await page
+    .waitForFunction(() => globalThis.__MANIFEST ?? globalThis.__MANIFEST_ERROR, null, { timeout: 120_000 })
     .then((h) => h.jsonValue());
+  const failure = await page.evaluate(() => globalThis.__MANIFEST_ERROR);
+  if (failure) throw new Error(`manifest generation failed in the browser:\n${failure}`);
   const manifest = JSON.parse(json);
   const n = Object.keys(manifest.components ?? {}).length;
   if (n === 0) throw new Error('empty manifest — registry not populated');

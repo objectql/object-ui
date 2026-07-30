@@ -66,6 +66,38 @@ export interface RegistryConfigLike {
     binding?: 'object' | 'field';
     description?: string;
   }>;
+  /**
+   * True when the registry entry is a pending lazy stub — registered, but its
+   * plugin module has not been imported, so it carries metadata and no
+   * `inputs`. See {@link assertFullyLoaded}.
+   */
+  lazy?: boolean;
+}
+
+/**
+ * Build-time guard for the manifest generators.
+ *
+ * A manifest is the contract's frozen form: the parser's tag whitelist and the
+ * save gate's prop validator both read it. So it has to be generated from
+ * FULLY LOADED registrations. A `lazy: true` entry means the generator never
+ * imported that plugin, and the block would be written out with empty
+ * `inputs` — indistinguishable from a block that legitimately takes no props,
+ * which turns every prop an author writes on it into an `unknown-prop`
+ * diagnostic. Wrong quietly, in the artifact everything downstream trusts.
+ *
+ * The generators keep their own eager import list, so this is what catches it
+ * drifting behind the app's registration list (objectui#2953 was the same
+ * class of bug one layer down).
+ */
+export function assertFullyLoaded(configs: RegistryConfigLike[]): void {
+  const stubs = configs.filter((c) => c.lazy).map((c) => c.type).sort();
+  if (stubs.length === 0) return;
+  throw new Error(
+    `Manifest generation saw ${stubs.length} not-yet-loaded lazy block(s): ${stubs.join(', ')}.\n` +
+      `A manifest must describe loaded registrations — these would be written out with no \`inputs\`, ` +
+      `so every prop an author passes them would be reported as unknown.\n` +
+      `Add an eager \`import\` of each block's plugin to the generator entry.`,
+  );
 }
 
 const INPUT_TYPES = new Set([

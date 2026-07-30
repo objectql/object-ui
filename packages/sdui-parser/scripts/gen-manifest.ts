@@ -4,17 +4,21 @@
  *   - sdui-intrinsics.d.ts (the JSX type surface for authoring)
  *   - sdui-blocks.md       (the human 清单)
  *
- * PREREQUISITE: all plugins must be registered before this runs — import the
- * app's plugin barrel first so getPublicConfigs() sees the full set, e.g.:
- *   import '@object-ui/console/register-all';   // side-effectful registration
- * Then run with tsx. Mirrors the build-skill-docs pattern.
+ * PREREQUISITE: all plugins must be EAGERLY registered before this runs —
+ * import the app's plugin modules first so getPublicConfigs() sees the full
+ * set with its `inputs`, e.g.:
+ *   import '@object-ui/plugin-kanban';   // side-effectful registration
+ * A plugin that is only lazily registered has no renderer and no `inputs` yet;
+ * `assertFullyLoaded` fails the build rather than emitting it as a propless
+ * block. Then run with tsx. Mirrors the build-skill-docs pattern.
  */
 import { writeFileSync } from 'node:fs';
 import { ComponentRegistry } from '@object-ui/core';
-import { generateBlockList, generateDts, manifestFromConfigs, type RegistryConfigLike } from '../src/index.js';
+import { assertFullyLoaded, generateBlockList, generateDts, manifestFromConfigs, type RegistryConfigLike } from '../src/index.js';
 
 export function buildArtifacts(outDir: string): void {
   const configs = ComponentRegistry.getPublicConfigs() as unknown as RegistryConfigLike[];
+  assertFullyLoaded(configs);
   const manifest = manifestFromConfigs(configs);
   writeFileSync(`${outDir}/sdui.manifest.json`, JSON.stringify(manifest, null, 2));
   writeFileSync(`${outDir}/sdui-intrinsics.d.ts`, generateDts(manifest));
