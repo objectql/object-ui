@@ -50,8 +50,20 @@ export interface ChartRendererProps {
     /** Internal binding. Authors write the spec `xAxis: { field }` (or the
      *  report surface's bare string); `normalizeChartSchema` resolves both. */
     xAxisKey?: string;
-    /** Internal binding. Authors write the spec `series: [{ name, … }]`. */
-    series?: Array<{ dataKey: string; label?: string; variant?: 'current' | 'comparison'; opacity?: number; dashArray?: string; chartType?: 'bar' | 'line' | 'area'; stack?: string; yAxis?: 'left' | 'right'; color?: string }>;
+    /**
+     * Plotted series — **both shapes**, unlike the bindings below.
+     *
+     * `series` is the one binding the spec and the internal contract spell with
+     * the same key, so declaring only the internal shape here made
+     * `series: [{ name: 'total' }]` a type error on an author who was writing
+     * the protocol correctly — and, until #2945, one whose chart also rendered
+     * blank. `normalizeChartSchema` translates; an array that already speaks the
+     * internal shape passes through untouched.
+     */
+    series?: Array<
+      | { dataKey: string; label?: string; variant?: 'current' | 'comparison'; opacity?: number; dashArray?: string; chartType?: 'bar' | 'line' | 'area'; stack?: string; yAxis?: 'left' | 'right'; color?: string }
+      | { name: string; label?: unknown; type?: string; variant?: 'current' | 'comparison' | 'primary'; opacity?: number; dashArray?: string; stack?: string; yAxis?: 'left' | 'right'; color?: string }
+    >;
     /** Spec `ChartConfig` shape — honored via `normalizeChartSchema`
      *  (objectui#2880). Listed here so the author-facing contract type-checks;
      *  the internal props above win when both are present. */
@@ -101,7 +113,22 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ schema, onChartCli
   const props = React.useMemo(() => {
     const spec = normalizeChartSchema(schema);
 
-    let series: any[] | undefined = schema.series ?? spec.series;
+    // `series` is the one binding both shapes spell with the SAME key, so the
+    // blanket "internal props win" rule degenerated here: a spec author's
+    // `[{ name, type }]` shadowed the normalized `[{ dataKey, chartType }]` and
+    // reached a renderer that reads `dataKey` — so the chart rendered BLANK, and
+    // the per-series family override went with it (#2945). Every other spec
+    // binding has a distinct name (`xAxis` vs `xAxisKey`) and so was unaffected.
+    //
+    // Prefer the raw array only when it ALREADY speaks the internal shape, which
+    // keeps every internal caller byte-for-byte. Otherwise take the normalized
+    // one — `normalizeSeries` reads `dataKey ?? name` per entry, so it is also
+    // the right answer for an array that mixes the two.
+    const authored = Array.isArray(schema.series) ? schema.series : undefined;
+    const isInternalShaped = authored?.length
+      ? authored.every((s) => !!s && typeof s === 'object' && 'dataKey' in s)
+      : false;
+    let series: any[] | undefined = (isInternalShaped ? authored : spec.series) ?? authored;
     let xAxisKey = schema.xAxisKey ?? spec.xAxisKey;
     let config = schema.config;
 

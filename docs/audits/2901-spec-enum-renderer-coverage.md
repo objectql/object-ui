@@ -166,7 +166,7 @@ value corruption rather than disclosure.
 | Name | Location | Call |
 |---|---|---|
 | `navigation` action type | [ActionRunner.ts](../../packages/core/src/actions/ActionRunner.ts) | ~~Promote~~ — **resolved as a declared alias instead.** See the correction below. |
-| `combo` chart type | [normalizeChartSchema.ts:63](../../packages/plugin-charts/src/normalizeChartSchema.ts) | Drawn at `AdvancedChartImpl.tsx:819`. Promote or delete. |
+| `combo` chart type | [normalizeChartSchema.ts](../../packages/plugin-charts/src/normalizeChartSchema.ts) | ~~Promote or delete~~ — **derived from the series instead.** See Correction 4; the spec models it as `ChartSeries.type`. |
 | `system` theme mode | ThemeProvider ×2 | Delete — the spec name is `auto`, and `react/ThemeContext.tsx` already gets it right. |
 | `scale-fade` preset | [useAnimation.ts:71](../../packages/react/src/hooks/useAnimation.ts) | Delete with the hyphen/underscore fix. |
 | `modal` notification type | [NotificationContext.tsx:23](../../packages/react/src/context/NotificationContext.tsx) | Inert — nothing reads `displayType`. |
@@ -358,7 +358,7 @@ On a list whose only narrowing is that filter, the user sees rows they had asked
 to exclude. It is not a permission bypass — row-scoping `$and`-composes as a
 separate arm and survives — but it ranks with Tier 1, not Tier 2.
 
-## Correction 4 — "promote `navigation` upstream" was the wrong call
+## Correction 4 — "promote it upstream" was the wrong call twice (`navigation`, `combo`)
 
 Direction B told the reader to promote the `navigation` action type into the spec,
 on the grounds that it is "a real capability the spec doesn't name". The capability
@@ -385,6 +385,28 @@ and delete — **alias to the spec name it duplicates** — and picking between 
 three starts with asking whether the spec really lacks the concept or just spells
 it differently.
 
+**`combo` is the same mistake, and the check is one grep.** The row above told the
+reader to promote or delete it. `ChartSeriesSchema.type` already exists, and its
+field comment reads *"Series type override (combo charts)"* — the spec models a
+combo chart per-series, exactly as it models stacking with `ChartSeries.stack`
+rather than a `stacked-bar` family. `combo` is therefore derived from the series,
+not authored (`effectiveChartFamily`).
+
+Reading the row as written would also have missed what was actually broken. Two
+live silent failures sat on the path a spec author takes:
+
+1. the per-series override was parsed and carried and then **dropped** — only the
+   `chartType === 'combo'` branch read `series[].chartType`, so `type: 'bar'` with
+   a `type: 'line'` series drew a bar; and
+2. a spec-shape `series` **rendered nothing at all** — `series` is the one binding
+   both shapes spell alike, so `ChartRenderer`'s "internal props win" rule let the
+   author's `[{ name }]` shadow the normalized `[{ dataKey }]`.
+
+Neither is visible from an enum-coverage angle, which is worth noting about this
+audit's method: **a dialect row can be the least interesting thing wrong at that
+line.** The `combo` row asked whether a name belonged in the spec; the answer was
+that the spec's own name for it had never worked.
+
 ## Status of the items above
 
 | Item | Status |
@@ -394,7 +416,8 @@ it differently.
 | `DensityModeSchema` inert | Resolved upstream (removed in spec 17) |
 | Packages lacking the `@objectstack/spec` devDep | **6** — `plugin-list` and `data-objectstack` gained it in #2974; `plugin-charts`, `plugin-dashboard`, `plugin-report`, `components`, `mobile` and `fields` remain. (The body above says 6 because it counted a 13-package "needs a guard" list that omitted `fields`; adding `fields` and removing the two now fixed leaves 6 either way.) |
 | The five shadowing forks | Fixed — #2985 (closes #2944) |
-| `navigation` action type | Resolved as a declared alias, not promoted — see Correction 4 |
+| `navigation` action type | Resolved as a declared alias, not promoted — #2994, see Correction 4 |
+| `combo` chart type | Derived from `ChartSeries.type`, not promoted — see Correction 4. Uncovered two silent render bugs on the spec-shape path. |
 | Everything else | Open — #2941 (Tier 1), #2942 (Tier 2), #2943 (Tier 3), #2945 (vocabularies) |
 
 One method note for anyone repeating this: the original run read a checkout that

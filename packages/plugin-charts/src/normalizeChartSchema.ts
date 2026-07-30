@@ -45,7 +45,25 @@
  * widget's `chartConfig`) never collide and pass `type` through untouched.
  */
 
-/** A chart family this renderer actually draws. */
+/**
+ * A chart family this renderer actually draws.
+ *
+ * Every member is a `@objectstack/spec` `ChartTypeSchema` value except
+ * **`combo`**, which is renderer-local and is NOT a spec chart type (#2945).
+ * The spec models a combo chart per-series instead — `ChartSeries.type`, whose
+ * field comment reads *"Series type override (combo charts)"* — exactly as it
+ * models stacking with `ChartSeries.stack` rather than a `stacked-bar` family:
+ *
+ * > stacking is not a chart family, it is a property of the series … One `bar`
+ * > family plus a series-level stack group expresses all three without
+ * > multiplying the taxonomy.  — `spec/src/ui/chart.zod.ts`
+ *
+ * So `combo` is not a name an author should have to reach for. It is what "the
+ * series disagree about their family" looks like from the renderer's side, and
+ * {@link effectiveChartFamily} derives it. It stays in the union because
+ * internal-shape callers pass it explicitly today (`DatasetPreview`) and
+ * because dropping a name that is already authored breaks those charts.
+ */
 export type ChartFamily =
   | 'bar' | 'column' | 'horizontal-bar'
   | 'line' | 'area'
@@ -118,11 +136,20 @@ export interface NormalizedAxis {
   title?: string;
 }
 
+/** The families that compose on one cartesian plot — see {@link SeriesFamily}. */
+export type SeriesFamily = 'bar' | 'line' | 'area';
+
 export interface NormalizedSeries {
   dataKey: string;
   label?: string;
-  /** Per-series family override (combo charts). */
-  chartType?: 'bar' | 'line' | 'area';
+  /**
+   * Per-series family override — spec `ChartSeries.type`.
+   *
+   * The spec types it as the full `ChartTypeSchema`, but only the cartesian
+   * families compose on one plot (a `pie` series inside a bar chart names
+   * nothing), so recognition stops at bar/line/area.
+   */
+  chartType?: SeriesFamily;
   variant?: 'current' | 'comparison' | 'primary';
   opacity?: number;
   dashArray?: string;
@@ -308,6 +335,55 @@ export function normalizeChartSchema(schema: unknown): NormalizedChartSchema {
   if (isRec(schema.interaction)) out.interaction = schema.interaction;
 
   return out;
+}
+
+/**
+ * Which family an un-annotated series takes when the chart is drawn as a combo,
+ * or `undefined` when the chart's own family has no per-series meaning.
+ *
+ * `undefined` therefore doubles as "this combo was authored, not derived":
+ * only a cartesian family can be widened into a combo, so a chart that reaches
+ * the combo renderer with no base family got there by being named `combo`.
+ */
+export function comboBaseFamily(chartType: string | undefined): SeriesFamily | undefined {
+  if (chartType === 'bar' || chartType === 'column') return 'bar';
+  if (chartType === 'line') return 'line';
+  if (chartType === 'area') return 'area';
+  return undefined;
+}
+
+/**
+ * The family the renderer should actually draw.
+ *
+ * `ChartSeries.type` is the spec's own way to say "this series is a line on an
+ * otherwise-bar chart", and until now it was parsed, carried through
+ * normalization, and then dropped: only the renderer's `chartType === 'combo'`
+ * branch reads `series[].chartType`, so a chart authored in the spec shape
+ *
+ * ```ts
+ * { type: 'bar', series: [{ name: 'revenue' }, { name: 'margin', type: 'line' }] }
+ * ```
+ *
+ * drew `margin` as a bar. Silently — the value was right at every layer except
+ * the last. That is the failure this widens: an author writing the protocol got
+ * the wrong picture unless they also knew to write objectui's non-spec `combo`.
+ *
+ * Only a disagreement derives a combo. A chart whose series all resolve to the
+ * same family keeps its own family, so nothing that renders correctly today
+ * changes; and an explicit `combo` is returned untouched.
+ *
+ * Pass the chart's EFFECTIVE family (defaults already applied) — the answer
+ * depends on what an un-annotated series would otherwise have drawn.
+ */
+export function effectiveChartFamily<T extends ChartFamily | undefined>(
+  chartType: T,
+  series: readonly Pick<NormalizedSeries, 'chartType'>[] | undefined,
+): T | 'combo' {
+  if (chartType === 'combo') return 'combo';
+  const base = comboBaseFamily(chartType);
+  if (!base || !series || series.length < 2) return chartType;
+  const resolved = series.map((s) => s.chartType ?? base);
+  return new Set(resolved).size > 1 ? 'combo' : chartType;
 }
 
 /**

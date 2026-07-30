@@ -10,7 +10,14 @@
  *      (DashboardRenderer / ObjectView / the dataset path pass it explicitly).
  */
 import { describe, it, expect } from 'vitest';
-import { normalizeChartSchema, formatterFor, domainFor, ticksFor } from './normalizeChartSchema';
+import {
+  normalizeChartSchema,
+  formatterFor,
+  domainFor,
+  ticksFor,
+  effectiveChartFamily,
+  comboBaseFamily,
+} from './normalizeChartSchema';
 
 describe('normalizeChartSchema — spec shape', () => {
   it('resolves the ChartConfig axis + series shape', () => {
@@ -114,6 +121,79 @@ describe('normalizeChartSchema — the `type` collision', () => {
     // `metric`/`kpi` are single-value families rendered by other components;
     // mapping them onto a bar chart would draw the wrong picture silently.
     expect(normalizeChartSchema({ specType: 'metric' }).chartType).toBeUndefined();
+  });
+});
+
+/**
+ * `combo` is renderer-local — it is not a spec `ChartTypeSchema` value (the
+ * tripwire for that lives in `@object-ui/types`'s `spec-derived-unions.test.ts`,
+ * which already reads the spec enum). The spec expresses a combo chart
+ * per-series, via `ChartSeries.type`, and that override used to be parsed and
+ * carried and then dropped: only the renderer's `chartType === 'combo'` branch
+ * read it, so an author writing the protocol got the base family drawn instead.
+ */
+describe('effectiveChartFamily — a combo is derived from the series (#2945)', () => {
+  const s = (chartType?: 'bar' | 'line' | 'area') => (chartType ? { chartType } : {});
+
+  it('derives a combo when a series overrides the family', () => {
+    // The case that rendered silently wrong: `margin` drew as a bar.
+    expect(effectiveChartFamily('bar', [s(), s('line')])).toBe('combo');
+  });
+
+  it('leaves a chart whose series all agree alone', () => {
+    expect(effectiveChartFamily('bar', [s(), s()])).toBe('bar');
+    expect(effectiveChartFamily('bar', [s('bar'), s('bar')])).toBe('bar');
+    // Agreeing with each other but not with the chart is still one family.
+    expect(effectiveChartFamily('area', [s('area'), s('area')])).toBe('area');
+  });
+
+  it('reads the override against the chart\'s own family, not against `bar`', () => {
+    // On an area chart, `area` series are the base — not an override.
+    expect(effectiveChartFamily('area', [s(), s('area')])).toBe('area');
+    expect(effectiveChartFamily('area', [s(), s('bar')])).toBe('combo');
+  });
+
+  it('treats `column` as the bar spelling it is', () => {
+    expect(effectiveChartFamily('column', [s(), s('bar')])).toBe('column');
+    expect(effectiveChartFamily('column', [s(), s('line')])).toBe('combo');
+  });
+
+  it('returns an explicit `combo` untouched', () => {
+    // Internal-shape callers pass it directly (DatasetPreview's mixed-scale
+    // branch), with series that may declare nothing at all.
+    expect(effectiveChartFamily('combo', [s(), s()])).toBe('combo');
+    expect(effectiveChartFamily('combo', undefined)).toBe('combo');
+  });
+
+  it('does not widen a family that has no per-series meaning', () => {
+    // A `line` series inside a pie chart names nothing; switching the whole
+    // chart to a cartesian combo would be a worse answer than ignoring it.
+    for (const family of ['pie', 'donut', 'funnel', 'radar', 'scatter', 'treemap', 'sankey'] as const) {
+      expect(effectiveChartFamily(family, [s(), s('line')])).toBe(family);
+    }
+    // Same for horizontal bars — the combo renderer plots vertically, so
+    // deriving one would silently reorient the chart.
+    expect(effectiveChartFamily('horizontal-bar', [s(), s('line')])).toBe('horizontal-bar');
+  });
+
+  it('needs two series to have a disagreement', () => {
+    expect(effectiveChartFamily('bar', [s('line')])).toBe('bar');
+    expect(effectiveChartFamily('bar', [])).toBe('bar');
+    expect(effectiveChartFamily(undefined, [s(), s('line')])).toBeUndefined();
+  });
+
+  it('comboBaseFamily marks an authored combo by having no base', () => {
+    // The renderer uses exactly this to tell derived from authored: a derived
+    // combo defaults un-annotated series to the chart's family and binds them
+    // to the left axis (the spec default), an authored one keeps the legacy
+    // index/family guess.
+    expect(comboBaseFamily('bar')).toBe('bar');
+    expect(comboBaseFamily('column')).toBe('bar');
+    expect(comboBaseFamily('line')).toBe('line');
+    expect(comboBaseFamily('area')).toBe('area');
+    expect(comboBaseFamily('combo')).toBeUndefined();
+    expect(comboBaseFamily('pie')).toBeUndefined();
+    expect(comboBaseFamily(undefined)).toBeUndefined();
   });
 });
 

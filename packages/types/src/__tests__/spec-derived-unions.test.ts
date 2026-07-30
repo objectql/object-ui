@@ -36,9 +36,10 @@
  * only thing that fails CI, which is why the #4074 cases below are written as
  * identity and membership checks.
  *
- * The last case is the inverse: `navigation` is a name objectui runs that the
- * spec does NOT have. It is asserted absent from the spec so that the day the
- * spec adopts it, this file fails and names the alias to retire.
+ * Two cases are the inverse: `navigation` and `combo` are names objectui uses
+ * that the spec does NOT have. Each is asserted absent from the spec, so that
+ * the day the spec adopts one, this file fails and names the local thing to
+ * retire.
  */
 import { describe, it, expect } from 'vitest';
 import {
@@ -133,6 +134,19 @@ describe('unions derived from a spec vocabulary stay derived (#2944)', () => {
     // alias is the thing to retire.
     expect(optionsOf(SpecActionType, 'ActionType')).not.toContain('navigation');
     expect([...OBJECTUI_LOCAL_ACTION_TYPES]).toEqual(['navigation']);
+  });
+
+  it('`combo` is not a spec chart type — the spec models it per-series', () => {
+    // `plugin-charts`'s `ChartFamily` carries `combo`, which #2945 listed as
+    // "promote or delete". Neither: `ChartSeries.type` already exists and its
+    // own field comment reads "Series type override (combo charts)", so the
+    // spec expresses a combo per-series, exactly as it expresses stacking with
+    // `ChartSeries.stack` rather than a `stacked-bar` family. `combo` stays a
+    // renderer-local marker that `effectiveChartFamily` DERIVES from the series.
+    //
+    // Tripwire, same shape as `navigation` above: if the spec ever adopts
+    // `combo`, this fails and the derivation is what to retire.
+    expect(optionsOf(SpecChartTypeSchema, 'ChartTypeSchema')).not.toContain('combo');
   });
 
   it('ReportType includes `joined` — the member the fork dropped', () => {

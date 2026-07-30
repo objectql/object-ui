@@ -14,6 +14,7 @@ import {
   LineChart,
   Area,
   AreaChart,
+  ComposedChart,
   Pie,
   PieChart,
   Radar,
@@ -47,7 +48,7 @@ import {
   ChartConfig
 } from './ChartContainerImpl';
 import { mapScatterClick, mapTreemapClick, mapSankeyClick } from './chartDrillEvents';
-import { formatterFor, domainFor, ticksFor, RENDERABLE, SINGLE_VALUE_CHART_TYPES, TABULAR_CHART_TYPES, type NormalizedAxis, type NormalizedSeries } from './normalizeChartSchema';
+import { formatterFor, domainFor, ticksFor, RENDERABLE, SINGLE_VALUE_CHART_TYPES, TABULAR_CHART_TYPES, effectiveChartFamily, comboBaseFamily, type NormalizedAxis, type NormalizedSeries } from './normalizeChartSchema';
 import { buildCategoryRank } from '@object-ui/core';
 
 // Default color fallback for chart series
@@ -96,6 +97,11 @@ const comparisonStyle = (s: any, kind: 'line' | 'area' | 'bar' | 'scatter') => {
 };
 
 export interface AdvancedChartImplProps {
+  /**
+   * Chart family. `combo` is renderer-local and rarely needs to be passed:
+   * series declaring different families derive it (`effectiveChartFamily`),
+   * which is how `@objectstack/spec` expresses a combo chart.
+   */
   chartType?: 'bar' | 'column' | 'horizontal-bar' | 'line' | 'area' | 'pie' | 'donut' | 'radar' | 'scatter' | 'funnel' | 'combo' | 'treemap' | 'sankey';
   data?: Array<Record<string, any>>;
   config?: ChartConfig;
@@ -266,7 +272,14 @@ function AdvancedChartImplInner({
 }: AdvancedChartImplProps) {
   // Normalize 'column' → 'bar' (Recharts BarChart is already vertical).
   // 'column' is the spec-level alias for vertical bars; 'horizontal-bar' stays as-is.
-  const chartType = rawChartType === 'column' ? 'bar' : rawChartType;
+  const baseChartType = rawChartType === 'column' ? 'bar' : rawChartType;
+  // A chart whose series declare more than one family IS a combo, whatever its
+  // own family says — `ChartSeries.type` is how the spec expresses that, and
+  // reading it only under an explicit `combo` drew the overridden series as the
+  // base family instead (#2945). `comboSeriesBase` is what an un-annotated
+  // series draws, and `undefined` marks an explicitly-authored combo.
+  const chartType = effectiveChartFamily(baseChartType, series);
+  const comboSeriesBase = comboBaseFamily(baseChartType);
   const data = Array.isArray(rawData) ? rawData : [];
 
   // Only emit the prop when explicitly disabled, so the default (animated)
@@ -364,9 +377,9 @@ function AdvancedChartImplInner({
     radar: RadarChart,
     scatter: ScatterChart,
     funnel: FunnelChart as any,
-    combo: BarChart,
-    // treemap/sankey return from their own branches above; mapped here only so
-    // the index type stays exhaustive.
+    // combo/treemap/sankey return from their own branches above; mapped here
+    // only so the index type stays exhaustive.
+    combo: ComposedChart,
     treemap: BarChart,
     sankey: BarChart,
   }[chartType] || BarChart;
@@ -877,12 +890,18 @@ function AdvancedChartImplInner({
     );
   }
 
-  // Combo chart (mixed bar + line on same chart)
+  // Combo chart (mixed families on one plot). Reached either by an explicit
+  // `chartType: 'combo'` or by series that declare different families — see
+  // `effectiveChartFamily`.
   if (chartType === 'combo') {
     return (
       <ChartFrame title={title} subtitle={subtitle}>
       <ChartContainer config={config} className={className} {...containerProps}>
-        <BarChart data={data}>
+        {/* `ComposedChart`, not `BarChart`, is the Recharts container built to
+            host mixed marks. Under `BarChart` an `<Area>` child renders nothing
+            at all, so the `seriesType === 'area'` arm below was unreachable —
+            an authored combo with an `area` series drew a blank series. */}
+        <ComposedChart data={data}>
           <CartesianGrid {...gridProps} />
           <XAxis dataKey={xAxisKey} {...xAxisCommonProps} />
           <YAxis yAxisId="left" tickLine={false} axisLine={false} tickFormatter={yTickFormatter} width={48} {...yAxisSpecProps(primaryY)} />
@@ -898,12 +917,21 @@ function AdvancedChartImplInner({
           {brushEl}
           {series.map((s: any, index: number) => {
             const color = resolveColor(config[s.dataKey]?.color || DEFAULT_CHART_COLOR);
-            const seriesType = s.chartType || (index === 0 ? 'bar' : 'line');
-            // An explicit spec `series[].yAxis` wins over the family-derived
-            // default (bar→left / line→right), which is only a guess.
+            // A derived combo knows what an un-annotated series is: the chart's
+            // own family. Only an explicitly-authored `combo` has no base, and
+            // there the index heuristic stands so those charts are unchanged.
+            const seriesType = s.chartType || comboSeriesBase || (index === 0 ? 'bar' : 'line');
+            // An explicit spec `series[].yAxis` wins over any default. Where
+            // there is no `yAxis`, a DERIVED combo follows the spec, which
+            // defaults `ChartSeries.yAxis` to 'left' — so widening a bar chart
+            // into a combo changes the series' mark and nothing else. The
+            // bar→left / line→right guess is kept only for an authored `combo`,
+            // where historically it was the sole way to reach a second axis.
             const yAxisId = s.yAxis === 'right' || s.yAxis === 'left'
               ? s.yAxis
-              : (seriesType === 'bar' ? 'left' : 'right');
+              : comboSeriesBase
+                ? 'left'
+                : (seriesType === 'bar' ? 'left' : 'right');
             const cmp = comparisonStyle(s, seriesType as any);
             const stackProps = s.stack ? { stackId: String(s.stack) } : {};
             const valueFormatter = formatterFor((yAxisId === 'right' ? secondaryY : primaryY)?.format);
@@ -928,7 +956,7 @@ function AdvancedChartImplInner({
               </Bar>
             );
           })}
-        </BarChart>
+        </ComposedChart>
       </ChartContainer>
       </ChartFrame>
     );
