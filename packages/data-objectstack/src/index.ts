@@ -110,13 +110,137 @@ function normalizeFilterOperator(op: unknown): string | null {
   return FILTER_OPERATOR_ALIASES[lower] ?? FILTER_OPERATOR_ALIASES[op] ?? op;
 }
 
+/**
+ * A filter entry this adapter cannot translate into an AST tuple.
+ *
+ * Thrown rather than skipped. Dropping one entry out of an `and` WIDENS the
+ * result set, and dropping the last one emits no `filter=` at all — every row,
+ * no error, from a query that asked for a subset. That is the same silent
+ * over-fetch the server-side drivers stopped doing in objectstack#3948, and
+ * skipping it here just moves it one layer up.
+ *
+ * Carries the code and status the data API uses for its own version of this
+ * refusal (objectstack#4121) so a failed list renders "this view's filter is
+ * malformed" rather than "check your connection" (#3066).
+ */
+export class MalformedFilterError extends Error {
+  readonly code = 'INVALID_FILTER';
+  readonly httpStatus = 400;
+  readonly entry: unknown;
+  readonly index: number;
+  constructor(entry: unknown, index: number) {
+    const shown = JSON.stringify(entry) ?? String(entry);
+    super(
+      `Filter entry ${index} is not a usable filter rule (${shown}). `
+      + 'Expected { field, operator, value } with a non-empty field.',
+    );
+    this.name = 'MalformedFilterError';
+    this.entry = entry;
+    this.index = index;
+  }
+}
+
+/** Detect the malformed-filter refusal, whether raised here or by the server. */
+export function isMalformedFilterError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as Record<string, unknown>;
+  return e.code === 'INVALID_FILTER' || e.name === 'MalformedFilterError';
+}
+
 function objectFilterEntryToAST(entry: any): [string, string, any] | null {
   if (!entry || typeof entry !== 'object') return null;
-  const field = entry.field ?? entry.name;
+  // `field` only. A `?? entry.name` fallback lived here from the day the
+  // function was written (4b93db4e6) and was unreachable for exactly as long:
+  // the shape sniff below has always keyed on `field`, so a `name`-keyed entry
+  // fell through to the "already AST" branch and shipped raw. The spec agrees
+  // it is not a real shape — `ViewFilterRuleSchema.field` is required, so a
+  // `name`-keyed rule cannot be saved as view metadata in the first place.
+  const field = entry.field;
   const rawOp = entry.operator ?? entry.op ?? '=';
   const op = normalizeFilterOperator(rawOp);
   if (!field || !op) return null;
   return [String(field), op, entry.value];
+}
+
+/**
+ * Which of the two array filter shapes is this — object entries or an AST node?
+ *
+ * One definition on purpose. This test used to be written out twice (here and
+ * inline in `convertQueryParams`) and the copies had already drifted: the
+ * inline one omitted the `!== null` guard, so a `$filter` of `[null]` threw a
+ * TypeError on the plain `find()` path while the same value was handled on the
+ * `$expand` path. Same stored view, different answer, decided by whether it
+ * happened to expand a lookup.
+ */
+function isObjectFilterEntryForm(filter: readonly unknown[]): boolean {
+  const first = filter[0];
+  return filter.length > 0
+    && typeof first === 'object'
+    && first !== null
+    && !Array.isArray(first)
+    && (first as any).field !== undefined;
+}
+
+/**
+ * Translate `[{ field, operator, value }, ...]` into a filter AST node. Every
+ * entry must translate; see `MalformedFilterError` for why one that doesn't is
+ * an error rather than an omission.
+ */
+function objectFilterEntriesToAST(entries: readonly unknown[]): unknown[] {
+  const nodes = entries.map((entry, i) => {
+    // An entry that is itself an array is already a node — a mixed array keeps
+    // both conditions instead of losing one to a drop or the whole query to an
+    // error.
+    if (Array.isArray(entry)) return translateFilterChild(entry);
+    const tuple = objectFilterEntryToAST(entry);
+    if (!tuple) throw new MalformedFilterError(entry, i);
+    return tuple;
+  });
+  return nodes.length === 1 ? (nodes[0] as unknown[]) : ['and', ...nodes];
+}
+
+/** Logical heads `parseFilterAST` recognizes (`data/filter.zod.ts`). No `not`. */
+const LOGICAL_AST_HEADS = new Set(['and', 'or']);
+
+/**
+ * Translate a filter array at EVERY level, not just the top one.
+ *
+ * Translating only the top level left the commonest composite filter there is
+ * shipping raw. A list whose view carries a stored filter and whose user adds
+ * one in the panel produces `['and', <ViewFilterRule[]>, <AST tuples>]`; the
+ * head is the string `and`, so the old top-level-only check called the whole
+ * thing "already AST" and sent the rules on untouched.
+ *
+ * What the server does with that depends on its version, and both answers are
+ * wrong:
+ *
+ * ```
+ * const n = ['and', [{ field: 'stage', operator: 'eq', value: 'won' }], [['amount', '>', 1]]];
+ * isFilterAST(n)    // false — a bare rule object is not an AST child
+ * parseFilterAST(n) // { amount: { $gt: 1 } }   ← `stage = won` is simply GONE
+ * ```
+ *
+ * Since objectstack#4121 the `isFilterAST` gate turns that into a 400 and the
+ * list fails to load. Before it — or anywhere `parseFilterAST` is reached
+ * without the gate — the view's own condition is dropped without a word and the
+ * list shows records the view exists to exclude.
+ */
+function translateFilterArray(filter: unknown[]): unknown[] {
+  if (isObjectFilterEntryForm(filter)) return objectFilterEntriesToAST(filter);
+  const head = filter[0];
+  if (typeof head === 'string' && LOGICAL_AST_HEADS.has(head.toLowerCase())) {
+    return [head, ...filter.slice(1).map(translateFilterChild)];
+  }
+  // Legacy flat array of child nodes: [[...], [...]] — implicit AND.
+  if (filter.every((child) => Array.isArray(child))) return filter.map(translateFilterChild);
+  // A comparison tuple, or a shape we do not recognize. Leave it alone; the
+  // server decides, and since objectstack#4121 it says so with a 400.
+  return filter;
+}
+
+/** A child of a logical node: another array node, or a value we leave alone. */
+function translateFilterChild(child: unknown): unknown {
+  return Array.isArray(child) && child.length > 0 ? translateFilterArray(child) : child;
 }
 
 /**
@@ -138,25 +262,7 @@ function translateFilterToAST(filter: unknown): unknown | undefined {
 
   if (Array.isArray(filter)) {
     if (filter.length === 0) return undefined;
-
-    // Object form: [{ field, operator, value }, ...]
-    const first = filter[0];
-    const isObjectForm = filter.length > 0
-      && typeof first === 'object'
-      && first !== null
-      && !Array.isArray(first)
-      && (first as any).field !== undefined;
-    if (isObjectForm) {
-      const tuples = (filter as any[])
-        .map(entry => objectFilterEntryToAST(entry))
-        .filter((t): t is [string, string, any] => t !== null);
-      if (tuples.length === 0) return undefined;
-      if (tuples.length === 1) return tuples[0];
-      return ['and', ...tuples];
-    }
-
-    // Already AST — pass through.
-    return filter;
+    return translateFilterArray(filter);
   }
 
   if (typeof filter === 'object') {
@@ -2076,26 +2182,10 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
           //      entry into the AST tuple shape and map human-readable
           //      operator names (`greater_than_or_equal`, `in`, `contains`,
           //      …) to the canonical symbols the server understands.
-          const isObjectForm = params.$filter.length > 0
-            && typeof params.$filter[0] === 'object'
-            && !Array.isArray(params.$filter[0])
-            && (params.$filter[0] as any).field !== undefined;
-          if (isObjectForm) {
-            const tuples = (params.$filter as any[])
-              .map(entry => objectFilterEntryToAST(entry))
-              .filter((t): t is [string, string, any] => t !== null);
-            if (tuples.length === 0) {
-              // All entries were unrecognized — drop the filter rather than
-              // sending a malformed array.
-            } else if (tuples.length === 1) {
-              options.filters = tuples[0];
-            } else {
-              options.filters = ['and', ...tuples];
-            }
-          } else {
-            // Already in AST format
-            options.filters = params.$filter;
-          }
+          // Shared with `translateFilterToAST` so the two `find()` routes — this
+          // one and the `$expand`/`$search` raw GET — cannot disagree about the
+          // same stored filter.
+          options.filters = translateFilterArray(params.$filter);
         } else {
           options.filters = convertFiltersToAST(params.$filter);
         }
