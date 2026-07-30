@@ -167,8 +167,27 @@ injected — use HTML) or a block outside the public contract (use `Block`).
 ### Page state
 
 A react page keeps its own `useState` across re-renders and across lazy plugin
-loads. Two things reset it, both intentional: a change to `source`, and a change
-to the page's data/variables — the page is genuinely a different page then.
+loads. Three things reset it, all intentional: a change to `source`, a change to
+the page's data/variables, and a **new data source** — the page is genuinely a
+different page then.
+
+That last one is a requirement on the **host**, not the author. The page is
+recompiled when the adapter's *identity* changes, because recompiling is the
+only way the new adapter reaches the blocks inside the page. So a host that
+constructs a new adapter on every render resets every react page on every
+render. Provide it from state or a module constant:
+
+```tsx
+// ❌ new adapter object every render — every react page below loses its state
+<AdapterCtx.Provider value={new ObjectStackAdapter(config)}>
+
+// ✅
+const [adapter, setAdapter] = useState<ObjectStackAdapter | null>(null);
+<AdapterCtx.Provider value={adapter}>
+```
+
+`@object-ui/app-shell`'s `AdapterProvider` already does this correctly; the rule
+matters for custom hosts and preview surfaces.
 
 ## `kind:'html'`
 

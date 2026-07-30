@@ -93,6 +93,18 @@ function buildComponentScope(dataSource: unknown): Record<string, React.Componen
   return scope;
 }
 
+/**
+ * Stand-in for "no adapter yet" — the window before the host's AdapterProvider
+ * finishes connecting, and any surface that renders a react page without one.
+ *
+ * A module constant, not an inline `?? {}`: this is a context value, and
+ * SchemaRendererProvider memoises on its identity. A fresh object per render
+ * would break that memo for every block inside the page, re-cloning each
+ * block's schema and re-running its expressions on every render of the page —
+ * the same defect the SchemaRenderer fallback had (objectui#2954).
+ */
+const NO_DATA_SOURCE = {};
+
 function CapabilityDisabledNotice(): React.ReactElement {
   return (
     <div className="m-4 rounded-md border border-amber-400/40 bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
@@ -179,7 +191,7 @@ export const ReactKindPage: React.FC<{ schema: any }> = ({ schema }) => {
 
   const { ReactRunner } = runtime;
   return (
-    <SchemaRendererProvider dataSource={adapter ?? {}}>
+    <SchemaRendererProvider dataSource={adapter ?? NO_DATA_SOURCE}>
       <ReactRunner
         code={source}
         scope={scope}
