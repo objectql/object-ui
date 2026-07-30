@@ -1620,6 +1620,10 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     // Auto-enable multi-select when bulk actions exist
     selectionMode = 'multiple';
   }
+  // `selection.type: 'single'` caps the selection at one row (the data-table
+  // enforces replace-on-select, #2941), so the cross-page "select all N
+  // matching" escalation must never be offered.
+  const singleSelection = selectionMode === 'single';
 
   // Resolve the rows the bulk action should actually operate on. When
   // "select all N matching" is active, fan out a paged find against the
@@ -2522,9 +2526,9 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                 onActionDef={dispatchBulkActionDef}
                 onClearSelection={() => { setSelectedRows([]); setSelectAllMatching(false); }}
                 pageSize={data.length}
-                totalMatching={totalMatching}
+                totalMatching={singleSelection ? undefined : totalMatching}
                 allMatchingSelected={selectAllMatching}
-                onSelectAllMatching={() => setSelectAllMatching(true)}
+                onSelectAllMatching={singleSelection ? undefined : () => setSelectAllMatching(true)}
               />
             </div>
           }
@@ -2559,9 +2563,9 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
         onActionDef={dispatchBulkActionDef}
         onClearSelection={() => { setSelectedRows([]); setSelectAllMatching(false); }}
         pageSize={data.length}
-        totalMatching={totalMatching}
+        totalMatching={singleSelection ? undefined : totalMatching}
         allMatchingSelected={selectAllMatching}
-        onSelectAllMatching={() => setSelectAllMatching(true)}
+        onSelectAllMatching={singleSelection ? undefined : () => setSelectAllMatching(true)}
       />
       {navigation.isOverlay && (
         <NavigationOverlay

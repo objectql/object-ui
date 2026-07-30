@@ -289,13 +289,38 @@ export const DataTableBuiltinRowActionItem: React.FC<{
 };
 
 /**
+ * The selection modes this table implements — the renderer half of the spec's
+ * `SelectionConfigSchema.type` vocabulary (`ui/view.zod.ts`). Kept as an
+ * explicit export so a parity test can fail the moment either side moves
+ * (#2941; template: plugin-grid `summary-spec-parity.test.ts`).
+ */
+export const SUPPORTED_SELECTION_MODES: ReadonlySet<string> = new Set(['none', 'single', 'multiple']);
+
+type SelectionMode = 'none' | 'single' | 'multiple';
+
+/**
+ * Resolve the `selectable` prop — `boolean | 'single' | 'multiple'` (plus
+ * `'none'` arriving verbatim from raw SDUI JSON) — to a selection mode.
+ * `'single'` is a real mode (replace-on-select, no select-all), not a truthy
+ * alias for `'multiple'`; collapsing the two rendered per-row checkboxes AND
+ * a select-all header for `selection.type: 'single'` (#2941). Legacy `true`
+ * and unrecognized truthy strings keep their historical multi-select meaning.
+ */
+function resolveSelectionMode(selectable: DataTableSchema['selectable'] | 'none'): SelectionMode {
+  if (selectable === 'single') return 'single';
+  if (selectable === 'none' || !selectable) return 'none';
+  return 'multiple';
+}
+
+/**
  * Enterprise-level data table component with Airtable-like features.
  *
  * Provides comprehensive table functionality including:
  * - Multi-column sorting (ascending/descending/none)
  * - Real-time search across all columns
  * - Pagination with configurable page sizes
- * - Row selection with persistence across pages
+ * - Row selection with persistence across pages (multi-select), or
+ *   replace-on-select when the view declares `selection.type: 'single'`
  * - CSV export of filtered/sorted data
  * - Row action buttons (edit/delete)
  * 
@@ -337,7 +362,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     onPageChange,
     onPageSizeChange,
     searchable = true,
-    selectable = false,
+    selectable: selectableProp = false,
     showSelectionCount = true,
     selectionResetKey,
     sortable = true,
@@ -358,6 +383,11 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     borderless = false,
     disableInnerScroll = false,
   } = schema;
+
+  // 'single' caps the selection at one row (replace-on-select) and drops the
+  // select-all header; every truthy legacy value keeps meaning 'multiple'.
+  const selectionMode = resolveSelectionMode(selectableProp);
+  const selectable = selectionMode !== 'none';
 
   // Ambient design-surface affordance: when a host (Studio) provides it, render
   // a trailing "+ add field" column header. `null` for every runtime table, so
@@ -699,7 +729,9 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   };
 
   const handleSelectRow = (rowId: any, checked: boolean) => {
-    const newSelected = new Set(selectedRowIds);
+    // Single mode replaces the previous selection instead of accumulating —
+    // the spec's 'single' must never hold two rows (#2941).
+    const newSelected = new Set(selectionMode === 'single' ? [] : selectedRowIds);
     if (checked) {
       newSelected.add(rowId);
     } else {
@@ -1283,10 +1315,15 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
             <TableRow ref={headerRowRef}>
               {selectable && (
                 <TableHead className={cn("w-10 bg-background px-3", frozenColumns > 0 && "sticky left-0 z-20")}>
-                  <Checkbox
-                    checked={allPageRowsSelected ? true : somePageRowsSelected ? 'indeterminate' : false}
-                    onCheckedChange={handleSelectAll}
-                  />
+                  {/* Select-all is a multi-select affordance; a 'single' view
+                      keeps the column (alignment) but offers no way to select
+                      more than one row (#2941). */}
+                  {selectionMode === 'multiple' && (
+                    <Checkbox
+                      checked={allPageRowsSelected ? true : somePageRowsSelected ? 'indeterminate' : false}
+                      onCheckedChange={handleSelectAll}
+                    />
+                  )}
                 </TableHead>
               )}
               {showRowNumbers && (
