@@ -257,6 +257,10 @@ async function checkComponent(name, manifest) {
         status = 'modified';
         message = `${localOnly.length} local line(s) upstream lacks — --update would refuse`;
         if (upstreamOnly.length > 0) message += `, ${upstreamOnly.length} upstream line(s) pending`;
+        // Divergence with a recorded reason is a decision; divergence without
+        // one is an open question. Surfacing the split makes the untriaged
+        // components a visible to-do instead of undifferentiated noise.
+        message += componentInfo.localEdits ? '  [documented]' : '  [UNDOCUMENTED]';
       } else if (upstreamOnly.length > 0) {
         status = 'outdated';
         message = `${upstreamOnly.length} upstream line(s) to pick up — safe to sync`;
@@ -272,6 +276,7 @@ async function checkComponent(name, manifest) {
         shadcnLines,
         localOnly: localOnly.length,
         upstreamOnly: upstreamOnly.length,
+        documented: Boolean(componentInfo.localEdits),
         message,
       };
     } catch (fetchError) {
@@ -349,10 +354,20 @@ async function checkAllComponents() {
   }
 
   if (results.modified.length > 0) {
+    const undocumented = results.modified.filter((r) => !r.documented);
+    const documented = results.modified.filter((r) => r.documented);
+
     log('\nThese carry local edits a sync would delete:', 'yellow');
-    log(`  ${results.modified.map((r) => `${r.name}(${r.localOnly})`).join(', ')}`, 'dim');
-    log('  Port the edits onto the new upstream version by hand, or --force to', 'dim');
-    log('  take upstream as-is. `--diff <name>` shows both sides.', 'dim');
+    if (documented.length > 0) {
+      log(`  documented (${documented.length}): ${documented.map((r) => `${r.name}(${r.localOnly})`).join(', ')}`, 'dim');
+      log('    → reason recorded in `localEdits` in shadcn-components.json', 'dim');
+    }
+    if (undocumented.length > 0) {
+      log(`  UNDOCUMENTED (${undocumented.length}): ${undocumented.map((r) => `${r.name}(${r.localOnly})`).join(', ')}`, 'yellow');
+      log('    → nobody has written down why these diverge. Until someone does,', 'dim');
+      log('      there is no way to tell a deliberate fix from stale drift.', 'dim');
+      log('      Triage with `--diff <name>`, then add a `localEdits` note.', 'dim');
+    }
   }
 
   return results;
@@ -429,6 +444,12 @@ async function updateComponent(name, manifest, options = {}) {
         log(`✗ Refusing to overwrite ${name}.tsx — ${lost.length} local line(s) upstream does not have:`, 'red');
         lost.slice(0, 8).forEach((l) => log(`    ${l.length > 96 ? l.slice(0, 96) + '…' : l}`, 'dim'));
         if (lost.length > 8) log(`    … and ${lost.length - 8} more`, 'dim');
+        if (componentInfo.localEdits) {
+          // Someone already worked out why this diverges. Say so here rather
+          // than making the next person re-derive it from a wall of diff.
+          log(`  Why it diverges (localEdits in shadcn-components.json):`, 'cyan');
+          log(`    ${componentInfo.localEdits}`, 'dim');
+        }
         log(`  Overwriting deletes these. Port them onto the new upstream version by hand,`, 'yellow');
         log(`  or re-run with --force if they are genuinely obsolete.`, 'yellow');
         return 'skipped';
