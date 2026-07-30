@@ -365,7 +365,7 @@ separate arm and survives — but it ranks with Tier 1, not Tier 2.
 | `$ncontains`; `secret` inline edit | Fixed — #2940 |
 | `before`/`after`, `'not in'`, + 8 legacy spellings | Fixed — #2974 |
 | `DensityModeSchema` inert | Resolved upstream (removed in spec 17) |
-| Packages lacking the `@objectstack/spec` devDep | **5**, not 6 — `plugin-list` and `data-objectstack` gained it in #2974; `plugin-charts`, `plugin-dashboard`, `plugin-report`, `components`, `mobile`, `fields` remain |
+| Packages lacking the `@objectstack/spec` devDep | **6** — `plugin-list` and `data-objectstack` gained it in #2974; `plugin-charts`, `plugin-dashboard`, `plugin-report`, `components`, `mobile` and `fields` remain. (The body above says 6 because it counted a 13-package "needs a guard" list that omitted `fields`; adding `fields` and removing the two now fixed leaves 6 either way.) |
 | Everything else | Open — #2941 (Tier 1), #2942 (Tier 2), #2943 (Tier 3), #2944 (forks), #2945 (vocabularies) |
 
 One method note for anyone repeating this: the original run read a checkout that
