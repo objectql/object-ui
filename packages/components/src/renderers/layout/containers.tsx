@@ -1306,6 +1306,20 @@ ComponentRegistry.register('header', PageHeaderRenderer, {
   skipFallback: true,
   label: 'Page Header',
   category: 'layout',
+  // The renderer reads all of these off the schema (or off `properties.*` —
+  // the spec bridge may inline or preserve the bag), so an author configures
+  // the header through them. `className` is left out as a styling
+  // pass-through, and the host-injected `RecordContext.headerSystemActions`
+  // is not authored here at all.
+  inputs: [
+    { name: 'title', type: 'string', label: 'Title', description: 'Supports {field} interpolation and inline translation maps; falls back to the record title' },
+    { name: 'subtitle', type: 'string', label: 'Subtitle', description: 'Same interpolation as Title' },
+    { name: 'actions', type: 'array', label: 'Actions', description: 'Action buttons rendered in the header, before any host-injected system actions' },
+    { name: 'breadcrumb', type: 'boolean', label: 'Breadcrumb', defaultValue: true },
+    { name: 'recordChrome', type: 'boolean', label: 'Record Chrome', defaultValue: true, description: 'Set false for the bare h1 header on non-record pages' },
+    { name: 'showStar', type: 'boolean', label: 'Show Follow Star', defaultValue: true },
+    { name: 'showCopyId', type: 'boolean', label: 'Show Copy-ID', defaultValue: true },
+  ],
 });
 
 // ---------------------------------------------------------------------------
