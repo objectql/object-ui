@@ -47,8 +47,15 @@ import {
  * (e.g. `lead.view.ts`) to the canonical operator symbols expected by the
  * ObjectStack server's filter AST. Unknown operators fall through unchanged
  * so existing AST-style entries keep working.
+ *
+ * Every VALUE here must be a member of the spec's `VALID_AST_OPERATORS`
+ * (`@objectstack/spec/data`) — that set gates `isFilterAST()`, and a filter it
+ * rejects is not converted, not validated, and then silently DROPPED by
+ * driver-sql (objectstack#3948). Pinned by `filter-operator-ast-parity.test.ts`.
+ *
+ * Exported for that test. @internal
  */
-const FILTER_OPERATOR_ALIASES: Record<string, string> = {
+export const FILTER_OPERATOR_ALIASES: Record<string, string> = {
   equals: '=',
   eq: '=',
   '==': '=',
@@ -85,6 +92,15 @@ const FILTER_OPERATOR_ALIASES: Record<string, string> = {
   isnull: 'isnull',
   is_not_null: 'isnotnull',
   isnotnull: 'isnotnull',
+  // Date comparisons. `before`/`after` are CANONICAL members of the spec's
+  // `VIEW_FILTER_OPERATORS` (ui/view.zod.ts), so a stored view legitimately
+  // carries them — but they are absent from `VALID_AST_OPERATORS`
+  // (data/filter.zod.ts), which gates `isFilterAST()`. Without these two
+  // entries they reached the wire unchanged, the server's AST gate rejected
+  // the shape, and driver-sql skipped the filter ENTIRELY — an unfiltered
+  // result set with no error anywhere. objectstack#3948.
+  before: '<',
+  after: '>',
 };
 
 function normalizeFilterOperator(op: unknown): string | null {

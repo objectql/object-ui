@@ -59,27 +59,57 @@ export interface ListViewProps {
 // Helper to convert FilterBuilder group to ObjectStack AST.
 // Accepts both the FilterBuilder vocabulary (camelCase) and the
 // @objectstack/spec ViewFilterRule vocabulary (snake_case).
-function mapOperator(op: string) {
-  switch (op) {
+/**
+ * Filter-builder / view operator → filter-AST operator.
+ *
+ * Every value returned must be a member of the spec's `VALID_AST_OPERATORS`
+ * (`@objectstack/spec/data`). That set gates `isFilterAST()`, and a filter it
+ * rejects is passed through unconverted and then silently DROPPED by driver-sql
+ * — an unfiltered result set with no error (objectstack#3948). Pinned by
+ * `filter-operator-ast-parity.test.ts`.
+ *
+ * Exported for that test. @internal
+ */
+export function mapOperator(op: string) {
+  // The spec's alias table carries the same operator in up to four spellings
+  // (`not_equals`, `notEquals`, `notequals`, `ne`), and stored view metadata
+  // holds all of them — `saveMeta` persists the authored body verbatim, so the
+  // spec's own normalization never reaches the row. Matching them case- and
+  // underscore-insensitively collapses that whole class instead of enumerating
+  // it: a switch listing spellings by hand had already missed eight.
+  switch (op.toLowerCase().replace(/[_\s]/g, '')) {
     case 'equals': case 'eq': return '=';
-    case 'notEquals': case 'not_equals': case 'ne': case 'neq': return '!=';
+    case 'notequals': case 'ne': case 'neq': return '!=';
     case 'contains': return 'contains';
-    case 'notContains': case 'not_contains': case 'notcontains': return 'notcontains';
-    case 'startsWith': case 'starts_with': return 'startswith';
-    case 'greaterThan': case 'greater_than': case 'gt': return '>';
-    case 'greaterOrEqual': case 'greater_than_or_equal': case 'gte': return '>=';
-    case 'lessThan': case 'less_than': case 'lt': return '<';
-    case 'lessOrEqual': case 'less_than_or_equal': case 'lte': return '<=';
+    case 'notcontains': return 'notcontains';
+    case 'startswith': return 'startswith';
+    case 'endswith': return 'endswith';
+    case 'greaterthan': case 'gt': return '>';
+    case 'greaterorequal': case 'greaterthanorequal': case 'gte': return '>=';
+    case 'lessthan': case 'lt': return '<';
+    case 'lessorequal': case 'lessthanorequal': case 'lte': return '<=';
     case 'in': return 'in';
-    case 'notIn': case 'not_in': case 'nin': return 'not in';
+    // `nin`, not `'not in'`: the spaced spelling is in no spec vocabulary, so
+    // `isFilterAST()` rejected it and driver-sql skipped the filter entirely.
+    // The array case never reached the wire (normalizeFilterCondition expands
+    // it below), but a non-array value escaped as an unfiltered query.
+    case 'notin': case 'nin': return 'nin';
+    // Canonical `VIEW_FILTER_OPERATORS` members with no AST counterpart; the
+    // gap here is what returned unfiltered rows for a stored date filter.
     case 'before': return '<';
     case 'after': return '>';
+    case 'between': return 'between';
+    case 'isnull': return 'isnull';
+    case 'isnotnull': return 'isnotnull';
     default: return op;
   }
 }
 
+/** Every not-in spelling this normalizer expands. See the note at the call site. */
+const NOT_IN_SPELLINGS = new Set(['nin', 'not_in', 'notIn', 'notin', 'not in']);
+
 /**
- * Normalize a single filter condition: convert `in`/`not in` operators
+ * Normalize a single filter condition: convert `in`/not-in operators
  * into backend-compatible `or`/`and` of equality conditions.
  * E.g., ['status', 'in', ['a','b']] → ['or', ['status','=','a'], ['status','=','b']]
  */
@@ -101,7 +131,10 @@ export function normalizeFilterCondition(condition: any[]): any[] {
     return ['or', ...value.map((v: any) => [field, '=', v])];
   }
 
-  if (op === 'not in' && Array.isArray(value)) {
+  // `nin` is what mapOperator now emits; the rest are spellings an external
+  // caller may still pass, since this function is part of plugin-list's public
+  // surface. Accepting all of them keeps the expansion working either way.
+  if (NOT_IN_SPELLINGS.has(op) && Array.isArray(value)) {
     if (value.length === 0) return [];
     if (value.length === 1) return [field, '!=', value[0]];
     return ['and', ...value.map((v: any) => [field, '!=', v])];
