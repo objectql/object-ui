@@ -43,13 +43,14 @@ import { useActionModal } from './useActionModal';
 import { ActionConfirmDialog, type ConfirmDialogState } from '../views/ActionConfirmDialog';
 import { ActionParamDialog, type ParamDialogState } from '../views/ActionParamDialog';
 import { ActionResultDialog, type ResultDialogState } from '../views/ActionResultDialog';
-import { FlowRunner, type ScreenFlowState } from '../views/FlowRunner';
+import { FlowRunner, type ScreenFlowState, type ScreenSpec } from '../views/FlowRunner';
 import { resolveActionParams } from '../utils/resolveActionParams';
 import { EnvironmentEntitlementDialog, type EntitlementDialogState } from '../environment/EnvironmentEntitlementDialog';
 import { entitlementDialogFromError, type EntitlementDialogSpec } from '../environment/entitlements';
 import { resolvePageVarTokens } from '../utils/resolvePageVarTokens';
 import { actionErrorDetail } from '../utils/actionErrorDetail';
 import { interpretActionResponse } from '../utils/actionResponse';
+import { interpretFlowResponse } from '../utils/flowResponse';
 
 const FALLBACK_USER = { id: 'current-user', name: 'Demo User', isPlatformAdmin: false };
 
@@ -350,6 +351,16 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
           return { success: false, error: errorDetail(body, `HTTP ${res.status}`) };
         }
         const json = await res.json().catch(() => ({}));
+        // A business rejection can arrive as HTTP 200 with `success: false`
+        // (objectstack#3913). `res.ok` alone misses it, so the call reported
+        // success, toasted green and refreshed while the error was swallowed
+        // (#2958). Classified BEFORE the refresh below — a rejected call
+        // changed nothing to re-fetch.
+        if (json && typeof json === 'object' && (json as { success?: unknown }).success === false) {
+          // `name` is not guaranteed on an api action (it can be target-only),
+          // so fall back to the endpoint rather than interpolating `undefined`.
+          return { success: false, error: errorDetail(json, `Action "${action.name || targetStr}" failed`) };
+        }
         if (action.refreshAfter !== false) refresh();
         // Unwrap the ObjectStack `{ success, data }` envelope so `result.data`
         // is the inner payload — the contract every `result.data` consumer
@@ -470,21 +481,28 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
         },
       );
       const json = await res.json().catch(() => null);
-      if (!res.ok || (json && json.success === false)) {
-        return { success: false, error: errorDetail(json, `Flow "${flowName}" failed (HTTP ${res.status})`) };
+      // Single source for the flow-response rule — shared with
+      // RecordDetailView's copy of this handler and with FlowRunner's resume.
+      // A launch that FAILED (HTTP 200, `data.success === false`, no `status`
+      // and no `screen`) used to be indistinguishable from a completed run and
+      // fell into the terminal-success return below: no dialog, a green toast,
+      // and a refresh (#2958). See utils/flowResponse.
+      const outcome = interpretFlowResponse<ScreenSpec>(res, json, `Flow "${flowName}"`);
+      if (outcome.kind === 'failed') {
+        // The ActionRunner's post-execution hook surfaces `error` as a toast.
+        return { success: false, error: outcome.error };
       }
       // Screen-flow runtime: paused at a `screen` node awaiting input — open
       // the FlowRunner to render the form + resume. Refresh happens on complete.
-      const data = json?.data ?? {};
-      if (data.status === 'paused' && data.screen) {
-        setScreenFlow({ flowName, runId: data.runId, screen: data.screen });
+      if (outcome.kind === 'paused') {
+        setScreenFlow({ flowName, runId: outcome.runId ?? '', screen: outcome.screen });
         // The action only OPENED the wizard — it hasn't completed. Suppress the
         // action-level success toast; the flow-runner owns completion messaging.
         return { success: true, silent: true };
       }
       const shouldRefresh = action.refreshAfter !== false;
       if (shouldRefresh) refresh();
-      return { success: true, data: json?.data, reload: shouldRefresh };
+      return { success: true, data: outcome.data, reload: shouldRefresh };
     } catch (error) {
       return { success: false, error: (error as Error).message };
     }

@@ -26,6 +26,7 @@ import {
 } from '@object-ui/components';
 import { toast } from 'sonner';
 import { ScreenView, isObjectFormScreen, initialScreenValues, visibleScreenFields, type ScreenSpec } from './ScreenView';
+import { interpretFlowResponse } from '../utils/flowResponse';
 
 export type { ScreenSpec, ScreenFieldSpec } from './ScreenView';
 
@@ -88,33 +89,32 @@ export function FlowRunner({ state, authFetch, baseUrl, onClose, onComplete, dat
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ inputs }) },
     );
     const json = await res.json().catch(() => null);
-    if (!res.ok || json?.success === false) {
-      // Transport / envelope failure — possibly transient (network, 5xx), so
-      // keep the dialog open and let the user retry the same run.
-      toast.error(json?.error || `Resume failed (HTTP ${res.status})`);
+    // Shared with the two flow-LAUNCH handlers (useConsoleActionRuntime,
+    // RecordDetailView) so the resume path and the launch path can never again
+    // disagree about what a failure looks like — they did, and the launch
+    // copies reported failures as success (#2958). `outcome.error` is always a
+    // STRING: handing the nested `{code, message}` object to `toast.error()`
+    // renders nothing at best and crashes the page as a React child (React
+    // #31). See utils/flowResponse.
+    const outcome = interpretFlowResponse<ScreenSpec>(res, json, 'Resume');
+    if (outcome.kind === 'failed') {
+      toast.error(outcome.error);
+      // A transport / envelope failure may be transient (network, 5xx) and did
+      // not consume the suspension — keep the dialog open so the user can retry
+      // the same run. A flow failure is TERMINAL: the engine consumes the
+      // suspension before running downstream nodes (resume-once), so a retry
+      // would only hit "No suspended run". Close instead of leaving a dead form.
+      if (!outcome.retryable) onClose();
       return;
     }
-    const data = json?.data ?? {};
-    // The HTTP envelope is `{ success:true, data: AutomationResult }`; a flow
-    // that errored downstream surfaces as `data.success === false`. That is
-    // TERMINAL: the engine consumes the suspension before running downstream
-    // nodes (resume-once), so this run can never be resumed again — a retry
-    // would only hit "No suspended run". Close the runner instead of leaving
-    // a dead form open.
-    if (data.success === false || data.status === 'failed') {
-      // Prefer the flow's friendly `errorMessage`; fall back to the raw error.
-      toast.error(data.errorMessage || data.error || 'The flow failed to complete.');
-      onClose();
-      return;
-    }
-    if (data.status === 'paused' && data.screen) {
-      setScreen(data.screen);
-      setRunId(data.runId || runId);
-      setValues(initialScreenValues(data.screen));
+    if (outcome.kind === 'paused') {
+      setScreen(outcome.screen);
+      setRunId(outcome.runId || runId);
+      setValues(initialScreenValues(outcome.screen));
       toast.success('Saved — next step');
     } else {
       // Terminal success — show the flow's declared completion message.
-      toast.success(data.successMessage || 'Done');
+      toast.success(outcome.successMessage || 'Done');
       onComplete();
     }
   };

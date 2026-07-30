@@ -28,13 +28,14 @@ import { hasExplicitDiscussion } from '../utils/pageSchemaIntrospect';
 import { ActionConfirmDialog, type ConfirmDialogState } from './ActionConfirmDialog';
 import { ActionParamDialog, type ParamDialogState } from './ActionParamDialog';
 import { ActionResultDialog, type ResultDialogState } from './ActionResultDialog';
-import { FlowRunner, type ScreenFlowState } from './FlowRunner';
+import { FlowRunner, type ScreenFlowState, type ScreenSpec } from './FlowRunner';
 import { RelatedRecordActionsBridge } from './RelatedRecordActionsBridge';
 import { withPageTabsUrlSync } from '../utils/pageTabsUrlSync';
 import { RECORD_DETAIL_TAB_PARAM, RECORD_TRAIL_PARAM, decodeRecordTrail, buildRecordTrailHref } from '../urlParams';
 import { resolveActionParams } from '../utils/resolveActionParams';
 import { decisionOutputDefs, decisionOutputParams, foldDecisionOutputs } from '../utils/decisionOutputParams';
 import { interpretActionResponse } from '../utils/actionResponse';
+import { interpretFlowResponse } from '../utils/flowResponse';
 import { useRecordBreadcrumbTitle } from '../context/NavigationContext';
 import type { FeedItem } from '@object-ui/types';
 import type { ActionDef, ActionParamDef } from '@object-ui/core';
@@ -747,15 +748,21 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         },
       );
       const json = await res.json().catch(() => null);
-      if (!res.ok || (json && json.success === false)) {
-        const errMsg = json?.error || `Flow "${flowName}" failed (HTTP ${res.status})`;
-        return { success: false, error: errMsg };
+      // Single source for the flow-response rule — shared with
+      // useConsoleActionRuntime's copy of this handler and FlowRunner's resume.
+      // This copy checked only the transport envelope and then treated
+      // everything else as terminal success, so a run that failed on its first
+      // node fired a green toast (#2958); it also passed `json.error` through
+      // raw, and the nested `{code, message}` shape reaches `toast.error()` as
+      // a React child and crashes the page (React #31). See utils/flowResponse.
+      const outcome = interpretFlowResponse<ScreenSpec>(res, json, `Flow "${flowName}"`);
+      if (outcome.kind === 'failed') {
+        return { success: false, error: outcome.error };
       }
       // Screen-flow runtime: the run paused at a `screen` node awaiting input —
       // open the FlowRunner to render the form + resume (refresh on completion).
-      const data = json?.data ?? {};
-      if (data.status === 'paused' && data.screen) {
-        setScreenFlow({ flowName, runId: data.runId, screen: data.screen });
+      if (outcome.kind === 'paused') {
+        setScreenFlow({ flowName, runId: outcome.runId ?? '', screen: outcome.screen });
         // The action only OPENED the wizard — it hasn't completed. Suppress the
         // action-level success toast; the flow-runner owns completion messaging.
         return { success: true, silent: true };
@@ -764,7 +771,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       if (shouldRefresh) {
         notifyRecordChanged();
       }
-      return { success: true, data: json?.data, reload: shouldRefresh };
+      return { success: true, data: outcome.data, reload: shouldRefresh };
     } catch (error) {
       return { success: false, error: (error as Error).message };
     }

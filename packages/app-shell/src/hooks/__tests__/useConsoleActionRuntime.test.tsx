@@ -662,6 +662,159 @@ describe('flowHandler — list_toolbar selection fallback', () => {
   });
 });
 
+// #2958 — a business failure comes back HTTP 200 with the failure on the INNER
+// envelope (`data.success === false`), and a failed flow launch carries neither
+// `status` nor `screen`. Both used to land in the terminal-success return: the
+// user saw a green "completed successfully" toast, the view refreshed, and the
+// real error was swallowed. These pin the failure paths AND that the success
+// paths they sit next to still work.
+describe('#2958 — a failure reported under HTTP 200 is a failure, not success', () => {
+  it('flowHandler reports a failed launch (no status, no screen) instead of terminal success', async () => {
+    // The reported repro: a screen flow whose first CRUD node fails. Outer
+    // envelope says success; only `data.success` shows the truth.
+    authFetchSpy.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: { success: false, error: "Node 'apply' failed: Update requires an ID" },
+      }),
+    });
+    const refreshSpy = vi.fn();
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [], objectName: 'inv', onRefresh: refreshSpy }),
+    );
+
+    let res: any;
+    await act(async () => {
+      res = await result.current.flowHandler({ type: 'flow', name: 'convert_lead', target: 'convert_lead' } as any);
+    });
+
+    expect(res.success).toBe(false);
+    expect(res.error).toBe("Node 'apply' failed: Update requires an ID");
+    // A failed run changed nothing — refreshing implies it did.
+    expect(refreshSpy).not.toHaveBeenCalled();
+    // The ActionRunner's post-execution hook owns the error toast; the handler
+    // must not fire a second one.
+    expect((toast as any).error).not.toHaveBeenCalled();
+  });
+
+  it('flowHandler prefers the flow-declared errorMessage over the raw engine error', async () => {
+    authFetchSpy.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          success: false,
+          status: 'failed',
+          error: "Node 'apply' failed: constraint violation on lead.status",
+          errorMessage: 'This lead has already been converted.',
+        },
+      }),
+    });
+    const { result } = renderHook(() => useConsoleActionRuntime({ dataSource: {}, objects: [] }));
+
+    let res: any;
+    await act(async () => {
+      res = await result.current.flowHandler({ type: 'flow', name: 'convert_lead', target: 'convert_lead' } as any);
+    });
+
+    expect(res).toMatchObject({ success: false, error: 'This lead has already been converted.' });
+  });
+
+  it('flowHandler still OPENS the wizard on a screen pause (success path intact)', async () => {
+    // The engine stamps `success: true` alongside `status: 'paused'`, which is
+    // why classifying failure first cannot swallow a wizard. `silent: true` is
+    // the marker that the action only opened the runner.
+    authFetchSpy.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          success: true,
+          status: 'paused',
+          runId: 'run-7',
+          screen: { nodeId: 'collect', title: 'New Assignee', fields: [] },
+        },
+      }),
+    });
+    const refreshSpy = vi.fn();
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [], onRefresh: refreshSpy }),
+    );
+
+    let res: any;
+    await act(async () => {
+      res = await result.current.flowHandler({ type: 'flow', name: 'f', target: 'f' } as any);
+    });
+
+    expect(res).toMatchObject({ success: true, silent: true });
+    // The run hasn't completed — the runner refreshes on completion, not now.
+    expect(refreshSpy).not.toHaveBeenCalled();
+  });
+
+  it('flowHandler coerces a nested {code, message} error to a string (React #31)', async () => {
+    // Handing the object through as `error` reaches `toast.error()` as a React
+    // child and crashes the page.
+    authFetchSpy.mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: async () => ({
+        success: false,
+        error: { message: 'Run is parked on a service-owned node', code: 'PERMISSION_DENIED' },
+      }),
+    });
+    const { result } = renderHook(() => useConsoleActionRuntime({ dataSource: {}, objects: [] }));
+
+    let res: any;
+    await act(async () => {
+      res = await result.current.flowHandler({ type: 'flow', name: 'f', target: 'f' } as any);
+    });
+
+    expect(typeof res.error).toBe('string');
+    expect(res.error).toBe('Run is parked on a service-owned node');
+  });
+
+  it('apiHandler reports an HTTP-200 success:false body instead of refreshing on it', async () => {
+    // The `log_call`-style repro on the api transport: 200, `success: false`.
+    authFetchSpy.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: false, error: "Action 'log_call' on object '*' not found" }),
+    });
+    const refreshSpy = vi.fn();
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [], onRefresh: refreshSpy }),
+    );
+
+    let res: any;
+    await act(async () => {
+      res = await result.current.apiHandler({ type: 'api', name: 'log_call', target: '/api/v1/x' } as any);
+    });
+
+    expect(res.success).toBe(false);
+    expect(res.error).toBe("Action 'log_call' on object '*' not found");
+    expect(refreshSpy).not.toHaveBeenCalled();
+  });
+
+  it('apiHandler leaves a payload that merely CONTAINS a success key alone', async () => {
+    // Only the envelope's own `success: false` is a failure. A handler value
+    // that happens to carry `success` is data, and a `success: true` envelope
+    // is of course fine — neither may be misread as a rejection.
+    authFetchSpy.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: { success: false, rows: 0, note: 'partial' } }),
+    });
+    const { result } = renderHook(() => useConsoleActionRuntime({ dataSource: {}, objects: [] }));
+
+    let res: any;
+    await act(async () => {
+      res = await result.current.apiHandler({ type: 'api', name: 'x', target: '/api/v1/x' } as any);
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.data).toEqual({ success: false, rows: 0, note: 'partial' });
+  });
+});
+
 describe('serverActionHandler — list_toolbar selection fallback', () => {
   it('uses the single selected row from the runner context as recordId', async () => {
     authFetchSpy.mockResolvedValue({ ok: true, json: async () => ({ success: true, data: {} }) });
