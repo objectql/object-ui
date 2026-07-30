@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { isValidAppName, wizardDraftToAppSchema } from '@object-ui/types';
+import { isValidAppName, wizardDraftToAppSchema } from '../index';
 import type {
   AppWizardDraft,
   AppWizardStep,
@@ -15,7 +15,7 @@ import type {
   ObjectSelection,
   EditorMode,
   AppSchema,
-} from '@object-ui/types';
+} from '../index';
 
 describe('App Creation Types', () => {
   describe('isValidAppName', () => {

@@ -1,0 +1,52 @@
+{
+  // Type-checks this package's TESTS, which `tsconfig.json` excludes.
+  //
+  // Why they were excluded, and why that was a hole: `tsconfig.json` is the
+  // package BUILD (`tsc` -> dist) with "rootDir": "./src", "composite" and
+  // "declaration", so test files would emit into dist. Excluding them keeps the
+  // build clean — but it also meant no `tsc` invocation ever read them, and
+  // `spec-derived-unions.test.ts` had built its whole contract on `satisfies`
+  // checks that therefore never ran. Its header claimed they were "the real
+  // enforcement"; reverting a derived alias to its old hand-written fork
+  // produced zero errors (objectstack#4074).
+  //
+  // Same reasoning and same shape as `tsconfig.examples.json`: a separate,
+  // emit-free project chained from the package's `type-check` script. Keeping it
+  // separate rather than deleting the exclude also keeps the BUILD honest — the
+  // "types": ["node"] below is needed by the reexport guard's `readFileSync`
+  // source scan, and folding that into `tsconfig.json` would let package SOURCE
+  // reference Node APIs and still compile, in a package that ships to browsers.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "lib": ["ES2020", "DOM"],
+    // `spec-ui-schema-reexports.test.ts` reads sibling sources off disk to prove
+    // no spec/ui zod value hides inside an `export type` block (#2561).
+    "types": ["node"],
+    // Same reason as tsconfig.json: drop the root tsconfig's source-tree paths
+    // so @objectstack/spec resolves through the workspace dependency.
+    "paths": {}
+  },
+  "include": ["src/**/*.test.ts", "src/**/*.test.tsx"],
+  // ── Known gap, declared rather than silent ─────────────────────────────────
+  // `p1-spec-alignment.test.ts` has 14 type errors across 8 sites, and they are
+  // not hygiene: every one sits in a test named "should accept <shape>" whose
+  // whole purpose is to assert the type ACCEPTS that shape. The type rejects it,
+  // and the test passed anyway because nothing compiled the file. Two examples:
+  //
+  //   - "should accept sharing in ObjectUI format { visibility, enabled }" —
+  //     `ListViewSchema.sharing` is `{ type, lockedBy }` only. The legacy shape is
+  //     real and IS handled, by `foldSharing` in core's `normalize-list-view.ts`,
+  //     but as untyped input (`normalizeListViewSchema<T>(schema: T): T`), so no
+  //     type names it.
+  //   - several minimal fixtures assigned to output types whose fields carry
+  //     `.default()`, the same input/output confusion fixed in
+  //     `p2-spec-exports.test.ts` in this change.
+  //
+  // Each one is a separate decision — widen the type so the test's claim becomes
+  // true, or delete the claim — and several touch the public surface. Doing that
+  // silently while landing the type-check plumbing would bury it, so the file is
+  // excluded here WITH this reason and tracked in objectstack#4074. Removing this
+  // entry is the definition of done; it must only ever shrink.
+  "exclude": ["src/__tests__/p1-spec-alignment.test.ts"]
+}

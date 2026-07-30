@@ -17,26 +17,49 @@
  *   2. Runtime Zod schemas from @objectstack/spec/ui validate data correctly
  */
 import { describe, it, expect } from 'vitest';
+// Minimal fixtures below are parse INPUT, not parsed output: these schemas
+// `.default()` several fields, so `{ enabled: true }` is valid input while the
+// inferred output type requires them. Spec draws the same distinction itself
+// (`ActionInput = z.input<typeof ActionSchema>`). Typing them as the output type
+// was wrong, and went unnoticed because nothing type-checked this file
+// (objectstack#4074).
+import type { z } from 'zod';
+// The `…Schema` names are deliberately NOT part of this package's surface:
+// #2561 decision (a) dropped the spec/ui zod-validator re-exports, and
+// `spec-ui-schema-reexports.test.ts` asserts their absence. This file went on
+// importing eight of them as types for the whole interval, which no `tsc` run
+// ever read (objectstack#4074) — a type-only import of a nonexistent name erases
+// at runtime, so the suite stayed green while contradicting its own sibling
+// guard. Only the value types are re-exported, so only they are imported here;
+// the runtime validators come from `@objectstack/spec/ui` below, as #2561
+// prescribes.
 import type {
   SharingConfig,
-  SharingConfigSchema,
   EmbedConfig,
-  EmbedConfigSchema,
   AddRecordConfig,
-  AddRecordConfigSchema,
   AppearanceConfig,
-  AppearanceConfigSchema,
   UserActionsConfig,
-  UserActionsConfigSchema,
   ViewTab,
-  ViewTabSchema,
   ViewFilterRule,
-  ViewFilterRuleSchema,
 } from '../index';
 
-import type {
-  ThemeModeSchema,
-} from '../theme';
+/**
+ * The type-level half of this file's contract (point 1 of the header): the
+ * non-`…Schema` value types ARE part of this package's surface — #2561 dropped
+ * only the zod validators — so importing them must keep compiling. Asserted here
+ * rather than left implicit in fixture annotations, because most fixtures are
+ * now typed as parse INPUT and stopped referencing these names.
+ */
+type _ReexportedValueTypes = [
+  SharingConfig,
+  EmbedConfig,
+  AddRecordConfig,
+  AppearanceConfig,
+  UserActionsConfig,
+  ViewTab,
+  ViewFilterRule,
+];
+void 0 as unknown as _ReexportedValueTypes;
 
 // Runtime Zod schemas are imported directly from the spec package
 import {
@@ -62,7 +85,7 @@ describe('P2.3 Spec Protocol Type Re-exports — Sharing & Embedding', () => {
     });
 
     it('should validate a minimal SharingConfig', () => {
-      const config: SharingConfig = { enabled: true };
+      const config: z.input<typeof SharingConfigZod> = { enabled: true };
       const result = SharingConfigZod.safeParse(config);
       expect(result.success).toBe(true);
     });
@@ -89,7 +112,7 @@ describe('P2.3 Spec Protocol Type Re-exports — Sharing & Embedding', () => {
     });
 
     it('should validate a minimal EmbedConfig', () => {
-      const config: EmbedConfig = { enabled: true };
+      const config: z.input<typeof EmbedConfigZod> = { enabled: true };
       const result = EmbedConfigZod.safeParse(config);
       expect(result.success).toBe(true);
     });
@@ -122,7 +145,7 @@ describe('P2.4 Spec Protocol Type Re-exports — View Configuration', () => {
     });
 
     it('should validate a minimal AddRecordConfig', () => {
-      const config: AddRecordConfig = { enabled: true };
+      const config: z.input<typeof AddRecordConfigZod> = { enabled: true };
       const result = AddRecordConfigZod.safeParse(config);
       expect(result.success).toBe(true);
     });
@@ -147,7 +170,7 @@ describe('P2.4 Spec Protocol Type Re-exports — View Configuration', () => {
     });
 
     it('should validate a minimal AppearanceConfig', () => {
-      const config: AppearanceConfig = {};
+      const config: z.input<typeof AppearanceConfigZod> = {};
       const result = AppearanceConfigZod.safeParse(config);
       expect(result.success).toBe(true);
     });
@@ -170,13 +193,13 @@ describe('P2.4 Spec Protocol Type Re-exports — View Configuration', () => {
     });
 
     it('should validate a minimal UserActionsConfig', () => {
-      const config: UserActionsConfig = {};
+      const config: z.input<typeof UserActionsConfigZod> = {};
       const result = UserActionsConfigZod.safeParse(config);
       expect(result.success).toBe(true);
     });
 
     it('should validate a full UserActionsConfig', () => {
-      const config: UserActionsConfig = {
+      const config: z.input<typeof UserActionsConfigZod> = {
         sort: true,
         search: true,
         filter: true,
@@ -195,13 +218,15 @@ describe('P2.4 Spec Protocol Type Re-exports — View Configuration', () => {
     });
 
     it('should validate a minimal ViewTab', () => {
-      const tab: ViewTab = { name: 'all', label: 'All Records' };
+      const tab: z.input<typeof ViewTabZod> = { name: 'all', label: 'All Records' };
       const result = ViewTabZod.safeParse(tab);
       expect(result.success).toBe(true);
     });
 
     it('should validate a full ViewTab', () => {
-      const tab: ViewTab = {
+      // `operator: 'eq'` is a legacy alias spec folds onto `equals` at parse time,
+      // so it is valid INPUT and absent from the canonical output union.
+      const tab: z.input<typeof ViewTabZod> = {
         name: 'active',
         label: 'Active',
         icon: 'CheckCircle',
@@ -229,7 +254,7 @@ describe('v3.0.10 Spec Protocol New Types', () => {
     });
 
     it('should validate a ViewFilterRule', () => {
-      const rule: ViewFilterRule = { field: 'status', operator: 'eq', value: 'active' };
+      const rule: z.input<typeof ViewFilterRuleZod> = { field: 'status', operator: 'eq', value: 'active' };
       const result = ViewFilterRuleZod.safeParse(rule);
       expect(result.success).toBe(true);
     });
@@ -262,17 +287,17 @@ describe('Type re-exports from @object-ui/types index', () => {
 
   it('should allow type annotations with P2.3 Sharing & Embedding types', () => {
     // Compile-time check: these lines would fail to compile if types were not re-exported
-    const sharing: SharingConfig = { enabled: true };
-    const embed: EmbedConfig = { enabled: false };
+    const sharing: z.input<typeof SharingConfigZod> = { enabled: true };
+    const embed: z.input<typeof EmbedConfigZod> = { enabled: false };
     expect(sharing.enabled).toBe(true);
     expect(embed.enabled).toBe(false);
   });
 
   it('should allow type annotations with P2.4 View Configuration types', () => {
-    const addRecord: AddRecordConfig = { enabled: true };
+    const addRecord: z.input<typeof AddRecordConfigZod> = { enabled: true };
     const appearance: AppearanceConfig = { showDescription: true };
-    const userActions: UserActionsConfig = { sort: true };
-    const tab: ViewTab = { name: 'main', label: 'Main' };
+    const userActions: z.input<typeof UserActionsConfigZod> = { sort: true };
+    const tab: z.input<typeof ViewTabZod> = { name: 'main', label: 'Main' };
     expect(addRecord.enabled).toBe(true);
     expect(appearance.showDescription).toBe(true);
     expect(userActions.sort).toBe(true);

@@ -27,14 +27,21 @@
  *    implements it, so a host app typing against @object-ui/types got an error
  *    on working code.
  *
- * The `satisfies` checks below document that contract at the type level — but they
- * are NOT enforcement today, and the previous version of this comment claiming
- * they were "the real enforcement" was wrong (#4074). Every package tsconfig
- * excludes test files by glob (see `packages/types/tsconfig.json`) and there is no
- * vitest `typecheck` project, so no `tsc` invocation reads this file at all. They would
- * bite the day tests are type-checked; until then the RUNTIME assertions are the
- * only thing that fails CI, which is why the #4074 cases below are written as
- * identity and membership checks.
+ * The `satisfies` checks below ARE enforcement — but only since #3005 added
+ * `packages/types/tsconfig.test.json` and chained it from this package's
+ * `type-check` script.
+ *
+ * For the whole interval before that they were decorative, and an earlier version
+ * of this comment asserting they were "the real enforcement" was simply false:
+ * `tsconfig.json` excludes test files (it is the package build, with `rootDir`,
+ * `composite` and `declaration`, so tests would emit into dist), and no other
+ * `tsc` invocation read this file. Measured at the time: reverting a derived alias
+ * to its old hand-written fork produced ZERO type errors. It now produces
+ * `TS1360` pointing at the `satisfies` line below.
+ *
+ * The runtime assertions further down are still the stronger check for anything
+ * with a runtime witness — a type alias erases, so only reference identity
+ * distinguishes a re-export from a faithful copy. Keep both.
  *
  * The last case is the inverse: `navigation` is a name objectui runs that the
  * spec does NOT have. It is asserted absent from the spec so that the day the
@@ -82,9 +89,6 @@ const _pageCovers = null as unknown as 'record' | 'home' | 'app' | 'utility' | '
 const _vizCovers = null as unknown as PageVisualizationAlias satisfies PageType;
 const _runnableCovers = null as unknown as ActionType satisfies RunnableActionType;
 // #4074: the action sub-vocabularies that were restated rather than derived.
-// `ActionComponent`'s real compile-time enforcement lives in `ui-action.ts`,
-// which IS type-checked: `ActionSchema.component?: ActionComponent` stops
-// compiling there if the derivation breaks.
 const _componentCovers = null as unknown as
   | 'action:button'
   | 'action:icon'

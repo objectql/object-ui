@@ -64,7 +64,7 @@
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf dist",
-    "type-check": "tsc --noEmit && tsc -p tsconfig.examples.json",
+    "type-check": "tsc --noEmit && tsc -p tsconfig.examples.json && tsc -p tsconfig.test.json",
     "lint": "eslint ."
   },
   "keywords": [

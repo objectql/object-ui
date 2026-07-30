@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { isSystemManagedField, SYSTEM_MANAGED_FIELD_NAMES } from '@object-ui/types';
+import { isSystemManagedField, SYSTEM_MANAGED_FIELD_NAMES } from '../index';
 
 describe('isSystemManagedField', () => {
   it('treats fields flagged `system: true` as system-managed (the single source of truth)', () => {
