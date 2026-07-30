@@ -1,6 +1,8 @@
 # Spec enum ↔ renderer coverage audit (#2901)
 
 Audited against `@objectstack/spec@16.0.0-rc.0` and `objectui@cd09a7b90`.
+**Re-validated against `17.0.0-rc.0`** — see the addendum at the end, which also
+carries three corrections. Read it before acting on any row below.
 
 Every row below was confirmed by reading the dispatch code. Nothing was exercised at
 runtime, so symptoms are read off the code path, not observed. Rows the auditors could
@@ -278,3 +280,95 @@ need a guard, **6 cannot import the spec today**: `plugin-list`, `plugin-charts`
 
 Coverage gaps and dialect have different owners; the spec-side consolidation in step 2 is
 upstream of most of the rest.
+
+---
+
+# Addendum — re-validated against spec 17.0.0-rc.0
+
+The audit above was run against `16.0.0-rc.0`. objectui has since moved to
+`17.0.0-rc.0` (#2950), so every finding was re-extracted and re-diffed. **The
+enum-value findings all still hold** — but three things need correcting, and one
+of them reverses an attribution.
+
+## The 16 → 17 delta is not an enum delta
+
+Of the 30 named enum exports in spec `ui/`, **zero changed values**. The only
+movement:
+
+| Change | Enum |
+|---|---|
+| Removed | `DensityModeSchema`, `WcagContrastLevelSchema` |
+| Added | `ChartAggregateFunctionSchema` (`count sum avg min max`) |
+
+The two removals resolve a Tier 4 row upstream — `DensityModeSchema` was listed
+above as inert with the spec marking it `[EXPERIMENTAL — not enforced]`, and
+enforce-or-remove has now been applied to it. The addition is a **fourth**
+aggregation vocabulary, alongside `AggregationFunction` (8),
+`AggregationFunctionEnum` (10, orphan), and the report columns' `unique`.
+
+## Correction 1 — `before`/`after` are spec vocabulary, not renderer dialect
+
+The Direction B table lists `before`/`after` as objectui-local dialect
+"persisted verbatim, in no spec vocabulary". **That is wrong.** They are
+canonical members of `VIEW_FILTER_OPERATORS` (`ui/view.zod.ts:90`).
+
+The real defect is worse than dialect: the spec's **view-authoring** vocabulary
+and its **query-layer AST** vocabulary disagree on **8 of 19** members —
+`equals`, `not_equals`, `greater_than`, `less_than`,
+`greater_than_or_equal`, `less_than_or_equal`, `before`, `after` are all absent
+from `VALID_AST_OPERATORS` (`data/filter.zod.ts:352`), which gates
+`isFilterAST()`.
+
+Six were masked only because objectui's adapter happened to translate them. The
+two it missed reached the wire verbatim, failed the gate, were passed through
+**unconverted**, and then skipped entirely by `driver-sql applyFilters` — no
+WHERE clause, no error, **every row returned**. A stored single-condition
+"date before X" view came back unfiltered.
+
+Fixed client-side in #2974, which also pins both translation tables to the spec
+vocabularies in both directions. Server-side hardening: objectstack#3948.
+
+## Correction 2 — narrowing is not cheap, and "while RC" was never the reason
+
+The sequencing above says to consolidate spec vocabularies "while spec 16 is
+still RC". Both halves are wrong. There is no version window (objectui is
+already on 17), and RC status is not what makes narrowing risky.
+
+What makes it risky is that **narrowing is loud for new authoring and silent for
+everything already stored**: `defineStack` throws and `saveMeta` returns 422, but
+the metadata *read* path neither drops nor errors, and objectui's render path
+does not zod-validate view metadata at all. A narrowing lands green in CI, green
+in `os build`, and degrades quietly against existing rows.
+
+Compounding it, `saveMeta` persists the authored body **verbatim**
+(`protocol.ts:4481`), so `ViewFilterRuleSchema`'s
+`z.preprocess(normalizeFilterOperator, …)` normalizes for the validity check and
+then discards the result — every legacy alias is still being written today, not
+merely historical.
+
+Revised guidance, tracked in #2945: additions are free; removals need a data
+migration and are blocked on objectstack#3948.
+
+## Correction 3 — one silent-drop is a *worse* failure than any row above
+
+The audit's Tier 1 / Tier 2 split assumed the two possible outcomes were "wrong
+output" and "no output". There is a third, found only when the filter path was
+traced end to end: a filter that is **not applied at all**, returning a superset.
+On a list whose only narrowing is that filter, the user sees rows they had asked
+to exclude. It is not a permission bypass — row-scoping `$and`-composes as a
+separate arm and survives — but it ranks with Tier 1, not Tier 2.
+
+## Status of the items above
+
+| Item | Status |
+|---|---|
+| `$ncontains`; `secret` inline edit | Fixed — #2940 |
+| `before`/`after`, `'not in'`, + 8 legacy spellings | Fixed — #2974 |
+| `DensityModeSchema` inert | Resolved upstream (removed in spec 17) |
+| Packages lacking the `@objectstack/spec` devDep | **5**, not 6 — `plugin-list` and `data-objectstack` gained it in #2974; `plugin-charts`, `plugin-dashboard`, `plugin-report`, `components`, `mobile`, `fields` remain |
+| Everything else | Open — #2941 (Tier 1), #2942 (Tier 2), #2943 (Tier 3), #2944 (forks), #2945 (vocabularies) |
+
+One method note for anyone repeating this: the original run read a checkout that
+was behind `origin/main`, which produced a spurious "objectui resolves two spec
+versions simultaneously" finding. It was a stale-lockfile artifact, not a defect.
+Fetch before extracting.
