@@ -10,7 +10,9 @@
  * SplitForm Component
  *
  * A form variant that displays sections in a resizable split-panel layout.
- * The first section renders in the left/top panel, remaining sections in the right/bottom panel.
+ * Each section declares its panel via `pane` (spec FormSection.pane); when
+ * omitted the legacy positional rule applies — the first section renders in the
+ * left/top panel, every other section in the right/bottom one.
  * Aligns with @objectstack/spec FormView type: 'split'
  *
  * Both panels are ONE form (#2153). The panel group is a layout the form
@@ -33,6 +35,13 @@ export interface SplitFormSectionConfig {
   label?: string;
   description?: string;
   columns?: 1 | 2 | 3 | 4;
+  /**
+   * Which panel this section renders in. Aligns with @objectstack/spec
+   * FormSection.pane — explicit per-section placement, so reordering sections
+   * never silently moves them across the divider. Omitted → the legacy
+   * positional rule (first section 'primary', every other 'secondary').
+   */
+  pane?: 'primary' | 'secondary';
   fields: (string | FormField)[];
   /** Custom CSS class for the section's header row. */
   className?: string;
@@ -229,9 +238,23 @@ export const SplitForm: React.FC<SplitFormProps> = ({
     }
   }, [schema]);
 
-  // Split sections: first section in panel 1, rest in panel 2
-  const leftSections = useMemo(() => schema.sections.slice(0, 1), [schema.sections]);
-  const rightSections = useMemo(() => schema.sections.slice(1), [schema.sections]);
+  // Which panel each section renders in: explicit `section.pane` first (spec
+  // FormSection.pane), else the legacy positional rule — first section primary,
+  // rest secondary — so keyless metadata keeps its exact layout. Placement
+  // follows the KEY, not the array position: reordering sections with panes
+  // declared never moves them across the divider.
+  const paneOf = (section: SplitFormSectionConfig, index: number): 'primary' | 'secondary' =>
+    section.pane === 'primary' || section.pane === 'secondary'
+      ? section.pane
+      : index === 0 ? 'primary' : 'secondary';
+  const leftSections = useMemo(
+    () => schema.sections.filter((s, i) => paneOf(s, i) === 'primary'),
+    [schema.sections],
+  );
+  const rightSections = useMemo(
+    () => schema.sections.filter((s, i) => paneOf(s, i) === 'secondary'),
+    [schema.sections],
+  );
 
   const direction = schema.splitDirection || 'horizontal';
   const panelSize = schema.splitSize || 50;

@@ -268,6 +268,10 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
             description: s.description,
             columns: s.columns,
             fields: s.fields,
+            // Explicit pane placement (spec FormSection.pane). This mapping
+            // rebuilds each section key by key, so a key it doesn't copy is
+            // silently dropped — exactly how `visibleOn` once vanished here.
+            pane: s.pane,
             className: (s as any).className,
             gridClassName: (s as any).gridClassName,
           })),

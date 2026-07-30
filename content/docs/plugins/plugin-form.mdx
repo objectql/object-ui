@@ -145,8 +145,11 @@ divider.
 - Fields no pane claims render above the panel group rather than disappearing.
 - Needs at least two panes; ignored when the form uses `children` or `fieldTabs`.
 
-`SplitForm` builds on this: section 1 becomes the primary pane, the rest stack in
-the secondary one behind inline section headers.
+`SplitForm` builds on this. Each section declares its panel via `pane: 'primary'
+| 'secondary'` (spec `FormSection.pane`) — explicit placement that survives
+reordering. When omitted, the legacy rule applies: section 1 becomes the primary
+pane, the rest stack in the secondary one behind inline section headers. (The
+spec rejects `pane` on non-split form types at parse.)
 
 ## Usage
 

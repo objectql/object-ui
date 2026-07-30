@@ -805,7 +805,17 @@ export interface ObjectFormSection {
    * @default 1
    */
   columns?: 1 | 2 | 3 | 4;
-  
+
+  /**
+   * Which panel of a split form this section renders in. Aligns with
+   * @objectstack/spec FormSection.pane (split forms only — the spec rejects the
+   * key on other form types at parse). Explicit per-section placement, so
+   * reordering sections never silently moves them across the divider.
+   * Omitted → the legacy positional rule: first section 'primary', every
+   * other section 'secondary'.
+   */
+  pane?: 'primary' | 'secondary';
+
   /**
    * Field names or inline field configurations for this section
    */

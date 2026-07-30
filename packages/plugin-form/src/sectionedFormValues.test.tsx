@@ -37,6 +37,7 @@ import { registerAllFields } from '@object-ui/fields';
 import { ModalForm } from './ModalForm';
 import { TabbedForm } from './TabbedForm';
 import { SplitForm } from './SplitForm';
+import { ObjectForm } from './ObjectForm';
 
 registerAllFields();
 
@@ -367,6 +368,91 @@ describe('SplitForm — one form across BOTH panels (#2153)', () => {
     await waitFor(() =>
       expect(document.body.querySelector('[data-field="escalation"]')).toBeTruthy(),
     );
+  });
+});
+
+describe('SplitForm — explicit `section.pane` placement (spec FormSection.pane)', () => {
+  const paneEl = (key: string) =>
+    document.body.querySelector(`[data-testid="form-pane:${key}"]`)!;
+
+  const PANED_SECTIONS = [
+    // Declared order deliberately disagrees with the panes: the SECOND and
+    // THIRD sections are the primary pane. Impossible to express before —
+    // the renderer hardcoded first-section-left / rest-right.
+    { name: 'triage', label: 'Triage', pane: 'secondary' as const, fields: ['status'] },
+    { name: 'basics', label: 'Basics', pane: 'primary' as const, fields: ['subject'] },
+    { name: 'detail', label: 'Detail', pane: 'primary' as const, fields: ['description'] },
+  ];
+
+  it('groups sections by their declared pane, not by array position', async () => {
+    render(
+      <SplitForm
+        schema={{
+          type: 'object-form',
+          formType: 'split',
+          objectName: 'case',
+          mode: 'create',
+          sections: PANED_SECTIONS,
+        }}
+        dataSource={makeDataSource() as any}
+      />,
+    );
+
+    await waitFor(() => expect(document.body.querySelector('form')).toBeTruthy());
+
+    // Two sections side by side in the primary pane…
+    expect(paneEl('primary').querySelector('[data-field="subject"]')).toBeTruthy();
+    expect(paneEl('primary').querySelector('[data-field="description"]')).toBeTruthy();
+    // …and the first-declared section sits in the secondary pane.
+    expect(paneEl('secondary').querySelector('[data-field="status"]')).toBeTruthy();
+    expect(paneEl('secondary').querySelector('[data-field="subject"]')).toBeNull();
+  });
+
+  it('reordering sections does not move them across the divider', async () => {
+    render(
+      <SplitForm
+        schema={{
+          type: 'object-form',
+          formType: 'split',
+          objectName: 'case',
+          mode: 'create',
+          // Same sections, reversed — the hazard the key exists to kill: with
+          // the positional rule this reorder silently relaid the whole form.
+          sections: [...PANED_SECTIONS].reverse(),
+        }}
+        dataSource={makeDataSource() as any}
+      />,
+    );
+
+    await waitFor(() => expect(document.body.querySelector('form')).toBeTruthy());
+
+    expect(paneEl('primary').querySelector('[data-field="subject"]')).toBeTruthy();
+    expect(paneEl('primary').querySelector('[data-field="description"]')).toBeTruthy();
+    expect(paneEl('secondary').querySelector('[data-field="status"]')).toBeTruthy();
+  });
+
+  it('ObjectForm forwards `pane` through its split mapping', async () => {
+    // The dispatch mapping rebuilds sections key by key — a key it does not
+    // copy is silently dropped (how `visibleOn` once vanished). Pin the copy.
+    render(
+      <ObjectForm
+        schema={{
+          type: 'object-form',
+          formType: 'split',
+          objectName: 'case',
+          mode: 'create',
+          sections: [
+            { name: 'triage', label: 'Triage', pane: 'secondary', fields: ['status'] },
+            { name: 'basics', label: 'Basics', pane: 'primary', fields: ['subject'] },
+          ],
+        } as any}
+        dataSource={makeDataSource() as any}
+      />,
+    );
+
+    await waitFor(() => expect(document.body.querySelector('form')).toBeTruthy());
+    expect(paneEl('primary').querySelector('[data-field="subject"]')).toBeTruthy();
+    expect(paneEl('secondary').querySelector('[data-field="status"]')).toBeTruthy();
   });
 });
 
