@@ -56,11 +56,13 @@ function specActionKeys(): string[] {
   const walk = (schema: unknown, depth = 0): string[] | null => {
     if (!schema || depth > 8 || seen.has(schema)) return null;
     seen.add(schema);
-    const s = schema as Record<string, any>;
-    if (s.shape) return Object.keys(s.shape);
-    const def = s._def ?? s.def;
+    const s = schema as Record<string, unknown>;
+    const shapeOf = (v: unknown): string[] | null =>
+      v && typeof v === 'object' ? Object.keys(v as object) : null;
+    if (s.shape) return shapeOf(s.shape);
+    const def = (s._def ?? s.def) as Record<string, unknown> | undefined;
     if (!def) return null;
-    if (def.shape) return Object.keys(def.shape);
+    if (def.shape) return shapeOf(def.shape);
     for (const key of ['in', 'out', 'innerType', 'schema', 'left', 'right']) {
       const found = def[key] ? walk(def[key], depth + 1) : null;
       if (found) return found;
