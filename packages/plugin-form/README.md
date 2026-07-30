@@ -114,6 +114,37 @@ the renderer distribute the fields:
 
 `ModalForm` (`contentLayout: 'tabbed'`) and `TabbedForm` are built on this.
 
+### Split field layout (`fieldPanes`)
+
+The same rule for side-by-side panels: the `<form>` wraps the whole panel group
+and each pane holds only fields, so one react-hook-form instance spans the
+divider.
+
+```typescript
+{
+  type: 'form',
+  fields: [/* every pane's fields, in one flat list */],
+  fieldPanes: [
+    { key: 'primary', fields: ['subject'], defaultSize: 50 },
+    { key: 'secondary', fields: ['status', 'priority'], defaultSize: 50, minSize: 20 },
+  ],
+  fieldPanesOrientation?: 'horizontal',           // 'horizontal' | 'vertical'
+  fieldPanesResizable?: true,                     // false pins the divider
+}
+```
+
+- A submit from anywhere carries **every** pane's values, and a field rule
+  (`visibleWhen` / `requiredWhen` / …) in one pane can read a field in another —
+  neither is possible with a form per panel.
+- `defaultSize` / `minSize` are **percentages** of the group.
+- Each pane is its own `@container`, so a multi-column group inside it collapses
+  as the divider is dragged narrower.
+- Fields no pane claims render above the panel group rather than disappearing.
+- Needs at least two panes; ignored when the form uses `children` or `fieldTabs`.
+
+`SplitForm` is built on this: section 1 becomes the primary pane, the rest stack
+in the secondary one behind inline section headers.
+
 ## Examples
 
 ### Basic Form

@@ -8,24 +8,25 @@
 
 /**
  * SplitForm Component
- * 
+ *
  * A form variant that displays sections in a resizable split-panel layout.
  * The first section renders in the left/top panel, remaining sections in the right/bottom panel.
  * Aligns with @objectstack/spec FormView type: 'split'
+ *
+ * Both panels are ONE form (#2153). The panel group is a layout the form
+ * renderer owns via `FormSchema.fieldPanes`, so a single `<form>` /
+ * react-hook-form instance spans the divider. Rendering a form per panel — per
+ * SECTION, in fact — meant an action bar submitted only its own section and
+ * silently dropped everything typed on the other side, and a field condition
+ * could not see across the split at all.
  */
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import type { FormField, DataSource } from '@object-ui/types';
-import {
-  ResizablePanelGroup,
-  ResizablePanel,
-  ResizableHandle,
-  cn,
-} from '@object-ui/components';
-import { FormSection } from './FormSection';
+import { cn } from '@object-ui/components';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
-import { sectionFormLayout } from './autoLayout';
+import { applyAutoColSpan, containerGridColsFor } from './autoLayout';
 
 export interface SplitFormSectionConfig {
   name?: string;
@@ -33,9 +34,14 @@ export interface SplitFormSectionConfig {
   description?: string;
   columns?: 1 | 2 | 3 | 4;
   fields: (string | FormField)[];
-  /** Custom CSS class for the section's Card wrapper. */
+  /** Custom CSS class for the section's header row. */
   className?: string;
-  /** Custom CSS class for the section's field grid. */
+  /**
+   * Custom CSS class for the section's field grid. Applied to the panel's grid
+   * when that panel holds this section alone (the common case — the first
+   * section owns the left/top panel); a panel stacking several sections shares
+   * one grid inside the single form (#2153), so there is none to override.
+   */
   gridClassName?: string;
 }
 
@@ -196,12 +202,6 @@ export const SplitForm: React.FC<SplitFormProps> = ({
   const leftSections = useMemo(() => schema.sections.slice(0, 1), [schema.sections]);
   const rightSections = useMemo(() => schema.sections.slice(1), [schema.sections]);
 
-  // Collect all fields for a unified form submission
-  const allFields: FormField[] = useMemo(
-    () => schema.sections.flatMap(section => buildSectionFields(section)),
-    [schema.sections, buildSectionFields]
-  );
-
   const direction = schema.splitDirection || 'horizontal';
   const panelSize = schema.splitSize || 50;
 
@@ -223,64 +223,92 @@ export const SplitForm: React.FC<SplitFormProps> = ({
     );
   }
 
-  // Build base form schema for SchemaRenderer
-  const baseFormSchema = {
-    type: 'form' as const,
-    objectName: schema.objectName,
-    layout: 'vertical' as const,
-    defaultValues: formData,
-    onSubmit: handleSubmit,
-    onCancel: handleCancel,
+  // The form is ONE grid, as wide as the widest section; each section then lays
+  // ITS fields out at its own declared density within that grid via colSpan
+  // (#2578) — the same arrangement the stacked/tabbed sectioned forms use. The
+  // grid lives on the FIELD container inside the form, never wrapped around the
+  // form (that leaves the extra columns permanently empty, #2128).
+  const clampCol = (n: unknown): number | undefined =>
+    typeof n === 'number' && n > 0 ? Math.min(Math.floor(n), 4) : undefined;
+  const declaredCols = schema.sections
+    .map((s) => clampCol(s.columns))
+    .filter((c): c is number => c != null);
+  const formColumns = (declaredCols.length ? Math.max(...declaredCols) : 1) as 1 | 2 | 3 | 4;
+  const containerFieldClass = containerGridColsFor(formColumns);
+
+  /**
+   * One panel's field list: each section contributes an inline `section-divider`
+   * header row followed by its fields. A per-section Card would need a
+   * per-section form, which is the defect above.
+   */
+  const paneFields = (sections: SplitFormSectionConfig[], paneKey: string): FormField[] => {
+    const out: FormField[] = [];
+    sections.forEach((section, index) => {
+      const body = buildSectionFields(section);
+      if (!body.length) return;
+      if (section.label || section.description) {
+        out.push({
+          name: `__section_${section.name || `${paneKey}_${index}`}`,
+          label: section.label,
+          description: section.description,
+          type: 'section-divider',
+          colSpan: 4,
+          className: section.className,
+        } as any);
+      }
+      out.push(
+        ...(formColumns > 1
+          ? applyAutoColSpan(body, formColumns, clampCol(section.columns))
+          : body),
+      );
+    });
+    return out;
   };
 
-  const renderSections = (sections: SplitFormSectionConfig[], showButtons: boolean) => (
-    <div className="space-y-6 p-4">
-      {sections.map((section, index) => (
-        <FormSection
-          key={section.name || section.label || index}
-          label={section.label}
-          description={section.description}
-          columns={1}
-          className={section.className}
-          gridClassName={section.gridClassName}
-        >
-          <SchemaRenderer
-            schema={{
-              ...baseFormSchema,
-              // Multi-column lives on the field container inside the form, not
-              // as a grid wrapped around the whole form (which leaves the extra
-              // columns empty). See sectionFormLayout.
-              ...sectionFormLayout(buildSectionFields(section), section.columns || 1),
-              showSubmit: showButtons && schema.showSubmit !== false && schema.mode !== 'view',
-              showCancel: showButtons && schema.showCancel !== false,
-              submitLabel: schema.submitText || (schema.mode === 'create' ? 'Create' : 'Update'),
-              cancelLabel: schema.cancelText,
-            }}
-          />
-        </FormSection>
-      ))}
-    </div>
-  );
+  // A pane holding exactly one section can still honour that section's
+  // `gridClassName` — it owns the panel's grid outright.
+  const panes = [
+    { key: 'primary', sections: leftSections, defaultSize: panelSize },
+    { key: 'secondary', sections: rightSections, defaultSize: 100 - panelSize },
+  ]
+    .map((pane) => ({
+      ...pane,
+      fields: paneFields(pane.sections, pane.key),
+      containerClass: pane.sections.length === 1 ? pane.sections[0].gridClassName : undefined,
+    }))
+    .filter((pane) => pane.fields.length > 0);
 
   return (
-    <div className={cn('w-full', className, schema.className)}>
-      <ResizablePanelGroup orientation={direction as 'horizontal' | 'vertical'} className="min-h-[300px] rounded-lg border">
-        {/* Left / Top Panel */}
-        <ResizablePanel defaultSize={panelSize} minSize={20}>
-          {renderSections(leftSections, rightSections.length === 0)}
-        </ResizablePanel>
-
-        {rightSections.length > 0 && (
-          <>
-            <ResizableHandle withHandle={schema.splitResizable !== false} />
-
-            {/* Right / Bottom Panel */}
-            <ResizablePanel defaultSize={100 - panelSize} minSize={20}>
-              {renderSections(rightSections, true)}
-            </ResizablePanel>
-          </>
-        )}
-      </ResizablePanelGroup>
+    <div className={cn('w-full @container', className, schema.className)}>
+      <SchemaRenderer
+        schema={{
+          type: 'form' as const,
+          objectName: schema.objectName,
+          // Every pane's fields, in one list, for the one form instance. The
+          // panes below claim them back by name for layout only.
+          fields: panes.flatMap((pane) => pane.fields),
+          columns: formColumns,
+          ...(containerFieldClass ? { fieldContainerClass: containerFieldClass } : {}),
+          layout: 'vertical' as const,
+          defaultValues: formData,
+          submitLabel: schema.submitText || (schema.mode === 'create' ? 'Create' : 'Update'),
+          cancelLabel: schema.cancelText,
+          showSubmit: schema.showSubmit !== false && schema.mode !== 'view',
+          showCancel: schema.showCancel !== false,
+          onSubmit: handleSubmit,
+          onCancel: handleCancel,
+          // A single pane is not a split — the renderer then falls back to a
+          // plain field list rather than a one-panel resizable group.
+          fieldPanes: panes.map((pane) => ({
+            key: pane.key,
+            fields: pane.fields.map((f) => f.name),
+            defaultSize: pane.defaultSize,
+            ...(pane.containerClass ? { containerClass: pane.containerClass } : {}),
+          })),
+          fieldPanesOrientation: direction,
+          fieldPanesResizable: schema.splitResizable !== false,
+        }}
+      />
     </div>
   );
 };

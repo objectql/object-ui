@@ -7,7 +7,7 @@
  */
 
 import { ComponentRegistry, resolveFieldRuleState, evalFieldPredicate, resolveCascadingOptions, isValueStillOffered } from '@object-ui/core';
-import type { FormSchema, FormField as FormFieldConfig, FormFieldTab, ValidationRule, FieldCondition, SelectOption } from '@object-ui/types';
+import type { FormSchema, FormField as FormFieldConfig, FormFieldTab, FormFieldPane, ValidationRule, FieldCondition, SelectOption } from '@object-ui/types';
 import { useForm } from 'react-hook-form';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from '../../ui/form';
 import { Button } from '../../ui/button';
@@ -24,6 +24,7 @@ import {
 } from '../../ui/select';
 import { renderChildren } from '../../lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../../ui/resizable';
 import { Alert, AlertDescription } from '../../ui/alert';
 import { toast } from '../../ui/sonner';
 import { AlertCircle, ChevronDown, ChevronRight, Loader2, Maximize2, Check, X } from 'lucide-react';
@@ -74,6 +75,36 @@ function SectionDivider({ label, description, collapsible, collapsed, onToggle, 
     </div>
   );
 }
+
+/** Field name → config, first declaration wins. */
+function indexFieldsByName(fields: FormFieldConfig[]): Map<string, FormFieldConfig> {
+  const byName = new Map<string, FormFieldConfig>();
+  for (const f of fields) if (f?.name && !byName.has(f.name)) byName.set(f.name, f);
+  return byName;
+}
+
+/**
+ * The form's fields that no layout group claimed. `fieldTabs` / `fieldPanes` are
+ * authored against field NAMES, so a field the author forgot to mention must
+ * still render (above the group) instead of silently disappearing.
+ */
+function unclaimedFields(
+  groups: Array<{ fields: FormFieldConfig[] }>,
+  fields: FormFieldConfig[],
+): FormFieldConfig[] {
+  const claimed = new Set<string>();
+  for (const group of groups) for (const f of group.fields) claimed.add(f.name);
+  return fields.filter((f) => f?.name && !claimed.has(f.name));
+}
+
+/**
+ * Pane sizes in the JSON protocol are percentages (spec `splitSize`). react-resizable-panels
+ * documents a NUMERIC size as pixels and an unsuffixed STRING as a percentage —
+ * in practice v4 resolves both the same way, but the string says which unit we
+ * mean, so the intent survives a library change.
+ */
+const panePercent = (size: number | undefined): string | undefined =>
+  typeof size === 'number' && Number.isFinite(size) ? String(size) : undefined;
 
 const useSafeFormTranslation = createSafeTranslation(
   {
@@ -462,10 +493,7 @@ ComponentRegistry.register('form',
     // Resolve each tab's declared field names against the form's field list.
     const fieldTabGroups = React.useMemo(() => {
       if (!fieldTabs) return null;
-      const byName = new Map<string, FormFieldConfig>();
-      for (const f of fields as FormFieldConfig[]) {
-        if (f?.name && !byName.has(f.name)) byName.set(f.name, f);
-      }
+      const byName = indexFieldsByName(fields as FormFieldConfig[]);
       return fieldTabs.map((tab) => ({
         key: tab.key,
         label: tab.label || tab.key,
@@ -479,12 +507,48 @@ ComponentRegistry.register('form',
 
     // A field no tab claimed must not vanish — it renders above the tab strip,
     // visible from every tab.
-    const untabbedFields = React.useMemo(() => {
-      if (!fieldTabGroups) return [] as FormFieldConfig[];
-      const claimed = new Set<string>();
-      for (const group of fieldTabGroups) for (const f of group.fields) claimed.add(f.name);
-      return (fields as FormFieldConfig[]).filter((f) => f?.name && !claimed.has(f.name));
-    }, [fieldTabGroups, fields]);
+    const untabbedFields = React.useMemo(
+      () => (fieldTabGroups ? unclaimedFields(fieldTabGroups, fields as FormFieldConfig[]) : []),
+      [fieldTabGroups, fields],
+    );
+
+    // --- Split field layout (#2153) ----------------------------------------
+    // `fieldPanes` places this form's fields in resizable panels. The <form>
+    // wraps the whole panel GROUP, so — exactly as with `fieldTabs` — there is
+    // still ONE react-hook-form instance behind the split: a submit from either
+    // side carries every pane's values, and a rule in one pane can read a field
+    // in another. A <form> INSIDE each panel could do neither: its submit saw
+    // only its own fields, and its rule record didn't even contain the other
+    // pane's names, so a cross-pane predicate faulted and failed open.
+    //
+    // Tabbed wins if a caller somehow declares both: a form is one or the other.
+    const fieldPanes = React.useMemo<FormFieldPane[] | null>(() => {
+      const declared = schema.fieldPanes;
+      if (schema.children || fieldTabs || !Array.isArray(declared)) return null;
+      const usable = declared.filter((p) => p && typeof p.key === 'string');
+      return usable.length > 1 ? usable : null;
+    }, [schema.fieldPanes, schema.children, fieldTabs]);
+
+    const fieldPaneGroups = React.useMemo(() => {
+      if (!fieldPanes) return null;
+      const byName = indexFieldsByName(fields as FormFieldConfig[]);
+      return fieldPanes.map((pane) => ({
+        key: pane.key,
+        defaultSize: panePercent(pane.defaultSize),
+        minSize: panePercent(pane.minSize) ?? '20',
+        containerClass: pane.containerClass,
+        fields: (pane.fields ?? [])
+          .map((name) => byName.get(name))
+          .filter((f): f is FormFieldConfig => Boolean(f)),
+      }));
+    }, [fieldPanes, fields]);
+
+    // Same guarantee as `untabbedFields`: an unclaimed field renders above the
+    // panel group rather than being dropped.
+    const unpanedFields = React.useMemo(
+      () => (fieldPaneGroups ? unclaimedFields(fieldPaneGroups, fields as FormFieldConfig[]) : []),
+      [fieldPaneGroups, fields],
+    );
 
     // Tabs holding a field the LAST submit rejected, so their trigger can carry
     // a marker — otherwise a rejection on a background tab is invisible and the
@@ -1154,6 +1218,9 @@ ComponentRegistry.register('form',
           fieldTabs: _fieldTabs,
           defaultFieldTab: _defaultFieldTab,
           fieldTabsPosition: _fieldTabsPosition,
+          fieldPanes: _fieldPanes,
+          fieldPanesOrientation: _fieldPanesOrientation,
+          fieldPanesResizable: _fieldPanesResizable,
 	        ...formProps
 	    } = props;
 
@@ -1253,6 +1320,45 @@ ComponentRegistry.register('form',
                   ))}
                 </div>
               </Tabs>
+            </>
+          ) : fieldPaneGroups ? (
+            // Split field layout (#2153): one <form>, one react-hook-form
+            // instance, N resizable panels. The <form> wraps the GROUP and the
+            // panels hold only fields, so the split is purely presentational —
+            // it cannot influence which values a submit collects.
+            <>
+              {unpanedFields.length > 0 && (
+                <div className={cn(fieldGridClass, 'mb-4')}>
+                  {unpanedFields.map(renderFormField)}
+                </div>
+              )}
+              <ResizablePanelGroup
+                orientation={schema.fieldPanesOrientation === 'vertical' ? 'vertical' : 'horizontal'}
+                className="min-h-[300px] rounded-lg border"
+              >
+                {fieldPaneGroups.map((group, index) => (
+                  <React.Fragment key={group.key}>
+                    {index > 0 && (
+                      <ResizableHandle
+                        withHandle={schema.fieldPanesResizable !== false}
+                        disabled={schema.fieldPanesResizable === false}
+                      />
+                    )}
+                    <ResizablePanel defaultSize={group.defaultSize} minSize={group.minSize}>
+                      {/* Each pane is its own `@container`: a pane's field grid
+                          must measure the PANE, so a 2-column group collapses to
+                          one when the divider is dragged narrow — measuring the
+                          whole form would keep it 2-up and overflow. */}
+                      <div
+                        className={cn('@container p-4', group.containerClass || fieldGridClass)}
+                        data-testid={`form-pane:${group.key}`}
+                      >
+                        {group.fields.map(renderFormField)}
+                      </div>
+                    </ResizablePanel>
+                  </React.Fragment>
+                ))}
+              </ResizablePanelGroup>
             </>
           ) : (
             // Otherwise render fields from schema

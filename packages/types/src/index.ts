@@ -136,6 +136,7 @@ export type {
   FieldCondition,
   FormField,
   FormFieldTab,
+  FormFieldPane,
   ComboboxSchema,
   CommandSchema,
   InputOTPSchema,

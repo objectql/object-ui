@@ -91,6 +91,36 @@ inactive tab unmount along with its values).
 
 `ModalForm` (`contentLayout: 'tabbed'`) and `TabbedForm` build on this.
 
+### Split field layout (`fieldPanes`)
+
+Side-by-side panels follow the same rule: the `<form>` wraps the whole panel
+group and each pane holds only fields, so one react-hook-form instance spans the
+divider.
+
+```plaintext
+{
+  type: 'form',
+  fields: [/* every pane's fields, in one flat list */],
+  fieldPanes: [
+    { key: 'primary', fields: ['subject'], defaultSize: 50 },
+    { key: 'secondary', fields: ['status', 'priority'], defaultSize: 50, minSize: 20 },
+  ],
+  fieldPanesOrientation?: 'horizontal',   // 'horizontal' | 'vertical'
+  fieldPanesResizable?: true,             // false pins the divider
+}
+```
+
+- A submit from anywhere carries every pane's values, and a field rule in one
+  pane can read a field in another — neither works with a form per panel.
+- `defaultSize` / `minSize` are percentages of the group.
+- Each pane is its own `@container`, so a multi-column group collapses as the
+  divider is dragged narrower.
+- Fields no pane claims render above the panel group rather than disappearing.
+- Needs at least two panes; ignored when the form uses `children` or `fieldTabs`.
+
+`SplitForm` builds on this: section 1 becomes the primary pane, the rest stack in
+the secondary one behind inline section headers.
+
 ## Usage
 
 ### Auto-registration (Side-effect Import)

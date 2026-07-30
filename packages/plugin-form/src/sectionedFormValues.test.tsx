@@ -23,6 +23,11 @@
  * These tests pin the contract that fixes both: one `<form>` for all sections,
  * with the tab panels force-mounted so a tab the user left keeps its values AND
  * its validation.
+ *
+ * `split` is the same defect in a different layout: its two resizable panels
+ * each held their own `<form>`, so submitting from one panel's action bar
+ * dropped everything typed in the other and no condition could see across the
+ * divider. Its panels are covered at the bottom of this file.
  */
 
 import React from 'react';
@@ -31,6 +36,7 @@ import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/re
 import { registerAllFields } from '@object-ui/fields';
 import { ModalForm } from './ModalForm';
 import { TabbedForm } from './TabbedForm';
+import { SplitForm } from './SplitForm';
 
 registerAllFields();
 
@@ -243,6 +249,124 @@ describe('ModalForm stacked sections — one form for all sections (#2153)', () 
     expect(screen.getByText('Triage')).toBeTruthy();
     // A section's authored blurb survives the move to inline headers.
     expect(screen.getByText('Who is asking')).toBeTruthy();
+  });
+});
+
+describe('SplitForm — one form across BOTH panels (#2153)', () => {
+  it('submits the values typed in both panels', async () => {
+    const dataSource = makeDataSource();
+    render(
+      <SplitForm
+        schema={{
+          type: 'object-form',
+          formType: 'split',
+          objectName: 'case',
+          mode: 'create',
+          // Section 1 lands in the left panel, 2+ in the right one.
+          sections: SECTIONS,
+        }}
+        dataSource={dataSource as any}
+      />,
+    );
+
+    await waitFor(() => expect(document.body.querySelector('form')).toBeTruthy());
+
+    fill('subject', 'Printer on fire'); // left panel
+    fill('status', 'open');             // right panel
+    fill('priority', 'high');           // right panel
+    fill('description', 'Smoke coming out of tray 2'); // right panel
+
+    submitForm();
+
+    await waitFor(() => expect(dataSource.create).toHaveBeenCalledTimes(1));
+    expect(dataSource.create.mock.calls[0][1]).toMatchObject({
+      subject: 'Printer on fire',
+      status: 'open',
+      priority: 'high',
+      description: 'Smoke coming out of tray 2',
+    });
+
+    // ONE form spanning both panels. A `<form>` per panel (per SECTION, in
+    // fact) is what stranded the other panel's input outside the submit: each
+    // one owned an isolated react-hook-form instance, so the payload above
+    // arrived holding only the section whose action bar was clicked.
+    expect(document.body.querySelectorAll('form')).toHaveLength(1);
+  });
+
+  it('keeps every section’s header, in the panel that owns it', async () => {
+    render(
+      <SplitForm
+        schema={{
+          type: 'object-form',
+          formType: 'split',
+          objectName: 'case',
+          mode: 'create',
+          sections: [
+            { name: 'basics', label: 'Basics', description: 'Who is asking', fields: ['subject'] },
+            { name: 'triage', label: 'Triage', fields: ['status'] },
+          ],
+        }}
+        dataSource={makeDataSource() as any}
+      />,
+    );
+
+    // Headers survive the move to inline `section-divider` rows...
+    expect(await screen.findByText('Basics')).toBeTruthy();
+    expect(screen.getByText('Who is asking')).toBeTruthy();
+    expect(screen.getByText('Triage')).toBeTruthy();
+
+    // ...and each stays on its own side of the split.
+    const panes = document.body.querySelectorAll('[data-testid^="form-pane:"]');
+    expect(panes).toHaveLength(2);
+    expect(panes[0].textContent).toContain('Basics');
+    expect(panes[0].querySelector('[data-field="subject"]')).toBeTruthy();
+    expect(panes[1].textContent).toContain('Triage');
+    expect(panes[1].querySelector('[data-field="status"]')).toBeTruthy();
+  });
+
+  it('evaluates a right-panel field’s condition against a left-panel field', async () => {
+    const dataSource = {
+      ...makeDataSource(),
+      getObjectSchema: vi.fn().mockResolvedValue({
+        name: 'case',
+        fields: {
+          subject: { type: 'text', label: 'Subject' },
+          status: { type: 'text', label: 'Status' },
+          // Cross-panel condition: it watches a field in the OTHER panel, which
+          // only one shared react-hook-form instance can see.
+          escalation: {
+            type: 'text',
+            label: 'Escalation',
+            visibleWhen: "record.subject == 'urgent'",
+          },
+        },
+      }),
+    };
+
+    render(
+      <SplitForm
+        schema={{
+          type: 'object-form',
+          formType: 'split',
+          objectName: 'case',
+          mode: 'create',
+          sections: [
+            { name: 'basics', label: 'Basics', fields: ['subject'] },
+            { name: 'triage', label: 'Triage', fields: ['status', 'escalation'] },
+          ],
+        }}
+        dataSource={dataSource as any}
+      />,
+    );
+
+    await waitFor(() => expect(valueOf('subject')).toBe(''));
+    expect(document.body.querySelector('[data-field="escalation"]')).toBeNull();
+
+    fill('subject', 'urgent');
+
+    await waitFor(() =>
+      expect(document.body.querySelector('[data-field="escalation"]')).toBeTruthy(),
+    );
   });
 });
 

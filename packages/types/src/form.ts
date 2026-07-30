@@ -816,6 +816,45 @@ export interface FormFieldTab {
 }
 
 /**
+ * One pane of a split field layout (see `FormSchema.fieldPanes`).
+ *
+ * Like {@link FormFieldTab}, a pane claims a SUBSET of the form's `fields` by
+ * name, and the form renderer still renders exactly ONE `<form>` element /
+ * react-hook-form instance — it merely places each pane's fields in its own
+ * resizable panel. The `<form>` wraps the whole panel group, which is what lets
+ * a submit from anywhere collect every pane's values and lets a condition in one
+ * pane read a field in another (objectui#2153).
+ */
+export interface FormFieldPane {
+  /**
+   * Stable pane key — used for the panel's `data-testid`
+   * (`form-pane:{key}`).
+   */
+  key: string;
+  /**
+   * Names of the fields (as declared in `FormSchema.fields`) that belong to
+   * this pane, in render order. Unknown names are ignored; fields claimed by no
+   * pane render in a leading block above the panel group (never dropped).
+   */
+  fields: string[];
+  /**
+   * Initial pane size, as a percentage of the group (1–99). Defaults to an even
+   * split.
+   */
+  defaultSize?: number;
+  /**
+   * Minimum pane size, as a percentage of the group.
+   * @default 20
+   */
+  minSize?: number;
+  /**
+   * Override the pane's field-grid classes (same role as
+   * `FormSchema.fieldContainerClass`, scoped to this pane).
+   */
+  containerClass?: string;
+}
+
+/**
  * Form field configuration
  */
 export interface FormField {
@@ -1071,6 +1110,29 @@ export interface FormSchema extends BaseSchema {
    * @default 'top'
    */
   fieldTabsPosition?: 'top' | 'bottom' | 'left' | 'right';
+  /**
+   * Split field layout (objectui#2153): each entry claims a subset of `fields`
+   * and renders it in its own resizable panel — inside the SAME `<form>` /
+   * react-hook-form instance as every other pane, because the `<form>` wraps the
+   * whole panel group. That is what a form PER panel could not do: its submit
+   * reached only its own panel's fields, and its conditions could not see the
+   * fields on the other side of the divider.
+   *
+   * Ignored when `children` or `fieldTabs` is set, or when fewer than two panes
+   * are given (the form then renders as a plain field list).
+   */
+  fieldPanes?: FormFieldPane[];
+  /**
+   * Direction the `fieldPanes` are laid out in: `horizontal` = side by side,
+   * `vertical` = stacked.
+   * @default 'horizontal'
+   */
+  fieldPanesOrientation?: 'horizontal' | 'vertical';
+  /**
+   * Whether the `fieldPanes` divider offers a drag handle.
+   * @default true
+   */
+  fieldPanesResizable?: boolean;
   /**
    * Child components (alternative to fields array)
    */
