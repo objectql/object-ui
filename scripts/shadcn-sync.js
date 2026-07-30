@@ -16,12 +16,15 @@
  *   --diff <name>     Show detailed diff for a component
  *   --list            List all components
  *   --backup          Create backup before updating
+ *   --force           Overwrite even when local edits would be lost
+ *   --no-verify       Skip the type-check that runs after an update
  */
 
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import https from 'https';
+import { spawnSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -131,6 +134,85 @@ function rewriteRegistryImports(content) {
  */
 function findUnmappedAliases(content) {
   return [...new Set([...content.matchAll(/["'](@\/[^"']+)["']/g)].map((m) => m[1]))];
+}
+
+/** The header `updateComponent` prepends, so it isn't counted as a local edit. */
+const OBJECTUI_HEADER = /^\/\*\*\n \* ObjectUI\n(?: \*.*\n)* \*\/\n+/;
+
+/**
+ * Lines the local file has that the incoming upstream version does not.
+ *
+ * These are what an overwrite destroys, and a type-check cannot see them:
+ * upstream drops a local addition *and* its usages consistently, so the result
+ * still compiles. `command.tsx` is the worked example — it carries a local
+ * `sr-only` `DialogTitle`/`DialogDescription` on `CommandDialog` (Radix
+ * requires an accessible name). Syncing it deletes 38 lines, removes the
+ * accessibility fix, and type-checks clean.
+ *
+ * Comments count. A local comment explaining why we diverged is exactly the
+ * kind of thing that must not evaporate silently.
+ *
+ * Measured across the 46 registry entries: 29 have none of these and sync
+ * cleanly; 17 do. So this discriminates rather than crying wolf.
+ */
+function localOnlyLines(localContent, upstreamContent) {
+  const norm = (t) =>
+    t
+      .replace(OBJECTUI_HEADER, '')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
+  const upstream = new Set(norm(upstreamContent));
+  return norm(localContent).filter((l) => !upstream.has(l));
+}
+
+/**
+ * Type-check the package after writing to it, and say plainly whether the sync
+ * left it compiling.
+ *
+ * The `findUnmappedAliases` guard above only catches import paths. The other
+ * way a sync breaks things is by discarding local edits: several components
+ * have picked up named imports upstream does not have (`command` added
+ * `DialogTitle`/`DialogDescription`, `sonner` added `toast`), and overwriting
+ * them wholesale drops those. That surfaces as a type error, not a bad path —
+ * so nothing short of actually compiling will catch it.
+ *
+ * Reporting only. Rolling back automatically would throw away a sync the user
+ * may want to fix by hand, so this prints the command instead.
+ */
+function verifyPackageCompiles({ backup } = {}) {
+  logSection('Verifying the package still compiles');
+  log('Running: pnpm --filter @object-ui/components type-check', 'dim');
+  log('(skip with --no-verify)\n', 'dim');
+
+  const result = spawnSync('pnpm', ['--filter', '@object-ui/components', 'type-check'], {
+    cwd: REPO_ROOT,
+    stdio: 'inherit',
+    encoding: 'utf-8',
+  });
+
+  if (result.error) {
+    log(`\n⚠ Could not run the type-check: ${result.error.message}`, 'yellow');
+    log('  Verify by hand before committing.', 'yellow');
+    return null;
+  }
+
+  if (result.status === 0) {
+    log('\n✓ Type-check passed — the synced components still compile.', 'green');
+    return true;
+  }
+
+  log(`\n✗ Type-check FAILED (exit ${result.status}). The sync broke the package.`, 'red');
+  log('  Most likely a local edit was overwritten — upstream does not carry every', 'yellow');
+  log('  named export we import (e.g. command/DialogTitle, sonner/toast).', 'yellow');
+  log('\n  To roll back everything this run wrote:', 'cyan');
+  log('    git checkout -- packages/components/src/ui/', 'dim');
+  if (backup) {
+    log(`  Backups from this run are also in ${path.relative(REPO_ROOT, BACKUP_DIR)}/`, 'dim');
+  } else {
+    log('  (Re-run with --backup next time to keep copies outside git.)', 'dim');
+  }
+  return false;
 }
 
 async function checkComponent(name, manifest) {
@@ -294,6 +376,29 @@ async function updateComponent(name, manifest, options = {}) {
       return false;
     }
 
+    // Don't clobber local edits silently. A type-check will not catch this —
+    // see localOnlyLines — so refusing is the only thing that makes the loss
+    // a decision rather than an accident.
+    const targetPathForCheck = path.join(COMPONENTS_DIR, `${name}.tsx`);
+    let existing = null;
+    try {
+      existing = await fs.readFile(targetPathForCheck, 'utf-8');
+    } catch {
+      /* new component — nothing to lose */
+    }
+
+    if (existing && !options.force) {
+      const lost = localOnlyLines(existing, content);
+      if (lost.length > 0) {
+        log(`✗ Refusing to overwrite ${name}.tsx — ${lost.length} local line(s) upstream does not have:`, 'red');
+        lost.slice(0, 8).forEach((l) => log(`    ${l.length > 96 ? l.slice(0, 96) + '…' : l}`, 'dim'));
+        if (lost.length > 8) log(`    … and ${lost.length - 8} more`, 'dim');
+        log(`  Overwriting deletes these. Port them onto the new upstream version by hand,`, 'yellow');
+        log(`  or re-run with --force if they are genuinely obsolete.`, 'yellow');
+        return 'skipped';
+      }
+    }
+
     // Add ObjectUI header
     const header = `/**
  * ObjectUI
@@ -344,30 +449,44 @@ async function updateAllComponents(options = {}) {
   }
   
   let updated = 0;
+  let skipped = 0;
   let failed = 0;
-  
+
   for (const name of componentNames) {
-    const success = await updateComponent(name, manifest, options);
-    if (success) {
+    const result = await updateComponent(name, manifest, options);
+    if (result === true) {
       updated++;
+    } else if (result === 'skipped') {
+      skipped++;
     } else {
       failed++;
     }
-    
+
     // Small delay to avoid rate limiting
     await new Promise(resolve => setTimeout(resolve, 100));
   }
-  
+
   logSection('Update Complete');
   log(`✓ Updated: ${updated} components`, 'green');
+  if (skipped > 0) {
+    log(`⊘ Skipped: ${skipped} components (local edits would be lost — see above)`, 'yellow');
+    log(`  Port those edits by hand, or re-run with --force to take upstream as-is.`, 'dim');
+  }
   if (failed > 0) {
     log(`✗ Failed:  ${failed} components`, 'red');
   }
   
+  // Only worth compiling if something was actually written.
+  const compiles = updated > 0 && options.verify !== false ? verifyPackageCompiles(options) : undefined;
+
   log('\nNext steps:', 'cyan');
   log('1. Review the changes: git diff packages/components/src/ui/', 'dim');
-  log('2. Test the components: pnpm test', 'dim');
-  log('3. Build the package: pnpm --filter @object-ui/components build', 'dim');
+  if (compiles === false) {
+    log('2. Fix or roll back — the type-check above failed.', 'dim');
+  } else {
+    log('2. Test the components: pnpm test', 'dim');
+    log('3. Build the package: pnpm --filter @object-ui/components build', 'dim');
+  }
 }
 
 async function showDiff(name) {
@@ -431,7 +550,9 @@ async function main() {
     await checkAllComponents();
   } else if (args.includes('--update-all')) {
     const backup = args.includes('--backup');
-    await updateAllComponents({ backup });
+    const verify = !args.includes('--no-verify');
+    const force = args.includes('--force');
+    await updateAllComponents({ backup, verify, force });
   } else if (args.includes('--update')) {
     const idx = args.indexOf('--update');
     const componentName = args[idx + 1];
@@ -441,7 +562,12 @@ async function main() {
     }
     const manifest = await loadManifest();
     const backup = args.includes('--backup');
-    await updateComponent(componentName, manifest, { backup });
+    const verify = !args.includes('--no-verify');
+    const force = args.includes('--force');
+    const written = await updateComponent(componentName, manifest, { backup, force });
+    // A single component can break the package just as thoroughly as a bulk
+    // run, so it gets the same compile check.
+    if (written === true && verify) verifyPackageCompiles({ backup });
   } else if (args.includes('--diff')) {
     const idx = args.indexOf('--diff');
     const componentName = args[idx + 1];
@@ -462,6 +588,8 @@ async function main() {
     console.log('  --diff <name>        Show detailed diff for a component');
     console.log('  --list               List all components');
     console.log('  --backup             Create backup before updating');
+    console.log('  --force              Overwrite even if local edits would be lost');
+    console.log('  --no-verify          Skip the post-update type-check');
     console.log('  --help, -h           Show this help message\n');
   } else {
     log('Unknown option. Use --help for usage information.', 'red');
