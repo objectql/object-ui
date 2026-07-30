@@ -37,6 +37,7 @@ import {
 } from './autoLayout';
 import { deriveFieldGroupSections } from './fieldGroups';
 import { sanitizeFormData } from './sanitize';
+import { useOccSave } from './occSave';
 
 export interface ObjectFormProps {
   /**
@@ -397,6 +398,9 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
   // second record).
   const [submitted, setSubmitted] = useState<{ title?: string; message?: string } | null>(null);
 
+  // OCC-guarded edit save + its conflict dialog (see occSave.tsx).
+  const { saveWithOcc, conflictDialog } = useOccSave();
+
   // Check if using inline fields (fields defined as objects, not just names)
   const hasInlineFields = schema.customFields && schema.customFields.length > 0;
 
@@ -734,7 +738,17 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
       } else if (schema.mode === 'create') {
         result = await dataSource.create(schema.objectName, payload);
       } else if (schema.mode === 'edit' && schema.recordId) {
-        result = await dataSource.update(schema.objectName, schema.recordId, payload);
+        // OCC-guarded: sends `ifMatch` from the record we read; a 409 asks the
+        // user to keep editing (skip the success path) or overwrite.
+        const outcome = await saveWithOcc({
+          dataSource,
+          objectName: schema.objectName,
+          recordId: schema.recordId,
+          payload,
+          baseRecord: initialData,
+        });
+        if (outcome.status === 'cancelled') return;
+        result = outcome.result;
       } else {
         throw new Error('Invalid form mode or missing record ID');
       }
@@ -789,7 +803,7 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
       
       throw err;
     }
-  }, [schema, dataSource, hasInlineFields, perms, objectSchema]);
+  }, [schema, dataSource, hasInlineFields, perms, objectSchema, saveWithOcc, initialData]);
 
   // Handle form cancellation
   const handleCancel = useCallback(() => {
@@ -1007,6 +1021,7 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
             onCancel: handleCancel,
           } as FormSchema}
         />
+        {conflictDialog}
       </div>
     );
   }
@@ -1098,6 +1113,7 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
       data-mobile-form={mobileOpts ? 'true' : undefined}
     >
       <SchemaRenderer schema={formSchema} />
+      {conflictDialog}
     </div>
   );
 };

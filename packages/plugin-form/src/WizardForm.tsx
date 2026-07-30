@@ -24,6 +24,7 @@ import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
 import { applyAutoColSpan, containerGridColsFor } from './autoLayout';
 import { resolveSuccessNavigate, isSameOriginUrl, type SubmitBehavior } from './successBehavior';
+import { useOccSave } from './occSave';
 import type { FormSectionConfig } from './TabbedForm';
 
 // Falls back to English when no i18n provider is mounted.
@@ -211,6 +212,8 @@ export const WizardForm: React.FC<WizardFormProps> = ({
   const { t } = useWizardTranslation();
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
+  // OCC-guarded edit save + its conflict dialog (see occSave.tsx).
+  const { saveWithOcc, conflictDialog } = useOccSave();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
@@ -409,7 +412,19 @@ export const WizardForm: React.FC<WizardFormProps> = ({
         if (schema.mode === 'create') {
           result = await dataSource.create(schema.objectName, mergedData);
         } else if (schema.mode === 'edit' && schema.recordId) {
-          result = await dataSource.update(schema.objectName, schema.recordId, mergedData);
+          // OCC-guarded: sends `ifMatch` from the record we read; a 409 asks
+          // the user to keep editing (skip the success path) or overwrite.
+          // `formData.updated_at` is still the fetched value — no wizard step
+          // renders an input for it.
+          const outcome = await saveWithOcc({
+            dataSource,
+            objectName: schema.objectName,
+            recordId: schema.recordId,
+            payload: mergedData,
+            baseRecord: formData,
+          });
+          if (outcome.status === 'cancelled') return;
+          result = outcome.result;
         }
         
         if (schema.onSuccess) {
@@ -473,7 +488,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
       // Move to next step
       goToStep(currentStep + 1);
     }
-  }, [formData, currentStep, isLastStep, schema, dataSource, missingRequiredByStep, t]);
+  }, [formData, currentStep, isLastStep, schema, dataSource, missingRequiredByStep, t, saveWithOcc]);
 
   // Navigation
   const goToStep = useCallback((step: number) => {
@@ -744,6 +759,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
           )}
         </div>
       </div>
+      {conflictDialog}
     </div>
   );
 };
