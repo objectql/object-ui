@@ -229,7 +229,7 @@ async function checkComponent(name, manifest) {
   try {
     const localContent = await fs.readFile(localPath, 'utf-8');
     const localLines = localContent.split('\n').length;
-    
+
     // Fetch latest from registry
     try {
       const registryData = await fetchUrl(componentInfo.source);
@@ -237,20 +237,42 @@ async function checkComponent(name, manifest) {
       // a difference — the local file has already been through this transform.
       const shadcnContent = rewriteRegistryImports(registryData.files?.[0]?.content || '');
       const shadcnLines = shadcnContent.split('\n').length;
-      
-      // Simple heuristic: check if significantly different
-      const lineDiff = Math.abs(localLines - shadcnLines);
-      const isDifferent = lineDiff > 10 || localContent.includes('ObjectUI') || localContent.includes('data-slot');
-      
+
+      // `localOnlyLines` is directional — lines in the first argument that the
+      // second lacks — so calling it both ways answers the two questions that
+      // actually decide whether to sync: what would a sync DESTROY, and what
+      // would it GAIN?
+      //
+      // The previous heuristic (`lineDiff > 10 || includes('ObjectUI')`) could
+      // not answer either. Every synced file carries the ObjectUI header this
+      // script prepends, so the second clause was true for all 46 of them and
+      // `--check` reported the entire set as "modified" — no signal at all.
+      const localOnly = localOnlyLines(localContent, shadcnContent);
+      const upstreamOnly = localOnlyLines(shadcnContent, localContent);
+
+      let status;
+      let message;
+      if (localOnly.length > 0) {
+        // `--update` refuses these; the local lines would be deleted.
+        status = 'modified';
+        message = `${localOnly.length} local line(s) upstream lacks — --update would refuse`;
+        if (upstreamOnly.length > 0) message += `, ${upstreamOnly.length} upstream line(s) pending`;
+      } else if (upstreamOnly.length > 0) {
+        status = 'outdated';
+        message = `${upstreamOnly.length} upstream line(s) to pick up — safe to sync`;
+      } else {
+        status = 'synced';
+        message = 'Identical to upstream';
+      }
+
       return {
         name,
-        status: isDifferent ? 'modified' : 'synced',
+        status,
         localLines,
         shadcnLines,
-        lineDiff,
-        message: isDifferent ? 
-          `Modified (${lineDiff} lines difference)` : 
-          'Synced with Shadcn',
+        localOnly: localOnly.length,
+        upstreamOnly: upstreamOnly.length,
+        message,
       };
     } catch (fetchError) {
       return {
@@ -280,45 +302,59 @@ async function checkAllComponents() {
   
   const results = {
     synced: [],
+    outdated: [],
     modified: [],
     custom: [],
     error: [],
   };
-  
+
   for (const component of localComponents) {
     const result = await checkComponent(component, manifest);
     results[result.status].push(result);
-    
+
     const symbol = {
       synced: '✓',
+      outdated: '↑',
       modified: '⚠',
       custom: '●',
       error: '✗',
     }[result.status];
-    
+
     const color = {
       synced: 'green',
+      outdated: 'cyan',
       modified: 'yellow',
       custom: 'blue',
       error: 'red',
     }[result.status];
-    
+
     log(`${symbol} ${result.name.padEnd(25)} ${result.message}`, color);
   }
-  
+
   // Summary
   logSection('Summary');
-  log(`✓ Synced:   ${results.synced.length} components`, 'green');
-  log(`⚠ Modified: ${results.modified.length} components`, 'yellow');
-  log(`● Custom:   ${results.custom.length} components`, 'blue');
-  log(`✗ Errors:   ${results.error.length} components`, 'red');
-  
-  if (results.modified.length > 0) {
-    log('\nTo update a component:', 'cyan');
-    log('  node scripts/shadcn-sync.js --update <component-name>', 'dim');
-    log('  node scripts/shadcn-sync.js --update-all', 'dim');
+  log(`✓ Identical: ${results.synced.length} components`, 'green');
+  log(`↑ Outdated:  ${results.outdated.length} components (no local edits — safe to sync)`, 'cyan');
+  log(`⚠ Modified:  ${results.modified.length} components (local edits — --update refuses)`, 'yellow');
+  log(`● Custom:    ${results.custom.length} components (not tracked upstream)`, 'blue');
+  log(`✗ Errors:    ${results.error.length} components`, 'red');
+
+  // The actionable bucket: upstream moved and nothing local is at risk.
+  if (results.outdated.length > 0) {
+    log('\nSafe to sync now:', 'cyan');
+    log(`  node scripts/shadcn-sync.js --update ${results.outdated[0].name}`, 'dim');
+    if (results.outdated.length > 1) {
+      log(`  (${results.outdated.length} in total: ${results.outdated.map((r) => r.name).join(', ')})`, 'dim');
+    }
   }
-  
+
+  if (results.modified.length > 0) {
+    log('\nThese carry local edits a sync would delete:', 'yellow');
+    log(`  ${results.modified.map((r) => `${r.name}(${r.localOnly})`).join(', ')}`, 'dim');
+    log('  Port the edits onto the new upstream version by hand, or --force to', 'dim');
+    log('  take upstream as-is. `--diff <name>` shows both sides.', 'dim');
+  }
+
   return results;
 }
 
