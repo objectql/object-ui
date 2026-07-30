@@ -366,16 +366,26 @@ function getJsxManifest() {
   // config's `.type` is always the namespaced form (Registry stores the bare
   // alias pointing at the namespaced type), so getAllConfigs() alone would
   // never admit the bare `<flex>` tag authors write.
-  const types = ComponentRegistry.getAllTypes();
-  if (_jsxManifest === null || _jsxManifestSig !== types.length) {
-    const configs = types.map((t) => {
-      const cfg = ComponentRegistry.getConfig(t) as
-        | { namespace?: string; isContainer?: boolean; inputs?: unknown }
-        | undefined;
-      return { type: t, namespace: cfg?.namespace, isContainer: cfg?.isContainer, inputs: cfg?.inputs };
+  //
+  // KNOWN types, not loaded ones. A lazily-registered block is a real member of
+  // this app's vocabulary; leaving it out of the whitelist rejected
+  // `<object-kanban>` as "not an allowed component" and — because a compile
+  // error fails the WHOLE page, not just that node — took the entire page down
+  // with it, load-order dependently (objectui#2953, html tier).
+  //
+  // A stub has no `inputs` yet, so its props come back as `unknown-prop`
+  // WARNINGS rather than errors: the page compiles and renders, and the inner
+  // SchemaRenderer triggers the loader and swaps in the real block. Authoring
+  // time still gets full prop validation — `sdui.manifest.json` is generated
+  // with every plugin eagerly loaded, and asserts as much.
+  const version = ComponentRegistry.getVersion();
+  if (_jsxManifest === null || _jsxManifestSig !== version) {
+    const configs = ComponentRegistry.getKnownTypes().map((t) => {
+      const meta = ComponentRegistry.getMeta(t);
+      return { type: t, namespace: meta?.namespace, isContainer: meta?.isContainer, inputs: meta?.inputs };
     });
     _jsxManifest = manifestFromConfigs(configs as unknown as Parameters<typeof manifestFromConfigs>[0]);
-    _jsxManifestSig = types.length;
+    _jsxManifestSig = version;
   }
   return _jsxManifest;
 }
@@ -389,6 +399,13 @@ export const PageRenderer: React.FC<{
   [key: string]: any;
 }> = ({ schema, className, ...props }) => {
   const pageType = schema.pageType || 'record';
+  // A `kind:'html'` page compiles its source against the registry, and a
+  // compile error fails the whole page. Without this the failure is permanent
+  // for the session: `layoutElement` is memoised, so a page that compiled
+  // before the block it needs was registered kept rendering the cached error
+  // panel even after the plugin landed. Mirrors SchemaRenderer's subscription.
+  const [registryTick, bumpRegistryTick] = React.useReducer((n: number) => n + 1, 0);
+  React.useEffect(() => ComponentRegistry.subscribe(bumpRegistryTick), []);
   // Spec PageSchema declares `label` (required); `title` is the objectui
   // spelling. Dual-read so a spec-authored page still renders its header
   // (framework#1878 §3 naming-drift recheck).
@@ -480,7 +497,12 @@ export const PageRenderer: React.FC<{
       default:
         return <RecordPageLayout schema={schema} />;
     }
-  }, [schema, pageType]);
+    // `registryTick` only matters to the kind:'html' branch above, which
+    // recompiles against the (now larger) whitelist. Every other branch just
+    // rebuilds the same element type with the same props, which React
+    // reconciles in place — no remount, no state loss (pinned by
+    // react-page-state.test.tsx).
+  }, [schema, pageType, registryTick]);
 
   // Full-bleed: a page whose `main` region is declared `width: 'full'` fills
   // the viewport with NO centered max-width cap — for dashboards / 大屏 /

@@ -173,6 +173,83 @@ describe('Registry', () => {
     });
   });
 
+  describe('getKnownTypes() / getMeta() / getVersion() — lazy-aware reads (objectui#2953)', () => {
+    const loader = () => Promise.resolve();
+
+    it('getKnownTypes() includes pending lazy stubs; getAllTypes() does not', () => {
+      registry.register('button', () => 'b1');
+      registry.registerLazy('object-kanban', loader, { namespace: 'plugin-kanban' });
+
+      // getAllTypes() answers "what can render right now" — the stub cannot.
+      expect(registry.getAllTypes()).not.toContain('object-kanban');
+      // getKnownTypes() answers "what does this app know about" — the question
+      // a whitelist or a manifest is actually asking. Building one off
+      // getAllTypes() rejected lazily-registered blocks as unknown.
+      expect(registry.getKnownTypes()).toContain('object-kanban');
+      expect(registry.getKnownTypes()).toContain('plugin-kanban:object-kanban');
+      expect(registry.getKnownTypes()).toContain('button');
+    });
+
+    it('getKnownTypes() dedupes a type that is both loaded and stubbed', () => {
+      registry.registerLazy('object-map', loader, { namespace: 'plugin-map' });
+      registry.register('object-map', () => 'm', { namespace: 'plugin-map' });
+
+      const known = registry.getKnownTypes();
+      expect(known.filter((t) => t === 'object-map')).toHaveLength(1);
+    });
+
+    it('getMeta() reads through to a stub, getConfig() stays loaded-only', () => {
+      registry.registerLazy('object-gantt', loader, {
+        namespace: 'plugin-gantt',
+        category: 'view',
+        isContainer: false,
+      });
+
+      expect(registry.getConfig('object-gantt')).toBeUndefined();
+      expect(registry.getMeta('object-gantt')).toMatchObject({
+        namespace: 'plugin-gantt',
+        category: 'view',
+        isContainer: false,
+      });
+      // A stub has no declared inputs until its chunk lands — "not yet known",
+      // which consumers must not read as "declares no props".
+      expect(registry.getMeta('object-gantt')?.inputs).toBeUndefined();
+    });
+
+    it('getMeta() prefers the loaded registration once the chunk lands', () => {
+      registry.registerLazy('object-chart', loader, { namespace: 'plugin-charts' });
+      registry.register('object-chart', () => 'c', {
+        namespace: 'plugin-charts',
+        inputs: [{ name: 'type', type: 'string' }],
+      });
+
+      expect(registry.getMeta('object-chart')?.inputs).toHaveLength(1);
+    });
+
+    it('getMeta() honours an explicit namespace', () => {
+      registry.registerLazy('kanban', loader, { namespace: 'view' });
+
+      expect(registry.getMeta('kanban', 'view')).toBeTruthy();
+      expect(registry.getMeta('kanban', 'nope')).toBeUndefined();
+    });
+
+    it('getVersion() moves on every change to the known set', () => {
+      const start = registry.getVersion();
+      registry.register('button', () => 'b1');
+      const afterRegister = registry.getVersion();
+      registry.registerLazy('object-map', loader, { namespace: 'plugin-map' });
+      const afterLazy = registry.getVersion();
+      registry.unregister('button');
+      const afterUnregister = registry.getVersion();
+
+      // Counting types cannot substitute for this: a registration paired with
+      // an unregistration leaves the count untouched while the set changed.
+      expect(afterRegister).toBeGreaterThan(start);
+      expect(afterLazy).toBeGreaterThan(afterRegister);
+      expect(afterUnregister).toBeGreaterThan(afterLazy);
+    });
+  });
+
   describe('getAllTypes() and getAllConfigs()', () => {
     it('should return all registered types including namespaced ones', () => {
       registry.register('button', () => 'b1');
