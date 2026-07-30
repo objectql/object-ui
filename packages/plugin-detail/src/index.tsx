@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, type ComponentInput } from '@object-ui/core';
 import { DetailView } from './DetailView';
 import { DetailSection } from './DetailSection';
 import { DetailTabs } from './DetailTabs';
@@ -23,6 +23,7 @@ import { RecordReferenceRailRenderer } from './renderers/record-reference-rail';
 import { RecordAlertRenderer } from './renderers/record-alert';
 import { PermissionFacetLink } from './renderers/PermissionFacetLink';
 import type { DetailViewSchema } from '@object-ui/types';
+import { ACTION_LOCATIONS } from '@object-ui/types';
 
 export { DetailView, DetailSection, DetailTabs, RelatedList };
 export {
@@ -282,13 +283,49 @@ ComponentRegistry.register('highlights', RecordHighlightsRenderer, {
   ],
 });
 
+// `inputs` on the blocks below describe what an AUTHOR writes, which is a
+// subset of what the renderer reads. `entries`, `loading` and resolved
+// `actions` are injected by the host shell (RecordDetailView and friends) off
+// RecordContext — declaring those would invite a model to hand-write data the
+// page is supposed to fetch. `aria` is omitted for the same reason it is
+// omitted on `record:details` above: it is an accessibility escape hatch, not
+// a layout choice.
+
 ComponentRegistry.register('activity', RecordActivityRenderer, {
   namespace: 'record',
   skipFallback: true,
   category: 'record',
   label: 'Activity Timeline',
   icon: 'Activity',
+  // Mirrors RecordActivityComponentProps (@object-ui/types), itself aligned
+  // with @objectstack/spec RecordActivityProps.
+  inputs: [
+    { name: 'types', type: 'array', label: 'Activity Types', description: 'Activity types to display (e.g. task, event, call, comment)' },
+    { name: 'filterMode', type: 'string', label: 'Filter Mode', description: 'How the type filter combines with the feed query' },
+    { name: 'showFilterToggle', type: 'boolean', label: 'Show Filter Toggle', description: 'Expose the activity-type filter UI' },
+    { name: 'limit', type: 'number', label: 'Limit', description: 'Maximum activities to display' },
+    { name: 'showCompleted', type: 'boolean', label: 'Show Completed', description: 'Include completed/resolved activities' },
+    { name: 'unifiedTimeline', type: 'boolean', label: 'Unified Timeline', description: 'Merge all activity types into one timeline' },
+    { name: 'showCommentInput', type: 'boolean', label: 'Show Comment Input' },
+    { name: 'enableMentions', type: 'boolean', label: 'Enable @mentions' },
+    { name: 'enableReactions', type: 'boolean', label: 'Enable Reactions' },
+    { name: 'enableThreading', type: 'boolean', label: 'Enable Threaded Replies' },
+    { name: 'showSubscriptionToggle', type: 'boolean', label: 'Show Subscribe Toggle' },
+  ],
 });
+
+// `record:chatter` and `record:discussion` are the same renderer under two
+// names. The spec prefers `discussion` for new Lightning-style record pages;
+// `chatter` stays for Salesforce-familiar authors and for schemas already in
+// the wild. Both carry the same inputs — an author who reaches for either gets
+// the same configuration surface.
+const CHATTER_INPUTS: ComponentInput[] = [
+  { name: 'position', type: 'enum', label: 'Position', enum: ['bottom', 'right', 'left'], defaultValue: 'bottom', description: 'Where the panel docks relative to the record body' },
+  { name: 'width', type: 'string', label: 'Width', description: 'Panel width as a CSS value (side positions only)' },
+  { name: 'collapsible', type: 'boolean', label: 'Collapsible', defaultValue: false },
+  { name: 'defaultCollapsed', type: 'boolean', label: 'Start Collapsed' },
+  { name: 'feed', type: 'object', label: 'Feed Options', description: 'Activity-feed config nested inside the panel — same shape as record:activity' },
+];
 
 ComponentRegistry.register('chatter', RecordChatterRenderer, {
   namespace: 'record',
@@ -296,19 +333,17 @@ ComponentRegistry.register('chatter', RecordChatterRenderer, {
   category: 'record',
   label: 'Chatter Feed',
   icon: 'MessageSquare',
+  // Mirrors RecordChatterComponentProps (@object-ui/types).
+  inputs: CHATTER_INPUTS,
 });
 
-// `record:discussion` is the spec-compliant alias preferred for new
-// Lightning-style record pages. The two names render identically and
-// share the same DiscussionContext wiring; we keep `record:chatter`
-// for Salesforce-familiar authors and for backward compatibility with
-// schemas already in the wild.
 ComponentRegistry.register('discussion', RecordChatterRenderer, {
   namespace: 'record',
   skipFallback: true,
   category: 'record',
   label: 'Discussion',
   icon: 'MessageSquare',
+  inputs: CHATTER_INPUTS,
 });
 
 ComponentRegistry.register('path', RecordPathRenderer, {
@@ -330,6 +365,16 @@ ComponentRegistry.register('quick_actions', RecordQuickActionsRenderer, {
   category: 'record',
   label: 'Quick Actions',
   icon: 'Zap',
+  inputs: [
+    { name: 'actionNames', type: 'array', label: 'Actions', description: 'Action names to expose, in order (else every action declared for the object at this location)' },
+    { name: 'requiredPermissions', type: 'array', label: 'Required Permissions', description: 'Hide the whole bar unless the user holds these permissions' },
+    // Derived from the spec's own vocabulary rather than restated — #3019.
+    { name: 'location', type: 'enum', label: 'Location', enum: [...ACTION_LOCATIONS], defaultValue: 'record_header', description: 'Which declared action location this bar renders' },
+    { name: 'align', type: 'enum', label: 'Align', enum: ['start', 'center', 'end'], defaultValue: 'end' },
+    { name: 'inline', type: 'boolean', label: 'Inline', description: 'Render in the flow instead of folding into the record header' },
+    { name: 'variant', type: 'string', label: 'Button Variant', defaultValue: 'default', description: 'Passed to the Button primitive; a per-action variant overrides it' },
+    { name: 'size', type: 'string', label: 'Button Size', defaultValue: 'sm', description: 'Passed to the Button primitive; a per-action size overrides it' },
+  ],
 });
 
 ComponentRegistry.register('history', RecordHistoryRenderer, {
@@ -338,6 +383,11 @@ ComponentRegistry.register('history', RecordHistoryRenderer, {
   category: 'record',
   label: 'History Timeline',
   icon: 'Clock',
+  inputs: [
+    { name: 'limit', type: 'number', label: 'Limit', defaultValue: 50, description: 'Maximum history entries to display' },
+    { name: 'emptyText', type: 'string', label: 'Empty Text', description: 'Copy shown when the record has no history' },
+    { name: 'unknownUserText', type: 'string', label: 'Unknown User Text', description: 'Copy substituted when an entry has no resolvable actor' },
+  ],
 });
 
 ComponentRegistry.register('reference_rail', RecordReferenceRailRenderer, {
@@ -346,6 +396,9 @@ ComponentRegistry.register('reference_rail', RecordReferenceRailRenderer, {
   category: 'record',
   label: 'Reference Rail',
   icon: 'PanelRight',
+  inputs: [
+    { name: 'hideEmpty', type: 'boolean', label: 'Hide When Empty', defaultValue: true, description: 'Drop the rail entirely when no entries resolve' },
+  ],
 });
 
 ComponentRegistry.register('alert', RecordAlertRenderer, {
@@ -354,6 +407,16 @@ ComponentRegistry.register('alert', RecordAlertRenderer, {
   category: 'record',
   label: 'Alert Banner',
   icon: 'AlertTriangle',
+  inputs: [
+    { name: 'severity', type: 'enum', label: 'Severity', enum: ['info', 'warning', 'error', 'success'], defaultValue: 'info' },
+    { name: 'title', type: 'string', label: 'Title', description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
+    { name: 'body', type: 'string', label: 'Body', description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
+    { name: 'visible', type: 'string', label: 'Visible When', description: 'Expression gating the banner against the current record' },
+    { name: 'icon', type: 'string', label: 'Icon', description: 'Lucide icon name; defaults to the severity icon' },
+    { name: 'action', type: 'object', label: 'Call to Action', description: '{ actionName, label?, variant? } — the action the banner offers' },
+    { name: 'dismissible', type: 'boolean', label: 'Dismissible' },
+    { name: 'dismissKey', type: 'string', label: 'Dismiss Key', description: 'Stable key the dismissal is remembered under' },
+  ],
 });
 
 // ADR-0056 P1 — the `permission-facet-link` field widget renders a

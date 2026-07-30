@@ -48,6 +48,21 @@ export const PUBLIC_BLOCKS: readonly string[] = [
   // it was listed under here never existed — the block has shipped all along
   // but could never resolve through the contract (objectui#2953 follow-up).
   'record:line_items',
+  // Configurable as of objectui#3023 follow-up: these shipped with renderers
+  // but no declared `inputs`, so a model could only emit them bare — which is
+  // why they sat outside the contract. Their inputs now mirror what the
+  // renderers actually read, so they are authorable and belong here.
+  //
+  // `record:chatter` is deliberately NOT in this list: it is the same renderer
+  // as `record:discussion` under a Salesforce-familiar name, kept for schemas
+  // already in the wild. Two spellings of one block is ambiguity an authoring
+  // model has no way to resolve, so the vocabulary carries the spec's name.
+  'record:activity',
+  'record:discussion',
+  'record:history',
+  'record:quick_actions',
+  'record:reference_rail',
+  'record:alert',
   // ── Tier B — layout / content primitives ──────────────────────────────────
   'flex',
   'grid',
