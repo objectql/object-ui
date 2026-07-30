@@ -185,6 +185,19 @@ export interface AdvancedChartImplProps {
 }
 
 /**
+ * Chart types that plot a CATEGORY axis keyed by `xAxisKey`, and are therefore
+ * unreadable when no row carries that key (see the guard in the component).
+ *
+ * `scatter` is excluded on purpose: both of its axes are numeric measures, so a
+ * missing `xAxisKey` there is a different question. `treemap` and `sankey` are
+ * excluded because they read hierarchy/link fields, not a category axis — a
+ * guard that fired on them would be a false alarm on a working chart.
+ */
+const CATEGORY_AXIS_CHART_TYPES: ReadonlySet<string> = new Set([
+  'bar', 'horizontal-bar', 'line', 'area', 'pie', 'donut', 'radar', 'funnel', 'combo',
+]);
+
+/**
  * Treemap leaf cell — paints each leaf rect with its palette fill + label.
  * Hoisted to module scope so it is a stable component reference rather than one
  * re-created on every AdvancedChartImpl render (react-hooks/static-components).
@@ -228,7 +241,7 @@ function ChartFrame({ title, subtitle, children }: { title?: string; subtitle?: 
  * AdvancedChartImpl - The heavy implementation that imports Recharts with full features
  * This component is lazy-loaded to avoid including Recharts in the initial bundle
  */
-export default function AdvancedChartImpl({
+function AdvancedChartImplInner({
   chartType: rawChartType = 'bar',
   data: rawData = [],
   config = {},
@@ -255,6 +268,7 @@ export default function AdvancedChartImpl({
   // 'column' is the spec-level alias for vertical bars; 'horizontal-bar' stays as-is.
   const chartType = rawChartType === 'column' ? 'bar' : rawChartType;
   const data = Array.isArray(rawData) ? rawData : [];
+
   // Only emit the prop when explicitly disabled, so the default (animated)
   // behavior is byte-for-byte unchanged for every existing caller.
   const animProps = isAnimationActive === false ? { isAnimationActive: false as const } : {};
@@ -1017,4 +1031,66 @@ export default function AdvancedChartImpl({
     </ChartContainer>
     </ChartFrame>
   );
+}
+
+
+/**
+ * Detect the framework#4033 shape from props alone: rows are present, the chart
+ * plots a category axis, and NOT ONE row carries the key it was told to plot.
+ */
+function hasNoCategoryKey(props: AdvancedChartImplProps): boolean {
+  const chartType = props.chartType === 'column' ? 'bar' : (props.chartType ?? 'bar');
+  const rows = Array.isArray(props.data) ? props.data : [];
+  const key = props.xAxisKey ?? 'name';
+  return (
+    CATEGORY_AXIS_CHART_TYPES.has(chartType) &&
+    rows.length > 0 &&
+    !rows.some((row) => row != null && typeof row === 'object' && key in row)
+  );
+}
+
+/**
+ * Public entry point. A THIN wrapper purely so the unreadable-data guard can
+ * short-circuit without breaking the rules of hooks: the condition depends on
+ * `data`, which arrives asynchronously, so an early return inside the renderer
+ * would change its hook count between renders. The wrapper's own hook list is
+ * fixed, and the renderer below is reached with data it can actually plot.
+ */
+export default function AdvancedChartImpl(props: AdvancedChartImplProps) {
+  const missingCategoryKey = hasNoCategoryKey(props);
+  const xAxisKey = props.xAxisKey ?? 'name';
+  const firstRowKeys = React.useMemo(
+    () => Object.keys((Array.isArray(props.data) ? props.data[0] : undefined) ?? {}),
+    [props.data],
+  );
+
+  React.useEffect(() => {
+    if (!missingCategoryKey) return;
+    // Names BOTH halves of the mismatch — the key the chart was told to plot and
+    // the keys the rows actually carry. That pair is the whole diagnosis;
+    // without it an author is left diffing a dataset against a chart spec by
+    // hand, which is exactly what made framework#4033 expensive to find.
+    console.warn(
+      `[chart] no row has the category key "${xAxisKey}" — rendering an explanatory ` +
+      `placeholder instead of an empty axis. Row keys: ${JSON.stringify(firstRowKeys)}. ` +
+      `A dataset query must PROJECT the dimension it groups by (framework#4033).`,
+    );
+  }, [missingCategoryKey, xAxisKey, firstRowKeys]);
+
+  if (missingCategoryKey) {
+    return (
+      <div
+        className={`flex h-full min-h-[120px] w-full items-center justify-center p-4 text-center text-sm text-muted-foreground ${props.className ?? ''}`}
+        role="status"
+        data-chart-error="missing-category-key"
+      >
+        <span>
+          This chart cannot plot its category axis: no row has a{' '}
+          <code className="font-mono">{xAxisKey}</code> field.
+        </span>
+      </div>
+    );
+  }
+
+  return <AdvancedChartImplInner {...props} />;
 }
