@@ -113,7 +113,9 @@ const ALLOW = {
 //   2. The SPEC export resolves to `any` (`NavigationItem`, `JoinNode`,
 //      `FormField`). Re-exporting these REPLACES a precise local interface with
 //      `any` — a type-safety regression wearing a burn-down's clothes. These
-//      cannot be burned down here at all; the fix belongs upstream in the spec.
+//      cannot be burned down here at all; the fix belongs upstream in the spec,
+//      filed as objectstack#4171. `spec-derived-unions.test.ts` carries an
+//      inverted pin that fails the day the spec types one of them properly.
 //      Detect: the same `0 extends (1 & Spec)` probe.
 //   3. The local declaration carries `[key: string]: any` (`FormField`,
 //      `AppSchema`, `PageSchema`, `ThemeSchema`, …) — the objectstack#4075

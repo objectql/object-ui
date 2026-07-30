@@ -149,11 +149,13 @@ const _windowFunctionCovers = null as unknown as SpecWindow satisfies WindowFunc
  *
  * `NavigationItem`, `JoinNode` and `FormField` collide with a spec export whose
  * own declaration resolves to `any` (the spec annotates the recursive schemas
- * behind them as `z.ZodType<any>`). Binding objectui's local interface to the
- * spec would replace a precise, documented shape with `any` — a type-safety
- * regression wearing a burn-down's clothes. So they stay in the ledger with
- * their local declarations intact, which is the right answer for as long as the
- * spec cannot describe them.
+ * behind them as `z.ZodType<any>`, and `z.infer` of that is `any`). Binding
+ * objectui's local interface to the spec would replace a precise, documented
+ * shape with `any` — a type-safety regression wearing a burn-down's clothes. So
+ * they stay in the ledger with their local declarations intact, which is the
+ * right answer for as long as the spec cannot describe them.
+ *
+ * Filed upstream as objectstack#4171 (4 of the spec's 2240 exported types).
  *
  * Mutual assignability CANNOT distinguish this case on its own: `any` answers
  * every `extends` question affirmatively, so a naive probe reports these three
