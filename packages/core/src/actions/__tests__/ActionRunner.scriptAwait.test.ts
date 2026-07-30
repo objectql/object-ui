@@ -32,7 +32,7 @@ describe('ActionRunner - script action awaits a Promise-returning formula', () =
     // so the expression must call it by that same upper-cased name.
     runner.getEvaluator().registerFunction('doWrite', () => write);
 
-    const action: ActionDef = { type: 'script', execute: 'DOWRITE()' };
+    const action: ActionDef = { type: 'script', target: 'DOWRITE()' };
     const pending = runner.execute(action);
 
     // The write hasn't resolved yet — no toast should have fired.
@@ -49,7 +49,7 @@ describe('ActionRunner - script action awaits a Promise-returning formula', () =
 
   it('surfaces a rejected write as success:false instead of a false-positive success toast', async () => {
     runner.getEvaluator().registerFunction('doFailingWrite', () => Promise.reject(new Error('write failed')));
-    const action: ActionDef = { type: 'script', execute: 'DOFAILINGWRITE()' };
+    const action: ActionDef = { type: 'script', target: 'DOFAILINGWRITE()' };
 
     const result = await runner.execute(action);
 

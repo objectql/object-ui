@@ -71,7 +71,23 @@ const defaultOperators = [
   { value: "between", label: "Between" },
   { value: "in", label: "In" },
   { value: "notIn", label: "Not in" },
-]
+] as const
+
+/**
+ * The FilterBuilder's own operator vocabulary — every id its dropdown can
+ * hold, derived from the operators it actually renders.
+ *
+ * Exported because several translation tables map an external vocabulary
+ * (the spec's `VIEW_FILTER_OPERATORS`, Mongo `$`-tokens) *onto* this one, and
+ * a value that is not in this list produces a condition row whose operator
+ * select has nothing to select. Those tables assert against this export
+ * rather than restating it, so adding an operator here is the only edit
+ * needed to widen them.
+ */
+export const FILTER_BUILDER_OPERATORS = defaultOperators.map(o => o.value)
+
+/** An operator id the FilterBuilder can render. */
+export type FilterBuilderOperator = (typeof defaultOperators)[number]['value']
 
 const useSafeFilterTranslation = createSafeTranslation(
   {

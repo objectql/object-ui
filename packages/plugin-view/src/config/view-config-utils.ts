@@ -6,60 +6,108 @@
  */
 
 import type { FilterGroup, SortItem } from '@object-ui/components';
+import { VIEW_FILTER_OPERATORS, VIEW_FILTER_OPERATOR_ALIASES } from '@objectstack/spec/ui';
+import type { ViewFilterOperator } from '@objectstack/spec/ui';
 
 // ---------------------------------------------------------------------------
-// Operator mapping: @objectstack/spec ↔ FilterBuilder
+// Operator mapping: @objectstack/spec → FilterBuilder
 // ---------------------------------------------------------------------------
+//
+// One direction only. A stored view filter is *read* into a FilterBuilder here;
+// the write direction was retired with the legacy `buildViewConfigSchema`
+// engine, and the studio's spec-driven inspector persists the authored body
+// itself. The retired table was also objectui's last emitter of `'not in'`
+// (with a space), `before` and `after` as filter-AST operators — spellings the
+// server used to drop silently (#2901, objectstack#3948).
 
-export const SPEC_TO_BUILDER_OP: Record<string, string> = {
-    '=': 'equals',
-    '==': 'equals',
-    '!=': 'notEquals',
-    '<>': 'notEquals',
-    '>': 'greaterThan',
-    '<': 'lessThan',
-    '>=': 'greaterOrEqual',
-    '<=': 'lessOrEqual',
+/**
+ * Every canonical `VIEW_FILTER_OPERATORS` member, mapped onto the operator id
+ * the FilterBuilder renders — `null` where the builder has no equivalent.
+ *
+ * Total by construction: the type is keyed by `ViewFilterOperator`, so an
+ * operator added to the spec's view vocabulary fails to compile here instead
+ * of reaching the builder as a raw spelling its dropdown cannot select.
+ *
+ * The four `null`s are honest gaps, not oversights. `starts_with`/`ends_with`
+ * have no FilterBuilder operator at all, and `is_null`/`is_not_null` carry a
+ * NULL/empty distinction that `isEmpty`/`isNotEmpty` erase — folding them onto
+ * the near-equivalent would silently rewrite the author's operator the next
+ * time the view was saved. An unmapped operator instead reaches the builder
+ * unchanged and shows up as a condition row the author must complete, which is
+ * the failure we want: visible, and lossless until they touch it.
+ */
+const CANONICAL_TO_BUILDER: Record<ViewFilterOperator, string | null> = {
+    'equals': 'equals',
+    'not_equals': 'notEquals',
     'contains': 'contains',
     'not_contains': 'notContains',
-    'is_empty': 'isEmpty',
-    'is_not_empty': 'isNotEmpty',
+    'starts_with': null,
+    'ends_with': null,
+    'greater_than': 'greaterThan',
+    'less_than': 'lessThan',
+    'greater_than_or_equal': 'greaterOrEqual',
+    'less_than_or_equal': 'lessOrEqual',
     'in': 'in',
     'not_in': 'notIn',
-    'not in': 'notIn',
+    'is_empty': 'isEmpty',
+    'is_not_empty': 'isNotEmpty',
+    'is_null': null,
+    'is_not_null': null,
     'before': 'before',
     'after': 'after',
     'between': 'between',
-    // Pass-through for already-normalized IDs
-    'equals': 'equals',
-    'notEquals': 'notEquals',
-    'greaterThan': 'greaterThan',
-    'lessThan': 'lessThan',
-    'greaterOrEqual': 'greaterOrEqual',
-    'lessOrEqual': 'lessOrEqual',
-    'notContains': 'notContains',
-    'isEmpty': 'isEmpty',
-    'isNotEmpty': 'isNotEmpty',
-    'notIn': 'notIn',
 };
 
-export const BUILDER_TO_SPEC_OP: Record<string, string> = {
-    'equals': '=',
-    'notEquals': '!=',
-    'greaterThan': '>',
-    'lessThan': '<',
-    'greaterOrEqual': '>=',
-    'lessOrEqual': '<=',
-    'contains': 'contains',
-    'notContains': 'not_contains',
-    'isEmpty': 'is_empty',
-    'isNotEmpty': 'is_not_empty',
-    'in': 'in',
-    'notIn': 'not in',
-    'before': 'before',
-    'after': 'after',
-    'between': 'between',
+/**
+ * Infix and short spellings a stored *filter array* carries instead of a view
+ * spelling — `['amount', '>', 100]`. These are `AST_OPERATOR_MAP` keys
+ * (`data/filter.zod.ts`) that case-folding alone cannot reach.
+ */
+const INFIX_TO_CANONICAL: Record<string, ViewFilterOperator> = {
+    '=': 'equals',
+    '==': 'equals',
+    '!=': 'not_equals',
+    '<>': 'not_equals',
+    '>': 'greater_than',
+    '<': 'less_than',
+    '>=': 'greater_than_or_equal',
+    '<=': 'less_than_or_equal',
+    'nin': 'not_in',
+    'like': 'contains',
 };
+
+/** Case- and separator-insensitive key: `not_in`, `notIn`, `'not in'` → `notin`. */
+const fold = (op: string) => op.toLowerCase().replace(/[\s_-]+/g, '');
+
+/**
+ * Every spelling the spec itself recognises, folded onto its canonical member.
+ *
+ * Derived from the spec's own canonical list and legacy-alias table rather than
+ * restated, so the ~30 aliases `VIEW_FILTER_OPERATOR_ALIASES` still folds — all
+ * of them live in stored metadata, because `saveMeta` persists the authored body
+ * verbatim — are covered without this file enumerating them. Hand-enumerating
+ * spellings is what left `before`/`after` unmapped in the first place.
+ */
+const FOLDED_TO_CANONICAL: Map<string, ViewFilterOperator> = new Map([
+    ...VIEW_FILTER_OPERATORS.map(op => [fold(op), op] as const),
+    ...Object.entries(VIEW_FILTER_OPERATOR_ALIASES).map(([alias, op]) => [fold(alias), op] as const),
+]);
+
+/**
+ * Resolve any stored operator spelling to a FilterBuilder operator id.
+ *
+ * Returns the input unchanged when no mapping exists, so an unrecognised
+ * operator is visible in the UI rather than silently coerced to `equals`.
+ */
+export function specToBuilderOperator(op: string): string {
+    const raw = String(op ?? '').trim();
+    if (!raw) return 'equals';
+    const canonical = INFIX_TO_CANONICAL[raw.toLowerCase()] ?? FOLDED_TO_CANONICAL.get(fold(raw));
+    return (canonical ? CANONICAL_TO_BUILDER[canonical] : null) ?? raw;
+}
+
+/** Exported for the parity guard — the mapping's canonical half. */
+export const __CANONICAL_TO_BUILDER = CANONICAL_TO_BUILDER;
 
 // ---------------------------------------------------------------------------
 // Field type normalization: ObjectUI → FilterBuilder
@@ -92,7 +140,7 @@ function parseTriplet(arr: any[]): { id: string; field: string; operator: string
     return {
         id: crypto.randomUUID(),
         field,
-        operator: SPEC_TO_BUILDER_OP[op] || op,
+        operator: specToBuilderOperator(op),
         value: value ?? '',
     };
 }
@@ -106,7 +154,7 @@ function parseSingleOrNested(item: any): Array<{ id: string; field: string; oper
         return [{
             id: item.id || crypto.randomUUID(),
             field: item.field,
-            operator: SPEC_TO_BUILDER_OP[item.operator] || item.operator || 'equals',
+            operator: specToBuilderOperator(item.operator),
             value: item.value ?? '',
         }];
     }
@@ -144,20 +192,6 @@ export function parseSpecFilter(raw: any): { logic: 'and' | 'or'; conditions: Ar
     // Fallback: try as single triplet
     const cond = parseTriplet(raw);
     return { logic: 'and', conditions: cond ? [cond] : [] };
-}
-
-/**
- * Convert FilterGroup conditions back to spec-style filter array.
- */
-export function toSpecFilter(logic: 'and' | 'or', conditions: Array<{ field: string; operator: string; value: any }>): any[] {
-    const triplets = conditions
-        .filter(c => c.field) // skip empty
-        .map(c => [c.field, BUILDER_TO_SPEC_OP[c.operator] || c.operator, c.value]);
-
-    if (triplets.length === 0) return [];
-    if (triplets.length === 1 && logic === 'and') return triplets[0];
-    if (logic === 'or') return ['or', ...triplets];
-    return triplets;
 }
 
 // ---------------------------------------------------------------------------

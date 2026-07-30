@@ -7,7 +7,7 @@
  */
 
 import { ComponentRegistry, resolveFieldRuleState, evalFieldPredicate, resolveCascadingOptions, isValueStillOffered } from '@object-ui/core';
-import type { FormSchema, FormField as FormFieldConfig, ValidationRule, FieldCondition, SelectOption } from '@object-ui/types';
+import type { FormSchema, FormField as FormFieldConfig, FormFieldTab, ValidationRule, FieldCondition, SelectOption } from '@object-ui/types';
 import { useForm } from 'react-hook-form';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from '../../ui/form';
 import { Button } from '../../ui/button';
@@ -23,6 +23,7 @@ import {
   SelectItem 
 } from '../../ui/select';
 import { renderChildren } from '../../lib/utils';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 import { Alert, AlertDescription } from '../../ui/alert';
 import { toast } from '../../ui/sonner';
 import { AlertCircle, ChevronDown, ChevronRight, Loader2, Maximize2, Check, X } from 'lucide-react';
@@ -34,14 +35,15 @@ import { createSafeTranslation } from '@object-ui/i18n';
 
 /** Inline section header rendered as a virtual field inside a flat SchemaRenderer field list.
  *  Collapsibility is controlled externally (collapsed state lives in DrawerForm). */
-function SectionDivider({ label, collapsible, collapsed, onToggle, className }: {
+function SectionDivider({ label, description, collapsible, collapsed, onToggle, className }: {
   label?: string;
+  description?: string;
   collapsible?: boolean;
   collapsed?: boolean;
   onToggle?: () => void;
   className?: string;
 }) {
-  if (!label) return null;
+  if (!label && !description) return null;
   return (
     <div
       className={cn(
@@ -53,14 +55,22 @@ function SectionDivider({ label, collapsible, collapsed, onToggle, className }: 
       role={collapsible ? 'button' : undefined}
       aria-expanded={collapsible ? !collapsed : undefined}
     >
-      <div className="flex items-center gap-1.5">
-        {collapsible && (
-          collapsed
-            ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-            : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-        )}
-        <span className="text-sm font-semibold text-foreground">{label}</span>
-      </div>
+      {label && (
+        <div className="flex items-center gap-1.5">
+          {collapsible && (
+            collapsed
+              ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+              : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+          )}
+          <span className="text-sm font-semibold text-foreground">{label}</span>
+        </div>
+      )}
+      {/* A section's authored blurb. Carried on the divider because a sectioned
+          form is ONE form with inline headers — there is no per-section wrapper
+          left to render it (see FormSchema.fieldTabs / objectui#2959). */}
+      {description && (
+        <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
+      )}
     </div>
   );
 }
@@ -337,6 +347,14 @@ ComponentRegistry.register('form',
 
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const [submitError, setSubmitError] = React.useState<string | null>(null);
+    // Active `fieldTabs` panel. Undefined until something picks one — the
+    // effective tab falls back to `defaultFieldTab`, then to the first tab.
+    // Which tab of an in-progress form is showing is presentational and dies
+    // with the form, so it stays component state (AGENTS.md #8).
+    const [pickedFieldTab, setPickedFieldTab] = React.useState<string | undefined>(undefined);
+    // Field names the last submit attempt rejected (client rules or server
+    // `fields[]`), used to mark the tabs that hold them.
+    const [rejectedFieldNames, setRejectedFieldNames] = React.useState<string[]>([]);
 
     // Live snapshot of all form values — subscribes to every change so
     // field-level CEL rules (visibleWhen/readonlyWhen/requiredWhen) re-evaluate
@@ -411,6 +429,83 @@ ComponentRegistry.register('form',
       for (const f of fields as FormFieldConfig[]) if (f?.name) m[f.name] = (f as any).label || f.name;
       return m;
     }, [fields]);
+
+    // --- Tabbed field layout (#2959) ---------------------------------------
+    // `fieldTabs` spreads THIS form's fields across tab panels. Crucially there
+    // is still exactly ONE <form> / react-hook-form instance: the panels are
+    // force-mounted and merely CSS-hidden, so a tab the user navigated away from
+    // keeps BOTH its values and its validation. (Rendering one form per tab lost
+    // every non-active tab's input — the footer submit button can only be
+    // associated with a single form — and unmounting a tab's fields makes
+    // react-hook-form skip their rules, which let a required field on a tab
+    // nobody opened sail past the client and return as a server 400.)
+    const fieldTabs = React.useMemo<FormFieldTab[] | null>(() => {
+      const declared = schema.fieldTabs;
+      if (schema.children || !Array.isArray(declared)) return null;
+      const usable = declared.filter((t) => t && typeof t.key === 'string');
+      return usable.length > 1 ? usable : null;
+    }, [schema.fieldTabs, schema.children]);
+
+    /** Field name → the tab that owns it (first claim wins). */
+    const tabKeyByFieldName = React.useMemo(() => {
+      const m = new Map<string, string>();
+      for (const tab of fieldTabs ?? []) {
+        for (const name of tab.fields ?? []) if (!m.has(name)) m.set(name, tab.key);
+      }
+      return m;
+    }, [fieldTabs]);
+
+    const activeFieldTab = React.useMemo(() => {
+      if (!fieldTabs?.length) return undefined;
+      const keys = fieldTabs.map((t) => t.key);
+      if (pickedFieldTab && keys.includes(pickedFieldTab)) return pickedFieldTab;
+      if (schema.defaultFieldTab && keys.includes(schema.defaultFieldTab)) return schema.defaultFieldTab;
+      return keys[0];
+    }, [fieldTabs, pickedFieldTab, schema.defaultFieldTab]);
+
+    // Resolve each tab's declared field names against the form's field list.
+    const fieldTabGroups = React.useMemo(() => {
+      if (!fieldTabs) return null;
+      const byName = new Map<string, FormFieldConfig>();
+      for (const f of fields as FormFieldConfig[]) {
+        if (f?.name && !byName.has(f.name)) byName.set(f.name, f);
+      }
+      return fieldTabs.map((tab) => ({
+        key: tab.key,
+        label: tab.label || tab.key,
+        description: tab.description,
+        containerClass: tab.containerClass,
+        fields: (tab.fields ?? [])
+          .map((name) => byName.get(name))
+          .filter((f): f is FormFieldConfig => Boolean(f)),
+      }));
+    }, [fieldTabs, fields]);
+
+    // A field no tab claimed must not vanish — it renders above the tab strip,
+    // visible from every tab.
+    const untabbedFields = React.useMemo(() => {
+      if (!fieldTabGroups) return [] as FormFieldConfig[];
+      const claimed = new Set<string>();
+      for (const group of fieldTabGroups) for (const f of group.fields) claimed.add(f.name);
+      return (fields as FormFieldConfig[]).filter((f) => f?.name && !claimed.has(f.name));
+    }, [fieldTabGroups, fields]);
+
+    // Tabs holding a field the LAST submit rejected, so their trigger can carry
+    // a marker — otherwise a rejection on a background tab is invisible and the
+    // user just sees a submit that does nothing. Fed from `announceFieldErrors`,
+    // which covers both referees (client rules and server `fields[]`), and reset
+    // when a submit gets past validation. Kept as state rather than derived from
+    // `formState.errors` because react-hook-form re-renders the erroring field's
+    // own Controller, not necessarily this component.
+    const erroredFieldTabs = React.useMemo(() => {
+      const out = new Set<string>();
+      if (!fieldTabs) return out;
+      for (const name of rejectedFieldNames) {
+        const key = tabKeyByFieldName.get(name);
+        if (key) out.add(key);
+      }
+      return out;
+    }, [fieldTabs, tabKeyByFieldName, rejectedFieldNames]);
 
     // Cascade clear (#2284): when a select/radio's option list narrows — because a
     // controlling field changed or a role/context predicate flipped — a previously
@@ -509,6 +604,8 @@ ComponentRegistry.register('form',
       for (const [name, value] of carried) {
         form.setValue(name, value, { shouldValidate: false, shouldDirty: true });
       }
+      // Fresh values, so last attempt's rejected-field markers no longer apply.
+      setRejectedFieldNames([]);
       // A reset that carried nothing is by definition pristine — clear any stale
       // dirty signal (e.g. an edit-mode record that just finished loading). One
       // that carried input is genuinely dirty against the caller's defaults, and
@@ -546,34 +643,16 @@ ComponentRegistry.register('form',
     }, [form, onDirtyChangeProp]);
 
     /**
-     * Tell the user WHICH fields are wrong, wherever the verdict came from.
-     *
-     * Toast naming the offending fields, then scroll the FIRST of them into
-     * view (in declared/visual order, not the caller's key order) and focus a
-     * control inside it — the field wrapper carries `data-field` (FormItem), so
-     * this reaches custom widgets that RHF's own focus cannot (#2793).
-     *
-     * Extracted from the client-side invalid handler so the SERVER-rejection
-     * path gets identical treatment. The two failures are the same event as far
-     * as the person filling the form is concerned; only the referee differs.
+     * Scroll a field into view and focus a control inside it. The field wrapper
+     * carries `data-field` (FormItem), so this reaches custom widgets that RHF's
+     * own focus cannot (#2793).
      */
-    const announceFieldErrors = (names: string[]) => {
-      if (names.length === 0) return;
-      const labels = names.map((n) => fieldLabelByName[n] || n);
-      const MAX = 3;
-      const fieldsText = labels.slice(0, MAX).join('、') + (labels.length > MAX ? '…' : '');
-      toast.error(t('validation.formInvalid', { fields: fieldsText }));
-
-      const errored = new Set(names);
-      const firstName =
-        (fields as FormFieldConfig[])
-          .map((f) => f?.name)
-          .find((n): n is string => Boolean(n) && errored.has(n as string)) ?? names[0];
+    const revealField = (name: string) => {
       const root: ParentNode = formRef.current ?? document;
       const escaped =
         typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
-          ? CSS.escape(firstName)
-          : firstName.replace(/["\\]/g, '\\$&');
+          ? CSS.escape(name)
+          : name.replace(/["\\]/g, '\\$&');
       const target = root.querySelector<HTMLElement>(`[data-field="${escaped}"]`);
       if (target) {
         target.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
@@ -584,10 +663,55 @@ ComponentRegistry.register('form',
       }
     };
 
+    /**
+     * Tell the user WHICH fields are wrong, wherever the verdict came from.
+     *
+     * Toast naming the offending fields, then reveal the FIRST of them (in
+     * declared/visual order, not the caller's key order) — activating its tab
+     * first when it sits on a background one.
+     *
+     * Shared by the client-side invalid handler and the SERVER-rejection path:
+     * the two failures are the same event as far as the person filling the form
+     * is concerned; only the referee differs.
+     */
+    const announceFieldErrors = (names: string[]) => {
+      if (names.length === 0) return;
+      setRejectedFieldNames(names);
+      const labels = names.map((n) => fieldLabelByName[n] || n);
+      const MAX = 3;
+      const fieldsText = labels.slice(0, MAX).join('、') + (labels.length > MAX ? '…' : '');
+      toast.error(t('validation.formInvalid', { fields: fieldsText }));
+
+      const errored = new Set(names);
+      const firstName =
+        (fields as FormFieldConfig[])
+          .map((f) => f?.name)
+          .find((n): n is string => Boolean(n) && errored.has(n as string)) ?? names[0];
+
+      // In a tabbed layout the offending field may sit on a tab the user is not
+      // looking at — naming it is useless if they can't see it. Activate its tab
+      // first, then reveal it once that panel has actually been painted (it is
+      // display:none until then, so scroll/focus would no-op).
+      const tabKey = tabKeyByFieldName.get(firstName);
+      if (tabKey && tabKey !== activeFieldTab) {
+        setPickedFieldTab(tabKey);
+        if (typeof requestAnimationFrame === 'function') {
+          requestAnimationFrame(() => revealField(firstName));
+        } else {
+          setTimeout(() => revealField(firstName), 0);
+        }
+        return;
+      }
+      revealField(firstName);
+    };
+
     // Handle form submission
     const handleSubmit = form.handleSubmit(async (data) => {
       setIsSubmitting(true);
       setSubmitError(null);
+      // This attempt cleared client validation — drop the previous attempt's
+      // tab markers (the server may re-add its own below).
+      setRejectedFieldNames([]);
 
       // Defensive check: If data is an Event, use getValues()
       let formData = data;
@@ -727,9 +851,313 @@ ComponentRegistry.register('form',
       columns === 3 ? 'md:grid-cols-2 lg:grid-cols-3' :
       'md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
     
-    const gridClass = columns > 1 
+    const gridClass = columns > 1
       ? cn('grid gap-4', gridColsClass)
       : 'space-y-4';
+
+    // Every field container (flat, or one per tab panel) lays its fields out on
+    // the same grid, so per-field `colSpan` means the same thing on every tab.
+    const fieldGridClass = schema.fieldContainerClass || gridClass;
+    const fieldTabsPosition = schema.fieldTabsPosition || 'top';
+    const isVerticalFieldTabs = fieldTabsPosition === 'left' || fieldTabsPosition === 'right';
+
+    // --- Field rendering ---------------------------------------------------
+    // Renders ONE field row (or a virtual section divider). Hoisted out of the
+    // field loop so a tabbed layout can place the very same row inside a tab
+    // panel — every field, on every tab, belongs to this one form instance.
+    const renderFormField = (field: FormFieldConfig): React.ReactNode => {
+      const {
+        name,
+        label,
+        description,
+        type = 'input',
+        required: staticRequired = false,
+        disabled: fieldDisabled = false,
+        validation = {},
+        condition,
+        colSpan,
+        hidden,
+        widget,
+        visibleOn,
+        readonly: staticReadonly,
+        visibleWhen,
+        readonlyWhen,
+        requiredWhen,
+        ...fieldProps
+      } = field;
+
+      // Skip hidden fields
+      if (hidden) return null;
+
+      // Legacy `condition: { field, equals/notEquals/in }` — translated
+      // to CEL and evaluated on the canonical engine over the seeded
+      // live record (issue #1584), so it agrees with `visibleWhen` and
+      // the server. Fail-open (a broken predicate shows the field),
+      // matching the CEL rules below.
+      const legacyConditionCel = legacyConditionToCel(condition);
+      if (legacyConditionCel && !evalFieldPredicate(legacyConditionCel, ruleRecord, true)) {
+        return null;
+      }
+
+      // Field-level CEL conditional rules (B2). Evaluated reactively
+      // against the live record via the canonical engine — same
+      // dialect the server enforces (requiredWhen / readonlyWhen), so
+      // the UX and the persisted verdict agree. A field with no rules
+      // resolves to its static flags unchanged.
+      const ruleState = resolveFieldRuleState(
+        { visibleWhen, readonlyWhen, requiredWhen },
+        ruleRecord,
+        { required: staticRequired, readonly: staticReadonly === true },
+      );
+      if (!ruleState.visible) return null;
+
+      // View-level conditional visibility — spec FormField.visibleOn,
+      // authored on the form view (not the object field). Same
+      // canonical CEL engine and record scope as visibleWhen; both
+      // the bare-string and `{ dialect, source }` wire shapes are
+      // accepted, and a broken predicate fails open (#2212).
+      if (visibleOn != null && !evalFieldPredicate(visibleOn, ruleRecord, true)) {
+        return null;
+      }
+      const required = ruleState.required;
+      const readonly = ruleState.readonly;
+
+      // Section divider — renders a collapsible FormSection header inline
+      // so all fields share the same form instance (enables cross-section conditions).
+      if (type === 'section-divider') {
+        const fp = fieldProps as any;
+        return (
+          <SectionDivider
+            key={name}
+            label={label}
+            description={description}
+            collapsible={fp.collapsible}
+            collapsed={fp.collapsed}
+            onToggle={fp.onToggle}
+            className={fp.className}
+          />
+        );
+      }
+
+      // Build validation rules
+      const rules: any = {
+        ...validation,
+      };
+
+      if (required) {
+        rules.required = typeof validation.required === 'string'
+          ? validation.required
+          : t('validation.required', { field: label || name });
+      }
+
+      // Localize the standard validation messages emitted by
+      // buildValidationRules. Each such rule carries a `messageKey`
+      // and leaves `message` undefined for the auto-generated case
+      // (a field-authored message is a string and is left untouched);
+      // we fill the blanks through i18n so they track the label's
+      // language. A fresh object avoids mutating the shared rule.
+      const localizeRule = (
+        rule: any,
+        interp?: (r: any) => Record<string, unknown>,
+      ) => {
+        if (
+          rule && typeof rule === 'object' &&
+          rule.message == null && typeof rule.messageKey === 'string'
+        ) {
+          return {
+            ...rule,
+            message: t(rule.messageKey, { field: label || name, ...(interp?.(rule)) }),
+          };
+        }
+        return rule;
+      };
+      if (rules.minLength) rules.minLength = localizeRule(rules.minLength, r => ({ min: r.value }));
+      if (rules.maxLength) rules.maxLength = localizeRule(rules.maxLength, r => ({ max: r.value }));
+      if (rules.min) rules.min = localizeRule(rules.min, r => ({ min: r.value }));
+      if (rules.max) rules.max = localizeRule(rules.max, r => ({ max: r.value }));
+      if (rules.pattern) rules.pattern = localizeRule(rules.pattern);
+
+      // Use field.id or field.name for stable keys (never use index alone)
+      const fieldKey = field.id ?? name;
+
+      // Resolve the component type: prefer an explicit form-config
+      // `widget`, then the object-schema field's own `widget` render
+      // hint (carried on the field metadata, e.g. `object-ref`,
+      // `filter-condition`, `recipient-picker`), then the bare `type`.
+      // The nested-metadata fallback matters because some field
+      // builders (e.g. the field-group/section layout path in
+      // ObjectForm) pass the field metadata through without hoisting
+      // its `widget` to the top-level form-config, which would
+      // otherwise degrade a picker field to its raw `type` input.
+      const resolvedType = widget || (fieldProps as any).field?.widget || type;
+
+      // Cascading / role-gated option lists (#2284). For option fields,
+      // narrow the set by each option's `visibleWhen` (evaluated against
+      // the live record + `current_user`), and gate the whole control
+      // while a declared `dependsOn` parent is still empty — surfacing a
+      // "select the parent first" hint instead of an unfiltered list.
+      const isOptionField =
+        resolvedType === 'select' ||
+        resolvedType === 'radio' ||
+        resolvedType === 'multiselect' ||
+        resolvedType === 'checkboxes';
+      const rawOptions = (fieldProps as any).options as SelectOption[] | undefined;
+      // Resolve gating + `visibleWhen` filtering through the shared
+      // core helper so this pre-filter can't drift from the widgets'
+      // `useCascadingOptions` hook (#2715). Non-option fields pass
+      // their options through untouched.
+      const cascade = isOptionField
+        ? resolveCascadingOptions(rawOptions, ruleRecord, (field as any).dependsOn, predicateScope)
+        : null;
+      const optionGroupGated = cascade?.gated ?? false;
+      const dependsOnFields = cascade?.dependsOnFields ?? [];
+      const effectiveOptions = cascade ? cascade.options : rawOptions;
+      const gatedHint = optionGroupGated
+        ? `Select ${dependsOnFields.map((fn) => fieldLabelByName[fn] || fn).join(' / ')} first`
+        : undefined;
+
+      // colSpan classes for grid layout.
+      //
+      // When the container uses container-query-based grid classes
+      // (e.g. `@md:grid-cols-2`), the grid's base is `grid-cols-1`
+      // on narrow containers. Applying a bare `col-span-2` in that
+      // state causes CSS grid to synthesize an implicit 2nd column
+      // track, distorting column widths. We must mirror the same
+      // container-query prefix on the col-span utilities so they
+      // only engage once the grid is actually multi-column.
+      // The effective container is whatever wraps the fields: either
+      // `fieldContainerClass` (overrides, typically container-query based)
+      // or the locally-computed `gridClass` (viewport-based).
+      const containerClass = schema.fieldContainerClass || gridClass;
+      // Match both container-query (`@md:`) and viewport (`md:`) prefixes.
+      // Return an explicit, statically-detectable class so Tailwind JIT
+      // can scan and include it.
+      const pickSpanClass = (targetCols: number): string => {
+        const re = /(@)?(sm|md|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl):grid-cols-(\d+)/g;
+        const matches = Array.from(containerClass.matchAll(re)).map(m => ({
+          at: m[1] || '',
+          bp: m[2],
+          cols: Number(m[3]),
+        }));
+        if (!matches.length) {
+          // No responsive/container prefix found — bare class is safe
+          // because the grid is already multi-column at all widths.
+          if (targetCols === 2) return 'col-span-2';
+          if (targetCols === 3) return 'col-span-3';
+          return 'col-span-4';
+        }
+        const hit = matches.find(m => m.cols >= targetCols) || matches[matches.length - 1];
+        const key = `${hit.at}${hit.bp}:${targetCols}`;
+        // Explicit literal map so Tailwind JIT discovers these classes.
+        const table: Record<string, string> = {
+          '@sm:2':  '@sm:col-span-2',
+          '@md:2':  '@md:col-span-2',
+          '@lg:2':  '@lg:col-span-2',
+          '@xl:2':  '@xl:col-span-2',
+          '@2xl:2': '@2xl:col-span-2',
+          '@sm:3':  '@sm:col-span-3',
+          '@md:3':  '@md:col-span-3',
+          '@lg:3':  '@lg:col-span-3',
+          '@xl:3':  '@xl:col-span-3',
+          '@2xl:3': '@2xl:col-span-3',
+          '@4xl:3': '@4xl:col-span-3',
+          '@sm:4':  '@sm:col-span-4',
+          '@md:4':  '@md:col-span-4',
+          '@lg:4':  '@lg:col-span-4',
+          '@xl:4':  '@xl:col-span-4',
+          '@2xl:4': '@2xl:col-span-4',
+          '@4xl:4': '@4xl:col-span-4',
+          'sm:2':   'sm:col-span-2',
+          'md:2':   'md:col-span-2',
+          'lg:2':   'lg:col-span-2',
+          'xl:2':   'xl:col-span-2',
+          'sm:3':   'sm:col-span-3',
+          'md:3':   'md:col-span-3',
+          'lg:3':   'lg:col-span-3',
+          'xl:3':   'xl:col-span-3',
+          'sm:4':   'sm:col-span-4',
+          'md:4':   'md:col-span-4',
+          'lg:4':   'lg:col-span-4',
+          'xl:4':   'xl:col-span-4',
+        };
+        return table[key] || (targetCols === 2 ? 'col-span-2' : targetCols === 3 ? 'col-span-3' : 'col-span-4');
+      };
+
+      const colSpanClass = colSpan && colSpan > 1
+        ? colSpan === 2 ? pickSpanClass(2)
+        : colSpan === 3 ? pickSpanClass(3)
+        : colSpan >= 4 ? pickSpanClass(4)
+        : ''
+        : '';
+
+      // Metadata-derived stable locator (ADR-0054 C4): the renderer
+      // emits it from the object + field name so every generated form
+      // inherits it with zero per-app work. Object prefix omitted when
+      // the form schema has no owning object.
+      const fieldTestId = `field:${schema.objectName ? `${schema.objectName}.` : ''}${name}`;
+
+      return (
+        <FormField
+          key={fieldKey}
+          control={form.control}
+          name={name}
+          rules={rules}
+          render={({ field: formField }) => (
+            <FormItem
+              className={colSpanClass || undefined}
+              data-testid={fieldTestId}
+              data-field={name}
+            >
+              {label && (
+                <FormLabel className="text-xs font-normal text-muted-foreground">
+                  {label}
+                  {required && (
+                    <span className="text-destructive ml-1" aria-label="required">
+                      *
+                    </span>
+                  )}
+                </FormLabel>
+              )}
+              <FormControl>
+                {/* Render the actual field component based on resolved type */}
+                {renderFieldComponent(resolvedType, {
+                  ...fieldProps,
+                  // specialized fields needs raw metadata, but we should traverse down if it exists
+                  // field is the field configuration loop variable
+                  field: (field as any).field || field, 
+                  ...formField,
+                  inputType: fieldProps.inputType,
+                  options: isOptionField ? effectiveOptions : fieldProps.options,
+                  placeholder: fieldProps.placeholder ?? (resolvedType === 'select' ? t('common.selectOption') : undefined),
+                  // `disabled` means "not interactive, muted"; `readonly` means
+                  // "shown plainly, not editable" — keep them distinct so widgets
+                  // that implement a real readonly display (e.g. EmailField's
+                  // mailto link) actually receive it instead of always collapsing
+                  // to the grayed-out disabled look. A dependency-gated option
+                  // list (#2284) is disabled until its controlling field is set.
+                  disabled: disabled || fieldDisabled || isSubmitting || optionGroupGated,
+                  readonly,
+                  // Gate hint shown when a dependent option list is still
+                  // waiting on its controlling field (#2284).
+                  emptyHint: gatedHint,
+                  dataSource: contextDataSource,
+                  // Live form values for dependent (cascading) lookups
+                  // (#2215): the widget's `dependsOn` gate + filters must
+                  // re-scope as the user picks the parent field in THIS
+                  // form, not read a stale record snapshot. Forwarded to
+                  // data-source widgets only (see stripRegisteredFieldProps).
+                  dependentValues: ruleRecord,
+                })}
+              </FormControl>
+              {description && (
+                <FormDescription>{description}</FormDescription>
+              )}
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      );
+    };
 
     // Extract designer-related props and conflicting handlers
     const { 
@@ -766,6 +1194,9 @@ ComponentRegistry.register('form',
           columns: _columns,
           validationMode: _validationMode,
           disabled: _disabledProp,
+          fieldTabs: _fieldTabs,
+          defaultFieldTab: _defaultFieldTab,
+          fieldTabsPosition: _fieldTabsPosition,
 	        ...formProps
 	    } = props;
 
@@ -795,301 +1226,81 @@ ComponentRegistry.register('form',
             <div className={schema.fieldContainerClass || 'space-y-4'}>
               {renderChildren(schema.children)}
             </div>
+          ) : fieldTabGroups ? (
+            // Tabbed field layout (#2959): one <form>, one react-hook-form
+            // instance, N force-mounted panels. Inactive panels are CSS-hidden
+            // (`data-[state=inactive]:hidden`) rather than unmounted, which is
+            // what keeps their values and their validation alive.
+            <>
+              {untabbedFields.length > 0 && (
+                <div className={cn(fieldGridClass, 'mb-4')}>
+                  {untabbedFields.map(renderFormField)}
+                </div>
+              )}
+              <Tabs
+                value={activeFieldTab}
+                onValueChange={setPickedFieldTab}
+                orientation={isVerticalFieldTabs ? 'vertical' : 'horizontal'}
+                // Always a flex container: `order-last` on the strip is what
+                // puts it after the panels for `bottom`/`right`, and `order`
+                // only applies to flex children.
+                className={cn('flex w-full', isVerticalFieldTabs ? 'gap-4' : 'flex-col')}
+              >
+                <TabsList
+                  className={cn(
+                    // `self-start` keeps the strip its content's size instead of
+                    // being stretched by the flex container above.
+                    'self-start',
+                    isVerticalFieldTabs
+                      ? cn('h-auto flex-col', fieldTabsPosition === 'right' && 'order-last')
+                      : fieldTabsPosition === 'bottom' ? 'order-last mt-4' : 'mb-4',
+                  )}
+                >
+                  {fieldTabGroups.map((group) => (
+                    <TabsTrigger
+                      key={group.key}
+                      value={group.key}
+                      data-testid={`form-tab:${group.key}`}
+                      data-error={erroredFieldTabs.has(group.key) || undefined}
+                      className={cn(
+                        isVerticalFieldTabs && 'w-full justify-start',
+                        erroredFieldTabs.has(group.key) && 'text-destructive data-[state=active]:text-destructive',
+                      )}
+                    >
+                      {group.label}
+                      {erroredFieldTabs.has(group.key) && (
+                        <span
+                          aria-hidden="true"
+                          className="ml-1.5 size-1.5 rounded-full bg-destructive"
+                        />
+                      )}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+                <div className="min-w-0 flex-1">
+                  {fieldTabGroups.map((group) => (
+                    <TabsContent
+                      key={group.key}
+                      value={group.key}
+                      forceMount
+                      className="mt-0 data-[state=inactive]:hidden"
+                      data-testid={`form-tab-panel:${group.key}`}
+                    >
+                      {group.description && (
+                        <p className="mb-3 text-sm text-muted-foreground">{group.description}</p>
+                      )}
+                      <div className={group.containerClass || fieldGridClass}>
+                        {group.fields.map(renderFormField)}
+                      </div>
+                    </TabsContent>
+                  ))}
+                </div>
+              </Tabs>
+            </>
           ) : (
             // Otherwise render fields from schema
-            <div className={schema.fieldContainerClass || gridClass}>
-              {fields.map((field: FormFieldConfig) => {
-                const {
-                  name,
-                  label,
-                  description,
-                  type = 'input',
-                  required: staticRequired = false,
-                  disabled: fieldDisabled = false,
-                  validation = {},
-                  condition,
-                  colSpan,
-                  hidden,
-                  widget,
-                  visibleOn,
-                  readonly: staticReadonly,
-                  visibleWhen,
-                  readonlyWhen,
-                  requiredWhen,
-                  ...fieldProps
-                } = field;
-
-                // Skip hidden fields
-                if (hidden) return null;
-
-                // Legacy `condition: { field, equals/notEquals/in }` — translated
-                // to CEL and evaluated on the canonical engine over the seeded
-                // live record (issue #1584), so it agrees with `visibleWhen` and
-                // the server. Fail-open (a broken predicate shows the field),
-                // matching the CEL rules below.
-                const legacyConditionCel = legacyConditionToCel(condition);
-                if (legacyConditionCel && !evalFieldPredicate(legacyConditionCel, ruleRecord, true)) {
-                  return null;
-                }
-
-                // Field-level CEL conditional rules (B2). Evaluated reactively
-                // against the live record via the canonical engine — same
-                // dialect the server enforces (requiredWhen / readonlyWhen), so
-                // the UX and the persisted verdict agree. A field with no rules
-                // resolves to its static flags unchanged.
-                const ruleState = resolveFieldRuleState(
-                  { visibleWhen, readonlyWhen, requiredWhen },
-                  ruleRecord,
-                  { required: staticRequired, readonly: staticReadonly === true },
-                );
-                if (!ruleState.visible) return null;
-
-                // View-level conditional visibility — spec FormField.visibleOn,
-                // authored on the form view (not the object field). Same
-                // canonical CEL engine and record scope as visibleWhen; both
-                // the bare-string and `{ dialect, source }` wire shapes are
-                // accepted, and a broken predicate fails open (#2212).
-                if (visibleOn != null && !evalFieldPredicate(visibleOn, ruleRecord, true)) {
-                  return null;
-                }
-                const required = ruleState.required;
-                const readonly = ruleState.readonly;
-
-                // Section divider — renders a collapsible FormSection header inline
-                // so all fields share the same form instance (enables cross-section conditions).
-                if (type === 'section-divider') {
-                  const fp = fieldProps as any;
-                  return (
-                    <SectionDivider
-                      key={name}
-                      label={label}
-                      collapsible={fp.collapsible}
-                      collapsed={fp.collapsed}
-                      onToggle={fp.onToggle}
-                      className={fp.className}
-                    />
-                  );
-                }
-
-                // Build validation rules
-                const rules: any = {
-                  ...validation,
-                };
-
-                if (required) {
-                  rules.required = typeof validation.required === 'string'
-                    ? validation.required
-                    : t('validation.required', { field: label || name });
-                }
-
-                // Localize the standard validation messages emitted by
-                // buildValidationRules. Each such rule carries a `messageKey`
-                // and leaves `message` undefined for the auto-generated case
-                // (a field-authored message is a string and is left untouched);
-                // we fill the blanks through i18n so they track the label's
-                // language. A fresh object avoids mutating the shared rule.
-                const localizeRule = (
-                  rule: any,
-                  interp?: (r: any) => Record<string, unknown>,
-                ) => {
-                  if (
-                    rule && typeof rule === 'object' &&
-                    rule.message == null && typeof rule.messageKey === 'string'
-                  ) {
-                    return {
-                      ...rule,
-                      message: t(rule.messageKey, { field: label || name, ...(interp?.(rule)) }),
-                    };
-                  }
-                  return rule;
-                };
-                if (rules.minLength) rules.minLength = localizeRule(rules.minLength, r => ({ min: r.value }));
-                if (rules.maxLength) rules.maxLength = localizeRule(rules.maxLength, r => ({ max: r.value }));
-                if (rules.min) rules.min = localizeRule(rules.min, r => ({ min: r.value }));
-                if (rules.max) rules.max = localizeRule(rules.max, r => ({ max: r.value }));
-                if (rules.pattern) rules.pattern = localizeRule(rules.pattern);
-
-                // Use field.id or field.name for stable keys (never use index alone)
-                const fieldKey = field.id ?? name;
-
-                // Resolve the component type: prefer an explicit form-config
-                // `widget`, then the object-schema field's own `widget` render
-                // hint (carried on the field metadata, e.g. `object-ref`,
-                // `filter-condition`, `recipient-picker`), then the bare `type`.
-                // The nested-metadata fallback matters because some field
-                // builders (e.g. the field-group/section layout path in
-                // ObjectForm) pass the field metadata through without hoisting
-                // its `widget` to the top-level form-config, which would
-                // otherwise degrade a picker field to its raw `type` input.
-                const resolvedType = widget || (fieldProps as any).field?.widget || type;
-
-                // Cascading / role-gated option lists (#2284). For option fields,
-                // narrow the set by each option's `visibleWhen` (evaluated against
-                // the live record + `current_user`), and gate the whole control
-                // while a declared `dependsOn` parent is still empty — surfacing a
-                // "select the parent first" hint instead of an unfiltered list.
-                const isOptionField =
-                  resolvedType === 'select' ||
-                  resolvedType === 'radio' ||
-                  resolvedType === 'multiselect' ||
-                  resolvedType === 'checkboxes';
-                const rawOptions = (fieldProps as any).options as SelectOption[] | undefined;
-                // Resolve gating + `visibleWhen` filtering through the shared
-                // core helper so this pre-filter can't drift from the widgets'
-                // `useCascadingOptions` hook (#2715). Non-option fields pass
-                // their options through untouched.
-                const cascade = isOptionField
-                  ? resolveCascadingOptions(rawOptions, ruleRecord, (field as any).dependsOn, predicateScope)
-                  : null;
-                const optionGroupGated = cascade?.gated ?? false;
-                const dependsOnFields = cascade?.dependsOnFields ?? [];
-                const effectiveOptions = cascade ? cascade.options : rawOptions;
-                const gatedHint = optionGroupGated
-                  ? `Select ${dependsOnFields.map((fn) => fieldLabelByName[fn] || fn).join(' / ')} first`
-                  : undefined;
-
-                // colSpan classes for grid layout.
-                //
-                // When the container uses container-query-based grid classes
-                // (e.g. `@md:grid-cols-2`), the grid's base is `grid-cols-1`
-                // on narrow containers. Applying a bare `col-span-2` in that
-                // state causes CSS grid to synthesize an implicit 2nd column
-                // track, distorting column widths. We must mirror the same
-                // container-query prefix on the col-span utilities so they
-                // only engage once the grid is actually multi-column.
-                // The effective container is whatever wraps the fields: either
-                // `fieldContainerClass` (overrides, typically container-query based)
-                // or the locally-computed `gridClass` (viewport-based).
-                const containerClass = schema.fieldContainerClass || gridClass;
-                // Match both container-query (`@md:`) and viewport (`md:`) prefixes.
-                // Return an explicit, statically-detectable class so Tailwind JIT
-                // can scan and include it.
-                const pickSpanClass = (targetCols: number): string => {
-                  const re = /(@)?(sm|md|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl):grid-cols-(\d+)/g;
-                  const matches = Array.from(containerClass.matchAll(re)).map(m => ({
-                    at: m[1] || '',
-                    bp: m[2],
-                    cols: Number(m[3]),
-                  }));
-                  if (!matches.length) {
-                    // No responsive/container prefix found — bare class is safe
-                    // because the grid is already multi-column at all widths.
-                    if (targetCols === 2) return 'col-span-2';
-                    if (targetCols === 3) return 'col-span-3';
-                    return 'col-span-4';
-                  }
-                  const hit = matches.find(m => m.cols >= targetCols) || matches[matches.length - 1];
-                  const key = `${hit.at}${hit.bp}:${targetCols}`;
-                  // Explicit literal map so Tailwind JIT discovers these classes.
-                  const table: Record<string, string> = {
-                    '@sm:2':  '@sm:col-span-2',
-                    '@md:2':  '@md:col-span-2',
-                    '@lg:2':  '@lg:col-span-2',
-                    '@xl:2':  '@xl:col-span-2',
-                    '@2xl:2': '@2xl:col-span-2',
-                    '@sm:3':  '@sm:col-span-3',
-                    '@md:3':  '@md:col-span-3',
-                    '@lg:3':  '@lg:col-span-3',
-                    '@xl:3':  '@xl:col-span-3',
-                    '@2xl:3': '@2xl:col-span-3',
-                    '@4xl:3': '@4xl:col-span-3',
-                    '@sm:4':  '@sm:col-span-4',
-                    '@md:4':  '@md:col-span-4',
-                    '@lg:4':  '@lg:col-span-4',
-                    '@xl:4':  '@xl:col-span-4',
-                    '@2xl:4': '@2xl:col-span-4',
-                    '@4xl:4': '@4xl:col-span-4',
-                    'sm:2':   'sm:col-span-2',
-                    'md:2':   'md:col-span-2',
-                    'lg:2':   'lg:col-span-2',
-                    'xl:2':   'xl:col-span-2',
-                    'sm:3':   'sm:col-span-3',
-                    'md:3':   'md:col-span-3',
-                    'lg:3':   'lg:col-span-3',
-                    'xl:3':   'xl:col-span-3',
-                    'sm:4':   'sm:col-span-4',
-                    'md:4':   'md:col-span-4',
-                    'lg:4':   'lg:col-span-4',
-                    'xl:4':   'xl:col-span-4',
-                  };
-                  return table[key] || (targetCols === 2 ? 'col-span-2' : targetCols === 3 ? 'col-span-3' : 'col-span-4');
-                };
-
-                const colSpanClass = colSpan && colSpan > 1
-                  ? colSpan === 2 ? pickSpanClass(2)
-                  : colSpan === 3 ? pickSpanClass(3)
-                  : colSpan >= 4 ? pickSpanClass(4)
-                  : ''
-                  : '';
-
-                // Metadata-derived stable locator (ADR-0054 C4): the renderer
-                // emits it from the object + field name so every generated form
-                // inherits it with zero per-app work. Object prefix omitted when
-                // the form schema has no owning object.
-                const fieldTestId = `field:${schema.objectName ? `${schema.objectName}.` : ''}${name}`;
-
-                return (
-                  <FormField
-                    key={fieldKey}
-                    control={form.control}
-                    name={name}
-                    rules={rules}
-                    render={({ field: formField }) => (
-                      <FormItem
-                        className={colSpanClass || undefined}
-                        data-testid={fieldTestId}
-                        data-field={name}
-                      >
-                        {label && (
-                          <FormLabel className="text-xs font-normal text-muted-foreground">
-                            {label}
-                            {required && (
-                              <span className="text-destructive ml-1" aria-label="required">
-                                *
-                              </span>
-                            )}
-                          </FormLabel>
-                        )}
-                        <FormControl>
-                          {/* Render the actual field component based on resolved type */}
-                          {renderFieldComponent(resolvedType, {
-                            ...fieldProps,
-                            // specialized fields needs raw metadata, but we should traverse down if it exists
-                            // field is the field configuration loop variable
-                            field: (field as any).field || field, 
-                            ...formField,
-                            inputType: fieldProps.inputType,
-                            options: isOptionField ? effectiveOptions : fieldProps.options,
-                            placeholder: fieldProps.placeholder ?? (resolvedType === 'select' ? t('common.selectOption') : undefined),
-                            // `disabled` means "not interactive, muted"; `readonly` means
-                            // "shown plainly, not editable" — keep them distinct so widgets
-                            // that implement a real readonly display (e.g. EmailField's
-                            // mailto link) actually receive it instead of always collapsing
-                            // to the grayed-out disabled look. A dependency-gated option
-                            // list (#2284) is disabled until its controlling field is set.
-                            disabled: disabled || fieldDisabled || isSubmitting || optionGroupGated,
-                            readonly,
-                            // Gate hint shown when a dependent option list is still
-                            // waiting on its controlling field (#2284).
-                            emptyHint: gatedHint,
-                            dataSource: contextDataSource,
-                            // Live form values for dependent (cascading) lookups
-                            // (#2215): the widget's `dependsOn` gate + filters must
-                            // re-scope as the user picks the parent field in THIS
-                            // form, not read a stale record snapshot. Forwarded to
-                            // data-source widgets only (see stripRegisteredFieldProps).
-                            dependentValues: ruleRecord,
-                          })}
-                        </FormControl>
-                        {description && (
-                          <FormDescription>{description}</FormDescription>
-                        )}
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                );
-              })}
+            <div className={fieldGridClass}>
+              {fields.map(renderFormField)}
             </div>
           )}
 

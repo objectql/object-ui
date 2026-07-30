@@ -80,7 +80,7 @@ describe('useActionEngine — shared ActionProvider runner', () => {
             {
               name: 'change_password',
               type: 'script',
-              execute: 'true',
+              target: 'true',
               visible: 'record.id == ctx.user.id',
               locations: ['record_section'],
             } as any,
@@ -114,14 +114,14 @@ describe('useActionEngine — shared ActionProvider runner', () => {
           {
             name: 'self_only_flat',
             type: 'script',
-            execute: 'true',
+            target: 'true',
             visible: 'record.id == user.id',
             locations: ['record_section'],
           } as any,
           {
             name: 'self_only_ctx',
             type: 'script',
-            execute: 'true',
+            target: 'true',
             visible: 'record.id == ctx.user.id',
             locations: ['record_section'],
           } as any,

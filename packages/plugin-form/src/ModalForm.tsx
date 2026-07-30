@@ -24,10 +24,6 @@ import {
   Skeleton,
   Button,
   cn,
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
   AlertDialog,
   AlertDialogContent,
   AlertDialogHeader,
@@ -38,7 +34,6 @@ import {
   AlertDialogCancel,
 } from '@object-ui/components';
 import { Loader2 } from 'lucide-react';
-import { FormSection } from './FormSection';
 import { MasterDetailForm } from './MasterDetailForm';
 import { SchemaRenderer, useSafeFieldLabel, usePreviewMode } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
@@ -51,7 +46,6 @@ import {
   filterSystemFields,
   inferColumns,
   inferModalSize,
-  sectionFormLayout,
   CONTAINER_GRID_COLS,
 } from './autoLayout';
 import { deriveFieldGroupSections } from './fieldGroups';
@@ -76,9 +70,13 @@ export interface ModalFormSectionConfig {
   description?: string;
   columns?: 1 | 2 | 3 | 4;
   fields: (string | FormField)[];
-  /** Custom CSS class for the section's Card wrapper. */
+  /** Custom CSS class for the section's header row (stacked layout). */
   className?: string;
-  /** Custom CSS class for the section's field grid. */
+  /**
+   * Custom CSS class for the section's field grid. Applied to the section's tab
+   * panel in the `tabbed` layout; in the stacked layout every section shares one
+   * grid inside the single form (#2959), so there is none to override.
+   */
   gridClassName?: string;
 }
 
@@ -515,14 +513,15 @@ export const ModalForm: React.FC<ModalFormProps> = ({
       );
     }
 
-    // Explicit sections layout (curated form view).
+    // Explicit sections layout (curated form view) — ONE form for ALL sections.
     //
-    // KNOWN LIMITATION: each section renders its own SchemaRenderer, i.e. its
-    // own react-hook-form instance and <form> element, all sharing `formId`.
-    // The footer submit button is associated with the FIRST form only, so with
-    // 2+ sections the later sections' values never reach the submit payload.
-    // The derived field-group branch below avoids this by rendering ONE form;
-    // fixing the explicit path is tracked in #2153.
+    // Every section's fields share a single SchemaRenderer, i.e. one
+    // react-hook-form instance and one <form> element (#2153/#2959). Rendering a
+    // form PER section broke the modal in two ways: the footer submit button,
+    // associated by `form={formId}`, can only reach the FIRST form, so section
+    // 2+ silently dropped everything the user typed; and in the tabbed variant
+    // Radix unmounted the inactive panel, destroying that tab's form state
+    // outright. Same single-form pattern as ObjectForm / DrawerForm.
     if (schema.sections?.length) {
       const sections = schema.sections;
       const sectionKey = (sec: ModalFormSectionConfig, i: number) => sec.name || sec.label || String(i);
@@ -530,65 +529,86 @@ export const ModalForm: React.FC<ModalFormProps> = ({
       // translated group label wins over the raw metadata label.
       const sectionTitle = (sec: ModalFormSectionConfig) =>
         sec.name ? sectionLabel(schema.objectName, sec.name, sec.label || sec.name) : sec.label;
-      // Lay the section's fields out in `section.columns` columns INSIDE the
-      // form (columns + fieldContainerClass), not by wrapping the whole form in
-      // a grid — otherwise the single <form> fills only the first grid cell and
-      // the remaining columns stay permanently empty. Actions live in the
-      // sticky footer, not inside sections.
-      const renderBody = (section: ModalFormSectionConfig) => (
-        <SchemaRenderer
-          schema={{
-            ...baseFormSchema,
-            ...sectionFormLayout(applyFieldPerms(buildSectionFields(section)), section.columns || 1),
-          }}
-        />
-      );
+
+      // The form is ONE grid. Its width is the explicit form `columns`, else the
+      // widest section; each section then lays ITS fields out at its own
+      // declared density within that grid via colSpan (#2578), exactly like the
+      // full-page sectioned form.
+      const clampCol = (n: unknown): number | undefined =>
+        typeof n === 'number' && n > 0 ? Math.min(Math.floor(n), 4) : undefined;
+      const declaredCols = sections
+        .map((s) => clampCol(s.columns))
+        .filter((c): c is number => c != null);
+      const formColumns = (clampCol(schema.columns)
+        ?? (declaredCols.length ? Math.max(...declaredCols) : 1)) as 1 | 2 | 3 | 4;
+      const containerFieldClass = CONTAINER_GRID_COLS[formColumns];
+
+      // FLS first, so a section whose every field is non-readable drops out
+      // entirely (header included) instead of leaving an empty group.
+      const groups = sections
+        .map((section, index) => {
+          const body = applyFieldPerms(buildSectionFields(section));
+          return {
+            key: sectionKey(section, index),
+            title: sectionTitle(section),
+            description: section.description,
+            className: section.className,
+            gridClassName: section.gridClassName,
+            fields: formColumns > 1
+              ? applyAutoColSpan(body, formColumns, clampCol(section.columns))
+              : body,
+          };
+        })
+        .filter((g) => g.fields.length > 0);
+
+      const sharedFormSchema = {
+        ...baseFormSchema,
+        columns: formColumns,
+        ...(containerFieldClass ? { fieldContainerClass: containerFieldClass } : {}),
+      };
 
       // ADR-0050 (#1890): a modal can host a tabbed layout — sections render as
       // tabs (label on the trigger) instead of a vertical stack, so a modal
-      // create/edit form composes with `tabbed`.
-      if (schema.contentLayout === 'tabbed' && sections.length > 1) {
+      // create/edit form composes with `tabbed`. The renderer owns the tab strip
+      // and panels (`fieldTabs`) so all tabs stay mounted inside the one form.
+      if (schema.contentLayout === 'tabbed' && groups.length > 1) {
         return (
-          <Tabs defaultValue={sectionKey(sections[0], 0)} className="w-full">
-            <TabsList className="mb-4">
-              {sections.map((section, index) => (
-                <TabsTrigger key={sectionKey(section, index)} value={sectionKey(section, index)}>
-                  {sectionTitle(section) || `Section ${index + 1}`}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            {sections.map((section, index) => (
-              <TabsContent key={sectionKey(section, index)} value={sectionKey(section, index)}>
-                <FormSection
-                  description={section.description}
-                  columns={1}
-                  className={section.className}
-                  gridClassName={section.gridClassName}
-                >
-                  {renderBody(section)}
-                </FormSection>
-              </TabsContent>
-            ))}
-          </Tabs>
+          <SchemaRenderer
+            schema={{
+              ...sharedFormSchema,
+              fields: groups.flatMap((g) => g.fields),
+              fieldTabs: groups.map((g, index) => ({
+                key: g.key,
+                label: g.title || `Section ${index + 1}`,
+                description: g.description,
+                fields: g.fields.map((f) => f.name),
+                containerClass: g.gridClassName,
+              })),
+            }}
+          />
         );
       }
 
-      return (
-        <div className="space-y-6">
-          {sections.map((section, index) => (
-            <FormSection
-              key={sectionKey(section, index)}
-              label={sectionTitle(section)}
-              description={section.description}
-              columns={1}
-              className={section.className}
-              gridClassName={section.gridClassName}
-            >
-              {renderBody(section)}
-            </FormSection>
-          ))}
-        </div>
-      );
+      // Stacked sections: a virtual `section-divider` field carries each group's
+      // header inline. (A per-section Card would need a per-section form, which
+      // is the defect above; `section.gridClassName` therefore has no per-section
+      // grid to override here.)
+      const allFields: FormField[] = [];
+      groups.forEach((g) => {
+        if (g.title || g.description) {
+          allFields.push({
+            name: `__section_${g.key}`,
+            label: g.title,
+            description: g.description,
+            type: 'section-divider',
+            colSpan: 4,
+            className: g.className,
+          } as any);
+        }
+        allFields.push(...g.fields);
+      });
+
+      return <SchemaRenderer schema={{ ...sharedFormSchema, fields: allFields }} />;
     }
 
     // Derived field-group sections (object `fieldGroups` metadata) — rendered

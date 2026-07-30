@@ -81,6 +81,45 @@ export type ActionComponent =
 export type ActionType = z.infer<typeof SpecActionType>;
 
 /**
+ * Renderer-local action types — names `ActionRunner` dispatches that the spec's
+ * `ActionType` does not contain (#2944 item 3, #2945).
+ *
+ * `navigation` is an **alias of the spec's `url`**, not a seventh kind: both
+ * mean "go to a location". It survives for two reasons.
+ * 1. `{ type: 'navigation', to: … }` is a live authored shape — `element:button`
+ *    CTAs use it.
+ * 2. Dropping the case would not fail loudly. The action would fall through to
+ *    `executeActionSchema`, which returns `{ success: true }` — a green toast
+ *    that navigates nowhere, which is #2960's exact trap.
+ *
+ * It is declared here rather than left implicit so that it stops being dialect:
+ * an importer can see that `navigation` is objectui's own, and the runner routes
+ * it through the same navigator as `url`, so the two can no longer drift the way
+ * they had (the `navigation` path did no `${param.X}` interpolation, ignored
+ * `openIn`, and skipped the `/api/…` full-page short-circuit that `url` has).
+ *
+ * Prefer `type: 'url'` + `openIn` in new metadata. If the spec ever adopts
+ * `navigation`, the guard in `__tests__/spec-derived-unions.test.ts` fails and
+ * points at this alias to retire.
+ */
+export type ObjectUiLocalActionType = 'navigation';
+
+export const OBJECTUI_LOCAL_ACTION_TYPES = [
+  'navigation',
+] as const satisfies readonly ObjectUiLocalActionType[];
+
+/**
+ * Every action `type` that `ActionRunner` dispatches to a built-in executor:
+ * the spec vocabulary plus the declared local aliases above.
+ *
+ * The runner's dispatch table is typed `Record<RunnableActionType, …>`, so a
+ * value the spec ADDS stops compiling until an executor exists for it. That
+ * turns the Tier-2 failure — a spec name that validates and then renders
+ * nothing (#2942) — into a build error for actions.
+ */
+export type RunnableActionType = ActionType | ObjectUiLocalActionType;
+
+/**
  * Field type for action parameters
  * Subset of field types commonly used in action parameter collection UIs.
  * Aligned with the field types available in @objectstack/spec ActionParamSchema.
@@ -173,7 +212,14 @@ export interface ActionSchema {
   /** Action execution type */
   type: ActionType;
   
-  /** Target for the action (URL, script name, etc.) */
+  /**
+   * Target for the action (URL, script name, etc.) — the **only** handler slot.
+   *
+   * The `execute` alias was removed in `@objectstack/spec` 17 (#3855); this
+   * interface no longer declares it, so `execute: '…'` now fails `tsc` at the
+   * authoring site instead of binding a second handler nothing agrees on
+   * (#3713, #3856). Rename to `target`; the value is unchanged.
+   */
   target?: string;
 
   /**
@@ -197,9 +243,6 @@ export interface ActionSchema {
    */
   openIn?: 'self' | 'new-tab';
 
-  /** Script to execute (for type: 'script') */
-  execute?: string;
-  
   /** API endpoint (for type: 'api') */
   endpoint?: string;
   
@@ -283,9 +326,9 @@ export interface ActionSchema {
    * URL to the clipboard — UI side-effects that are not part of the domain
    * action protocol and therefore need not be serialized over the wire.
    *
-   * When present, `onClick` takes precedence over `type` / `target` /
-   * `execute`. Prefer {@link ActionEngine}-routed actions for anything that
-   * could originate from server-driven metadata.
+   * When present, `onClick` takes precedence over `type` / `target`. Prefer
+   * {@link ActionEngine}-routed actions for anything that could originate from
+   * server-driven metadata.
    */
   onClick?: () => void | Promise<void>;
 }

@@ -2,7 +2,7 @@
 
 Audited against `@objectstack/spec@16.0.0-rc.0` and `objectui@cd09a7b90`.
 **Re-validated against `17.0.0-rc.0`** — see the addendum at the end, which also
-carries three corrections. Read it before acting on any row below.
+carries four corrections. Read it before acting on any row below.
 
 Every row below was confirmed by reading the dispatch code. Nothing was exercised at
 runtime, so symptoms are read off the code path, not observed. Rows the auditors could
@@ -165,7 +165,7 @@ value corruption rather than disclosure.
 
 | Name | Location | Call |
 |---|---|---|
-| `navigation` action type | [ActionRunner.ts:539](../../packages/core/src/actions/ActionRunner.ts) | Fully implemented (`executeNavigation`). **Promote** — it is a real capability the spec doesn't name. |
+| `navigation` action type | [ActionRunner.ts](../../packages/core/src/actions/ActionRunner.ts) | ~~Promote~~ — **resolved as a declared alias instead.** See the correction below. |
 | `combo` chart type | [normalizeChartSchema.ts:63](../../packages/plugin-charts/src/normalizeChartSchema.ts) | Drawn at `AdvancedChartImpl.tsx:819`. Promote or delete. |
 | `system` theme mode | ThemeProvider ×2 | Delete — the spec name is `auto`, and `react/ThemeContext.tsx` already gets it right. |
 | `scale-fade` preset | [useAnimation.ts:71](../../packages/react/src/hooks/useAnimation.ts) | Delete with the hyphen/underscore fix. |
@@ -358,6 +358,33 @@ On a list whose only narrowing is that filter, the user sees rows they had asked
 to exclude. It is not a permission bypass — row-scoping `$and`-composes as a
 separate arm and survives — but it ranks with Tier 1, not Tier 2.
 
+## Correction 4 — "promote `navigation` upstream" was the wrong call
+
+Direction B told the reader to promote the `navigation` action type into the spec,
+on the grounds that it is "a real capability the spec doesn't name". The capability
+is real; the framing was not. The spec already names it — `type: 'url'`, with
+`openIn` for the new-tab choice — so promoting `navigation` would have put a second
+spec name on one operation. That is the failure this audit exists to describe,
+committed one level up.
+
+The row *also* under-read the cost of the stated alternative. Deleting the case
+does not surface an error: the action falls through to `executeActionSchema`, which
+returns `{ success: true }`, so the user gets a success toast and no navigation —
+#2960's trap, reached by way of a cleanup.
+
+What was missing from the row is that the alias had **already drifted**, which is
+the ordinary outcome of two implementations of one concept. `executeNavigation` did
+no `${param.X}` interpolation, ignored `openIn`, and skipped the `/api/…`
+full-page short-circuit — so `{ type: 'navigation', to: '/x?p=${param.p}' }`
+shipped the literal `${param.p}` while the identical `url` action resolved it.
+
+Resolved by declaring it (`ObjectUiLocalActionType`) and routing both names
+through one navigator — the same treatment #2985 gave the page-visualization names.
+Generalizing: a "renderer-local dialect" row needs a third option next to promote
+and delete — **alias to the spec name it duplicates** — and picking between the
+three starts with asking whether the spec really lacks the concept or just spells
+it differently.
+
 ## Status of the items above
 
 | Item | Status |
@@ -366,7 +393,9 @@ separate arm and survives — but it ranks with Tier 1, not Tier 2.
 | `before`/`after`, `'not in'`, + 8 legacy spellings | Fixed — #2974 |
 | `DensityModeSchema` inert | Resolved upstream (removed in spec 17) |
 | Packages lacking the `@objectstack/spec` devDep | **6** — `plugin-list` and `data-objectstack` gained it in #2974; `plugin-charts`, `plugin-dashboard`, `plugin-report`, `components`, `mobile` and `fields` remain. (The body above says 6 because it counted a 13-package "needs a guard" list that omitted `fields`; adding `fields` and removing the two now fixed leaves 6 either way.) |
-| Everything else | Open — #2941 (Tier 1), #2942 (Tier 2), #2943 (Tier 3), #2944 (forks), #2945 (vocabularies) |
+| The five shadowing forks | Fixed — #2985 (closes #2944) |
+| `navigation` action type | Resolved as a declared alias, not promoted — see Correction 4 |
+| Everything else | Open — #2941 (Tier 1), #2942 (Tier 2), #2943 (Tier 3), #2945 (vocabularies) |
 
 One method note for anyone repeating this: the original run read a checkout that
 was behind `origin/main`, which produced a spurious "objectui resolves two spec

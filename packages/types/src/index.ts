@@ -135,6 +135,7 @@ export type {
   ValidationRule,
   FieldCondition,
   FormField,
+  FormFieldTab,
   ComboboxSchema,
   CommandSchema,
   InputOTPSchema,
@@ -867,6 +868,8 @@ export type {
   ActionLocation,
   ActionComponent,
   ActionType,
+  ObjectUiLocalActionType,
+  RunnableActionType,
   ActionParam,
   ActionSchema as UIActionSchema,
   ActionGroup,
@@ -883,7 +886,7 @@ export type {
   UndoRedoState,
 } from './ui-action';
 
-export { ACTION_LOCATIONS, ActionLocationSchema } from './ui-action';
+export { ACTION_LOCATIONS, ActionLocationSchema, OBJECTUI_LOCAL_ACTION_TYPES } from './ui-action';
 
 // ============================================================================
 // ObjectStack Protocol Namespaces - Protocol Re-exports

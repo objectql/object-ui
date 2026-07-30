@@ -780,6 +780,42 @@ export interface FieldCondition {
 }
 
 /**
+ * One tab of a tabbed field layout (see `FormSchema.fieldTabs`).
+ *
+ * A tab claims a SUBSET of the form's `fields` by name. The form renderer still
+ * renders exactly ONE `<form>` element / react-hook-form instance and merely
+ * distributes the fields across tab panels that ALL STAY MOUNTED, so switching
+ * tabs can neither destroy the values nor skip the validation of the tabs the
+ * user is not currently looking at (objectui#2959).
+ */
+export interface FormFieldTab {
+  /**
+   * Stable tab key — the Radix `Tabs` value, also used for the panel's
+   * `data-testid` (`form-tab-panel:{key}`).
+   */
+  key: string;
+  /**
+   * Tab trigger text. Falls back to `key`.
+   */
+  label?: string;
+  /**
+   * Optional blurb rendered above the tab's fields.
+   */
+  description?: string;
+  /**
+   * Names of the fields (as declared in `FormSchema.fields`) that belong to
+   * this tab, in render order. Unknown names are ignored; fields claimed by no
+   * tab render in a leading block above the tab strip (never dropped).
+   */
+  fields: string[];
+  /**
+   * Override the tab panel's field-grid classes (same role as
+   * `FormSchema.fieldContainerClass`, scoped to this tab).
+   */
+  containerClass?: string;
+}
+
+/**
  * Form field configuration
  */
 export interface FormField {
@@ -1014,6 +1050,27 @@ export interface FormSchema extends BaseSchema {
    * Field container CSS class
    */
   fieldContainerClass?: string;
+  /**
+   * Tabbed field layout (objectui#2959): each entry claims a subset of `fields`
+   * and renders it in its own tab panel — inside the SAME `<form>` /
+   * react-hook-form instance as every other tab. Panels are force-mounted (only
+   * CSS-hidden), so a tab the user has left keeps both its values and its
+   * validation, and a failed submit activates the tab holding the first
+   * offending field.
+   *
+   * Ignored when `children` is set or fewer than two tabs are given (the form
+   * then renders as a plain field list).
+   */
+  fieldTabs?: FormFieldTab[];
+  /**
+   * Initially active `fieldTabs` key. Defaults to the first tab.
+   */
+  defaultFieldTab?: string;
+  /**
+   * Where the `fieldTabs` strip sits relative to the panels.
+   * @default 'top'
+   */
+  fieldTabsPosition?: 'top' | 'bottom' | 'left' | 'right';
   /**
    * Child components (alternative to fields array)
    */

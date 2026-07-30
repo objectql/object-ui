@@ -96,7 +96,10 @@ describe('ModalForm — grouped section multi-column layout (#2128)', () => {
 
     // Regression guard: the grid's direct children are the four fields — NOT a
     // single <form> element (the old bug, which left the right column empty).
-    expect(grid!.children.length).toBe(4);
+    // The section's inline header row (a virtual `section-divider`, #2959) is
+    // the grid's only other child, so count the field wrappers rather than all
+    // children.
+    expect(grid!.querySelectorAll(':scope > [data-field]').length).toBe(4);
     expect(grid!.querySelector(':scope > form')).toBeNull();
 
     // And no ancestor grid wraps the whole form in a multi-column grid anymore.
