@@ -113,9 +113,32 @@ const dataSource: any = {
   },
 };
 
-/** Request log, rendered on the page so each per-record dispatch is visible. */
+/**
+ * Request log, rendered on the page so each per-record dispatch is visible.
+ * A tiny external store rather than a captured setState: the fetch stub lives
+ * outside React, and assigning a module-level slot from render is exactly what
+ * the compiler lint forbids.
+ */
 type LogEntry = { url: string; recordId: string; params: string; status: number };
-let pushLog: (e: LogEntry) => void = () => {};
+const logEntries: LogEntry[] = [];
+const logListeners = new Set<() => void>();
+function pushLog(e: LogEntry) {
+  logEntries.push(e);
+  logListeners.forEach(notify => notify());
+}
+function useLog(): LogEntry[] {
+  // Subscribe on the append COUNT — a stable scalar snapshot, so the store
+  // contract holds while the array itself stays mutable.
+  React.useSyncExternalStore(
+    (onChange) => {
+      logListeners.add(onChange);
+      return () => logListeners.delete(onChange);
+    },
+    () => logEntries.length,
+    () => 0,
+  );
+  return logEntries;
+}
 
 const realFetch = window.fetch.bind(window);
 window.fetch = (async (input: any, init: any) => {
@@ -153,8 +176,7 @@ const schema: any = {
 };
 
 function Demo() {
-  const [log, setLog] = React.useState<LogEntry[]>([]);
-  pushLog = (e) => setLog(prev => [...prev, e]);
+  const log = useLog();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
