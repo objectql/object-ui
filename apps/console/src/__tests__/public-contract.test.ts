@@ -73,6 +73,21 @@ const EXPECTED_COVERED = [
   'record:quick_actions',
   'record:reference_rail',
   'record:alert',
+  'page:tabs',
+  'page:card',
+  'page:accordion',
+  'page:section',
+  'page:footer',
+  'page:sidebar',
+  'element:text',
+  'element:number',
+  'element:button',
+  'element:definition-list',
+  'element:repeater',
+  'action:button',
+  'action:group',
+  'action:menu',
+  'action:icon',
   'flex',
   'grid',
   'stack',
@@ -166,54 +181,90 @@ describe('console ↔ PUBLIC_BLOCKS coverage', () => {
 });
 
 /**
- * `record:*` blocks that ship but are deliberately NOT in the AI vocabulary,
- * each with the reason it stays out.
+ * The namespaces that hold semantic page blocks — the families the Studio page
+ * designer offers and @objectstack/spec's page schema enumerates. These are
+ * the ones the reverse-coverage guard sweeps: `ui:`/`field:`/plugin internals
+ * are rendering capability, not vocabulary candidates.
+ *
+ * objectui#3023 guarded `record:` alone after fixing it, and 22 doubled keys
+ * kept sitting in the other three — checking only the namespace you just fixed
+ * is exactly the leak mechanism. Sweep all four.
+ */
+const SEMANTIC_NAMESPACES = ['record', 'page', 'element', 'action'] as const;
+
+/**
+ * Blocks in a semantic namespace that ship but are deliberately NOT in the AI
+ * vocabulary, each with the reason it stays out.
  *
  * This list exists to force a decision, not to park problems: registering a
- * new `record:*` block fails the test below until it is either curated or
- * added here with a reason. That is the property objectui#3006 needed and did
- * not have — `record:line_items` shipped fully configurable (5 inputs) and
- * simply never reached the contract, because nothing looked in this direction.
+ * new block in any {@link SEMANTIC_NAMESPACES} namespace fails the test below
+ * until it is either curated or added here with a reason. That is the property
+ * objectui#3006 needed and did not have — `record:line_items` shipped fully
+ * configurable and simply never reached the contract, because nothing looked
+ * in this direction.
  *
- * It held seven entries until the blocks behind them declared `inputs`; six
- * became authorable and moved into the contract. The one that stayed is here
- * on its own merits rather than for want of a configuration surface.
+ * Unlike the seven zero-input entries this list once held, several of these
+ * DO declare inputs — they are excluded on the merits, not for want of a
+ * configuration surface. The reasons for the four `element:` entries mirror
+ * the Studio palette's own exclusions (`PALETTE_EXCLUSIONS` in
+ * app-shell/metadata-admin), so the two vocabularies stay excluded for the
+ * same reasons, not coincidentally.
  */
 const DELIBERATELY_UNCURATED: Record<string, string> = {
   'record:chatter':
     'same renderer as record:discussion under a Salesforce-familiar name, kept for ' +
     'schemas already in the wild — the vocabulary carries the spec name, since two ' +
     'spellings of one block is ambiguity an authoring model cannot resolve',
+  'action:bar':
+    'record:quick_actions covers the record-page action strip, and the spec ui/page ' +
+    'vocabulary blesses action button/group/icon/menu but not bar',
+  'element:image':
+    'duplicates the curated `image` primitive (src/alt/fit) — one spelling per concept',
+  'element:metadata_viewer': 'internal metadata debugging surface, not an authoring block',
+  'element:record_picker': 'record picking is a field widget, not a page block',
+  'element:text_input': 'bare inputs belong to a form, not a page block',
 };
 
-describe('PUBLIC_BLOCKS ↔ console coverage (reverse direction)', () => {
-  const NS = 'record';
+/**
+ * Curated semantic blocks that declare NO inputs because their renderers
+ * genuinely read nothing beyond `children`/`className` — pure containers and
+ * separators. Listing them here (rather than exempting them ad hoc) keeps
+ * "zero inputs" a reviewed decision: a block that grows a configurable surface
+ * while sitting in this list fails the assertion below in the other direction.
+ */
+const PROP_LESS_CURATED = ['element:divider', 'page:section', 'page:footer', 'page:sidebar'];
 
-  const shippedRecordBlocks = (): string[] =>
+describe('PUBLIC_BLOCKS ↔ console coverage (reverse direction)', () => {
+  const shippedBlocks = (ns: string): string[] =>
     ComponentRegistry.getKnownTypes()
-      .filter((k) => ComponentRegistry.getMeta(k)?.namespace === NS)
+      .filter((k) => ComponentRegistry.getMeta(k)?.namespace === ns)
       .sort();
 
-  it('curates every shipped record:* block, or records why not', () => {
+  it('curates every shipped semantic block, or records why not', () => {
     const curated = new Set<string>(PUBLIC_BLOCKS);
-    const uncurated = shippedRecordBlocks().filter((tag) => !curated.has(tag));
+    const uncurated = SEMANTIC_NAMESPACES.flatMap((ns) =>
+      shippedBlocks(ns).filter((tag) => !curated.has(tag)),
+    ).sort();
 
     expect(uncurated).toEqual(Object.keys(DELIBERATELY_UNCURATED).sort());
   });
 
-  it('registers each record:* block under one key, prefixed once', () => {
-    const keys = shippedRecordBlocks();
-    expect(keys.every((k) => k.startsWith(`${NS}:`))).toBe(true);
+  it('registers each semantic block under one key, prefixed once', () => {
+    for (const ns of SEMANTIC_NAMESPACES) {
+      expect(shippedBlocks(ns).every((k) => k.startsWith(`${ns}:`))).toBe(true);
+    }
   });
 
   it('leaves the bare names to whoever owns them', () => {
     // The corollary of registering bare + `namespace`: without
-    // `skipFallback: true` these also claim `details`, `path`, `alert` … as
-    // top-level tags. `alert` is the live example — it belongs to `ui:`, and a
-    // missing skipFallback here would silently take it over.
-    for (const tag of shippedRecordBlocks()) {
-      const bare = tag.slice(NS.length + 1);
-      expect(ComponentRegistry.getMeta(bare)?.namespace ?? null).not.toBe(NS);
+    // `skipFallback: true` these also claim `details`, `tabs`, `text`,
+    // `button` … as top-level tags. Every one of those belongs to `ui:` (or
+    // `field:`), and a missing skipFallback would silently take it over.
+    for (const ns of SEMANTIC_NAMESPACES) {
+      for (const tag of shippedBlocks(ns)) {
+        const bare = tag.slice(ns.length + 1);
+        expect(ComponentRegistry.getMeta(bare)?.namespace ?? null).not.toBe(ns);
+      }
     }
   });
 
@@ -256,16 +307,26 @@ describe('PUBLIC_BLOCKS ↔ console coverage (reverse direction)', () => {
     expect(chatter).toEqual(ComponentRegistry.getMeta('record:discussion')?.inputs);
   });
 
-  it('declares inputs for every curated record:* block', () => {
+  it('declares inputs for every curated semantic block, minus the prop-less list', () => {
     // What objectui#3006 cost was a configurable block sitting outside the
     // contract. The inverse is just as bad for an authoring model: a curated
     // tag with no declared inputs can only be emitted bare, so it reads as
     // "this block takes no configuration" when the renderer in fact reads
-    // props. Curation and a configuration surface travel together.
-    const curatedRecordBlocks = PUBLIC_BLOCKS.filter((tag) => tag.startsWith(`${NS}:`));
-    expect(curatedRecordBlocks.length).toBeGreaterThan(0);
-    for (const tag of curatedRecordBlocks) {
+    // props. Curation and a configuration surface travel together — except for
+    // the genuinely prop-less containers, which are pinned as such below.
+    const curatedSemantic = PUBLIC_BLOCKS.filter((tag) =>
+      SEMANTIC_NAMESPACES.some((ns) => tag.startsWith(`${ns}:`)),
+    );
+    expect(curatedSemantic.length).toBeGreaterThan(0);
+    for (const tag of curatedSemantic.filter((t) => !PROP_LESS_CURATED.includes(t))) {
       expect(contract.get(tag)?.inputs ?? []).not.toEqual([]);
+    }
+    for (const tag of PROP_LESS_CURATED) {
+      // Eager registrations, asserted first: a pending lazy stub reports
+      // `inputs: undefined` meaning "not known yet", which would make the
+      // zero-input pin below vacuous.
+      expect(ComponentRegistry.getConfig(tag)).toBeDefined();
+      expect(contract.get(tag)?.inputs ?? []).toEqual([]);
     }
   });
 

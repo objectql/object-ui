@@ -63,6 +63,38 @@ export const PUBLIC_BLOCKS: readonly string[] = [
   'record:quick_actions',
   'record:reference_rail',
   'record:alert',
+  // ── Tier A, continued — page-semantic blocks (the spec ui/page vocabulary) ─
+  // The `page:` / `element:` / `action:` families the Studio page designer
+  // offers and @objectstack/spec's page schema enumerates. Same standing as
+  // the `record:` family above: semantic page blocks, not primitives.
+  //
+  // Deliberately NOT here (each guarded, with its reason, by the console's
+  // reverse-coverage test):
+  //   action:bar               record:quick_actions covers the record action
+  //                            strip, and the spec blesses button/group/icon/
+  //                            menu but not bar
+  //   element:image            duplicates the curated `image` primitive below —
+  //                            one spelling per concept
+  //   element:record_picker    record picking is a field widget, not a page
+  //                            block (Studio palette exclusion)
+  //   element:text_input       bare inputs belong to a form, not a page block
+  //                            (Studio palette exclusion)
+  //   element:metadata_viewer  internal metadata debugging surface
+  'page:tabs',
+  'page:card',
+  'page:accordion',
+  'page:section',
+  'page:footer',
+  'page:sidebar',
+  'element:text',
+  'element:number',
+  'element:button',
+  'element:definition-list',
+  'element:repeater',
+  'action:button',
+  'action:group',
+  'action:menu',
+  'action:icon',
   // ── Tier B — layout / content primitives ──────────────────────────────────
   'flex',
   'grid',
