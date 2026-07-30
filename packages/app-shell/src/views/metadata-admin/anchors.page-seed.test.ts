@@ -1,6 +1,20 @@
 // Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
 
 import { describe, it, expect } from 'vitest';
+// `createSeed` reaches the page synthesizer through a dynamic
+// `await import('@object-ui/plugin-detail')` (anchors.ts), so the cold transform
+// of that whole package graph is billed to whichever test first awaits the hook
+// — inside the test body, against the 15s `testTimeout`. The `unit` project runs
+// `isolate: false`, so whether the module is already warm depends on what else
+// the worker happened to run first; when it wasn't, the seeding test blew the
+// budget. (It surfaced as a timeout rather than a wrong result because
+// `createSeed` swallows failures and returns `{}`.)
+//
+// Importing it here moves that cost into the file's import phase, which no test
+// or hook timeout applies to, so it can never land inside a timed window again.
+// Keep the specifier identical to the one in anchors.ts — ESM caches by resolved
+// specifier, so this makes the hook's own dynamic import resolve immediately.
+import '@object-ui/plugin-detail';
 import { registerBuiltinAnchors } from './anchors';
 import { resolveResourceConfig } from './registry';
 

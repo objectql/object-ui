@@ -61,7 +61,14 @@ describe('all locale packs are at full key parity with en (objectui#2872)', () =
   });
 
   it.each(OTHER_LOCALES)('%s defines every en key', (lang) => {
-    const missing = [...EN].filter((k) => !keysOf(builtInLocales[lang]).has(k)).sort();
+    // Build the pack's key set ONCE. Calling `keysOf` inside the predicate
+    // re-walks the whole locale tree per `en` key (~2.5k keys x a full
+    // recursive walk), which made this quadratic: ~850-2200ms per locale
+    // isolated, and >15s — a timeout, not a parity failure — once full-suite
+    // contention slowed each walk down. The sibling assertion below always
+    // hoisted it; this one didn't.
+    const packKeys = keysOf(builtInLocales[lang]);
+    const missing = [...EN].filter((k) => !packKeys.has(k)).sort();
     expect(missing, `${lang} is missing ${missing.length} key(s)`).toEqual([]);
   });
 

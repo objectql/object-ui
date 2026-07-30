@@ -6,15 +6,18 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';
+// Import all renderers to register them. This was a `beforeAll(async () => {
+// await import('./index') }, 15000)` — the cold transform of the renderer graph
+// was billed to a hook, so it needed its timeout raised to 15s, and under full
+// parallel load it blew even that (observed: 15021ms, reported as 8 skipped tests
+// rather than a failed assertion). A static import puts the same cost in the
+// file's import phase, which no test or hook timeout applies to — so the raised
+// timeout is no longer needed at all.
+import './index';
 
 describe('Plugin Kanban', () => {
-  // Import all renderers to register them
-  beforeAll(async () => {
-    await import('./index');
-  }, 15000); // Increase timeout to 15 seconds for async import
-
   describe('kanban component', () => {
     it('should be registered in ComponentRegistry', () => {
       const kanbanRenderer = ComponentRegistry.get('kanban-ui');
