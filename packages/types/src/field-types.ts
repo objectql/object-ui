@@ -987,26 +987,17 @@ export interface ObjectSchemaMetadata {
 }
 
 /**
- * Object index configuration
+ * Object index configuration — re-exported from `@objectstack/spec/data`
+ * rather than restated (objectstack#4115).
+ *
+ * The hand-written interface it replaces had drifted three ways: its `type`
+ * enum was missing `fulltext`, `unique` was a bare `boolean` where the spec
+ * also accepts `'global'` (the global-unique scope), and it had no `partial`
+ * member at all — so a spec-authored partial or globally-unique index could
+ * not be expressed here.
  */
-export interface ObjectIndex {
-  /**
-   * Index name
-   */
-  name: string;
-  /**
-   * Fields to index
-   */
-  fields: string[];
-  /**
-   * Whether index is unique
-   */
-  unique?: boolean;
-  /**
-   * Index type
-   */
-  type?: 'btree' | 'hash' | 'gist' | 'gin';
-}
+import type { ObjectIndex } from '@objectstack/spec/data';
+export type { ObjectIndex };
 
 /**
  * Object relationship configuration

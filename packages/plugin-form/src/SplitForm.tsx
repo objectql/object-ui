@@ -29,6 +29,7 @@ import { cn } from '@object-ui/components';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
 import { applyAutoColSpan, containerGridColsFor } from './autoLayout';
+import { useOccSave } from './occSave';
 
 export interface SplitFormSectionConfig {
   name?: string;
@@ -116,6 +117,8 @@ export const SplitForm: React.FC<SplitFormProps> = ({
   const { fieldLabel } = useSafeFieldLabel();
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
+  // OCC-guarded edit save + its conflict dialog (see occSave.tsx).
+  const { saveWithOcc, conflictDialog } = useOccSave();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -217,7 +220,17 @@ export const SplitForm: React.FC<SplitFormProps> = ({
       if (schema.mode === 'create') {
         result = await dataSource.create(schema.objectName, data);
       } else if (schema.mode === 'edit' && schema.recordId) {
-        result = await dataSource.update(schema.objectName, schema.recordId, data);
+        // OCC-guarded: sends `ifMatch` from the record we read; a 409 asks the
+        // user to keep editing (skip the success path) or overwrite.
+        const outcome = await saveWithOcc({
+          dataSource,
+          objectName: schema.objectName,
+          recordId: schema.recordId,
+          payload: data,
+          baseRecord: formData,
+        });
+        if (outcome.status === 'cancelled') return;
+        result = outcome.result;
       }
       if (schema.onSuccess) {
         await schema.onSuccess(result);
@@ -229,7 +242,7 @@ export const SplitForm: React.FC<SplitFormProps> = ({
       }
       throw err;
     }
-  }, [schema, dataSource]);
+  }, [schema, dataSource, saveWithOcc, formData]);
 
   // Handle cancel
   const handleCancel = useCallback(() => {
@@ -368,6 +381,7 @@ export const SplitForm: React.FC<SplitFormProps> = ({
           fieldPanesResizable: schema.splitResizable !== false,
         }}
       />
+      {conflictDialog}
     </div>
   );
 };

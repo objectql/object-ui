@@ -41,6 +41,7 @@ import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields'
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
 import { applyAutoLayout } from './autoLayout';
 import { sanitizeFormData } from './sanitize';
+import { useOccSave } from './occSave';
 
 /**
  * Container-query-based grid classes for form field layout.
@@ -177,6 +178,8 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
   // dialog shown when the user tries to close a dirty form.
   const [isDirty, setIsDirty] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
+  // OCC-guarded edit save + its conflict dialog (see occSave.tsx).
+  const { saveWithOcc, conflictDialog } = useOccSave();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const cancelIntentRef = useRef(false);
   const confirmOnDiscard = schema.confirmOnDiscard !== false;
@@ -353,7 +356,17 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
       if (schema.mode === 'create') {
         result = await dataSource.create(schema.objectName, payload);
       } else if (schema.mode === 'edit' && schema.recordId) {
-        result = await dataSource.update(schema.objectName, schema.recordId, payload);
+        // OCC-guarded: sends `ifMatch` from the record we read; a 409 asks the
+        // user to keep editing (drawer stays open, draft intact) or overwrite.
+        const outcome = await saveWithOcc({
+          dataSource,
+          objectName: schema.objectName,
+          recordId: schema.recordId,
+          payload,
+          baseRecord: formData,
+        });
+        if (outcome.status === 'cancelled') return;
+        result = outcome.result;
       }
       if (schema.onSuccess) {
         await schema.onSuccess(result);
@@ -369,7 +382,7 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
     } finally {
       setIsSubmitting(false);
     }
-  }, [schema, dataSource, objectSchema]);
+  }, [schema, dataSource, objectSchema, saveWithOcc, formData]);
 
   // Actually close the drawer, firing onCancel only when the close originated
   // from the explicit Cancel button.
@@ -668,6 +681,10 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        {/* Same nesting rationale as the discard guard above: inside
+            SheetContent the conflict alert stacks as the topmost Radix layer,
+            so its buttons receive clicks while the drawer stays open. */}
+        {conflictDialog}
       </SheetContent>
     </Sheet>
   );

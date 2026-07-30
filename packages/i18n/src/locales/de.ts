@@ -113,6 +113,10 @@ const de = {
     discardMessage: "Sie haben ungespeicherte Änderungen. Wenn Sie dieses Formular jetzt schließen, gehen Ihre Bearbeitungen verloren.",
     keepEditing: "Weiter bearbeiten",
     discard: "Verwerfen",
+    conflictTitle: "Speicherkonflikt",
+    conflictMessage: "Dieser Datensatz wurde während Ihrer Bearbeitung von jemand anderem geändert. Beim Überschreiben werden dessen Änderungen durch Ihre ersetzt.",
+    conflictLatestVersion: "Deren Speicherung: {{time}}",
+    conflictOverwrite: "Überschreiben",
     addItem: "Element hinzufügen",
     removeItem: "Element entfernen",
     fieldRequired: "Dieses Feld ist erforderlich",
@@ -449,6 +453,10 @@ const de = {
     noMatchesMessage: "Keine Datensätze entsprechen Ihren aktuellen Filtern oder Ihrer Suche. Passen Sie sie an oder setzen Sie sie zurück.",
     loadErrorTitle: "Datensätze konnten nicht geladen werden",
     loadErrorMessage: "Beim Laden dieser Daten ist etwas schiefgelaufen. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
+    loadErrorForbiddenTitle: "Kein Zugriff",
+    loadErrorForbiddenMessage: "Sie haben keine Berechtigung, diese Datensätze anzuzeigen. Wenden Sie sich an Ihren Administrator, wenn Sie Zugriff benötigen.",
+    loadErrorUnauthorizedTitle: "Anmeldung erforderlich",
+    loadErrorUnauthorizedMessage: "Ihre Sitzung ist abgelaufen oder Sie sind abgemeldet. Melden Sie sich erneut an, um diese Datensätze anzuzeigen.",
     retry: "Erneut versuchen",
     managedBy: {
       system: {

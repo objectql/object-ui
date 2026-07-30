@@ -460,20 +460,14 @@ export type PageVisualizationAlias =
 export type PageType = SpecPageType | PageVisualizationAlias;
 
 /**
- * Page Variable
- * Local page state that can be read/written by components and expressions.
- * Aligned with @objectstack/spec PageVariableSchema
+ * Page Variable — local page state that components and expressions read and
+ * write. Re-exported from `@objectstack/spec/ui` rather than restated
+ * (objectstack#4115); the hand-written interface it replaces was
+ * member-for-member identical, so the only thing it added was a second place
+ * to drift from.
  */
-export interface PageVariable {
-  /** Variable name */
-  name: string;
-  /** Variable type @default 'string' */
-  type?: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'record_id';
-  /** Default value for initialization */
-  defaultValue?: any;
-  /** Variable data source (e.g. URL param, context, expression) */
-  source?: string;
-}
+import type { PageVariable } from '@objectstack/spec/ui';
+export type { PageVariable };
 
 /**
  * Page Region Size

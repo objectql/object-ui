@@ -113,6 +113,10 @@ const ja = {
     discardMessage: "保存されていない変更があります。このままフォームを閉じると編集内容は失われます。",
     keepEditing: "編集を続ける",
     discard: "破棄",
+    conflictTitle: "保存の競合",
+    conflictMessage: "編集中にこのレコードが他のユーザーによって変更されました。上書きすると、相手の変更はあなたの内容で置き換えられます。",
+    conflictLatestVersion: "相手の保存時刻: {{time}}",
+    conflictOverwrite: "上書き",
     addItem: "項目を追加",
     removeItem: "項目を削除",
     fieldRequired: "この項目は必須です",
@@ -449,6 +453,10 @@ const ja = {
     noMatchesMessage: "現在のフィルターや検索条件に一致するレコードはありません。条件を調整するか解除してください。",
     loadErrorTitle: "レコードを読み込めませんでした",
     loadErrorMessage: "データの読み込み中に問題が発生しました。接続を確認して再試行してください。",
+    loadErrorForbiddenTitle: "アクセス権がありません",
+    loadErrorForbiddenMessage: "これらのレコードを表示する権限がありません。必要な場合は管理者にお問い合わせください。",
+    loadErrorUnauthorizedTitle: "サインインが必要です",
+    loadErrorUnauthorizedMessage: "セッションの有効期限が切れたか、サインアウトしています。再度サインインしてください。",
     retry: "再試行",
     managedBy: {
       system: {

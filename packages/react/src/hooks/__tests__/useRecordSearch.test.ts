@@ -408,5 +408,65 @@ describe('useRecordSearch', () => {
       expect(result.current.results).toEqual([]);
       expect(ds.find).not.toHaveBeenCalled();
     });
+
+    // Regression: `maxObjectsQueried` caps the FANOUT (one request per
+    // object), not the single-request searchAll scope. It used to truncate
+    // the candidate pool itself, so ⌘K silently searched only the first 8
+    // nav objects — records in every later object were unfindable.
+    it('sends the full whitelist to searchAll, beyond maxObjectsQueried', async () => {
+      const manyObjects = Array.from({ length: 20 }, (_, i) => ({
+        name: `obj_${String(i).padStart(2, '0')}`,
+        label: `Obj ${i}`,
+      }));
+      const ds = {
+        find: vi.fn(),
+        searchAll: vi.fn(async () => ({ hits: [] })),
+      };
+
+      renderHook(() =>
+        useRecordSearch({
+          query: 'wayne',
+          objects: manyObjects,
+          objectNames: manyObjects.map((o) => o.name),
+          dataSource: ds,
+          debounceMs: 0,
+          maxObjectsQueried: 8,
+        }),
+      );
+
+      await waitFor(() => {
+        expect(ds.searchAll).toHaveBeenCalledTimes(1);
+      });
+      const [, opts] = ds.searchAll.mock.calls[0];
+      expect(opts.objects).toHaveLength(20);
+      expect(ds.find).not.toHaveBeenCalled();
+    });
+
+    it('still caps the per-object fanout at maxObjectsQueried', async () => {
+      const manyObjects = Array.from({ length: 20 }, (_, i) => ({
+        name: `obj_${String(i).padStart(2, '0')}`,
+        label: `Obj ${i}`,
+      }));
+      const ds = {
+        find: vi.fn(async () => ({ data: [] })),
+        // no searchAll — forces the fanout fallback
+      };
+
+      const { result } = renderHook(() =>
+        useRecordSearch({
+          query: 'wayne',
+          objects: manyObjects,
+          objectNames: manyObjects.map((o) => o.name),
+          dataSource: ds,
+          debounceMs: 0,
+          maxObjectsQueried: 8,
+        }),
+      );
+
+      await waitFor(() => {
+        expect(result.current.isSearching).toBe(false);
+      });
+      expect(ds.find).toHaveBeenCalledTimes(8);
+    });
   });
 });

@@ -7,39 +7,44 @@
  */
 
 /**
- * Fold an object's declared actions — and a list view's legacy
- * `bulkActions: string[]` — into the rich `BulkActionDef` list the selection
- * bar renders.
+ * Resolve a list view's `bulkActions: string[]` against the object's declared
+ * actions, folding each resolvable name into the rich `BulkActionDef` list the
+ * selection bar renders.
  *
  * This is the selection-scoped twin of {@link resolveLegacyRowActions}
  * (objectui#2960 / #2996), and it closes the same `{type: <name>}` dead end on
  * the bulk path (objectui#3002): dispatching `bulkActions: ['push_down']` put
- * the action's NAME in the runner's `type` slot, which resolves to nothing.
+ * the action's NAME in the runner's `type` slot, which resolves to nothing —
+ * zero requests, and (since #2996) a loud failure instead of a green toast.
  *
- * ## Where an object-level bulk action is declared
+ * ## Where a bulk action is declared
  *
- * `ActionSchema.bulkEnabled` — *"Whether this action can be applied to
- * multiple selected records"*. The spec has carried this flag all along; what
- * was missing was a consumer (framework's own liveness audit: *"engine has
- * `getBulkActions`/`executeBulk`, but no spec-driven view path calls
- * `executeBulk`"*). So no new `locations` entry is needed — a list selection
- * bar is the only surface on which records are multi-selected, which is
- * exactly what the flag already names. `locations` stays orthogonal: it places
- * an action's SINGLE-record entry (toolbar / row kebab / record header), and
- * an action may carry both (`locations: ['list_item'], bulkEnabled: true` =
- * runs on one row from the kebab, on N rows from the selection bar).
+ * **In the VIEW's `bulkActions`, naming an action the object declares.** That
+ * is the whole vocabulary. `ActionSchema.bulkEnabled` looked like an
+ * object-level alternative and this module briefly derived from it, but spec
+ * 17.0.0 retired the key (#3896 close-out / framework#4054) — it is now a
+ * `retiredKey()` tombstone, so authoring it is a HARD parse rejection whose
+ * own prescription is: *"the multi-select toolbar is driven by the LIST VIEW's
+ * `bulkActions` / `bulkActionDefs`, never by this flag … declare the action in
+ * the view's `bulkActions` instead."* Do not reintroduce a `bulkEnabled` read
+ * here: `defineStack` refuses to compile a config that sets it, so the branch
+ * can never run.
  *
- * ## Three vocabularies reach the selection bar
+ * `locations` stays orthogonal — it places an action's SINGLE-record entry
+ * (toolbar / row kebab / record header). One action can be both: declared
+ * `locations: ['list_item']` AND named in `bulkActions`, it runs on one row
+ * from the kebab and on N rows from the selection bar.
+ *
+ * ## Two vocabularies reach the selection bar
  *
  *  1. `bulkActionDefs` — rich defs authored inline in the view JSON. Untouched
  *     here; they own their names and win every collision.
- *  2. `objectDef.actions` with `bulkEnabled: true` — DERIVED into defs by this
- *     fold. This is what "declare a bulk action on the object" now means.
- *  3. `bulkActions: string[]` — the legacy bare-name form, kept as a
- *     view-level override (name an action the object didn't flag, or order it
- *     explicitly). Resolved against `objectDef.actions` by name.
+ *  2. `bulkActions: string[]` — bare action names, resolved against
+ *     `objectDef.actions` and PROMOTED to that def, so they carry the action's
+ *     label, icon, `visible` predicate, confirm text and params instead of a
+ *     bare humanized name.
  *
- * A derived def carries `operation: 'custom'` plus the source action under
+ * A promoted def carries `operation: 'custom'` plus the source action under
  * {@link BulkActionDef.actionDef}: it is NOT a data-plane mass update, it is
  * one action run over N records through the action runner. `useBulkExecutor`
  * routes on exactly that key — a `custom` def WITHOUT `actionDef` keeps its
@@ -62,13 +67,13 @@ export interface NamedActionDef {
 }
 
 /**
- * Concurrency for a derived action's per-record fan-out. Well below the
+ * Concurrency for a promoted action's per-record fan-out. Well below the
  * `BulkActionDef` default (200) because each record here is a distinct runner
  * dispatch — typically an HTTP call to a custom endpoint or a flow run, not a
  * single batched data-API write. 200 in flight would be a thundering herd
  * against an endpoint that never opted into bulk traffic.
  */
-export const DERIVED_BULK_BATCH_SIZE = 25;
+export const PROMOTED_BULK_BATCH_SIZE = 25;
 
 /** Action `variant`s that have no `BulkActionDef` counterpart are dropped. */
 const BULK_VARIANTS = new Set(['primary', 'secondary', 'danger', 'ghost']);
@@ -132,16 +137,16 @@ function toBulkActionDef(action: NamedActionDef, localize?: ActionLabelResolver)
     ...(params.length > 0 && { params }),
     ...(confirmText !== undefined && { confirmText }),
     ...(action.visible != null && { visible: action.visible as BulkActionDef['visible'] }),
-    batchSize: DERIVED_BULK_BATCH_SIZE,
+    batchSize: PROMOTED_BULK_BATCH_SIZE,
     actionDef: action,
   };
 }
 
 export function resolveBulkActions(opts: {
   /**
-   * Legacy `bulkActions` names, already stripped of the canonical `'delete'`
-   * entry (it routes to the grid's `onBulkDelete`, not the runner — same
-   * carve-out the row fold makes for `'edit'` / `'delete'`).
+   * The view's `bulkActions` names, already stripped of the canonical
+   * `'delete'` entry (it routes to the grid's `onBulkDelete`, not the runner —
+   * same carve-out the row fold makes for `'edit'` / `'delete'`).
    */
   bulkActions?: readonly string[] | null;
   /** Rich defs authored inline in the view/list JSON. */
@@ -149,19 +154,19 @@ export function resolveBulkActions(opts: {
   /** Every action declared on the object (`objectDef.actions`). */
   objectActions?: readonly NamedActionDef[] | null;
   /**
-   * Resolves a derived def's label through the app's i18n bundle, so an
-   * object-declared bulk action reads the same in the selection bar as its row
-   * entry does in the kebab. Omit to use the authored label verbatim.
+   * Resolves a promoted def's label through the app's i18n bundle, so a bulk
+   * action reads the same in the selection bar as its row entry does in the
+   * kebab. Omit to use the authored label verbatim.
    */
   localizeLabel?: ActionLabelResolver;
 }): {
   /**
-   * Authored defs, then the object's `bulkEnabled` actions, then promoted
-   * legacy names. Returned by REFERENCE when nothing was derived or promoted,
-   * so a view with no object actions to fold keeps its identity across renders.
+   * Authored defs, then the promoted names in `bulkActions` order. Returned by
+   * REFERENCE when nothing was promoted, so a view with no names to fold keeps
+   * its identity across renders.
    */
   defs: readonly BulkActionDef[];
-  /** Legacy names that matched no declared action; dispatched by name. */
+  /** Names that matched no declared action; dispatched by name. */
   unresolved: string[];
 } {
   const authored = Array.isArray(opts.bulkActionDefs) ? opts.bulkActionDefs : [];
@@ -172,26 +177,14 @@ export function resolveBulkActions(opts: {
     authored.map(d => d?.name).filter((n): n is string => typeof n === 'string' && n !== ''),
   );
 
-  // (2) The object's own declaration: `bulkEnabled: true`.
-  const derived: BulkActionDef[] = [];
-  for (const action of objectActions) {
-    if (action?.bulkEnabled !== true) continue;
-    const name = action?.name;
-    if (typeof name !== 'string' || name === '') continue;
-    if (claimed.has(name)) continue;
-    claimed.add(name);
-    derived.push(toBulkActionDef(action, opts.localizeLabel));
-  }
-
-  // (3) The view-level legacy override.
   const promoted: BulkActionDef[] = [];
   const unresolved: string[] = [];
   for (const name of names) {
     if (typeof name !== 'string' || name === '') continue;
-    // Already surfaced (authored, derived, or an earlier pass over a repeated
-    // legacy entry) — drop the duplicate rather than render a twin. Both
-    // outcomes claim the name: the bar keys its buttons on it, so even two
-    // dead-name entries would collide.
+    // Already surfaced (an authored def of the same name, or an earlier pass
+    // over a repeated entry) — drop the duplicate rather than render a twin.
+    // Both outcomes claim the name: the bar keys its buttons on it, so even
+    // two dead-name entries would collide.
     if (claimed.has(name)) continue;
     claimed.add(name);
     const match = objectActions.find(a => a?.name === name);
@@ -203,9 +196,7 @@ export function resolveBulkActions(opts: {
   }
 
   return {
-    defs: derived.length > 0 || promoted.length > 0
-      ? [...authored, ...derived, ...promoted]
-      : authored,
+    defs: promoted.length > 0 ? [...authored, ...promoted] : authored,
     unresolved,
   };
 }

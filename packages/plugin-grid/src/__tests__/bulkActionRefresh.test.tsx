@@ -291,3 +291,85 @@ describe('ObjectGrid — bulk dialog Done keeps selection in sync', () => {
     expect(headerChecked()).toBe('checked');
   });
 });
+
+/**
+ * Same desync, the OTHER dispatcher (#3056). `dispatchBulkAction` — the
+ * by-name path and the bulk-delete path — cleared `selectedRows` (toolbar) but
+ * never bumped `selectionResetKey` (checkboxes), so a successful run left the
+ * user staring at a page of ticked rows with no toolbar to act on them. Only
+ * the rich-def path above upheld the invariant; these pin the other two.
+ *
+ * Both survive objectui#3002: a name that resolves to a declared object action
+ * is now promoted to a def and routes through the dialog instead, so what still
+ * reaches `dispatchBulkAction` is a consumer-registered runner handler
+ * (`approve` here) and the canonical `'delete'`.
+ */
+describe('ObjectGrid — dispatchBulkAction keeps selection in sync (#3056)', () => {
+  const headerChecked = () =>
+    (document.querySelector('thead [role="checkbox"]') as HTMLElement)?.getAttribute('data-state');
+
+  it('clears the row checkboxes (not just the toolbar) after a by-name action', async () => {
+    const ds = makeDataSource();
+    const approve = vi.fn(async () => ({ success: true }));
+    renderGrid(ds, { approve });
+
+    await waitFor(() => expect(screen.getByText('Plan A')).toBeInTheDocument());
+    fireEvent.click(document.querySelector('thead [role="checkbox"]') as HTMLElement);
+    await waitFor(() => expect(headerChecked()).toBe('checked'));
+
+    fireEvent.click(await screen.findByTestId('bulk-action-approve'));
+    await waitFor(() => expect(approve).toHaveBeenCalledTimes(1));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('bulk-actions-bar')).not.toBeInTheDocument(),
+    );
+    await waitFor(() => expect(headerChecked()).toBe('unchecked'));
+  });
+
+  it('leaves the checkboxes ticked when the by-name action fails', async () => {
+    const ds = makeDataSource();
+    const approve = vi.fn(async () => ({ success: false, error: 'nope' }));
+    renderGrid(ds, { approve });
+
+    await waitFor(() => expect(screen.getByText('Plan A')).toBeInTheDocument());
+    fireEvent.click(document.querySelector('thead [role="checkbox"]') as HTMLElement);
+    await waitFor(() => expect(headerChecked()).toBe('checked'));
+
+    fireEvent.click(await screen.findByTestId('bulk-action-approve'));
+    await waitFor(() => expect(approve).toHaveBeenCalledTimes(1));
+
+    // Failure keeps BOTH sources, so the user can retry the same rows.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByTestId('bulk-actions-bar')).toBeInTheDocument();
+    expect(headerChecked()).toBe('checked');
+  });
+
+  it('clears the row checkboxes after a bulk delete', async () => {
+    const ds = makeDataSource();
+    const onBulkDelete = vi.fn();
+    const schema: any = {
+      type: 'object-grid',
+      objectName: OBJECT,
+      bulkActions: ['delete'],
+      columns: [{ field: 'name', label: 'Name' }],
+      pagination: { pageSize: 50 },
+    };
+    render(
+      <ActionProvider handlers={{}}>
+        <ObjectGrid schema={schema} dataSource={ds} onBulkDelete={onBulkDelete} />
+      </ActionProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByText('Plan A')).toBeInTheDocument());
+    fireEvent.click(document.querySelector('thead [role="checkbox"]') as HTMLElement);
+    await waitFor(() => expect(headerChecked()).toBe('checked'));
+
+    fireEvent.click(await screen.findByTestId('bulk-action-delete'));
+    await waitFor(() => expect(onBulkDelete).toHaveBeenCalledTimes(1));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('bulk-actions-bar')).not.toBeInTheDocument(),
+    );
+    await waitFor(() => expect(headerChecked()).toBe('unchecked'));
+  });
+});

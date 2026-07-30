@@ -81,9 +81,9 @@ export interface BulkExecutorOptions {
     ) => Promise<number>;
   };
   /**
-   * Per-record dispatcher for a DERIVED bulk action — one declared object
-   * action (`bulkEnabled: true`, or a legacy `bulkActions` name resolved
-   * against `objectDef.actions`) applied to N selected records (objectui#3002).
+   * Per-record dispatcher for a PROMOTED bulk action — one declared object
+   * action (named in the view's `bulkActions` and resolved against
+   * `objectDef.actions`) applied to N selected records (objectui#3002).
    *
    * Such a def carries `operation: 'custom'` plus `def.actionDef`; the data
    * source has no idea what the action does, so the grid injects this to run it
@@ -235,7 +235,7 @@ export function useBulkExecutor({ resource, dataSource, objectFields, runAction 
             case 'update':
               return dataSource.update(resource, id, buildPatch());
             case 'custom':
-              // A DERIVED def (`actionDef` present) runs its object action once
+              // A PROMOTED def (`actionDef` present) runs its object action once
               // per record through the injected runner. Without one, this is
               // the historical callout shape — no mutation, caller wires
               // onComplete.
@@ -340,7 +340,7 @@ export function useBulkExecutor({ resource, dataSource, objectFields, runAction 
             await dataSource.update(resource, rowId, patch);
             break;
           case 'custom':
-            // A derived def re-dispatches the action for real; a plain callout
+            // A promoted def re-dispatches the action for real; a plain callout
             // def has nothing to retry, so it reports success unchanged.
             if (!last.def.actionDef || !runAction) return true;
             await runAction(last.def, row, { ...last.params });

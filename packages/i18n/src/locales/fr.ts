@@ -113,6 +113,10 @@ const fr = {
     discardMessage: "Vous avez des modifications non enregistrées. Si vous fermez ce formulaire maintenant, vos modifications seront perdues.",
     keepEditing: "Continuer l'édition",
     discard: "Abandonner",
+    conflictTitle: "Conflit d'enregistrement",
+    conflictMessage: "Cet enregistrement a été modifié par quelqu'un d'autre pendant votre édition. L'écrasement remplacera ses modifications par les vôtres.",
+    conflictLatestVersion: "Son enregistrement : {{time}}",
+    conflictOverwrite: "Écraser",
     addItem: "Ajouter un élément",
     removeItem: "Supprimer un élément",
     fieldRequired: "Ce champ est obligatoire",
@@ -449,6 +453,10 @@ const fr = {
     noMatchesMessage: "Aucun enregistrement ne correspond à vos filtres ou à votre recherche. Essayez de les ajuster ou de les effacer.",
     loadErrorTitle: "Impossible de charger les enregistrements",
     loadErrorMessage: "Une erreur s'est produite lors du chargement de ces données. Vérifiez votre connexion et réessayez.",
+    loadErrorForbiddenTitle: "Accès refusé",
+    loadErrorForbiddenMessage: "Vous n'avez pas la permission de consulter ces enregistrements. Contactez votre administrateur si vous pensez devoir y accéder.",
+    loadErrorUnauthorizedTitle: "Connexion requise",
+    loadErrorUnauthorizedMessage: "Votre session a expiré ou vous êtes déconnecté. Reconnectez-vous pour consulter ces enregistrements.",
     retry: "Réessayer",
     managedBy: {
       system: {

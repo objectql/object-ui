@@ -20,8 +20,16 @@
 // Role-Based Access Control (RBAC)
 // ============================================================================
 
-/** Standard CRUD permission actions */
-export type PermissionAction = 'create' | 'read' | 'update' | 'delete' | 'export' | 'import' | 'share' | 'admin';
+/**
+ * Standard permission actions — re-exported from `@objectstack/spec/kernel`
+ * rather than restated (objectstack#4115).
+ *
+ * The hand-written union this replaces carried 8 of the spec's 11 members: it
+ * was missing `execute` (running a flow or action), `manage` and `configure`,
+ * so a spec-valid grant of any of the three was a type error here.
+ */
+import type { PermissionAction } from '@objectstack/spec/kernel';
+export type { PermissionAction };
 
 /** Permission effect */
 export type PermissionEffect = 'allow' | 'deny';

@@ -237,17 +237,20 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
     [evaluator],
   );
 
-  // Permission check from Console permissions context
-  const { can } = usePermissions();
+  // Permission check from Console permissions context. Mirrors
+  // UnifiedSidebar: `object:action` → object CRUD gate; a bare name is an
+  // ADR-0066 system capability (union of permission-set `systemPermissions`),
+  // with the legacy "can read <object>" reading kept as fallback.
+  const { can, hasCapabilities } = usePermissions();
   const checkPerm = React.useCallback(
     (permissions: string[]) => permissions.every((perm: string) => {
       const parts = perm.split(':');
-      const [object, action] = parts.length >= 2
-        ? [parts[0], parts[1]]
-        : [perm, 'read'];
-      return can(object, action as any);
+      if (parts.length >= 2) {
+        return can(parts[0], parts[1] as any);
+      }
+      return hasCapabilities([perm]) || can(perm, 'read');
     }),
-    [can],
+    [can, hasCapabilities],
   );
 
   // Runtime capability checker — gates nav entries with `requiresObject` /

@@ -321,9 +321,16 @@ export interface ActivityEntry {
 
 /**
  * Feed item type — determines rendering style in the activity timeline.
- * Aligned with @objectstack/spec FeedItemSchema.type enum.
+ * Re-exported from `@objectstack/spec/data` rather than restated
+ * (objectstack#4115).
+ *
+ * The hand-written union this replaces carried 7 of the spec's 13 members —
+ * `file`, `sharing`, `note`, `record_create`, `record_delete` and `approval`
+ * were all missing, so a server emitting any of them produced a feed item the
+ * timeline could not type, let alone render.
  */
-export type FeedItemType = 'comment' | 'field_change' | 'task' | 'event' | 'system' | 'email' | 'call';
+import type { FeedItemType } from '@objectstack/spec/data';
+export type { FeedItemType };
 
 /**
  * FeedItem — A single item in the unified activity feed.

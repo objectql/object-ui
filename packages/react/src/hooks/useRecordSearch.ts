@@ -159,6 +159,15 @@ export function useRecordSearch(opts: UseRecordSearchOptions): UseRecordSearchRe
   // Stable signature derived from the object metadata fields we actually
   // touch. Prevents pointless re-runs when the parent re-renders with a
   // new array reference but identical content.
+  //
+  // Deliberately UNCAPPED: `maxObjectsQueried` bounds the number of parallel
+  // per-object requests on the fanout path (applied there), not the search
+  // scope itself. Capping here also truncated the `objects` whitelist sent to
+  // the single-request `/api/v1/search` call, so the palette silently searched
+  // only the first N nav objects — records in every later object were
+  // unfindable no matter what the user typed. Measured symptom: ⌘K in an app
+  // with 40+ searchable objects only ever queried the first 8 nav entries,
+  // so which sidebar group happened to come first decided what was findable.
   const candidates = useMemo(() => {
     if (!Array.isArray(objects) || objects.length === 0) return [];
     // Assigned in both branches below before it's read; no dead initializer.
@@ -175,8 +184,8 @@ export function useRecordSearch(opts: UseRecordSearchOptions): UseRecordSearchRe
     } else {
       pool = objects.filter((o) => o?.searchable !== false);
     }
-    return pool.slice(0, maxObjectsQueried);
-  }, [objects, objectNames, maxObjectsQueried]);
+    return pool;
+  }, [objects, objectNames]);
 
   const candidateSignature = useMemo(() => {
     return candidates.map((o) => `${o?.name}:${o?.titleField ?? ''}`).join('|');
@@ -296,7 +305,9 @@ export function useRecordSearch(opts: UseRecordSearchOptions): UseRecordSearchRe
         return;
       }
 
-      const requests = candidates.map((obj) =>
+      // Fanout fallback only: one request per object, so THIS is where the
+      // parallel-request cap applies.
+      const requests = candidates.slice(0, maxObjectsQueried).map((obj) =>
         Promise.resolve()
           .then(() =>
             dataSource.find(obj.name, {

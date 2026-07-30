@@ -126,6 +126,10 @@ const en = {
     discardMessage: 'You have unsaved changes. If you close this form now, your edits will be lost.',
     keepEditing: 'Keep editing',
     discard: 'Discard',
+    conflictTitle: 'Save conflict',
+    conflictMessage: 'This record was changed by someone else while you were editing. Overwriting will replace their changes with yours.',
+    conflictLatestVersion: 'Their save: {{time}}',
+    conflictOverwrite: 'Overwrite',
     stepOf: 'Step {{current}} of {{total}}',
     createTitle: 'Create {{object}}',
     editTitle: 'Edit {{object}}',
@@ -478,6 +482,10 @@ const en = {
     noMatchesMessage: 'No records match your current filters or search. Try adjusting or clearing them.',
     loadErrorTitle: 'Couldn\u2019t load records',
     loadErrorMessage: 'Something went wrong while loading this data. Check your connection and try again.',
+    loadErrorForbiddenTitle: 'You don\u2019t have access',
+    loadErrorForbiddenMessage: 'You don\u2019t have permission to view these records. Contact your administrator if you think you should have access.',
+    loadErrorUnauthorizedTitle: 'Sign in required',
+    loadErrorUnauthorizedMessage: 'Your session has expired or you are signed out. Sign in again to view these records.',
     retry: 'Retry',
     managedBy: {
       system: {

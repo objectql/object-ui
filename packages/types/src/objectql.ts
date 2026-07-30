@@ -311,12 +311,13 @@ export type BulkActionOperation = 'update' | 'delete' | 'custom';
  * a def derived from an object action ({@link BulkActionDef.actionDef}),
  * dispatches that action once per record through the action runner.
  *
- * Three sources feed the bar (folded by `resolveBulkActions` in plugin-grid):
- * defs authored inline in the view JSON, object actions declaring the spec's
- * `bulkEnabled: true`, and the legacy `bulkActions: string[]` names — each of
- * which is resolved against `objectDef.actions` and promoted to a def when it
- * matches one. Names that match nothing still render as by-name buttons, since
- * a consumer may have registered a runner handler under exactly that name.
+ * Two sources feed the bar (folded by `resolveBulkActions` in plugin-grid):
+ * defs authored inline in the view JSON, and the view's `bulkActions: string[]`
+ * names — each resolved against `objectDef.actions` and promoted to that def
+ * when it matches one. Naming the action in the view is the only way to declare
+ * a bulk action: spec 17 retired `action.bulkEnabled` as a tombstone and
+ * prescribes exactly this. Names that match nothing still render as by-name
+ * buttons, since a consumer may have registered a runner handler under one.
  */
 export interface BulkActionDef {
   /** Stable identifier — also used as the action key in audit logs. */
@@ -356,9 +357,9 @@ export interface BulkActionDef {
   /** Batch size for the executor loop (default: 200). */
   batchSize?: number;
   /**
-   * Source object `ActionDef` when this entry was DERIVED from
-   * `objectDef.actions` — either the spec's `bulkEnabled: true` declaration or
-   * a legacy `bulkActions: ['<name>']` entry resolved by name (objectui#3002).
+   * Source object `ActionDef` when this entry was PROMOTED from a
+   * `bulkActions: ['<name>']` entry resolved against `objectDef.actions`
+   * (objectui#3002).
    *
    * Presence of this key changes what `operation: 'custom'` means: instead of
    * a per-row no-op, the executor dispatches THIS action through the action

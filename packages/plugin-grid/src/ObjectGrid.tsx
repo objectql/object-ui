@@ -1634,10 +1634,9 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const explicitBulkActions = objectCanDelete
     ? declaredBulkActions
     : declaredBulkActions?.filter((a: unknown) => String(a).toLowerCase() !== 'delete');
-  // Legacy `bulkActions` carry a bare action NAME, which the runner cannot
-  // execute on its own, and the object's own `bulkEnabled: true` actions were
-  // never surfaced at all — resolve both against `objectDef.actions` so they
-  // dispatch as real defs. See `resolveBulkActions` (objectui#3002). The
+  // `bulkActions` carries a bare action NAME, which the runner cannot execute
+  // on its own — resolve each against `objectDef.actions` so it dispatches as a
+  // real def. See `resolveBulkActions` (objectui#3002). The
   // canonical `'delete'` is held back: it routes to `onBulkDelete` (which owns
   // confirm + refresh), not the runner, even if the object declares an action
   // that happens to be named `delete`.
@@ -1712,24 +1711,35 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   // Bulk action dispatcher — for the implicit 'delete' action, route through
   // the consumer-provided onBulkDelete (which already knows about confirm +
   // refresh). Other actions fall through to the generic action runner.
+  //
+  // [#3056] Both branches must clear BOTH selection sources. `selectedRows` is
+  // ours and drives the toolbar; the row checkboxes live inside the data-table
+  // and only clear when `selectionResetKey` moves. Bumping one without the
+  // other strands the user on a page of ticked rows with no toolbar to act on
+  // them — the exact drift `handleBulkDialogClose` below already guards.
+  const resetSelection = () => {
+    setSelectedRows([]);
+    setSelectAllMatching(false);
+    setSelectionResetKey(k => k + 1);
+  };
+
   const dispatchBulkAction = (action: string, rows: any[]) => {
     void (async () => {
       const expanded = await resolveBulkRows(rows);
       if (action === 'delete' && onBulkDelete) {
         onBulkDelete(expanded);
-        setSelectedRows([]);
-        setSelectAllMatching(false);
+        resetSelection();
         return;
       }
-      // A string bulk action (e.g. 下推 / 派工) mutated the selected records,
-      // usually through a custom API that never touches dataSource.update — so
-      // nothing else signals the grid to refetch. On success, reset the
-      // selection toolbar and refresh so the list reflects the server state
-      // (mirrors the delete branch and handleBulkDialogClose).
+      // A string bulk action (e.g. a consumer-registered runner handler)
+      // mutated the selected records, usually through a custom API that never
+      // touches dataSource.update — so nothing else signals the grid to
+      // refetch. On success, reset the selection and refresh so the list
+      // reflects the server state (mirrors the delete branch and
+      // handleBulkDialogClose).
       const res = await executeAction({ type: action, params: { records: expanded } });
       if (res?.success) {
-        setSelectedRows([]);
-        setSelectAllMatching(false);
+        resetSelection();
         setRefreshKey(k => k + 1);
       }
     })();
@@ -1746,7 +1756,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     })();
   };
 
-  // Per-record executor for a DERIVED bulk action (objectui#3002) — one
+  // Per-record executor for a PROMOTED bulk action (objectui#3002) — one
   // declared object action applied to each selected record through the action
   // runner. The dialog already collected params and took the confirmation, so
   // this dispatch strips both from the def: leaving them on would make the
@@ -1792,13 +1802,9 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     // Only reset selection when the run actually changed something. A total
     // failure (0 succeeded — e.g. a "推计划" precondition error) leaves the data
     // untouched, so we keep the selection *and* the toolbar so the user can fix
-    // it and retry the same rows. Both selection sources must move together, or
-    // the checkboxes (table-internal) and the toolbar (our `selectedRows`) drift
-    // out of sync — ticked rows with no toolbar.
+    // it and retry the same rows.
     if (result && result.succeeded > 0) {
-      setSelectedRows([]);
-      setSelectAllMatching(false);
-      setSelectionResetKey(k => k + 1);
+      resetSelection();
       // Trigger refresh via the same path used by single-record mutations.
       setRefreshKey(k => k + 1);
     }

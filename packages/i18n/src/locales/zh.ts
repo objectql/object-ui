@@ -125,6 +125,10 @@ const zh = {
     discardMessage: '您有未保存的更改。如果现在关闭此表单，您的编辑将会丢失。',
     keepEditing: '继续编辑',
     discard: '放弃',
+    conflictTitle: '保存冲突',
+    conflictMessage: '您编辑期间，这条记录已被其他人修改。覆盖保存将用您的内容替换对方的修改。',
+    conflictLatestVersion: '对方保存时间：{{time}}',
+    conflictOverwrite: '覆盖保存',
     stepOf: '第{{current}}步，共{{total}}步',
     createTitle: '新建{{object}}',
     editTitle: '编辑{{object}}',
@@ -486,6 +490,10 @@ const zh = {
     noMatchesMessage: '没有符合当前筛选或搜索条件的记录，试试调整或清除它们。',
     loadErrorTitle: '无法加载记录',
     loadErrorMessage: '加载数据时出错。请检查网络连接后重试。',
+    loadErrorForbiddenTitle: '无权访问',
+    loadErrorForbiddenMessage: '你没有查看这些记录的权限。如需访问，请联系管理员。',
+    loadErrorUnauthorizedTitle: '需要登录',
+    loadErrorUnauthorizedMessage: '登录状态已过期或已退出。请重新登录后查看这些记录。',
     retry: '重试',
     managedBy: {
       system: {

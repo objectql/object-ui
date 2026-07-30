@@ -18,6 +18,7 @@
  *   --backup          Create backup before updating
  *   --force           Overwrite even when local edits would be lost
  *   --no-verify       Skip the type-check that runs after an update
+ *   --no-cache        Bypass cached registry responses (--check / --diff)
  */
 
 import fs from 'fs/promises';
@@ -25,6 +26,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import https from 'https';
 import { spawnSync } from 'child_process';
+import crypto from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,6 +35,21 @@ const REPO_ROOT = path.join(__dirname, '..');
 const COMPONENTS_DIR = path.join(REPO_ROOT, 'packages/components/src/ui');
 const MANIFEST_PATH = path.join(REPO_ROOT, 'packages/components/shadcn-components.json');
 const BACKUP_DIR = path.join(REPO_ROOT, 'packages/components/.backup');
+
+/**
+ * Registry response cache.
+ *
+ * `--check` makes one request per tracked component — 46 round trips for a
+ * run that is otherwise pure I/O wait (28.6s wall, 0.13s of it user time).
+ * That is enough friction to stop people running it, which defeats the point
+ * of having a status command at all.
+ *
+ * Lives under `node_modules/.cache/` by convention: already gitignored, and a
+ * clean install discards it, which is the right lifetime for a cache.
+ */
+const CACHE_DIR = path.join(REPO_ROOT, 'node_modules/.cache/shadcn-sync');
+const CACHE_TTL_MS = 60 * 60 * 1000;
+const cacheStats = { hits: 0, misses: 0 };
 
 // ANSI color codes
 const colors = {
@@ -71,6 +88,48 @@ async function fetchUrl(url) {
       });
     }).on('error', reject);
   });
+}
+
+function cacheFileFor(url) {
+  return path.join(CACHE_DIR, `${crypto.createHash('sha1').update(url).digest('hex').slice(0, 16)}.json`);
+}
+
+/**
+ * Fetch a registry entry, optionally serving it from the on-disk cache.
+ *
+ * ⚠️ `allowCache` controls READING only. Writes always refresh the entry, so a
+ * command that must see live data (`--update`) still warms the cache for the
+ * next `--check`.
+ *
+ * The read/write split is the safety property: read-only commands may answer
+ * from a cached copy, but nothing that writes a component file ever does.
+ * A stale `--check` is a mildly out-of-date status line; a stale `--update`
+ * would put hour-old code on disk under a message saying it is current.
+ */
+async function fetchRegistry(url, { allowCache = false } = {}) {
+  if (allowCache) {
+    try {
+      const entry = JSON.parse(await fs.readFile(cacheFileFor(url), 'utf-8'));
+      if (typeof entry?.fetchedAt === 'number' && Date.now() - entry.fetchedAt < CACHE_TTL_MS) {
+        cacheStats.hits++;
+        return entry.data;
+      }
+    } catch {
+      /* absent, unreadable or corrupt — fall through and refetch */
+    }
+  }
+
+  const data = await fetchUrl(url);
+  cacheStats.misses++;
+
+  try {
+    await fs.mkdir(CACHE_DIR, { recursive: true });
+    await fs.writeFile(cacheFileFor(url), JSON.stringify({ url, fetchedAt: Date.now(), data }));
+  } catch {
+    /* the cache is an optimisation; never fail a run because it can't be written */
+  }
+
+  return data;
 }
 
 async function loadManifest() {
@@ -215,7 +274,7 @@ function verifyPackageCompiles({ backup } = {}) {
   return false;
 }
 
-async function checkComponent(name, manifest) {
+async function checkComponent(name, manifest, options = {}) {
   const componentInfo = manifest.components[name];
   if (!componentInfo) {
     return {
@@ -232,7 +291,7 @@ async function checkComponent(name, manifest) {
 
     // Fetch latest from registry
     try {
-      const registryData = await fetchUrl(componentInfo.source);
+      const registryData = await fetchRegistry(componentInfo.source, { allowCache: options.allowCache });
       // Rewrite before comparing, so import-path style alone does not read as
       // a difference — the local file has already been through this transform.
       const shadcnContent = rewriteRegistryImports(registryData.files?.[0]?.content || '');
@@ -256,7 +315,16 @@ async function checkComponent(name, manifest) {
         // `--update` refuses these; the local lines would be deleted.
         status = 'modified';
         message = `${localOnly.length} local line(s) upstream lacks — --update would refuse`;
-        if (upstreamOnly.length > 0) message += `, ${upstreamOnly.length} upstream line(s) pending`;
+        // Deliberately NOT "N updates available". Both counts are set
+        // differences, so a line we edited locally appears on both sides: once
+        // as ours, once as the upstream original it replaced. For a modified
+        // component this number is mostly the mirror image of its own local
+        // edits, not new upstream work waiting to be collected.
+        if (upstreamOnly.length > 0) message += `, ${upstreamOnly.length} not matching upstream verbatim`;
+        // Divergence with a recorded reason is a decision; divergence without
+        // one is an open question. Surfacing the split makes the untriaged
+        // components a visible to-do instead of undifferentiated noise.
+        message += componentInfo.localEdits ? '  [documented]' : '  [UNDOCUMENTED]';
       } else if (upstreamOnly.length > 0) {
         status = 'outdated';
         message = `${upstreamOnly.length} upstream line(s) to pick up — safe to sync`;
@@ -272,6 +340,7 @@ async function checkComponent(name, manifest) {
         shadcnLines,
         localOnly: localOnly.length,
         upstreamOnly: upstreamOnly.length,
+        documented: Boolean(componentInfo.localEdits),
         message,
       };
     } catch (fetchError) {
@@ -290,7 +359,7 @@ async function checkComponent(name, manifest) {
   }
 }
 
-async function checkAllComponents() {
+async function checkAllComponents(options = {}) {
   logSection('Checking Components Status');
   
   const manifest = await loadManifest();
@@ -309,7 +378,7 @@ async function checkAllComponents() {
   };
 
   for (const component of localComponents) {
-    const result = await checkComponent(component, manifest);
+    const result = await checkComponent(component, manifest, options);
     results[result.status].push(result);
 
     const symbol = {
@@ -339,6 +408,17 @@ async function checkAllComponents() {
   log(`● Custom:    ${results.custom.length} components (not tracked upstream)`, 'blue');
   log(`✗ Errors:    ${results.error.length} components`, 'red');
 
+  // A run that returns in under a second is otherwise indistinguishable from
+  // one that silently fetched nothing, so always say where the data came from.
+  if (cacheStats.hits > 0 || cacheStats.misses > 0) {
+    const ttlMin = Math.round(CACHE_TTL_MS / 60000);
+    log(
+      `\nRegistry: ${cacheStats.hits} cached, ${cacheStats.misses} fetched ` +
+        `(cache TTL ${ttlMin}min — --no-cache to force live)`,
+      'dim',
+    );
+  }
+
   // The actionable bucket: upstream moved and nothing local is at risk.
   if (results.outdated.length > 0) {
     log('\nSafe to sync now:', 'cyan');
@@ -349,10 +429,20 @@ async function checkAllComponents() {
   }
 
   if (results.modified.length > 0) {
+    const undocumented = results.modified.filter((r) => !r.documented);
+    const documented = results.modified.filter((r) => r.documented);
+
     log('\nThese carry local edits a sync would delete:', 'yellow');
-    log(`  ${results.modified.map((r) => `${r.name}(${r.localOnly})`).join(', ')}`, 'dim');
-    log('  Port the edits onto the new upstream version by hand, or --force to', 'dim');
-    log('  take upstream as-is. `--diff <name>` shows both sides.', 'dim');
+    if (documented.length > 0) {
+      log(`  documented (${documented.length}): ${documented.map((r) => `${r.name}(${r.localOnly})`).join(', ')}`, 'dim');
+      log('    → reason recorded in `localEdits` in shadcn-components.json', 'dim');
+    }
+    if (undocumented.length > 0) {
+      log(`  UNDOCUMENTED (${undocumented.length}): ${undocumented.map((r) => `${r.name}(${r.localOnly})`).join(', ')}`, 'yellow');
+      log('    → nobody has written down why these diverge. Until someone does,', 'dim');
+      log('      there is no way to tell a deliberate fix from stale drift.', 'dim');
+      log('      Triage with `--diff <name>`, then add a `localEdits` note.', 'dim');
+    }
   }
 
   return results;
@@ -383,8 +473,9 @@ async function updateComponent(name, manifest, options = {}) {
   
   try {
     // Fetch from registry
-    const registryData = await fetchUrl(componentInfo.source);
-    
+    // allowCache omitted on purpose: a write must never come from a cached copy.
+    const registryData = await fetchRegistry(componentInfo.source);
+
     if (!registryData.files || registryData.files.length === 0) {
       log(`No files found in registry for ${name}`, 'red');
       return false;
@@ -429,6 +520,12 @@ async function updateComponent(name, manifest, options = {}) {
         log(`✗ Refusing to overwrite ${name}.tsx — ${lost.length} local line(s) upstream does not have:`, 'red');
         lost.slice(0, 8).forEach((l) => log(`    ${l.length > 96 ? l.slice(0, 96) + '…' : l}`, 'dim'));
         if (lost.length > 8) log(`    … and ${lost.length - 8} more`, 'dim');
+        if (componentInfo.localEdits) {
+          // Someone already worked out why this diverges. Say so here rather
+          // than making the next person re-derive it from a wall of diff.
+          log(`  Why it diverges (localEdits in shadcn-components.json):`, 'cyan');
+          log(`    ${componentInfo.localEdits}`, 'dim');
+        }
         log(`  Overwriting deletes these. Port them onto the new upstream version by hand,`, 'yellow');
         log(`  or re-run with --force if they are genuinely obsolete.`, 'yellow');
         return 'skipped';
@@ -525,7 +622,7 @@ async function updateAllComponents(options = {}) {
   }
 }
 
-async function showDiff(name) {
+async function showDiff(name, options = {}) {
   logSection(`Component Diff: ${name}`);
   
   const manifest = await loadManifest();
@@ -539,7 +636,7 @@ async function showDiff(name) {
   try {
     const localPath = path.join(COMPONENTS_DIR, `${name}.tsx`);
     const localContent = await fs.readFile(localPath, 'utf-8');
-    const registryData = await fetchUrl(componentInfo.source);
+    const registryData = await fetchRegistry(componentInfo.source, { allowCache: options.allowCache });
     // Same transform `--update` would apply, so the two sides are comparable.
     const shadcnContent = rewriteRegistryImports(registryData.files?.[0]?.content || '');
 
@@ -581,9 +678,11 @@ async function listComponents() {
 // Main CLI
 async function main() {
   const args = process.argv.slice(2);
-  
+  // Read-only commands may answer from cache; --no-cache forces live fetches.
+  const allowCache = !args.includes('--no-cache');
+
   if (args.length === 0 || args.includes('--check')) {
-    await checkAllComponents();
+    await checkAllComponents({ allowCache });
   } else if (args.includes('--update-all')) {
     const backup = args.includes('--backup');
     const verify = !args.includes('--no-verify');
@@ -611,7 +710,7 @@ async function main() {
       log('Error: --diff requires a component name', 'red');
       process.exit(1);
     }
-    await showDiff(componentName);
+    await showDiff(componentName, { allowCache });
   } else if (args.includes('--list')) {
     await listComponents();
   } else if (args.includes('--help') || args.includes('-h')) {
@@ -626,6 +725,7 @@ async function main() {
     console.log('  --backup             Create backup before updating');
     console.log('  --force              Overwrite even if local edits would be lost');
     console.log('  --no-verify          Skip the post-update type-check');
+    console.log('  --no-cache           Bypass the cached registry responses (--check/--diff)');
     console.log('  --help, -h           Show this help message\n');
   } else {
     log('Unknown option. Use --help for usage information.', 'red');

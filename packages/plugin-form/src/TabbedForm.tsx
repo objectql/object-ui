@@ -19,6 +19,7 @@ import { cn } from '@object-ui/components';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
 import { applyAutoColSpan, containerGridColsFor } from './autoLayout';
+import { useOccSave } from './occSave';
 
 export interface FormSectionConfig {
   /**
@@ -191,6 +192,8 @@ export const TabbedForm: React.FC<TabbedFormProps> = ({
   const { fieldLabel } = useSafeFieldLabel();
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
+  // OCC-guarded edit save + its conflict dialog (see occSave.tsx).
+  const { saveWithOcc, conflictDialog } = useOccSave();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   // Which tab opens first. The live tab state belongs to the form renderer from
@@ -293,13 +296,23 @@ export const TabbedForm: React.FC<TabbedFormProps> = ({
       if (schema.mode === 'create') {
         result = await dataSource.create(schema.objectName, data);
       } else if (schema.mode === 'edit' && schema.recordId) {
-        result = await dataSource.update(schema.objectName, schema.recordId, data);
+        // OCC-guarded: sends `ifMatch` from the record we read; a 409 asks the
+        // user to keep editing (skip the success path) or overwrite.
+        const outcome = await saveWithOcc({
+          dataSource,
+          objectName: schema.objectName,
+          recordId: schema.recordId,
+          payload: data,
+          baseRecord: formData,
+        });
+        if (outcome.status === 'cancelled') return;
+        result = outcome.result;
       }
-      
+
       if (schema.onSuccess) {
         await schema.onSuccess(result);
       }
-      
+
       return result;
     } catch (err) {
       if (schema.onError) {
@@ -307,7 +320,7 @@ export const TabbedForm: React.FC<TabbedFormProps> = ({
       }
       throw err;
     }
-  }, [schema, dataSource]);
+  }, [schema, dataSource, saveWithOcc, formData]);
 
   // Handle cancel
   const handleCancel = useCallback(() => {
@@ -405,6 +418,7 @@ export const TabbedForm: React.FC<TabbedFormProps> = ({
           fieldTabsPosition: schema.tabPosition || 'top',
         }}
       />
+      {conflictDialog}
     </div>
   );
 };

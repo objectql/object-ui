@@ -17,7 +17,10 @@
  */
 
 import { z } from 'zod';
-import { PageTypeSchema as SpecPageTypeSchema } from '@objectstack/spec/ui';
+import {
+  PageTypeSchema as SpecPageTypeSchema,
+  PageVariableSchema as SpecPageVariableSchema,
+} from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
 
 /**
@@ -245,13 +248,17 @@ export const PageRegionSchema = z.object({
 });
 
 /**
- * Page Variable Schema
+ * Page Variable Schema — `@objectstack/spec/ui` schema re-exported **by
+ * reference** (objectstack#4115), for exactly the reason the sibling
+ * {@link PageTypeSchema} below documents.
+ *
+ * The mirror this replaces had drifted twice over: it omitted `source` — the
+ * whole ADR-0049 write-binding, so a spec-authored master/detail page
+ * (`{ name: 'selectedProjectId', source: 'project_picker' }`) parsed into a
+ * variable nothing could ever write — and its `type` enum was missing
+ * `record_id`, so a spec-valid record-picker variable was rejected outright.
  */
-export const PageVariableSchema = z.object({
-  name: z.string().describe('Variable name'),
-  type: z.enum(['string', 'number', 'boolean', 'object', 'array']).optional().default('string').describe('Variable type'),
-  defaultValue: z.any().optional().describe('Default value'),
-});
+export const PageVariableSchema = SpecPageVariableSchema;
 
 /**
  * Page Type Schema — `@objectstack/spec/ui` schema re-exported **by reference**

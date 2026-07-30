@@ -113,6 +113,10 @@ const pt = {
     discardMessage: "Você tem alterações não salvas. Se fechar este formulário agora, suas edições serão perdidas.",
     keepEditing: "Continuar editando",
     discard: "Descartar",
+    conflictTitle: "Conflito ao salvar",
+    conflictMessage: "Outra pessoa alterou este registro enquanto você editava. Sobrescrever substituirá as alterações dela pelas suas.",
+    conflictLatestVersion: "Salvamento dela: {{time}}",
+    conflictOverwrite: "Sobrescrever",
     addItem: "Adicionar item",
     removeItem: "Remover item",
     fieldRequired: "Este campo é obrigatório",
@@ -449,6 +453,10 @@ const pt = {
     noMatchesMessage: "Nenhum registro corresponde aos seus filtros ou à sua busca atuais. Tente ajustá-los ou limpá-los.",
     loadErrorTitle: "Não foi possível carregar os registros",
     loadErrorMessage: "Algo deu errado ao carregar estes dados. Verifique sua conexão e tente novamente.",
+    loadErrorForbiddenTitle: "Você não tem acesso",
+    loadErrorForbiddenMessage: "Você não tem permissão para ver estes registros. Contate seu administrador se acha que deveria ter acesso.",
+    loadErrorUnauthorizedTitle: "É necessário entrar",
+    loadErrorUnauthorizedMessage: "Sua sessão expirou ou você saiu. Entre novamente para ver estes registros.",
     retry: "Tentar novamente",
     managedBy: {
       system: {

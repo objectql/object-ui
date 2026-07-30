@@ -22,6 +22,10 @@ import {
   Phone,
   ChevronDown,
   Loader2,
+  StickyNote,
+  FileText,
+  Share2,
+  BadgeCheck,
 } from 'lucide-react';
 import type { FeedItem, FeedItemType, RecordActivityComponentProps, RecordSubscription } from '@object-ui/types';
 import { FieldChangeItem } from './FieldChangeItem';
@@ -73,6 +77,10 @@ export interface RecordActivityTimelineProps {
   className?: string;
 }
 
+// Total over `FeedItemType`, so a feed kind the spec adds cannot reach the
+// timeline without an icon and a colour (objectstack#4115): the six entries
+// below `call` were missing for as long as the local union was a 7-member
+// hand copy of the spec's 13.
 const FEED_TYPE_ICONS: Record<FeedItemType, React.ElementType> = {
   comment: MessageSquare,
   field_change: Edit,
@@ -81,6 +89,12 @@ const FEED_TYPE_ICONS: Record<FeedItemType, React.ElementType> = {
   system: Zap,
   email: Mail,
   call: Phone,
+  note: StickyNote,
+  file: FileText,
+  sharing: Share2,
+  record_create: PlusCircle,
+  record_delete: Trash2,
+  approval: BadgeCheck,
 };
 
 const FEED_TYPE_COLORS: Record<FeedItemType, string> = {
@@ -91,6 +105,12 @@ const FEED_TYPE_COLORS: Record<FeedItemType, string> = {
   system: 'bg-gray-100 text-gray-600',
   email: 'bg-indigo-100 text-indigo-600',
   call: 'bg-teal-100 text-teal-600',
+  note: 'bg-yellow-100 text-yellow-700',
+  file: 'bg-slate-100 text-slate-600',
+  sharing: 'bg-sky-100 text-sky-600',
+  record_create: 'bg-emerald-100 text-emerald-600',
+  record_delete: 'bg-red-100 text-red-600',
+  approval: 'bg-violet-100 text-violet-600',
 };
 
 function getFilterOptions(t: (key: string) => string): { value: FeedFilterMode; label: string }[] {

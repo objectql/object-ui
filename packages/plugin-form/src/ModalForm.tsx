@@ -51,6 +51,7 @@ import {
 import { deriveFieldGroupSections } from './fieldGroups';
 import { sanitizeFormData } from './sanitize';
 import { usePermissions } from '@object-ui/permissions';
+import { useOccSave } from './occSave';
 
 // Localized strings for the unsaved-changes guard. Falls back to English when
 // no i18n provider is mounted (createSafeTranslation handles that).
@@ -219,6 +220,8 @@ export const ModalForm: React.FC<ModalFormProps> = ({
   // tries to close a dirty form.
   const [isDirty, setIsDirty] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
+  // OCC-guarded edit save + its conflict dialog (see occSave.tsx).
+  const { saveWithOcc, conflictDialog } = useOccSave();
   // Whether the pending close came from the explicit Cancel button (so we fire
   // schema.onCancel) versus a backdrop/Escape/X dismissal (which historically
   // did not). Kept in a ref so it survives the confirm round-trip.
@@ -444,7 +447,17 @@ export const ModalForm: React.FC<ModalFormProps> = ({
       if (schema.mode === 'create') {
         result = await dataSource.create(schema.objectName, payload);
       } else if (schema.mode === 'edit' && schema.recordId) {
-        result = await dataSource.update(schema.objectName, schema.recordId, payload);
+        // OCC-guarded: sends `ifMatch` from the record we read; a 409 asks the
+        // user to keep editing (modal stays open, draft intact) or overwrite.
+        const outcome = await saveWithOcc({
+          dataSource,
+          objectName: schema.objectName,
+          recordId: schema.recordId,
+          payload,
+          baseRecord: formData,
+        });
+        if (outcome.status === 'cancelled') return;
+        result = outcome.result;
       }
       if (schema.onSuccess) {
         await schema.onSuccess(result);
@@ -460,7 +473,7 @@ export const ModalForm: React.FC<ModalFormProps> = ({
     } finally {
       setIsSubmitting(false);
     }
-  }, [schema, dataSource, objectSchema, perms]);
+  }, [schema, dataSource, objectSchema, perms, saveWithOcc, formData]);
 
   // Actually close the modal, firing onCancel only when the close originated
   // from the explicit Cancel button.
@@ -861,6 +874,10 @@ export const ModalForm: React.FC<ModalFormProps> = ({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        {/* Same nesting rationale as the discard guard above: as a child of
+            the Dialog content the conflict alert stacks as the topmost Radix
+            layer, so its buttons receive clicks while the modal stays open. */}
+        {conflictDialog}
       </MobileDialogContent>
     </Dialog>
   );
