@@ -109,6 +109,10 @@ const valuesEqualForDirty = (a: unknown, b: unknown): boolean => {
   }
 };
 
+/** Own-property test — a field can legitimately be named `constructor`. */
+const hasOwn = (o: Record<string, unknown>, k: string): boolean =>
+  Object.prototype.hasOwnProperty.call(o ?? {}, k);
+
 const computeDirty = (
   baseline: Record<string, unknown>,
   values: Record<string, unknown>,
@@ -466,11 +470,50 @@ ComponentRegistry.register('form',
       try { key = JSON.stringify(defaultValues ?? {}); } catch { key = String(Date.now()); }
       if (lastDefaultsKey.current === key) return;
       lastDefaultsKey.current = key;
+      const incoming = (defaultValues ?? {}) as Record<string, unknown>;
+      const outgoing = baselineRef.current;
+      // `reset()` replaces the WHOLE record, so it also blanks fields the
+      // incoming defaults say nothing about — and it lands here in a PASSIVE
+      // effect, one commit after those fields were painted. Input arriving in
+      // that window was silently discarded. The caught case is the wizard: it
+      // reuses one inner form across steps and feeds back `formData`, the merge
+      // of the steps submitted SO FAR — so at every step boundary the incoming
+      // defaults are missing exactly the fields now on screen, and the create
+      // POST went out without the step just filled (#2982):
+      //
+      //   RESET to {"name":"Alice"}  (values before: {"name":"Alice","note":"hello"})
+      //
+      // Carry such a value across the reset instead of dropping it.
+      const carried = Object.entries(form.getValues() as Record<string, unknown>).filter(
+        ([name, value]) =>
+          // Only a field the CALLER HAS NEVER CARRIED is eligible — absent from
+          // both the outgoing and the incoming defaults. Everywhere the caller
+          // has an opinion it stays authoritative, so the three load-bearing
+          // paths keep today's behavior exactly: a record landing after first
+          // paint still fills every field it names; a `recordId` swap still
+          // replaces the record outright (drawer/modal/split forms re-fetch
+          // without re-entering their loading branch, so record B lands in the
+          // still-mounted form and must not inherit an abandoned edit to A);
+          // and a field the caller withdraws stops being the user's.
+          !hasOwn(incoming, name) &&
+          !hasOwn(outgoing, name) &&
+          // The same empty-ish comparison the dirty check uses, so a widget
+          // normalizing its own empty value on mount ('' -> null, undefined ->
+          // '') is not mistaken for input and does not keep a field alive.
+          !valuesEqualForDirty(outgoing[name], value),
+      );
+      // Set the baseline before resetting: `reset`/`setValue` notify the watcher
+      // below synchronously, and it reads this to compute dirtiness.
+      baselineRef.current = incoming;
       form.reset(defaultValues);
-      baselineRef.current = (defaultValues ?? {}) as Record<string, unknown>;
-      // A fresh reset is by definition pristine — clear any stale dirty signal
-      // (e.g. an edit-mode record that just finished loading).
-      onDirtyChangeProp?.(false);
+      for (const [name, value] of carried) {
+        form.setValue(name, value, { shouldValidate: false, shouldDirty: true });
+      }
+      // A reset that carried nothing is by definition pristine — clear any stale
+      // dirty signal (e.g. an edit-mode record that just finished loading). One
+      // that carried input is genuinely dirty against the caller's defaults, and
+      // the host's discard guard has to keep hearing so.
+      onDirtyChangeProp?.(carried.length > 0);
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [defaultValues]);
 
