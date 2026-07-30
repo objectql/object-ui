@@ -13,6 +13,7 @@ import {
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, ArrowRight, ArrowLeft, Save, Trash2, ClipboardPaste, Download, Undo2 } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/react';
 import { sanitizeFileNameBase } from '@object-ui/core';
+import { BOOLEAN_IMPORT_TOKENS, REFERENCE_IMPORT_TYPES } from './importCoercionContract';
 import type {
   DataSource,
   ImportRequestOptions,
@@ -360,21 +361,6 @@ const CONFIDENCE_CLASS: Record<MappingConfidence, string> = {
   medium: 'text-sky-600',
   low: 'text-muted-foreground',
 };
-
-/** Boolean tokens the server's import coercion accepts (import-coerce.ts).
- *  Kept in sync so the preview step doesn't flag a cell the server would take
- *  (e.g. Chinese 是/否, on/off, ✓/×). Compared case-insensitively. */
-const BOOLEAN_IMPORT_TOKENS = new Set([
-  'true', 't', 'yes', 'y', '1', 'on', '是', '对', '✓', '√',
-  'false', 'f', 'no', 'n', '0', 'off', '否', '错', '✗', '×',
-]);
-
-/** Field types the server resolves from display text to record IDs during
- *  `/import` (kept in step with the server's import-coerce REFERENCE_TYPES).
- *  The legacy per-row create fallback has no resolution step — raw cell text
- *  would be stored verbatim into relation fields — so the fallback must refuse
- *  to run when any mapped column targets one of these types. */
-const REFERENCE_IMPORT_TYPES = new Set(['lookup', 'master_detail', 'user', 'reference', 'tree']);
 
 /** Mapped fields whose type the legacy fallback cannot import safely. */
 function mappedReferenceFields(

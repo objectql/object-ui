@@ -18,41 +18,18 @@
  *    is destroyed.
  */
 
+import { DESIGNER_FIELD_TYPES } from '@object-ui/types';
 import type {
   DesignerFieldDefinition,
   DesignerFieldType,
 } from '@object-ui/types';
 
-/** Set of types the designer can edit losslessly. Keep in sync with FieldDesigner. */
-const DESIGNER_TYPES = new Set<DesignerFieldType>([
-  'text',
-  'textarea',
-  'number',
-  'boolean',
-  'date',
-  'datetime',
-  'time',
-  'select',
-  'email',
-  'phone',
-  'url',
-  'password',
-  'currency',
-  'percent',
-  'lookup',
-  'formula',
-  'autonumber',
-  'file',
-  'image',
-  'markdown',
-  'html',
-  'color',
-  'code',
-  'location',
-  'address',
-  'rating',
-  'slider',
-]);
+/**
+ * Set of types the designer can edit losslessly — derived from the canonical
+ * `DESIGNER_FIELD_TYPES` vocabulary rather than restated (objectui#3017), so
+ * this bridge and `FieldDesigner`'s palette cannot drift by construction.
+ */
+const DESIGNER_TYPES: ReadonlySet<DesignerFieldType> = new Set(DESIGNER_FIELD_TYPES);
 
 interface FrameworkFieldDef {
   type?: string;

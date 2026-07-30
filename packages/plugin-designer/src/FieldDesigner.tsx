@@ -102,11 +102,16 @@ const FIELD_TYPE_META: Record<DesignerFieldType, { label: string; Icon: React.FC
   slider: { label: 'Slider', Icon: SlidersHorizontal },
 };
 
-const ALL_FIELD_TYPES = Object.keys(FIELD_TYPE_META) as DesignerFieldType[];
-
 type FieldTypeCategory = 'text' | 'number' | 'date' | 'choice' | 'relation' | 'advanced';
 
-const FIELD_TYPE_CATEGORIES: Record<FieldTypeCategory, DesignerFieldType[]> = {
+/**
+ * Category partition of the designer vocabulary, driving the type filter and
+ * the drawer's type `<select>`. Exported (with {@link CATEGORY_ORDER}) so
+ * `fieldTypeCategories.test.ts` can assert it stays a complete partition of
+ * `DESIGNER_FIELD_TYPES` — a type added to the vocabulary but left out here
+ * would otherwise silently vanish from those pickers (objectui#3017).
+ */
+export const FIELD_TYPE_CATEGORIES: Record<FieldTypeCategory, DesignerFieldType[]> = {
   text: ['text', 'textarea', 'email', 'phone', 'url', 'password', 'markdown', 'html'],
   number: ['number', 'currency', 'percent', 'autonumber', 'rating', 'slider'],
   date: ['date', 'datetime', 'time'],
@@ -115,7 +120,7 @@ const FIELD_TYPE_CATEGORIES: Record<FieldTypeCategory, DesignerFieldType[]> = {
   advanced: ['formula', 'file', 'image', 'color', 'code', 'location', 'address'],
 };
 
-const CATEGORY_ORDER: FieldTypeCategory[] = ['text', 'number', 'date', 'choice', 'relation', 'advanced'];
+export const CATEGORY_ORDER: FieldTypeCategory[] = ['text', 'number', 'date', 'choice', 'relation', 'advanced'];
 
 
 // ============================================================================

@@ -9,19 +9,16 @@
 import * as React from 'react';
 import { cn, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@object-ui/components';
 import { getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
+import { AUDIT_FIELD_BY_ROLE } from '@object-ui/types';
 import type { FieldMetadata } from '@object-ui/types';
 import { useDetailTranslation } from './useDetailTranslation';
 
 /**
- * Audit field names auto-injected by the framework's `applySystemFields`.
- * Kept in sync with `AUDIT_FIELD_NAMES` in `RecordDetailView`.
+ * Audit field names auto-injected by the framework's `applySystemFields` —
+ * the shared vocabulary `RecordDetailView` also uses to keep these out of the
+ * body sections (single source in `@object-ui/types`, objectui#3017).
  */
-const AUDIT_FIELDS = {
-  createdAt: 'created_at',
-  createdBy: 'created_by',
-  updatedAt: 'updated_at',
-  updatedBy: 'updated_by',
-} as const;
+const AUDIT_FIELDS = AUDIT_FIELD_BY_ROLE;
 
 export interface RecordMetaFooterProps {
   /** The current record data; expected to contain audit fields when available. */

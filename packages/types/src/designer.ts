@@ -688,35 +688,48 @@ export interface ObjectManagerSchema extends BaseSchema {
 // Field Designer (Field Configuration Wizard)
 // ============================================================================
 
+/**
+ * Canonical, ordered list of field types the Field Designer supports.
+ *
+ * Single runtime source for every surface that enumerates the designer's
+ * vocabulary: `FieldDesigner` renders its palette in exactly this order (its
+ * `FIELD_TYPE_META` is a `Record<DesignerFieldType, …>`, so adding a member
+ * here without presentation is a compile error), and app-shell's
+ * `object-fields-bridge` derives its editable-subset check from it instead of
+ * restating the list (objectui#3017).
+ */
+export const DESIGNER_FIELD_TYPES = [
+  'text',
+  'textarea',
+  'number',
+  'boolean',
+  'date',
+  'datetime',
+  'time',
+  'select',
+  'email',
+  'phone',
+  'url',
+  'password',
+  'currency',
+  'percent',
+  'lookup',
+  'formula',
+  'autonumber',
+  'file',
+  'image',
+  'markdown',
+  'html',
+  'color',
+  'code',
+  'location',
+  'address',
+  'rating',
+  'slider',
+] as const;
+
 /** Supported field types in the Field Designer */
-export type DesignerFieldType =
-  | 'text'
-  | 'textarea'
-  | 'number'
-  | 'boolean'
-  | 'date'
-  | 'datetime'
-  | 'time'
-  | 'select'
-  | 'email'
-  | 'phone'
-  | 'url'
-  | 'password'
-  | 'currency'
-  | 'percent'
-  | 'lookup'
-  | 'formula'
-  | 'autonumber'
-  | 'file'
-  | 'image'
-  | 'markdown'
-  | 'html'
-  | 'color'
-  | 'code'
-  | 'location'
-  | 'address'
-  | 'rating'
-  | 'slider';
+export type DesignerFieldType = (typeof DESIGNER_FIELD_TYPES)[number];
 
 /** Select option for field designer */
 export interface DesignerFieldOption {

@@ -38,6 +38,33 @@ export const SYSTEM_MANAGED_FIELD_NAMES: ReadonlySet<string> = new Set<string>([
 ]);
 
 /**
+ * The four audit-provenance columns `applySystemFields` injects on every
+ * business object, keyed by display role.
+ *
+ * Single source for the surfaces that treat provenance specially
+ * (objectui#3017): `RecordMetaFooter` (`@object-ui/plugin-detail`) renders
+ * exactly these four as the one-line footer, and `RecordDetailView`
+ * (`@object-ui/app-shell`) excludes the same four from the auto-generated
+ * body sections so they only appear in that footer. The snake_case values are
+ * the wire names the framework stores — they are a strict subset of the
+ * spec's `FIELD_GROUP_SYSTEM_FIELDS` (asserted in `system-fields.test.ts`).
+ */
+export const AUDIT_FIELD_BY_ROLE = {
+  createdAt: 'created_at',
+  createdBy: 'created_by',
+  updatedAt: 'updated_at',
+  updatedBy: 'updated_by',
+} as const;
+
+/** Wire name of one audit-provenance column. */
+export type AuditFieldName = (typeof AUDIT_FIELD_BY_ROLE)[keyof typeof AUDIT_FIELD_BY_ROLE];
+
+/** {@link AUDIT_FIELD_BY_ROLE} as a set, for name-filtering call sites. */
+export const AUDIT_FIELD_NAMES: ReadonlySet<string> = new Set<string>(
+  Object.values(AUDIT_FIELD_BY_ROLE),
+);
+
+/**
  * Whether a field is a framework-managed system / audit / ownership column
  * rather than an author-declared business field.
  *

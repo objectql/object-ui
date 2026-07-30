@@ -37,6 +37,10 @@ import { decisionOutputDefs, decisionOutputParams, foldDecisionOutputs } from '.
 import { interpretActionResponse } from '../utils/actionResponse';
 import { interpretFlowResponse } from '../utils/flowResponse';
 import { useRecordBreadcrumbTitle } from '../context/NavigationContext';
+// Audit provenance renders as the one-line <RecordMetaFooter>; the other
+// framework-injected bookkeeping columns are hidden from the body outright.
+// Both sets are derived, not restated — see record-detail-system-fields.ts.
+import { AUDIT_FIELD_NAMES, HIDDEN_SYSTEM_FIELD_NAMES } from './record-detail-system-fields';
 import type { FeedItem } from '@object-ui/types';
 import type { ActionDef, ActionParamDef } from '@object-ui/core';
 import { useRecordApprovals, recordLockedByApproval } from '../hooks/useRecordApprovals';
@@ -106,27 +110,6 @@ export function resolveActionUser(
     ? { ...identity, systemPermissions: systemPermissions ?? [] }
     : identity;
 }
-
-/**
- * Audit field names auto-injected by the framework's `applySystemFields`.
- * Filtered out of the auto-generated body sections — they are rendered
- * separately as a single subtle one-line `<RecordMetaFooter>` (see
- * `@object-ui/plugin-detail`) so provenance stays discoverable without a
- * heavy "System Information" panel. The inline-edit drawer also hides
- * them via `DEFAULT_SYSTEM_FIELDS` in
- * `@object-ui/plugin-detail/RecordDetailDrawer`.
- */
-const AUDIT_FIELD_NAMES = new Set(['created_at', 'created_by', 'updated_at', 'updated_by']);
-
-/**
- * System/tenant fields that the framework auto-injects on every record but
- * which carry no business value on a detail page. Hidden from the
- * auto-generated sections. Authors who really want to surface one can
- * assign it to a `fieldGroups` group explicitly (explicit listing wins).
- */
-const HIDDEN_SYSTEM_FIELD_NAMES = new Set([
-  'organization_id', 'tenant_id', 'is_deleted', 'deleted_at',
-]);
 
 /**
  * Field-type signals that suggest a "secondary / system / metadata"

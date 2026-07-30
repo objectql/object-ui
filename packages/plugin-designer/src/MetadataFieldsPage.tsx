@@ -31,6 +31,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { DESIGNER_FIELD_TYPES } from '@object-ui/types';
 import type { DesignerFieldDefinition, DesignerFieldType } from '@object-ui/types';
 import { MetadataClient, type MetadataClientConfig } from '@object-ui/data-objectstack';
 import { FieldDesigner } from './FieldDesigner';
@@ -68,12 +69,8 @@ interface ServerObjectSchema {
   [key: string]: unknown;
 }
 
-const KNOWN_FIELD_TYPES = new Set<DesignerFieldType>([
-  'text', 'textarea', 'number', 'boolean', 'date', 'datetime', 'time', 'select',
-  'email', 'phone', 'url', 'password', 'currency', 'percent', 'lookup', 'formula',
-  'autonumber', 'file', 'image', 'markdown', 'html', 'color', 'code', 'location',
-  'address', 'rating', 'slider',
-]);
+// Derived from the canonical vocabulary rather than restated (objectui#3017).
+const KNOWN_FIELD_TYPES: ReadonlySet<DesignerFieldType> = new Set(DESIGNER_FIELD_TYPES);
 
 function toDesignerType(raw: string | undefined): DesignerFieldType {
   if (raw && KNOWN_FIELD_TYPES.has(raw as DesignerFieldType)) {

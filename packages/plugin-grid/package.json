@@ -29,6 +29,7 @@
     "@object-ui/permissions": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
+    "@objectstack/spec": "^17.0.0-rc.0",
     "@tanstack/react-virtual": "^3.14.8",
     "exceljs": "^4.4.0",
     "lucide-react": "^1.25.0"

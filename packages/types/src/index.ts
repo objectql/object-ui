@@ -438,7 +438,13 @@ export type {
 // System / audit / ownership field classification — runtime helper + name set,
 // used by default list-column derivation to keep framework-injected fields
 // (notably `owner_id`) out of the leading business columns.
-export { SYSTEM_MANAGED_FIELD_NAMES, isSystemManagedField } from './system-fields';
+export {
+  SYSTEM_MANAGED_FIELD_NAMES,
+  AUDIT_FIELD_BY_ROLE,
+  AUDIT_FIELD_NAMES,
+  isSystemManagedField,
+} from './system-fields';
+export type { AuditFieldName } from './system-fields';
 export { MANAGED_BY_BUCKETS } from './managed-by';
 export type { ManagedByBucket } from './managed-by';
 
@@ -607,6 +613,7 @@ export type {
 export {
   DASHBOARD_COLOR_VARIANTS,
   DASHBOARD_WIDGET_TYPES,
+  DESIGNER_FIELD_TYPES,
 } from './designer';
 
 // ============================================================================

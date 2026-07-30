@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { MULTI_CAPABLE_TYPES, MULTI_OPTION_TYPES } from '@objectstack/spec/data';
+
 /**
  * Minimal object-schema field shape needed to decide single- vs multi-value
  * semantics. Matches the `fields` map served by the ObjectStack meta API
@@ -16,23 +18,19 @@ export interface MultiValueFieldDef {
   multiple?: boolean;
 }
 
-/** Types whose persisted value is ALWAYS an array of scalars. */
-const ALWAYS_MULTI_TYPES = new Set(['multiselect', 'checkboxes', 'tags']);
-
 /**
- * Types that become array-shaped when flagged `multiple: true`. Mirrors the
- * server-side write pipeline (framework #2552): per the spec, `multiple`
- * applies to select/lookup/file/image; `radio` shares the select semantics
- * and `user` is stored identically to `lookup` (the runtime expands
- * `Field.user` to `type: 'user'`, not `'lookup'`).
+ * Whether the given object-schema field stores an array of scalars.
+ *
+ * A null-tolerant wrapper over the spec's own classification (its
+ * `isMultiValueField` requires a def): `MULTI_OPTION_TYPES` are always
+ * array-shaped, `MULTI_CAPABLE_TYPES` become array-shaped when flagged
+ * `multiple: true` — the same sets the server-side write pipeline derives
+ * from (framework #2552), consumed instead of restated (objectui#3017).
  */
-const MULTI_CAPABLE_TYPES = new Set(['select', 'radio', 'lookup', 'user', 'file', 'image']);
-
-/** Whether the given object-schema field stores an array of scalars. */
 export function isMultiValueField(def: MultiValueFieldDef | undefined | null): boolean {
   const t = def?.type;
   if (!t) return false;
-  if (ALWAYS_MULTI_TYPES.has(t)) return true;
+  if (MULTI_OPTION_TYPES.has(t)) return true;
   return MULTI_CAPABLE_TYPES.has(t) && def?.multiple === true;
 }
 
