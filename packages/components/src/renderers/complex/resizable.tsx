@@ -20,7 +20,13 @@ ComponentRegistry.register('resizable',
   ({ schema, className, ...props }: { schema: ResizableSchema; className?: string; [key: string]: any }) => {
     const panels = Array.isArray(schema.panels) ? schema.panels : [];
     return (
-      <ResizablePanelGroup 
+      <ResizablePanelGroup
+          /* `schema.direction` → `orientation` is a deliberate boundary
+             translation, not a leftover from the react-resizable-panels v3→v4
+             rename (#3025). `direction` is ObjectUI's own public authoring
+             vocabulary and appears in stored view metadata, so renaming it to
+             match the library's prop would break every saved `resizable`
+             schema. Keep the two names distinct and translate here. */
           orientation={(schema.direction || 'horizontal') as "horizontal" | "vertical"}
           className={className} 
           {...props}
