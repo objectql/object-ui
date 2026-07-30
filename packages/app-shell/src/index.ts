@@ -71,6 +71,7 @@ export type { AiSurfaceState } from './hooks/useAiSurface';
 // Layout chrome
 export {
   ConsoleLayout,
+  ConsoleNotificationBanners,
   AppHeader,
   AppSidebar,
   UnifiedSidebar,
@@ -91,6 +92,7 @@ export {
   OnboardingWalkthrough,
   ConditionalAuthWrapper,
   ConsoleToaster,
+  presentNotificationToast,
   RouteFader,
   toastWithUndo,
   type ToastWithUndoOptions,

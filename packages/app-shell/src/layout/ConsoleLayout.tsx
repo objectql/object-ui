@@ -25,6 +25,7 @@ import {
 } from './chatDockState';
 import { DraftPreviewBar } from '../preview/DraftPreviewBar';
 import { UnpublishedAppBar } from '../preview/UnpublishedAppBar';
+import { ConsoleNotificationBanners } from './ConsoleNotificationBanners';
 import { UnifiedSidebar } from './UnifiedSidebar';
 import { AppHeader } from './AppHeader';
 import { MobileViewSwitcherProvider } from './MobileViewSwitcherContext';
@@ -185,6 +186,10 @@ export function ConsoleLayout({
         {/* ADR-0045: materialized-but-unlisted app — real and interactive,
             invisible to end users until the Publish visibility flip. */}
         <UnpublishedAppBar />
+        {/* #3014: `displayType: 'banner'` notifications. In flow, above the
+            route content and below the two preview bars — a banner states a
+            standing condition, same as its neighbours here. */}
+        <ConsoleNotificationBanners />
         {children}
       </ConsoleLayoutInner>
 

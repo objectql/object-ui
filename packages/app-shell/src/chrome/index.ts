@@ -8,3 +8,4 @@ export { ErrorBoundary } from './ErrorBoundary';
 export { LoadingScreen } from './LoadingScreen';
 export { ThemeProvider, useTheme } from './ThemeProvider';
 export { toastWithUndo, type ToastWithUndoOptions } from './toast-helpers';
+export { presentNotificationToast } from './notificationToast';

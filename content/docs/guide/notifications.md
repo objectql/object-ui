@@ -67,6 +67,23 @@ are collected in `notifications` / `unreadCount` for a bell or list, and nothing
 is overlaid. Raising one of the other four types with its surface unmounted is a
 mistake, though — dev builds warn, naming the component to mount.
 
+### In the console
+
+`@object-ui/app-shell` already does this wiring — a console route can call
+`useNotifications()` and every display type presents correctly with no setup:
+
+| Surface | Mounted by |
+|---|---|
+| `toast` | `ConsoleShell`, via `presentNotificationToast` → sonner (`ConsoleToaster`) |
+| `snackbar`, `alert` | `ConsoleShell` — both have a single global home |
+| `banner` | `ConsoleLayout`, at the top of the content area, beside the draft / unpublished bars |
+| `inline` | nothing, by contract — the raising surface mounts its own `<NotificationInline scope="…" />` |
+
+Assembling a shell by hand? Both pieces are exported: `presentNotificationToast`
+for the `onToast` delegate, and `ConsoleNotificationBanners` — `NotificationBanners`
+guarded by `useHasNotificationProvider()`, so a layout rendered without the
+provider above it renders no banners instead of throwing.
+
 ## Raising notifications
 
 ```tsx

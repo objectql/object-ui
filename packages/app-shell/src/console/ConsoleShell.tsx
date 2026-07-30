@@ -14,7 +14,9 @@ import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { AuthGuard, useAuth, createAuthenticatedFetch } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { SchemaRendererProvider, ActionProvider } from '@object-ui/react';
+import { SchemaRendererProvider, ActionProvider, NotificationProvider } from '@object-ui/react';
+import { NotificationAlerts, NotificationSnackbar } from '@object-ui/components';
+import { presentNotificationToast } from '../chrome/notificationToast';
 import { useActionModal } from '../hooks/useActionModal';
 import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime';
 import { createObjectStackUserStateAdapter } from '@object-ui/data-objectstack';
@@ -101,8 +103,9 @@ function GlobalActionRuntimeProvider({ dataSource, children }: { dataSource: unk
 /**
  * ConsoleShell — top-level provider stack shared by every console route.
  * Wraps children in ThemeProvider + NavigationProvider + FavoritesProvider +
- * Suspense so lazy route components get a default loading fallback and
- * dark/light/system theme switching works out of the box.
+ * NotificationProvider + Suspense so lazy route components get a default
+ * loading fallback, dark/light/system theme switching, and a notification
+ * system that honors the spec `displayType`.
  *
  * Place this inside a <BrowserRouter> and around your <Routes>:
  *
@@ -111,23 +114,43 @@ function GlobalActionRuntimeProvider({ dataSource, children }: { dataSource: unk
  *       <Routes>...</Routes>
  *     </ConsoleShell>
  *   </BrowserRouter>
+ *
+ * ── Notification surfaces (#3014) ──
+ * Each spec display type has its own presentation, so the shell mounts the ones
+ * with a single global home and leaves the rest to their owners:
+ *
+ *   toast     → `presentNotificationToast` (sonner, via `onToast`)
+ *   snackbar  → <NotificationSnackbar />   here — it anchors itself bottom-center
+ *   alert     → <NotificationAlerts />     here — a blocking dialog is global
+ *   banner    → <NotificationBanners />    in `ConsoleLayout`, at the top of the
+ *                                          content area, next to the draft /
+ *                                          unpublished bars it sits with
+ *   inline    → nothing here, by contract — an inline notification is rendered
+ *               by the surface that RAISED it (`<NotificationInline scope=…/>`),
+ *               which is the whole difference between it and a banner
  */
 export function ConsoleShell({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider defaultTheme="system" storageKey="object-ui-theme">
-      <NavigationProvider>
-        <UserStateAdaptersProvider>
-          <FavoritesProvider>
-            <RecentItemsProvider>
-              <FlowPaletteRecentsProvider>
-                <Suspense fallback={<LoadingFallback />}>{children}</Suspense>
-                {/* ADR-0069 — full-screen gate (expired password / required MFA) above all routes */}
-                <RemediationOverlay />
-              </FlowPaletteRecentsProvider>
-            </RecentItemsProvider>
-          </FavoritesProvider>
-        </UserStateAdaptersProvider>
-      </NavigationProvider>
+      {/* `defaultDuration` matches ConsoleToaster's 4s toast default, so a
+          snackbar and a toast raised together disappear together. */}
+      <NotificationProvider config={{ defaultDuration: 4000, maxVisible: 4 }} onToast={presentNotificationToast}>
+        <NavigationProvider>
+          <UserStateAdaptersProvider>
+            <FavoritesProvider>
+              <RecentItemsProvider>
+                <FlowPaletteRecentsProvider>
+                  <Suspense fallback={<LoadingFallback />}>{children}</Suspense>
+                  {/* ADR-0069 — full-screen gate (expired password / required MFA) above all routes */}
+                  <RemediationOverlay />
+                  <NotificationSnackbar />
+                  <NotificationAlerts />
+                </FlowPaletteRecentsProvider>
+              </RecentItemsProvider>
+            </FavoritesProvider>
+          </UserStateAdaptersProvider>
+        </NavigationProvider>
+      </NotificationProvider>
     </ThemeProvider>
   );
 }

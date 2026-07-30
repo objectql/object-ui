@@ -64,6 +64,29 @@ function MyDashboard() {
 - **Full-Page AI Workspace**: The `/ai` surface provides a responsive chat
   workspace with a desktop conversation rail, mobile Chats drawer, and a
   constrained reading width for long conversations
+- **Notification Surfaces**: `ConsoleShell` mounts `NotificationProvider` and
+  every spec `displayType` presents distinctly — no per-app wiring
+
+## Notifications
+
+`ConsoleShell` mounts `NotificationProvider`, so any console route can call
+`useNotifications()` and get the presentation it asked for:
+
+| `displayType` | Surface | Mounted by |
+| --- | --- | --- |
+| `toast` | sonner, via `presentNotificationToast` | `ConsoleShell` |
+| `snackbar` | `<NotificationSnackbar />` | `ConsoleShell` |
+| `alert` | `<NotificationAlerts />` | `ConsoleShell` |
+| `banner` | `<NotificationBanners />` | `ConsoleLayout`, top of the content area |
+| `inline` | `<NotificationInline scope="…" />` | the surface that raises it |
+
+`inline` is deliberately not mounted globally — rendering in place at the raiser
+is the whole difference between it and a banner. Both console-side pieces are
+exported for hand-assembled shells: `presentNotificationToast` (the `onToast`
+delegate) and `ConsoleNotificationBanners` (the banners, guarded by
+`useHasNotificationProvider()` so a layout without the provider renders no
+banners instead of throwing). See the
+[notifications guide](https://objectui.org/docs/guide/notifications).
 
 ## Components
 

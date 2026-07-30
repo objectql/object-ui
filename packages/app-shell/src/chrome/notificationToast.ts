@@ -1,0 +1,50 @@
+/**
+ * The console's `toast` surface.
+ *
+ * `NotificationProvider` presents four of the five spec display types through
+ * surface components (#3014); `toast` is the one it delegates, and in the
+ * console that delegate is sonner. This module is that bridge — it is the
+ * ONLY place a notification becomes a sonner call, so the mapping (severity →
+ * variant, `duration: 0` → persistent, first action → the toast's action
+ * button) lives in one testable function rather than inline in the shell.
+ *
+ * Non-toast display types never reach here: the provider routes them to
+ * `NotificationBanners` / `NotificationSnackbar` / `NotificationAlerts` /
+ * `NotificationInline` instead.
+ */
+
+import { toast } from 'sonner';
+import type { NotificationItem, NotificationSeverityLevel } from '@object-ui/react';
+
+/**
+ * Typed as `Record<NotificationSeverityLevel, …>` so a new severity in the spec
+ * `NotificationSeveritySchema` fails type-check here until it has a variant,
+ * rather than silently rendering as a neutral toast.
+ */
+const TOAST_BY_SEVERITY: Record<NotificationSeverityLevel, (message: string, data?: unknown) => unknown> = {
+  info: (message, data) => toast.info(message, data as never),
+  success: (message, data) => toast.success(message, data as never),
+  warning: (message, data) => toast.warning(message, data as never),
+  error: (message, data) => toast.error(message, data as never),
+};
+
+/**
+ * Present one `displayType: 'toast'` notification through sonner.
+ *
+ * Duration follows the notification contract: `0` means persistent (sonner's
+ * `Infinity`), and an absent duration defers to the `ConsoleToaster` default
+ * rather than being invented here.
+ */
+export function presentNotificationToast(notification: NotificationItem): void {
+  const show = TOAST_BY_SEVERITY[notification.severity] ?? TOAST_BY_SEVERITY.info;
+  // A toast carries at most one action button — sonner has one `action` slot,
+  // and a notification needing more than one belongs on a banner or an alert.
+  const action = notification.actions?.[0];
+
+  show(notification.title, {
+    description: notification.message,
+    duration: notification.duration === 0 ? Infinity : notification.duration,
+    dismissible: notification.dismissible,
+    ...(action ? { action: { label: action.label, onClick: action.onClick } } : {}),
+  });
+}
