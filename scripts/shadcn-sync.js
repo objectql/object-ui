@@ -92,6 +92,47 @@ async function getLocalComponents() {
   }
 }
 
+/**
+ * Registry `@/…` alias → ObjectUI relative path.
+ *
+ * Shadcn ships components with alias specifiers that assume its own repo
+ * layout, and it has changed that layout at least once: the older generation
+ * was `@/components/ui/x`, while every endpoint this manifest points at now
+ * serves `@/registry/<style>/{ui,hooks,lib}/x`. Both forms are listed so a
+ * pinned or re-pointed source keeps working.
+ *
+ * Synced files land in `packages/components/src/ui/`, so `ui/` resolves to a
+ * sibling (`./x`) while `hooks/` and `lib/` step up one level (`../hooks/x`).
+ *
+ * Matching is on the quoted specifier rather than on `from "…"`, so
+ * `export … from`, dynamic `import()` and `vi.mock()` are covered too. The
+ * backreference keeps the original quote style.
+ */
+const IMPORT_REWRITES = [
+  [/(["'])@\/registry\/[^/"']+\/ui\/([^"']+)\1/g, '$1./$2$1'],
+  [/(["'])@\/registry\/[^/"']+\/hooks\/([^"']+)\1/g, '$1../hooks/$2$1'],
+  [/(["'])@\/registry\/[^/"']+\/lib\/([^"']+)\1/g, '$1../lib/$2$1'],
+  [/(["'])@\/components\/ui\/([^"']+)\1/g, '$1./$2$1'],
+  [/(["'])@\/hooks\/([^"']+)\1/g, '$1../hooks/$2$1'],
+  [/(["'])@\/lib\/([^"']+)\1/g, '$1../lib/$2$1'],
+];
+
+function rewriteRegistryImports(content) {
+  return IMPORT_REWRITES.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), content);
+}
+
+/**
+ * Any `@/…` specifier the table above did not map. These do not resolve from
+ * `src/ui/`, so writing a file that still contains one produces a component
+ * that cannot compile — which is how `resizable` reached `customComponents`.
+ * Callers must treat a non-empty result as a hard failure, not a warning:
+ * this is the only thing standing between a Shadcn layout change and a
+ * broken build.
+ */
+function findUnmappedAliases(content) {
+  return [...new Set([...content.matchAll(/["'](@\/[^"']+)["']/g)].map((m) => m[1]))];
+}
+
 async function checkComponent(name, manifest) {
   const componentInfo = manifest.components[name];
   if (!componentInfo) {
@@ -110,7 +151,9 @@ async function checkComponent(name, manifest) {
     // Fetch latest from registry
     try {
       const registryData = await fetchUrl(componentInfo.source);
-      const shadcnContent = registryData.files?.[0]?.content || '';
+      // Rewrite before comparing, so import-path style alone does not read as
+      // a difference — the local file has already been through this transform.
+      const shadcnContent = rewriteRegistryImports(registryData.files?.[0]?.content || '');
       const shadcnLines = shadcnContent.split('\n').length;
       
       // Simple heuristic: check if significantly different
@@ -228,19 +271,29 @@ async function updateComponent(name, manifest, options = {}) {
       log(`No files found in registry for ${name}`, 'red');
       return false;
     }
-    
-    let content = registryData.files[0].content;
-    
+
+    // Only files[0] is written. Say so rather than truncating silently — a
+    // multi-file entry (e.g. `toast`) needs its extra files placed by hand.
+    if (registryData.files.length > 1) {
+      const extra = registryData.files.slice(1).map((f) => f.path || f.name || '?');
+      log(`  ⚠ Registry ships ${registryData.files.length} files; only the first is written.`, 'yellow');
+      log(`    Not written: ${extra.join(', ')}`, 'yellow');
+    }
+
     // Transform imports to match ObjectUI structure
-    content = content.replace(
-      /from ["']@\/lib\/utils["']/g,
-      'from "../lib/utils"'
-    );
-    content = content.replace(
-      /from ["']@\/components\/ui\/([^"']+)["']/g,
-      'from "./$1"'
-    );
-    
+    let content = rewriteRegistryImports(registryData.files[0].content);
+
+    // Fail closed. An unmapped `@/…` specifier does not resolve from src/ui/,
+    // so writing the file would swap working code for code that cannot
+    // compile. Better to refuse and have someone extend IMPORT_REWRITES.
+    const unmapped = findUnmappedAliases(content);
+    if (unmapped.length > 0) {
+      log(`✗ Refusing to write ${name}.tsx — unmapped registry import path(s):`, 'red');
+      unmapped.forEach((spec) => log(`    ${spec}`, 'red'));
+      log(`  Shadcn's alias layout changed. Add a rule to IMPORT_REWRITES in this script.`, 'yellow');
+      return false;
+    }
+
     // Add ObjectUI header
     const header = `/**
  * ObjectUI
@@ -332,16 +385,23 @@ async function showDiff(name) {
     const localPath = path.join(COMPONENTS_DIR, `${name}.tsx`);
     const localContent = await fs.readFile(localPath, 'utf-8');
     const registryData = await fetchUrl(componentInfo.source);
-    const shadcnContent = registryData.files?.[0]?.content || '';
-    
+    // Same transform `--update` would apply, so the two sides are comparable.
+    const shadcnContent = rewriteRegistryImports(registryData.files?.[0]?.content || '');
+
     log('Local version:', 'cyan');
     console.log(localContent.substring(0, 500) + '...\n');
-    
-    log('Shadcn version:', 'cyan');
+
+    log('Shadcn version (import paths rewritten):', 'cyan');
     console.log(shadcnContent.substring(0, 500) + '...\n');
-    
+
     log(`Local:  ${localContent.split('\n').length} lines`, 'dim');
     log(`Shadcn: ${shadcnContent.split('\n').length} lines`, 'dim');
+
+    const unmapped = findUnmappedAliases(shadcnContent);
+    if (unmapped.length > 0) {
+      log(`\n⚠ Unmapped registry import path(s) — \`--update ${name}\` would refuse:`, 'yellow');
+      unmapped.forEach((spec) => log(`    ${spec}`, 'yellow'));
+    }
   } catch (error) {
     log(`Error: ${error.message}`, 'red');
   }
