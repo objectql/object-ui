@@ -152,27 +152,35 @@ export function resolveDefaultAgentName(
 /**
  * Pull the agent list out of whatever `GET /api/v1/ai/agents` answered.
  *
- * This route is served by more than one producer and is mid-migration onto the
- * platform's declared `{ success: true, data }` envelope
- * (objectstack#4053), so three shapes have to read the same:
+ * This route is served by more than one producer, and the conversion onto the
+ * platform's declared `{ success: true, data }` envelope (objectstack#4053) has
+ * now landed on BOTH — the framework's degraded fallback in objectstack#4124,
+ * cloud's `service-ai` in cloud#929. Four shapes still read the same:
  *
+ *   { success: true, data: { agents } }    what both producers serve today
+ *   { success: true, data: [ … ] }         the envelope flattened — no producer
+ *                                          emits it; read so that one doing so
+ *                                          fails loudly upstream, not here
+ *   { agents: [ … ] }                      pre-conversion servers
  *   [ … ]                                  a bare array
- *   { agents: [ … ] }                      today's shape, both producers
- *   { success: true, data: … }             the declared envelope, whose `data`
- *                                          may be the array or `{ agents }`
+ *
+ * The last two are back-compat, not the current wire: a console release is not
+ * pinned to the server it runs against, so a deployment from before the
+ * conversion is ordinary. Do not read them as evidence the servers are
+ * unenveloped — they are not, and a "cleanup" that re-narrows this to the bare
+ * shape would break exactly the deployments it looks like it is following.
  *
  * The envelope is detected the way `ObjectStackClient.unwrapResponse` detects
  * it — a **boolean** `success` — so the two agree on what counts as one.
  *
- * Reading the envelope BEFORE any producer emits it is deliberate, and it is the
- * whole point of doing this ahead of the conversion. An unrecognised shape here
- * does not throw or warn: it yields an empty list, and `useAiSurfaceEnabled`
- * turns an empty list into "hide the entire AI surface". That is also the
- * CORRECT behaviour for a seat-less user or a Community-Edition deployment with
- * no `service-ai` — so a parse miss is indistinguishable from the legitimate
- * hidden state, with no error, no 403 and no log to notice it by. Teaching the
- * consumer first means the producer can convert on its own schedule instead of
- * having to land in lockstep with this file.
+ * Why tolerance here rather than one shape and a parse error: an unrecognised
+ * shape does not throw or warn. It yields an empty list, and `useAiSurfaceEnabled`
+ * turns an empty list into "hide the entire AI surface". That is also the CORRECT
+ * behaviour for a seat-less user or a Community-Edition deployment with no
+ * `service-ai` — so a parse miss is indistinguishable from the legitimate hidden
+ * state, with no error, no 403 and no log to notice it by. Reading every shape
+ * this route has ever answered in is what kept the server conversions from having
+ * to land in lockstep with a console release.
  */
 export function extractAgentList(payload: unknown): RawAgent[] {
   const isEnvelope =

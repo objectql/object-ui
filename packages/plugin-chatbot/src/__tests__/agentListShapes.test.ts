@@ -4,8 +4,10 @@
  * `GET /api/v1/ai/agents` shape tolerance (objectstack#4053).
  *
  * Two producers serve this route — the framework dispatcher's degraded fallback
- * when no AI service is registered, and cloud's `service-ai` — and it is
- * mid-migration onto the platform's declared `{ success: true, data }` envelope.
+ * when no AI service is registered, and cloud's `service-ai`. Both answer in the
+ * platform's declared `{ success: true, data }` envelope now (objectstack#4124,
+ * cloud#929); the unenveloped shapes below are back-compat for deployments from
+ * before that, since a console release is not pinned to the server it runs against.
  *
  * Why this file exists rather than a comment: an unrecognised shape here does not
  * throw, warn, or log. It yields an empty list, and `useAiSurfaceEnabled` turns an
@@ -16,9 +18,10 @@
  * no visible difference. The tests are the only thing standing between an envelope
  * conversion on the server and the AI UI quietly vanishing for every user.
  *
- * Teaching the reader all three shapes BEFORE any producer converts is what lets
- * the server side move on its own schedule instead of landing in lockstep with a
- * console release.
+ * Teaching the reader every shape BEFORE any producer converted is what let the
+ * server side move on its own schedule instead of landing in lockstep with a
+ * console release — and it is why the two conversions could land in separate
+ * repos, as separate PRs, with nothing here to change.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -28,7 +31,7 @@ const ASK = { name: 'ask', label: 'Ask' };
 const BUILD = { name: 'build', label: 'Build' };
 
 describe('extractAgentList — every shape this route answers in', () => {
-  it('reads `{ agents }` — what both producers send today', () => {
+  it('reads `{ agents }` — a pre-conversion server this console still meets', () => {
     expect(extractAgentList({ agents: [ASK, BUILD] })).toEqual([ASK, BUILD]);
   });
 
@@ -38,13 +41,17 @@ describe('extractAgentList — every shape this route answers in', () => {
 
   it('reads the declared envelope with `data` as the array', () => {
     // The shape objectstack#3983 set the precedent for: `data` carries the
-    // payload directly. This is the variant that silently emptied the list.
+    // payload directly. Neither producer took it — objectstack#4053 settled on
+    // the relocation below — and this is the variant that would have silently
+    // emptied the list had one of them. Read anyway: if a producer ever drifts
+    // here, the console keeps working and the drift surfaces in that repo's own
+    // envelope pins rather than as a vanished AI surface.
     expect(extractAgentList({ success: true, data: [ASK, BUILD] })).toEqual([ASK, BUILD]);
   });
 
-  it('reads the declared envelope with `data: { agents }`', () => {
-    // The other plausible conversion — relocating the existing payload under
-    // `data` rather than flattening it. Both must read the same.
+  it('reads the declared envelope with `data: { agents }` — the shipped shape', () => {
+    // The conversion both producers landed: the declared payload RELOCATED under
+    // `data` rather than flattened. All four shapes must still read the same.
     expect(extractAgentList({ success: true, data: { agents: [ASK, BUILD] } })).toEqual([ASK, BUILD]);
   });
 
