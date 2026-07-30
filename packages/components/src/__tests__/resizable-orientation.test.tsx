@@ -7,16 +7,22 @@
  */
 
 /**
- * The stacked resizable divider — `custom/resizable.tsx`.
+ * The stacked resizable divider — `ui/resizable.tsx`.
  *
- * `ui/resizable.tsx` is the react-resizable-panels **v3** Shadcn file: its
- * whole stacked-group appearance hangs off `data-[panel-group-direction=vertical]`,
+ * That file was the react-resizable-panels **v3** Shadcn file: its whole
+ * stacked-group appearance hung off `data-[panel-group-direction=vertical]`,
  * an attribute v4 (the installed major) never emits. So in a stacked group the
  * divider kept the base `w-px` and came out a 1px-wide, 16px-tall sliver — its
  * only height being the grip — instead of a full-width hairline, with a 4x16px
  * drag target pinned to the group's left edge and an unrotated grip.
- * `custom/resizable.tsx` re-keys those styles onto `aria-orientation`, which v4
- * does emit on the separator.
+ *
+ * #3024 first fixed this from a `custom/resizable.tsx` wrapper, to avoid editing
+ * a Shadcn-synced file (AGENTS.md #7). That file turned out not to be synced at
+ * all — it is hand-migrated to v4 and upstream still ships v3 — so the styles
+ * now live in `ui/resizable.tsx` directly, keyed on the `aria-orientation`
+ * attribute v4 does emit, and the wrapper is a plain re-export. These tests are
+ * unchanged by that move: they assert on the rendered separator, not on which
+ * module supplied the classes.
  *
  * These tests pin the *class contract* and the attribute it depends on; happy-dom
  * has no Tailwind, so resolved geometry (478x1px rule, 478x4px hit strip, grip at
@@ -67,7 +73,7 @@ function ariaVariantsOn(el: HTMLElement): Array<[string, string]> {
   });
 }
 
-describe('custom/resizable — the stacked divider (react-resizable-panels v4)', () => {
+describe('ui/resizable — the stacked divider (react-resizable-panels v4)', () => {
   it('gives the stacked divider aria-orientation=horizontal, not vertical', () => {
     // The inversion that makes this bug easy to reintroduce: the group stacks
     // vertically, so the rule between the panels runs horizontally.
@@ -123,10 +129,10 @@ describe('custom/resizable — the stacked divider (react-resizable-panels v4)',
     }
   });
 
-  it('documents why the wrapper exists: v4 emits no panel-group-direction', () => {
-    // If this ever fails, the library started emitting the v3 attribute again
-    // and `ui/resizable.tsx`'s own variants would carry the stacked case — at
-    // which point this wrapper is redundant rather than load-bearing.
+  it('documents why the styles were re-keyed: v4 emits no panel-group-direction', () => {
+    // If this ever fails, the library started emitting the v3 attribute again,
+    // at which point upstream Shadcn's own `data-[panel-group-direction]`
+    // variants would work and this file could go back to being synced.
     const { container } = renderGroup('vertical');
     expect(container.querySelectorAll('[data-panel-group-direction]')).toHaveLength(0);
   });

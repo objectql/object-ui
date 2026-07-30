@@ -230,13 +230,6 @@
       ],
       "registryDependencies": []
     },
-    "resizable": {
-      "source": "https://ui.shadcn.com/r/styles/default/resizable.json",
-      "dependencies": [
-        "react-resizable-panels"
-      ],
-      "registryDependencies": []
-    },
     "scroll-area": {
       "source": "https://ui.shadcn.com/r/styles/default/scroll-area.json",
       "dependencies": [
@@ -420,6 +413,13 @@
     "kbd": {
       "description": "Custom ObjectUI component - Keyboard key display",
       "dependencies": []
+    },
+    "resizable": {
+      "description": "Diverged from Shadcn - hand-migrated to react-resizable-panels v4. Upstream still ships v3 (imports PanelGroup/PanelResizeHandle, which v4 does not export), so re-syncing would break the build. Restore to `components` only once upstream regenerates for v4.",
+      "dependencies": [
+        "react-resizable-panels"
+      ],
+      "divergedFrom": "https://ui.shadcn.com/r/styles/default/resizable.json"
     },
     "spinner": {
       "description": "Custom ObjectUI component - Loading spinner",
