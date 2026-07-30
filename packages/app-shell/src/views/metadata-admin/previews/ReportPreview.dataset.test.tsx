@@ -1,8 +1,27 @@
 // Copyright (c) 2026 ObjectStack. Licensed under the Apache-2.0 license.
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest';
 import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import { ReportPreview } from './ReportPreview';
+
+// ReportPreview renders the runtime report renderer behind
+// `React.lazy(() => import('@object-ui/plugin-report'))`, so nothing below the
+// Suspense boundary — including the `queryDataset` call the assertions wait on —
+// exists until that chunk resolves. Loading it is unbounded work: under
+// full-suite parallelism Vite's transform pipeline is saturated (the `dom-heavy`
+// project alone spends ~60s in transform) and the first import of the package
+// graph can outlast RTL's 1000ms `waitFor`/`findBy` window. The assertions then
+// raced the module loader and failed against the "Loading report renderer…"
+// fallback — only in the first tests of the file, because later ones find the
+// module warm.
+//
+// Resolving the chunk once, up front, takes the module load out of every
+// assertion window instead of widening the windows. Keep this specifier
+// identical to ReportPreview.tsx's: ESM caches by resolved specifier, so warming
+// it here makes the component's own `React.lazy` factory resolve immediately.
+beforeAll(async () => {
+  await import('@object-ui/plugin-report');
+});
 
 // Mock the data adapter the preview pulls from AdapterProvider.
 const { queryDataset } = vi.hoisted(() => ({ queryDataset: vi.fn() }));

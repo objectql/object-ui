@@ -1,8 +1,26 @@
 // Copyright (c) 2026 ObjectStack. Licensed under the Apache-2.0 license.
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest';
 import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import { DatasetPreview } from './DatasetPreview';
+
+// DatasetPreview renders its chart behind
+// `React.lazy(() => import('@object-ui/plugin-charts'))`, and the "use the right
+// axis" caption asserted on below lives *inside* that Suspense boundary — so it
+// only exists once the (recharts-backed) chunk resolves. Loading it is unbounded
+// work: under full-suite parallelism Vite's transform pipeline is saturated and
+// the first import of the package graph can outlast RTL's 1000ms
+// `waitFor`/`findBy` window. The earlier tests in this file assert on the table,
+// which renders *outside* the boundary, so they start the import but never wait
+// for it — leaving the ratio-measure test to race a load already in flight.
+//
+// Resolving the chunk once, up front, takes the module load out of every
+// assertion window instead of widening the windows. Keep this specifier
+// identical to DatasetPreview.tsx's: ESM caches by resolved specifier, so warming
+// it here makes the component's own `React.lazy` factory resolve immediately.
+beforeAll(async () => {
+  await import('@object-ui/plugin-charts');
+});
 
 // Mock the data adapter the preview pulls from AdapterProvider.
 const { queryDataset } = vi.hoisted(() => ({ queryDataset: vi.fn() }));
