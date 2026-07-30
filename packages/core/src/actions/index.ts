@@ -8,6 +8,7 @@
 
 export * from './ActionRunner.js';
 export * from './ActionEngine.js';
+export * from './actionKeys.js';
 export * from './TransactionManager.js';
 export * from './UndoManager.js';
 export * from './bulkFastPath.js';

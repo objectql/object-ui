@@ -24,6 +24,7 @@
 import type { RunnableActionType } from '@object-ui/types';
 import { ExpressionEvaluator } from '../evaluator/ExpressionEvaluator';
 import { globalUndoManager, type UndoableOperation } from './UndoManager';
+import { warnOnUnknownActionKeys } from './actionKeys';
 
 export interface ActionResult {
   success: boolean;
@@ -475,6 +476,12 @@ export class ActionRunner {
 
   async execute(action: ActionDef): Promise<ActionResult> {
     try {
+      // `ActionDef` accepts any key of any type, so a typo (`targt`) and a
+      // retired key (`execute`) both reach here having type-checked. Neither
+      // binds a handler, and binding no handler silently is the #2169 "Mark Done
+      // does nothing" shape. Dev-only, warn-once, changes nothing (#4075 step 1).
+      warnOnUnknownActionKeys(action);
+
       // Resolve the action type
       const actionType = action.type || action.actionType || action.name || '';
 
