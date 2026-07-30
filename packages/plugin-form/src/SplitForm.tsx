@@ -71,6 +71,14 @@ export interface SplitFormSchema {
    */
   splitResizable?: boolean;
 
+  /**
+   * Grid width for the whole form (1–4). Aligns with @objectstack/spec
+   * FormView.columns and OUTRANKS the per-section `columns`, which say how a
+   * section fills the grid rather than how wide it is. Omitted = the widest
+   * section's density.
+   */
+  columns?: number;
+
   // Common form props
   showSubmit?: boolean;
   submitText?: string;
@@ -246,17 +254,22 @@ export const SplitForm: React.FC<SplitFormProps> = ({
     );
   }
 
-  // The form is ONE grid, as wide as the widest section; each section then lays
-  // ITS fields out at its own declared density within that grid via colSpan
-  // (#2578) — the same arrangement the stacked/tabbed sectioned forms use. The
-  // grid lives on the FIELD container inside the form, never wrapped around the
-  // form (that leaves the extra columns permanently empty, #2128).
+  // The form is ONE grid; each section then lays ITS fields out at its own
+  // declared density within that grid via colSpan (#2578) — the same arrangement
+  // the stacked/tabbed sectioned forms use. The grid lives on the FIELD
+  // container inside the form, never wrapped around the form (that leaves the
+  // extra columns permanently empty, #2128).
+  //
+  // Grid width: the form view's own `columns` first (spec FormView.columns),
+  // else the widest section. Same precedence ObjectForm's simple path and
+  // ModalForm use, so one piece of metadata lays out the same in every host.
   const clampCol = (n: unknown): number | undefined =>
     typeof n === 'number' && n > 0 ? Math.min(Math.floor(n), 4) : undefined;
   const declaredCols = schema.sections
     .map((s) => clampCol(s.columns))
     .filter((c): c is number => c != null);
-  const formColumns = (declaredCols.length ? Math.max(...declaredCols) : 1) as 1 | 2 | 3 | 4;
+  const formColumns = (clampCol(schema.columns)
+    ?? (declaredCols.length ? Math.max(...declaredCols) : 1)) as 1 | 2 | 3 | 4;
   const containerFieldClass = containerGridColsFor(formColumns);
 
   /**

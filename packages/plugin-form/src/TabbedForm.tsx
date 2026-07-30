@@ -87,10 +87,18 @@ export interface TabbedFormSchema {
   sections: FormSectionConfig[];
   
   /**
+   * Grid width for the whole form (1–4). Aligns with @objectstack/spec
+   * FormView.columns and OUTRANKS the per-section `columns`, which say how a
+   * section fills the grid rather than how wide it is. Omitted = the widest
+   * section's density.
+   */
+  columns?: number;
+
+  /**
    * Default active tab (section name)
    */
   defaultTab?: string;
-  
+
   /**
    * Tab position
    * @default 'top'
@@ -347,7 +355,11 @@ export const TabbedForm: React.FC<TabbedFormProps> = ({
   const declaredCols = schema.sections
     .map((s) => clampCol(s.columns))
     .filter((c): c is number => c != null);
-  const formColumns = declaredCols.length ? Math.max(...declaredCols) : 1;
+  // Grid width: the form view's own `columns` first (spec FormView.columns),
+  // else the widest section. Same precedence ObjectForm's simple path and
+  // ModalForm use, so one piece of metadata lays out the same in every host.
+  const formColumns =
+    clampCol(schema.columns) ?? (declaredCols.length ? Math.max(...declaredCols) : 1);
   const containerFieldClass = containerGridColsFor(formColumns);
 
   const tabGroups = schema.sections.map((section, index) => {

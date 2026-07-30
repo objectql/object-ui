@@ -22,11 +22,13 @@
  * lone <form> — can't silently regress.
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, waitFor, cleanup } from '@testing-library/react';
 import React from 'react';
 import { registerAllFields } from '@object-ui/fields';
 import { ModalForm } from './ModalForm';
+import { TabbedForm } from './TabbedForm';
+import { SplitForm } from './SplitForm';
 import { sectionFormLayout } from './autoLayout';
 
 registerAllFields();
@@ -65,6 +67,88 @@ const makeDataSource = (): any => ({
   }),
   create: vi.fn().mockResolvedValue({ id: '1' }),
   findOne: vi.fn(),
+});
+
+afterEach(() => {
+  cleanup();
+});
+
+/**
+ * The form view's OWN `columns` is a spec key (view.zod FormView.columns), so a
+ * sectioned host must honour it — and it OUTRANKS the per-section densities,
+ * which describe how a section fills the grid rather than how wide the grid is.
+ *
+ * `ObjectForm` (simple path) and `ModalForm` already resolved it as
+ * `explicit form columns ?? widest section ?? 1`. `TabbedForm` and `SplitForm`
+ * read only the sections, so a view that declared `columns: 3` silently
+ * rendered single-column in a tabbed or split form while the same metadata gave
+ * 3 columns in a modal.
+ */
+describe('view-level `columns` outranks per-section columns', () => {
+  const SECTIONS = [
+    { name: 's1', label: 'One', fields: ['a', 'b'] },
+    { name: 's2', label: 'Two', fields: ['c', 'd'] },
+  ];
+
+  it('TabbedForm honours the form view’s columns', async () => {
+    render(
+      <TabbedForm
+        schema={{
+          type: 'object-form',
+          formType: 'tabbed',
+          objectName: 'lead',
+          mode: 'create',
+          columns: 3,
+          sections: SECTIONS,
+        }}
+        dataSource={makeDataSource()}
+      />,
+    );
+
+    await waitFor(() => expect(document.body.querySelector('form')).toBeTruthy());
+    expect(document.body.querySelector('[class*="@2xl:grid-cols-3"]')).not.toBeNull();
+  });
+
+  it('SplitForm honours the form view’s columns', async () => {
+    render(
+      <SplitForm
+        schema={{
+          type: 'object-form',
+          formType: 'split',
+          objectName: 'lead',
+          mode: 'create',
+          columns: 3,
+          sections: SECTIONS,
+        }}
+        dataSource={makeDataSource()}
+      />,
+    );
+
+    await waitFor(() => expect(document.body.querySelector('form')).toBeTruthy());
+    expect(document.body.querySelector('[class*="@2xl:grid-cols-3"]')).not.toBeNull();
+  });
+
+  it('falls back to the widest section when the view declares no columns', async () => {
+    render(
+      <SplitForm
+        schema={{
+          type: 'object-form',
+          formType: 'split',
+          objectName: 'lead',
+          mode: 'create',
+          sections: [
+            { name: 's1', label: 'One', columns: 2, fields: ['a', 'b'] },
+            { name: 's2', label: 'Two', fields: ['c', 'd'] },
+          ],
+        }}
+        dataSource={makeDataSource()}
+      />,
+    );
+
+    await waitFor(() => expect(document.body.querySelector('form')).toBeTruthy());
+    expect(document.body.querySelector('[class*="@md:grid-cols-2"]')).not.toBeNull();
+    expect(document.body.querySelector('[class*="@2xl:grid-cols-3"]')).toBeNull();
+  });
 });
 
 describe('ModalForm — grouped section multi-column layout (#2128)', () => {

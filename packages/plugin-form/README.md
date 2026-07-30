@@ -83,6 +83,24 @@ interface FormField {
 }
 ```
 
+### Column width of a sectioned form
+
+A sectioned form renders as ONE grid, and two keys decide its shape:
+
+| Key | Meaning |
+|---|---|
+| the form view's `columns` | how wide the grid is (1–4) — spec `FormView.columns` |
+| a section's `columns` | how densely THAT section fills the grid (via per-field `colSpan`) |
+
+The view's `columns` wins; without it the grid takes the widest section's
+density, and without either it is single-column. Every sectioned host resolves it
+the same way — `ObjectForm` (simple), `ModalForm`, `TabbedForm`, `SplitForm` —
+so one piece of metadata lays out identically wherever it is rendered.
+
+The grid is applied to the field container **inside** the form, never wrapped
+around the `<form>` (which would put the whole form in cell 1 and leave the other
+columns empty — #2128).
+
 ### Tabbed field layout (`fieldTabs`)
 
 A sectioned form is **one** form. Instead of rendering a form per section — which
