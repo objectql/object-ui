@@ -16,12 +16,15 @@
  * PUBLIC_BLOCKS or flip it to `isContainer` and it silently vanishes from every
  * react page's scope while type-check, lint and build all stay green.
  *
- * These tests pin the three halves of that contract:
+ * These tests pin the four halves of that contract:
  *   1. `list-view` / `object-form` stay eligible for injection;
  *   2. an author writes `<ListView …/>` with FLAT props and no import, and the
  *      wrapper folds them into the block's `schema`;
- *   3. an identifier that is genuinely absent fails LOUDLY — the negative
- *      control that keeps (2) from passing vacuously.
+ *   3. a block that is only *lazily* registered is in the scope too — the
+ *      contract may not depend on which plugin chunks happen to be loaded
+ *      (objectui#2953);
+ *   4. an identifier that is genuinely absent fails LOUDLY — the negative
+ *      control that keeps (2) and (3) from passing vacuously.
  *
  * Registered stand-ins are used instead of the real plugin-list / plugin-form:
  * `packages/components` sits BELOW the plugins in the dependency graph, and the
@@ -35,7 +38,7 @@ import { ComponentRegistry } from '@object-ui/core';
 import { SchemaRenderer, AdapterCtx } from '@object-ui/react';
 
 /** Props the stand-in blocks last received, for flat-prop assertions. */
-const captured: { listView?: any; objectForm?: any } = {};
+const captured: { listView?: any; objectForm?: any; kanban?: any } = {};
 
 const adapter = { find: async () => [], getObjectSchema: async () => ({ name: 'showcase_project', fields: {} }) } as any;
 
@@ -73,6 +76,7 @@ afterAll(() => {
 beforeEach(() => {
   captured.listView = undefined;
   captured.objectForm = undefined;
+  captured.kanban = undefined;
 });
 
 // ---------------------------------------------------------------------------
@@ -152,27 +156,80 @@ function Page() {
 });
 
 // ---------------------------------------------------------------------------
-// 3. Negative control — absence must be loud
+// 3. Lazily-registered blocks are contract members too (objectui#2953)
+// ---------------------------------------------------------------------------
+
+describe('kind:\'react\' scope — lazily-registered blocks', () => {
+  it('injects a curated block that is only registered lazily', async () => {
+    // How apps/console registers the heavy view plugins: a stub at boot, the
+    // chunk imported on first use. Six PUBLIC_BLOCKS tags live this way
+    // (object-kanban / -calendar / -gantt / -timeline / -map / markdown), and
+    // all six used to be missing from every react page's scope, because
+    // getPublicConfigs() resolved each curated tag through getConfig(), which
+    // reads loaded registrations only.
+    ComponentRegistry.registerLazy(
+      'object-kanban',
+      async () => {
+        ComponentRegistry.register(
+          'object-kanban',
+          (props: any) => {
+            captured.kanban = props;
+            return <div data-testid="kanban-double" />;
+          },
+          { namespace: 'plugin-kanban' },
+        );
+      },
+      { namespace: 'plugin-kanban', category: 'view' },
+    );
+
+    try {
+      // The tag IS in the contract before its chunk has been imported …
+      const cfg = ComponentRegistry.getPublicConfigs().find((c: any) => c.type === 'object-kanban');
+      expect(cfg).toBeTruthy();
+      expect((cfg as any).lazy).toBe(true);
+
+      // … so `<ObjectKanban>` resolves in the page source instead of throwing
+      // `ReferenceError: ObjectKanban is not defined`. The injected wrapper
+      // defers to SchemaRenderer, which fires the loader, shows the "Loading…"
+      // placeholder, and re-renders once the plugin registers for real.
+      const source = `
+function Page() {
+  return <ObjectKanban objectName="showcase_project" groupBy="status" />;
+}`;
+      const { findByTestId, queryByText } = renderReactPage(source);
+
+      expect(await findByTestId('kanban-double')).toBeTruthy();
+      expect(queryByText('React page error')).toBeNull();
+      expect(captured.kanban.schema).toMatchObject({ type: 'object-kanban', groupBy: 'status' });
+    } finally {
+      ComponentRegistry.unregister('object-kanban', 'plugin-kanban');
+      ComponentRegistry.unregister('object-kanban');
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. Negative control — absence must be loud
 // ---------------------------------------------------------------------------
 
 describe('kind:\'react\' unknown identifier', () => {
-  it('surfaces the ReferenceError instead of failing silently', async () => {
+  it('surfaces the ReferenceError in the page-level error panel', async () => {
     const source = `
 function Page() {
   return <TotallyNotARegisteredBlock />;
 }`;
-    const { container } = renderReactPage(source);
+    const { container, findByText } = renderReactPage(source);
 
     // Proves the assertions above are meaningful: when a block really is absent
     // from scope, the author sees this.
     //
-    // Asserted on the message rather than on a specific panel, because the
-    // catching boundary is NOT the obvious one. ReactRunner is its own error
-    // boundary, but `getDerivedStateFromProps` re-transpiles on every render
-    // and unconditionally resets `error: null`, so the recovery render
-    // re-throws and the error escapes PAST the "React page error" fallback to
-    // SchemaRenderer's boundary ("Component "home" failed to render"). Pinning
-    // the panel would pin that quirk; pinning the message pins the contract.
+    // The panel is ReactRunner's own `fallback` (react-page.tsx:170-175).
+    // Pinning it also pins objectui#2954: `getDerivedStateFromProps` used to
+    // re-transpile on every render and reset `error: null`, so the recovery
+    // render rebuilt the same throwing element and the error escaped PAST this
+    // fallback to SchemaRenderer's boundary ("Component "home" failed to
+    // render") — the styled, page-specific panel was unreachable.
+    expect(await findByText('React page error')).toBeTruthy();
     await waitFor(() =>
       expect(container.textContent).toContain('TotallyNotARegisteredBlock is not defined'),
     );

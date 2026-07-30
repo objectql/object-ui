@@ -47,6 +47,14 @@ function toPascal(tag: string): string {
 // data/leaf blocks (non-containers) as prop-driven wrappers; layout containers
 // are intentionally left out — in react mode the author composes layout with
 // real HTML + Tailwind, not our schema-children renderers.
+//
+// Lazily-registered blocks (`object-kanban`, `object-map`, `markdown`, … — see
+// apps/console/src/main.tsx) are in here too: `getPublicConfigs()` resolves
+// `registerLazy` stubs, so the scope is complete at build time regardless of
+// which plugin chunks have been imported (objectui#2953). Each wrapper defers
+// to SchemaRenderer, which triggers the loader and renders the placeholder, so
+// the scope itself never has to change once built — which is exactly what lets
+// it stay identity-stable and keeps the page from remounting (objectui#2954).
 function buildComponentScope(dataSource: unknown): Record<string, React.ComponentType<any>> {
   const scope: Record<string, React.ComponentType<any>> = {};
   const seen = new Set<string>();
@@ -123,6 +131,14 @@ export const ReactKindPage: React.FC<{ schema: any }> = ({ schema }) => {
     };
   }, [capabilityEnabled]);
 
+  // Keep this identity STABLE. ReactRunner recompiles the page whenever the
+  // scope identity changes, and every compile mints a fresh `Page` function —
+  // i.e. a new element type — which remounts the subtree and wipes the page's
+  // own `useState` (objectui#2954). That's why this deliberately does not
+  // subscribe to ComponentRegistry changes the way SchemaRenderer does: a lazy
+  // plugin finishing its registration notifies the registry, and rebuilding the
+  // scope there would reset every interactive page on the screen. It doesn't
+  // need to — `buildComponentScope` already sees lazy blocks (objectui#2953).
   const scope = React.useMemo(
     () => ({
       ...buildComponentScope(adapter),

@@ -57,27 +57,59 @@ export interface ReactRunnerProps {
   onError?: (error: Error) => void;
 }
 
+/** Marks "nothing compiled yet" — distinct from any real `code`/`scope` value. */
+const UNSET = Symbol('unset');
+
 interface ReactRunnerState {
   element: ReactElement | null;
   error: Error | null;
+  /** The `code` the current `element`/`error` was produced from. */
+  compiledCode: string | typeof UNSET;
+  /** The `scope` (by identity) the current `element`/`error` was produced from. */
+  compiledScope: Scope | undefined | typeof UNSET;
 }
 
 /** Renders a JSX/TSX source string with a built-in error boundary. */
 export class ReactRunner extends Component<ReactRunnerProps, ReactRunnerState> {
-  state: ReactRunnerState = { element: null, error: null };
+  state: ReactRunnerState = { element: null, error: null, compiledCode: UNSET, compiledScope: UNSET };
 
-  static getDerivedStateFromProps(props: ReactRunnerProps): Partial<ReactRunnerState> | null {
+  /**
+   * Transpile + eval ONLY when `code` or the `scope` identity actually changed.
+   *
+   * Recompiling on every render broke this boundary three ways (objectui#2954):
+   *   1. React runs this before the re-render that follows
+   *      `getDerivedStateFromError`, and the old body unconditionally set
+   *      `error: null` — so the error just caught was discarded, an identical
+   *      throwing element was rebuilt, and the throw escaped PAST our own
+   *      `fallback` to whatever boundary sits above us.
+   *   2. `onError` was gated on an `error` that this had already cleared.
+   *   3. Every eval mints a fresh `Page` function, so a new element *type* on
+   *      each render remounts the page subtree and wipes its `useState`.
+   */
+  static getDerivedStateFromProps(
+    props: ReactRunnerProps,
+    state: ReactRunnerState,
+  ): Partial<ReactRunnerState> | null {
+    if (props.code === state.compiledCode && props.scope === state.compiledScope) return null;
+    const compiled = { compiledCode: props.code, compiledScope: props.scope };
     try {
-      return { element: generateElement(props.code, props.scope), error: null };
+      return { ...compiled, element: generateElement(props.code, props.scope), error: null };
     } catch (error) {
-      return { element: null, error: error as Error };
+      return { ...compiled, element: null, error: error as Error };
     }
   }
   static getDerivedStateFromError(error: Error): Partial<ReactRunnerState> {
     return { error };
   }
-  componentDidUpdate(): void {
+  componentDidMount(): void {
+    // A transpile/eval error is already in state by the time we mount, and
+    // `componentDidUpdate` never runs for the first render.
     if (this.state.error) this.props.onError?.(this.state.error);
+  }
+  componentDidUpdate(_prevProps: ReactRunnerProps, prevState: ReactRunnerState): void {
+    // Report each error once, on the transition — the state now persists, so
+    // firing on every subsequent render would repeat the same one forever.
+    if (this.state.error && this.state.error !== prevState.error) this.props.onError?.(this.state.error);
   }
   render(): ReactNode {
     if (this.state.error) {

@@ -67,6 +67,23 @@ export type ComponentConfig<T = any> = ComponentMeta & {
 };
 
 /**
+ * A CONTRACT-surface entry (ADR-0080), as returned by
+ * {@link Registry.getPublicConfigs}.
+ *
+ * Same shape as {@link ComponentConfig} except `component` is absent while the
+ * entry is still a pending `registerLazy` stub: the plugin module has not been
+ * imported yet, so there is no renderer to hand out. Consumers render such an
+ * entry through `SchemaRenderer`, which triggers the loader and shows a
+ * placeholder in the meantime (objectui#2953).
+ */
+export type PublicComponentConfig<T = any> = ComponentMeta & {
+  type: string;
+  component?: ComponentRenderer<T>;
+  /** True while this entry is a `registerLazy` stub whose loader has not run. */
+  lazy?: boolean;
+};
+
+/**
  * Lazy loader function used by `Registry.registerLazy`. The loader is invoked
  * the first time a missing component type is requested through `getAsync`/the
  * SchemaRenderer fallback path, and is expected to perform a dynamic
@@ -298,7 +315,14 @@ export class Registry<T = any> {
 
   /**
    * Get component configuration by type with namespace support.
-   * 
+   *
+   * LOADED registrations only — a type that exists solely as a `registerLazy`
+   * stub returns `undefined` here, because callers read `.component` off the
+   * result and a stub has no renderer until its loader runs. The *contract*
+   * question ("is this tag part of the public surface?") must not depend on
+   * load order, so {@link getPublicConfigs} resolves lazy stubs separately
+   * (objectui#2953). Use {@link hasLazy} / {@link loadLazy} to reach a stub.
+   *
    * @param type - Component type (e.g., 'button' or 'ui:button')
    * @param namespace - Optional namespace for lookup priority
    * @returns Component configuration or undefined
@@ -350,17 +374,45 @@ export class Registry<T = any> {
   }
 
   /**
+   * Resolve `tag` for the CONTRACT surface: the loaded registration when the
+   * component is already in the registry, otherwise the metadata of a pending
+   * `registerLazy` stub.
+   *
+   * A block registered lazily is a first-class member of the contract — the
+   * loader is recorded at boot and the plugin chunk is imported on first use —
+   * so contract membership must not hinge on whether that import happened to
+   * have run yet (objectui#2953).
+   */
+  private getContractConfig(tag: string): PublicComponentConfig<T> | undefined {
+    const loaded = this.components.get(tag);
+    if (loaded) return loaded;
+    const entry = this.lazyEntries.get(tag);
+    if (!entry) return undefined;
+    // Mirror registerLazy's key derivation so the canonical `type` matches the
+    // one `register()` will store once the loader runs — that keeps the dedupe
+    // below stable across the load. `tag` may already carry the namespace
+    // (lazyEntries holds both keys; curated tags like `record:details` are
+    // themselves colon-shaped), so don't prefix it twice.
+    const ns = entry.meta?.namespace;
+    const canonical = ns && !tag.startsWith(`${ns}:`) ? `${ns}:${tag}` : tag;
+    return { ...entry.meta, type: canonical, lazy: true };
+  }
+
+  /**
    * Get the curated PUBLIC-tier component configs (ADR-0080) — those registered
    * with `tier: 'public'`. This is the contract/AI-vocabulary surface, a subset
    * of the full rendering capability returned by {@link getAllConfigs}.
+   *
+   * Includes blocks that are only lazily registered so far; those come back
+   * with `lazy: true` and no `component` (see {@link PublicComponentConfig}).
    */
-  getPublicConfigs(): ComponentConfig<T>[] {
+  getPublicConfigs(): PublicComponentConfig<T>[] {
     // Dedupe by the config's canonical (namespaced) `type` — a component is
     // registered under both a bare and a namespaced key pointing at the same
     // canonical type, and we want one contract entry per component.
     const seenCanonical = new Set<string>();
-    const out: ComponentConfig<T>[] = [];
-    const add = (tag: string, cfg: ComponentConfig<T> | undefined): void => {
+    const out: PublicComponentConfig<T>[] = [];
+    const add = (tag: string, cfg: PublicComponentConfig<T> | undefined): void => {
       if (!cfg || seenCanonical.has(cfg.type)) return;
       seenCanonical.add(cfg.type);
       // The contract surface is keyed by the bare/curated tag authors write,
@@ -368,10 +420,14 @@ export class Registry<T = any> {
       out.push({ ...cfg, type: tag });
     };
     // Curated contract list first (stable, reviewable order) …
-    for (const tag of PUBLIC_BLOCKS) add(tag, this.getConfig(tag));
+    for (const tag of PUBLIC_BLOCKS) add(tag, this.getContractConfig(tag));
     // … plus any bare registration that opted in explicitly via `tier: 'public'`.
     for (const [key, cfg] of this.components.entries()) {
       if (cfg.tier === 'public' && !key.includes(':')) add(key, cfg);
+    }
+    // … and the same opt-in for stubs whose loader has not run yet.
+    for (const [key, entry] of this.lazyEntries.entries()) {
+      if (entry.meta?.tier === 'public' && !key.includes(':')) add(key, this.getContractConfig(key));
     }
     return out;
   }
