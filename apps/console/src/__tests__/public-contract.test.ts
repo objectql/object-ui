@@ -174,34 +174,39 @@ const DELIBERATELY_UNCURATED: Record<string, string> = {
 describe('PUBLIC_BLOCKS ↔ console coverage (reverse direction)', () => {
   const NS = 'record';
 
-  /**
-   * Eleven of these blocks are registered as
-   * `register('record:x', …, { namespace: 'record' })` — an already-prefixed
-   * name that gets prefixed again — so the registry holds both `record:x` and a
-   * doubled `record:record:x` for the same component. The doubling never
-   * reaches the contract (`getPublicConfigs()` rewrites `type` to the curated
-   * tag), but it is real in the registry, and counting raw keys would report
-   * those components twice. Collapsing the repeated prefix is what makes the
-   * set below one entry per block.
-   */
-  const undouble = (key: string): string => {
-    let k = key;
-    while (k.startsWith(`${NS}:${NS}:`)) k = k.slice(NS.length + 1);
-    return k;
-  };
-
-  const shippedRecordBlocks = (): string[] => {
-    const keys = ComponentRegistry.getKnownTypes().filter(
-      (k) => ComponentRegistry.getMeta(k)?.namespace === NS,
-    );
-    return [...new Set(keys.map(undouble))].sort();
-  };
+  const shippedRecordBlocks = (): string[] =>
+    ComponentRegistry.getKnownTypes()
+      .filter((k) => ComponentRegistry.getMeta(k)?.namespace === NS)
+      .sort();
 
   it('curates every shipped record:* block, or records why not', () => {
     const curated = new Set<string>(PUBLIC_BLOCKS);
     const uncurated = shippedRecordBlocks().filter((tag) => !curated.has(tag));
 
     expect(uncurated).toEqual(Object.keys(DELIBERATELY_UNCURATED).sort());
+  });
+
+  it('registers each record:* block under one key, prefixed once', () => {
+    // `register('record:x', …, { namespace: 'record' })` prefixes an
+    // already-prefixed name: the block lands at `record:record:x` and stays
+    // reachable only through the un-namespaced fallback, which happens to spell
+    // `record:x`. Eleven blocks were registered that way. The contract hid it —
+    // `getPublicConfigs()` rewrites `type` to the curated tag — so nothing
+    // failed while the registry carried a phantom key per block.
+    const keys = shippedRecordBlocks();
+    expect(keys.filter((k) => k.startsWith(`${NS}:${NS}:`))).toEqual([]);
+    expect(keys.every((k) => k.startsWith(`${NS}:`))).toBe(true);
+  });
+
+  it('leaves the bare names to whoever owns them', () => {
+    // The corollary of registering bare + `namespace`: without
+    // `skipFallback: true` these also claim `details`, `path`, `alert` … as
+    // top-level tags. `alert` is the live example — it belongs to `ui:`, and a
+    // missing skipFallback here would silently take it over.
+    for (const tag of shippedRecordBlocks()) {
+      const bare = tag.slice(NS.length + 1);
+      expect(ComponentRegistry.getMeta(bare)?.namespace ?? null).not.toBe(NS);
+    }
   });
 
   it('keeps the deliberately-uncurated blocks unconfigurable', () => {

@@ -221,10 +221,22 @@ ComponentRegistry.register('detail', DetailView, {
 // These renderers consume RecordContext (provided by app-shell's
 // RecordDetailView) and adapt the spec's `RecordXxxComponentProps` onto the
 // legacy plugin-detail components above.
+//
+// Pass the BARE name and let `namespace` do the prefixing — `register('details',
+// …, { namespace: 'record' })`, not `register('record:details', …)`. The
+// registry prepends the namespace itself, so a pre-prefixed name is prefixed
+// again and lands under `record:record:details`; the key that actually worked
+// was the un-namespaced fallback, which happened to spell `record:details`.
+//
+// `skipFallback: true` is what keeps that fallback from claiming the bare name
+// globally: without it these would register `details`, `path`, `history`,
+// `alert` … as top-level tags, colliding with the `ui:` primitives that own
+// them. Every block here is reachable as `record:<name>` and only that.
 // ---------------------------------------------------------------------------
 
-ComponentRegistry.register('record:details', RecordDetailsRenderer, {
+ComponentRegistry.register('details', RecordDetailsRenderer, {
   namespace: 'record',
+  skipFallback: true,
   category: 'record',
   label: 'Record Details',
   icon: 'FileText',
@@ -237,8 +249,9 @@ ComponentRegistry.register('record:details', RecordDetailsRenderer, {
   ],
 });
 
-ComponentRegistry.register('record:related_list', RecordRelatedListRenderer, {
+ComponentRegistry.register('related_list', RecordRelatedListRenderer, {
   namespace: 'record',
+  skipFallback: true,
   category: 'record',
   label: 'Related List',
   icon: 'List',
@@ -256,8 +269,9 @@ ComponentRegistry.register('record:related_list', RecordRelatedListRenderer, {
   ],
 });
 
-ComponentRegistry.register('record:highlights', RecordHighlightsRenderer, {
+ComponentRegistry.register('highlights', RecordHighlightsRenderer, {
   namespace: 'record',
+  skipFallback: true,
   category: 'record',
   label: 'Highlights Panel',
   icon: 'Star',
@@ -268,15 +282,17 @@ ComponentRegistry.register('record:highlights', RecordHighlightsRenderer, {
   ],
 });
 
-ComponentRegistry.register('record:activity', RecordActivityRenderer, {
+ComponentRegistry.register('activity', RecordActivityRenderer, {
   namespace: 'record',
+  skipFallback: true,
   category: 'record',
   label: 'Activity Timeline',
   icon: 'Activity',
 });
 
-ComponentRegistry.register('record:chatter', RecordChatterRenderer, {
+ComponentRegistry.register('chatter', RecordChatterRenderer, {
   namespace: 'record',
+  skipFallback: true,
   category: 'record',
   label: 'Chatter Feed',
   icon: 'MessageSquare',
@@ -287,15 +303,17 @@ ComponentRegistry.register('record:chatter', RecordChatterRenderer, {
 // share the same DiscussionContext wiring; we keep `record:chatter`
 // for Salesforce-familiar authors and for backward compatibility with
 // schemas already in the wild.
-ComponentRegistry.register('record:discussion', RecordChatterRenderer, {
+ComponentRegistry.register('discussion', RecordChatterRenderer, {
   namespace: 'record',
+  skipFallback: true,
   category: 'record',
   label: 'Discussion',
   icon: 'MessageSquare',
 });
 
-ComponentRegistry.register('record:path', RecordPathRenderer, {
+ComponentRegistry.register('path', RecordPathRenderer, {
   namespace: 'record',
+  skipFallback: true,
   category: 'record',
   label: 'Path / Stepper',
   icon: 'GitBranch',
@@ -306,29 +324,33 @@ ComponentRegistry.register('record:path', RecordPathRenderer, {
   ],
 });
 
-ComponentRegistry.register('record:quick_actions', RecordQuickActionsRenderer, {
+ComponentRegistry.register('quick_actions', RecordQuickActionsRenderer, {
   namespace: 'record',
+  skipFallback: true,
   category: 'record',
   label: 'Quick Actions',
   icon: 'Zap',
 });
 
-ComponentRegistry.register('record:history', RecordHistoryRenderer, {
+ComponentRegistry.register('history', RecordHistoryRenderer, {
   namespace: 'record',
+  skipFallback: true,
   category: 'record',
   label: 'History Timeline',
   icon: 'Clock',
 });
 
-ComponentRegistry.register('record:reference_rail', RecordReferenceRailRenderer, {
+ComponentRegistry.register('reference_rail', RecordReferenceRailRenderer, {
   namespace: 'record',
+  skipFallback: true,
   category: 'record',
   label: 'Reference Rail',
   icon: 'PanelRight',
 });
 
-ComponentRegistry.register('record:alert', RecordAlertRenderer, {
+ComponentRegistry.register('alert', RecordAlertRenderer, {
   namespace: 'record',
+  skipFallback: true,
   category: 'record',
   label: 'Alert Banner',
   icon: 'AlertTriangle',
