@@ -163,7 +163,9 @@ raised through `NotificationProvider` from `@object-ui/react`. One per spec
 | `<NotificationAlerts />` | `alert` | anywhere inside the provider — blocking dialog, FIFO queue |
 | `<NotificationInline scope="…" />` | `inline` | in the surface that raises them |
 
-`toast` stays with the host's `onToast` delegate (sonner in the console). See the
+`toast` stays with the host's `onToast` delegate (sonner in the console). All of
+them draw the notification's `severity` icon unless it declares an `icon`
+override naming a real Lucide icon. See the
 [notifications guide](https://objectui.org/docs/guide/notifications).
 
 ```tsx

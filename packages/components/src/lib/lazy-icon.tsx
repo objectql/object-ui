@@ -40,6 +40,19 @@ function isLucideIcon(kebab: string): boolean {
   return VALID_ICON_NAMES.has(kebab);
 }
 
+/**
+ * Whether `name` (kebab-case or PascalCase) resolves to a real Lucide icon.
+ *
+ * Exported because `getLazyIcon` degrades an unknown name to the `Database`
+ * icon, which is the right default for a data-shaped schema slot but wrong
+ * where a caller has a BETTER fallback of its own — a notification, for
+ * instance, would rather show its severity icon than a stray database glyph.
+ * Ask first, then choose.
+ */
+export function isLucideIconName(name?: string): boolean {
+  return !!name && isLucideIcon(toKebabIconName(name));
+}
+
 const cache = new Map<string, React.ElementType>();
 
 /**

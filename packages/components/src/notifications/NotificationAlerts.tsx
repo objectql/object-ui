@@ -32,7 +32,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../ui/alert-dialog';
-import { notificationSeverityStyle } from './severity';
+import { notificationIcon, notificationSeverityStyle } from './severity';
 
 export interface NotificationAlertsProps {
   /** Extra classes for the dialog content. */
@@ -61,7 +61,8 @@ export function NotificationAlerts({ className, acknowledgeLabel = 'OK' }: Notif
   const notification = alerts[alerts.length - 1];
   if (!notification) return null;
 
-  const { Icon, iconTone } = notificationSeverityStyle(notification.severity);
+  const { iconTone } = notificationSeverityStyle(notification.severity);
+  const Icon = notificationIcon(notification);
   const acknowledge = () => dismiss(notification.id);
   // `dismissible: false` removes the wave-it-away paths (Escape); it never
   // removes the acknowledge button — an alert nobody can acknowledge is a trap.
@@ -77,6 +78,7 @@ export function NotificationAlerts({ className, acknowledgeLabel = 'OK' }: Notif
       >
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
+            {/* eslint-disable-next-line react-hooks/static-components -- notificationIcon returns a module-cached stable component per name, not one created during render */}
             <Icon className={cn('h-5 w-5 shrink-0', iconTone)} aria-hidden="true" />
             {notification.title}
           </AlertDialogTitle>

@@ -32,6 +32,7 @@ import { NotificationBanners } from '../NotificationBanners';
 import { NotificationSnackbar } from '../NotificationSnackbar';
 import { NotificationAlerts } from '../NotificationAlerts';
 import { NotificationInline } from '../NotificationInline';
+import { notificationIcon, notificationSeverityStyle } from '../severity';
 
 function specDisplayTypes(): string[] {
   const raw = (NotificationTypeSchema as { options?: readonly string[] }).options;
@@ -172,6 +173,16 @@ describe('notification surfaces', () => {
     expect(screen.queryByRole('button', { name: 'Dismiss Sticky' })).not.toBeInTheDocument();
   });
 
+  it('renders a surface whose notification declares an icon override', () => {
+    act(() => {
+      raise({ title: 'Deploy finished', severity: 'success', displayType: 'banner', icon: 'rocket' });
+    });
+
+    // The resolution contract is pinned on `notificationIcon`; here the point is
+    // only that a declared icon reaches the surface without breaking it.
+    expect(surfaceOf('Deploy finished')).toBe('banner');
+  });
+
   it('runs a snackbar action and clears the snackbar', async () => {
     const user = userEvent.setup();
     const onClick = vi.fn();
@@ -185,6 +196,36 @@ describe('notification surfaces', () => {
     await user.click(screen.getByRole('button', { name: 'Undo' }));
     expect(onClick).toHaveBeenCalledTimes(1);
     expect(screen.queryByText('Row deleted')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * The spec `icon` — a second value that was stored and never read. Every
+ * surface resolves it through `notificationIcon`, so the override behaves the
+ * same on a banner, a snackbar, an alert and an inline message.
+ */
+describe('notificationIcon', () => {
+  it('uses the severity icon when no override is declared', () => {
+    expect(notificationIcon({ severity: 'error' }))
+      .toBe(notificationSeverityStyle('error').Icon);
+  });
+
+  it('honors a declared Lucide icon over the severity default', () => {
+    const resolved = notificationIcon({ severity: 'error', icon: 'rocket' });
+    expect(resolved).not.toBe(notificationSeverityStyle('error').Icon);
+    expect(resolved).toBeTruthy();
+  });
+
+  it('accepts the PascalCase spelling too', () => {
+    expect(notificationIcon({ severity: 'info', icon: 'CircleCheck' }))
+      .not.toBe(notificationSeverityStyle('info').Icon);
+  });
+
+  it('falls back to the severity icon for a name Lucide does not have', () => {
+    // NOT `getLazyIcon`'s `Database` glyph: on a notification the severity icon
+    // is always the better fallback, so a typo costs the override and no more.
+    expect(notificationIcon({ severity: 'warning', icon: 'not-a-real-icon' }))
+      .toBe(notificationSeverityStyle('warning').Icon);
   });
 });
 

@@ -27,6 +27,7 @@ export { NotificationAlerts, type NotificationAlertsProps } from './Notification
 export { NotificationInline, type NotificationInlineProps } from './NotificationInline';
 export {
   NOTIFICATION_SEVERITY_STYLES,
+  notificationIcon,
   notificationSeverityStyle,
   type NotificationSeverityStyle,
 } from './severity';

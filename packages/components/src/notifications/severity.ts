@@ -15,8 +15,10 @@
  * arrives as a banner or as an inline message.
  */
 
+import type { ElementType } from 'react';
 import { AlertTriangle, CheckCircle2, Info, XCircle, type LucideIcon } from 'lucide-react';
-import type { NotificationSeverityLevel } from '@object-ui/react';
+import type { NotificationItem, NotificationSeverityLevel } from '@object-ui/react';
+import { getLazyIcon, isLucideIconName } from '../lib/lazy-icon';
 
 export interface NotificationSeverityStyle {
   /** Leading icon. */
@@ -62,4 +64,21 @@ export function notificationSeverityStyle(
   severity?: NotificationSeverityLevel,
 ): NotificationSeverityStyle {
   return NOTIFICATION_SEVERITY_STYLES[severity ?? 'info'] ?? NOTIFICATION_SEVERITY_STYLES.info;
+}
+
+/**
+ * The icon a notification renders: the spec `icon` override when it names a
+ * real Lucide icon, otherwise the severity default.
+ *
+ * The name check is the point. `getLazyIcon` degrades an unknown name to the
+ * `Database` glyph — sensible for a data-shaped schema slot, but on an error
+ * notification it would replace a meaningful icon with a meaningless one. Here
+ * the severity icon is always the better fallback, so a typo costs the author
+ * their override and nothing more.
+ */
+export function notificationIcon(
+  notification: Pick<NotificationItem, 'severity' | 'icon'>,
+): ElementType {
+  if (isLucideIconName(notification.icon)) return getLazyIcon(notification.icon);
+  return notificationSeverityStyle(notification.severity).Icon;
 }

@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { isValidElement } from 'react';
 import type { NotificationItem } from '@object-ui/react';
 
 vi.mock('sonner', () => ({
@@ -16,6 +17,10 @@ vi.mock('sonner', () => ({
 
 import { toast } from 'sonner';
 import { presentNotificationToast } from './notificationToast';
+// Imported at module scope, not inside a test: `@object-ui/components` is a
+// heavy barrel and resolving it mid-assertion would race the RTL timeouts
+// (AGENTS.md § 测试纪律).
+import '@object-ui/components';
 
 function item(overrides: Partial<NotificationItem> = {}): NotificationItem {
   return {
@@ -100,5 +105,32 @@ describe('presentNotificationToast', () => {
     expect(toast.success).toHaveBeenCalledWith('Saved', expect.objectContaining({
       dismissible: false,
     }));
+  });
+
+  it('passes the spec icon override to sonner', () => {
+    presentNotificationToast(item({ icon: 'rocket' }));
+    const { icon } = vi.mocked(toast.success).mock.calls[0][1] as { icon?: unknown };
+    expect(isValidElement(icon)).toBe(true);
+    expect((icon as { props: { name?: string } }).props.name).toBe('rocket');
+  });
+
+  it('accepts a PascalCase icon name', () => {
+    presentNotificationToast(item({ icon: 'CircleCheck' }));
+    const { icon } = vi.mocked(toast.success).mock.calls[0][1] as { icon?: unknown };
+    expect(isValidElement(icon)).toBe(true);
+  });
+
+  it('omits the icon key for a name Lucide does not have', () => {
+    // Passing it through would render LazyIcon's `Database` fallback — a
+    // meaningless glyph where ConsoleToaster's severity icon belongs.
+    presentNotificationToast(item({ icon: 'not-a-real-icon' }));
+    const options = vi.mocked(toast.success).mock.calls[0][1] as Record<string, unknown>;
+    expect(options).not.toHaveProperty('icon');
+  });
+
+  it('omits the icon key when none is declared', () => {
+    presentNotificationToast(item());
+    const options = vi.mocked(toast.success).mock.calls[0][1] as Record<string, unknown>;
+    expect(options).not.toHaveProperty('icon');
   });
 });

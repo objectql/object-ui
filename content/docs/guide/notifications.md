@@ -115,6 +115,21 @@ Omit `scope` on both ends for a page-level inline outlet. `scope` is renderer-lo
 routing metadata, not a spec field — the spec describes what a notification *is*,
 not which React subtree hosts it.
 
+### `icon`
+
+Every surface — including the console's sonner toast — resolves `icon` through
+the same rule: a declared Lucide name (kebab-case or PascalCase) replaces the
+severity icon; anything else falls back to it.
+
+```tsx
+notify({ title: 'Deploy finished', severity: 'success', displayType: 'banner', icon: 'rocket' });
+```
+
+A name Lucide doesn't have costs the author their override and nothing more —
+deliberately *not* the generic `Database` glyph `getLazyIcon` returns for
+data-shaped schema slots, which on an error notification would replace a
+meaningful icon with a meaningless one.
+
 ### `dismissible`
 
 Defaults to `true`. On the persistent presentations, `dismissible: false` removes

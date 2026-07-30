@@ -21,7 +21,7 @@ import { X } from 'lucide-react';
 import { useNotifications, useNotificationsByPresentation } from '@object-ui/react';
 import { cn } from '../lib/utils';
 import { Button } from '../ui/button';
-import { notificationSeverityStyle } from './severity';
+import { notificationIcon, notificationSeverityStyle } from './severity';
 
 export interface NotificationInlineProps {
   /**
@@ -57,7 +57,8 @@ export function NotificationInline({ scope, className }: NotificationInlineProps
       data-scope={scope}
     >
       {items.map((notification) => {
-        const { Icon, tone } = notificationSeverityStyle(notification.severity);
+        const { tone } = notificationSeverityStyle(notification.severity);
+        const Icon = notificationIcon(notification);
         return (
           <div
             key={notification.id}

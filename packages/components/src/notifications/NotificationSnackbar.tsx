@@ -21,7 +21,7 @@ import { X } from 'lucide-react';
 import { useNotifications, useNotificationsByPresentation } from '@object-ui/react';
 import { cn } from '../lib/utils';
 import { Button } from '../ui/button';
-import { notificationSeverityStyle } from './severity';
+import { notificationIcon, notificationSeverityStyle } from './severity';
 
 export interface NotificationSnackbarProps {
   /** Extra classes for the snackbar container. */
@@ -47,7 +47,8 @@ export function NotificationSnackbar({ className }: NotificationSnackbarProps) {
   const notification = snackbars[0];
   if (!notification) return null;
 
-  const { Icon, iconTone } = notificationSeverityStyle(notification.severity);
+  const { iconTone } = notificationSeverityStyle(notification.severity);
+  const Icon = notificationIcon(notification);
   // The spec frames a snackbar as carrying "an optional single action"; extra
   // actions belong on a banner or an alert.
   const action = notification.actions?.[0];
@@ -65,6 +66,7 @@ export function NotificationSnackbar({ className }: NotificationSnackbarProps) {
       data-notification-surface="snackbar"
       data-severity={notification.severity}
     >
+      {/* eslint-disable-next-line react-hooks/static-components -- notificationIcon returns a module-cached stable component per name, not one created during render */}
       <Icon className={cn('h-4 w-4 shrink-0', iconTone)} aria-hidden="true" />
       <div className="min-w-0 flex-1">
         <div className="truncate font-medium">{notification.title}</div>

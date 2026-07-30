@@ -21,7 +21,7 @@ import { X } from 'lucide-react';
 import { useNotifications, useNotificationsByPresentation } from '@object-ui/react';
 import { cn } from '../lib/utils';
 import { Button } from '../ui/button';
-import { notificationSeverityStyle } from './severity';
+import { notificationIcon, notificationSeverityStyle } from './severity';
 
 export interface NotificationBannersProps {
   /** Extra classes for the banner stack container. */
@@ -53,7 +53,8 @@ export function NotificationBanners({ className, max = 3 }: NotificationBannersP
   return (
     <div className={cn('flex w-full flex-col', className)} data-notification-surface="banner">
       {banners.slice(0, max).map((notification) => {
-        const { Icon, tone } = notificationSeverityStyle(notification.severity);
+        const { tone } = notificationSeverityStyle(notification.severity);
+        const Icon = notificationIcon(notification);
         return (
           <div
             key={notification.id}

@@ -15,6 +15,7 @@
 
 import { toast } from 'sonner';
 import type { NotificationItem, NotificationSeverityLevel } from '@object-ui/react';
+import { isLucideIconName, LazyIcon } from '@object-ui/components';
 
 /**
  * Typed as `Record<NotificationSeverityLevel, …>` so a new severity in the spec
@@ -40,11 +41,19 @@ export function presentNotificationToast(notification: NotificationItem): void {
   // A toast carries at most one action button — sonner has one `action` slot,
   // and a notification needing more than one belongs on a banner or an alert.
   const action = notification.actions?.[0];
+  // The spec `icon` override, matching what the four surface components do.
+  // Only a REAL Lucide name is passed: `LazyIcon` degrades an unknown one to a
+  // `Database` glyph, whereas omitting the key leaves ConsoleToaster's severity
+  // icon in place — the better fallback for a typo.
+  const icon = isLucideIconName(notification.icon)
+    ? <LazyIcon name={notification.icon} className="h-4 w-4" />
+    : undefined;
 
   show(notification.title, {
     description: notification.message,
     duration: notification.duration === 0 ? Infinity : notification.duration,
     dismissible: notification.dismissible,
+    ...(icon ? { icon } : {}),
     ...(action ? { action: { label: action.label, onClick: action.onClick } } : {}),
   });
 }
