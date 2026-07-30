@@ -317,6 +317,7 @@ const ja = {
       matchFieldsPlaceholder: "照合する項目を選択…",
       matchFieldsHint: "これらの項目で既存レコードと照合します。",
       needMatchFields: "照合する項目を 1 つ以上選択してください。",
+      matchOnlyField: "（照合のみ）",
       optCreateOptions: "未知の選択肢の値を保持する",
       optRunAutomations: "自動化とトリガーを実行する",
       optTreatHistorical: "過去データとしてインポートする",

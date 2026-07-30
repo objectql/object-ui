@@ -317,6 +317,7 @@ const ar = {
       matchFieldsPlaceholder: "اختر حقول المطابقة…",
       matchFieldsHint: "تتم مطابقة الصفوف بالسجلات الموجودة عبر هذه الحقول.",
       needMatchFields: "اختر حقلًا واحدًا على الأقل للمطابقة.",
+      matchOnlyField: "(للمطابقة فقط)",
       optCreateOptions: "الاحتفاظ بقيم الخيارات غير المعروفة",
       optRunAutomations: "تشغيل الأتمتة والمشغّلات",
       optTreatHistorical: "الاستيراد كبيانات تاريخية",

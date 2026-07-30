@@ -352,6 +352,7 @@ const en = {
       matchFieldsPlaceholder: 'Choose match field(s)…',
       matchFieldsHint: 'Rows are matched to existing records by these field(s).',
       needMatchFields: 'Select at least one field to match on.',
+      matchOnlyField: '(match only)',
       optCreateOptions: 'Keep unknown option values',
       optRunAutomations: 'Run automations & triggers',
       optTreatHistorical: 'Import as historical data',

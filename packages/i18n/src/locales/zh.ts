@@ -376,6 +376,7 @@ const zh = {
       matchFieldsPlaceholder: '选择匹配字段…',
       matchFieldsHint: '按这些字段将行匹配到已有记录。',
       needMatchFields: '请至少选择一个匹配字段。',
+      matchOnlyField: '（仅匹配）',
       optRunAutomations: '运行自动化与触发器',
       optCreateOptions: '保留未知选项值',
       optSkipBlankKey: '跳过匹配值为空的行',

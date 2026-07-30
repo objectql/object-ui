@@ -317,6 +317,7 @@ const ko = {
       matchFieldsPlaceholder: "일치 기준 필드 선택…",
       matchFieldsHint: "이 필드를 기준으로 기존 레코드와 대조합니다.",
       needMatchFields: "일치 기준 필드를 하나 이상 선택하세요.",
+      matchOnlyField: "(일치 전용)",
       optCreateOptions: "알 수 없는 선택 값 유지",
       optRunAutomations: "자동화 및 트리거 실행",
       optTreatHistorical: "과거 데이터로 가져오기",

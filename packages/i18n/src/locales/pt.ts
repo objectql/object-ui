@@ -317,6 +317,7 @@ const pt = {
       matchFieldsPlaceholder: "Escolha o(s) campo(s) de correspondência…",
       matchFieldsHint: "As linhas são associadas a registros existentes por estes campos.",
       needMatchFields: "Selecione pelo menos um campo de correspondência.",
+      matchOnlyField: "(somente correspondência)",
       optCreateOptions: "Manter valores de opção desconhecidos",
       optRunAutomations: "Executar automações e gatilhos",
       optTreatHistorical: "Importar como dados históricos",

@@ -58,6 +58,7 @@ import { RecordDetailView } from './RecordDetailView';
 import { resolveCrudAffordances } from '../utils/crudAffordances';
 import { createIdentityImportDataSource, IDENTITY_IMPORT_OBJECT, type IdentityPasswordPolicy } from './identityImport';
 import { IdentityImportOptions, IdentityImportResultExtra, identityImportFields } from './IdentityImportPanels';
+import { importTargetFields } from './importTargetFields';
 import { useExpressionContext } from '../providers/ExpressionProvider';
 import { resolveManagedByEmptyState } from '../utils/managedByEmptyState';
 import { resolveViewId } from '../utils/resolveViewId';
@@ -1807,30 +1808,11 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                      // (readonly for CRUD; identity writes go through
                      // better-auth, framework#2782).
                      ? identityImportFields(objectDef.fields)
-                     : Object.entries(objectDef.fields || {})
-                     // Only writable fields are importable targets. Computed
-                     // types (formula/summary/autonumber) and readonly fields
-                     // are server-rejected, and FLS-restricted fields get a
-                     // 403 from the write path — so we omit them from the
-                     // mapping step (and the downloadable template) rather
-                     // than let a user map to a column the import will
-                     // reject. The FLS bit comes from the server-resolved
-                     // /me/permissions channel (checkField), not from the
-                     // schema, which carries no per-caller permission bits
-                     // (objectstack#3661).
-                     .filter(([name, def]: [string, any]) =>
-                       !['formula', 'summary', 'autonumber'].includes(def?.type) &&
-                       !def?.readonly &&
-                       (!perms?.isLoaded || perms.checkField(objectDef.name, name, 'write')),
-                     )
-                     .map(([name, def]: [string, any]) => ({
-                       name,
-                       label: def?.label || name,
-                       type: def?.type || 'text',
-                       required: !!def?.required,
-                       // Enum options seed the downloadable template's example row.
-                       ...(def?.options ? { options: def.options } : {}),
-                     }))}
+                     // Writable fields as WRITE targets + storage-backed
+                     // readonly/autonumber fields as MATCH-ONLY targets (so
+                     // update/upsert can match on the record number, #020) —
+                     // see importTargetFields for the full derivation.
+                     : importTargetFields(objectDef.name, objectDef.fields, perms)}
                    dataSource={identityDataSource ?? dataSource}
                    {...(identityImportEnabled ? {
                      extraOptionsContent: (

@@ -125,6 +125,7 @@ export const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.import.matchFieldsPlaceholder': 'Choose match field(s)…',
   'grid.import.matchFieldsHint': 'Rows are matched to existing records by these field(s).',
   'grid.import.needMatchFields': 'Select at least one field to match on.',
+  'grid.import.matchOnlyField': '(match only)',
   'grid.import.optCreateOptions': 'Keep unknown option values',
   'grid.import.optRunAutomations': 'Run automations & triggers',
   'grid.import.optTreatHistorical': 'Import as historical data',
@@ -280,6 +281,13 @@ export interface ImportWizardProps {
     /** Allowed values for select/enum fields — used to seed the downloadable
      *  template's example row. Accepts option objects or bare strings. */
     options?: Array<{ label?: string; value?: string | number } | string>;
+    /** Storage-backed but non-writable target (autonumber / readonly): mappable
+     *  so update/upsert can MATCH rows on it (e.g. "update the row whose record
+     *  number already exists"), rendered with a "(match only)" hint. The value
+     *  still travels in the row — the server needs it to locate the record; the
+     *  engine strips readonly values from updates and respects explicitly
+     *  seeded values on insert. */
+    matchOnly?: boolean;
   }>;
   dataSource: any;
   onComplete?: (result: ImportResult) => void;
@@ -1118,7 +1126,7 @@ const StepMapping: React.FC<{
                     <SelectItem value="__skip__">{t('grid.import.skip')}</SelectItem>
                     {fields.map((f) => (
                       <SelectItem key={f.name} value={f.name} disabled={usedFields.has(f.name) && mapping[idx] !== f.name}>
-                        {f.label}{f.required ? ' *' : ''}
+                        {f.label}{f.required ? ' *' : ''}{f.matchOnly ? ` ${t('grid.import.matchOnlyField')}` : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>

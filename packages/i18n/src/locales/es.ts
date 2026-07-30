@@ -317,6 +317,7 @@ const es = {
       matchFieldsPlaceholder: "Elija el campo o campos de coincidencia…",
       matchFieldsHint: "Las filas se emparejan con registros existentes por estos campos.",
       needMatchFields: "Seleccione al menos un campo por el que coincidir.",
+      matchOnlyField: "(solo coincidencia)",
       optCreateOptions: "Conservar los valores de opción desconocidos",
       optRunAutomations: "Ejecutar automatizaciones y disparadores",
       optTreatHistorical: "Importar como datos históricos",

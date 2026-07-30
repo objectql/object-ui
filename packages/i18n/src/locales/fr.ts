@@ -317,6 +317,7 @@ const fr = {
       matchFieldsPlaceholder: "Choisir le ou les champs de correspondance…",
       matchFieldsHint: "Les lignes sont rapprochées des enregistrements existants via ces champs.",
       needMatchFields: "Sélectionnez au moins un champ de correspondance.",
+      matchOnlyField: "(correspondance seule)",
       optCreateOptions: "Conserver les valeurs d'option inconnues",
       optRunAutomations: "Exécuter les automatisations et déclencheurs",
       optTreatHistorical: "Importer comme données historiques",

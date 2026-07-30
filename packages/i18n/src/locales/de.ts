@@ -317,6 +317,7 @@ const de = {
       matchFieldsPlaceholder: "Abgleichsfeld(er) wählen…",
       matchFieldsHint: "Zeilen werden über diese Felder vorhandenen Datensätzen zugeordnet.",
       needMatchFields: "Wählen Sie mindestens ein Feld für den Abgleich aus.",
+      matchOnlyField: "(nur Abgleich)",
       optCreateOptions: "Unbekannte Optionswerte beibehalten",
       optRunAutomations: "Automatisierungen und Trigger ausführen",
       optTreatHistorical: "Als historische Daten importieren",
