@@ -202,9 +202,14 @@ export function classifyActionKeys(action: object | null | undefined): {
   return { unknown, retired };
 }
 
-// Warn once per key, not once per execution: an unrecognized key usually sits in
-// metadata driving a button that gets clicked repeatedly, and a warning that
-// floods the console is a warning that gets muted.
+// Warn once per (action, problem), not once per execution: an unrecognized key
+// usually sits in metadata driving a button that gets clicked repeatedly, and a
+// warning that floods the console is a warning that gets muted.
+//
+// Keyed by action name as well as by the keys, deliberately. Keying on the keys
+// alone would report the FIRST action carrying `targt` and stay silent about
+// every other one — sending the author to fix a button that was only the first
+// symptom. The memo is bounded by the number of authored actions either way.
 const warned = new Set<string>();
 
 /** Reset the warn-once memo. Exported for tests. */
@@ -230,14 +235,14 @@ export function warnOnUnknownActionKeys(action: object | null | undefined, where
   const name = (action as { name?: unknown; type?: unknown })?.name ?? (action as { type?: unknown })?.type ?? '(unnamed)';
 
   for (const key of retired) {
-    const memo = `retired:${key}`;
+    const memo = `retired:${String(name)}:${key}`;
     if (warned.has(memo)) continue;
     warned.add(memo);
     console.warn(`[${where}] action "${String(name)}" carries the retired key \`${key}\`. ${RETIRED_ACTION_KEYS[key]}`);
   }
 
   if (unknown.length === 0) return;
-  const memo = `unknown:${unknown.slice().sort().join(',')}`;
+  const memo = `unknown:${String(name)}:${unknown.slice().sort().join(',')}`;
   if (warned.has(memo)) return;
   warned.add(memo);
   console.warn(

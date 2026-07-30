@@ -147,9 +147,18 @@ describe('unknown-key warning', () => {
     expect(warn.mock.calls[0][0]).toContain('rename the key to `target`');
   });
 
-  it('warns once per key, not once per click', () => {
+  it('warns once per action, not once per click', () => {
     for (let i = 0; i < 5; i++) warnOnUnknownActionKeys({ name: 'save', type: 'script', targt: 'x' });
     expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('still names a SECOND action carrying the same typo', () => {
+    // Keying the warn-once memo on the keys alone would report `save` and stay
+    // silent about `remove` — sending the author to fix the first symptom only.
+    warnOnUnknownActionKeys({ name: 'save', type: 'script', targt: 'x' });
+    warnOnUnknownActionKeys({ name: 'remove', type: 'script', targt: 'y' });
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(warn.mock.calls[1][0]).toContain('"remove"');
   });
 
   it('is silent in production', () => {
