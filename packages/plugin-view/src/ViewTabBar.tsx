@@ -78,6 +78,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DraggableSyntheticListeners,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -210,7 +211,7 @@ const SortableTab: React.FC<{
   children: (props: {
     setNodeRef: (node: HTMLElement | null) => void;
     style: React.CSSProperties;
-    listeners: Record<string, (...args: any[]) => void> | undefined;
+    listeners: DraggableSyntheticListeners;
     attributes: Record<string, unknown>;
     isDragging: boolean;
   }) => React.ReactNode;
@@ -413,7 +414,7 @@ export const ViewTabBar: React.FC<ViewTabBarProps> = ({
     const visibilityIcon = getVisibilityIcon(view);
 
     const buildTabContent = (dragHandleProps?: {
-      listeners: Record<string, (...args: any[]) => void> | undefined;
+      listeners: DraggableSyntheticListeners;
       attributes: Record<string, unknown>;
       isDragging?: boolean;
     }) => (

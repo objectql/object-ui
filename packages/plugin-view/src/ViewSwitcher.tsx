@@ -24,6 +24,7 @@ import { SchemaRenderer } from '@object-ui/react';
 import type { ViewSwitcherSchema, ViewType } from '@object-ui/types';
 import {
   Activity,
+  BarChart3,
   Calendar,
   FileText,
   GanttChartSquare,
@@ -64,6 +65,7 @@ const DEFAULT_VIEW_LABELS: Record<ViewType, string> = {
   map: 'Map',
   gallery: 'Gallery',
   gantt: 'Gantt',
+  chart: 'Chart',
   tree: 'Tree',
 };
 
@@ -77,6 +79,7 @@ const DEFAULT_VIEW_ICONS: Record<ViewType, LucideIcon> = {
   map: Map,
   gallery: Images,
   gantt: GanttChartSquare,
+  chart: BarChart3,
   tree: ListTree,
 };
 

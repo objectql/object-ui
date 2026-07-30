@@ -2,7 +2,19 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "dist",
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    // Drop the root tsconfig's source-tree `paths` (keeping only the local `@/*`
+    // alias) so `@object-ui/*` and `@objectstack/spec` resolve through the
+    // workspace dependency's built `.d.ts` instead of pulling sibling package
+    // sources in as program inputs — ~104 TS6059 rootDir errors otherwise (#2915).
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Tests are type-checked by `tsconfig.test.json`, which the `type-check`
+  // script chains: they need `@testing-library/jest-dom`'s global matcher
+  // augmentation, and this project is the build, so they must not reach `dist`.
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"]
 }

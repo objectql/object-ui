@@ -626,7 +626,7 @@ describe('ObjectView', () => {
         showSort: false,
       };
 
-      const renderListViewSpy = vi.fn(({ schema: listSchema }: any) => (
+      const renderListViewSpy = vi.fn((_props: any) => (
         <div data-testid="custom-list">Custom ListView</div>
       ));
 
@@ -651,7 +651,7 @@ describe('ObjectView', () => {
         objectName: 'contacts',
       };
 
-      const renderListViewSpy = vi.fn(({ schema: listSchema }: any) => (
+      const renderListViewSpy = vi.fn((_props: any) => (
         <div data-testid="custom-list">Custom ListView</div>
       ));
 
@@ -744,7 +744,7 @@ describe('ObjectView', () => {
         objectName: 'contacts',
       };
 
-      const renderListViewSpy = vi.fn(({ schema: listSchema }: any) => (
+      const renderListViewSpy = vi.fn((_props: any) => (
         <div data-testid="custom-list">Custom ListView</div>
       ));
 

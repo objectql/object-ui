@@ -40,7 +40,6 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // #2911 sweep (bare `tsc --noEmit` with the `paths` override its type-checked
 // peers already carry, so the TS6059 rootDir noise is excluded).
 const DEBT = {
-  "@object-ui/plugin-view": { errors: 3, issue: 2916, note: "Record<ViewType,...> missing the 'chart' key" },
   "@object-ui/layout": { errors: 2, issue: 2918, note: "nav type 'component' is implemented but absent from NavigationItemType and its zod enum" },
 };
 
