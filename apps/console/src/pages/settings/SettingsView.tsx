@@ -15,6 +15,7 @@ import { getIcon } from '../../utils/getIcon';
 import { SettingsField } from './SettingsField';
 import {
   getSettingsNamespace,
+  lockedKeyOf,
   runSettingsAction,
   saveSettingsNamespace,
 } from './api';
@@ -128,8 +129,11 @@ export function SettingsView() {
       setDraft({});
       toast.success('Settings saved');
     } catch (err: any) {
-      if (err?.payload?.error?.code === 'SETTINGS_LOCKED') {
-        toast.error(`Locked by environment: ${err.payload.error.key}`);
+      const apiError = err?.payload?.error;
+      if (apiError?.code === 'SETTINGS_LOCKED') {
+        // `lockedKeyOf` reads both wire positions — see its note (objectstack#4224).
+        const key = lockedKeyOf(apiError);
+        toast.error(key ? `Locked by environment: ${key}` : 'Locked by environment');
       } else {
         toast.error(err?.message ?? 'Save failed');
       }

@@ -28,6 +28,35 @@ const jsonHeaders = (): HeadersInit => ({
   Accept: 'application/json',
 });
 
+/**
+ * The env-locked key named by a `SETTINGS_LOCKED` error, read from whichever
+ * position the serving version puts it in (objectstack#4224).
+ *
+ * It used to arrive as `error.key` — a SIBLING of `code`/`message` that
+ * `ApiErrorSchema` never declared. That body was accepted only because the
+ * schema is a plain `z.object` and strips undeclared keys rather than rejecting
+ * them, so nothing on either side ever flagged it. objectstack#4224 moves it to
+ * `error.details.key`, the slot the contract does declare.
+ *
+ * Declared home first, old position second, so the console names the key against
+ * servers on either side of that change instead of rendering `undefined` for the
+ * duration of the window. Drop the second read once the oldest supported server
+ * carries the fix.
+ *
+ * Lives here rather than inline in the view because this module already owns
+ * what the server's error body looks like (`jsonOrThrow` is what builds
+ * `err.payload`), and because a compat shim that no test exercises is a compat
+ * shim that gets deleted by the next person who reads only one of the two
+ * shapes.
+ */
+export function lockedKeyOf(apiError: unknown): string | undefined {
+  if (!apiError || typeof apiError !== 'object') return undefined;
+  const e = apiError as { key?: unknown; details?: { key?: unknown } | null };
+  const declared = e.details && typeof e.details === 'object' ? e.details.key : undefined;
+  const found = declared ?? e.key;
+  return typeof found === 'string' && found.length > 0 ? found : undefined;
+}
+
 export async function listSettingsManifests(): Promise<SettingsListResponse> {
   const res = await fetch(BASE, { credentials: 'include', headers: jsonHeaders() });
   return jsonOrThrow<SettingsListResponse>(res);
