@@ -187,18 +187,31 @@ PageVariablesProvider.displayName = 'PageVariablesProvider';
  */
 export function usePageVariables(): PageVariablesContextValue {
   const ctx = useContext(PageVariablesContext);
-  if (!ctx) {
-    // Graceful fallback — allows components to work outside a Page
-    return {
-      variables: {},
-      definitions: [],
-      setVariable: () => {},
-      setVariables: () => {},
-      resetVariables: () => {},
-    };
-  }
-  return ctx;
+  return ctx ?? OUTSIDE_PAGE;
 }
+
+/**
+ * Graceful fallback — allows components to work outside a Page.
+ *
+ * MUST be a module constant, not a fresh literal per call. `SchemaRenderer`
+ * feeds `variables` into the `evaluatedSchema` memo's dependency list, so a new
+ * object each render defeats that memo for every component rendered outside a
+ * PageVariablesProvider — and hands children a new schema identity every time.
+ * A `kind:'react'` page memoises its compiled source on that identity, so the
+ * page was being remounted and its `useState` reset (objectui#2954).
+ *
+ * Frozen through, because sharing one instance means a stray write would no
+ * longer be scoped to one render — it would leak to every consumer outside a
+ * provider. There is no writer today (the setters are the API, and here they
+ * are no-ops); the freeze keeps it that way.
+ */
+const OUTSIDE_PAGE: PageVariablesContextValue = Object.freeze({
+  variables: Object.freeze({}),
+  definitions: Object.freeze([]) as never,
+  setVariable: () => {},
+  setVariables: () => {},
+  resetVariables: () => {},
+});
 
 /**
  * Hook to check if a PageVariablesProvider is available.

@@ -15,6 +15,7 @@
  * @packageDocumentation
  */
 
+import type { ChartType as SpecChartType } from '@objectstack/spec/ui';
 import type { BaseSchema, SchemaNode } from './base';
 
 /**
@@ -686,7 +687,14 @@ export interface TreeViewSchema extends BaseSchema {
 /**
  * Chart type
  */
-export type ChartType = 'line' | 'bar' | 'area' | 'pie' | 'donut' | 'radar' | 'scatter';
+/**
+ * Chart Type — `@objectstack/spec`'s own `ChartType` re-exported (issue
+ * #2231/#2901; formerly a hand-written union that had drifted to 7 of 19 values).
+ *
+ * Re-exported rather than restated, so a chart family the spec adds cannot go
+ * missing here.
+ */
+export type ChartType = SpecChartType;
 
 /**
  * Chart data series

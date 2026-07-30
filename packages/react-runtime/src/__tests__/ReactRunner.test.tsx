@@ -48,8 +48,33 @@ describe('generateElement', () => {
     expect(React.isValidElement(el)).toBe(true);
   });
 
+  it.each([
+    ['bare JSX', '<p>hi</p>'],
+    ['function declaration', 'function Page() { return <p>hi</p>; }'],
+    ['arrow IIFE form', '() => <p>hi</p>'],
+    ['explicit default export', 'const Page = () => <p>hi</p>;\nexport default Page;'],
+  ])('accepts the %s source shape', (_name, code) => {
+    expect(React.isValidElement(generateElement(code))).toBe(true);
+  });
+
   it('returns null for empty source', () => {
     expect(generateElement('   ')).toBeNull();
+  });
+
+  it('returns null for an explicit `export default null` — render nothing', () => {
+    expect(generateElement('export default null;')).toBeNull();
+  });
+
+  it('throws when the source exports nothing instead of rendering blank', () => {
+    // `normalizeCode` only auto-exports a source that STARTS with JSX /
+    // `function` / `()` / `class`. This shape is the one authors reach for
+    // most, and it used to produce a blank page with no error anywhere —
+    // nothing in the console, nothing in the page error panel.
+    expect(() => generateElement('const Page = () => <p>hi</p>;')).toThrow(/exported nothing/);
+  });
+
+  it('throws when the source exports something that is not a component', () => {
+    expect(() => generateElement('export default 42;')).toThrow(/default-exported a number/);
   });
 });
 

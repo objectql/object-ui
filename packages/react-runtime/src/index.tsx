@@ -37,16 +37,34 @@ const evalCode = (code: string, scope: Scope): unknown => {
   return new Function(...keys, code)(...keys.map((k) => finalScope[k]));
 };
 
-/** Transpile + eval a source string into a React element (or null). */
+/**
+ * Transpile + eval a source string into a React element.
+ *
+ * Returns null only for an empty source or an explicit `export default null`
+ * ("render nothing"). Anything else that fails to produce a component THROWS —
+ * `normalizeCode` only inserts the implicit `export default` when the source
+ * STARTS with JSX / `function` / `()` / `class`, so the extremely common
+ * `const Page = () => …` form exported nothing and used to render a blank page
+ * with no error reported anywhere. ReactRunner catches these and shows them.
+ */
 export function generateElement(code: string, scope: Scope = {}): ReactElement | null {
   if (!code.trim()) return null;
   const exports: Scope = {};
   evalCode(transform(normalizeCode(code)), { render: (v: unknown) => (exports.default = v), ...scope, exports });
   const result = exports.default;
-  if (!result) return null;
+  if (result === undefined) {
+    throw new Error(
+      'The source exported nothing, so there is no component to render. End it with ' +
+        '`export default <YourComponent>`, or start it with JSX, a `function` declaration, ' +
+        'or a `class` — those get an implicit default export.',
+    );
+  }
+  if (result === null) return null;
   if (isValidElement(result)) return result;
   if (typeof result === 'function') return createElement(result as React.ComponentType);
-  return null;
+  throw new Error(
+    `The source default-exported a ${typeof result}. Export a React component or an element.`,
+  );
 }
 
 export interface ReactRunnerProps {

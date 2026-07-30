@@ -41,6 +41,8 @@ import {
   AnimationSchema as SpecAnimationSchema,
   ZIndexSchema as SpecZIndexSchema,
   ThemeModeSchema as SpecThemeModeSchema,
+  ChartTypeSchema as SpecChartTypeSchema,
+  PageTypeSchema as SpecPageTypeSchema,
   ThemeSchema as SpecThemeSchema,
 } from '@objectstack/spec/ui';
 import {
@@ -61,6 +63,8 @@ import {
   ThemeModeSchema,
   ThemeDefinitionSchema,
 } from '../zod/theme.zod.js';
+import { ChartTypeSchema } from '../zod/data-display.zod.js';
+import { PageTypeSchema } from '../zod/layout.zod.js';
 
 describe('spec sub-schema re-exports are the spec objects (by reference)', () => {
   const pairs: Array<[string, unknown, unknown]> = [
@@ -77,6 +81,13 @@ describe('spec sub-schema re-exports are the spec objects (by reference)', () =>
     ['ZIndexSchema', ZIndexSchema, SpecZIndexSchema],
     ['ThemeModeSchema', ThemeModeSchema, SpecThemeModeSchema],
     ['ThemeDefinitionSchema', ThemeDefinitionSchema, SpecThemeSchema],
+    // #2944 — these two were forks that had already drifted, re-exported under
+    // the spec's own symbol name so an importer could not tell them apart.
+    // `ChartTypeSchema` carried 7 of the spec's 19 values and is why #2901 was
+    // filed against the wrong side of the contract; `PageTypeSchema` was missing
+    // `list`. Pinned by reference so neither can be re-forked silently.
+    ['ChartTypeSchema', ChartTypeSchema, SpecChartTypeSchema],
+    ['PageTypeSchema', PageTypeSchema, SpecPageTypeSchema],
   ];
 
   it.each(pairs.map(([name]) => [name] as const))('%s', (name) => {

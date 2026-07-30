@@ -16,6 +16,7 @@
  * @packageDocumentation
  */
 
+import type { PageType as SpecPageType } from '@objectstack/spec/ui';
 import type { BaseSchema, SchemaNode } from './base';
 
 /**
@@ -425,26 +426,38 @@ export interface AspectRatioSchema extends BaseSchema {
 }
 
 /**
- * Page Type
- * Determines page behavior and default layout template.
- * Aligned with @objectstack/spec Page.type
+ * List visualization names that are still accepted in the `pageType` slot.
+ *
+ * These are **not** page kinds. `@objectstack/spec` `ui/page.zod.ts` states it
+ * outright: they are visualizations of a `list` page, selected via
+ * `interfaceConfig.appearance.allowedVisualizations`. They are retained here as
+ * a **named, sanctioned local extension** (issue #2231's prescription) pending
+ * the "visualizations are not page types" cleanup, so that the spec-owned half
+ * of `PageType` can be derived while the objectui-only half stays visible
+ * instead of hiding inside a hand-written union.
+ *
+ * Narrowing this to `never` is the cleanup; it is a breaking type change for
+ * anyone assigning `pageType: 'kanban'`, so it is a separate decision.
  */
-export type PageType =
-  | 'record'
-  | 'home'
-  | 'app'
-  | 'utility'
-  // The roadmap page types (dashboard/form/record_detail/record_review/overview/
-  // blank) were removed: they have no renderer and were dropped from
-  // @objectstack/spec PageTypeSchema (framework#2265, enforce-or-remove).
-  // NOTE: grid/list/gallery/kanban/calendar/timeline below are list
-  // VISUALIZATIONS, not page kinds — retained pending a separate cleanup.
+export type PageVisualizationAlias =
   | 'grid'
-  | 'list'
   | 'gallery'
   | 'kanban'
   | 'calendar'
   | 'timeline';
+
+/**
+ * Page Type
+ * Determines page behavior and default layout template.
+ *
+ * The spec-owned half is `@objectstack/spec`'s `PageType` **by reference**
+ * (issue #2231/#2901; formerly a hand-written union). That mirror had drifted in
+ * BOTH directions at once — it carried the five visualization names above, which
+ * the spec explicitly repudiates, while the sibling zod `PageTypeSchema` in
+ * `zod/layout.zod.ts` was missing `list`. Three disagreeing definitions of one
+ * vocabulary lived in this package.
+ */
+export type PageType = SpecPageType | PageVisualizationAlias;
 
 /**
  * Page Variable
@@ -568,22 +581,30 @@ export interface PageSchema extends BaseSchema {
     role?: string;
   };
   /**
-   * Override semantics for record pages.
+   * How the page's body is authored. Mirrors `@objectstack/spec`'s page
+   * `kind` enum.
    *
+   * Schema-authored (the `regions[].components[]` tree):
    * - `"full"` (default): the schema fully describes the page; the
    *   default-page synthesizer is bypassed entirely.
    * - `"slotted"`: the schema only provides overrides for one or more
    *   named slots (see `slots`). The default-page synthesizer fills in
    *   every slot the author did NOT override. Use this when you want
    *   to customize just the header / actions / one tab without
-   *   re-authoring the rest of the page.
+   *   re-authoring the rest of the page. Only meaningful when
+   *   `pageType === 'record'`; ignored for other page types.
    *
-   * Only meaningful when `pageType === 'record'`. Ignored for full
-   * pages and for non-record page types.
+   * Source-authored (`source` carries the body; `regions` is unused) —
+   * ADR-0080, see `content/docs/guide/react-pages.md`:
+   * - `"html"`: constrained JSX/HTML + Tailwind, PARSED into a SchemaNode
+   *   tree and rendered. Never executed — safe for untrusted authors.
+   *   `"jsx"` is a deprecated alias, still accepted.
+   * - `"react"`: real React, transpiled and EVALUATED in the main tree.
+   *   No sandbox; gated behind the `react-pages` host capability.
    *
    * @default 'full'
    */
-  kind?: 'full' | 'slotted';
+  kind?: 'full' | 'slotted' | 'html' | 'jsx' | 'react';
   /**
    * Slotted override map. Each slot accepts a single SchemaNode or an
    * array (arrays are flattened into the slot position). Slots not
