@@ -83,7 +83,7 @@ const ALLOW = {
 // Same governance as `check-type-check-coverage.mjs`'s DEBT map: declared,
 // shrink-only. These are the same-name symbols that predate this guard and have
 // not been triaged one-by-one yet. This check exists to stop the BLEEDING — a
-// new fork fails on the PR that writes it — not to retro-fix 166 symbols at once.
+// new fork fails on the PR that writes it — not to retro-fix every symbol at once.
 //
 // Named symbols rather than a per-package COUNT, deliberately: a count is a
 // budget. It lets the next fork land as long as an unrelated one was fixed in
@@ -95,6 +95,37 @@ const ALLOW = {
 // local dialect (`ObjectUiLocal…`, with a tripwire test asserting the spec does
 // not own the name), or move it to ALLOW with the reason it deliberately
 // differs. Then delete it from this list — leaving it here fails the ratchet.
+//
+// ── Triage first, and do not trust `extends` alone ───────────────────────────
+// The obvious way to decide whether a collision is a safe re-export is to ask
+// the compiler whether the two types are mutually assignable:
+//
+//     type A = [Local] extends [Spec] ? true : false
+//     type B = [Spec] extends [Local] ? true : false   // A && B → "identical"
+//
+// That question lies in three ways, and all three occur in this repo. Check for
+// them BEFORE acting on an "identical" verdict:
+//
+//   1. The local declaration resolves to `any` — a recursive zod schema
+//      annotated `z.ZodType<any>` (`FilterConditionSchema`,
+//      `NavigationItemSchema`). `any` answers every assignability question
+//      affirmatively.  Detect: `0 extends (1 & Local) ? true : false`.
+//   2. The SPEC export resolves to `any` (`NavigationItem`, `JoinNode`,
+//      `FormField`). Re-exporting these REPLACES a precise local interface with
+//      `any` — a type-safety regression wearing a burn-down's clothes. These
+//      cannot be burned down here at all; the fix belongs upstream in the spec.
+//      Detect: the same `0 extends (1 & Spec)` probe.
+//   3. The local declaration carries `[key: string]: any` (`FormField`,
+//      `AppSchema`, `PageSchema`, `ThemeSchema`, …) — the objectstack#4075
+//      mechanism. An index signature absorbs any extra member, so the two types
+//      compare equal while accepting wildly different objects.
+//      Detect: `string extends keyof Local ? true : false`.
+//
+// A zod schema needs one more question than a type does: `_output` equality is
+// not enough, because two schemas can agree on output and still accept different
+// AUTHORING input. `FormFieldSchema` is exactly that — identical `_output`,
+// divergent `_input` — so re-exporting it would silently change what parses.
+// Compare `_input` too before touching a schema const.
 const DEBT_ISSUE = 4115;
 const DEBT = {
   "@object-ui/types": [
@@ -102,7 +133,6 @@ const DEBT = {
     "AppContextSelectorSchema",
     "AppSchema",
     "BatchOperationResult",
-    "BreakpointName",
     "CacheStrategy",
     "ChartSeries",
     "ChartSeriesSchema",
@@ -115,7 +145,6 @@ const DEBT = {
     "DatasourceSchema",
     "DriverInterface",
     "EventHandler",
-    "ExportJobStatus",
     "ExpressionSchema",
     "FeedItemType",
     "FileMetadata",
@@ -129,11 +158,8 @@ const DEBT = {
     "GestureType",
     "GlobalFilterSchema",
     "GroupByNode",
-    "ImportJobStatus",
     "ImportRowResult",
-    "ImportWriteMode",
     "JoinNode",
-    "JoinStrategy",
     "JoinedReportBlock",
     "ListViewSchema",
     "MutationEvent",
@@ -163,12 +189,10 @@ const DEBT = {
     "StateMachineValidation",
     "Theme",
     "ThemeSchema",
-    "ValidationError",
     "ValidationRule",
     "ValidationRuleSchema",
     "WidgetManifest",
     "WidgetSource",
-    "WindowFunction",
   ],
   "@object-ui/app-shell": [
     "ConversationSummary",
@@ -413,11 +437,19 @@ const hasExportModifier = (node) =>
  * `skipLiterals` stops the walk at object/array literals and type-literal member
  * blocks: a spec name mentioned inside a members block is a hand-written shape
  * that merely USES a spec type, which is exactly what a fork looks like.
+ *
+ * `exclude` drops the declaration's OWN name node from the walk. Without it a
+ * declaration whose name is itself bound to a spec import reads as derived from
+ * itself — `import type { X } from spec` next to `export type X = 'a' | 'b'`
+ * would be waved through, since the alias's own `X` identifier is in `bindings`.
+ * TypeScript rejects that particular pair as a duplicate identifier, so it is
+ * not reachable in compiling code, but a guard that depends on the compiler
+ * having run first is a guard with a hole in it.
  */
-function referencesSpec(node, bindings, skipLiterals) {
+function referencesSpec(node, bindings, skipLiterals, exclude) {
   let found = false;
   const visit = (n) => {
-    if (found || !n) return;
+    if (found || !n || n === exclude) return;
     if (skipLiterals) {
       if (ts.isTypeLiteralNode(n) || ts.isObjectLiteralExpression(n) || ts.isArrayLiteralExpression(n)) return;
     }
@@ -483,7 +515,7 @@ function scanFile(file, specNames) {
     if (!hasExportModifier(stmt)) continue;
 
     if (ts.isTypeAliasDeclaration(stmt)) {
-      record(stmt.name.text, "type", referencesSpec(stmt, specBindings, true), stmt);
+      record(stmt.name.text, "type", referencesSpec(stmt, specBindings, true, stmt.name), stmt);
     } else if (ts.isInterfaceDeclaration(stmt)) {
       // Only `extends` counts — see the header.
       const extendsSpec = (stmt.heritageClauses ?? []).some((h) => referencesSpec(h, specBindings, false));
@@ -494,7 +526,12 @@ function scanFile(file, specNames) {
     } else if (ts.isVariableStatement(stmt)) {
       for (const decl of stmt.declarationList.declarations) {
         if (!ts.isIdentifier(decl.name)) continue;
-        record(decl.name.text, "const", decl.initializer ? referencesSpec(decl, specBindings, true) : false, decl);
+        record(
+          decl.name.text,
+          "const",
+          decl.initializer ? referencesSpec(decl, specBindings, true, decl.name) : false,
+          decl
+        );
       }
     } else if (ts.isEnumDeclaration(stmt)) {
       // An enum cannot be derived from anything — a spec-named one is a fork.

@@ -20,6 +20,15 @@
 import type { SortConfig as BaseSortConfig } from './objectql';
 import type { FilterOperator as BaseFilterOperator } from './complex';
 
+// Spec-owned vocabulary, bound rather than re-declared (objectstack#4115). The
+// spec exports both of these as zod enums, not as types, so they are derived
+// through `z.infer` — `export type { … } from` would not compile against a value.
+import type { z } from 'zod';
+import type {
+  JoinStrategy as SpecJoinStrategy,
+  WindowFunction as SpecWindowFunction,
+} from '@objectstack/spec/data';
+
 /**
  * =============================================================================
  * Phase 3.3: QuerySchema AST Implementation
@@ -81,9 +90,9 @@ export interface WhereNode extends QueryASTNode {
 }
 
 /**
- * Join execution strategy hint (ObjectStack Spec v2.0.1)
+ * Join execution strategy hint — derived from the spec's `JoinStrategy` zod enum.
  */
-export type JoinStrategy = 'auto' | 'database' | 'hash' | 'loop';
+export type JoinStrategy = z.infer<typeof SpecJoinStrategy>;
 
 /**
  * JOIN clause node (Phase 3.3.4)
@@ -155,22 +164,9 @@ export interface AggregateNode extends QueryASTNode {
 }
 
 /**
- * Window function type (ObjectStack Spec v2.0.1)
+ * Window function type — derived from the spec's `WindowFunction` zod enum.
  */
-export type WindowFunction = 
-  | 'row_number'
-  | 'rank'
-  | 'dense_rank'
-  | 'percent_rank'
-  | 'lag'
-  | 'lead'
-  | 'first_value'
-  | 'last_value'
-  | 'sum'
-  | 'avg'
-  | 'count'
-  | 'min'
-  | 'max';
+export type WindowFunction = z.infer<typeof SpecWindowFunction>;
 
 /**
  * Window frame unit (ObjectStack Spec v2.0.1)

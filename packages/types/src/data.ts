@@ -16,6 +16,15 @@
  * @packageDocumentation
  */
 
+// Spec-owned names are bound here, not re-declared (objectstack#4115). Each of
+// these already carried a doc comment claiming it mirrored the spec; the import
+// is what makes the claim true, and what makes a spec change break the build
+// instead of drifting quietly.
+import type { ExportJobStatus, ImportJobStatus, ImportWriteMode } from '@objectstack/spec/api';
+import type { ValidationError } from '@objectstack/spec/kernel';
+
+export type { ExportJobStatus, ImportJobStatus, ImportWriteMode, ValidationError };
+
 /**
  * Query parameters for data fetching.
  * Follows OData/REST conventions for universal compatibility.
@@ -773,13 +782,12 @@ export interface DataSource<T = any> {
 }
 
 /**
- * How each incoming import row is committed against existing data. Mirrors the
- * server's `ImportWriteMode` (`@objectstack/spec`).
+ * How each incoming import row is committed against existing data. Imported from
+ * `@objectstack/spec/api` at the top of this module.
  * - `insert` — always create a new record (default; ignores `matchFields`)
  * - `update` — update the record matched by `matchFields`; skip when none match
  * - `upsert` — update when matched, else create
  */
-export type ImportWriteMode = 'insert' | 'update' | 'upsert';
 
 /**
  * A single source-column → target-field mapping with optional per-column
@@ -875,15 +883,9 @@ export interface ImportRecordsResult {
 }
 
 /**
- * Lifecycle status of an asynchronous import job. Mirrors the server's
- * `ImportJobStatus` enum (`@objectstack/spec`).
+ * Lifecycle status of an asynchronous import job. Imported from
+ * `@objectstack/spec/api` at the top of this module.
  */
-export type ImportJobStatus =
-  | 'pending'
-  | 'running'
-  | 'succeeded'
-  | 'failed'
-  | 'cancelled';
 
 /**
  * Result of {@link DataSource.createImportJob}. `jobId` is the polling key.
@@ -1024,16 +1026,9 @@ export interface ExportDownloadRequest {
 }
 
 /**
- * Lifecycle status of a server-driven export job.
- * Mirrors the `ExportJobStatus` enum from `@objectstack/spec/export`.
+ * Lifecycle status of a server-driven export job. Imported from
+ * `@objectstack/spec/api` at the top of this module.
  */
-export type ExportJobStatus =
-  | 'pending'
-  | 'processing'
-  | 'completed'
-  | 'failed'
-  | 'cancelled'
-  | 'expired';
 
 /**
  * Output formats supported by async export jobs.
@@ -1256,24 +1251,9 @@ export interface DataBinding {
 }
 
 /**
- * Validation error
+ * Validation error — imported from `@objectstack/spec/kernel` at the top of this
+ * module.
  */
-export interface ValidationError {
-  /**
-   * Field name
-   */
-  field: string;
-
-  /**
-   * Error message
-   */
-  message: string;
-
-  /**
-   * Error code
-   */
-  code?: string;
-}
 
 /**
  * API error response

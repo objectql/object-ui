@@ -16,12 +16,20 @@
  * @packageDocumentation
  */
 
+import type { BreakpointName } from '@objectstack/spec/ui';
+
 // ============================================================================
 // Responsive Configuration
 // ============================================================================
 
-/** Breakpoint names */
-export type BreakpointName = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
+/**
+ * Breakpoint names.
+ *
+ * Bound to the spec rather than re-declared (objectstack#4115): a local union
+ * under a spec export's name is read by the next reader as the spec's own
+ * definition, so a copy that is correct today is a planted premise tomorrow.
+ */
+export type { BreakpointName };
 
 /** Responsive value - different values for different breakpoints */
 export type ResponsiveValue<T> = T | Partial<Record<BreakpointName, T>>;

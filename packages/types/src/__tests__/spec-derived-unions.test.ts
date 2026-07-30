@@ -58,7 +58,19 @@ import {
   ActionLocationSchema as SpecActionLocationSchema,
   ActionSchema as SpecActionSchema,
 } from '@objectstack/spec/ui';
-import { FieldType as SpecFieldType } from '@objectstack/spec/data';
+import {
+  FieldType as SpecFieldType,
+  JoinStrategy as SpecJoinStrategy,
+  WindowFunction as SpecWindowFunction,
+} from '@objectstack/spec/data';
+import type { JoinNode as SpecJoinNode } from '@objectstack/spec/data';
+import type {
+  NavigationItem as SpecNavigationItem,
+  FormField as SpecFormField,
+} from '@objectstack/spec/ui';
+import type { BreakpointName } from '../mobile';
+import type { ExportJobStatus, ImportJobStatus, ImportWriteMode, ValidationError } from '../data';
+import type { JoinStrategy, WindowFunction } from '../data-protocol';
 import {
   OBJECTUI_LOCAL_ACTION_TYPES,
   OBJECTUI_LOCAL_PARAM_FIELD_TYPES,
@@ -112,9 +124,56 @@ const _resolvableCovers = null as unknown as ActionParamFieldType satisfies Reso
 // since objectui#3009 made this file compile.)
 const _fieldBackedParam: ActionParam = { field: 'status' };
 const _minimalTypedParam: ActionParam = { name: 'priority', label: 'Priority', type: 'select' };
+// objectstack#4115 ledger burn-down: the symbols whose local declaration was
+// PROVED equivalent to the spec's and then replaced by a binding. Each listed
+// member is what the local fork carried, so re-declaring it narrower fails here
+// as well as at the guard.
+const _breakpointCovers = null as unknown as 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' satisfies BreakpointName;
+const _importModeCovers = null as unknown as 'insert' | 'update' | 'upsert' satisfies ImportWriteMode;
+const _importStatusCovers = null as unknown as
+  | 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled' satisfies ImportJobStatus;
+const _exportStatusCovers = null as unknown as
+  | 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'expired' satisfies ExportJobStatus;
+const _validationErrorShape: ValidationError = { field: 'name', message: 'required' };
+// The spec exports these two as zod enums, not types, so objectui derives them
+// with `z.infer`. Reading the members back off the schema keeps the check honest
+// if the spec widens either enum.
+type SpecJoin = typeof SpecJoinStrategy extends { options: readonly (infer T)[] } ? T : never;
+const _joinStrategyCovers = null as unknown as SpecJoin satisfies JoinStrategy;
+type SpecWindow = typeof SpecWindowFunction extends { options: readonly (infer T)[] } ? T : never;
+const _windowFunctionCovers = null as unknown as SpecWindow satisfies WindowFunction;
+
+/**
+ * Inverted pins — three collisions that are NOT burnable, and the tripwire that
+ * says when they become burnable.
+ *
+ * `NavigationItem`, `JoinNode` and `FormField` collide with a spec export whose
+ * own declaration resolves to `any` (the spec annotates the recursive schemas
+ * behind them as `z.ZodType<any>`). Binding objectui's local interface to the
+ * spec would replace a precise, documented shape with `any` — a type-safety
+ * regression wearing a burn-down's clothes. So they stay in the ledger with
+ * their local declarations intact, which is the right answer for as long as the
+ * spec cannot describe them.
+ *
+ * Mutual assignability CANNOT distinguish this case on its own: `any` answers
+ * every `extends` question affirmatively, so a naive probe reports these three
+ * as "identical to the spec" and recommends exactly the wrong edit.
+ *
+ * The day the spec types any of them properly, `IsAny<…>` flips to `false`,
+ * `true satisfies false` stops compiling, and the failure is the instruction:
+ * re-run the triage and burn that symbol down.
+ */
+type IsAny<T> = 0 extends 1 & T ? true : false;
+const _specNavigationItemIsStillAny = true satisfies IsAny<SpecNavigationItem>;
+const _specJoinNodeIsStillAny = true satisfies IsAny<SpecJoinNode>;
+const _specFormFieldIsStillAny = true satisfies IsAny<SpecFormField>;
+
 void _chartCovers; void _reportCovers; void _actionCovers; void _pageCovers; void _vizCovers;
 void _runnableCovers; void _componentCovers; void _paramFieldCovers; void _resolvableCovers;
 void _fieldBackedParam; void _minimalTypedParam;
+void _breakpointCovers; void _importModeCovers; void _importStatusCovers; void _exportStatusCovers;
+void _validationErrorShape; void _joinStrategyCovers; void _windowFunctionCovers;
+void _specNavigationItemIsStillAny; void _specJoinNodeIsStillAny; void _specFormFieldIsStillAny;
 
 /** Read a spec enum's members, failing loudly if the shape ever changes. */
 const optionsOf = (schema: unknown, name: string): string[] => {
@@ -249,5 +308,18 @@ describe('unions derived from a spec vocabulary stay derived (#2944)', () => {
     const spec = optionsOf(SpecPageTypeSchema, 'PageTypeSchema');
     const local = ['grid', 'gallery', 'kanban', 'calendar', 'timeline'];
     expect(local.filter((v) => spec.includes(v))).toEqual([]);
+  });
+
+  it('JoinStrategy / WindowFunction come off the spec enum, not a restatement (objectstack#4115)', () => {
+    // The type aliases erase, so the runtime witness is the schema they are
+    // `z.infer`-ed from. Both were hand-written unions carrying a "(ObjectStack
+    // Spec v2.0.1)" doc header — a version claim nothing checked.
+    const joins = optionsOf(SpecJoinStrategy, 'JoinStrategy');
+    expect(joins).toEqual(expect.arrayContaining(['auto', 'database', 'hash', 'loop']));
+
+    const windows = optionsOf(SpecWindowFunction, 'WindowFunction');
+    for (const member of ['row_number', 'rank', 'dense_rank', 'lag', 'lead', 'sum', 'count']) {
+      expect(windows).toContain(member);
+    }
   });
 });
