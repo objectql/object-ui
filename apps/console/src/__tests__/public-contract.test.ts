@@ -147,3 +147,88 @@ describe('console ↔ PUBLIC_BLOCKS coverage', () => {
     }
   });
 });
+
+/**
+ * `record:*` blocks that ship but are deliberately NOT in the AI vocabulary,
+ * each with the reason it stays out. Every one of these currently declares
+ * ZERO `inputs` — there is nothing for an author or a model to configure, so
+ * putting them in the contract would advertise a block that can only be
+ * emitted bare.
+ *
+ * This list exists to force a decision, not to park problems: registering a
+ * new `record:*` block fails the test below until it is either curated or
+ * added here with a reason. That is the property objectui#3006 needed and did
+ * not have — `record:line_items` shipped fully configurable (5 inputs) and
+ * simply never reached the contract, because nothing looked in this direction.
+ */
+const DELIBERATELY_UNCURATED: Record<string, string> = {
+  'record:activity': 'no declared inputs — feed is derived from the record, nothing to author',
+  'record:alert': 'no declared inputs — banner content comes from record state',
+  'record:chatter': 'no declared inputs — feed is derived from the record',
+  'record:discussion': 'no declared inputs — shares the chatter renderer',
+  'record:history': 'no declared inputs — audit trail is derived from the record',
+  'record:quick_actions': 'no declared inputs — actions come from object metadata',
+  'record:reference_rail': 'no declared inputs — rail is derived from the record',
+};
+
+describe('PUBLIC_BLOCKS ↔ console coverage (reverse direction)', () => {
+  const NS = 'record';
+
+  /**
+   * Eleven of these blocks are registered as
+   * `register('record:x', …, { namespace: 'record' })` — an already-prefixed
+   * name that gets prefixed again — so the registry holds both `record:x` and a
+   * doubled `record:record:x` for the same component. The doubling never
+   * reaches the contract (`getPublicConfigs()` rewrites `type` to the curated
+   * tag), but it is real in the registry, and counting raw keys would report
+   * those components twice. Collapsing the repeated prefix is what makes the
+   * set below one entry per block.
+   */
+  const undouble = (key: string): string => {
+    let k = key;
+    while (k.startsWith(`${NS}:${NS}:`)) k = k.slice(NS.length + 1);
+    return k;
+  };
+
+  const shippedRecordBlocks = (): string[] => {
+    const keys = ComponentRegistry.getKnownTypes().filter(
+      (k) => ComponentRegistry.getMeta(k)?.namespace === NS,
+    );
+    return [...new Set(keys.map(undouble))].sort();
+  };
+
+  it('curates every shipped record:* block, or records why not', () => {
+    const curated = new Set<string>(PUBLIC_BLOCKS);
+    const uncurated = shippedRecordBlocks().filter((tag) => !curated.has(tag));
+
+    expect(uncurated).toEqual(Object.keys(DELIBERATELY_UNCURATED).sort());
+  });
+
+  it('keeps the deliberately-uncurated blocks unconfigurable', () => {
+    // The stated reason for every exclusion is "nothing to author". If one of
+    // these grows `inputs`, it became authorable and the exclusion needs
+    // re-deciding rather than inheriting.
+    for (const tag of Object.keys(DELIBERATELY_UNCURATED)) {
+      // A pending lazy stub reports `inputs: undefined` meaning "not known
+      // yet", which would make the assertion below vacuous. These are eager
+      // registrations in plugin-detail; pin that, so the day one goes lazy this
+      // fails loudly instead of silently passing.
+      expect(ComponentRegistry.getConfig(tag)).toBeDefined();
+      expect(ComponentRegistry.getMeta(tag)?.inputs ?? []).toEqual([]);
+    }
+  });
+
+  it('catches a curated tag that misses a registered block by its namespace', () => {
+    // The objectui#3006 shape: PUBLIC_BLOCKS said `line_items`, the registry
+    // said `record:line_items`, and the forward check could only report "not
+    // covered" — which reads as "not built yet" and got filed as a known gap.
+    // A near-miss is never intentional: one of the two spellings is a typo.
+    const known = new Set(ComponentRegistry.getKnownTypes());
+    const nearMisses = PUBLIC_BLOCKS.filter((tag) => !known.has(tag)).map((tag) => {
+      const bare = tag.slice(tag.indexOf(':') + 1);
+      return { tag, alsoTry: [...known].filter((k) => k === bare || k.endsWith(`:${bare}`)) };
+    });
+
+    expect(nearMisses.filter((m) => m.alsoTry.length > 0)).toEqual([]);
+  });
+});
