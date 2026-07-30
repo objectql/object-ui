@@ -23,7 +23,7 @@ import { REFERENCE_VALUE_TYPES } from '@objectstack/spec/data';
  *
  * The spec does not publish this table yet, so it cannot be derived — the
  * paired inventory in the test is the tripwire that keeps edits deliberate
- * (framework#3786 tracks exporting it from the source of truth).
+ * (objectstack#4173 tracks exporting it from the source of truth).
  */
 export const BOOLEAN_TRUE_IMPORT_TOKENS: ReadonlySet<string> = new Set([
   'true', 't', 'yes', 'y', '1', 'on', '是', '对', '✓', '√',

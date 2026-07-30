@@ -12,7 +12,7 @@
  *
  * `REFERENCE_IMPORT_TYPES` is derived from the same spec constant the server
  * derives from, so the two ends share one source. The boolean token table has
- * no spec export yet (framework#3786), so it cannot be derived — the pinned
+ * no spec export yet (objectstack#4173), so it cannot be derived — the pinned
  * inventory below is the tripwire that makes edits deliberate instead of
  * silent. When the spec starts publishing the table, replace the local sets
  * with the import and delete the inventory.
