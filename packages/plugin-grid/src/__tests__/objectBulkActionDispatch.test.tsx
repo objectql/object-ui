@@ -74,12 +74,15 @@ function renderGrid(opts: {
   objectActions?: unknown[];
   schema?: Record<string, unknown>;
   handlers?: Record<string, any>;
+  /** Override the seed records — e.g. to give a `visible` predicate something to bite on. */
+  rows?: Array<Record<string, unknown>>;
 }) {
+  const rows = opts.rows ?? ROWS;
   const dataSource: any = {
-    find: vi.fn(async () => ({ data: ROWS.map(r => ({ ...r })), total: ROWS.length, hasMore: false, pageSize: 50 })),
+    find: vi.fn(async () => ({ data: rows.map(r => ({ ...r })), total: rows.length, hasMore: false, pageSize: 50 })),
     getObjectSchema: async (name: string) => ({
       name,
-      fields: { id: { type: 'text' }, name: { type: 'text', label: 'Name' } },
+      fields: { id: { type: 'text' }, name: { type: 'text', label: 'Name' }, done: { type: 'boolean' } },
       ...(opts.objectActions ? { actions: opts.objectActions } : {}),
     }),
   };
@@ -218,5 +221,69 @@ describe('view-declared bulk actions (objectui#3002)', () => {
     const legacy = await screen.findByTestId('bulk-action-crm_only_handler');
     fireEvent.click(legacy);
     await waitFor(() => expect(handler).toHaveBeenCalledTimes(1));
+  });
+});
+
+/**
+ * `visible` is evaluated per selected record, with that record in scope
+ * (objectui#3067). Before this the bar evaluated it with NO record bound, and
+ * the lenient path returned `true` for every row-scoped predicate — so an
+ * authored gate was not weakened but inverted for half its inputs.
+ */
+describe('per-record `visible` on a bulk action (objectui#3067)', () => {
+  /** Row-scoped gate: only r1 is un-done, so only r1 may be acted on. */
+  const GATED = { ...PUSH_DOWN, visible: '!record.done' };
+
+  it('runs on the eligible records only, and says how many it skipped', async () => {
+    await renderAndSelectAll({
+      objectActions: [GATED],
+      schema: { bulkActions: ['push_down'] },
+      rows: [
+        { id: 'r1', name: 'Plan A', done: false },
+        { id: 'r2', name: 'Plan B', done: true },
+      ],
+    });
+
+    fireEvent.click(await screen.findByTestId('bulk-action-push_down'));
+    // The confirm step owns up to the shrunken selection.
+    expect(await screen.findByTestId('bulk-skipped-notice')).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Run' }));
+
+    // One request, for the one eligible record — not two.
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as any).body)._rowRecord.id).toBe('r1');
+  });
+
+  it('hides the button when no selected record qualifies', async () => {
+    await renderAndSelectAll({
+      objectActions: [GATED],
+      schema: { bulkActions: ['push_down'] },
+      rows: [
+        { id: 'r1', name: 'Plan A', done: true },
+        { id: 'r2', name: 'Plan B', done: true },
+      ],
+    });
+
+    // The bar is up (rows are selected) but this action has nothing to act on.
+    expect(await screen.findByTestId('bulk-actions-bar')).toBeInTheDocument();
+    expect(screen.queryByTestId('bulk-action-push_down')).not.toBeInTheDocument();
+  });
+
+  it('leaves an ungated action acting on the whole selection', async () => {
+    await renderAndSelectAll({
+      objectActions: [PUSH_DOWN],
+      schema: { bulkActions: ['push_down'] },
+      rows: [
+        { id: 'r1', name: 'Plan A', done: true },
+        { id: 'r2', name: 'Plan B', done: true },
+      ],
+    });
+
+    fireEvent.click(await screen.findByTestId('bulk-action-push_down'));
+    expect(screen.queryByTestId('bulk-skipped-notice')).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Run' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
   });
 });

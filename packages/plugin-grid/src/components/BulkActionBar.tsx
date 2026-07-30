@@ -10,28 +10,39 @@ import React from 'react';
 import { Button } from '@object-ui/components';
 import { Trash2, CheckSquare, X } from 'lucide-react';
 import { LazyIcon, toKebabIconName } from '@object-ui/components';
-import { useObjectTranslation, useCondition, toPredicateInput } from '@object-ui/react';
+import { useObjectTranslation, usePredicateScope } from '@object-ui/react';
 import type { BulkActionDef } from '@object-ui/types';
+import { partitionBulkRows } from '../bulkEligibility';
 import { formatActionLabel } from './RowActionMenu';
 
 /**
  * One rich bulk-action button. Extracted into its own component so the def's
- * `visible` CEL predicate can be evaluated with a hook (`useCondition`)
- * without violating the rules-of-hooks inside a `.map()` — previously
- * `bulkActionDefs` rendered unconditionally, ignoring `visible` entirely.
+ * `visible` CEL predicate can be evaluated with a hook without violating the
+ * rules-of-hooks inside a `.map()` — previously `bulkActionDefs` rendered
+ * unconditionally, ignoring `visible` entirely.
  *
- * `visible` is a permission / feature gate evaluated against the ambient
- * ExpressionProvider scope (`features`/`user`); when it evaluates false the
- * button is hidden, matching how the row (`RowActionMenuItem` /
- * `DataTableRowActionItem`) and related-list toolbar renderers treat `visible`.
+ * `visible` is evaluated ONCE PER SELECTED RECORD with that record in scope
+ * (objectui#3067), fail-closed per record — the same contract the row kebab
+ * uses. The button is offered when at least one selected record passes; the
+ * run then acts only on those. A record-free predicate (`features.x`) answers
+ * identically for every row, so it still behaves as a plain button-level gate.
+ * See `partitionBulkRows` for why the previous record-free evaluation was not
+ * merely lenient but wrong.
  */
 const BulkActionButton: React.FC<{
   def: BulkActionDef;
   selectedRows: any[];
   onActionDef?: (def: BulkActionDef, selectedRows: any[]) => void;
 }> = ({ def, selectedRows, onActionDef }) => {
-  const isVisible = useCondition(toPredicateInput(def.visible));
-  if (def.visible && !isVisible) return null;
+  const scope = usePredicateScope();
+  const { eligible } = React.useMemo(
+    () => partitionBulkRows(def, selectedRows, { scope }),
+    [def, selectedRows, scope],
+  );
+  // Only a def that actually declares `visible` can be gated away — an
+  // ungated def always renders, even against an empty selection (the bar
+  // itself is what decides there is a selection at all).
+  if (def.visible && eligible.length === 0) return null;
   const isDestructive = def.variant === 'danger' || def.operation === 'delete';
   const iconName = def.icon ? toKebabIconName(def.icon) : null;
   return (

@@ -245,6 +245,7 @@ const fr = {
       confirmDefault: "Ceci s'appliquera à {{count}} enregistrement(s).",
       overLimit: "La sélection ({{count}}) dépasse la limite de l'action ({{limit}}). Réduisez la sélection pour continuer.",
       affectedRecords: "Enregistrements concernés ({{count}}) :",
+      skippedIneligible: '{{count}} des enregistrements sélectionnés ne sont pas éligibles à cette action et seront ignorés.',
       rowFallback: "Ligne {{index}}",
       andMore: "… et {{count}} de plus",
       processed: "{{count}} / {{total}} traités",

@@ -245,6 +245,7 @@ const ko = {
       confirmDefault: "레코드 {{count}}건에 적용됩니다.",
       overLimit: "선택 건수({{count}})가 작업 한도({{limit}})를 초과합니다. 선택을 줄여 주세요.",
       affectedRecords: "영향을 받는 레코드({{count}}):",
+      skippedIneligible: "선택한 레코드 중 {{count}}건은 이 작업의 대상이 아니므로 건너뜁니다.",
       rowFallback: "{{index}}행",
       andMore: "… 외 {{count}}건",
       processed: "{{count}} / {{total}} 처리됨",

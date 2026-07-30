@@ -245,6 +245,7 @@ const ru = {
       confirmDefault: "Будет применено к записям: {{count}}.",
       overLimit: "Выбрано ({{count}}) больше лимита действия ({{limit}}). Уменьшите выбор, чтобы продолжить.",
       affectedRecords: "Затрагиваемые записи ({{count}}):",
+      skippedIneligible: '{{count}} из выбранных записей не подходят для этого действия и будут пропущены.',
       rowFallback: "Строка {{index}}",
       andMore: "… и ещё {{count}}",
       processed: "Обработано {{count}} / {{total}}",

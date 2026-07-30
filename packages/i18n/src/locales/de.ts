@@ -245,6 +245,7 @@ const de = {
       confirmDefault: "Dies wird auf {{count}} Datensätze angewendet.",
       overLimit: "Die Auswahl ({{count}}) überschreitet das Aktionslimit ({{limit}}). Verkleinern Sie die Auswahl, um fortzufahren.",
       affectedRecords: "Betroffene Datensätze ({{count}}):",
+      skippedIneligible: '{{count}} der ausgewählten Datensätze sind für diese Aktion nicht zulässig und werden übersprungen.',
       rowFallback: "Zeile {{index}}",
       andMore: "… und {{count}} weitere",
       processed: "{{count}} / {{total}} verarbeitet",

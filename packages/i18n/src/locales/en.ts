@@ -420,6 +420,7 @@ const en = {
       confirmDefault: 'This will apply to {{count}} record(s).',
       overLimit: 'Selection ({{count}}) exceeds the action limit ({{limit}}). Reduce the selection to proceed.',
       affectedRecords: 'Affected records ({{count}}):',
+      skippedIneligible: '{{count}} selected record(s) are not eligible for this action and will be skipped.',
       rowFallback: 'Row {{index}}',
       andMore: '\u2026 and {{count}} more',
       processed: '{{count}} / {{total}} processed',

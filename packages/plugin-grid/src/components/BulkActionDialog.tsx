@@ -79,6 +79,13 @@ export interface BulkActionDialogProps {
    * the runner re-prompting per record.
    */
   runAction?: BulkExecutorOptions['runAction'];
+  /**
+   * Selected records the def's `visible` predicate excluded (objectui#3067).
+   * `rows` already has them removed; this is what lets the confirm step say
+   * the run covers fewer records than the user picked, instead of quietly
+   * shrinking the selection.
+   */
+  skippedCount?: number;
 }
 
 type Step = 'params' | 'confirm' | 'running' | 'result';
@@ -103,6 +110,7 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
   labelKey = 'name',
   objectFields,
   runAction,
+  skippedCount = 0,
 }) => {
   const { t } = useObjectTranslation();
   const params = def?.params ?? [];
@@ -354,6 +362,17 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
             <div className="text-muted-foreground">
               {t('grid.bulk.affectedRecords', { count: rows.length, defaultValue: `Affected records (${rows.length}):` })}
             </div>
+            {/* [#3067] The selection shrank because this action's `visible`
+                excluded some records. Say it here rather than let the count
+                silently disagree with what the user ticked. */}
+            {skippedCount > 0 && (
+              <div className="text-muted-foreground text-xs" data-testid="bulk-skipped-notice">
+                {t('grid.bulk.skippedIneligible', {
+                  count: skippedCount,
+                  defaultValue: `${skippedCount} selected record(s) are not eligible for this action and will be skipped.`,
+                })}
+              </div>
+            )}
             <ScrollArea className="max-h-32 rounded border bg-muted/30 p-2">
               <ul className="text-xs space-y-1">
                 {previewRows.map((r, i) => (

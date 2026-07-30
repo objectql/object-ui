@@ -245,6 +245,7 @@ const ja = {
       confirmDefault: "{{count}} 件のレコードに適用されます。",
       overLimit: "選択件数（{{count}}）がアクションの上限（{{limit}}）を超えています。選択を減らしてください。",
       affectedRecords: "対象レコード（{{count}}）:",
+      skippedIneligible: "選択したレコードのうち {{count}} 件はこのアクションの対象外のため、スキップされます。",
       rowFallback: "{{index}} 行目",
       andMore: "… 他 {{count}} 件",
       processed: "{{count}} / {{total}} 件を処理",

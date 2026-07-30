@@ -46,6 +46,7 @@ import { useColumnSummary } from './useColumnSummary';
 import { resolveRowCrudAffordances } from './rowCrudAffordances';
 import { resolveLegacyRowActions } from './resolveLegacyRowActions';
 import { resolveBulkActions } from './resolveBulkActions';
+import { partitionBulkRows } from './bulkEligibility';
 import { RowActionMenu, formatActionLabel } from './components/RowActionMenu';
 import { BulkActionBar } from './components/BulkActionBar';
 import { BulkActionDialog } from './components/BulkActionDialog';
@@ -254,6 +255,9 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const [totalMatching, setTotalMatching] = useState<number | undefined>(undefined);
   const [activeBulkDef, setActiveBulkDef] = useState<BulkActionDef | null>(null);
   const [activeBulkRows, setActiveBulkRows] = useState<any[]>([]);
+  // Selected records the def's `visible` excluded (#3067) — shown in the
+  // dialog so a run over fewer records than the user picked says so.
+  const [activeBulkSkipped, setActiveBulkSkipped] = useState(0);
   const lastFindParamsRef = React.useRef<Record<string, unknown> | null>(null);
   // Grouped view paginates whole groups (groups stay intact, never split across
   // pages). Defaults to the schema page size, falling back to 10 groups/page.
@@ -1751,8 +1755,14 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const dispatchBulkActionDef = (def: BulkActionDef, rows: any[]) => {
     void (async () => {
       const expanded = await resolveBulkRows(rows);
+      // [#3067] Re-apply `visible` to the EXPANDED set, not just the page
+      // selection the bar could see: "select all N matching" pulls in records
+      // the button's own eligibility check never evaluated, and running the
+      // action on those would defeat the gate the author wrote.
+      const { eligible, skipped } = partitionBulkRows(def, expanded, { scope: predicateScope });
       setActiveBulkDef(def);
-      setActiveBulkRows(expanded);
+      setActiveBulkRows(eligible);
+      setActiveBulkSkipped(skipped);
     })();
   };
 
@@ -1799,6 +1809,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const handleBulkDialogClose = (result?: BulkResult | null) => {
     setActiveBulkDef(null);
     setActiveBulkRows([]);
+    setActiveBulkSkipped(0);
     // Only reset selection when the run actually changed something. A total
     // failure (0 succeeded — e.g. a "推计划" precondition error) leaves the data
     // untouched, so we keep the selection *and* the toolbar so the user can fix
@@ -2603,6 +2614,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     <BulkActionDialog
       def={activeBulkDef}
       rows={activeBulkRows}
+      skippedCount={activeBulkSkipped}
       open={!!activeBulkDef}
       onClose={handleBulkDialogClose}
       dataSource={dataSource as any}

@@ -245,6 +245,7 @@ const pt = {
       confirmDefault: "Isto será aplicado a {{count}} registro(s).",
       overLimit: "A seleção ({{count}}) excede o limite da ação ({{limit}}). Reduza a seleção para prosseguir.",
       affectedRecords: "Registros afetados ({{count}}):",
+      skippedIneligible: '{{count}} dos registros selecionados não são elegíveis para esta ação e serão ignorados.',
       rowFallback: "Linha {{index}}",
       andMore: "… e mais {{count}}",
       processed: "{{count}} / {{total}} processados",

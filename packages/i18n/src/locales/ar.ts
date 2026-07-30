@@ -245,6 +245,7 @@ const ar = {
       confirmDefault: "سيُطبَّق هذا على {{count}} من السجلات.",
       overLimit: "التحديد ({{count}}) يتجاوز حد الإجراء ({{limit}}). قلّل التحديد للمتابعة.",
       affectedRecords: "السجلات المتأثرة ({{count}}):",
+      skippedIneligible: '{{count}} من السجلات المحددة غير مؤهلة لهذا الإجراء وسيتم تخطيها.',
       rowFallback: "الصف {{index}}",
       andMore: "… و{{count}} أخرى",
       processed: "تمت معالجة {{count}} / {{total}}",

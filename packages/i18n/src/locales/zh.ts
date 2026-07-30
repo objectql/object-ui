@@ -428,6 +428,7 @@ const zh = {
       confirmDefault: '此操作将应用于 {{count}} 条记录。',
       overLimit: '所选记录（{{count}}）超过该动作的上限（{{limit}}）。请减少选择后再继续。',
       affectedRecords: '受影响的记录（{{count}}）：',
+      skippedIneligible: '{{count}} 条所选记录不符合该动作的条件，将被跳过。',
       rowFallback: '第 {{index}} 行',
       andMore: '……以及另外 {{count}} 条',
       processed: '已处理 {{count}} / {{total}}',
