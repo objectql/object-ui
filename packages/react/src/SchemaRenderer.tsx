@@ -189,9 +189,20 @@ export class SchemaErrorBoundary extends Component<
   }
 }
 
+/**
+ * Shared "no data source" fallback. MUST be a module constant: it feeds the
+ * `evaluatedSchema` memo below, and a fresh `{}` per render defeats that memo
+ * for every SchemaRenderer without a provider above it — re-cloning the schema
+ * and re-running the ExpressionEvaluator on each render, and handing a new
+ * schema identity to children that memoise on it. For a `kind:'react'` page
+ * that identity IS the compile key, so the page was silently remounted and its
+ * `useState` wiped (objectui#2954's latent hazard, made real by this line).
+ */
+const NO_DATA_SOURCE: Record<string, any> = {};
+
 export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<string, any>>(({ schema, ...props }, _ref) => {
   const context = useContext(SchemaRendererContext);
-  const dataSource = context?.dataSource || {};
+  const dataSource = context?.dataSource || NO_DATA_SOURCE;
   // Ambient host scope (user / app / features), fed by app-shell's
   // ExpressionProvider. Threaded into `visible`/expression evaluation so
   // component predicates can gate on the signed-in user & deployment flags.

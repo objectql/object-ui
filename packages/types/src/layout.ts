@@ -568,22 +568,30 @@ export interface PageSchema extends BaseSchema {
     role?: string;
   };
   /**
-   * Override semantics for record pages.
+   * How the page's body is authored. Mirrors `@objectstack/spec`'s page
+   * `kind` enum.
    *
+   * Schema-authored (the `regions[].components[]` tree):
    * - `"full"` (default): the schema fully describes the page; the
    *   default-page synthesizer is bypassed entirely.
    * - `"slotted"`: the schema only provides overrides for one or more
    *   named slots (see `slots`). The default-page synthesizer fills in
    *   every slot the author did NOT override. Use this when you want
    *   to customize just the header / actions / one tab without
-   *   re-authoring the rest of the page.
+   *   re-authoring the rest of the page. Only meaningful when
+   *   `pageType === 'record'`; ignored for other page types.
    *
-   * Only meaningful when `pageType === 'record'`. Ignored for full
-   * pages and for non-record page types.
+   * Source-authored (`source` carries the body; `regions` is unused) —
+   * ADR-0080, see `content/docs/guide/react-pages.md`:
+   * - `"html"`: constrained JSX/HTML + Tailwind, PARSED into a SchemaNode
+   *   tree and rendered. Never executed — safe for untrusted authors.
+   *   `"jsx"` is a deprecated alias, still accepted.
+   * - `"react"`: real React, transpiled and EVALUATED in the main tree.
+   *   No sandbox; gated behind the `react-pages` host capability.
    *
    * @default 'full'
    */
-  kind?: 'full' | 'slotted';
+  kind?: 'full' | 'slotted' | 'html' | 'jsx' | 'react';
   /**
    * Slotted override map. Each slot accepts a single SchemaNode or an
    * array (arrays are flattened into the slot position). Slots not

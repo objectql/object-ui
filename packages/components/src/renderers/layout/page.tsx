@@ -434,7 +434,9 @@ export const PageRenderer: React.FC<{
 
   // Select the layout variant based on template or page type
   const layoutElement = useMemo(() => {
-    const kind = (schema as { kind?: string }).kind;
+    // `PageSchema['kind']` now spells the source-authored values too, matching
+    // @objectstack/spec — no cast needed to read what the renderer dispatches on.
+    const kind = schema.kind;
     // `kind:'react'` — TRUSTED execution tier: real React, run (not parsed) by
     // @object-ui/react-runtime, gated behind the host CAP_REACT_PAGES flag.
     if (kind === 'react') {
