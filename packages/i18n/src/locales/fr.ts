@@ -1071,6 +1071,7 @@ const fr = {
     navTypeGroup: "Groupe",
     navTypeSeparator: "Séparateur",
     navTypeAction: "Action",
+    navTypeComponent: "Composant",
     navEditIcon: "Modifier l'icône",
     navToggleVisible: "Basculer la visibilité",
     navHidden: "Masqué",

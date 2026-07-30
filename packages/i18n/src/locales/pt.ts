@@ -1071,6 +1071,7 @@ const pt = {
     navTypeGroup: "Grupo",
     navTypeSeparator: "Separador",
     navTypeAction: "Ação",
+    navTypeComponent: "Componente",
     navEditIcon: "Editar ícone",
     navToggleVisible: "Alternar visibilidade",
     navHidden: "Oculto",

@@ -15,6 +15,7 @@
   },
   "scripts": {
     "build": "vite build",
+    "type-check": "tsc --noEmit && tsc -p tsconfig.test.json",
     "lint": "eslint ."
   },
   "dependencies": {

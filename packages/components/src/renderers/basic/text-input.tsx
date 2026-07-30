@@ -126,8 +126,9 @@ function ElementTextInputRenderer({ schema }: { schema: any }) {
   );
 }
 
-ComponentRegistry.register('element:text_input', ElementTextInputRenderer, {
+ComponentRegistry.register('text_input', ElementTextInputRenderer, {
   namespace: 'element',
+  skipFallback: true,
   label: 'Text Input',
   category: 'input',
   inputs: [

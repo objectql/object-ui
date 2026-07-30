@@ -1071,6 +1071,7 @@ const ru = {
     navTypeGroup: "Группа",
     navTypeSeparator: "Разделитель",
     navTypeAction: "Действие",
+    navTypeComponent: "Компонент",
     navEditIcon: "Редактировать значок",
     navToggleVisible: "Переключить видимость",
     navHidden: "Скрыто",

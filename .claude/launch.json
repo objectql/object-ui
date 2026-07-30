@@ -21,6 +21,22 @@
       "port": 5181
     },
     {
+      "name": "grid-bulk-demo",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--dir",
+        "packages/plugin-grid",
+        "exec",
+        "vite",
+        "demo",
+        "--port",
+        "5198",
+        "--strictPort"
+      ],
+      "port": 5198,
+      "url": "http://localhost:5198"
+    },
+    {
       "name": "gantt-demo",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": [

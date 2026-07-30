@@ -175,8 +175,9 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
 
 ActionButtonRenderer.displayName = 'ActionButtonRenderer';
 
-ComponentRegistry.register('action:button', ActionButtonRenderer, {
+ComponentRegistry.register('button', ActionButtonRenderer, {
   namespace: 'action',
+  skipFallback: true,
   label: 'Action Button',
   inputs: [
     { name: 'name', type: 'string', label: 'Action Name' },

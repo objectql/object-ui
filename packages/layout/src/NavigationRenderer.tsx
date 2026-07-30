@@ -438,7 +438,7 @@ export function resolveHref(
       // additionally pass through `applyNavTemplate` so nav entries can
       // refer to `{current_user_id}` / `{current_org_id}` — exactly like
       // the `recordId` substitution above for object-typed nav items.
-      const pageParams = (item as any).params as Record<string, unknown> | undefined;
+      const pageParams = item.params;
       let url = `${basePath}/page/${item.pageName}`;
       if (pageParams && typeof pageParams === 'object') {
         const usp = new URLSearchParams();
@@ -468,11 +468,11 @@ export function resolveHref(
       // the same component can be reused across many nav entries with
       // different inputs (e.g. `params: { type: 'object' }` vs
       // `params: { type: 'field' }`).
-      const ref = (item as any).componentRef as string | undefined;
+      const ref = item.componentRef;
       if (!ref) return { href: '#', external: false };
       const segs = ref.split(':').filter(Boolean);
       if (segs.length === 0) return { href: '#', external: false };
-      const navParams = (item as any).params as Record<string, unknown> | undefined;
+      const navParams = item.params;
       // Special-case metadata refs: route to nested REST-style /metadata paths.
       //   metadata:directory                  → /metadata
       //   metadata:resource (+ params.type)   → /metadata/:type

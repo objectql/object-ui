@@ -76,6 +76,24 @@ describe('NavigationItem Zod Schema', () => {
     expect(result.success).toBe(true);
   });
 
+  // #2918 — `type: 'component'` was implemented in the renderers but rejected
+  // by this schema, so authors could not declare it at all.
+  it('should validate a component navigation item and keep componentRef/params', () => {
+    const item = {
+      id: 'nav_objects',
+      type: 'component',
+      label: 'Objects',
+      componentRef: 'metadata:resource',
+      params: { type: 'object' },
+    };
+    const result = NavigationItemSchema.safeParse(item);
+    expect(result.success).toBe(true);
+    // The fields the renderer consumes must survive parse (zod strips
+    // undeclared keys) — otherwise the item validates but renders `#`.
+    expect(result.data.componentRef).toBe('metadata:resource');
+    expect(result.data.params).toEqual({ type: 'object' });
+  });
+
   it('should validate a group navigation item with children', () => {
     const item = {
       id: 'nav_sales_group',

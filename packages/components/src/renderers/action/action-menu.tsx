@@ -220,8 +220,9 @@ const ActionMenuRenderer = forwardRef<HTMLButtonElement, { schema: ActionMenuSch
 
 ActionMenuRenderer.displayName = 'ActionMenuRenderer';
 
-ComponentRegistry.register('action:menu', ActionMenuRenderer, {
+ComponentRegistry.register('menu', ActionMenuRenderer, {
   namespace: 'action',
+  skipFallback: true,
   label: 'Action Menu',
   inputs: [
     { name: 'label', type: 'string', label: 'Trigger Label' },

@@ -1227,6 +1227,7 @@ const en = {
     navTypeGroup: 'Group',
     navTypeSeparator: 'Separator',
     navTypeAction: 'Action',
+    navTypeComponent: 'Component',
     navEditIcon: 'Edit icon',
     navToggleVisible: 'Toggle visibility',
     navHidden: 'Hidden',

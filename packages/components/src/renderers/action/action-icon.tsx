@@ -130,8 +130,9 @@ const ActionIconRenderer = forwardRef<HTMLButtonElement, ActionIconProps>(
 
 ActionIconRenderer.displayName = 'ActionIconRenderer';
 
-ComponentRegistry.register('action:icon', ActionIconRenderer, {
+ComponentRegistry.register('icon', ActionIconRenderer, {
   namespace: 'action',
+  skipFallback: true,
   label: 'Action Icon',
   inputs: [
     { name: 'name', type: 'string', label: 'Action Name' },

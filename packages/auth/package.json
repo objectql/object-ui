@@ -38,6 +38,7 @@
   },
   "dependencies": {
     "@object-ui/types": "workspace:*",
+    "@objectstack/spec": "^17.0.0-rc.0",
     "better-auth": "^1.6.25"
   },
   "devDependencies": {

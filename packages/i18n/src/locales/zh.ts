@@ -1235,6 +1235,7 @@ const zh = {
     navTypeGroup: '分组',
     navTypeSeparator: '分隔线',
     navTypeAction: '操作',
+    navTypeComponent: '组件',
     navEditIcon: '编辑图标',
     navToggleVisible: '切换可见性',
     navHidden: '已隐藏',

@@ -1071,6 +1071,7 @@ const es = {
     navTypeGroup: "Grupo",
     navTypeSeparator: "Separador",
     navTypeAction: "Acción",
+    navTypeComponent: "Componente",
     navEditIcon: "Editar icono",
     navToggleVisible: "Alternar visibilidad",
     navHidden: "Oculto",

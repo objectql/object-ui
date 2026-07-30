@@ -379,8 +379,9 @@ export function ElementMetadataViewerRenderer({ schema }: { schema: any }) {
   }
 }
 
-ComponentRegistry.register('element:metadata_viewer', ElementMetadataViewerRenderer, {
+ComponentRegistry.register('metadata_viewer', ElementMetadataViewerRenderer, {
   namespace: 'element',
+  skipFallback: true,
   label: 'Metadata Viewer',
   category: 'content',
 });

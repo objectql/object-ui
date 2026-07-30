@@ -38,8 +38,10 @@ export { createAuthenticatedFetch, ActiveOrganizationStorage, type Authenticated
 export { getUserInitials } from './types';
 
 // Organization membership-role vocabulary — a CLOSED, framework-owned list of
-// four (framework ADR-0108) — plus the narrowing helpers every org screen
-// shares. See `org-roles.ts` for why this still mirrors rather than derives.
+// four (framework ADR-0108), re-exported from `@objectstack/spec`'s
+// `BUILTIN_MEMBERSHIP_ROLES` so it cannot drift — plus the labels and
+// narrowing helpers every org screen shares, which stay console-owned
+// (see `org-roles.ts` for the boundary).
 export {
   ORG_ROLE_OWNER,
   ORG_ROLE_ADMIN,
