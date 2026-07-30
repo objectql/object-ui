@@ -23,6 +23,7 @@ import type {
   Action as SpecAction,
   ActionLocation,
   ActionType as SpecActionType,
+  I18nLabel,
 } from '@objectstack/spec/ui';
 import { FieldType as SpecFieldTypeEnum } from '@objectstack/spec/data';
 import type { FieldType as SpecFieldType } from '@objectstack/spec/data';
@@ -187,34 +188,53 @@ export type ResolvableParamFieldType = ActionParamFieldType | ObjectUiLocalParam
  * `paramToField.ts` maps into the shared field renderer, ADR-0059) was
  * unrepresentable in the public type while being fully implemented.
  *
- * Still narrower than the spec's `ActionParamSchema` in two ways, deliberately
- * left for a follow-up because both are breaking: `name` / `label` / `type` are
- * required here but optional in spec, and the `field` / `objectOverride`
- * field-reference form (spec's primary way to declare a param, which supplies
- * label/type/validation/options from an existing object field) is absent. See
- * #4074 steps 2–3.
+ * This is the AUTHORING shape, aligned with the spec's `ActionParamSchema`
+ * input (#4074 steps 2–3): `name` / `label` / `type` are optional because the
+ * `field` reference form supplies them from an existing object field, and
+ * labels take the spec's `I18nLabel` (a string or a per-locale record). The
+ * RESOLVED shape the dialog consumes — after `resolveActionParams()` in
+ * `@object-ui/app-shell` inlines the field reference — is `@object-ui/core`'s
+ * `ActionParamDef`, which keeps `name`/`label`/`type` required. Authoring and
+ * resolved are different types on purpose; conflating them is what made a
+ * spec-valid `{ field: 'status' }` param a type error here for as long as this
+ * interface required all three.
  */
 export interface ActionParam {
-  /** Parameter name (snake_case) */
-  name: string;
-
-  /** Display label */
-  label: string;
+  /**
+   * Parameter name (snake_case) — the request-body key. Optional: defaults to
+   * {@link field} when the param is field-backed.
+   */
+  name?: string;
 
   /**
-   * Field type for input.
+   * Reference an existing object field to inherit its label / type /
+   * validation / options (the spec's primary way to declare a param). The
+   * resolver inlines the referenced config; explicit properties here override
+   * the inherited ones.
+   */
+  field?: string;
+
+  /** Object that owns {@link field} (defaults to the action's parent object). */
+  objectOverride?: string;
+
+  /** Display label. Overrides the resolved field label for field-backed params. */
+  label?: I18nLabel;
+
+  /**
+   * Field type for input. Optional: field-backed params inherit the referenced
+   * field's type.
    *
    * Accepts the spec vocabulary plus objectui's declared legacy spellings, which
    * is what the dialog resolves — prefer a canonical
    * {@link ActionParamFieldType} in new metadata.
    */
-  type: ResolvableParamFieldType;
+  type?: ResolvableParamFieldType;
 
   /** Whether parameter is required */
   required?: boolean;
 
   /** Options for select/picklist types */
-  options?: Array<{ label: string; value: string }>;
+  options?: Array<{ label: I18nLabel; value: string }>;
 
   /** Default value */
   defaultValue?: unknown;

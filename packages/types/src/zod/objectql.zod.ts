@@ -490,11 +490,22 @@ export const ListViewSchema = BaseSchema
   });
 
 /**
- * Inferred TS type for the ListView component node (spec-derived; issue #2231).
+ * TS type for the ListView component node (spec-derived; issue #2231).
  * The hand-written `interface ListViewSchema` in `../objectql.ts` is now an alias of
- * this inferred type intersected with the non-serializable runtime-only props.
+ * this type intersected with the non-serializable runtime-only props.
+ *
+ * `z.input`, not `z.infer` (framework#4074): this type describes the SDUI JSON as
+ * AUTHORED and as the renderer actually RECEIVES it. The spec sub-schemas that flow
+ * in (`userActions`, `tabs`→`ViewTab`, `sharing`, …) carry `.default()`s, so their
+ * `z.infer` output makes those fields required — but nothing on the render path
+ * runs `.parse()` to apply them: `normalizeListViewSchema` (`@object-ui/core`)
+ * deliberately applies no defaults ("an absent flag stays absent", its test suite).
+ * Typing the surface as parsed output therefore rejected valid authored metadata
+ * (`userActions: { sort: true }`, a tab without `pinned`/`visible`) while promising
+ * renderers defaults that never arrive. The output type of a spec parse belongs to
+ * whoever actually parses; this surface is input on both sides.
  */
-export type ListViewInferred = z.infer<typeof ListViewSchema>;
+export type ListViewInferred = z.input<typeof ListViewSchema>;
 
 /**
  * ObjectMap Schema

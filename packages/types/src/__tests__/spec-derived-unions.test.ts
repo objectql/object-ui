@@ -27,7 +27,7 @@
  *    implements it, so a host app typing against @object-ui/types got an error
  *    on working code.
  *
- * The `satisfies` checks below ARE enforcement — but only since #3005 added
+ * The `satisfies` checks below ARE enforcement — but only since #3009 added
  * `packages/types/tsconfig.test.json` and chained it from this package's
  * `type-check` script.
  *
@@ -72,6 +72,7 @@ import type {
   ActionType,
   RunnableActionType,
   ActionComponent,
+  ActionParam,
   ActionParamFieldType,
   ResolvableParamFieldType,
 } from '../ui-action';
@@ -100,8 +101,20 @@ const _componentCovers = null as unknown as
 type SpecField = typeof SpecFieldType extends { options: readonly (infer T)[] } ? T : never;
 const _paramFieldCovers = null as unknown as SpecField satisfies ActionParamFieldType;
 const _resolvableCovers = null as unknown as ActionParamFieldType satisfies ResolvableParamFieldType;
+// framework#4074 steps 2–3: `ActionParam` is the AUTHORING shape, aligned with
+// the spec's input. The spec's primary declaration form — a bare field
+// reference — must compile; it was a type error while `name`/`label`/`type`
+// were required and `field` was undeclared. `label` is typed as the spec's own
+// `I18nLabel` import — which THIS check revealed to be aliased to plain
+// `string` in the current spec (the per-locale record is the separate
+// `I18nObject`); importing the alias rather than restating it means objectui
+// tracks any future widening automatically. (These annotations are enforcement
+// since objectui#3009 made this file compile.)
+const _fieldBackedParam: ActionParam = { field: 'status' };
+const _minimalTypedParam: ActionParam = { name: 'priority', label: 'Priority', type: 'select' };
 void _chartCovers; void _reportCovers; void _actionCovers; void _pageCovers; void _vizCovers;
 void _runnableCovers; void _componentCovers; void _paramFieldCovers; void _resolvableCovers;
+void _fieldBackedParam; void _minimalTypedParam;
 
 /** Read a spec enum's members, failing loudly if the shape ever changes. */
 const optionsOf = (schema: unknown, name: string): string[] => {

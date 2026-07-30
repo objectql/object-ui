@@ -591,7 +591,7 @@ ComponentRegistry.register('form',
           continue;
         const opts = (f as any).options as SelectOption[] | undefined;
         if (!opts || opts.length === 0) continue;
-        const dependsOn = (f as any).dependsOn;
+        const dependsOn = f.dependsOn;
         const hasOptionPredicate = opts.some((o) => (o as any)?.visibleWhen != null);
         if (!hasOptionPredicate && !dependsOn) continue;
         const current = form.getValues(name);
@@ -1092,7 +1092,7 @@ ComponentRegistry.register('form',
       // `useCascadingOptions` hook (#2715). Non-option fields pass
       // their options through untouched.
       const cascade = isOptionField
-        ? resolveCascadingOptions(rawOptions, ruleRecord, (field as any).dependsOn, predicateScope)
+        ? resolveCascadingOptions(rawOptions, ruleRecord, field.dependsOn, predicateScope)
         : null;
       const optionGroupGated = cascade?.gated ?? false;
       const dependsOnFields = cascade?.dependsOnFields ?? [];

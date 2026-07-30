@@ -29,6 +29,7 @@
  * security boundary: when an option is gated for access-control reasons the
  * server must also reject writes of its value.
  */
+import type { DependsOnInput } from '@object-ui/types';
 import { evalFieldPredicate, type FieldRulePredicate } from './fieldRules.js';
 
 /**
@@ -43,12 +44,14 @@ export interface OptionLike {
   visibleWhen?: FieldRulePredicate;
 }
 
-/** A field's `dependsOn` as authored: a bare name, or a list of names / `{field,param}`. */
-export type DependsOnInput =
-  | string
-  | Array<string | { field: string; param?: string }>
-  | undefined
-  | null;
+/**
+ * A field's `dependsOn` as authored — imported from `@object-ui/types`, where
+ * `FormField.dependsOn` is declared with it (framework#4074; formerly a local
+ * declaration that only the reader knew about, while the public
+ * `FormField.dependsOn` said `string`). Re-exported for this module's existing
+ * consumers.
+ */
+export type { DependsOnInput } from '@object-ui/types';
 
 /**
  * Normalize a field's `dependsOn` to the list of sibling field names it reacts

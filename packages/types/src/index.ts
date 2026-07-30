@@ -134,6 +134,7 @@ export type {
   CalendarSchema,
   ValidationRule,
   FieldCondition,
+  DependsOnInput,
   FormField,
   FormFieldTab,
   FormFieldPane,

@@ -855,6 +855,23 @@ export interface FormFieldPane {
 }
 
 /**
+ * A field's `dependsOn` as authored: a bare parent-field name, or a list of
+ * names / lookup-parameter entries `{ field, param }`.
+ *
+ * This is the single source of truth for the shape (framework#4074).
+ * `@object-ui/core`'s `resolveDependsOnFields` / `resolveCascadingOptions` —
+ * the runtime readers — type their parameter with this import and re-export it,
+ * so the authoring surface and the reader can no longer disagree the way they
+ * did (the reader accepted arrays for as long as it has existed, while
+ * `FormField.dependsOn` said `string`).
+ */
+export type DependsOnInput =
+  | string
+  | Array<string | { field: string; param?: string }>
+  | undefined
+  | null;
+
+/**
  * Form field configuration
  */
 export interface FormField {
@@ -914,12 +931,20 @@ export interface FormField {
    */
   widget?: string;
   /**
-   * Parent field name for cascading/dependent fields.
+   * Parent field(s) for cascading/dependent fields.
    * Aligns with @objectstack/spec FormField.dependsOn.
-   * When the parent field value changes, this field is re-evaluated.
+   * When a parent field value changes, this field is re-evaluated.
+   *
+   * The runtime reader (`resolveCascadingOptions` in `@object-ui/core`) has
+   * always accepted a bare name, a list of names, or lookup-parameter entries
+   * `{ field, param }` — its parameter type is exactly {@link DependsOnInput}.
+   * This property used to say `string` only, so array-authored metadata
+   * type-errored while working, and the form renderer read the key through
+   * `(f as any).dependsOn` to get past its own type (framework#4074).
    * @example 'country' (field 'state' dependsOn 'country')
+   * @example ['industry'] (multi-parent gating)
    */
-  dependsOn?: string;
+  dependsOn?: DependsOnInput;
   /**
    * Visibility condition expression (view-level, from the form view's
    * FormField). Aligns with @objectstack/spec FormField.visibleOn — the wire

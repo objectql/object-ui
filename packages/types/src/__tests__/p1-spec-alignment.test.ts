@@ -111,12 +111,23 @@ describe('P1.1 ListView Spec Alignment', () => {
   });
 
   it('should accept tabs configuration', () => {
+    // A minimal tab is valid AUTHORING input: the spec's ViewTab `.default()`s
+    // `pinned`/`visible`, so they are optional on the input side — which is what
+    // `ListViewSchema` types since framework#4074 (nothing on the render path
+    // parses, so defaults never materialize at runtime either). A tab filter is
+    // the spec's rule-object shape; the previous fixture wrote an ObjectQL
+    // triplet (`['owner', '=', 'current_user']`), which no type on this surface
+    // has ever admitted — this file just never compiled (objectui#3009).
     const schema: ListViewSchema = {
       type: 'list-view',
       objectName: 'Account',
       tabs: [
         { name: 'all', label: 'All Records', isDefault: true },
-        { name: 'mine', label: 'My Records', filter: ['owner', '=', 'current_user'] },
+        {
+          name: 'mine',
+          label: 'My Records',
+          filter: [{ field: 'owner', operator: 'equals', value: 'current_user' }],
+        },
       ],
     };
     expect(schema.tabs).toHaveLength(2);
@@ -170,35 +181,18 @@ describe('P1.1 ListView Spec Alignment', () => {
     expect(schema.sharing?.lockedBy).toBe('admin@example.com');
   });
 
-  it('should accept sharing in ObjectUI format { visibility, enabled }', () => {
-    const schema: ListViewSchema = {
-      type: 'list-view',
-      objectName: 'Account',
-      sharing: {
-        visibility: 'team',
-        enabled: true,
-      },
-    };
-    expect(schema.sharing?.visibility).toBe('team');
-    expect(schema.sharing?.enabled).toBe(true);
-  });
-
-  it('should accept sharing with both spec and ObjectUI fields merged', () => {
-    const schema: ListViewSchema = {
-      type: 'list-view',
-      objectName: 'Account',
-      sharing: {
-        type: 'personal',
-        visibility: 'private',
-        enabled: true,
-        lockedBy: 'user@example.com',
-      },
-    };
-    expect(schema.sharing?.type).toBe('personal');
-    expect(schema.sharing?.visibility).toBe('private');
-    expect(schema.sharing?.enabled).toBe(true);
-    expect(schema.sharing?.lockedBy).toBe('user@example.com');
-  });
+  // (framework#4074) The two "sharing in ObjectUI format { visibility, enabled }"
+  // tests that sat here were deleted rather than made to pass. The legacy pair is
+  // real, but it is a NORMALIZER INPUT dialect, not part of `ListViewSchema`:
+  // `normalizeListViewSchema` (`@object-ui/core`) folds `visibility`/`enabled`
+  // onto the spec's `ViewSharing.type` at the ListView boundary, and ITS suite
+  // asserts every branch of that fold at the seam where it actually runs
+  // (`normalize-list-view.test.ts` — "collapses the visibility audience onto the
+  // spec ownership type", the bare-`enabled` mapping, `lockedBy` preservation,
+  // explicit-`type` precedence). Asserting the dialect on this type instead only
+  // ever "passed" because nothing compiled this file (objectui#3009) — and
+  // widening the canonical type to advertise a dialect that already has a fold
+  // would invite new metadata to author it.
 
   it('should accept exportOptions as spec string[] format', () => {
     const schema: ListViewSchema = {
@@ -568,16 +562,21 @@ describe('P1.5 Record Components', () => {
 // ============================================================================
 describe('P1.6 i18n & ARIA Protocol Alignment', () => {
   it('should accept ARIA props on ListViewSchema', () => {
+    // Canonical spellings: the spec's AriaProps (`ariaLabel`/`ariaDescribedBy`/
+    // `role`) plus objectui's `live` extension. The legacy `label`/`describedBy`
+    // spellings this test used to author are a normalizer-input dialect —
+    // `normalizeListViewSchema` folds them onto the canonical keys, and core's
+    // suite asserts that fold at its own seam (framework#4074).
     const schema: ListViewSchema = {
       type: 'list-view',
       objectName: 'Account',
       aria: {
-        label: 'Accounts List',
-        describedBy: 'accounts-description',
+        ariaLabel: 'Accounts List',
+        ariaDescribedBy: 'accounts-description',
         live: 'polite',
       },
     };
-    expect(schema.aria?.label).toBe('Accounts List');
+    expect(schema.aria?.ariaLabel).toBe('Accounts List');
     expect(schema.aria?.live).toBe('polite');
   });
 
