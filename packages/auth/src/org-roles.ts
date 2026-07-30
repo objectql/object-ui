@@ -7,7 +7,7 @@
  */
 
 /**
- * Organization membership roles — the ONE place the console names them.
+ * Organization membership roles — the console's ONE entry point for them.
  *
  * These are better-auth's organization roles as the ObjectStack framework
  * registers them, stored in `sys_member.role` / `sys_invitation.role`. Before
@@ -15,7 +15,7 @@
  * 'member'` in both `MembersPage` and `InviteMemberDialog`, so a role the
  * server had learned about was still unreachable from either screen.
  *
- * ## The vocabulary is CLOSED — this mirror is complete by construction
+ * ## The vocabulary is CLOSED — and derived, not mirrored
  *
  * [framework ADR-0108 / objectstack#3723] These four names are the WHOLE list,
  * and the framework owns them. An application cannot add a fifth: the server
@@ -23,51 +23,45 @@
  * organization role, and that was retired, because every value stored in
  * `sys_member.role` is projected into `current_user.positions` — so a business
  * role handed out this way was capability with none of the position system's
- * controls (no `granted_by`, no validity window, no scope check).
+ * controls (no `granted_by`, no validity window, no scope check). A membership
+ * role is an organization GRADE (what you may reach); what a person may DO is
+ * a position, granted through `sys_user_position` or an invitation's placement
+ * (framework ADR-0105 D8).
  *
- * So the standing instruction that used to live here — *"a role added
- * server-side must be added HERE too"* — no longer applies. There are no
- * server-side additions to chase. A membership role is an organization GRADE
- * (what you may reach); what a person may DO is a position, granted through
- * `sys_user_position` or an invitation's placement (framework ADR-0105 D8).
+ * The names below are re-exports of `BUILTIN_MEMBERSHIP_ROLES` from
+ * `@objectstack/spec` — the same constant the enforced `sys_member.role` /
+ * `sys_invitation.role` selects are built from — so this list cannot drift
+ * from what the server accepts, by construction.
  *
- * ⚠️ Still a mirror, not a derivation — but now only for a packaging reason,
- * not a design one. The names live in `@objectstack/spec` as
- * `BUILTIN_MEMBERSHIP_ROLES` / `BUILTIN_MEMBERSHIP_ROLE_OPTIONS`, which
- * `@object-ui/auth` cannot import yet: this package does not depend on
- * `@objectstack/spec`, and the constants ship in the first release carrying
- * ADR-0108 (absent from the published 16.1.0). Once this package takes that
- * dependency at a version that has them, the four `export const`s below become
- * a re-export and `ORG_ROLES` becomes `[...BUILTIN_MEMBERSHIP_ROLES]` — the
- * labels and grade ladder stay here, since they are console concerns.
- * `orgRolesMatchFramework` in the tests pins the list until then.
+ * What stays LOCAL, deliberately: `ORG_ROLE_LABELS` and the grade ladder
+ * (`orgRoleGrade` / `invitableOrgRoles` / `assignableOrgRoles`). They are
+ * console concerns — i18n keys and screen-narrowing rules — and folding them
+ * into the name list would be the modeling error ADR-0108 D4 warns about:
+ * *what names exist* is a list; *which names mean authority* and *how a name
+ * projects* are rules that belong next to what they govern.
  */
 
-export const ORG_ROLE_OWNER = 'owner';
-export const ORG_ROLE_ADMIN = 'admin';
-/**
- * [framework ADR-0105 D8] The delegated issuer grade. May reach
- * `/organization/invite-member` WITHOUT being an org admin, which is what gives
- * D8's scope-bounded issuance gate a caller. Carries no authority of its own:
- * what a delegate may actually *place* comes from a separately-granted
- * `adminScope`, surfaced to this console by `describeDelegableScope()`.
- */
-export const ORG_ROLE_DELEGATED_ADMIN = 'delegated_admin';
-export const ORG_ROLE_MEMBER = 'member';
+import {
+  BUILTIN_MEMBERSHIP_ROLES,
+  MEMBERSHIP_ROLE_OWNER as ORG_ROLE_OWNER,
+  MEMBERSHIP_ROLE_ADMIN as ORG_ROLE_ADMIN,
+  MEMBERSHIP_ROLE_DELEGATED_ADMIN as ORG_ROLE_DELEGATED_ADMIN,
+  MEMBERSHIP_ROLE_MEMBER as ORG_ROLE_MEMBER,
+  type BuiltinMembershipRole,
+} from '@objectstack/spec';
 
-export type OrgRole =
-  | typeof ORG_ROLE_OWNER
-  | typeof ORG_ROLE_ADMIN
-  | typeof ORG_ROLE_DELEGATED_ADMIN
-  | typeof ORG_ROLE_MEMBER;
+// Kept under the console's own names so call sites read as org-screen
+// vocabulary. `ORG_ROLE_DELEGATED_ADMIN` is ADR-0105 D8's delegated issuer
+// grade: it may reach `/organization/invite-member` WITHOUT being an org
+// admin, and carries no authority of its own — what a delegate may actually
+// *place* comes from a separately-granted `adminScope`, surfaced to this
+// console by `describeDelegableScope()`.
+export { ORG_ROLE_OWNER, ORG_ROLE_ADMIN, ORG_ROLE_DELEGATED_ADMIN, ORG_ROLE_MEMBER };
 
-/** Display order: most privileged first, as the screens list them. */
-export const ORG_ROLES: readonly OrgRole[] = [
-  ORG_ROLE_OWNER,
-  ORG_ROLE_ADMIN,
-  ORG_ROLE_DELEGATED_ADMIN,
-  ORG_ROLE_MEMBER,
-] as const;
+export type OrgRole = BuiltinMembershipRole;
+
+/** Display order: most privileged first, as the spec ships it and the screens list it. */
+export const ORG_ROLES: readonly OrgRole[] = [...BUILTIN_MEMBERSHIP_ROLES];
 
 /** i18n key + English fallback for a role, so every screen labels it identically. */
 export const ORG_ROLE_LABELS: Record<OrgRole, { key: string; defaultValue: string }> = {
