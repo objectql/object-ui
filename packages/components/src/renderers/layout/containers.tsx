@@ -559,6 +559,11 @@ ComponentRegistry.register('tabs', PageTabsRenderer, {
   label: 'Page Tabs',
   category: 'layout',
   isContainer: true,
+  inputs: [
+    { name: 'items', type: 'array', label: 'Tabs', required: true, description: 'Tab definitions [{ label, value?, icon?, count?, visibleWhen?, children }] — value is the stable ?tab= URL token, count auto-derives from record:related_list descendants when omitted' },
+    { name: 'tabStyle', type: 'enum', label: 'Style', enum: ['line', 'card', 'pill'], defaultValue: 'line' },
+    { name: 'position', type: 'enum', label: 'Position', enum: ['top', 'left'], defaultValue: 'top' },
+  ],
 });
 
 // ---------------------------------------------------------------------------
@@ -602,6 +607,12 @@ ComponentRegistry.register('card', PageCardRenderer, {
   label: 'Page Card',
   category: 'layout',
   isContainer: true,
+  inputs: [
+    { name: 'title', type: 'string', label: 'Title', description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
+    { name: 'bordered', type: 'boolean', label: 'Bordered', defaultValue: true },
+    { name: 'body', type: 'slot', label: 'Body', description: 'Card content; plain `children` also render here' },
+    { name: 'footer', type: 'slot', label: 'Footer' },
+  ],
 });
 
 // ---------------------------------------------------------------------------
@@ -683,6 +694,11 @@ ComponentRegistry.register('accordion', PageAccordionRenderer, {
   label: 'Page Accordion',
   category: 'layout',
   isContainer: true,
+  inputs: [
+    { name: 'items', type: 'array', label: 'Panels', required: true, description: 'Panel definitions [{ label, collapsed?, children }] — collapsed: false opens a panel by default' },
+    { name: 'allowMultiple', type: 'boolean', label: 'Allow Multiple Open', defaultValue: false },
+    { name: 'variant', type: 'enum', label: 'Variant', enum: ['flush', 'card'], defaultValue: 'flush' },
+  ],
 });
 
 // ---------------------------------------------------------------------------

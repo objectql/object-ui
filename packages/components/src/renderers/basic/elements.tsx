@@ -97,6 +97,11 @@ ComponentRegistry.register('text', ElementTextRenderer, {
   skipFallback: true,
   label: 'Text',
   category: 'content',
+  inputs: [
+    { name: 'content', type: 'string', label: 'Content', required: true, description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
+    { name: 'variant', type: 'enum', label: 'Variant', enum: ['heading', 'subheading', 'body', 'caption'], defaultValue: 'body' },
+    { name: 'align', type: 'enum', label: 'Align', enum: ['left', 'center', 'right'], defaultValue: 'left' },
+  ],
 });
 
 // ---------------------------------------------------------------------------
@@ -268,6 +273,18 @@ ComponentRegistry.register('button', ElementButtonRenderer, {
   skipFallback: true,
   label: 'Button',
   category: 'action',
+  // Distinct from `action:button`, which references a DECLARED action by name
+  // and gates on visible/enabled predicates. This one carries an inline
+  // ActionDef — the standalone-page button.
+  inputs: [
+    { name: 'label', type: 'string', label: 'Label', required: true, description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
+    { name: 'action', type: 'object', label: 'Action', description: 'Inline ActionDef executed on click (url / navigation / api / script / modal / flow); omitted → renders inert' },
+    { name: 'variant', type: 'enum', label: 'Variant', enum: ['primary', 'secondary', 'danger', 'ghost', 'link'], defaultValue: 'primary' },
+    { name: 'size', type: 'enum', label: 'Size', enum: ['small', 'medium', 'large'], defaultValue: 'medium' },
+    { name: 'icon', type: 'string', label: 'Icon', description: 'Lucide icon name' },
+    { name: 'iconPosition', type: 'enum', label: 'Icon Position', enum: ['left', 'right'], defaultValue: 'left' },
+    { name: 'disabled', type: 'boolean', label: 'Disabled' },
+  ],
 });
 
 // ---------------------------------------------------------------------------
@@ -390,4 +407,13 @@ ComponentRegistry.register('number', ElementNumberRenderer, {
   skipFallback: true,
   label: 'Number',
   category: 'content',
+  inputs: [
+    { name: 'object', type: 'string', label: 'Object', required: true, description: 'Object the aggregate runs over' },
+    { name: 'aggregate', type: 'enum', label: 'Aggregate', enum: ['count', 'sum', 'avg', 'min', 'max'], required: true },
+    { name: 'field', type: 'string', label: 'Field', description: 'Measure field (required for every aggregate except count)' },
+    { name: 'filter', type: 'array', label: 'Filter' },
+    { name: 'format', type: 'enum', label: 'Format', enum: ['number', 'currency', 'percent'], defaultValue: 'number' },
+    { name: 'prefix', type: 'string', label: 'Prefix' },
+    { name: 'suffix', type: 'string', label: 'Suffix' },
+  ],
 });

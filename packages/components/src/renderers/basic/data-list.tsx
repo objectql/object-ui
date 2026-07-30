@@ -82,6 +82,11 @@ ComponentRegistry.register('definition-list', DefinitionListRenderer, {
   skipFallback: true,
   label: 'Definition List',
   category: 'content',
+  inputs: [
+    { name: 'items', type: 'array', label: 'Items', required: true, description: 'Term/description pairs [{ term, description }]' },
+    { name: 'columns', type: 'enum', label: 'Columns', enum: ['1', '2'], defaultValue: '1' },
+    { name: 'inline', type: 'boolean', label: 'Inline', description: 'Term and description on one baseline-aligned row' },
+  ],
 });
 
 // ---------------------------------------------------------------------------
@@ -178,4 +183,14 @@ ComponentRegistry.register('repeater', RepeaterRenderer, {
   skipFallback: true,
   label: 'Repeater',
   category: 'content',
+  inputs: [
+    { name: 'object', type: 'string', label: 'Object', required: true, description: 'Object whose records the list repeats over' },
+    { name: 'titleField', type: 'string', label: 'Title Field' },
+    { name: 'fields', type: 'array', label: 'Fields', description: 'Columns per row — bare names or { field, label? }' },
+    { name: 'filter', type: 'array', label: 'Filter' },
+    { name: 'sort', type: 'array', label: 'Sort' },
+    { name: 'limit', type: 'number', label: 'Limit' },
+    { name: 'emptyText', type: 'string', label: 'Empty Text' },
+    { name: 'divided', type: 'boolean', label: 'Divided', description: 'Separator between rows' },
+  ],
 });
