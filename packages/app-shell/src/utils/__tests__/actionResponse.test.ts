@@ -12,10 +12,11 @@ import { interpretActionResponse, readActionPayload } from '../actionResponse';
 const ok = { ok: true, status: 200 };
 
 describe('interpretActionResponse — failure shapes', () => {
-    it('catches a business rejection hiding under HTTP 200 (the reported bug)', () => {
-        // `res.ok` is TRUE and the OUTER `success` is TRUE. Only the inner
-        // envelope reports the failure — miss it and the ActionRunner fires a
-        // green "completed" toast over a failed action.
+    it('catches a LEGACY business rejection hiding under HTTP 200 (the reported bug)', () => {
+        // Pre-objectstack#3962 servers only: `res.ok` is TRUE and the OUTER
+        // `success` is TRUE. Current servers answer 400, which `res.ok`
+        // catches — this branch keeps the console honest against older
+        // runtimes.
         const out = interpretActionResponse(ok, {
             success: true,
             data: { success: false, error: "Action 'log_call' on object '*' not found" },
@@ -23,6 +24,19 @@ describe('interpretActionResponse — failure shapes', () => {
 
         expect(out.ok).toBe(false);
         expect(out.error).toBe("Action 'log_call' on object '*' not found");
+    });
+
+    it('catches a 400 rejection (#3962) and resolves the nested {message} to a STRING', () => {
+        const rejection = interpretActionResponse({ ok: false, status: 400 }, {
+            success: false,
+            error: {
+                message: 'ValidationError: issued_on is required',
+                code: 400,
+                details: { code: 'VALIDATION_FAILED', fields: [{ field: 'issued_on' }] },
+            },
+        }, 'Action "submit_signoff"');
+        expect(rejection.ok).toBe(false);
+        expect(rejection.error).toBe('ValidationError: issued_on is required');
     });
 
     it('catches a dispatch failure and resolves the nested {message} to a STRING', () => {
@@ -66,16 +80,22 @@ describe('interpretActionResponse — success', () => {
     });
 });
 
-describe('readActionPayload — the double-wrap trap', () => {
-    it('reaches the handler value through BOTH envelopes', () => {
-        // The bug: reading one level lands on `{success, data}`, where only
-        // `success` and `data` ever live — so an action returning
-        // `{ redirectUrl }` was silently ignored, because
-        // `body.data.redirectUrl` is never set by anything.
+describe('readActionPayload — legacy double wrap vs #3962 single wrap', () => {
+    it('unwraps the LEGACY double envelope to reach the handler value', () => {
+        // Pre-#3962 servers double-wrapped; an action returning
+        // `{ redirectUrl }` lived one level below where every reader looked.
         const envelope = { success: true, data: { redirectUrl: 'https://example.test/sso' } };
 
         expect((envelope as any).redirectUrl).toBeUndefined();       // the old read
         expect(readActionPayload(envelope)).toEqual({ redirectUrl: 'https://example.test/sso' });
+    });
+
+    it('passes a #3962 single-wrapped handler value through — even one with success-ish keys', () => {
+        // Current servers put the handler value directly in `body.data`. Only
+        // the EXACT legacy shape is unwrapped; a handler value that merely
+        // contains a boolean `success` plus its own keys is handler-owned.
+        const payload = { success: true, rows: 3, data: { id: 'x' }, extra: 'mine' };
+        expect(readActionPayload(payload)).toEqual(payload);
     });
 
     it('passes a non-enveloped body through rather than inventing undefined', () => {

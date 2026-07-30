@@ -8,7 +8,7 @@
  * action fired a green "completed" toast on every list/page surface. Two copies
  * of a subtle envelope rule is a bug generator; this is the rule, once.
  *
- * ## The envelope is DOUBLE, and that is the trap
+ * ## The legacy envelope was DOUBLE, and that was the trap (pre-objectstack#3962)
  *
  * ```
  * {                          ← transport envelope
@@ -62,12 +62,24 @@ export interface ActionResponseOutcome {
  * that level is constructed by the server and only ever holds `success`/`data`.
  */
 export function readActionPayload(envelope: unknown): unknown {
-    if (envelope && typeof envelope === 'object' && !Array.isArray(envelope) && 'success' in envelope) {
+    // objectstack#3962 servers single-wrap: `body.data` IS the handler value,
+    // so most of the time this is the identity function. Only the exact LEGACY
+    // action envelope (pre-#3962: a boolean `success` and no keys beyond the
+    // envelope's own) is unwrapped one more level — a handler value that
+    // merely contains a `success` key passes through untouched.
+    if (isLegacyActionEnvelope(envelope)) {
         return (envelope as { data?: unknown }).data;
     }
-    // A server that did not double-wrap (or a stubbed response in a test):
-    // treat what we have as the payload rather than inventing an undefined.
     return envelope;
+}
+
+const LEGACY_ENVELOPE_KEYS = new Set(['success', 'data', 'error', 'code', 'fields']);
+
+/** The pre-objectstack#3962 inner envelope, detected narrowly. */
+export function isLegacyActionEnvelope(v: unknown): boolean {
+    return !!v && typeof v === 'object' && !Array.isArray(v)
+        && typeof (v as any).success === 'boolean'
+        && Object.keys(v).every((k) => LEGACY_ENVELOPE_KEYS.has(k));
 }
 
 /**
@@ -82,7 +94,11 @@ export function interpretActionResponse(
     label: string,
 ): ActionResponseOutcome {
     const envelope = json?.data;
-    const innerFailed = !!envelope && typeof envelope === 'object' && (envelope as any).success === false;
+    // Pre-#3962 servers reported a rejection as HTTP 200 with the inner
+    // `{success:false, error}`; current servers answer a real status, which
+    // `res.ok` catches first. Detected narrowly so a handler value that merely
+    // contains `success: false` is not misread as a failure.
+    const innerFailed = isLegacyActionEnvelope(envelope) && (envelope as any).success === false;
 
     if (!res.ok || (json && json.success === false) || innerFailed) {
         // A business rejection carries its message on the INNER envelope; a
