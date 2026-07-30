@@ -31,6 +31,7 @@ import { render, waitFor } from '@testing-library/react';
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import { SchemaRenderer, AdapterCtx } from '@object-ui/react';
+import '../renderers';
 
 /** The dataSource each render of the stand-in block was handed. */
 const seen: unknown[] = [];
@@ -50,13 +51,17 @@ function Page() {
 
 const SCHEMA = { type: 'home', kind: 'react', name: 'adapter_page', source: SOURCE };
 
-beforeAll(async () => {
-  await import('../renderers');
+// The barrel import moved to module scope (see the `import '../renderers'`
+// above): inside the hook its cold transform was billed to `hookTimeout`, which
+// is why this carried a raised timeout. The override below still has to run
+// AFTER the barrel, and it does — static imports are evaluated before any hook.
+// See object-ui/no-dynamic-import-in-test-hook (objectui#3010/#3021).
+beforeAll(() => {
   ComponentRegistry.register('list-view', (props: any) => {
     seen.push(props.schema?.dataSource);
     return <div data-testid="list-view-double" />;
   });
-}, 30000);
+});
 
 afterAll(() => {
   ComponentRegistry.unregister('list-view');

@@ -20,14 +20,14 @@
  *      NOT honored on this new surface.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, act, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { SchemaRenderer, PageVariablesProvider, usePageVariables } from '@object-ui/react';
-
-beforeAll(async () => {
-  await import('../renderers');
-}, 30000);
+// Registers the renderers at module scope, NOT inside a `beforeAll` — there the
+// cold transform is billed to `hookTimeout`, which is why this carried a raised
+// timeout. See object-ui/no-dynamic-import-in-test-hook (objectui#3010/#3021).
+import '../renderers';
 
 /** Writer that flips a page variable on click — stands in for an interactive element. */
 function Writer({ name, value }: { name: string; value: any }) {

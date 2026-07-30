@@ -6,18 +6,17 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { screen } from '@testing-library/react';
 import {
   renderComponent,
   validateComponentRegistration,
   getAllDisplayIssues,
 } from './test-utils';
-
-// Import renderers to ensure registration
-beforeAll(async () => {
-  await import('../renderers');
-}, 30000); // Increase timeout to 30 seconds for heavy renderer imports
+// Registers the renderers at module scope, NOT inside a `beforeAll` — there the
+// cold transform is billed to `hookTimeout`, which is why this carried a raised
+// timeout. See object-ui/no-dynamic-import-in-test-hook (objectui#3010/#3021).
+import '../renderers';
 
 /**
  * Comprehensive tests for form renderer components

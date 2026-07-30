@@ -21,16 +21,16 @@
  * - `single` offers no select-all and replaces the selection on each pick;
  * - `multiple` (and legacy `true`) keeps the accumulate + select-all UX.
  */
-import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { SelectionConfigSchema } from '@objectstack/spec/ui';
 import { renderComponent } from './test-utils';
 import { SUPPORTED_SELECTION_MODES } from '../renderers/complex/data-table';
-
-beforeAll(async () => {
-  await import('../renderers');
-}, 30000);
+// Registers the renderers at module scope, NOT inside a `beforeAll` — there the
+// cold transform is billed to `hookTimeout`, which is why this carried a raised
+// timeout. See object-ui/no-dynamic-import-in-test-hook (objectui#3010/#3021).
+import '../renderers';
 
 /** The spec's selection vocabulary, read through the `.default()` wrapper. */
 function specSelectionModes(): string[] {

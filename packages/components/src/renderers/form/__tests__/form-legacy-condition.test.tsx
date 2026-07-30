@@ -15,13 +15,13 @@
  * / `visibleOn`. This locks the translated semantics and reactivity.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ComponentRegistry } from '@object-ui/core';
-
-beforeAll(async () => {
-  await import('../../../renderers');
-}, 30000);
+// Registers the renderers at module scope, NOT inside a `beforeAll` — there the
+// cold transform is billed to `hookTimeout`, which is why this carried a raised
+// timeout. See object-ui/no-dynamic-import-in-test-hook (objectui#3010/#3021).
+import '../../../renderers';
 
 function renderForm(fields: any[]) {
   const Form = ComponentRegistry.get('form')!;

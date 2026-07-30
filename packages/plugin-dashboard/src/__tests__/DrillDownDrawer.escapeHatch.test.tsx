@@ -7,17 +7,17 @@
  * provides a `DrillNavigationContext.openRecordList` handler, and stays a
  * self-contained peek when it doesn't.
  */
-import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 import { DrillNavigationProvider } from '@object-ui/react';
 
-beforeAll(async () => {
-  await import('@object-ui/components');
-}, 30000);
-
 import { DrillDownDrawer } from '../DrillDownDrawer';
+// Registers the renderers at module scope, NOT inside a `beforeAll` — there the
+// cold transform is billed to `hookTimeout`, which is why this carried a raised
+// timeout. See object-ui/no-dynamic-import-in-test-hook (objectui#3010/#3021).
+import '@object-ui/components';
 
 function renderDrawer(
   props: Record<string, any> = {},

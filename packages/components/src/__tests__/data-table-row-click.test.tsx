@@ -16,15 +16,15 @@
  * page because the click event bubbled up through React's synthetic tree to
  * the <TableRow> onClick handler which calls onRowClick.
  */
-import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 import { renderComponent } from './test-utils';
-
-beforeAll(async () => {
-  await import('../renderers');
-}, 30000);
+// Registers the renderers at module scope, NOT inside a `beforeAll` — there the
+// cold transform is billed to `hookTimeout`, which is why this carried a raised
+// timeout. See object-ui/no-dynamic-import-in-test-hook (objectui#3010/#3021).
+import '../renderers';
 
 describe('data-table — row click heuristic ignores overlay items', () => {
   const baseSchema = {

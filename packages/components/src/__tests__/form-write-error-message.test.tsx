@@ -16,15 +16,15 @@
  * pi-TgoJ4_DM55Fqz` — untranslated, and leaking the object's machine name and
  * the record id to whoever hit it.
  */
-import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ComponentRegistry } from '@object-ui/core';
-
-beforeAll(async () => {
-  await import('../renderers');
-}, 30000);
+// Registers the renderers at module scope, NOT inside a `beforeAll` — there the
+// cold transform is billed to `hookTimeout`, which is why this carried a raised
+// timeout. See object-ui/no-dynamic-import-in-test-hook (objectui#3010/#3021).
+import '../renderers';
 
 const SCHEMA = {
   type: 'form',

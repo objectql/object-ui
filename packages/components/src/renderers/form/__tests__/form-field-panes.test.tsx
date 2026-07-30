@@ -25,13 +25,13 @@
  * comes out an even `flex-grow: 50`. They are verified in a real browser.
  */
 
-import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { ComponentRegistry } from '@object-ui/core';
-
-beforeAll(async () => {
-  await import('../../../renderers');
-}, 30000);
+// Registers the renderers at module scope, NOT inside a `beforeAll` — there the
+// cold transform is billed to `hookTimeout`, which is why this carried a raised
+// timeout. See object-ui/no-dynamic-import-in-test-hook (objectui#3010/#3021).
+import '../../../renderers';
 
 beforeEach(() => {
   if (!(Element.prototype as any).scrollIntoView) {

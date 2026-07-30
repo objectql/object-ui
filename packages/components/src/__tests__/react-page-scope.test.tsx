@@ -36,6 +36,8 @@ import { render, waitFor } from '@testing-library/react';
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import { SchemaRenderer, AdapterCtx } from '@object-ui/react';
+// Registers PageRenderer for `type:'home'`, which dispatches kind:'react'.
+import '../renderers';
 
 /** Props the stand-in blocks last received, for flat-prop assertions. */
 const captured: { listView?: any; objectForm?: any; kanban?: any } = {};
@@ -50,10 +52,12 @@ function renderReactPage(source: string) {
   );
 }
 
-beforeAll(async () => {
-  // Registers PageRenderer for `type:'home'`, which dispatches kind:'react'.
-  await import('../renderers');
-
+// The barrel import moved to module scope (see `import '../renderers'` above):
+// inside the hook its cold transform was billed to `hookTimeout`, which is why
+// this carried a raised timeout. The stand-ins below still have to run AFTER the
+// barrel, and they do — static imports are evaluated before any hook. See
+// object-ui/no-dynamic-import-in-test-hook (objectui#3010/#3021).
+beforeAll(() => {
   // Stand-ins under the REAL curated tags. `getPublicConfigs()` walks
   // PUBLIC_BLOCKS and resolves each tag, so registering the bare tag is enough
   // to make it public — no `tier` flag needed. Neither tag is registered by

@@ -6,17 +6,16 @@
  * record list it renders (for pivot / dataset / chart drill-through) is itself
  * drill-to-record, so clicking a row opens that record.
  */
-import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 
-// Register the base data-table renderer (transitively via @object-ui/components).
-beforeAll(async () => {
-  await import('@object-ui/components');
-}, 30000);
-
 import { DrillDownDrawer } from '../DrillDownDrawer';
+// Registers the renderers at module scope, NOT inside a `beforeAll` — there the
+// cold transform is billed to `hookTimeout`, which is why this carried a raised
+// timeout. See object-ui/no-dynamic-import-in-test-hook (objectui#3010/#3021).
+import '@object-ui/components';
 
 const records = [
   { id: '1', name: 'Acme Renewal', amount: 1500 },

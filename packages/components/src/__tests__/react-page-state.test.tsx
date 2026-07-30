@@ -48,10 +48,11 @@ function Page() {
 /** Module-scope so the schema identity is stable across host re-renders. */
 const PLAIN_SCHEMA = { type: 'home', kind: 'react', name: 'test_page', source: counterSource() };
 
-beforeAll(async () => {
-  // Registers PageRenderer for `type:'home'`, which dispatches kind:'react'.
-  await import('../renderers');
-}, 30000);
+// Registers PageRenderer for `type:'home'`, which dispatches kind:'react'. At
+// module scope, NOT inside a `beforeAll` — there the cold transform is billed to
+// `hookTimeout`, which is why this carried a raised timeout. See
+// object-ui/no-dynamic-import-in-test-hook (objectui#3010/#3021).
+import '../renderers';
 
 afterEach(() => {
   ComponentRegistry.unregister('object-kanban', 'plugin-kanban');

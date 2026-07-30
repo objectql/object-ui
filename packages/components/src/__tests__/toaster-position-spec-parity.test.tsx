@@ -13,12 +13,16 @@
  * `inputs: []` — all six `NotificationPositionSchema` values (and `limit`)
  * validated and were discarded.
  */
-import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import '@testing-library/jest-dom';
 import { NotificationPositionSchema } from '@objectstack/spec/ui';
 import { renderComponent } from './test-utils';
 import { TOASTER_POSITIONS } from '../renderers/feedback/toaster';
+// Registers the renderers at module scope, NOT inside a `beforeAll` — there the
+// cold transform is billed to `hookTimeout`, which is why this carried a raised
+// timeout. See object-ui/no-dynamic-import-in-test-hook (objectui#3010/#3021).
+import '../renderers';
 
 // Sonner defers mounting its DOM container, so the behavior tests assert on
 // the props our registration hands it rather than sonner internals.
@@ -33,10 +37,6 @@ vi.mock('../ui/sonner', () => ({
     warning: () => undefined,
   }),
 }));
-
-beforeAll(async () => {
-  await import('../renderers');
-}, 30000);
 
 describe('toaster covers the spec notification-position vocabulary', () => {
   const rawOptions = (NotificationPositionSchema as unknown as { options?: readonly string[] }).options;

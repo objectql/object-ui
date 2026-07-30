@@ -18,15 +18,15 @@
  *      date columns could only be typed by hand. A `type: 'date'` column must
  *      render a native date picker (<input type="date">).
  */
-import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 import { renderComponent } from './test-utils';
-
-beforeAll(async () => {
-  await import('../renderers');
-}, 30000);
+// Registers the renderers at module scope, NOT inside a `beforeAll` — there the
+// cold transform is billed to `hookTimeout`, which is why this carried a raised
+// timeout. See object-ui/no-dynamic-import-in-test-hook (objectui#3010/#3021).
+import '../renderers';
 
 const editableSchema = {
   type: 'data-table' as const,

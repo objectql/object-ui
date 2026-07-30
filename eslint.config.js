@@ -65,6 +65,20 @@ export default tseslint.config({
     'object-ui/no-try-catch-around-hook': 'error',
   },
 }, {
+  // objectui#3010/#3021 ratchet — a module loaded inside beforeAll/beforeEach
+  // bills its cold Vite transform to `hookTimeout`, so the test passes or fails
+  // on machine load. Raising the timeout is the intuitive fix and it does not
+  // work: all 37 files found this way already had a raised timeout, escalating
+  // 15s -> 30s -> 60s, and plugin-kanban blew its raised 15s anyway at 15021ms.
+  // Scoped to test files — a dynamic import in app code is normal code
+  // splitting. Error so a new one fails CI; every existing site was converted
+  // first, so this lints clean today.
+  files: ['**/*.test.{ts,tsx}', '**/__tests__/**/*.{ts,tsx}'],
+  plugins: { 'object-ui': objectUi },
+  rules: {
+    'object-ui/no-dynamic-import-in-test-hook': 'error',
+  },
+}, {
   // Type-discipline ratchet, scoped to the canonical view-schema file: a
   // spec-backed view-config field must reference its @objectstack/spec type,
   // never redefine it inline (a hand mirror silently drifts from the spec →

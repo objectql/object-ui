@@ -25,11 +25,12 @@ import '@testing-library/jest-dom';
 import { ComponentRegistry } from '@object-ui/core';
 import { PALETTE_PLACEHOLDER_BLOCKS } from '../renderers/placeholders';
 
-beforeAll(async () => {
-  // Import the barrel ONLY — never `registerPlaceholders()`, which is what
-  // this test exists to prove is not required for these blocks.
-  await import('../renderers');
-}, 30000);
+// Import the barrel ONLY — never `registerPlaceholders()`, which is what this
+// test exists to prove is not required for these blocks. At module scope, NOT
+// inside a `beforeAll` — there the cold transform is billed to `hookTimeout`,
+// which is why this carried a raised timeout. See
+// object-ui/no-dynamic-import-in-test-hook (objectui#3010/#3021).
+import '../renderers';
 
 describe('palette-offered blocks render without the optional bootstrap', () => {
   it('declares a non-empty eager set', () => {

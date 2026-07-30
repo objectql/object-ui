@@ -154,7 +154,7 @@ export const SchemaRenderer = ({ schema }: { schema: UIComponent }) => {
 单跑稳定绿、全量并行下偶发红的测试,**根因几乎总是同一个**:一段**无界的模块加载被计入了一个有界的窗口**。满并行下 Vite 的 transform 管线是饱和的(单 `dom-heavy` 项目就 ~60s transform),实测一次首包 `import()` 可达 **976ms** —— 已吃掉 RTL `findBy`/`waitFor` 默认 **1000ms** 预算的 97.6%。于是断言在和模块加载器抢时间,红绿取决于机器负载而不是被测代码。
 
 - **断言的内容落在 `React.lazy` / 动态 `import()` 边界之后 → 在测试文件的模块作用域直接 `import` 该模块**(`import '@object-ui/plugin-charts';` + 一行注释说明原因)。成本进入 import 阶段,**不受任何 test/hook 超时约束**。specifier 必须与被测组件里的**完全一致** —— ESM 按解析后的 specifier 缓存,这样组件自己的 `React.lazy` 工厂才会立刻 resolve。
-- **不要用 `beforeAll` 预热**:它受 `hookTimeout`(**10s**)约束,比它取代的 `testTimeout`(**15s**)**更窄**,那只是把问题挪个窝。
+- **不要用 `beforeAll` 预热**:它受 `hookTimeout`(**10s**)约束,比它取代的 `testTimeout`(**15s**)**更窄**,那只是把问题挪个窝。**这一条现在由 lint 机械强制** —— `object-ui/no-dynamic-import-in-test-hook`(error)禁止在 `beforeAll`/`beforeEach` 体内 `await import(…)`。两种写法**不会**被它拦(都是正当的,已在规则的 RuleTester 里钉住):传给注册器的**惰性工厂**(`registerLazy('x', () => import('./x'))` —— hook 只是登记 loader,并不执行导入);以及同一 hook 里调了 `vi.resetModules()`/`doMock`/`stubEnv`/`stubGlobal` 的**故意重导入**(它必须读取只在 hook 时存在的状态,提到模块作用域反而会改坏测试)。
 - **禁止**用「调高超时」或「把文件塞进 `vitest.config.mts` 的 `heavyDomTests`」来修 flaky —— 两者都只是把竞态藏起来。`heavyDomTests` 只用于 registry「`<type>` not registered」这类失败。
 - 失败现场会直接指认根因:dump 里若仍是 Suspense fallback(如 `Loading report renderer…`),就是本条;**hook 超时表现为「失败的*文件* + 0 个失败*测试*」**(其余全部 skipped),别误读成断言失败。
 - 顺手体检:别把 `keysOf(x)` 这类整体计算写在 `.filter()` 谓词里(每个元素重算一遍)。`all-locales-key-parity` 曾因此 7.51s,提升出谓词后 **25ms**。

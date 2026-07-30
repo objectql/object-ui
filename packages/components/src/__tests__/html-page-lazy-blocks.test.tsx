@@ -55,10 +55,11 @@ function renderHtmlPage(source: string) {
   );
 }
 
-beforeAll(async () => {
-  // Registers PageRenderer for `type:'home'`, which dispatches kind:'html'.
-  await import('../renderers');
-}, 30000);
+// Registers PageRenderer for `type:'home'`, which dispatches kind:'html'. At
+// module scope, NOT inside a `beforeAll` — there the cold transform is billed to
+// `hookTimeout`, which is why this carried a raised timeout. See
+// object-ui/no-dynamic-import-in-test-hook (objectui#3010/#3021).
+import '../renderers';
 
 afterEach(() => {
   ComponentRegistry.unregister('object-kanban', 'plugin-kanban');

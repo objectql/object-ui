@@ -11,17 +11,16 @@
  * `@object-ui/components`) so they exercise the actual row-click path, not a
  * mock.
  */
-import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 
-// Ensure the base data-table renderer is registered before any test renders.
-beforeAll(async () => {
-  await import('@object-ui/components');
-}, 30000);
-
 import { ObjectDataTable } from '../ObjectDataTable';
+// Registers the renderers at module scope, NOT inside a `beforeAll` — there the
+// cold transform is billed to `hookTimeout`, which is why this carried a raised
+// timeout. See object-ui/no-dynamic-import-in-test-hook (objectui#3010/#3021).
+import '@object-ui/components';
 
 const records = [
   { id: '1', name: 'Acme Renewal', amount: 1500 },

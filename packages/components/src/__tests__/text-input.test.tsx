@@ -13,15 +13,15 @@
  *   5. is safe to drop outside a Page (uncontrolled, never throws).
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import { SchemaRenderer, PageVariablesProvider, usePageVariables } from '@object-ui/react';
-
-beforeAll(async () => {
-  await import('../renderers');
-}, 30000);
+// Registers the renderers at module scope, NOT inside a `beforeAll` — there the
+// cold transform is billed to `hookTimeout`, which is why this carried a raised
+// timeout. See object-ui/no-dynamic-import-in-test-hook (objectui#3010/#3021).
+import '../renderers';
 
 // Reads a page variable back out so a test can assert what the input wrote.
 function VarProbe({ name }: { name: string }) {

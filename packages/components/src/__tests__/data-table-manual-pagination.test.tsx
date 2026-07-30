@@ -15,14 +15,14 @@
  * navigation is reported via `onPageChange` instead of mutating internal state.
  * This is what lets a grid reach records beyond the first batch.
  */
-import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { renderComponent } from './test-utils';
-
-beforeAll(async () => {
-  await import('../renderers');
-}, 30000);
+// Registers the renderers at module scope, NOT inside a `beforeAll` — there the
+// cold transform is billed to `hookTimeout`, which is why this carried a raised
+// timeout. See object-ui/no-dynamic-import-in-test-hook (objectui#3010/#3021).
+import '../renderers';
 
 describe('data-table — manual (server-side) pagination', () => {
   // 5 rows that represent page 2 of a 3125-row result set, page size 50.

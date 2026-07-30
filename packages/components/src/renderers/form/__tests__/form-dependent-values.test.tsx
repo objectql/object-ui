@@ -20,6 +20,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ComponentRegistry } from '@object-ui/core';
+import '../../../renderers';
 
 // Probe widget standing in for a lookup field: surfaces the received
 // `dependentValues` so the test can assert on the injection.
@@ -27,8 +28,12 @@ function DependentValuesProbe(props: any) {
   return <div data-testid="dep-probe">{JSON.stringify(props.dependentValues ?? null)}</div>;
 }
 
-beforeAll(async () => {
-  await import('../../../renderers');
+// The barrel import moved to module scope (see `import '../../../renderers'`
+// above): inside the hook its cold transform was billed to `hookTimeout`, which
+// is why this carried a raised timeout. The overrides below still have to run
+// AFTER the barrel, and they do — static imports are evaluated before any hook.
+// See object-ui/no-dynamic-import-in-test-hook (objectui#3010/#3021).
+beforeAll(() => {
   // Override the protocol placeholder for `field:lookup` with the probe
   // (the fields package owns the real widget; components tests never load it).
   ComponentRegistry.register('field:lookup', DependentValuesProbe, { namespace: 'test' });
