@@ -494,6 +494,8 @@ const zh = {
     loadErrorForbiddenMessage: '你没有查看这些记录的权限。如需访问，请联系管理员。',
     loadErrorUnauthorizedTitle: '需要登录',
     loadErrorUnauthorizedMessage: '登录状态已过期或已退出。请重新登录后查看这些记录。',
+    loadErrorRejectedTitle: '该视图的查询被拒绝',
+    loadErrorRejectedMessage: '服务器无法处理该视图的筛选条件或查询参数。清除筛选条件通常即可恢复;如果视图本身就是这样保存的,需要管理员修正。',
     retry: '重试',
     managedBy: {
       system: {

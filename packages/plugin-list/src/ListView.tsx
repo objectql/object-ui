@@ -276,7 +276,7 @@ export function evaluateConditionalFormatting(
  * is indistinguishable from a real outage — users were told to debug their
  * network when the server had (correctly) denied them access.
  */
-function classifyLoadError(err: unknown): 'forbidden' | 'unauthorized' | 'network' {
+function classifyLoadError(err: unknown): 'forbidden' | 'unauthorized' | 'rejected' | 'network' {
   const e = err as any;
   // The ObjectStack client decorates errors with `httpStatus`; raw fetch
   // wrappers surface `status` / `statusCode`; some adapters only embed the
@@ -290,8 +290,21 @@ function classifyLoadError(err: unknown): 'forbidden' | 'unauthorized' | 'networ
   const code = typeof e?.code === 'string' ? e.code.toUpperCase() : '';
   if (status === 403 || code === 'PERMISSION_DENIED' || code === 'FORBIDDEN') return 'forbidden';
   if (status === 401 || code === 'UNAUTHORIZED' || code === 'UNAUTHENTICATED') return 'unauthorized';
+  // The server understood the request and refused it as malformed. Retrying
+  // sends the identical bad request, so "check your connection and try again"
+  // is the same wrong advice this function exists to stop giving — one status
+  // code over. The server now rejects a `$filter` that is not a filter AST
+  // (objectstack#4121) and an unsupported `$`-parameter, both as 400.
+  if (status === 400 || REJECTED_REQUEST_CODES.has(code)) return 'rejected';
   return 'network';
 }
+
+/** 400-class error codes the data API returns for a request it will never accept. */
+const REJECTED_REQUEST_CODES = new Set([
+  'INVALID_FILTER',
+  'UNSUPPORTED_QUERY_PARAM',
+  'INVALID_QUERY',
+]);
 
 // Default English translations for fallback when I18nProvider is not available
 const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
@@ -315,6 +328,11 @@ const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'list.loadErrorForbiddenMessage': 'You don’t have permission to view these records. Contact your administrator if you think you should have access.',
   'list.loadErrorUnauthorizedTitle': 'Sign in required',
   'list.loadErrorUnauthorizedMessage': 'Your session has expired or you are signed out. Sign in again to view these records.',
+  // Load REJECTED — the server answered 400: the request itself is malformed
+  // (usually a stored filter it cannot parse). Retrying resends the same bad
+  // request, so the copy points at the filter instead of the network.
+  'list.loadErrorRejectedTitle': 'This view’s query was rejected',
+  'list.loadErrorRejectedMessage': 'The server could not process this view’s filter or query options. Clearing the filters usually fixes it; if the view is saved this way, an administrator needs to correct it.',
   'list.retry': 'Retry',
   'list.search': 'Search',
   'list.filter': 'Filter',
@@ -531,7 +549,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // failed. Captured here so the render can show a retryable error panel.
   const [loadError, setLoadError] = React.useState<string | null>(null);
   // What KIND of failure `loadError` is — drives which error panel copy shows.
-  const [loadErrorKind, setLoadErrorKind] = React.useState<'forbidden' | 'unauthorized' | 'network'>('network');
+  const [loadErrorKind, setLoadErrorKind] = React.useState<'forbidden' | 'unauthorized' | 'rejected' | 'network'>('network');
   // Start in loading state when we will fetch from a dataSource so the empty
   // state doesn't flash before the first effect runs. Inline data (schema.data
   // as an array or a `value` provider) starts as not-loading.
@@ -2496,12 +2514,14 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
             title={t(
               loadErrorKind === 'forbidden' ? 'list.loadErrorForbiddenTitle'
                 : loadErrorKind === 'unauthorized' ? 'list.loadErrorUnauthorizedTitle'
-                : 'list.loadErrorTitle',
+                  : loadErrorKind === 'rejected' ? 'list.loadErrorRejectedTitle'
+                    : 'list.loadErrorTitle',
             )}
             description={t(
               loadErrorKind === 'forbidden' ? 'list.loadErrorForbiddenMessage'
                 : loadErrorKind === 'unauthorized' ? 'list.loadErrorUnauthorizedMessage'
-                : 'list.loadErrorMessage',
+                  : loadErrorKind === 'rejected' ? 'list.loadErrorRejectedMessage'
+                    : 'list.loadErrorMessage',
             )}
             action={(
               <Button

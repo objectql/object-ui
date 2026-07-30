@@ -457,6 +457,8 @@ const ko = {
     loadErrorForbiddenMessage: "이 레코드를 볼 권한이 없습니다. 접근이 필요하면 관리자에게 문의하세요.",
     loadErrorUnauthorizedTitle: "로그인이 필요합니다",
     loadErrorUnauthorizedMessage: "세션이 만료되었거나 로그아웃되었습니다. 다시 로그인한 후 확인하세요.",
+    loadErrorRejectedTitle: "이 뷰의 쿼리가 거부되었습니다",
+    loadErrorRejectedMessage: "서버가 이 뷰의 필터 또는 쿼리 옵션을 처리하지 못했습니다. 필터를 지우면 대부분 해결됩니다. 뷰가 이 상태로 저장되어 있다면 관리자가 수정해야 합니다.",
     retry: "다시 시도",
     managedBy: {
       system: {

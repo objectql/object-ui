@@ -457,6 +457,8 @@ const pt = {
     loadErrorForbiddenMessage: "Você não tem permissão para ver estes registros. Contate seu administrador se acha que deveria ter acesso.",
     loadErrorUnauthorizedTitle: "É necessário entrar",
     loadErrorUnauthorizedMessage: "Sua sessão expirou ou você saiu. Entre novamente para ver estes registros.",
+    loadErrorRejectedTitle: "A consulta desta visualização foi rejeitada",
+    loadErrorRejectedMessage: "O servidor não conseguiu processar o filtro ou as opções de consulta desta visualização. Limpar os filtros costuma resolver; se a visualização estiver salva assim, um administrador precisa corrigi-la.",
     retry: "Tentar novamente",
     managedBy: {
       system: {

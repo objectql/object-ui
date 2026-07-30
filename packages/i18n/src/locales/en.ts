@@ -486,6 +486,8 @@ const en = {
     loadErrorForbiddenMessage: 'You don\u2019t have permission to view these records. Contact your administrator if you think you should have access.',
     loadErrorUnauthorizedTitle: 'Sign in required',
     loadErrorUnauthorizedMessage: 'Your session has expired or you are signed out. Sign in again to view these records.',
+    loadErrorRejectedTitle: 'This view’s query was rejected',
+    loadErrorRejectedMessage: 'The server could not process this view’s filter or query options. Clearing the filters usually fixes it; if the view is saved this way, an administrator needs to correct it.',
     retry: 'Retry',
     managedBy: {
       system: {

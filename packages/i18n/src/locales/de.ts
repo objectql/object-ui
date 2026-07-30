@@ -457,6 +457,8 @@ const de = {
     loadErrorForbiddenMessage: "Sie haben keine Berechtigung, diese Datensätze anzuzeigen. Wenden Sie sich an Ihren Administrator, wenn Sie Zugriff benötigen.",
     loadErrorUnauthorizedTitle: "Anmeldung erforderlich",
     loadErrorUnauthorizedMessage: "Ihre Sitzung ist abgelaufen oder Sie sind abgemeldet. Melden Sie sich erneut an, um diese Datensätze anzuzeigen.",
+    loadErrorRejectedTitle: "Die Abfrage dieser Ansicht wurde abgelehnt",
+    loadErrorRejectedMessage: "Der Server konnte den Filter oder die Abfrageoptionen dieser Ansicht nicht verarbeiten. Das Zurücksetzen der Filter behebt das meist; ist die Ansicht so gespeichert, muss ein Administrator sie korrigieren.",
     retry: "Erneut versuchen",
     managedBy: {
       system: {

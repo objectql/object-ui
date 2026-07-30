@@ -18,6 +18,12 @@ import type { ListViewSchema } from '@object-ui/types';
  * denial and an outage were indistinguishable, sending users (and ops) to
  * debug their network while the server was correctly denying access.
  * The error panel must classify by HTTP status / error code.
+ *
+ * The same mistake was still being made one status code over. A **400** is the
+ * server saying it understood the request and will never accept it — a stored
+ * filter it cannot parse (objectstack#4121 now returns `INVALID_FILTER`), or an
+ * unsupported `$`-parameter. Retrying resends the identical bad request, so
+ * "check your connection and try again" is advice that cannot work.
  */
 
 const schema: ListViewSchema = {
@@ -83,5 +89,47 @@ describe('ListView – load-error classification', () => {
     const panel = await errorState(container);
     expect(panel.getAttribute('data-error-kind')).toBe('network');
     expect(panel.textContent).toMatch(/connection/i);
+  });
+
+  it('renders the rejected-query panel for a 400, not the connection copy', async () => {
+    const err = Object.assign(new Error('Malformed $filter'), { httpStatus: 400 });
+    const { container } = renderFailing(err);
+    const panel = await errorState(container);
+    expect(panel.getAttribute('data-error-kind')).toBe('rejected');
+    expect(panel.textContent).toMatch(/filter|query/i);
+    // The advice that cannot work: retrying resends the same bad request.
+    expect(panel.textContent).not.toMatch(/connection/i);
+  });
+
+  it('classifies the server\u2019s INVALID_FILTER code without a numeric status', async () => {
+    // objectstack#4121 — a `$filter` array that is not a filter AST.
+    const err = Object.assign(new Error('Malformed $filter'), { code: 'INVALID_FILTER' });
+    const { container } = renderFailing(err);
+    const panel = await errorState(container);
+    expect(panel.getAttribute('data-error-kind')).toBe('rejected');
+  });
+
+  it('classifies UNSUPPORTED_QUERY_PARAM the same way', async () => {
+    const err = Object.assign(new Error('Unsupported query parameter(s): $bogus'), {
+      code: 'UNSUPPORTED_QUERY_PARAM',
+    });
+    const { container } = renderFailing(err);
+    const panel = await errorState(container);
+    expect(panel.getAttribute('data-error-kind')).toBe('rejected');
+  });
+
+  it('classifies a 400 embedded in the message text', async () => {
+    const { container } = renderFailing(new Error('ApiDataSource: HTTP 400 Bad Request — {}'));
+    const panel = await errorState(container);
+    expect(panel.getAttribute('data-error-kind')).toBe('rejected');
+  });
+
+  it('still prefers 403/401 over the 400 branch', async () => {
+    // Ordering guard: a permission denial must never read as a bad request.
+    for (const [status, kind] of [[403, 'forbidden'], [401, 'unauthorized']] as const) {
+      const { container } = renderFailing(Object.assign(new Error('x'), { httpStatus: status }));
+      const panel = await errorState(container);
+      expect(panel.getAttribute('data-error-kind')).toBe(kind);
+    }
   });
 });

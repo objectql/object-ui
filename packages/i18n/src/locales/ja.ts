@@ -457,6 +457,8 @@ const ja = {
     loadErrorForbiddenMessage: "これらのレコードを表示する権限がありません。必要な場合は管理者にお問い合わせください。",
     loadErrorUnauthorizedTitle: "サインインが必要です",
     loadErrorUnauthorizedMessage: "セッションの有効期限が切れたか、サインアウトしています。再度サインインしてください。",
+    loadErrorRejectedTitle: "このビューのクエリは拒否されました",
+    loadErrorRejectedMessage: "サーバーはこのビューのフィルターまたはクエリ設定を処理できませんでした。フィルターを解除すると解消することがほとんどです。ビューがこの状態で保存されている場合は、管理者による修正が必要です。",
     retry: "再試行",
     managedBy: {
       system: {

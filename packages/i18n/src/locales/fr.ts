@@ -457,6 +457,8 @@ const fr = {
     loadErrorForbiddenMessage: "Vous n'avez pas la permission de consulter ces enregistrements. Contactez votre administrateur si vous pensez devoir y accéder.",
     loadErrorUnauthorizedTitle: "Connexion requise",
     loadErrorUnauthorizedMessage: "Votre session a expiré ou vous êtes déconnecté. Reconnectez-vous pour consulter ces enregistrements.",
+    loadErrorRejectedTitle: "La requête de cette vue a été rejetée",
+    loadErrorRejectedMessage: "Le serveur n’a pas pu traiter le filtre ou les options de requête de cette vue. Effacer les filtres suffit généralement ; si la vue est enregistrée ainsi, un administrateur doit la corriger.",
     retry: "Réessayer",
     managedBy: {
       system: {

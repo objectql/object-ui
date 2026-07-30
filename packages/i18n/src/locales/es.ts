@@ -457,6 +457,8 @@ const es = {
     loadErrorForbiddenMessage: "No tiene permiso para ver estos registros. Contacte a su administrador si cree que debería tener acceso.",
     loadErrorUnauthorizedTitle: "Se requiere iniciar sesión",
     loadErrorUnauthorizedMessage: "Su sesión ha expirado o ha cerrado sesión. Inicie sesión de nuevo para ver estos registros.",
+    loadErrorRejectedTitle: "La consulta de esta vista fue rechazada",
+    loadErrorRejectedMessage: "El servidor no pudo procesar el filtro ni las opciones de consulta de esta vista. Borrar los filtros suele resolverlo; si la vista está guardada así, un administrador debe corregirla.",
     retry: "Reintentar",
     managedBy: {
       system: {
