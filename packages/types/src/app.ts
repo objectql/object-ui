@@ -221,7 +221,7 @@ export interface NavigationArea {
 /**
  * Top-level Application Configuration (app.json)
  */
-export interface AppSchema extends BaseSchema {
+export interface AppComponentSchema extends BaseSchema {
   type: 'app';
   
   /**
@@ -552,7 +552,7 @@ export function isValidAppName(name: string): boolean {
 /**
  * Convert an AppWizardDraft to an AppSchema.
  */
-export function wizardDraftToAppSchema(draft: AppWizardDraft): AppSchema {
+export function wizardDraftToAppSchema(draft: AppWizardDraft): AppComponentSchema {
   return {
     type: 'app',
     name: draft.name,

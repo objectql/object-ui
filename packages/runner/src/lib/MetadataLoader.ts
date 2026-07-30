@@ -6,11 +6,11 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { AppSchema, PageSchema } from '@object-ui/types';
+import { AppComponentSchema, PageNodeSchema } from '@object-ui/types';
 
 export interface MetadataLoader {
-  loadAppConfig(): Promise<AppSchema | null>;
-  loadPage(path: string): Promise<PageSchema | null>;
+  loadAppConfig(): Promise<AppComponentSchema | null>;
+  loadPage(path: string): Promise<PageNodeSchema | null>;
 }
 
 /**
@@ -22,7 +22,7 @@ export class LocalBundleLoader implements MetadataLoader {
   private pagesGlob = import.meta.glob('../app-data/pages/**/*.json');
   private rootGlob = import.meta.glob('../app-data/*.json');
 
-  async loadAppConfig(): Promise<AppSchema | null> {
+  async loadAppConfig(): Promise<AppComponentSchema | null> {
     const key = '../app-data/app.json';
     if (this.appGlob[key]) {
       const mod: any = await this.appGlob[key]();
@@ -31,7 +31,7 @@ export class LocalBundleLoader implements MetadataLoader {
     return null;
   }
 
-  async loadPage(path: string): Promise<PageSchema | null> {
+  async loadPage(path: string): Promise<PageNodeSchema | null> {
     // 1. Normalize Path
     const normalizedPath = path.replace(/^\//, '') || 'index';
 
@@ -79,7 +79,7 @@ export class NetworkLoader implements MetadataLoader {
     this.baseUrl = baseUrl;
   }
 
-  async loadAppConfig(): Promise<AppSchema | null> {
+  async loadAppConfig(): Promise<AppComponentSchema | null> {
     try {
       const res = await fetch(`${this.baseUrl}/app.json`);
       if (!res.ok) return null;
@@ -89,7 +89,7 @@ export class NetworkLoader implements MetadataLoader {
     }
   }
 
-  async loadPage(path: string): Promise<PageSchema | null> {
+  async loadPage(path: string): Promise<PageNodeSchema | null> {
     try {
       // Maps /customers -> /api/pages/customers.json
       const jsonPath = path === '/' ? '/index' : path;

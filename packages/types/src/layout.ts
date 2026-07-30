@@ -507,7 +507,7 @@ export interface PageRegion {
  * Top-level container for a page route.
  * Aligned with @objectstack/spec PageSchema
  */
-export interface PageSchema extends BaseSchema {
+export interface PageNodeSchema extends BaseSchema {
   type: 'page';
   /**
    * Page title
@@ -666,5 +666,5 @@ export type LayoutSchema =
   | ScrollAreaSchema
   | ResizableSchema
   | AspectRatioSchema
-  | PageSchema;
+  | PageNodeSchema;
 

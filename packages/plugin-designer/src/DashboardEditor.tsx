@@ -24,7 +24,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import type { DashboardSchema, DashboardWidgetSchema } from '@object-ui/types';
+import type { DashboardComponentSchema, DashboardWidgetSchema } from '@object-ui/types';
 import {
   Trash2,
   GripVertical,
@@ -59,17 +59,17 @@ function cn(...inputs: (string | undefined | false)[]) {
 
 export interface DashboardEditorProps {
   /** Dashboard schema to edit */
-  schema: DashboardSchema;
+  schema: DashboardComponentSchema;
   /** Callback when schema changes */
-  onChange: (schema: DashboardSchema) => void;
+  onChange: (schema: DashboardComponentSchema) => void;
   /** Read-only mode */
   readOnly?: boolean;
   /** CSS class */
   className?: string;
   /** Callback when JSON is exported */
-  onExport?: (schema: DashboardSchema) => void;
+  onExport?: (schema: DashboardComponentSchema) => void;
   /** Callback when JSON is imported */
-  onImport?: (schema: DashboardSchema) => void;
+  onImport?: (schema: DashboardComponentSchema) => void;
   /** Externally controlled selected widget ID */
   selectedWidgetId?: string | null;
   /** Callback when widget selection changes (for external sync) */
@@ -319,7 +319,7 @@ function WidgetPropertyPanel({
 // Preview Panel
 // ============================================================================
 
-function DashboardPreview({ schema }: { schema: DashboardSchema }) {
+function DashboardPreview({ schema }: { schema: DashboardComponentSchema }) {
   const { t } = useDesignerTranslation();
   const widgets = schema.widgets || [];
   return (
@@ -385,10 +385,10 @@ export function DashboardEditor({
     push: pushHistory,
     undo,
     redo,
-  } = useUndoRedo<DashboardSchema>(schema);
+  } = useUndoRedo<DashboardComponentSchema>(schema);
 
   const applyChange = useCallback(
-    (newSchema: DashboardSchema) => {
+    (newSchema: DashboardComponentSchema) => {
       pushHistory(newSchema);
       onChange(newSchema);
     },
@@ -502,7 +502,7 @@ export function DashboardEditor({
       const reader = new FileReader();
       reader.onload = () => {
         try {
-          const parsed = JSON.parse(reader.result as string) as DashboardSchema;
+          const parsed = JSON.parse(reader.result as string) as DashboardComponentSchema;
           if (parsed && parsed.type === 'dashboard') {
             applyChange(parsed);
             onImport?.(parsed);

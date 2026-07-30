@@ -14,7 +14,7 @@ import type {
   BrandingConfig,
   ObjectSelection,
   EditorMode,
-  AppSchema,
+  AppComponentSchema,
 } from '../index';
 
 describe('App Creation Types', () => {
@@ -44,7 +44,7 @@ describe('App Creation Types', () => {
   });
 
   describe('wizardDraftToAppSchema', () => {
-    it('should convert draft to AppSchema', () => {
+    it('should convert draft to AppComponentSchema', () => {
       const draft: AppWizardDraft = {
         name: 'test_app',
         title: 'Test Application',
@@ -62,7 +62,7 @@ describe('App Creation Types', () => {
         },
       };
 
-      const schema: AppSchema = wizardDraftToAppSchema(draft);
+      const schema: AppComponentSchema = wizardDraftToAppSchema(draft);
       expect(schema.type).toBe('app');
       expect(schema.name).toBe('test_app');
       expect(schema.title).toBe('Test Application');

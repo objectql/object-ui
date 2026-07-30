@@ -300,7 +300,7 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
       if (newSchema.visibleOn !== undefined) {
         return !evaluator.evaluateCondition(newSchema.visibleOn);
       }
-      // @deprecated ADR-0089 → `visibleWhen` (was PageComponentSchema.visibility,
+      // @deprecated ADR-0089 → `visibleWhen` (was PageNodeSchema.visibility,
       // an ExpressionInput) — show-when-truthy, same semantics as `visibleOn`.
       if (newSchema.visibility !== undefined) {
         return !evaluator.evaluateCondition(newSchema.visibility);

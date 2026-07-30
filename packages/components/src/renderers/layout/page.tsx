@@ -13,7 +13,7 @@
  */
 
 import React, { useMemo } from 'react';
-import type { PageSchema, PageRegion, SchemaNode } from '@object-ui/types';
+import type { PageNodeSchema, PageRegion, SchemaNode } from '@object-ui/types';
 import { SchemaRenderer, PageVariablesProvider, PageVariableActionBridge } from '@object-ui/react';
 import { ComponentRegistry } from '@object-ui/core';
 import { compile, manifestFromConfigs } from '@object-ui/sdui-parser';
@@ -183,7 +183,7 @@ const RegionLayout: React.FC<{
 // FlatContent — legacy body/children fallback
 // ---------------------------------------------------------------------------
 
-const FlatContent: React.FC<{ schema: PageSchema }> = ({ schema }) => {
+const FlatContent: React.FC<{ schema: PageNodeSchema }> = ({ schema }) => {
   const content = schema.body || schema.children;
   const nodes: SchemaNode[] = Array.isArray(content)
     ? content
@@ -207,7 +207,7 @@ const FlatContent: React.FC<{ schema: PageSchema }> = ({ schema }) => {
 // ---------------------------------------------------------------------------
 
 /** Template: full-width single column */
-const FullWidthTemplate: React.FC<{ schema: PageSchema }> = ({ schema }) => {
+const FullWidthTemplate: React.FC<{ schema: PageNodeSchema }> = ({ schema }) => {
   if (schema.regions && schema.regions.length > 0) {
     return <RegionLayout regions={schema.regions} pageType={schema.pageType} />;
   }
@@ -215,7 +215,7 @@ const FullWidthTemplate: React.FC<{ schema: PageSchema }> = ({ schema }) => {
 };
 
 /** Template: header-sidebar-main — header spanning full width, sidebar + main below */
-const HeaderSidebarMainTemplate: React.FC<{ schema: PageSchema }> = ({ schema }) => {
+const HeaderSidebarMainTemplate: React.FC<{ schema: PageNodeSchema }> = ({ schema }) => {
   const regions = schema.regions || [];
   if (regions.length === 0) return <FlatContent schema={schema} />;
 
@@ -245,7 +245,7 @@ const HeaderSidebarMainTemplate: React.FC<{ schema: PageSchema }> = ({ schema })
 };
 
 /** Template: three-column — sidebar + main + aside */
-const ThreeColumnTemplate: React.FC<{ schema: PageSchema }> = ({ schema }) => {
+const ThreeColumnTemplate: React.FC<{ schema: PageNodeSchema }> = ({ schema }) => {
   const regions = schema.regions || [];
   if (regions.length === 0) return <FlatContent schema={schema} />;
 
@@ -283,7 +283,7 @@ const ThreeColumnTemplate: React.FC<{ schema: PageSchema }> = ({ schema }) => {
 };
 
 /** Template: dashboard — 2x2 grid of regions */
-const DashboardTemplate: React.FC<{ schema: PageSchema }> = ({ schema }) => {
+const DashboardTemplate: React.FC<{ schema: PageNodeSchema }> = ({ schema }) => {
   const regions = schema.regions || [];
   if (regions.length === 0) return <FlatContent schema={schema} />;
 
@@ -305,7 +305,7 @@ const DashboardTemplate: React.FC<{ schema: PageSchema }> = ({ schema }) => {
 };
 
 /** Template registry — maps template names to layout components */
-const TEMPLATE_REGISTRY: Record<string, React.FC<{ schema: PageSchema }>> = {
+const TEMPLATE_REGISTRY: Record<string, React.FC<{ schema: PageNodeSchema }>> = {
   'default': FullWidthTemplate,
   'full-width': FullWidthTemplate,
   'header-sidebar-main': HeaderSidebarMainTemplate,
@@ -314,7 +314,7 @@ const TEMPLATE_REGISTRY: Record<string, React.FC<{ schema: PageSchema }>> = {
 };
 
 /** Resolve template: if the schema specifies a template name, use the matching layout */
-function resolveTemplate(schema: PageSchema): React.FC<{ schema: PageSchema }> | null {
+function resolveTemplate(schema: PageNodeSchema): React.FC<{ schema: PageNodeSchema }> | null {
   if (!schema.template) return null;
   return TEMPLATE_REGISTRY[schema.template] || null;
 }
@@ -324,7 +324,7 @@ function resolveTemplate(schema: PageSchema): React.FC<{ schema: PageSchema }> |
 // ---------------------------------------------------------------------------
 
 /** Record page — detail-oriented, narrower max-width */
-const RecordPageLayout: React.FC<{ schema: PageSchema }> = ({ schema }) => {
+const RecordPageLayout: React.FC<{ schema: PageNodeSchema }> = ({ schema }) => {
   if (schema.regions && schema.regions.length > 0) {
     return <RegionLayout regions={schema.regions} pageType="record" />;
   }
@@ -332,7 +332,7 @@ const RecordPageLayout: React.FC<{ schema: PageSchema }> = ({ schema }) => {
 };
 
 /** Home page — dashboard-style, wider layout */
-const HomePageLayout: React.FC<{ schema: PageSchema }> = ({ schema }) => {
+const HomePageLayout: React.FC<{ schema: PageNodeSchema }> = ({ schema }) => {
   if (schema.regions && schema.regions.length > 0) {
     return <RegionLayout regions={schema.regions} pageType="home" />;
   }
@@ -340,7 +340,7 @@ const HomePageLayout: React.FC<{ schema: PageSchema }> = ({ schema }) => {
 };
 
 /** App page — application shell, full-width capable */
-const AppPageLayout: React.FC<{ schema: PageSchema }> = ({ schema }) => {
+const AppPageLayout: React.FC<{ schema: PageNodeSchema }> = ({ schema }) => {
   if (schema.regions && schema.regions.length > 0) {
     return <RegionLayout regions={schema.regions} pageType="app" />;
   }
@@ -348,7 +348,7 @@ const AppPageLayout: React.FC<{ schema: PageSchema }> = ({ schema }) => {
 };
 
 /** Utility page — compact, focused, narrower */
-const UtilityPageLayout: React.FC<{ schema: PageSchema }> = ({ schema }) => {
+const UtilityPageLayout: React.FC<{ schema: PageNodeSchema }> = ({ schema }) => {
   if (schema.regions && schema.regions.length > 0) {
     return <RegionLayout regions={schema.regions} pageType="utility" />;
   }
@@ -394,7 +394,7 @@ function getJsxManifest() {
 // ---------------------------------------------------------------------------
 
 export const PageRenderer: React.FC<{
-  schema: PageSchema;
+  schema: PageNodeSchema;
   className?: string;
   [key: string]: any;
 }> = ({ schema, className, ...props }) => {
@@ -528,7 +528,7 @@ export const PageRenderer: React.FC<{
       <div className={cn(fullBleed ? 'space-y-6' : 'mx-auto space-y-6', maxWidthClass)}>
         {/* Page header — suppressed on record pages (the page:header component
             in the header region renders the record-bound title instead).
-            `title` is the objectui spelling; the spec's PageSchema declares
+            `title` is the objectui spelling; the spec's PageNodeSchema declares
             `label` (required), so dual-read it — mirrors the fallback
             DashboardRenderer already uses (framework#1878 §3 recheck). */}
         {pageType !== 'record' && (pageTitle || schema.description) && (

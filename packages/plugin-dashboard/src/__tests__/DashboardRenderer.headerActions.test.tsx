@@ -20,13 +20,13 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { DashboardSchema } from '@object-ui/types';
+import type { DashboardComponentSchema } from '@object-ui/types';
 import { ActionProvider } from '@object-ui/react';
 import { DashboardRenderer } from '../DashboardRenderer';
 
 afterEach(cleanup);
 
-function dashboardWith(actionType: string): DashboardSchema {
+function dashboardWith(actionType: string): DashboardComponentSchema {
   return {
     type: 'dashboard',
     title: 'Ops',
@@ -34,7 +34,7 @@ function dashboardWith(actionType: string): DashboardSchema {
     header: {
       actions: [{ label: 'Convert Lead', actionUrl: 'convert_lead_wizard', actionType }],
     },
-  } as unknown as DashboardSchema;
+  } as unknown as DashboardComponentSchema;
 }
 
 describe('DashboardRenderer header actions', () => {

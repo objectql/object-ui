@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import type { NavigationItem, AppSchema } from '@object-ui/types';
+import type { NavigationItem, AppComponentSchema } from '@object-ui/types';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useAdapter } from '../providers/AdapterProvider';
 import { useMetadata } from '../providers/MetadataProvider';
@@ -210,7 +210,7 @@ export function useNavigationSync(): UseNavigationSyncReturn {
 
   /** Persist an updated app schema and refresh metadata. */
   const saveApp = useCallback(
-    async (appName: string, schema: AppSchema) => {
+    async (appName: string, schema: AppComponentSchema) => {
       const client = adapterRef.current?.getClient();
       if (client) {
         await client.meta.saveItem('app', appName, schema);
@@ -222,8 +222,8 @@ export function useNavigationSync(): UseNavigationSyncReturn {
 
   /** Find the current app schema from metadata by name. */
   const findApp = useCallback(
-    (appName: string): AppSchema | undefined =>
-      matchAppBySegment(apps, appName) as AppSchema | undefined,
+    (appName: string): AppComponentSchema | undefined =>
+      matchAppBySegment(apps, appName) as AppComponentSchema | undefined,
     [apps],
   );
 
@@ -245,7 +245,7 @@ export function useNavigationSync(): UseNavigationSyncReturn {
         icon: 'FileText',
       };
       const updated = addNavigationItem(prev, newItem);
-      const updatedApp: AppSchema = { ...app, navigation: updated };
+      const updatedApp: AppComponentSchema = { ...app, navigation: updated };
 
       try {
         await saveApp(appName, updatedApp);
@@ -283,7 +283,7 @@ export function useNavigationSync(): UseNavigationSyncReturn {
         icon: 'LayoutDashboard',
       };
       const updated = addNavigationItem(prev, newItem);
-      const updatedApp: AppSchema = { ...app, navigation: updated };
+      const updatedApp: AppComponentSchema = { ...app, navigation: updated };
 
       try {
         await saveApp(appName, updatedApp);
@@ -320,7 +320,7 @@ export function useNavigationSync(): UseNavigationSyncReturn {
       const updated = removeNavigationItems(prev, 'page', pageName);
       if (navigationEqual(updated, prev)) return; // nothing changed
 
-      const updatedApp: AppSchema = { ...app, navigation: updated };
+      const updatedApp: AppComponentSchema = { ...app, navigation: updated };
 
       try {
         await saveApp(appName, updatedApp);
@@ -353,7 +353,7 @@ export function useNavigationSync(): UseNavigationSyncReturn {
       const updated = removeNavigationItems(prev, 'dashboard', dashboardName);
       if (navigationEqual(updated, prev)) return;
 
-      const updatedApp: AppSchema = { ...app, navigation: updated };
+      const updatedApp: AppComponentSchema = { ...app, navigation: updated };
 
       try {
         await saveApp(appName, updatedApp);
@@ -390,7 +390,7 @@ export function useNavigationSync(): UseNavigationSyncReturn {
       const updated = renameNavigationItems(prev, 'page', oldName, newName);
       if (navigationEqual(updated, prev)) return;
 
-      const updatedApp: AppSchema = { ...app, navigation: updated };
+      const updatedApp: AppComponentSchema = { ...app, navigation: updated };
 
       try {
         await saveApp(appName, updatedApp);
@@ -423,7 +423,7 @@ export function useNavigationSync(): UseNavigationSyncReturn {
       const updated = renameNavigationItems(prev, 'dashboard', oldName, newName);
       if (navigationEqual(updated, prev)) return;
 
-      const updatedApp: AppSchema = { ...app, navigation: updated };
+      const updatedApp: AppComponentSchema = { ...app, navigation: updated };
 
       try {
         await saveApp(appName, updatedApp);

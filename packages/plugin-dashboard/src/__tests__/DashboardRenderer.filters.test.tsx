@@ -20,7 +20,7 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
-import type { DashboardSchema } from '@object-ui/types';
+import type { DashboardComponentSchema } from '@object-ui/types';
 import { DashboardRenderer } from '../DashboardRenderer';
 
 afterEach(cleanup);
@@ -41,7 +41,7 @@ const lastRuntimeFilter = (
 describe('DashboardRenderer dashboard-level filters', () => {
   it('renders no filter bar when the schema declares no filters', async () => {
     const queryDataset = makeQueryDataset();
-    const schema: DashboardSchema = {
+    const schema: DashboardComponentSchema = {
       type: 'dashboard',
       widgets: [{ id: 'w1', type: 'bar', dataset: 'invoices', values: ['count'] }],
     };
@@ -53,7 +53,7 @@ describe('DashboardRenderer dashboard-level filters', () => {
 
   it('broadcasts the default date range into each widget via its own bound field', async () => {
     const queryDataset = makeQueryDataset();
-    const schema: DashboardSchema = {
+    const schema: DashboardComponentSchema = {
       type: 'dashboard',
       dateRange: { field: 'created_at', defaultRange: 'last_30_days', allowCustomRange: true },
       widgets: [
@@ -78,7 +78,7 @@ describe('DashboardRenderer dashboard-level filters', () => {
 
   it('merges the broadcast with a widget\'s own filter and honors opt-out', async () => {
     const queryDataset = makeQueryDataset();
-    const schema: DashboardSchema = {
+    const schema: DashboardComponentSchema = {
       type: 'dashboard',
       globalFilters: [
         { name: 'region', field: 'region', type: 'select', options: ['EMEA', 'APAC'], defaultValue: 'EMEA' },
@@ -102,7 +102,7 @@ describe('DashboardRenderer dashboard-level filters', () => {
 
   it('re-scopes all bound widgets live when a filter value changes', async () => {
     const queryDataset = makeQueryDataset();
-    const schema: DashboardSchema = {
+    const schema: DashboardComponentSchema = {
       type: 'dashboard',
       globalFilters: [{ name: 'q', field: 'name', type: 'text', label: 'Search' }],
       widgets: [
@@ -135,7 +135,7 @@ describe('DashboardRenderer dashboard-level filters', () => {
 
   it('injects the merged filter into a dataset widget\'s runtimeFilter', async () => {
     const queryDataset = vi.fn(async () => ({ rows: [{ revenue: 1 }] }));
-    const schema: DashboardSchema = {
+    const schema: DashboardComponentSchema = {
       type: 'dashboard',
       globalFilters: [
         { name: 'region', field: 'region', type: 'select', options: ['EMEA'], defaultValue: 'EMEA' },

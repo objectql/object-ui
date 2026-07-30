@@ -749,7 +749,7 @@ export interface DashboardWidgetSchema {
 /**
  * Dashboard Schema
  */
-export interface DashboardSchema extends BaseSchema {
+export interface DashboardComponentSchema extends BaseSchema {
   type: 'dashboard';
   /** Dashboard title displayed in the header */
   title?: string;
@@ -835,4 +835,4 @@ export type ComplexSchema =
   | FilterBuilderSchema
   | CarouselSchema
   | ChatbotSchema
-  | DashboardSchema;
+  | DashboardComponentSchema;

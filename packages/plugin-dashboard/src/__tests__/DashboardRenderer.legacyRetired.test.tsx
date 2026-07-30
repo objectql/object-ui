@@ -17,7 +17,7 @@
 
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
-import type { DashboardSchema } from '@object-ui/types';
+import type { DashboardComponentSchema } from '@object-ui/types';
 import { DashboardRenderer } from '../DashboardRenderer';
 
 afterEach(cleanup);
@@ -33,13 +33,13 @@ describe('DashboardRenderer retired legacy widgets', () => {
     ['pivot', { type: 'pivot', object: 'invoices', rowField: 'region', valueField: 'amount' }],
     ['table', { type: 'table', object: 'invoices' }],
   ])('renders a visible placeholder for a legacy %s widget', (_kind, widget) => {
-    const schema: DashboardSchema = { type: 'dashboard', widgets: [legacyWidget(widget)] };
+    const schema: DashboardComponentSchema = { type: 'dashboard', widgets: [legacyWidget(widget)] };
     render(<DashboardRenderer schema={schema} />);
     expect(screen.getByText(/retired data format/i)).toBeInTheDocument();
   });
 
   it('does NOT show the placeholder for a dataset-bound widget', () => {
-    const schema: DashboardSchema = {
+    const schema: DashboardComponentSchema = {
       type: 'dashboard',
       widgets: [{ id: 'w1', type: 'bar', dataset: 'invoices', values: ['count'] }],
     };
@@ -48,7 +48,7 @@ describe('DashboardRenderer retired legacy widgets', () => {
   });
 
   it('does NOT show the placeholder for a static options.data widget', () => {
-    const schema: DashboardSchema = {
+    const schema: DashboardComponentSchema = {
       type: 'dashboard',
       widgets: [{ id: 'w1', type: 'bar', options: { data: [{ name: 'A', value: 1 }] } }],
     };

@@ -6,7 +6,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  AppSchema,
+  AppComponentSchema,
   NavigationItemSchema,
   NavigationAreaSchema,
 } from '../zod/index.zod';
@@ -226,8 +226,8 @@ describe('NavigationArea Zod Schema', () => {
 // AppSchema with navigation and areas
 // ============================================================================
 
-describe('AppSchema with unified navigation', () => {
-  it('should validate AppSchema with navigation field', () => {
+describe('AppComponentSchema with unified navigation', () => {
+  it('should validate AppComponentSchema with navigation field', () => {
     const app = {
       type: 'app',
       name: 'crm',
@@ -238,11 +238,11 @@ describe('AppSchema with unified navigation', () => {
         { id: 'nav_contacts', type: 'object', label: 'Contacts', objectName: 'contact' },
       ],
     };
-    const result = AppSchema.safeParse(app);
+    const result = AppComponentSchema.safeParse(app);
     expect(result.success).toBe(true);
   });
 
-  it('should validate AppSchema with areas', () => {
+  it('should validate AppComponentSchema with areas', () => {
     const app = {
       type: 'app',
       name: 'enterprise_crm',
@@ -267,11 +267,11 @@ describe('AppSchema with unified navigation', () => {
         },
       ],
     };
-    const result = AppSchema.safeParse(app);
+    const result = AppComponentSchema.safeParse(app);
     expect(result.success).toBe(true);
   });
 
-  it('should validate AppSchema with both legacy menu and new navigation', () => {
+  it('should validate AppComponentSchema with both legacy menu and new navigation', () => {
     const app = {
       type: 'app',
       name: 'migration_app',
@@ -282,7 +282,7 @@ describe('AppSchema with unified navigation', () => {
         { id: 'nav_home', type: 'page', label: 'Home', pageName: 'home' },
       ],
     };
-    const result = AppSchema.safeParse(app);
+    const result = AppComponentSchema.safeParse(app);
     expect(result.success).toBe(true);
   });
 });

@@ -4,7 +4,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  AppSchema,
+  AppComponentSchema,
   AppActionSchema,
   AppMenuItemSchema,
   ThemeComponentSchema,
@@ -30,8 +30,8 @@ import {
   ListViewSchema,
 } from '../zod/index.zod';
 
-describe('Phase 2: AppSchema Zod Validation', () => {
-  it('should validate a complete AppSchema', () => {
+describe('Phase 2: AppComponentSchema Zod Validation', () => {
+  it('should validate a complete AppComponentSchema', () => {
     const appConfig = {
       type: 'app',
       name: 'my-crm',
@@ -82,7 +82,7 @@ describe('Phase 2: AppSchema Zod Validation', () => {
       ],
     };
 
-    const result = AppSchema.safeParse(appConfig);
+    const result = AppComponentSchema.safeParse(appConfig);
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.type).toBe('app');
@@ -91,12 +91,12 @@ describe('Phase 2: AppSchema Zod Validation', () => {
     }
   });
 
-  it('should validate minimal AppSchema', () => {
+  it('should validate minimal AppComponentSchema', () => {
     const minimal = {
       type: 'app',
     };
 
-    const result = AppSchema.safeParse(minimal);
+    const result = AppComponentSchema.safeParse(minimal);
     expect(result.success).toBe(true);
   });
 
@@ -106,7 +106,7 @@ describe('Phase 2: AppSchema Zod Validation', () => {
       layout: 'invalid-layout',
     };
 
-    const result = AppSchema.safeParse(invalid);
+    const result = AppComponentSchema.safeParse(invalid);
     expect(result.success).toBe(false);
   });
 });

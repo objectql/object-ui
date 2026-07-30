@@ -20,7 +20,7 @@
  * are unit-testable in isolation from React and the data layer.
  */
 
-import type { DashboardSchema, DashboardWidgetSchema, PageVariable } from '@object-ui/types';
+import type { DashboardComponentSchema, DashboardWidgetSchema, PageVariable } from '@object-ui/types';
 
 /** Reserved filter name for the dashboard's built-in date range. */
 export const DATE_RANGE_FILTER_NAME = 'dateRange';
@@ -125,7 +125,7 @@ function normalizeFilterOptions(
  * named by its `name` (defaulting to `field`). Later duplicates win.
  */
 export function resolveDashboardFilterDefs(
-  schema: Pick<DashboardSchema, 'globalFilters' | 'dateRange'>,
+  schema: Pick<DashboardComponentSchema, 'globalFilters' | 'dateRange'>,
 ): DashboardFilterDef[] {
   const byName = new Map<string, DashboardFilterDef>();
 

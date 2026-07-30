@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { mergeLayoutIntoSchema } from '../DashboardGridLayout';
-import type { DashboardSchema } from '@object-ui/types';
+import type { DashboardComponentSchema } from '@object-ui/types';
 
-const SCHEMA: DashboardSchema = {
+const SCHEMA: DashboardComponentSchema = {
   type: 'dashboard',
   name: 'demo',
   title: 'Demo',
@@ -38,12 +38,12 @@ describe('mergeLayoutIntoSchema', () => {
   });
 
   it('returns the original schema reference when there are no widgets', () => {
-    const empty: DashboardSchema = { type: 'dashboard', name: 'empty', widgets: [] };
+    const empty: DashboardComponentSchema = { type: 'dashboard', name: 'empty', widgets: [] };
     expect(mergeLayoutIntoSchema(empty, [{ i: 'x', x: 0, y: 0, w: 1, h: 1 }])).toBe(empty);
   });
 
   it('falls back to "widget-${index}" id for widgets missing an explicit id', () => {
-    const schema: DashboardSchema = {
+    const schema: DashboardComponentSchema = {
       type: 'dashboard',
       name: 'unnamed',
       widgets: [{ title: 'no id', type: 'metric' }],

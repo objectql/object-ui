@@ -45,9 +45,9 @@ import {
   DashboardSchema as SpecDashboardSchema,
   PageSchema as SpecPageSchema,
 } from '@objectstack/spec/ui';
-import { AppSchema as OuiAppSchema } from '../zod/app.zod.js';
-import { DashboardSchema as OuiDashboardSchema } from '../zod/complex.zod.js';
-import { PageSchema as OuiPageSchema } from '../zod/layout.zod.js';
+import { AppComponentSchema as OuiAppSchema } from '../zod/app.zod.js';
+import { DashboardComponentSchema as OuiDashboardSchema } from '../zod/complex.zod.js';
+import { PageNodeSchema as OuiPageSchema } from '../zod/layout.zod.js';
 import { BaseSchema } from '../zod/base.zod.js';
 
 const shapeOf = (s: unknown) => (s as { shape: Record<string, unknown> }).shape;

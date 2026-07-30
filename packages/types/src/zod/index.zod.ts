@@ -38,7 +38,7 @@
 // Application - Global Configuration
 // ============================================================================
 export {
-  AppSchema,
+  AppComponentSchema,
   AppActionSchema,
   NavigationItemSchema,
   NavigationItemTypeSchema,
@@ -85,7 +85,7 @@ export {
   PageRegionSchema,
   PageVariableSchema,
   PageTypeSchema,
-  PageSchema,
+  PageNodeSchema,
   LayoutSchema,
 } from './layout.zod.js';
 
@@ -231,7 +231,7 @@ export {
   ChatbotSchema,
   DashboardWidgetLayoutSchema,
   DashboardWidgetSchema,
-  DashboardSchema,
+  DashboardComponentSchema,
   DashboardWidgetConfigSchema,
   DashboardConfigSchema,
   ComplexSchema,
@@ -342,7 +342,7 @@ export {
 // ============================================================================
 
 import { z } from 'zod';
-import { AppSchema } from './app.zod.js';
+import { AppComponentSchema } from './app.zod.js';
 import { LayoutSchema } from './layout.zod.js';
 import { FormComponentSchema } from './form.zod.js';
 import { DataDisplaySchema } from './data-display.zod.js';
@@ -363,7 +363,7 @@ import { ViewComponentSchema } from './views.zod.js';
  * Use this for generic component rendering where the type is determined at runtime.
  */
 export const AnyComponentSchema = z.union([
-  AppSchema,
+  AppComponentSchema,
   LayoutSchema,
   FormComponentSchema,
   DataDisplaySchema,

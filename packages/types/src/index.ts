@@ -51,7 +51,7 @@
 // Application - Global Configuration
 // ============================================================================
 export type {
-  AppSchema,
+  AppComponentSchema,
   AppAction,
   NavigationItem,
   NavigationItemType,
@@ -107,7 +107,7 @@ export type {
   ResizablePanel,
   AspectRatioSchema,
   LayoutSchema,
-  PageSchema,
+  PageNodeSchema,
   PageSlotMap,
   PageType,
   PageRegion,
@@ -256,7 +256,7 @@ export type {
   CarouselSchema,
   DashboardWidgetLayout,
   DashboardWidgetSchema,
-  DashboardSchema,
+  DashboardComponentSchema,
   ChatMessage,
   ChatMessageSource,
   ChatToolInvocation,
@@ -637,17 +637,17 @@ export type {
 // ============================================================================
 
 import type { BaseSchema, SchemaNode } from './base';
-import type { LayoutSchema, PageSchema } from './layout';
+import type { LayoutSchema, PageNodeSchema } from './layout';
 import type { FormComponentSchema } from './form';
 import type { DataDisplaySchema } from './data-display';
 import type { FeedbackSchema } from './feedback';
 import type { DisclosureSchema } from './disclosure';
 import type { OverlaySchema } from './overlay';
 import type { NavigationSchema } from './navigation';
-import type { ComplexSchema, DashboardSchema } from './complex';
+import type { ComplexSchema, DashboardComponentSchema } from './complex';
 import type { CRUDComponentSchema } from './crud';
 import type { ObjectQLComponentSchema, ListViewSchema } from './objectql';
-import type { AppSchema } from './app';
+import type { AppComponentSchema } from './app';
 
 // ============================================================================
 // Phase 2 Schemas - New Additions
@@ -791,10 +791,10 @@ export type {
  * Use this for generic component rendering where the type is determined at runtime.
  */
 export type AnySchema =
-  | AppSchema 
+  | AppComponentSchema 
   | BaseSchema
   | LayoutSchema
-  | PageSchema
+  | PageNodeSchema
   | FormComponentSchema
   | DataDisplaySchema
   | FeedbackSchema
@@ -802,7 +802,7 @@ export type AnySchema =
   | OverlaySchema
   | NavigationSchema
   | ComplexSchema
-  | DashboardSchema
+  | DashboardComponentSchema
   | CRUDComponentSchema
   | ObjectQLComponentSchema
   | ListViewSchema;

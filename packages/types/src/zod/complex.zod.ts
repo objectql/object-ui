@@ -356,7 +356,7 @@ const SpecDashboardFields = specFieldsExcept(SpecDashboardSchema.shape, [
  * `@objectstack/spec/ui` `DashboardSchema` (see {@link SpecDashboardFields}).
  * The drift guard is `__tests__/page-app-dashboard-spec-parity.test.ts`.
  */
-export const DashboardSchema = BaseSchema.extend(SpecDashboardFields.shape).extend({
+export const DashboardComponentSchema = BaseSchema.extend(SpecDashboardFields.shape).extend({
   type: z.literal('dashboard'),
   columns: z.number().optional().describe('Number of columns'),
   gap: z.number().optional().describe('Grid gap'),
@@ -436,5 +436,5 @@ export const ComplexSchema = z.discriminatedUnion('type', [
   FilterBuilderSchema,
   CarouselSchema,
   ChatbotSchema,
-  DashboardSchema,
+  DashboardComponentSchema,
 ]);

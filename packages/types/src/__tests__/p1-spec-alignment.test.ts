@@ -20,11 +20,11 @@ import type {
   ObjectFormSection,
   // P1.3 Dashboard types
   DashboardWidgetSchema,
-  DashboardSchema,
+  DashboardComponentSchema,
   // P1.4 Page types
   PageType,
   PageVariable,
-  PageSchema,
+  PageNodeSchema,
   // P1.5 Record component types
   RecordDetailsComponentProps,
   RecordHighlightsComponentProps,
@@ -342,7 +342,7 @@ describe('P1.3 Dashboard Spec Alignment', () => {
   });
 
   it('should accept globalFilters with optionsFrom', () => {
-    const dashboard: DashboardSchema = {
+    const dashboard: DashboardComponentSchema = {
       type: 'dashboard',
       widgets: [],
       globalFilters: [
@@ -364,7 +364,7 @@ describe('P1.3 Dashboard Spec Alignment', () => {
   });
 
   it('should accept date range filter', () => {
-    const dashboard: DashboardSchema = {
+    const dashboard: DashboardComponentSchema = {
       type: 'dashboard',
       widgets: [],
       dateRange: {
@@ -378,7 +378,7 @@ describe('P1.3 Dashboard Spec Alignment', () => {
   });
 
   it('should accept DashboardHeader with actions', () => {
-    const dashboard: DashboardSchema = {
+    const dashboard: DashboardComponentSchema = {
       type: 'dashboard',
       widgets: [],
       header: {
@@ -421,7 +421,7 @@ describe('P1.4 Page Composition Spec Alignment', () => {
       'grid', 'list', 'gallery', 'kanban', 'calendar', 'timeline',
     ];
     allTypes.forEach((type) => {
-      const page: PageSchema = {
+      const page: PageNodeSchema = {
         type: 'page',
         pageType: type,
       };
@@ -443,7 +443,7 @@ describe('P1.4 Page Composition Spec Alignment', () => {
   // blankLayout config were dropped: no renderer (framework#2265).)
 
   it('should accept page ARIA properties', () => {
-    const page: PageSchema = {
+    const page: PageNodeSchema = {
       type: 'page',
       aria: {
         ariaLabel: 'Account Details Page',
@@ -580,8 +580,8 @@ describe('P1.6 i18n & ARIA Protocol Alignment', () => {
     expect(schema.aria?.live).toBe('polite');
   });
 
-  it('should accept ARIA props on DashboardSchema', () => {
-    const schema: DashboardSchema = {
+  it('should accept ARIA props on DashboardComponentSchema', () => {
+    const schema: DashboardComponentSchema = {
       type: 'dashboard',
       widgets: [],
       aria: {
@@ -592,8 +592,8 @@ describe('P1.6 i18n & ARIA Protocol Alignment', () => {
     expect(schema.aria?.ariaLabel).toBe('Sales Dashboard');
   });
 
-  it('should accept ARIA props on PageSchema', () => {
-    const schema: PageSchema = {
+  it('should accept ARIA props on PageNodeSchema', () => {
+    const schema: PageNodeSchema = {
       type: 'page',
       aria: {
         ariaLabel: 'Home Page',

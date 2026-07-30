@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { DashboardSchema, DashboardWidgetSchema } from '@object-ui/types';
+import type { DashboardComponentSchema, DashboardWidgetSchema } from '@object-ui/types';
 import { SchemaRenderer, useActionEngine, useObjectLabel, PageVariablesProvider, usePageVariables } from '@object-ui/react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import type { ActionDef, ActionResult, ActionContext, ModalHandler } from '@object-ui/core';
@@ -160,7 +160,7 @@ const LEGACY_RETIRED_WIDGET_SCHEMA = {
 } as const;
 
 export interface DashboardRendererProps {
-  schema: DashboardSchema;
+  schema: DashboardComponentSchema;
   className?: string;
   /** Callback invoked when dashboard refresh is triggered (manual or auto) */
   onRefresh?: () => void;

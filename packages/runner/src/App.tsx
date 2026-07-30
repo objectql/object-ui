@@ -13,14 +13,14 @@ import { SchemaRenderer } from '@object-ui/react';
 import '@object-ui/components';
 import '@object-ui/plugin-kanban';
 import '@object-ui/plugin-charts';
-import { PageSchema, AppSchema } from '@object-ui/types';
+import { PageNodeSchema, AppComponentSchema } from '@object-ui/types';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { LayoutRenderer } from './LayoutRenderer';
 import { LocalBundleLoader, NetworkLoader, MetadataLoader } from './lib/MetadataLoader';
 
 export default function App() {
-  const [appConfig, setAppConfig] = useState<AppSchema | null>(null);
-  const [pageSchema, setPageSchema] = useState<PageSchema | null>(null);
+  const [appConfig, setAppConfig] = useState<AppComponentSchema | null>(null);
+  const [pageSchema, setPageSchema] = useState<PageNodeSchema | null>(null);
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

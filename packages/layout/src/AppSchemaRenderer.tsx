@@ -36,7 +36,7 @@ import {
   SidebarInput,
   useSidebar,
 } from '@object-ui/components';
-import type { AppSchema, NavigationItem, NavigationArea } from '@object-ui/types';
+import type { AppComponentSchema, NavigationItem, NavigationArea } from '@object-ui/types';
 import { menuItemToNavigationItem } from '@object-ui/types';
 import { AppShell, type AppShellBranding } from './AppShell';
 import {
@@ -57,7 +57,7 @@ export type MobileNavMode = 'drawer' | 'bottom_nav' | 'hamburger';
 
 export interface AppSchemaRendererProps {
   /** The AppSchema JSON to render */
-  schema: AppSchema;
+  schema: AppComponentSchema;
 
   /** Base URL prefix for generated hrefs (e.g. "/apps/crm") */
   basePath?: string;
@@ -279,7 +279,7 @@ function InternalSidebar({
   enableReorder,
   onReorder,
 }: {
-  schema: AppSchema;
+  schema: AppComponentSchema;
   basePath: string;
   evalVis: VisibilityEvaluator;
   checkPerm: PermissionChecker;

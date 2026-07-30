@@ -4,7 +4,7 @@ import 'react-grid-layout/css/styles.css';
 import { cn, Card, CardHeader, CardTitle, CardContent, Button } from '@object-ui/components';
 import { Edit, GripVertical, Save, X, RefreshCw } from 'lucide-react';
 import { SchemaRenderer, useHasDndProvider, useDnd } from '@object-ui/react';
-import type { DashboardSchema, DashboardWidgetSchema } from '@object-ui/types';
+import type { DashboardComponentSchema, DashboardWidgetSchema } from '@object-ui/types';
 import { isObjectProvider } from './utils';
 import { classifyWidgetType } from './widgetDispatch';
 
@@ -33,7 +33,7 @@ const CHART_COLORS = [
 ];
 
 export interface DashboardGridLayoutProps {
-  schema: DashboardSchema;
+  schema: DashboardComponentSchema;
   className?: string;
   /**
    * Fires on every drag/resize tick with the raw react-grid-layout payload.
@@ -50,16 +50,16 @@ export interface DashboardGridLayoutProps {
    * persist to localStorage or anywhere else (per Rule #1 Protocol Agnostic:
    * persistence is the parent's responsibility, not the renderer's).
    */
-  onSchemaChange?: (schema: DashboardSchema) => void;
+  onSchemaChange?: (schema: DashboardComponentSchema) => void;
   /** Callback invoked when dashboard refresh is triggered (manual or auto) */
   onRefresh?: () => void;
 }
 
 /** Merge react-grid-layout coordinates back into a DashboardSchema's widgets. */
 export function mergeLayoutIntoSchema(
-  schema: DashboardSchema,
+  schema: DashboardComponentSchema,
   layout: RGLLayout[],
-): DashboardSchema {
+): DashboardComponentSchema {
   if (!schema.widgets?.length) return schema;
   const byId = new Map(layout.map((l) => [l.i, l]));
   const widgets = schema.widgets.map((w, index) => {
@@ -74,7 +74,7 @@ export function mergeLayoutIntoSchema(
   return { ...schema, widgets };
 }
 
-function buildDefaultLayouts(schema: DashboardSchema): { lg: RGLLayout[] } {
+function buildDefaultLayouts(schema: DashboardComponentSchema): { lg: RGLLayout[] } {
   return {
     lg: schema.widgets?.map((widget: DashboardWidgetSchema, index: number) => ({
       i: widget.id || `widget-${index}`,

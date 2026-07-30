@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { DashboardRenderer } from '../DashboardRenderer';
-import type { DashboardSchema } from '@object-ui/types';
+import type { DashboardComponentSchema } from '@object-ui/types';
 
 // Mock SchemaRenderer to avoid pulling in the full renderer tree.
 // Forwards className and includes an interactive child to simulate real chart content.
@@ -19,7 +19,7 @@ vi.mock('@object-ui/react', async () => {
   };
 });
 
-const DASHBOARD_WITH_WIDGETS: DashboardSchema = {
+const DASHBOARD_WITH_WIDGETS: DashboardComponentSchema = {
   type: 'dashboard',
   title: 'Test Dashboard',
   columns: 2,

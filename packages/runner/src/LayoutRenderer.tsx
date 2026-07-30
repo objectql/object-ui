@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import type { AppSchema } from '@object-ui/types';
+import type { AppComponentSchema } from '@object-ui/types';
 import {
   Bell,
   Box,
@@ -36,7 +36,7 @@ import {
 } from '@object-ui/components';
 
 interface LayoutRendererProps {
-  app: AppSchema;
+  app: AppComponentSchema;
   children: React.ReactNode;
   currentPath?: string;
   onNavigate?: (path: string) => void;

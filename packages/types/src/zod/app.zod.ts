@@ -187,7 +187,7 @@ const SpecAppFields = specFieldsExcept(SpecAppSchema.shape, [
  * `@objectstack/spec/ui` `AppSchema` (see {@link SpecAppFields}). The drift
  * guard is `__tests__/page-app-dashboard-spec-parity.test.ts`.
  */
-export const AppSchema = BaseSchema.extend(SpecAppFields.shape).extend({
+export const AppComponentSchema = BaseSchema.extend(SpecAppFields.shape).extend({
   type: z.literal('app'),
   name: z.string().optional().describe('Application name (system ID)'),
   title: z.string().optional().describe('Display title'),
@@ -209,4 +209,4 @@ export type NavigationItemSchemaType = z.infer<typeof NavigationItemSchema>;
 export type NavigationAreaSchemaType = z.infer<typeof NavigationAreaSchema>;
 export type MenuItemSchemaType = z.infer<typeof MenuItemSchema>;
 export type AppActionSchemaType = z.infer<typeof AppActionSchema>;
-export type AppSchemaType = z.infer<typeof AppSchema>;
+export type AppSchemaType = z.infer<typeof AppComponentSchema>;

@@ -13,7 +13,7 @@
  * @module schemas/objectDetailPageSchema
  */
 
-import type { PageSchema, BaseSchema } from '@object-ui/types';
+import type { PageNodeSchema, BaseSchema } from '@object-ui/types';
 
 /** Widget schema node with `objectName` property. */
 interface ObjectWidgetNode extends BaseSchema {
@@ -36,7 +36,7 @@ interface ObjectWidgetNode extends BaseSchema {
 export function buildObjectDetailPageSchema(
   objectName: string,
   item?: Record<string, unknown> | null,
-): PageSchema {
+): PageNodeSchema {
   const label = (item?.label as string) || objectName;
   const description = (item?.description as string) || objectName;
 

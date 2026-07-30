@@ -10,7 +10,7 @@ import * as React from 'react';
 import { useState, useCallback, useEffect } from 'react';
 import { Settings } from 'lucide-react';
 import { cn, Button } from '@object-ui/components';
-import type { DashboardSchema, DashboardWidgetSchema } from '@object-ui/types';
+import type { DashboardComponentSchema, DashboardWidgetSchema } from '@object-ui/types';
 
 import { DashboardRenderer } from './DashboardRenderer';
 import { DashboardConfigPanel } from './DashboardConfigPanel';
@@ -23,7 +23,7 @@ import type { WidgetDatasetCatalogEntry } from './dataset-catalog';
 
 export interface DashboardWithConfigProps {
   /** Dashboard schema for rendering */
-  schema: DashboardSchema;
+  schema: DashboardComponentSchema;
   /** Current dashboard configuration (for the config panel) */
   config: Record<string, any>;
   /** Called when config panel saves dashboard-level changes */
@@ -81,7 +81,7 @@ export function DashboardWithConfig({
 
   // Internal schema state for live preview during widget editing.
   // Updated on every field change; reset when external schema prop changes.
-  const [liveSchema, setLiveSchema] = useState<DashboardSchema>(schema);
+  const [liveSchema, setLiveSchema] = useState<DashboardComponentSchema>(schema);
   const [configVersion, setConfigVersion] = useState(0);
 
   useEffect(() => {

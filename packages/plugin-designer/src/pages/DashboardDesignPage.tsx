@@ -9,7 +9,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DashboardEditor } from '../DashboardEditor';
-import type { DashboardSchema } from '@object-ui/types';
+import type { DashboardComponentSchema } from '@object-ui/types';
 import { toast } from 'sonner';
 import { useAdapter } from '@object-ui/react';
 import { useMetadata } from '@object-ui/react';
@@ -23,9 +23,9 @@ export function DashboardDesignPage() {
 
   const dashboard = dashboards?.find((d: any) => d.name === dashboardName);
 
-  const [schema, setSchema] = useState<DashboardSchema>(
+  const [schema, setSchema] = useState<DashboardComponentSchema>(
     () =>
-      (dashboard as DashboardSchema) || {
+      (dashboard as DashboardComponentSchema) || {
         type: 'dashboard',
         name: dashboardName ?? '',
         title: dashboardName ?? '',
@@ -37,7 +37,7 @@ export function DashboardDesignPage() {
   schemaRef.current = schema;
 
   const saveSchema = useCallback(
-    async (toSave: DashboardSchema) => {
+    async (toSave: DashboardComponentSchema) => {
       try {
         if (dataSource) {
           await dataSource.update('sys_dashboard', dashboardName!, toSave);
@@ -54,7 +54,7 @@ export function DashboardDesignPage() {
   );
 
   const handleChange = useCallback(
-    async (updated: DashboardSchema) => {
+    async (updated: DashboardComponentSchema) => {
       setSchema(updated);
       await saveSchema(updated);
     },
@@ -76,7 +76,7 @@ export function DashboardDesignPage() {
   }, [saveSchema]);
 
   const handleExport = useCallback(
-    (exported: DashboardSchema) => {
+    (exported: DashboardComponentSchema) => {
       const blob = new Blob([JSON.stringify(exported, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -90,7 +90,7 @@ export function DashboardDesignPage() {
   );
 
   const handleImport = useCallback(
-    (imported: DashboardSchema) => {
+    (imported: DashboardComponentSchema) => {
       toast.success('Dashboard schema imported');
       handleChange(imported);
     },

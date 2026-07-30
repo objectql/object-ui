@@ -10,12 +10,12 @@ import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import type { AppSchema, NavigationItem, NavigationArea } from '@object-ui/types';
+import type { AppComponentSchema, NavigationItem, NavigationArea } from '@object-ui/types';
 import { AppSchemaRenderer } from '../AppSchemaRenderer';
 
 /** Wrap component in MemoryRouter */
 function renderApp(
-  schema: AppSchema,
+  schema: AppComponentSchema,
   props: Partial<React.ComponentProps<typeof AppSchemaRenderer>> = {},
   initialEntries: string[] = ['/'],
 ) {
@@ -32,7 +32,7 @@ function renderApp(
 // Fixtures
 // ---------------------------------------------------------------------------
 
-const minimalSchema: AppSchema = {
+const minimalSchema: AppComponentSchema = {
   type: 'app',
   name: 'crm',
   title: 'Sales CRM',
@@ -44,7 +44,7 @@ const navItems: NavigationItem[] = [
   { id: 'n3', type: 'page', label: 'Settings', icon: 'Settings', pageName: 'settings' },
 ];
 
-const schemaWithNav: AppSchema = {
+const schemaWithNav: AppComponentSchema = {
   type: 'app',
   name: 'crm',
   title: 'Sales CRM',
@@ -70,7 +70,7 @@ const serviceArea: NavigationArea = {
   ],
 };
 
-const schemaWithAreas: AppSchema = {
+const schemaWithAreas: AppComponentSchema = {
   type: 'app',
   name: 'crm',
   title: 'Sales CRM',
@@ -123,7 +123,7 @@ describe('AppSchemaRenderer', () => {
   // #2918 — `type: 'component'` is part of the nav vocabulary; the sidebar
   // renders it as a link to the ComponentRegistry route.
   it('renders a component navigation item with its /component href', () => {
-    const schema: AppSchema = {
+    const schema: AppComponentSchema = {
       type: 'app',
       name: 'crm',
       title: 'Sales CRM',
@@ -145,7 +145,7 @@ describe('AppSchemaRenderer', () => {
   // --- Legacy menu migration ---
 
   it('renders legacy menu items converted to NavigationItem', () => {
-    const legacySchema: AppSchema = {
+    const legacySchema: AppComponentSchema = {
       type: 'app',
       name: 'legacy',
       title: 'Legacy App',
@@ -187,7 +187,7 @@ describe('AppSchemaRenderer', () => {
   // --- Area visibility and permissions ---
 
   it('hides areas that fail visibility check', () => {
-    const schemaWithHiddenArea: AppSchema = {
+    const schemaWithHiddenArea: AppComponentSchema = {
       type: 'app',
       name: 'crm',
       title: 'CRM',
@@ -207,7 +207,7 @@ describe('AppSchemaRenderer', () => {
   });
 
   it('hides areas that fail permission check', () => {
-    const schemaWithPermArea: AppSchema = {
+    const schemaWithPermArea: AppComponentSchema = {
       type: 'app',
       name: 'crm',
       title: 'CRM',
@@ -257,7 +257,7 @@ describe('AppSchemaRenderer', () => {
   // --- Permission & visibility on nav items ---
 
   it('hides navigation items based on visibility', () => {
-    const schema: AppSchema = {
+    const schema: AppComponentSchema = {
       type: 'app',
       name: 'crm',
       title: 'CRM',
@@ -274,7 +274,7 @@ describe('AppSchemaRenderer', () => {
   });
 
   it('hides navigation items based on permissions', () => {
-    const schema: AppSchema = {
+    const schema: AppComponentSchema = {
       type: 'app',
       name: 'crm',
       title: 'CRM',

@@ -1,7 +1,7 @@
 // packages/layout/src/Page.tsx
 import React from 'react';
 import { SchemaRenderer } from '@object-ui/react';
-import { PageSchema, SchemaNode } from '@object-ui/types';
+import { PageNodeSchema, SchemaNode } from '@object-ui/types';
 import { PageHeader } from './PageHeader';
 import { cn } from '@object-ui/components';
 
@@ -12,7 +12,7 @@ const getChildren = (children?: SchemaNode[] | SchemaNode): SchemaNode[] => {
   return [children];
 };
 
-export function Page({ schema, className, style, id, ...props }: { schema: PageSchema; className?: string; style?: React.CSSProperties; id?: string } & any) {
+export function Page({ schema, className, style, id, ...props }: { schema: PageNodeSchema; className?: string; style?: React.CSSProperties; id?: string } & any) {
   const children = getChildren(schema.children);
 
   return (

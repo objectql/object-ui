@@ -308,7 +308,7 @@ const SpecPageFields = specFieldsExcept(SpecPageSchema.shape, [
  * `PageSchema` (see {@link SpecPageFields}). The drift guard is
  * `__tests__/page-app-dashboard-spec-parity.test.ts`.
  */
-export const PageSchema = BaseSchema.extend(SpecPageFields.shape).extend({
+export const PageNodeSchema = BaseSchema.extend(SpecPageFields.shape).extend({
   type: z.literal('page'),
   title: z.string().optional().describe('Page title'),
   icon: z.string().optional().describe('Page icon (Lucide icon name)'),
@@ -343,5 +343,5 @@ export const LayoutSchema = z.discriminatedUnion('type', [
   ScrollAreaSchema,
   ResizableSchema,
   AspectRatioSchema,
-  PageSchema,
+  PageNodeSchema,
 ]);
