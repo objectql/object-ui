@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   ActionRunner,
   executeAction,
@@ -571,6 +571,169 @@ describe('ActionRunner', () => {
       });
       expect(result.success).toBe(false);
       expect(result.error).toContain('Invalid URL');
+    });
+
+    it('accepts a flat `to` with no `navigate` block (element:button CTAs)', async () => {
+      const navHandler = vi.fn();
+      runner.setNavigationHandler(navHandler);
+      const result = await runner.execute({
+        type: 'navigation',
+        to: '/apps/cloud_control/sys_environment',
+      });
+      expect(result.success).toBe(true);
+      expect(navHandler).toHaveBeenCalledWith(
+        '/apps/cloud_control/sys_environment',
+        expect.objectContaining({ external: false }),
+      );
+    });
+
+    it('errors when no target is given, instead of reporting a no-op as success', async () => {
+      const result = await runner.execute({ type: 'navigation' });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('No URL provided');
+    });
+
+    // ------------------------------------------------------------------
+    // `navigation` is an alias of `url` (#2944 item 3) and shares its
+    // navigator. Before that, it was quietly the weaker of the two: no
+    // `${param.X}` interpolation, `openIn` ignored, no `/api/…` full-page
+    // short-circuit. These pin the convergence.
+    // ------------------------------------------------------------------
+
+    it('interpolates ${param.X} in the target, as `url` always did', async () => {
+      const navHandler = vi.fn();
+      runner.setNavigationHandler(navHandler);
+      await runner.execute({
+        type: 'navigation',
+        to: '/records?owner=${param.owner}',
+        params: { owner: 'u 1' },
+      });
+      expect(navHandler).toHaveBeenCalledWith(
+        '/records?owner=u%201',
+        expect.objectContaining({ external: false }),
+      );
+    });
+
+    it('honours `openIn` — the declarative switch it used to ignore', async () => {
+      const navHandler = vi.fn();
+      runner.setNavigationHandler(navHandler);
+      await runner.execute({ type: 'navigation', to: '/print/a3', openIn: 'new-tab' });
+      expect(navHandler).toHaveBeenCalledWith(
+        '/print/a3',
+        expect.objectContaining({ newTab: true }),
+      );
+    });
+
+    it('still lets `navigate.newTab` force a new tab without `openIn`', async () => {
+      const navHandler = vi.fn();
+      runner.setNavigationHandler(navHandler);
+      await runner.execute({
+        type: 'navigation',
+        navigate: { to: '/print/a4', newTab: true },
+      });
+      expect(navHandler).toHaveBeenCalledWith(
+        '/print/a4',
+        expect.objectContaining({ newTab: true }),
+      );
+    });
+
+    it('treats an explicit `navigate.external` as external', async () => {
+      const navHandler = vi.fn();
+      runner.setNavigationHandler(navHandler);
+      await runner.execute({
+        type: 'navigation',
+        navigate: { to: '/go/elsewhere', external: true },
+      });
+      expect(navHandler).toHaveBeenCalledWith(
+        '/go/elsewhere',
+        expect.objectContaining({ external: true }),
+      );
+    });
+  });
+
+  describe('url ⇄ navigation share one navigator (#2944 item 3)', () => {
+    it('`url` passes `replace` through — the one modifier only the alias carried', async () => {
+      const navHandler = vi.fn();
+      runner.setNavigationHandler(navHandler);
+      await runner.execute({ type: 'url', target: '/records/1', replace: true });
+      expect(navHandler).toHaveBeenCalledWith(
+        '/records/1',
+        expect.objectContaining({ replace: true }),
+      );
+    });
+
+    it('omits `replace` from the handler options when unset', async () => {
+      const navHandler = vi.fn();
+      runner.setNavigationHandler(navHandler);
+      await runner.execute({ type: 'navigation', to: '/records/1' });
+      expect(navHandler).toHaveBeenCalledWith('/records/1', { external: false, newTab: false });
+    });
+
+    it('both names resolve the same target the same way', async () => {
+      const viaUrl = vi.fn();
+      const viaNav = vi.fn();
+      runner.setNavigationHandler(viaUrl);
+      await runner.execute({ type: 'url', target: '/x?p=${param.p}', params: { p: 'a b' } });
+      runner.setNavigationHandler(viaNav);
+      await runner.execute({ type: 'navigation', to: '/x?p=${param.p}', params: { p: 'a b' } });
+      expect(viaNav.mock.calls[0]).toEqual(viaUrl.mock.calls[0]);
+    });
+
+  });
+
+  // The two branches the shared navigator must not lose. Both were untested
+  // while `executeUrl` was their only caller, and both are what the better-auth
+  // social-login redirect dance depends on: an `/api/…` target has to be a
+  // full-page load, because pushing it into the SPA router matches no route and
+  // lands on the home page, so the OAuth flow never starts.
+  describe('the /api/ full-page short-circuit', () => {
+    // This project runs in a node environment, so there is no `window` at all —
+    // which is exactly why these two branches had no coverage. Stub the minimum
+    // the navigator touches and put it back afterwards.
+    type MaybeWindow = { window?: unknown };
+    let href: ReturnType<typeof vi.fn>;
+    let hadWindow: boolean;
+    let previousWindow: unknown;
+
+    beforeEach(() => {
+      href = vi.fn();
+      hadWindow = 'window' in globalThis;
+      previousWindow = (globalThis as MaybeWindow).window;
+      (globalThis as MaybeWindow).window = {
+        location: {
+          origin: 'http://localhost',
+          get href() { return ''; },
+          set href(v: string) { href(v); },
+        },
+        open: vi.fn(),
+      };
+    });
+
+    afterEach(() => {
+      if (hadWindow) (globalThis as MaybeWindow).window = previousWindow;
+      else delete (globalThis as MaybeWindow).window;
+    });
+
+    it('sends an /api/ target to a full-page load, not the SPA router', async () => {
+      const navHandler = vi.fn();
+      runner.setNavigationHandler(navHandler);
+
+      const result = await runner.execute({
+        type: 'url',
+        target: '/api/v1/auth/sign-in/social?provider=${param.provider}',
+        params: { provider: 'github' },
+      });
+
+      expect(result.success).toBe(true);
+      expect(href).toHaveBeenCalledWith('/api/v1/auth/sign-in/social?provider=github');
+      expect(navHandler).not.toHaveBeenCalled();
+    });
+
+    it('prefixes an /api/ target with the context apiBase (split SPA + backend)', async () => {
+      const split = new ActionRunner({ ...context, apiBase: 'http://localhost:3000/' });
+      await split.execute({ type: 'url', target: '/api/v1/auth/sign-in/social' });
+
+      expect(href).toHaveBeenCalledWith('http://localhost:3000/api/v1/auth/sign-in/social');
     });
   });
 

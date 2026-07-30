@@ -10,11 +10,18 @@
  * @object-ui/core - Action Runner
  * 
  * Executes actions defined in ActionSchema and EventHandler.
- * Supports all spec v2.0.1 action types: script, url, modal, flow, api.
+ *
+ * Dispatches every `@objectstack/spec` `ActionType` — `script`, `url`, `modal`,
+ * `flow`, `api`, `form` — plus the one declared renderer-local alias,
+ * `navigation` (see `ObjectUiLocalActionType`). The table that does it is typed
+ * against that vocabulary, so this list cannot go stale the way the old comment
+ * had (it still claimed five types after `form` shipped).
+ *
  * Features: conditional execution, confirmation, toast notifications,
  * redirect handling, action chaining, custom handler registration.
  */
 
+import type { RunnableActionType } from '@object-ui/types';
 import { ExpressionEvaluator } from '../evaluator/ExpressionEvaluator';
 import { globalUndoManager, type UndoableOperation } from './UndoManager';
 
@@ -76,7 +83,8 @@ export interface ApiConfig {
  * Compatible with both UIActionSchema (spec v2.0.1) and legacy crud.ts ActionSchema.
  */
 export interface ActionDef {
-  /** Action type identifier: 'script' | 'url' | 'modal' | 'flow' | 'api' | 'navigation' | custom */
+  /** Action type identifier — a `RunnableActionType` (the spec's six plus the
+   *  `navigation` alias of `url`) or a custom type with a registered handler. */
   type?: string;
   /** Legacy action type field */
   actionType?: string;
@@ -353,6 +361,33 @@ export class ActionRunner {
   private paramCollectionHandler: ParamCollectionHandler | null;
   private resultDialogHandler: ResultDialogHandler | null;
 
+  /**
+   * Built-in dispatch, one entry per runnable action type.
+   *
+   * A table rather than a `switch` because the type annotation is the guard:
+   * `Record<RunnableActionType, …>` stops compiling the moment
+   * `@objectstack/spec` adds an `ActionType` this runner has no executor for.
+   * That is the whole Tier-2 failure class for actions — a spec name that
+   * validates at save and then does nothing at run time (#2942) — converted
+   * into a build error. It also rejects the reverse: an executor keyed by a
+   * name that is neither in the spec nor a declared local alias.
+   *
+   * `navigation` is that declared alias (see `ObjectUiLocalActionType`); it
+   * shares `url`'s navigator.
+   */
+  private readonly builtinExecutors: Record<
+    RunnableActionType,
+    (action: ActionDef) => Promise<ActionResult>
+  > = {
+    script: (action) => this.executeScript(action),
+    url: (action) => this.executeUrl(action),
+    modal: (action) => this.executeModal(action),
+    flow: (action) => this.executeFlow(action),
+    api: (action) => this.executeAPI(action),
+    form: (action) => this.executeForm(action),
+    navigation: (action) => this.executeNavigation(action),
+  };
+
   constructor(context: ActionContext = {}) {
     this.context = withIdentityAlias(context);
     this.evaluator = new ExpressionEvaluator(this.context);
@@ -514,43 +549,24 @@ export class ActionRunner {
         return result;
       }
 
-      // Built-in action execution by type
+      // Built-in action execution by type.
       let result: ActionResult;
+      const builtin = actionType
+        ? this.builtinExecutors[actionType as RunnableActionType]
+        : undefined;
 
-      switch (actionType) {
-        case 'script':
-          result = await this.executeScript(action);
-          break;
-        case 'url':
-          result = await this.executeUrl(action);
-          break;
-        case 'modal':
-          result = await this.executeModal(action);
-          break;
-        case 'flow':
-          result = await this.executeFlow(action);
-          break;
-        case 'api':
-          result = await this.executeAPI(action);
-          break;
-        case 'form':
-          result = await this.executeForm(action);
-          break;
-        case 'navigation':
-          result = await this.executeNavigation(action);
-          break;
-        default:
-          // Legacy fallback: check for navigate, api, or onClick
-          if (action.navigate) {
-            result = await this.executeNavigation(action);
-          } else if (action.api || action.endpoint) {
-            result = await this.executeAPI(action);
-          } else if (action.onClick) {
-            await action.onClick();
-            result = { success: true };
-          } else {
-            result = await this.executeActionSchema(action);
-          }
+      if (builtin) {
+        result = await builtin(action);
+      } else if (action.navigate) {
+        // Legacy fallback: check for navigate, api, or onClick
+        result = await this.executeNavigation(action);
+      } else if (action.api || action.endpoint) {
+        result = await this.executeAPI(action);
+      } else if (action.onClick) {
+        await action.onClick();
+        result = { success: true };
+      } else {
+        result = await this.executeActionSchema(action);
       }
 
       await this.handlePostExecution(action, result);
@@ -778,13 +794,34 @@ export class ActionRunner {
     if (!rawUrl) {
       return { success: false, error: 'No URL provided for url action' };
     }
+    return this.navigateTo(action, rawUrl, action);
+  }
 
+  /**
+   * The one navigator behind `type: 'url'` and its `navigation` alias.
+   *
+   * Both names mean "go to a location", and they had two implementations that
+   * drifted: only this one interpolated `${param.X}`, promoted `/api/…` to the
+   * `apiBase`, short-circuited a redirect-dance URL to a full-page load, and
+   * honoured `openIn`. A `navigation` action was quietly the weaker of the two
+   * (#2944 item 3). Sharing the body is what keeps the alias honest.
+   *
+   * `action` supplies the interpolation context (`params`) and `openIn`;
+   * `source` supplies the navigation modifiers, which live on the nested
+   * `action.navigate` block for the legacy shape and on the action itself
+   * otherwise.
+   */
+  private async navigateTo(
+    action: ActionDef,
+    rawUrl: unknown,
+    source: ActionDef,
+  ): Promise<ActionResult> {
     // Apply target ${param.X} / ${ctx.X} interpolation FIRST — the
     // ExpressionEvaluator that follows would otherwise see unresolved
     // `param.provider` and either error or substitute undefined. Doing it
     // here also URL-encodes values (required for query-position params
     // like `?provider=foo+bar`).
-    const interpolated = this.interpolateTarget(rawUrl, action);
+    const interpolated = this.interpolateTarget(rawUrl as string, action);
     let url = this.evaluator.evaluate(interpolated) as string;
 
     if (!this.isValidUrl(url)) {
@@ -805,7 +842,10 @@ export class ActionRunner {
       url = `${apiBase}${url}`;
     }
 
-    const isExternal = url.startsWith('http://') || url.startsWith('https://');
+    // `source.external` is the `navigation` shape's explicit override; the
+    // scheme heuristic covers every other case.
+    const isExternal =
+      Boolean(source.external) || url.startsWith('http://') || url.startsWith('https://');
     // Same-origin API endpoints (most commonly the auth provider's
     // `/api/v1/auth/sign-in/social` redirect dance) issue server-side
     // 302s that must be followed by the *browser*, not the SPA router.
@@ -823,15 +863,25 @@ export class ActionRunner {
       return { success: true };
     }
     // `openIn` is the first-class, declarative switch (ActionSchema.openIn);
-    // it wins over the legacy `params.newTab` escape hatch and the
-    // external-URL heuristic.
+    // it wins over the legacy `navigate.newTab` / `params.newTab` escape
+    // hatches and the external-URL heuristic.
+    const openIn = source.openIn ?? action.openIn;
     const newTab =
-      action.openIn === 'new-tab' ? true
-        : action.openIn === 'self' ? false
-          : (action.params?.newTab ?? isExternal);
+      openIn === 'new-tab' ? true
+        : openIn === 'self' ? false
+          : (source.newTab ?? action.params?.newTab ?? isExternal);
+
+    // History semantics, the one thing the `navigation` shape carries that
+    // `ActionSchema` has no field for. Omitted from the handler call when
+    // unset so hosts see the same options object they always did.
+    const replace = source.replace ?? action.replace;
 
     if (this.navigationHandler) {
-      this.navigationHandler(url, { external: isExternal, newTab });
+      this.navigationHandler(url, {
+        external: isExternal,
+        newTab,
+        ...(replace === undefined ? {} : { replace: Boolean(replace) }),
+      });
       return { success: true };
     }
 
@@ -908,9 +958,6 @@ export class ActionRunner {
   }
 
   /**
-   * Execute navigation action
-   */
-  /**
    * `form` action — open a FormView as a routed page (`/forms/:name`, per the
    * spec). `target` is the FormView name. Without this case the action fell
    * through to `executeActionSchema` and silently no-opped (the "Log Time does
@@ -935,37 +982,23 @@ export class ActionRunner {
     return { success: true, redirect: to };
   }
 
+  /**
+   * `navigation` — objectui's alias of the spec's `url` (`ObjectUiLocalActionType`).
+   *
+   * Kept because `{ type: 'navigation', to: … }` is authored today
+   * (`element:button` CTAs) and because deleting the case would not fail loudly:
+   * the action would land in `executeActionSchema` and report success while
+   * navigating nowhere. All it does now is resolve the alias's own spelling of
+   * the target and hand off to the shared navigator, so the two names cannot
+   * drift apart again. Prefer `type: 'url'` + `openIn` in new metadata.
+   */
   private async executeNavigation(action: ActionDef): Promise<ActionResult> {
-    const nav = action.navigate || action;
-    const to = this.evaluator.evaluate(nav.to || nav.target) as string;
-
-    if (!this.isValidUrl(to)) {
-      return {
-        success: false,
-        error: 'Invalid URL scheme. Only http://, https://, and relative URLs are allowed.',
-      };
+    const nav = (action.navigate || action) as ActionDef;
+    const rawUrl = nav.to || nav.target || nav.redirect;
+    if (!rawUrl) {
+      return { success: false, error: 'No URL provided for navigation action' };
     }
-
-    const isExternal = nav.external || (typeof to === 'string' && (
-      to.startsWith('http://') || to.startsWith('https://')
-    ));
-
-    if (this.navigationHandler) {
-      this.navigationHandler(to, {
-        external: isExternal,
-        newTab: nav.newTab ?? isExternal,
-        replace: nav.replace,
-      });
-      return { success: true };
-    }
-
-    if (isExternal) {
-      window.open(to, '_blank', 'noopener,noreferrer');
-    } else {
-      return { success: true, redirect: to };
-    }
-
-    return { success: true };
+    return this.navigateTo(action, rawUrl, nav);
   }
 
   /**

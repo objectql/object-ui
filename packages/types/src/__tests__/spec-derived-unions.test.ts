@@ -30,6 +30,10 @@
  * The `satisfies` checks below are the real enforcement: they stop compiling if
  * the objectui alias stops covering the spec vocabulary. The runtime assertions
  * guard against the spec's own enum being emptied or renamed underneath us.
+ *
+ * The last case is the inverse: `navigation` is a name objectui runs that the
+ * spec does NOT have. It is asserted absent from the spec so that the day the
+ * spec adopts it, this file fails and names the alias to retire.
  */
 import { describe, it, expect } from 'vitest';
 import {
@@ -38,9 +42,10 @@ import {
   ActionType as SpecActionType,
   PageTypeSchema as SpecPageTypeSchema,
 } from '@objectstack/spec/ui';
+import { OBJECTUI_LOCAL_ACTION_TYPES } from '../ui-action';
 import type { ChartType } from '../data-display';
 import type { ReportType } from '../reports';
-import type { ActionType } from '../ui-action';
+import type { ActionType, RunnableActionType } from '../ui-action';
 import type { PageType, PageVisualizationAlias } from '../layout';
 
 /**
@@ -52,9 +57,11 @@ const _chartCovers = null as unknown as SpecChart satisfies ChartType;
 const _reportCovers = null as unknown as 'tabular' | 'summary' | 'matrix' | 'joined' satisfies ReportType;
 const _actionCovers = null as unknown as 'script' | 'url' | 'modal' | 'flow' | 'api' | 'form' satisfies ActionType;
 const _pageCovers = null as unknown as 'record' | 'home' | 'app' | 'utility' | 'list' satisfies PageType;
-// The sanctioned local extension is still part of the union.
+// The sanctioned local extensions are still part of their unions.
 const _vizCovers = null as unknown as PageVisualizationAlias satisfies PageType;
+const _runnableCovers = null as unknown as ActionType satisfies RunnableActionType;
 void _chartCovers; void _reportCovers; void _actionCovers; void _pageCovers; void _vizCovers;
+void _runnableCovers;
 
 /** Read a spec enum's members, failing loudly if the shape ever changes. */
 const optionsOf = (schema: unknown, name: string): string[] => {
@@ -76,6 +83,21 @@ describe('unions derived from a spec vocabulary stay derived (#2944)', () => {
 
   it('ActionType includes `form` — the member the fork dropped', () => {
     expect(optionsOf(SpecActionType, 'ActionType')).toContain('form');
+  });
+
+  it('`navigation` is objectui\'s declared alias, not a spec action type', () => {
+    // #2944 item 3 asked for a decision: promote `navigation` upstream or delete
+    // the `ActionRunner` case. Neither, as stated. The spec already has `url` for
+    // "go to a location" (with `openIn`), so a seventh type would be a second
+    // spec name for one operation — the exact failure this audit is named after.
+    // And deleting the case is silent, not loud: the action falls into
+    // `executeActionSchema`, which returns success without navigating (#2960).
+    //
+    // So it stays as a NAMED local alias sharing `url`'s navigator. This test is
+    // the tripwire: if the spec ever does adopt `navigation`, it fails and the
+    // alias is the thing to retire.
+    expect(optionsOf(SpecActionType, 'ActionType')).not.toContain('navigation');
+    expect([...OBJECTUI_LOCAL_ACTION_TYPES]).toEqual(['navigation']);
   });
 
   it('ReportType includes `joined` — the member the fork dropped', () => {
