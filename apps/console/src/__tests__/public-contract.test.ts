@@ -25,8 +25,23 @@
  * silently disappeared; an exact list makes both directions a deliberate edit.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { ComponentRegistry, PUBLIC_BLOCKS, type PublicComponentConfig } from '@object-ui/core';
+// The two graphs whose registrations this file reads. At module scope, NOT
+// awaited inside a `beforeAll` — there their cold transform is billed to the
+// hook, against `hookTimeout`, which is why this needed a 60s budget. The import
+// phase has no test/hook timeout, so the raised timeout goes away rather than
+// getting raised again (objectui#3010). See AGENTS.md §9 (test discipline).
+//
+// Loading them here rather than in a hook does not change WHAT is loaded, so the
+// eager/lazy split the assertions below pin is untouched: static imports are
+// evaluated in order before the module body, and the shared setup still runs
+// before this module is imported at all.
+//
+// The layout/content primitives (Tier B) …
+import '@object-ui/components';
+// … and the console's own plugin layer, from the module main.tsx boots from.
+import '../register-plugins';
 
 /**
  * Every curated tag the console makes available, in `PUBLIC_BLOCKS` order.
@@ -109,15 +124,11 @@ const EXPECTED_LAZY = [
   'markdown',
 ];
 
-let contract: Map<string, PublicComponentConfig>;
-
-beforeAll(async () => {
-  // The layout/content primitives (Tier B) …
-  await import('@object-ui/components');
-  // … and the console's own plugin layer, from the module main.tsx boots from.
-  await import('../register-plugins');
-  contract = new Map(ComponentRegistry.getPublicConfigs().map((c) => [c.type, c]));
-}, 60000);
+// Safe at module scope: the two side-effect imports at the top of this file are
+// evaluated before the module body, so every registration is already in place.
+const contract: Map<string, PublicComponentConfig> = new Map(
+  ComponentRegistry.getPublicConfigs().map((c) => [c.type, c]),
+);
 
 describe('console ↔ PUBLIC_BLOCKS coverage', () => {
   it('exposes every curated block the console ships, eager or lazy', () => {

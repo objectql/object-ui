@@ -6,15 +6,18 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';
+// Imports all renderers to register them. Module scope, NOT awaited inside a
+// `beforeAll` — there the cold transform of the renderer graph is billed to the
+// hook, against `hookTimeout`. That is what made the sibling plugin-kanban test
+// blow its raised 15s budget at 15021ms under full parallel load
+// (objectui#3010); this file's timed portion was already at 5.83s of the same
+// 15s. The import phase has no test/hook timeout, so no raised timeout is
+// needed. See AGENTS.md §9 (test discipline).
+import './index';
 
 describe('Plugin Markdown', () => {
-  // Import all renderers to register them
-  beforeAll(async () => {
-    await import('./index');
-  }, 15000); // Increase timeout to 15 seconds for async import
-
   describe('markdown component', () => {
     it('should be registered in ComponentRegistry', () => {
       const markdownRenderer = ComponentRegistry.get('markdown');

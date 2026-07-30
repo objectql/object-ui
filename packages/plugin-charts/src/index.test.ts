@@ -6,15 +6,17 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';
+// Imports all renderers to register them. Module scope, NOT awaited inside a
+// `beforeAll` — there the cold transform of the (recharts-backed) renderer graph
+// is billed to the hook, which is why this needed a 60s `hookTimeout` to begin
+// with. The import phase has no test/hook timeout, so the raised timeout goes
+// away rather than getting raised again (objectui#3010).
+// See AGENTS.md §9 (test discipline).
+import './index';
 
 describe('Plugin Charts', () => {
-  // Import all renderers to register them
-  beforeAll(async () => {
-    await import('./index');
-  }, 60000);
-
   describe('bar-chart component', () => {
     it('should be registered in ComponentRegistry', () => {
       const chartBarRenderer = ComponentRegistry.get('bar-chart');
