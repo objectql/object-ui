@@ -173,8 +173,9 @@ function ElementRecordPickerRenderer({ schema }: { schema: any }) {
   );
 }
 
-ComponentRegistry.register('element:record_picker', ElementRecordPickerRenderer, {
+ComponentRegistry.register('record_picker', ElementRecordPickerRenderer, {
   namespace: 'element',
+  skipFallback: true,
   label: 'Record Picker',
   category: 'input',
   inputs: [

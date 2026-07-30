@@ -294,8 +294,9 @@ const ActionGroupRenderer = forwardRef<HTMLDivElement, { schema: ActionGroupSche
 
 ActionGroupRenderer.displayName = 'ActionGroupRenderer';
 
-ComponentRegistry.register('action:group', ActionGroupRenderer, {
+ComponentRegistry.register('group', ActionGroupRenderer, {
   namespace: 'action',
+  skipFallback: true,
   label: 'Action Group',
   inputs: [
     { name: 'name', type: 'string', label: 'Group Name' },

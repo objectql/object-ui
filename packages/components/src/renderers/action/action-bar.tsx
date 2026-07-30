@@ -282,8 +282,9 @@ const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; 
 
 ActionBarRenderer.displayName = 'ActionBarRenderer';
 
-ComponentRegistry.register('action:bar', ActionBarRenderer, {
+ComponentRegistry.register('bar', ActionBarRenderer, {
   namespace: 'action',
+  skipFallback: true,
   label: 'Action Bar',
   inputs: [
     { name: 'actions', type: 'object', label: 'Actions' },

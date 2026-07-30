@@ -202,14 +202,7 @@ describe('PUBLIC_BLOCKS ↔ console coverage (reverse direction)', () => {
   });
 
   it('registers each record:* block under one key, prefixed once', () => {
-    // `register('record:x', …, { namespace: 'record' })` prefixes an
-    // already-prefixed name: the block lands at `record:record:x` and stays
-    // reachable only through the un-namespaced fallback, which happens to spell
-    // `record:x`. Eleven blocks were registered that way. The contract hid it —
-    // `getPublicConfigs()` rewrites `type` to the curated tag — so nothing
-    // failed while the registry carried a phantom key per block.
     const keys = shippedRecordBlocks();
-    expect(keys.filter((k) => k.startsWith(`${NS}:${NS}:`))).toEqual([]);
     expect(keys.every((k) => k.startsWith(`${NS}:`))).toBe(true);
   });
 
@@ -222,6 +215,27 @@ describe('PUBLIC_BLOCKS ↔ console coverage (reverse direction)', () => {
       const bare = tag.slice(NS.length + 1);
       expect(ComponentRegistry.getMeta(bare)?.namespace ?? null).not.toBe(NS);
     }
+  });
+
+  it('prefixes every namespaced key exactly once, in every namespace', () => {
+    // `register('page:header', …, { namespace: 'page' })` hands an
+    // already-prefixed name to a registry that prefixes it again: the block
+    // lands at `page:page:header` and stays reachable only through the
+    // un-namespaced fallback, which happens to spell `page:header`. Nothing
+    // fails — `getPublicConfigs()` rewrites `type` to the curated tag — so the
+    // registry quietly carries a phantom key per block.
+    //
+    // objectui#3023 fixed the eleven in `record:` and guarded that namespace
+    // alone. Twenty-two more were sitting in `action:`, `element:` and `page:`,
+    // two of them (`page:header`, `element:divider`) curated public blocks.
+    // Checking one namespace is what let them keep sitting there, so this asks
+    // the whole registry.
+    const doubled = ComponentRegistry.getKnownTypes().filter((k) => {
+      const ns = ComponentRegistry.getMeta(k)?.namespace;
+      return !!ns && k.startsWith(`${ns}:${ns}:`);
+    });
+
+    expect(doubled).toEqual([]);
   });
 
   it('keeps the chatter alias identical to the block it aliases', () => {

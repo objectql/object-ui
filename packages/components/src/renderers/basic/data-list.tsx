@@ -77,8 +77,9 @@ function DefinitionListRenderer({ schema }: { schema: any }) {
   );
 }
 
-ComponentRegistry.register('element:definition-list', DefinitionListRenderer, {
+ComponentRegistry.register('definition-list', DefinitionListRenderer, {
   namespace: 'element',
+  skipFallback: true,
   label: 'Definition List',
   category: 'content',
 });
@@ -172,8 +173,9 @@ function RepeaterRenderer({ schema }: { schema: any }) {
   );
 }
 
-ComponentRegistry.register('element:repeater', RepeaterRenderer, {
+ComponentRegistry.register('repeater', RepeaterRenderer, {
   namespace: 'element',
+  skipFallback: true,
   label: 'Repeater',
   category: 'content',
 });

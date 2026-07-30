@@ -553,8 +553,9 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   );
 };
 
-ComponentRegistry.register('page:tabs', PageTabsRenderer, {
+ComponentRegistry.register('tabs', PageTabsRenderer, {
   namespace: 'page',
+  skipFallback: true,
   label: 'Page Tabs',
   category: 'layout',
   isContainer: true,
@@ -595,8 +596,9 @@ const PageCardRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   );
 };
 
-ComponentRegistry.register('page:card', PageCardRenderer, {
+ComponentRegistry.register('card', PageCardRenderer, {
   namespace: 'page',
+  skipFallback: true,
   label: 'Page Card',
   category: 'layout',
   isContainer: true,
@@ -675,8 +677,9 @@ const PageAccordionRenderer: React.FC<any> = ({ schema, className, ...props }) =
   );
 };
 
-ComponentRegistry.register('page:accordion', PageAccordionRenderer, {
+ComponentRegistry.register('accordion', PageAccordionRenderer, {
   namespace: 'page',
+  skipFallback: true,
   label: 'Page Accordion',
   category: 'layout',
   isContainer: true,
@@ -698,8 +701,9 @@ const PageSectionRenderer: React.FC<any> = ({ schema, className, ...props }) => 
   );
 };
 
-ComponentRegistry.register('page:section', PageSectionRenderer, {
+ComponentRegistry.register('section', PageSectionRenderer, {
   namespace: 'page',
+  skipFallback: true,
   label: 'Page Section',
   category: 'layout',
   isContainer: true,
@@ -1297,8 +1301,9 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   );
 };
 
-ComponentRegistry.register('page:header', PageHeaderRenderer, {
+ComponentRegistry.register('header', PageHeaderRenderer, {
   namespace: 'page',
+  skipFallback: true,
   label: 'Page Header',
   category: 'layout',
 });
@@ -1322,8 +1327,9 @@ const PageFooterRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   );
 };
 
-ComponentRegistry.register('page:footer', PageFooterRenderer, {
+ComponentRegistry.register('footer', PageFooterRenderer, {
   namespace: 'page',
+  skipFallback: true,
   label: 'Page Footer',
   category: 'layout',
   isContainer: true,
@@ -1345,8 +1351,9 @@ const PageSidebarRenderer: React.FC<any> = ({ schema, className, ...props }) => 
   );
 };
 
-ComponentRegistry.register('page:sidebar', PageSidebarRenderer, {
+ComponentRegistry.register('sidebar', PageSidebarRenderer, {
   namespace: 'page',
+  skipFallback: true,
   label: 'Page Sidebar',
   category: 'layout',
   isContainer: true,

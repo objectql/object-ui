@@ -92,8 +92,9 @@ function ElementTextRenderer({ schema }: { schema: any }) {
   );
 }
 
-ComponentRegistry.register('element:text', ElementTextRenderer, {
+ComponentRegistry.register('text', ElementTextRenderer, {
   namespace: 'element',
+  skipFallback: true,
   label: 'Text',
   category: 'content',
 });
@@ -106,8 +107,9 @@ function ElementDividerRenderer({ schema }: { schema: any }) {
   return <Separator className={cn('my-4', schema?.className)} />;
 }
 
-ComponentRegistry.register('element:divider', ElementDividerRenderer, {
+ComponentRegistry.register('divider', ElementDividerRenderer, {
   namespace: 'element',
+  skipFallback: true,
   label: 'Divider',
   category: 'content',
 });
@@ -155,8 +157,9 @@ function ElementImageRenderer({ schema }: { schema: any }) {
   );
 }
 
-ComponentRegistry.register('element:image', ElementImageRenderer, {
+ComponentRegistry.register('image', ElementImageRenderer, {
   namespace: 'element',
+  skipFallback: true,
   label: 'Image',
   category: 'content',
 });
@@ -260,8 +263,9 @@ function ElementButtonRenderer({ schema }: { schema: any }) {
   );
 }
 
-ComponentRegistry.register('element:button', ElementButtonRenderer, {
+ComponentRegistry.register('button', ElementButtonRenderer, {
   namespace: 'element',
+  skipFallback: true,
   label: 'Button',
   category: 'action',
 });
@@ -381,8 +385,9 @@ function ElementNumberRenderer({ schema }: { schema: any }) {
   );
 }
 
-ComponentRegistry.register('element:number', ElementNumberRenderer, {
+ComponentRegistry.register('number', ElementNumberRenderer, {
   namespace: 'element',
+  skipFallback: true,
   label: 'Number',
   category: 'content',
 });
