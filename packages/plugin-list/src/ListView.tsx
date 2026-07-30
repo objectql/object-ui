@@ -218,6 +218,42 @@ export function normalizeFilters(filters: any[]): any[] {
     .filter(f => Array.isArray(f) && f.length > 0);
 }
 
+/**
+ * Merge the three filter sources a list can have — the view's own `filter`, the
+ * filter-panel group, and the per-field user filters — into one AST node.
+ *
+ * ONE definition on purpose. The data fetch and the export used to carry
+ * verbatim copies of this, and those two decide, respectively, **what the user
+ * sees** and **what they download**. Two copies that must agree, where a
+ * divergence is a file that silently disagrees with the screen — the same shape
+ * of bug that had already bitten the adapter, whose duplicated filter-shape
+ * check drifted apart unnoticed (#3072).
+ *
+ * Returns `undefined` when nothing is active, so callers can skip `$filter`
+ * entirely rather than sending an empty array.
+ *
+ * Known gap, preserved deliberately: a MongoDB-style object `schema.filter` has
+ * no `.length` and is dropped here, as it always has been. Nothing in this repo
+ * produces one for a list view (they come from dashboard widgets, which query
+ * directly), so this stays a pure extraction rather than a behaviour change.
+ */
+export function buildEffectiveFilter(
+  baseFilter: unknown,
+  currentFilters: FilterGroup,
+  userFilterConditions: any[],
+): any[] | undefined {
+  const base = Array.isArray(baseFilter) ? baseFilter : [];
+  const userFilter = convertFilterGroupToAST(currentFilters);
+  const allFilters = [
+    ...(base.length > 0 ? [base] : []),
+    ...(userFilter.length > 0 ? [userFilter] : []),
+    // Normalize the per-field conditions (expands `in` into an `or` of `=`).
+    ...normalizeFilters(userFilterConditions),
+  ].filter((f: any) => Array.isArray(f) && f.length > 0);
+  if (allFilters.length === 0) return undefined;
+  return allFilters.length === 1 ? allFilters[0] : ['and', ...allFilters];
+}
+
 export function convertFilterGroupToAST(group: FilterGroup): any[] {
   if (!group || !group.conditions || group.conditions.length === 0) return [];
 
@@ -1044,28 +1080,10 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       setLoading(true);
       setLoadError(null);
       try {
-        // Construct filter
-        let finalFilter: any = [];
-        const baseFilter = schema.filter || [];
-        const userFilter = convertFilterGroupToAST(currentFilters);
-        
-        
-        // Normalize userFilter conditions (convert `in` to `or` of `=`)
-        const normalizedUserFilterConditions = normalizeFilters(userFilterConditions);
+        // Construct filter — shared with the export path so the file a user
+        // downloads is built from the same three sources as the rows on screen.
+        const finalFilter = buildEffectiveFilter(schema.filter, currentFilters, userFilterConditions);
 
-        // Merge all filter sources with consistent structure
-        const allFilters = [
-          ...(baseFilter.length > 0 ? [baseFilter] : []),
-          ...(userFilter.length > 0 ? [userFilter] : []),
-          ...normalizedUserFilterConditions,
-        ].filter(f => Array.isArray(f) && f.length > 0);
-        
-        if (allFilters.length > 1) {
-          finalFilter = ['and', ...allFilters];
-        } else if (allFilters.length === 1) {
-          finalFilter = allFilters[0];
-        }
-        
         // Convert sort to query format
         // Use array format to ensure order is preserved (Object keys are not guaranteed ordered)
         const sort: any = currentSort.length > 0
@@ -1183,12 +1201,11 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           return Array.from(required);
         })();
 
-        // Only send $filter when it is a non-empty AST. Sending an empty
-        // array results in `?filter=%5B%5D` which is wasted bandwidth and
-        // can defeat server-side query parsing/caching.
-        const hasFilter = Array.isArray(finalFilter)
-          ? finalFilter.length > 0
-          : !!finalFilter && Object.keys(finalFilter).length > 0;
+        // Only send $filter when there is one. Sending an empty array results in
+        // `?filter=%5B%5D` which is wasted bandwidth and can defeat server-side
+        // query parsing/caching. `buildEffectiveFilter` returns a non-empty AST
+        // or `undefined`, so this is the whole test.
+        const hasFilter = finalFilter !== undefined;
 
         // Window the request only for the flat grid view. Grouped grids and the
         // visual views (kanban/calendar/gantt/gallery) consume the whole batch,
@@ -1750,7 +1767,12 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     // Server-streamed path: csv / xlsx / json via dataSource.exportDownload.
     // XLSX is server-only; type-aware value formatting, field resolution and
     // permission enforcement all happen server-side. Mirrors the active view's
-    // filter + sort so the exported file matches what the user sees.
+    // filter + SEARCH + sort so the exported file matches what the user sees.
+    //
+    // The search half was missing, and this comment asserted the match anyway:
+    // exporting during a search downloaded the unsearched superset. The client
+    // fallback below was always right (it serializes `data`, already searched);
+    // only this path was wrong, and it is the one that handles xlsx.
     const serverEligible = (format === 'csv' || format === 'xlsx' || format === 'json')
       && typeof dataSource?.exportDownload === 'function'
       && !!schema.objectName
@@ -1760,18 +1782,8 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         .map((f: any) => typeof f === 'string' ? f : (f.name || f.fieldName || f.field))
         .filter(Boolean);
 
-      // Merge the same filter sources as the data fetch (base + user + conditions).
-      const baseFilter = schema.filter || [];
-      const userFilter = convertFilterGroupToAST(currentFilters);
-      const normalizedUserFilterConditions = normalizeFilters(userFilterConditions);
-      const allFilters = [
-        ...(baseFilter.length > 0 ? [baseFilter] : []),
-        ...(userFilter.length > 0 ? [userFilter] : []),
-        ...normalizedUserFilterConditions,
-      ].filter((f: any) => Array.isArray(f) && f.length > 0);
-      const finalFilter = allFilters.length > 1
-        ? ['and', ...allFilters]
-        : allFilters.length === 1 ? allFilters[0] : undefined;
+      // The same three filter sources as the data fetch, from the same function.
+      const finalFilter = buildEffectiveFilter(schema.filter, currentFilters, userFilterConditions);
 
       const sort = currentSort.length > 0
         ? currentSort
@@ -1787,6 +1799,16 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
             format: format as 'csv' | 'xlsx' | 'json',
             fields: fields.length ? fields : undefined,
             filter: finalFilter,
+            // The other half of what the list is showing. Without it an export
+            // taken during a search returned the UNSEARCHED superset — more rows
+            // than the screen, in a file that looks authoritative. Needs a server
+            // with objectstack#4230; older ones ignore it and behave as before.
+            ...(searchTerm ? {
+              search: searchTerm,
+              ...(schema.searchableFields && schema.searchableFields.length > 0
+                ? { searchFields: schema.searchableFields }
+                : {}),
+            } : {}),
             sort,
             includeHeaders,
             limit: maxRecords > 0 ? maxRecords : undefined,
@@ -1861,7 +1883,9 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       URL.revokeObjectURL(url);
     }
     setShowExport(false);
-  }, [data, effectiveFields, resolvedExportOptions, schema.objectName, schema.filter, exportPermitted, dataSource, currentFilters, userFilterConditions, currentSort, objectDef, resolveObjectLabel]);
+    // `searchTerm` / `searchableFields` belong here: the export now narrows by
+    // the active search, so a stale closure would export the wrong row set.
+  }, [data, effectiveFields, resolvedExportOptions, schema.objectName, schema.filter, schema.searchableFields, exportPermitted, dataSource, currentFilters, userFilterConditions, currentSort, searchTerm, objectDef, resolveObjectLabel]);
 
   // All available fields for hide/show (with i18n)
   const allFields = React.useMemo(() => {

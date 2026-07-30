@@ -2130,6 +2130,16 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         queryParams.set('filter', JSON.stringify(translated));
       }
     }
+    // Search — the other half of what a list is showing. Without it an export
+    // taken while a search is active returns the unsearched superset
+    // (objectstack#4230). Servers predating that ignore the param.
+    const searchTerm = typeof request.search === 'string' ? request.search.trim() : '';
+    if (searchTerm) {
+      queryParams.set('search', searchTerm);
+      if (request.searchFields && request.searchFields.length > 0) {
+        queryParams.set('searchFields', request.searchFields.join(','));
+      }
+    }
 
     const baseUrl = this.baseUrl.replace(/\/$/, '');
     // Avoid doubling /api/v1 if baseUrl already includes the version suffix.

@@ -1007,8 +1007,13 @@ export interface ListImportJobsOptions {
 /**
  * Request payload for `DataSource.exportDownload` (synchronous streamed export).
  *
- * Mirrors the active list view: pass the same `filter` / `sort` the list is
- * showing so the exported file matches what the user sees.
+ * Mirrors the active list view: pass the same `filter` / `search` / `sort` the
+ * list is showing so the exported file matches what the user sees.
+ *
+ * `search` was missing until objectstack#4230, and the omission was not
+ * visible: exporting a searched list quietly produced the UNSEARCHED superset —
+ * more rows than the screen showed, in a file that looks authoritative. A
+ * caller that mirrors only `filter` still has that bug.
  */
 export interface ExportDownloadRequest {
   /** Output file format. Defaults to 'csv'. */
@@ -1017,6 +1022,14 @@ export interface ExportDownloadRequest {
   fields?: string[];
   /** Server-side filter (engine-specific shape, often the active view filter). */
   filter?: unknown;
+  /**
+   * Full-text term, same semantics as the list read's `$search`. Composes with
+   * `filter` server-side rather than replacing it. Requires a server with
+   * objectstack#4230; older servers ignore it (and export the wider set).
+   */
+  search?: string;
+  /** Optional override for which fields `search` scans (ADR-0061). */
+  searchFields?: string[];
   /** Sort instructions; multiple keys allowed, order preserved. */
   sort?: Array<{ field: string; direction?: 'asc' | 'desc' }>;
   /** Hard cap on records exported (server enforces its own ceiling too). */

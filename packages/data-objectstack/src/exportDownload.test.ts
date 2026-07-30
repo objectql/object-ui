@@ -97,3 +97,45 @@ describe('ObjectStackAdapter.exportDownload', () => {
     });
   });
 });
+
+/**
+ * `search` — the half of a list this request could not carry.
+ *
+ * The route mirrored `filter` and `orderby` only, so an export taken while a
+ * search was active downloaded the UNSEARCHED superset: more rows than the
+ * screen showed, in a file that looks authoritative. Server half:
+ * objectstack#4230.
+ */
+describe('ObjectStackAdapter.exportDownload — search', () => {
+  const paramsFor = async (request: Record<string, unknown>) => {
+    const fetchImpl = vi.fn(async (_url: string, _init: RequestInit) => csvResponse());
+    await makeDS(fetchImpl).exportDownload('task', request);
+    return new URL(fetchImpl.mock.calls[0][0]).searchParams;
+  };
+
+  it('sends the term as `search`', async () => {
+    expect((await paramsFor({ search: 'acme' })).get('search')).toBe('acme');
+  });
+
+  it('sends `searchFields` as a comma list alongside the term', async () => {
+    const p = await paramsFor({ search: 'acme', searchFields: ['name', 'stage'] });
+    expect(p.get('searchFields')).toBe('name,stage');
+  });
+
+  it('omits both when no term is given — `searchFields` alone means nothing', async () => {
+    const p = await paramsFor({ searchFields: ['name'] });
+    expect(p.get('search')).toBeNull();
+    expect(p.get('searchFields')).toBeNull();
+  });
+
+  it('treats a whitespace-only term as absent, and trims a real one', async () => {
+    expect((await paramsFor({ search: '   ' })).get('search')).toBeNull();
+    expect((await paramsFor({ search: '  acme  ' })).get('search')).toBe('acme');
+  });
+
+  it('carries search and filter together — neither replaces the other', async () => {
+    const p = await paramsFor({ search: 'acme', filter: [['status', '=', 'open']] });
+    expect(p.get('search')).toBe('acme');
+    expect(JSON.parse(p.get('filter')!)).toEqual([['status', '=', 'open']]);
+  });
+});
