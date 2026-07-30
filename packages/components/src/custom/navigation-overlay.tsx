@@ -460,12 +460,8 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
       : 40;
     const mainPercent = 100 - detailPercent;
 
-    // Cast needed: ResizablePanelGroup has correct runtime behavior but
-    // vite-plugin-dts may not resolve the direction prop type correctly
-    const PanelGroup = ResizablePanelGroup as React.FC<any>;
-
     return (
-      <PanelGroup direction="horizontal" className={cn('h-full', className)}>
+      <ResizablePanelGroup orientation="horizontal" className={cn('h-full', className)}>
         <ResizablePanel defaultSize={mainPercent} minSize={30}>
           {mainContent}
         </ResizablePanel>
@@ -501,7 +497,7 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
             {renderContent(selectedRecord)}
           </div>
         </ResizablePanel>
-      </PanelGroup>
+      </ResizablePanelGroup>
     );
   }
 

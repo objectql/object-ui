@@ -117,11 +117,6 @@ import { describeIssuePath } from './issuePath';
 import { buildCreateModeBody } from './createBody';
 import { errorCodeIs, errorCodeIsAnyOf } from '@object-ui/types';
 
-// react-resizable-panels' `direction` prop type does not always narrow
-// cleanly in our TS config; cast at the boundary (precedent:
-// packages/components/src/custom/navigation-overlay.tsx).
-const PanelGroup = ResizablePanelGroup as React.FC<any>;
-
 /**
  * Metadata types whose canvas IS the primary create-time authoring
  * surface, so we render the preview/inspector split during create
@@ -2060,8 +2055,8 @@ function MetadataResourceEditPageImpl({
                     : 'relative flex-1 min-h-0 flex'
                 }
               >
-                <PanelGroup
-                  direction="horizontal"
+                <ResizablePanelGroup
+                  orientation="horizontal"
                   className="flex-1 min-h-0 rounded-md border bg-background overflow-hidden"
                   id={`metadata-edit-${type}`}
                 >
@@ -2336,7 +2331,7 @@ function MetadataResourceEditPageImpl({
                       </div>
                     </div>
                   </ResizablePanel>
-                </PanelGroup>
+                </ResizablePanelGroup>
                 {/* The floating reopen pill that used to live here was
                     removed: the canvas toolbar already hosts a permanent
                     VSCode-style inspector toggle next to the fullscreen
