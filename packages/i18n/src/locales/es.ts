@@ -448,6 +448,10 @@ const es = {
     noMatchesMessage: "Ningún registro coincide con sus filtros o su búsqueda actuales. Pruebe a ajustarlos o borrarlos.",
     loadErrorTitle: "No se pudieron cargar los registros",
     loadErrorMessage: "Algo salió mal al cargar estos datos. Compruebe su conexión y vuelva a intentarlo.",
+    loadErrorForbiddenTitle: "No tiene acceso",
+    loadErrorForbiddenMessage: "No tiene permiso para ver estos registros. Contacte a su administrador si cree que debería tener acceso.",
+    loadErrorUnauthorizedTitle: "Se requiere iniciar sesión",
+    loadErrorUnauthorizedMessage: "Su sesión ha expirado o ha cerrado sesión. Inicie sesión de nuevo para ver estos registros.",
     retry: "Reintentar",
     managedBy: {
       system: {

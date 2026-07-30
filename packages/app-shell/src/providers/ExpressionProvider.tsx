@@ -99,25 +99,32 @@ export function useExpressionContext(): ExpressionContextValue {
  * - boolean: true/false
  * - string "true"/"false"
  * - template expression: "${user.role === 'admin'}"
+ * - `{ dialect: 'cel', source }` envelopes — the shape the spec's
+ *   `ExpressionInputSchema` normalizes every authored `visible` string into,
+ *   which is what nav/area items carry after the server serves the app schema
+ * - bare expression strings (evaluated as one boolean expression)
  *
- * Returns true if the item should be visible.
+ * Everything non-literal is delegated to `evaluator.evaluateCondition`, which
+ * routes CEL envelopes to the canonical `@objectstack/formula` engine. The
+ * envelope and bare-string shapes used to fall through to a blanket
+ * `return true`, so a constant-false nav `visible` predicate (e.g.
+ * ``P`'org_admin' in current_user.positions` ``) still rendered for everyone —
+ * the app author had no working way to hide a menu item by role.
+ *
+ * Returns true if the item should be visible (fail-open on evaluation errors,
+ * matching the evaluator's own default).
  */
 export function evaluateVisibility(
-  expression: string | boolean | undefined,
+  expression: string | boolean | { dialect?: string; source?: string } | undefined,
   evaluator: ExpressionEvaluator,
 ): boolean {
   if (expression === undefined || expression === null) return true;
   if (expression === true || expression === 'true') return true;
   if (expression === false || expression === 'false') return false;
 
-  if (typeof expression === 'string' && expression.includes('${')) {
-    try {
-      const result = evaluator.evaluateCondition(expression);
-      return result;
-    } catch {
-      return true; // Default to visible on error
-    }
+  try {
+    return evaluator.evaluateCondition(expression);
+  } catch {
+    return true; // Default to visible on error
   }
-
-  return true;
 }

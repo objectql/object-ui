@@ -311,17 +311,28 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
     [evaluator],
   );
 
-  // Permission check
-  const { can } = usePermissions();
+  // Permission check for nav `requiredPermissions` entries.
+  //
+  // Two authored forms:
+  //  - `object:action` → object CRUD gate.
+  //  - bare name → an ADR-0066 system capability, checked against the union of
+  //    the user's permission-set `systemPermissions` (from /me/permissions) —
+  //    the SAME subset rule the server applies to `AppSchema.requiredPermissions`.
+  //    This used to be misread as `can(<name>, 'read')` only, so a nav item
+  //    requiring a capability was hidden even from users whose permission set
+  //    granted it (admins included) — `requiredPermissions` degenerated into a
+  //    "hide from everyone" switch. The object-read fallback stays for nav
+  //    items that gate on a plain object name.
+  const { can, hasCapabilities } = usePermissions();
   const checkPerm = React.useCallback(
     (permissions: string[]) => permissions.every((perm: string) => {
       const parts = perm.split(':');
-      const [object, action] = parts.length >= 2
-        ? [parts[0], parts[1]]
-        : [perm, 'read'];
-      return can(object, action as any);
+      if (parts.length >= 2) {
+        return can(parts[0], parts[1] as any);
+      }
+      return hasCapabilities([perm]) || can(perm, 'read');
     }),
-    [can],
+    [can, hasCapabilities],
   );
 
   // Runtime capability gate: hide nav items targeting objects/services

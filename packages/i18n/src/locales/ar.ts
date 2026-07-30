@@ -448,6 +448,10 @@ const ar = {
     noMatchesMessage: "لا توجد سجلات تطابق عوامل التصفية أو البحث الحالية. حاول تعديلها أو مسحها.",
     loadErrorTitle: "تعذّر تحميل السجلات",
     loadErrorMessage: "حدث خطأ أثناء تحميل هذه البيانات. تحقق من اتصالك وحاول مرة أخرى.",
+    loadErrorForbiddenTitle: "ليس لديك صلاحية الوصول",
+    loadErrorForbiddenMessage: "ليس لديك إذن لعرض هذه السجلات. تواصل مع المسؤول إذا كنت تعتقد أنه يجب أن يكون لديك وصول.",
+    loadErrorUnauthorizedTitle: "يلزم تسجيل الدخول",
+    loadErrorUnauthorizedMessage: "انتهت صلاحية جلستك أو تم تسجيل خروجك. سجّل الدخول مرة أخرى لعرض هذه السجلات.",
     retry: "إعادة المحاولة",
     managedBy: {
       system: {

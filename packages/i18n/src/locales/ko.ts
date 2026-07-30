@@ -448,6 +448,10 @@ const ko = {
     noMatchesMessage: "현재 필터나 검색어와 일치하는 레코드가 없습니다. 조건을 조정하거나 지워 보세요.",
     loadErrorTitle: "레코드를 불러오지 못했습니다",
     loadErrorMessage: "이 데이터를 불러오는 중 문제가 발생했습니다. 연결을 확인하고 다시 시도하세요.",
+    loadErrorForbiddenTitle: "접근 권한이 없습니다",
+    loadErrorForbiddenMessage: "이 레코드를 볼 권한이 없습니다. 접근이 필요하면 관리자에게 문의하세요.",
+    loadErrorUnauthorizedTitle: "로그인이 필요합니다",
+    loadErrorUnauthorizedMessage: "세션이 만료되었거나 로그아웃되었습니다. 다시 로그인한 후 확인하세요.",
     retry: "다시 시도",
     managedBy: {
       system: {

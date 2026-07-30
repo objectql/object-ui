@@ -477,6 +477,10 @@ const en = {
     noMatchesMessage: 'No records match your current filters or search. Try adjusting or clearing them.',
     loadErrorTitle: 'Couldn\u2019t load records',
     loadErrorMessage: 'Something went wrong while loading this data. Check your connection and try again.',
+    loadErrorForbiddenTitle: 'You don\u2019t have access',
+    loadErrorForbiddenMessage: 'You don\u2019t have permission to view these records. Contact your administrator if you think you should have access.',
+    loadErrorUnauthorizedTitle: 'Sign in required',
+    loadErrorUnauthorizedMessage: 'Your session has expired or you are signed out. Sign in again to view these records.',
     retry: 'Retry',
     managedBy: {
       system: {

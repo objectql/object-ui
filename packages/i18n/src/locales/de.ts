@@ -448,6 +448,10 @@ const de = {
     noMatchesMessage: "Keine Datensätze entsprechen Ihren aktuellen Filtern oder Ihrer Suche. Passen Sie sie an oder setzen Sie sie zurück.",
     loadErrorTitle: "Datensätze konnten nicht geladen werden",
     loadErrorMessage: "Beim Laden dieser Daten ist etwas schiefgelaufen. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
+    loadErrorForbiddenTitle: "Kein Zugriff",
+    loadErrorForbiddenMessage: "Sie haben keine Berechtigung, diese Datensätze anzuzeigen. Wenden Sie sich an Ihren Administrator, wenn Sie Zugriff benötigen.",
+    loadErrorUnauthorizedTitle: "Anmeldung erforderlich",
+    loadErrorUnauthorizedMessage: "Ihre Sitzung ist abgelaufen oder Sie sind abgemeldet. Melden Sie sich erneut an, um diese Datensätze anzuzeigen.",
     retry: "Erneut versuchen",
     managedBy: {
       system: {

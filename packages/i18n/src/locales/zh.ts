@@ -485,6 +485,10 @@ const zh = {
     noMatchesMessage: '没有符合当前筛选或搜索条件的记录，试试调整或清除它们。',
     loadErrorTitle: '无法加载记录',
     loadErrorMessage: '加载数据时出错。请检查网络连接后重试。',
+    loadErrorForbiddenTitle: '无权访问',
+    loadErrorForbiddenMessage: '你没有查看这些记录的权限。如需访问，请联系管理员。',
+    loadErrorUnauthorizedTitle: '需要登录',
+    loadErrorUnauthorizedMessage: '登录状态已过期或已退出。请重新登录后查看这些记录。',
     retry: '重试',
     managedBy: {
       system: {

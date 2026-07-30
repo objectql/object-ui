@@ -448,6 +448,10 @@ const ja = {
     noMatchesMessage: "現在のフィルターや検索条件に一致するレコードはありません。条件を調整するか解除してください。",
     loadErrorTitle: "レコードを読み込めませんでした",
     loadErrorMessage: "データの読み込み中に問題が発生しました。接続を確認して再試行してください。",
+    loadErrorForbiddenTitle: "アクセス権がありません",
+    loadErrorForbiddenMessage: "これらのレコードを表示する権限がありません。必要な場合は管理者にお問い合わせください。",
+    loadErrorUnauthorizedTitle: "サインインが必要です",
+    loadErrorUnauthorizedMessage: "セッションの有効期限が切れたか、サインアウトしています。再度サインインしてください。",
     retry: "再試行",
     managedBy: {
       system: {

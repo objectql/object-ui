@@ -9,7 +9,7 @@
 import * as React from 'react';
 import { cn, Button, Input, Popover, PopoverContent, PopoverTrigger, FilterBuilder, SortBuilder, NavigationOverlay, GroupingEditor, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, RefreshIndicator, DataEmptyState } from '@object-ui/components';
 import type { SortItem } from '@object-ui/components';
-import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Pencil, Group, Paintbrush, Ruler, Inbox, Download, AlignJustify, Rows4, Rows3, Rows2, Share2, Printer, Plus, Trash2, CheckSquare, AlertTriangle, RotateCw, Loader2, icons, type LucideIcon } from 'lucide-react';
+import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Pencil, Group, Paintbrush, Ruler, Inbox, Download, AlignJustify, Rows4, Rows3, Rows2, Share2, Printer, Plus, Trash2, CheckSquare, AlertTriangle, ShieldAlert, RotateCw, Loader2, icons, type LucideIcon } from 'lucide-react';
 import type { FilterGroup } from '@object-ui/components';
 import { ViewSwitcherDropdown, ViewType } from './ViewSwitcher';
 import { ViewSettingsPopover } from './components/ViewSettingsPopover';
@@ -270,6 +270,29 @@ export function evaluateConditionalFormatting(
   return resolveConditionalFormatting(record, rules as any, scope) as React.CSSProperties;
 }
 
+/**
+ * Classify a failed data fetch by HTTP status / error code so the error panel
+ * can say what actually happened. A 403 rendered as "check your connection"
+ * is indistinguishable from a real outage — users were told to debug their
+ * network when the server had (correctly) denied them access.
+ */
+function classifyLoadError(err: unknown): 'forbidden' | 'unauthorized' | 'network' {
+  const e = err as any;
+  // The ObjectStack client decorates errors with `httpStatus`; raw fetch
+  // wrappers surface `status` / `statusCode`; some adapters only embed the
+  // status in the message ("HTTP 403 Forbidden — …").
+  let status = [e?.httpStatus, e?.status, e?.statusCode]
+    .find((s: unknown): s is number => typeof s === 'number');
+  if (status === undefined) {
+    const m = /HTTP (\d{3})\b/.exec(String(e?.message ?? ''));
+    if (m) status = Number(m[1]);
+  }
+  const code = typeof e?.code === 'string' ? e.code.toUpperCase() : '';
+  if (status === 403 || code === 'PERMISSION_DENIED' || code === 'FORBIDDEN') return 'forbidden';
+  if (status === 401 || code === 'UNAUTHORIZED' || code === 'UNAUTHENTICATED') return 'unauthorized';
+  return 'network';
+}
+
 // Default English translations for fallback when I18nProvider is not available
 const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'list.recordCount': '{{count}} records',
@@ -286,6 +309,12 @@ const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
   // Load FAILED (network / server error) — distinct from empty. Offer retry.
   'list.loadErrorTitle': 'Couldn\u2019t load records',
   'list.loadErrorMessage': 'Something went wrong while loading this data. Check your connection and try again.',
+  // Load DENIED — the server answered, with a 403/401. Blaming the network
+  // here sends users chasing connectivity ghosts.
+  'list.loadErrorForbiddenTitle': 'You don’t have access',
+  'list.loadErrorForbiddenMessage': 'You don’t have permission to view these records. Contact your administrator if you think you should have access.',
+  'list.loadErrorUnauthorizedTitle': 'Sign in required',
+  'list.loadErrorUnauthorizedMessage': 'Your session has expired or you are signed out. Sign in again to view these records.',
   'list.retry': 'Retry',
   'list.search': 'Search',
   'list.filter': 'Filter',
@@ -501,6 +530,8 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // not tell a user to "create your first record" when the fetch actually
   // failed. Captured here so the render can show a retryable error panel.
   const [loadError, setLoadError] = React.useState<string | null>(null);
+  // What KIND of failure `loadError` is — drives which error panel copy shows.
+  const [loadErrorKind, setLoadErrorKind] = React.useState<'forbidden' | 'unauthorized' | 'network'>('network');
   // Start in loading state when we will fetch from a dataSource so the empty
   // state doesn't flash before the first effect runs. Inline data (schema.data
   // as an array or a `value` provider) starts as not-loading.
@@ -1200,6 +1231,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           console.error("ListView data fetch error:", err);
           setData([]);
           setLoadError((err as any)?.message ? String((err as any).message) : String(err ?? 'Unknown error'));
+          setLoadErrorKind(classifyLoadError(err));
         }
       } finally {
         if (isMounted && requestId === fetchRequestIdRef.current) {
@@ -2455,11 +2487,22 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         {loadError && data.length === 0 ? (
           <DataEmptyState
             data-testid="list-error-state"
+            data-error-kind={loadErrorKind}
             className="h-full min-h-[200px] p-8 gap-1 [&>h3]:text-lg [&>h3]:font-medium [&>h3]:text-foreground [&>p]:max-w-md"
-            icon={<AlertTriangle className="h-12 w-12 text-destructive/60" />}
+            icon={loadErrorKind === 'network'
+              ? <AlertTriangle className="h-12 w-12 text-destructive/60" />
+              : <ShieldAlert className="h-12 w-12 text-destructive/60" />}
             iconWrapperClassName="mb-3"
-            title={t('list.loadErrorTitle')}
-            description={t('list.loadErrorMessage')}
+            title={t(
+              loadErrorKind === 'forbidden' ? 'list.loadErrorForbiddenTitle'
+                : loadErrorKind === 'unauthorized' ? 'list.loadErrorUnauthorizedTitle'
+                : 'list.loadErrorTitle',
+            )}
+            description={t(
+              loadErrorKind === 'forbidden' ? 'list.loadErrorForbiddenMessage'
+                : loadErrorKind === 'unauthorized' ? 'list.loadErrorUnauthorizedMessage'
+                : 'list.loadErrorMessage',
+            )}
             action={(
               <Button
                 variant="outline"
