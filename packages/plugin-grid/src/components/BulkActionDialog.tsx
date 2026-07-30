@@ -73,7 +73,7 @@ export interface BulkActionDialogProps {
    */
   objectFields?: Record<string, MultiValueFieldDef>;
   /**
-   * Per-record dispatcher for a def DERIVED from an object action
+   * Per-record dispatcher for a def PROMOTED from an object action
    * (objectui#3002) — see {@link BulkExecutorOptions.runAction}. The dialog's
    * params → confirm steps are what let one action run over N records without
    * the runner re-prompting per record.
@@ -432,7 +432,7 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
                           </div>
                         </div>
                         {/* A plain `custom` callout has nothing to re-run, but
-                            a DERIVED def (#3002) re-dispatches its object
+                            a PROMOTED def (#3002) re-dispatches its object
                             action for that one record — same as update/delete. */}
                         {(def.operation !== 'custom' || !!def.actionDef) && (
                           <Button

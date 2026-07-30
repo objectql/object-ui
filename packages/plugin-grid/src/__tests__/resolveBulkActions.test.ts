@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { resolveBulkActions, DERIVED_BULK_BATCH_SIZE } from '../resolveBulkActions';
+import { resolveBulkActions, PROMOTED_BULK_BATCH_SIZE } from '../resolveBulkActions';
 import type { BulkActionDef } from '@object-ui/types';
 
 const PUSH_DOWN = {
@@ -15,7 +15,6 @@ const PUSH_DOWN = {
   label: '下推',
   type: 'api',
   target: '/api/v1/plans/push',
-  bulkEnabled: true,
 };
 
 const AUTHORED: BulkActionDef = {
@@ -26,8 +25,14 @@ const AUTHORED: BulkActionDef = {
 };
 
 describe('resolveBulkActions', () => {
-  it('derives a def from an object action declaring bulkEnabled', () => {
-    const { defs, unresolved } = resolveBulkActions({ objectActions: [PUSH_DOWN] });
+  it('promotes a named action to its declared def', () => {
+    // Naming the action in the view's `bulkActions` is the ONLY declaration —
+    // spec 17 retired `action.bulkEnabled` (framework#4054) and its tombstone
+    // prescribes exactly this.
+    const { defs, unresolved } = resolveBulkActions({
+      bulkActions: ['push_down'],
+      objectActions: [PUSH_DOWN],
+    });
 
     expect(unresolved).toEqual([]);
     expect(defs).toHaveLength(1);
@@ -36,51 +41,36 @@ describe('resolveBulkActions', () => {
       label: '下推',
       operation: 'custom',
       actionDef: PUSH_DOWN,
-      batchSize: DERIVED_BULK_BATCH_SIZE,
+      batchSize: PROMOTED_BULK_BATCH_SIZE,
     });
   });
 
-  it('leaves an action alone that never opted into bulk', () => {
+  it('surfaces nothing for an object action the view never names', () => {
     const rowOnly = { name: 'convert_lead', label: 'Convert', locations: ['list_item'] };
-    const { defs, unresolved } = resolveBulkActions({ objectActions: [rowOnly] });
+    const { defs, unresolved } = resolveBulkActions({ objectActions: [rowOnly, PUSH_DOWN] });
 
     expect(defs).toEqual([]);
     expect(unresolved).toEqual([]);
   });
 
-  it('promotes a legacy name to its declared action even without bulkEnabled', () => {
-    // Naming the action in the view's `bulkActions` IS the declaration of
-    // intent at the view level — same rule the row fold applies to `rowActions`.
-    const noFlag = { name: 'dispatch_job', label: '派工', type: 'api', target: '/x' };
-    const { defs, unresolved } = resolveBulkActions({
-      bulkActions: ['dispatch_job'],
-      objectActions: [noFlag],
-    });
+  it('ignores a stale bulkEnabled flag on an object action', () => {
+    // The key is a retiredKey() tombstone: `defineStack` hard-rejects a config
+    // that sets it, so it must never be a path into the bar on its own.
+    const stale = { name: 'push_down', label: '下推', bulkEnabled: true };
+    const { defs, unresolved } = resolveBulkActions({ objectActions: [stale] });
 
+    expect(defs).toEqual([]);
     expect(unresolved).toEqual([]);
-    expect(defs).toHaveLength(1);
-    expect(defs[0]).toMatchObject({ name: 'dispatch_job', operation: 'custom', actionDef: noFlag });
   });
 
   it('keeps a name that matches no declared action for by-name dispatch', () => {
     const { defs, unresolved } = resolveBulkActions({
-      bulkActions: ['crm_only_handler'],
+      bulkActions: ['push_down', 'crm_only_handler'],
       objectActions: [PUSH_DOWN],
     });
 
-    // push_down still derives from its own flag; the unknown name stays legacy.
     expect(defs.map(d => d.name)).toEqual(['push_down']);
     expect(unresolved).toEqual(['crm_only_handler']);
-  });
-
-  it('does not render a legacy name twice when it also derives from bulkEnabled', () => {
-    const { defs, unresolved } = resolveBulkActions({
-      bulkActions: ['push_down'],
-      objectActions: [PUSH_DOWN],
-    });
-
-    expect(defs.map(d => d.name)).toEqual(['push_down']);
-    expect(unresolved).toEqual([]);
   });
 
   it('lets an inline-authored def win over the object action of the same name', () => {
@@ -94,7 +84,7 @@ describe('resolveBulkActions', () => {
     expect(defs).toEqual([authoredPush]);
   });
 
-  it('drops a repeated legacy name', () => {
+  it('drops a repeated name', () => {
     const { defs, unresolved } = resolveBulkActions({
       bulkActions: ['dispatch_job', 'dispatch_job', 'ghost', 'ghost'],
       objectActions: [{ name: 'dispatch_job' }],
@@ -114,7 +104,6 @@ describe('resolveBulkActions', () => {
   it('maps spec param keys onto the dialog vocabulary', () => {
     const withParams = {
       name: 'reassign',
-      bulkEnabled: true,
       params: [
         {
           field: 'owner',
@@ -129,7 +118,10 @@ describe('resolveBulkActions', () => {
         { label: 'orphan' },
       ],
     };
-    const { defs } = resolveBulkActions({ objectActions: [withParams] });
+    const { defs } = resolveBulkActions({
+      bulkActions: ['reassign'],
+      objectActions: [withParams],
+    });
 
     expect(defs[0].params).toEqual([
       expect.objectContaining({
@@ -145,8 +137,11 @@ describe('resolveBulkActions', () => {
   });
 
   it('drops a non-string I18nLabel rather than handing an object to the renderer', () => {
-    const mapLabel = { name: 'push_down', bulkEnabled: true, label: { en: 'Push', 'zh-CN': '下推' } };
-    const { defs } = resolveBulkActions({ objectActions: [mapLabel] });
+    const mapLabel = { name: 'push_down', label: { en: 'Push', 'zh-CN': '下推' } };
+    const { defs } = resolveBulkActions({
+      bulkActions: ['push_down'],
+      objectActions: [mapLabel],
+    });
 
     expect(defs[0].label).toBeUndefined();
   });
@@ -154,13 +149,15 @@ describe('resolveBulkActions', () => {
   it('carries confirm text, icon and visible from the action', () => {
     const rich = {
       name: 'push_down',
-      bulkEnabled: true,
       icon: 'send',
       variant: 'danger',
       confirm: { message: '确认下推?' },
       visible: { dialect: 'cel', source: 'current_user.is_admin' },
     };
-    const { defs } = resolveBulkActions({ objectActions: [rich] });
+    const { defs } = resolveBulkActions({
+      bulkActions: ['push_down'],
+      objectActions: [rich],
+    });
 
     expect(defs[0]).toMatchObject({
       icon: 'send',
@@ -171,14 +168,18 @@ describe('resolveBulkActions', () => {
   });
 
   it('drops an action variant the bulk bar cannot render', () => {
-    const linkVariant = { name: 'push_down', bulkEnabled: true, variant: 'link' };
-    const { defs } = resolveBulkActions({ objectActions: [linkVariant] });
+    const linkVariant = { name: 'push_down', variant: 'link' };
+    const { defs } = resolveBulkActions({
+      bulkActions: ['push_down'],
+      objectActions: [linkVariant],
+    });
 
     expect(defs[0].variant).toBeUndefined();
   });
 
-  it('localizes derived labels through the supplied resolver', () => {
+  it('localizes promoted labels through the supplied resolver', () => {
     const { defs } = resolveBulkActions({
+      bulkActions: ['push_down'],
       objectActions: [PUSH_DOWN],
       localizeLabel: (name, fallback) => (name === 'push_down' ? 'Push Down' : fallback),
     });

@@ -1421,13 +1421,12 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                 : []),
             /**
              * Selection-bar actions. Unlike `rowActionDefs` above, these are
-             * NOT derived here: `ObjectGrid` is the single convergence point of
-             * all three list callers (this view, plugin-view's ObjectView and
-             * plugin-list's ListView), so it folds `objectDef.actions` — the
-             * spec's `bulkEnabled: true` declaration, plus any legacy
-             * `bulkActions` name that resolves to a declared action — into the
-             * def list itself (`resolveBulkActions`, objectui#3002). What we
-             * pass through is the view author's own inline declaration.
+             * NOT resolved here: `ObjectGrid` is the single convergence point
+             * of all three list callers (this view, plugin-view's ObjectView
+             * and plugin-list's ListView), so it resolves each `bulkActions`
+             * name against `objectDef.actions` and promotes it into the def
+             * list itself (`resolveBulkActions`, objectui#3002). What we pass
+             * through is the view author's own declaration.
              */
             bulkActions: viewDef.bulkActions ?? listSchema.bulkActions,
             bulkActionDefs: (viewDef as any).bulkActionDefs ?? (listSchema as any).bulkActionDefs,

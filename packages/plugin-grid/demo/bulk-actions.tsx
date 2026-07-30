@@ -11,15 +11,14 @@
  * on-page panel instead of hitting a server).
  *
  * What it exercises:
- *   1. `bulk_mark_done` is declared on the OBJECT with `bulkEnabled: true` and
- *      is named by no view — before #3002 an object simply could not express a
- *      bulk action, so this button did not exist.
- *   2. `bulk_recalc_estimate` is declared on the object WITHOUT the flag; the
- *      view names it in legacy `bulkActions: [...]`. That name used to be
- *      dispatched as `{ type: 'bulk_recalc_estimate' }` and never ran.
- *   3. `legacy_only_handler` resolves to no declared action and stays a
+ *   1. `bulk_mark_done` and `bulk_recalc_estimate` are declared on the object
+ *      and NAMED in the view's `bulkActions` — the only way to declare a bulk
+ *      action (spec 17 retired `action.bulkEnabled` as a tombstone). Both
+ *      names used to dispatch as `{ type: '<name>' }` and never run; the
+ *      buttons also carried none of the def's label / icon / params.
+ *   2. `legacy_only_handler` resolves to no declared action and stays a
  *      by-name dispatch — it must still render ALONGSIDE the two defs above.
- *   4. Record `t3` fails server-side (422), proving per-record attribution: the
+ *   3. Record `t3` fails server-side (422), proving per-record attribution: the
  *      result panel reports 4/5 with an error row rather than a blanket success.
  */
 import * as React from 'react';
@@ -53,9 +52,8 @@ const ROWS = [
 ];
 
 /**
- * `bulkEnabled: true` is the spec's object-level declaration — "this action can
- * be applied to multiple selected records". It also carries `locations:
- * ['list_item']`, so the same action is a row entry AND a bulk entry.
+ * Also carries `locations: ['list_item']`, so naming it in the view's
+ * `bulkActions` makes the same action a row entry AND a bulk entry.
  */
 const MARK_DONE = {
   name: 'bulk_mark_done',
@@ -65,10 +63,9 @@ const MARK_DONE = {
   target: '/api/demo/mark-done',
   recordIdParam: 'taskId',
   locations: ['list_item'],
-  bulkEnabled: true,
 };
 
-/** No `bulkEnabled` — the VIEW names it in legacy `bulkActions` instead. */
+/** Surfaces only on the record overflow menu — until the view names it. */
 const RECALC = {
   name: 'bulk_recalc_estimate',
   label: 'Recalculate Estimate',
@@ -171,8 +168,8 @@ const schema: any = {
     { field: 'progress', label: 'Progress' },
   ],
   pagination: { pageSize: 50 },
-  // Legacy bare names: one resolves to a declared action, one doesn't.
-  bulkActions: ['bulk_recalc_estimate', 'legacy_only_handler'],
+  // Bare names: two resolve to declared actions, one doesn't.
+  bulkActions: ['bulk_mark_done', 'bulk_recalc_estimate', 'legacy_only_handler'],
 };
 
 function Demo() {
@@ -185,9 +182,9 @@ function Demo() {
           Object-declared bulk actions — objectui#3002
         </h1>
         <p style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', margin: '4px 0 0' }}>
-          Select rows → the bar shows <b>Mark Done</b> (derived from the object&apos;s
-          <code> bulkEnabled: true</code>), <b>Recalculate Estimate</b> (legacy name promoted to
-          its declared action) and <b>Legacy Only Handler</b> (unresolvable, dispatched by name).
+          Select rows → the bar shows <b>Mark Done</b> and <b>Recalculate Estimate</b> (names
+          from the view&apos;s <code>bulkActions</code>, promoted to their declared object
+          actions) and <b>Legacy Only Handler</b> (unresolvable, dispatched by name).
         </p>
       </header>
 

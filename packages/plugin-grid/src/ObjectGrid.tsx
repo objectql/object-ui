@@ -1634,10 +1634,9 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const explicitBulkActions = objectCanDelete
     ? declaredBulkActions
     : declaredBulkActions?.filter((a: unknown) => String(a).toLowerCase() !== 'delete');
-  // Legacy `bulkActions` carry a bare action NAME, which the runner cannot
-  // execute on its own, and the object's own `bulkEnabled: true` actions were
-  // never surfaced at all — resolve both against `objectDef.actions` so they
-  // dispatch as real defs. See `resolveBulkActions` (objectui#3002). The
+  // `bulkActions` carries a bare action NAME, which the runner cannot execute
+  // on its own — resolve each against `objectDef.actions` so it dispatches as a
+  // real def. See `resolveBulkActions` (objectui#3002). The
   // canonical `'delete'` is held back: it routes to `onBulkDelete` (which owns
   // confirm + refresh), not the runner, even if the object declares an action
   // that happens to be named `delete`.
@@ -1746,7 +1745,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     })();
   };
 
-  // Per-record executor for a DERIVED bulk action (objectui#3002) — one
+  // Per-record executor for a PROMOTED bulk action (objectui#3002) — one
   // declared object action applied to each selected record through the action
   // runner. The dialog already collected params and took the confirmation, so
   // this dispatch strips both from the def: leaving them on would make the
