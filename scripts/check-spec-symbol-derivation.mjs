@@ -296,7 +296,7 @@ const DEBT = {
 // Files under these paths are not objectui's own authored surface.
 //   - `ui/` is the Shadcn no-touch zone (AGENTS.md #7): upstream 3rd-party files
 //     overwritten by sync scripts, so a collision there is not ours to fix.
-const SKIP_PATH_SEGMENTS = [`${"components"}/src/ui/`];
+const SKIP_PATH_SEGMENTS = ["components/src/ui/"];
 
 const isSpecModule = (m) => m === "@objectstack/spec" || m.startsWith("@objectstack/spec/");
 
