@@ -2164,6 +2164,70 @@ describe('ListView', () => {
     });
   });
 
+  // Declared formats the runtime cannot deliver (objectui#2942): pdf has no
+  // implementation anywhere, and xlsx only exists on the server stream. They
+  // must not render as menu items whose click silently does nothing.
+  describe('exportOptions dead formats', () => {
+    const serverDs: any = {
+      find: vi.fn().mockResolvedValue([]),
+      findOne: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+      exportDownload: vi.fn(),
+    };
+
+    it('hides pdf from the export menu even when declared', async () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        exportOptions: { formats: ['xlsx', 'pdf'] as any },
+      };
+
+      render(
+        <SchemaRendererProvider dataSource={serverDs}>
+          <ListView schema={schema} dataSource={serverDs} />
+        </SchemaRendererProvider>
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /export/i }));
+      expect(await screen.findByRole('button', { name: /export as xlsx/i })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /export as pdf/i })).toBeNull();
+    });
+
+    it('hides xlsx when the data source has no server export stream', async () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        exportOptions: { formats: ['csv', 'xlsx'] },
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+
+      fireEvent.click(screen.getByRole('button', { name: /export/i }));
+      expect(await screen.findByRole('button', { name: /export as csv/i })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /export as xlsx/i })).toBeNull();
+    });
+
+    it('hides the export button entirely when no declared format is deliverable', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        exportOptions: { formats: ['pdf'] as any },
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+
+      expect(screen.queryAllByRole('button', { name: /export/i }).length).toBe(0);
+    });
+  });
+
   // ============================
   // conditionalFormatting spec format
   // ============================

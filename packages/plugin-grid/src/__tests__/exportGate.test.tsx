@@ -5,7 +5,7 @@
  * is hidden; default-allow keeps it visible when the key is omitted.
  */
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 
@@ -50,5 +50,28 @@ describe('ObjectGrid export permission gate', () => {
   it('keeps the export button when operations is set but export is omitted (default-allow)', () => {
     renderGrid({ operations: { create: false } });
     expect(screen.getByRole('button', { name: /export/i })).toBeInTheDocument();
+  });
+});
+
+/**
+ * Dead-format gate (objectui#2942): declared formats the runtime cannot
+ * deliver must not render as menu items whose click silently does nothing.
+ * pdf is implemented nowhere; xlsx needs the server stream, which inline
+ * (provider: 'value') data never has.
+ */
+describe('ObjectGrid export dead formats', () => {
+  it('drops pdf and (with inline data) xlsx from the menu, keeping csv', async () => {
+    renderGrid({ exportOptions: { formats: ['csv', 'xlsx', 'pdf'] } });
+
+    fireEvent.click(screen.getByRole('button', { name: /export/i }));
+
+    expect(await screen.findByRole('button', { name: /export as csv/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /export as pdf/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /export as xlsx/i })).toBeNull();
+  });
+
+  it('hides the export button entirely when no declared format is deliverable', () => {
+    renderGrid({ exportOptions: { formats: ['pdf'] } });
+    expect(screen.queryAllByRole('button', { name: /export/i }).length).toBe(0);
   });
 });

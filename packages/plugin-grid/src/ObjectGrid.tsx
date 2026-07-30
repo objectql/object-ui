@@ -1233,6 +1233,30 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     return generatedColumns;
   }, [objectSchema, schemaFields, schemaColumns, dataConfig, hasInlineData, navigation.handleClick, executeAction, data, resolveFieldLabel, translateOptions, schema.objectName, perms]);
 
+  // Formats this grid can actually deliver (objectui#2942): the server stream
+  // handles csv/xlsx/json, the client fallback only csv/json, and pdf exists
+  // nowhere (declined platform-side — objectstack#1301). Declared-but-dead
+  // formats used to render as menu items whose click did nothing; now they're
+  // dropped from the menu (with a one-time warning for the app author).
+  // (Hoisted above the error/loading early returns to satisfy hooks rules.)
+  const exportableFormats = useMemo(() => {
+    const declared = schema.exportOptions?.formats || ['csv', 'json'];
+    const serverAvailable = typeof dataSource?.exportDownload === 'function'
+      && !!objectName
+      && !hasInlineData
+      && (schema.exportOptions as any)?.streaming !== false;
+    const supported = serverAvailable ? ['csv', 'xlsx', 'json'] : ['csv', 'json'];
+    return declared.filter((f: string) => supported.includes(f));
+  }, [schema.exportOptions, dataSource, objectName, hasInlineData]);
+  useEffect(() => {
+    const declared = schema.exportOptions?.formats;
+    if (!declared) return;
+    const dropped = declared.filter((f) => !exportableFormats.includes(f));
+    if (dropped.length > 0) {
+      console.warn(`[ObjectUI] ObjectGrid export: unsupported format(s) hidden from the menu: ${dropped.join(', ')}`);
+    }
+  }, [schema.exportOptions, exportableFormats]);
+
   const handleExport = useCallback((format: 'csv' | 'xlsx' | 'json' | 'pdf') => {
     // Object-level export permission gate. Default-allow: an explicit
     // `operations.export === false` blocks it, and — when the server hands down
@@ -2285,6 +2309,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   // and it excludes `export`, the button is hidden. Missing set → unchanged.
   const exportEnabled =
     !!schema.exportOptions &&
+    exportableFormats.length > 0 &&
     schema.operations?.export !== false &&
     (effectiveApiOps ? effectiveApiOps.includes('export') : true);
   const hasToolbar = exportEnabled || showRowHeightToggle;
@@ -2319,7 +2344,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
           </PopoverTrigger>
           <PopoverContent align="end" className="w-48 p-2">
             <div className="space-y-1">
-              {(schema.exportOptions?.formats || ['csv', 'json']).map(format => (
+              {exportableFormats.map(format => (
                 <Button
                   key={format}
                   variant="ghost"
