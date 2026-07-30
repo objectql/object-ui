@@ -18,53 +18,51 @@
  * @module ui-action
  * @packageDocumentation
  */
-import { z } from 'zod';
-import type { ActionType as SpecActionType } from '@objectstack/spec/ui';
+import type { z } from 'zod';
+import type {
+  Action as SpecAction,
+  ActionLocation,
+  ActionType as SpecActionType,
+} from '@objectstack/spec/ui';
+import { FieldType as SpecFieldTypeEnum } from '@objectstack/spec/data';
+import type { FieldType as SpecFieldType } from '@objectstack/spec/data';
 
 // ============================================================================
 // Spec-Canonical Action Sub-types — imported from @objectstack/spec/ui
 // ============================================================================
 
 /**
- * Action placement locations.
+ * Action placement locations — re-exported from `@objectstack/spec/ui`.
  *
  * Single source of truth lives in `@objectstack/spec/ui` as
- * `ACTION_LOCATIONS` + `ActionLocationSchema` + `ActionLocation`. Re-export
- * here so existing `@object-ui/types` consumers keep working without coupling
- * them to a duplicated, drift-prone enum. To add a new location, edit
+ * `ACTION_LOCATIONS` + `ActionLocationSchema` + `ActionLocation`. These are now
+ * literally those three values rather than a restatement of them (#4074): the
+ * comment claimed "re-export" while the code re-*declared* a parallel union,
+ * `as const` tuple, and `z.enum`. To add a new location, edit
  * `packages/spec/src/ui/action.zod.ts` — every layer (spec, core, types,
  * Studio designer dropdowns) picks up the new value automatically.
+ *
+ * `ACTION_LOCATIONS` / `ActionLocationSchema` stay **value** exports: #2561
+ * decision (a) drops spec/ui's `…Schema` names from this package's surface, but
+ * these two are explicitly kept (asserted in `spec-ui-schema-reexports.test.ts`),
+ * so they are re-exported as values — not inside an `export type` block, which
+ * would erase them to `undefined` at runtime.
  */
-export type ActionLocation =
-  | 'list_toolbar'
-  | 'list_item'
-  | 'record_header'
-  | 'record_more'
-  | 'record_related'
-  | 'record_section'
-  | 'global_nav';
-
-export const ACTION_LOCATIONS = [
-  'list_toolbar',
-  'list_item',
-  'record_header',
-  'record_more',
-  'record_related',
-  'record_section',
-  'global_nav',
-] as const satisfies readonly ActionLocation[];
-
-export const ActionLocationSchema = z.enum(ACTION_LOCATIONS);
+export type { ActionLocation } from '@objectstack/spec/ui';
+export { ACTION_LOCATIONS, ActionLocationSchema } from '@objectstack/spec/ui';
 
 /**
- * Visual component type for actions
- * Canonical definition from @objectstack/spec/ui ActionSchema.component.
+ * Visual component type for actions — derived from the spec's
+ * `ActionSchema.component` enum (#4074; formerly a hand-written union).
+ *
+ * `action:button` | `action:icon` | `action:menu` | `action:group`
+ *
+ * Read off `Action` rather than `ActionSchema.shape.component` because the spec
+ * exports `ActionSchema` as a `lazySchema` proxy that does not forward `.shape`.
+ * `Action` is the spec's own resolved `z.infer`, so this tracks the enum without
+ * reaching into zod internals.
  */
-export type ActionComponent = 
-  | 'action:button'      // Standard button
-  | 'action:icon'        // Icon-only button
-  | 'action:menu'        // Menu item
-  | 'action:group';      // Action group/dropdown
+export type ActionComponent = NonNullable<SpecAction['component']>;
 
 /**
  * Action execution type — derived from `@objectstack/spec`'s `ActionType` enum
@@ -120,58 +118,163 @@ export const OBJECTUI_LOCAL_ACTION_TYPES = [
 export type RunnableActionType = ActionType | ObjectUiLocalActionType;
 
 /**
- * Field type for action parameters
- * Subset of field types commonly used in action parameter collection UIs.
- * Aligned with the field types available in @objectstack/spec ActionParamSchema.
+ * Field type for action parameters — derived from the spec's `FieldType`
+ * (#4074; formerly a hand-written 16-member subset).
+ *
+ * `ActionParamSchema.type` is `FieldType.optional()`, and `FieldType` carries 49
+ * members. The old union listed 16 of them, so a spec-valid param typed
+ * `lookup` / `multiselect` / `currency` / `user` / `tags` / `json` / … failed
+ * `tsc` against this package even though `ActionParamDialog` renders it — the
+ * same failure `ActionType` had before #2231/#2901 derived it (it was missing
+ * `form` while `ActionRunner.executeForm` implemented it).
  */
-export type ActionParamFieldType =
-  | 'text'
-  | 'textarea'
-  | 'number'
-  | 'boolean'
-  | 'date'
-  | 'datetime'
-  | 'time'
-  | 'select'
-  | 'email'
-  | 'phone'
-  | 'url'
-  | 'password'
-  | 'file'
-  | 'color'
-  | 'slider'
-  | 'rating';
+export type ActionParamFieldType = SpecFieldType;
+
+/**
+ * Runtime witness for {@link ActionParamFieldType} — the spec's own `FieldType`
+ * members, by reference.
+ *
+ * A type alias erases at runtime, so nothing stops a future edit from replacing
+ * the alias above with a restated literal union (which is exactly how the 16-member
+ * fork got there). This array is what the guard in
+ * `__tests__/spec-derived-unions.test.ts` pins by identity against
+ * `FieldType.options`, so a hand-listed copy fails. It is also the list a
+ * param-type dropdown should render.
+ */
+export const ACTION_PARAM_FIELD_TYPES = SpecFieldTypeEnum.options;
+
+/**
+ * Param-only `type` spellings objectui still resolves that the spec's
+ * `FieldType` does NOT contain (#4074).
+ *
+ * These are the keys of `PARAM_TYPE_ALIASES` in
+ * `@object-ui/app-shell`'s `paramToField.ts`, which folds each onto a canonical
+ * widget type (`checkbox` → `boolean`, `reference` → `lookup`,
+ * `datetime-local` → `datetime`). They are legacy dialect kept for params
+ * already authored with them; new params should use spec `FieldType` values.
+ *
+ * Declared here, next to the vocabulary they extend, for the same reason
+ * {@link ObjectUiLocalActionType} is: a dialect hidden inside a
+ * `Record<string, string>` in another package cannot be seen by an importer, and
+ * silently resolving an unknown spelling to `text` is not a loud failure. If the
+ * spec ever adopts one of these names, the guard in
+ * `__tests__/spec-derived-unions.test.ts` fails and names the alias to retire.
+ */
+export type ObjectUiLocalParamFieldType = 'checkbox' | 'reference' | 'datetime-local';
+
+export const OBJECTUI_LOCAL_PARAM_FIELD_TYPES = [
+  'checkbox',
+  'reference',
+  'datetime-local',
+] as const satisfies readonly ObjectUiLocalParamFieldType[];
+
+/**
+ * Every `type` spelling an authored action param may carry: the spec vocabulary
+ * plus the declared local aliases above. This is what a *reader* of param
+ * metadata should accept; use {@link ActionParamFieldType} when authoring new
+ * metadata.
+ */
+export type ResolvableParamFieldType = ActionParamFieldType | ObjectUiLocalParamFieldType;
 
 /**
  * Action parameter definition (ObjectStack Spec v2.0.1)
+ *
+ * Mirrors `@object-ui/core`'s `ActionParamDef` — the shape `ActionParamDialog`
+ * actually consumes — so a host app authoring against this package can express
+ * every param capability objectui renders. Before #4074 it declared 9 of the 22
+ * fields `ActionParamDef` carries, so the widget config below (`multiple`,
+ * upload `accept`/`maxSize`, and the whole lookup-picker group that
+ * `paramToField.ts` maps into the shared field renderer, ADR-0059) was
+ * unrepresentable in the public type while being fully implemented.
+ *
+ * Still narrower than the spec's `ActionParamSchema` in two ways, deliberately
+ * left for a follow-up because both are breaking: `name` / `label` / `type` are
+ * required here but optional in spec, and the `field` / `objectOverride`
+ * field-reference form (spec's primary way to declare a param, which supplies
+ * label/type/validation/options from an existing object field) is absent. See
+ * #4074 steps 2–3.
  */
 export interface ActionParam {
   /** Parameter name (snake_case) */
   name: string;
-  
+
   /** Display label */
   label: string;
-  
-  /** Field type for input */
-  type: ActionParamFieldType;
-  
+
+  /**
+   * Field type for input.
+   *
+   * Accepts the spec vocabulary plus objectui's declared legacy spellings, which
+   * is what the dialog resolves — prefer a canonical
+   * {@link ActionParamFieldType} in new metadata.
+   */
+  type: ResolvableParamFieldType;
+
   /** Whether parameter is required */
   required?: boolean;
-  
+
   /** Options for select/picklist types */
   options?: Array<{ label: string; value: string }>;
-  
+
   /** Default value */
   defaultValue?: unknown;
-  
+
   /** Help text */
   helpText?: string;
-  
+
   /** Placeholder text */
   placeholder?: string;
-  
+
   /** Validation expression */
   validation?: string;
+
+  /**
+   * Visibility predicate (CEL) evaluated against the same scope as action
+   * `visible` (`current_user` / `app` / `data` / `features`). When it evaluates
+   * false the dialog omits this param. Absent = always visible.
+   */
+  visible?: string;
+
+  // ── Widget config (shared form field-widget renderer, ADR-0059) ────────
+  // `ActionParamDialog` renders every param through the same field widgets the
+  // object form uses, so params carry the widget-relevant config for their type.
+  // Mirrors `ActionParamSchema` in @objectstack/spec.
+
+  /** Accepted upload types (MIME types / extensions) for `file`/`image` params. */
+  accept?: string[];
+
+  /** Max upload size in bytes for `file`/`image` params. */
+  maxSize?: number;
+
+  /** Allow multiple values (array value shape); mirrors `FieldSchema.multiple`. */
+  multiple?: boolean;
+
+  /** Reference target object for `lookup`/`master_detail` params. */
+  referenceTo?: string;
+
+  /** Field on the referenced object to display in the picker. */
+  displayField?: string;
+
+  /** Field on the referenced object holding its id. */
+  idField?: string;
+
+  /** Field on the referenced object to show as secondary text. */
+  descriptionField?: string;
+
+  /** Template composing the picker's row title. */
+  titleFormat?: string;
+
+  /** Columns shown in the lookup picker's table. */
+  lookupColumns?: unknown[];
+
+  /** Filters constraining the lookup picker's query. */
+  lookupFilters?: unknown[];
+
+  /** Page size for the lookup picker's query. */
+  lookupPageSize?: number;
+
+  /** Params this one's options depend on (cascading selects). */
+  dependsOn?: unknown[];
 }
 
 /**

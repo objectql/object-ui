@@ -870,6 +870,9 @@ export type {
   ActionType,
   ObjectUiLocalActionType,
   RunnableActionType,
+  ActionParamFieldType,
+  ObjectUiLocalParamFieldType,
+  ResolvableParamFieldType,
   ActionParam,
   ActionSchema as UIActionSchema,
   ActionGroup,
@@ -886,7 +889,13 @@ export type {
   UndoRedoState,
 } from './ui-action';
 
-export { ACTION_LOCATIONS, ActionLocationSchema, OBJECTUI_LOCAL_ACTION_TYPES } from './ui-action';
+export {
+  ACTION_LOCATIONS,
+  ActionLocationSchema,
+  OBJECTUI_LOCAL_ACTION_TYPES,
+  OBJECTUI_LOCAL_PARAM_FIELD_TYPES,
+  ACTION_PARAM_FIELD_TYPES,
+} from './ui-action';
 
 // ============================================================================
 // ObjectStack Protocol Namespaces - Protocol Re-exports
