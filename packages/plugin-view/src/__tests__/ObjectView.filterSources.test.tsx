@@ -102,3 +102,56 @@ describe('ObjectView carries every filter source into the query', () => {
     expect(await queriedFilter(renderCalendar({ table: { defaultFilters: [] } as any }))).toBeUndefined();
   });
 });
+
+/**
+ * `mergedFilters` / `mergedSort` — what ObjectView hands the renderer it
+ * delegates to (the `renderListView` slot, used by the Studio design surface).
+ *
+ * Both used to open with a branch keyed on ObjectView's own filter/sort state,
+ * and the filter one REPLACED the view's filter with the user's rather than
+ * combining them. Nothing ever wrote that state, so neither branch could run —
+ * they were deleted rather than corrected, because the delegated renderer owns
+ * the filter UI and does its own combining. These pin what survives.
+ */
+describe('ObjectView hands the view filter to the delegated renderer', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function renderDelegated(schema: Partial<ObjectViewSchema>) {
+    const seen: any[] = [];
+    const ds: any = {
+      find: vi.fn().mockResolvedValue({ data: [], total: 0 }),
+      findOne: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(),
+      getObjectSchema: vi.fn().mockResolvedValue({ name: 'task', fields: {} }),
+    };
+    render(
+      <ObjectView
+        schema={{ type: 'object-view', objectName: 'task', ...schema } as ObjectViewSchema}
+        dataSource={ds}
+        renderListView={({ schema: s }: any) => { seen.push(s); return <div data-testid="delegated" />; }}
+      />,
+    );
+    return seen;
+  }
+
+  it('forwards an object table.defaultFilters unchanged', () => {
+    const seen = renderDelegated({ table: { defaultFilters: { status: 'active' } } as any });
+    expect(seen[0]?.filter).toEqual({ status: 'active' });
+  });
+
+  it('forwards a ViewFilterRule[] unchanged', () => {
+    const rules = [{ field: 'stage', operator: 'eq', value: 'won' }];
+    const seen = renderDelegated({ table: { defaultFilters: rules } as any });
+    expect(seen[0]?.filter).toEqual(rules);
+  });
+
+  it('forwards the sort alongside it', () => {
+    const seen = renderDelegated({ table: { defaultSort: [{ field: 'name', direction: 'asc' }] } as any });
+    expect(seen[0]?.sort).toEqual([{ field: 'name', direction: 'asc' }]);
+  });
+
+  it('forwards nothing when the view declares neither', () => {
+    const seen = renderDelegated({});
+    expect(seen[0]?.filter).toBeUndefined();
+    expect(seen[0]?.sort).toBeUndefined();
+  });
+});

@@ -29,8 +29,6 @@ import type {
   ObjectFormSchema,
   DataSource,
   ViewSwitcherSchema,
-  FilterUISchema,
-  SortUISchema,
   ViewType,
   NamedListView,
   ViewNavigationConfig,
@@ -282,9 +280,20 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Filter & Sort state
-  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
-  const [sortConfig, setSortConfig] = useState<Array<{ field: string; direction: 'asc' | 'desc' }>>([]);
+  // NOTE: this component used to carry its own filter/sort BAR — `filterValues`
+  // and `sortConfig` state, a `filter-ui` schema and a `sort-ui` schema. None of
+  // it was ever connected: no setter was called and neither schema was rendered,
+  // so both states stayed at their initial empty value for the component's whole
+  // life. It was removed rather than wired, because the real filter and sort UI
+  // belongs to the renderer this component delegates to — `showFilters`,
+  // `showSort` and `filterableFields` are forwarded downstream (see `baseProps`
+  // and the list-view schema below) and `ListView` implements them. Wiring the
+  // local copy would have produced a SECOND filter bar competing with that one.
+  //
+  // The dead state was not harmless: every merge path here had a branch keyed on
+  // it that could never run, and those branches read as live code. Two separate
+  // "bugs" reported against them during objectui#3081 were unreachable for this
+  // reason — see the correction in that PR.
 
   // --- Named listViews ---
   const namedListViews = schema.listViews;
@@ -358,32 +367,19 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
 
       setLoading(true);
       try {
-        // Build filter. Each source becomes its OWN child of the `and`, never
-        // spread into it: `['and', ...baseFilter]` is only correct when the
-        // source happens to be an array of AST nodes, and `activeView.filter` is
-        // a spec `ViewFilterRule[]` — spreading put bare rule objects where the
-        // AST expects nodes, which `isFilterAST` rejects (a 400 since
-        // objectstack#4121) and `parseFilterAST` misreads as a Mongo condition
-        // on columns literally named `field` / `operator` / `value`.
-        //
-        // `mergeFilterNodes` also rescues an OBJECT source: `table.defaultFilters`
-        // is declared `Record<string, any>`, and the old `baseFilter.length > 0`
-        // test read false for it — so a view's default filter was dropped and
-        // every record came back. The grid path (ObjectGrid) always assigned it
-        // directly and was unaffected, so the same view filtered correctly as a
-        // grid and returned everything as a calendar/kanban/gallery.
-        const userFilter = Object.entries(filterValues)
-          .filter(([, v]) => v !== undefined && v !== '' && v !== null)
-          .map(([field, value]) => [field, '=', value]);
+        // `mergeFilterNodes` rescues an OBJECT source: `table.defaultFilters` is
+        // declared `Record<string, any>`, and the `baseFilter.length > 0` test
+        // this replaced read false for it — so a view's default filter was
+        // dropped and every record came back. The grid path (ObjectGrid) always
+        // assigned it directly and was unaffected, so the same view filtered
+        // correctly as a grid and returned everything as a calendar/kanban/
+        // gallery. It also keeps each source as its own child of the `and`
+        // rather than spreading it, which is what a `ViewFilterRule[]` needs.
         const finalFilter = mergeFilterNodes(
           currentNamedViewConfig?.filter || activeView?.filter || schema.table?.defaultFilters,
-          ...userFilter,
         );
 
-        // Build sort
-        const sort = sortConfig.length > 0
-          ? sortConfig.map(s => ({ field: s.field, order: s.direction }))
-          : (currentNamedViewConfig?.sort || activeView?.sort || schema.table?.defaultSort || undefined);
+        const sort = currentNamedViewConfig?.sort || activeView?.sort || schema.table?.defaultSort || undefined;
 
         // Auto-inject $expand for lookup/master_detail fields.
         // Use a ref instead of the state variable to avoid re-running this effect
@@ -424,7 +420,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
     return () => { isMounted = false; };
     // objectSchema intentionally omitted from deps — read via ref to prevent double-fetch
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schema.objectName, dataSource, currentViewType, filterValues, sortConfig, refreshKey, currentNamedViewConfig, activeView, renderListView]);
+  }, [schema.objectName, dataSource, currentViewType, refreshKey, currentNamedViewConfig, activeView, renderListView]);
 
   // Determine layout mode. #2578: default the record surface from how heavy the
   // object is — a field-heavy object opens create/edit/detail as a full page, a
@@ -608,84 +604,6 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
     setActiveNamedView(viewKey);
   }, []);
 
-  // --- FilterUI schema (auto-generated from objectSchema or filterableFields) ---
-  const filterSchema: FilterUISchema | null = useMemo(() => {
-    if (schema.showFilters === false) return null;
-
-    // If filterableFields specified, use only those
-    const filterableFieldNames = schema.filterableFields;
-    const fields = (objectSchema as any)?.fields || {};
-
-    const fieldEntries = filterableFieldNames
-      ? filterableFieldNames.map(name => [name, fields[name] || { label: name }] as [string, any])
-      : Object.entries(fields).filter(([, f]: [string, any]) => !f.hidden).slice(0, 8);
-
-    const filterableFieldDefs = fieldEntries.map(([key, f]: [string, any]) => {
-      const fieldType = f.type || 'text';
-      let filterType: 'text' | 'number' | 'select' | 'multi-select' | 'date' | 'boolean' = 'text';
-      let options: Array<{ label: string; value: any }> | undefined;
-
-      if (fieldType === 'number' || fieldType === 'currency' || fieldType === 'percent') {
-        filterType = 'number';
-      } else if (fieldType === 'boolean' || fieldType === 'toggle') {
-        filterType = 'boolean';
-      } else if (fieldType === 'date' || fieldType === 'datetime') {
-        filterType = 'date';
-      } else if (fieldType === 'select' || fieldType === 'status' || f.options) {
-        filterType = 'select';
-        options = (f.options || []).map((o: any) =>
-          typeof o === 'string' ? { label: o, value: o } : { label: o.label, value: o.value },
-        );
-      } else if (fieldType === 'lookup' || fieldType === 'master_detail' || fieldType === 'user' || fieldType === 'owner') {
-        if (f.options && f.options.length > 0) {
-          filterType = 'multi-select';
-          options = (f.options || []).map((o: any) =>
-            typeof o === 'string' ? { label: o, value: o } : { label: o.label, value: o.value },
-          );
-        }
-      }
-      return {
-        field: key,
-        label: f.label || key,
-        type: filterType,
-        placeholder: `Filter ${f.label || key}...`,
-        ...(options ? { options } : {}),
-      };
-    });
-
-    if (filterableFieldDefs.length === 0) return null;
-
-    return {
-      type: 'filter-ui' as const,
-      layout: 'popover' as const,
-      showClear: true,
-      showApply: true,
-      filters: filterableFieldDefs,
-      values: filterValues,
-    };
-  }, [schema.showFilters, schema.filterableFields, objectSchema, filterValues]);
-
-  // --- SortUI schema ---
-  const showSort = (schema as ObjectViewSchema).showSort;
-  const sortSchema: SortUISchema | null = useMemo(() => {
-    if (showSort === false) return null;
-
-    const fields = (objectSchema as any)?.fields || {};
-    const sortableFields = Object.entries(fields)
-      .filter(([, f]: [string, any]) => !f.hidden)
-      .slice(0, 10)
-      .map(([key, f]: [string, any]) => ({ field: key, label: f.label || key }));
-
-    if (sortableFields.length === 0) return null;
-
-    return {
-      type: 'sort-ui' as const,
-      variant: 'dropdown' as const,
-      multiple: false,
-      fields: sortableFields,
-      sort: sortConfig,
-    };
-  }, [objectSchema, sortConfig, showSort]);
 
   // --- Generate view component schema for non-grid views ---
   const generateViewSchema = useCallback((viewType: string): any => {
@@ -977,24 +895,21 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
     </Dialog>
   );
 
-  // Compute merged filters for the list
-  const mergedFilters = useMemo(() => {
-    const hasUserFilters = Object.keys(filterValues).some(
-      k => filterValues[k] !== undefined && filterValues[k] !== '' && filterValues[k] !== null,
-    );
-    if (hasUserFilters) {
-      return Object.entries(filterValues)
-        .filter(([, v]) => v !== undefined && v !== '' && v !== null)
-        .map(([field, value]) => ({ field, operator: 'equals' as const, value }));
-    }
-    return currentNamedViewConfig?.filter || activeView?.filter || schema.table?.defaultFilters;
-  }, [filterValues, currentNamedViewConfig, activeView, schema.table?.defaultFilters]);
+  // The filter and sort this component hands to the renderer it delegates to.
+  //
+  // Both used to open with a branch keyed on the local filter/sort state — and
+  // the filter one REPLACED the view's own filter with the user's rather than
+  // combining them, which would have been a bug had the state ever been
+  // written. It never was (see the note by the state declarations), so both
+  // branches were dead. They are gone rather than corrected: the delegated
+  // renderer owns the filter/sort UI and does its own combining.
+  const mergedFilters = currentNamedViewConfig?.filter
+    || activeView?.filter
+    || schema.table?.defaultFilters;
 
-  const mergedSort = useMemo(() => {
-    return sortConfig.length > 0
-      ? sortConfig
-      : currentNamedViewConfig?.sort || activeView?.sort || schema.table?.defaultSort;
-  }, [sortConfig, currentNamedViewConfig, activeView, schema.table?.defaultSort]);
+  const mergedSort = currentNamedViewConfig?.sort
+    || activeView?.sort
+    || schema.table?.defaultSort;
 
   // --- Content renderer ---
   const renderContent = () => {

@@ -31,8 +31,17 @@ parseFilterAST(same)
 ```
 
 That second line is a predicate over three columns named `field`, `operator`
-and `value` — which don't exist. Reachable whenever a view with a filter meets a
-user filter value.
+and `value` — which don't exist.
+
+> **Correction.** The first version of this note said the spread was "reachable
+> whenever a view with a filter meets a user filter value". That was wrong for
+> `ObjectView`: the branch required a non-empty user filter, and nothing ever
+> wrote the state it was built from, so it could never run. The shape is
+> genuinely broken — a live server answers it with a 400 — and the adapter-level
+> defence added alongside is still warranted for any producer that emits it, but
+> **this particular site was dead code, not a live defect.** Defect 1 above was
+> live: it sat on the always-taken path. The dead machinery behind the wrong
+> claim is removed in a follow-up.
 
 New in `@object-ui/core`: `toFilterNode` normalizes one source (rule array / AST
 / MongoDB object) and `mergeFilterNodes` combines sources as siblings under one
