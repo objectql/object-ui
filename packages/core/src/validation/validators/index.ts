@@ -8,9 +8,15 @@
 
 /**
  * @object-ui/core - Validators
- * 
- * Validators for the spec-owned object-level rule vocabulary.
- * 
+ *
+ * Publishes the @deprecated `ObjectValidationEngine` (#3110). Object-level
+ * validation rules are enforcement, and enforcement is single-implementation on
+ * the server (`objectql`'s rule-validator); objectui renders the server's
+ * rejection rather than predicting it, and pre-submit feedback belongs in a
+ * validate-only (dry-run) write. This barrel keeps the API exported for host
+ * applications that already depend on it — re-exporting is not wiring, and
+ * `validation-engine-stays-unwired.test.ts` enforces that distinction.
+ *
  * @module validators
  * @packageDocumentation
  */

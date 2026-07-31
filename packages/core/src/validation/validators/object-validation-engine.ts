@@ -7,16 +7,55 @@
  */
 
 /**
- * @object-ui/core - Object-Level Validation Engine
+ * @object-ui/core - Object-Level Validation Engine — **DEPRECATED** (#3110)
  *
- * A CLIENT-SIDE PRE-CHECK of the rules an object declares in
+ * A client-side pre-check of the rules an object declares in
  * `ObjectSchema.validations`. The authority is the server
  * (`objectql/src/validation/rule-validator.ts`), which evaluates the same rules
- * on the write path; this engine exists to surface a violation before the round
- * trip, never to invent one. That framing sets every semantic below — a
- * pre-check that disagrees with the server is worse than no pre-check, because
- * it either blocks writes the server would accept or greenlights ones it
- * rejects.
+ * on the write path.
+ *
+ * ## Why this is deprecated rather than finished
+ *
+ * Validation rules are ENFORCEMENT, and enforcement is single-implementation on
+ * the server by design. `evaluator/fieldRules.ts` draws that line explicitly:
+ * PRESENTATION predicates (`visibleWhen` / `readonlyWhen` / `requiredWhen`) are
+ * evaluated client-side by delegating to the canonical `ExpressionEngine`,
+ * "rather than re-implementing a parallel evaluator" (ADR-0036). This module is
+ * that parallel evaluator, on the enforcement side of the line.
+ *
+ * #3103 converged its semantics onto the server rule-for-rule, with eight
+ * mutation-tested gates — and it STILL left a known divergence: the server
+ * carries ADR-0113's legacy-violation exemption (reject only when the merged
+ * state violates AND this write makes it worse, so a pre-existing violation on
+ * an old row passes), and this engine does not. Editing an unrelated field on a
+ * legacy row would be blocked here and accepted there. That is the argument in
+ * one line: mirroring cross-repo behaviour is structurally unreliable, not
+ * unreliable-this-time.
+ *
+ * ## What to use instead
+ *
+ * Let the write fail and render the server's rejection — it is already
+ * structured (`field` / `code` / `message`, plus a label since objectstack#3957).
+ * If pre-submit feedback is wanted, the answer is a **validate-only (dry-run)
+ * write** on the server: identical UX, zero parity risk, and it also covers the
+ * two rule kinds a client can never check — `unique` (needs the database) and
+ * `json_schema` (ajv lives server-side).
+ *
+ * Nothing here has been removed or changed in behaviour; existing callers keep
+ * working. `validation-engine-stays-unwired.test.ts` fails if a production
+ * module starts importing this one, so the decision is a mechanism rather than
+ * this comment (#3017).
+ *
+ * ## When to revisit
+ *
+ * Offline writes (`OfflineConfig`). With no server to ask, a client evaluator
+ * stops being redundant and becomes necessary. The precondition then is
+ * conformance fixtures shipped by `@objectstack/spec` — golden
+ * (rule, record, verdict) triples both repos run in CI — because that is the
+ * only thing that turns cross-repo parity into a mechanism instead of a habit.
+ * Reverse the decision in #3110 before reversing it here.
+ *
+ * ## Semantics (unchanged, for as long as this exists)
  *
  * The rule types come from `@object-ui/types`, which derives them from
  * `@objectstack/spec/data` (objectstack#4115). Semantics mirrored from the
@@ -340,6 +379,13 @@ class SimpleExpressionEvaluator implements ValidationExpressionEvaluator {
 /**
  * Object-Level Validation Engine — the client pre-check described at the top of
  * this module.
+ *
+ * @deprecated (#3110) Validation rules are enforcement, and enforcement is
+ * single-implementation on the server (`objectql`'s rule-validator). Render the
+ * server's rejection instead; for pre-submit feedback, use a validate-only
+ * (dry-run) write. Still functional and still correct as of #3103 — but it
+ * cannot stay in step with the server without a conformance-fixture mechanism
+ * that does not exist yet. See the module header.
  */
 export class ObjectValidationEngine {
   private expressionEvaluator: ValidationExpressionEvaluator;
@@ -872,11 +918,15 @@ function matchesNamedFormat(format: FormatValidation['format'], str: string): bo
 
 /**
  * Default instance
+ *
+ * @deprecated (#3110) See `ObjectValidationEngine`.
  */
 export const defaultObjectValidationEngine = new ObjectValidationEngine();
 
 /**
  * Convenience function to validate a record
+ *
+ * @deprecated (#3110) See `ObjectValidationEngine`.
  */
 export async function validateRecord(
   rules: ObjectValidationRule[],
