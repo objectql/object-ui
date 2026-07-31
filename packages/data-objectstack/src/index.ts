@@ -300,6 +300,55 @@ function translateFilterToAST(filter: unknown): unknown | undefined {
   return undefined;
 }
 
+/**
+ * Serialize a `$orderby` to the server's `sort` shorthand
+ * (`field,-other_field`), for every shape `QueryParams['$orderby']` declares.
+ *
+ * The type declares four — `string`, `string[]`, `SortNode[]`,
+ * `Record<field, direction>` — and the two `find()` routes each open-coded a
+ * fold that handled three of them. The missing one was the bare string, and it
+ * did not degrade quietly: `Object.entries('name asc')` enumerates a string's
+ * character indices, so the request went out as `sort=0,1,2,3,4,5,6,7`. Against
+ * a server that rejects an unreadable sort rather than ignoring it
+ * (objectstack#4226), that is a `400 INVALID_SORT` and an empty list — so a
+ * standalone `ObjectGrid` with a `sort` in its metadata, which is exactly the
+ * shape it builds (`ObjectGrid.tsx`: `` `${field} ${order}` ``), failed to load
+ * at all.
+ *
+ * One serializer for both routes, for the reason the filter path already has
+ * one: two copies of a fold can only agree by inspection, and these two did not.
+ *
+ * Returns `undefined` when nothing is sortable, so callers skip the parameter
+ * entirely rather than sending an empty one.
+ */
+export function serializeOrderBy(orderby: QueryParams['$orderby']): string | undefined {
+  if (orderby === undefined || orderby === null) return undefined;
+
+  // `field asc` / `-field` / a comma-separated list of either — already the
+  // wire shorthand the server parses, so it rides through untouched.
+  if (typeof orderby === 'string') {
+    const trimmed = orderby.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+
+  const shorthand = (field: string, order?: unknown) =>
+    String(order).toLowerCase() === 'desc' ? `-${field}` : field;
+
+  if (Array.isArray(orderby)) {
+    const parts = orderby
+      .map((item) => (typeof item === 'string' ? item.trim() : shorthand(item.field, item.order)))
+      .filter((s) => s.length > 0);
+    return parts.length > 0 ? parts.join(',') : undefined;
+  }
+
+  if (typeof orderby === 'object') {
+    const parts = Object.entries(orderby).map(([field, order]) => shorthand(field, order));
+    return parts.length > 0 ? parts.join(',') : undefined;
+  }
+
+  return undefined;
+}
+
 // Module-level discovery cache. Multiple ObjectStackAdapter instances pointed
 // at the same baseUrl (e.g. ConditionalAuthWrapper's throwaway adapter +
 // AdapterProvider's main adapter) would otherwise each fire `/discovery`. By
@@ -2057,22 +2106,8 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     }
 
     // Sorting
-    if (params.$orderby) {
-      if (Array.isArray(params.$orderby)) {
-        const sortStr = params.$orderby.map(item => {
-          if (typeof item === 'string') return item;
-          const field = item.field;
-          const order = item.order || 'asc';
-          return order === 'desc' ? `-${field}` : field;
-        }).join(',');
-        queryParams.set('sort', sortStr);
-      } else {
-        const sortStr = Object.entries(params.$orderby)
-          .map(([field, order]) => order === 'desc' ? `-${field}` : field)
-          .join(',');
-        queryParams.set('sort', sortStr);
-      }
-    }
+    const sortStr = serializeOrderBy(params.$orderby);
+    if (sortStr) queryParams.set('sort', sortStr);
 
     // Filter — translate ViewFilterRule[] (`[{field, operator, value}]`)
     // and other shapes into AST tuples the server understands. Without this,
@@ -2229,25 +2264,11 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       }
     }
 
-    // Sorting - convert to ObjectStack format
-    if (params.$orderby) {
-      if (Array.isArray(params.$orderby)) {
-        // Handle array format ['name', '-age'] or [{ field: 'name', order: 'asc' }]
-        options.sort = params.$orderby.map(item => {
-          if (typeof item === 'string') return item;
-          // Handle object format { field: 'name', order: 'desc' }
-          const field = item.field;
-          const order = item.order || 'asc';
-          return order === 'desc' ? `-${field}` : field;
-        });
-      } else {
-        // Handle Record format { name: 'asc', age: 'desc' }
-        const sortArray = Object.entries(params.$orderby).map(([field, order]) => {
-          return order === 'desc' ? `-${field}` : field;
-        });
-        options.sort = sortArray;
-      }
-    }
+    // Sorting — the same serializer the raw GET route uses, so the two `find()`
+    // paths cannot disagree about one stored sort. The client SDK's
+    // `QueryOptions.sort` accepts the shorthand string directly.
+    const sort = serializeOrderBy(params.$orderby);
+    if (sort) options.sort = sort;
 
     // Pagination
     if (params.$skip !== undefined) {
