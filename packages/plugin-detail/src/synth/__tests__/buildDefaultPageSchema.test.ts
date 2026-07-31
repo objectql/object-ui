@@ -728,10 +728,10 @@ describe('buildDefaultPageSchema', () => {
     });
   });
 
-  // objectstack#4358 — `enable.files` objects get the Attachments panel to
-  // the LEFT of the discussion feed instead of the legacy below-the-feed
-  // append that a growing timeline buried.
-  describe('attachments footer row (enable.files, objectstack#4358)', () => {
+  // objectstack#4358 — `enable.files` objects get a peer Attachments tab
+  // (with a count badge derived by PageTabsRenderer) instead of the legacy
+  // below-the-feed append that a growing timeline buried.
+  describe('attachments tab (enable.files, objectstack#4358)', () => {
     const filesDef: ObjectDefLike = { ...leadDef, enable: { files: true } };
 
     it('no enable.files → no record:attachments anywhere', () => {
@@ -739,63 +739,46 @@ describe('buildDefaultPageSchema', () => {
       expect(JSON.stringify(page)).not.toContain('record:attachments');
     });
 
-    it('enable.files → footer grid with attachments LEFT of discussion', () => {
+    it('enable.files → tabs carry an Attachments tab wrapping record:attachments', () => {
       const page = buildDefaultPageSchema(filesDef);
-      const components = page.regions[0].components;
-      const footer = components[components.length - 1];
-      expect(footer.type).toBe('grid');
-      expect(footer.columns).toEqual({ xs: 1, lg: 3 });
-      expect(footer.children.map((c: any) => c.type)).toEqual([
-        'record:attachments',
-        'record:discussion',
-      ]);
-      // Attachments takes the narrow column, discussion the wide one.
-      expect(footer.children[0].className).toContain('lg:col-span-1');
-      expect(footer.children[1].className).toContain('lg:col-span-2');
-      // The bare record:discussion node is gone from the top level.
-      expect(components.map((c: any) => c.type)).not.toContain('record:discussion');
-    });
-
-    it('enable.files + hideDiscussion → full-width attachments, no grid', () => {
-      const page = buildDefaultPageSchema(filesDef, { hideDiscussion: true });
-      const components = page.regions[0].components;
-      const last = components[components.length - 1];
-      expect(last).toEqual({ type: 'record:attachments' });
-    });
-
-    it('hideAttachments suppresses the panel and restores the plain discussion footer', () => {
-      const page = buildDefaultPageSchema(filesDef, { hideAttachments: true });
+      const tabs = page.regions[0].components.find((c: any) => c.type === 'page:tabs');
+      const tab = tabs.items.find((t: any) => t.value === 'attachments');
+      expect(tab).toBeDefined();
+      expect(tab.label).toBe('Attachments');
+      expect(tab.children).toEqual([{ type: 'record:attachments' }]);
+      // The discussion footer is untouched — attachments are a tab, not a
+      // footer widget.
       const components = page.regions[0].components;
       expect(components[components.length - 1].type).toBe('record:discussion');
+    });
+
+    it('the Attachments tab sits after Related and before Activity/History', () => {
+      const tabs = buildDefaultTabs(filesDef, {
+        related: [{ objectName: 'task', relationshipField: 'lead_id' }],
+        showActivity: true,
+        history: { entries: [], loading: false },
+      });
+      expect(tabs.items.map((t: any) => t.value)).toEqual([
+        'details',
+        'related',
+        'attachments',
+        'activity',
+        'history',
+      ]);
+    });
+
+    it('hideAttachments suppresses the tab', () => {
+      const page = buildDefaultPageSchema(filesDef, { hideAttachments: true });
       expect(JSON.stringify(page)).not.toContain('record:attachments');
     });
 
-    it('attachments slot overrides the default node inside the grid cell', () => {
+    it('a details slot override keeps the Attachments tab', () => {
       const page = buildDefaultPageSchema(filesDef, {
-        slots: { attachments: { type: 'div', id: 'custom-attachments' } },
+        slots: { details: { type: 'div', id: 'custom-details' } },
       });
-      const footer = page.regions[0].components[page.regions[0].components.length - 1];
-      expect(footer.type).toBe('grid');
-      expect(footer.children[0].id).toBe('custom-attachments');
-      expect(footer.children[0].className).toContain('lg:col-span-1');
-    });
-
-    it('a multi-node discussion slot is wrapped into ONE grid cell', () => {
-      const page = buildDefaultPageSchema(filesDef, {
-        slots: {
-          discussion: [
-            { type: 'div', id: 'd1' },
-            { type: 'div', id: 'd2' },
-          ],
-        },
-      });
-      const footer = page.regions[0].components[page.regions[0].components.length - 1];
-      expect(footer.type).toBe('grid');
-      expect(footer.children).toHaveLength(2);
-      const cell = footer.children[1];
-      expect(cell.type).toBe('flex');
-      expect(cell.className).toContain('lg:col-span-2');
-      expect(cell.children.map((c: any) => c.id)).toEqual(['d1', 'd2']);
+      const tabs = page.regions[0].components.find((c: any) => c.type === 'page:tabs');
+      expect(tabs.items.some((t: any) => t.value === 'attachments')).toBe(true);
+      expect(tabs.items[0].children[0].id).toBe('custom-details');
     });
   });
 });

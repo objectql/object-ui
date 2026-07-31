@@ -308,6 +308,27 @@ const collectRelatedLists = (nodes: any, acc: any[] = []): any[] => {
   return acc;
 };
 
+/**
+ * Walk a tab's children (depth-first) and return true when a
+ * `record:attachments` node is present. The Attachments tab
+ * (objectstack#4358) derives its badge from a `sys_attachment` count scoped
+ * by `(parent_object, parent_id)` — a two-key filter the related-list probe
+ * shape can't express, so it gets its own detection + probe path below.
+ */
+const containsAttachmentsNode = (nodes: any): boolean => {
+  if (!nodes) return false;
+  const list = Array.isArray(nodes) ? nodes : [nodes];
+  for (const n of list) {
+    if (!n || typeof n !== 'object') continue;
+    if (n.type === 'record:attachments') return true;
+    const candidates = [n.children, n.properties?.children, n.properties?.items, n.body, n.items];
+    for (const c of candidates) {
+      if (c && containsAttachmentsNode(c)) return true;
+    }
+  }
+  return false;
+};
+
 const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   const { designer } = splitDesignerProps(props);
   const { language } = useObjectTranslation();
@@ -377,12 +398,13 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   // Snapshot which tabs (index → derived (objectName, relationshipField))
   // need a count probe. Cached per items reference so we don't re-walk on
   // every render.
+  const recordObject: string | undefined = ctx?.objectName;
   const probeTargets = React.useMemo(() => {
-    const out = new Map<number, Array<{ objectName: string; relationshipField?: string }>>();
+    const out = new Map<number, Array<{ objectName: string; relationshipField?: string; attachments?: boolean }>>();
     items.forEach((it, idx) => {
       if (it.count !== undefined && it.count !== null && it.count !== '') return;
       const lists = collectRelatedLists((it as any).children);
-      const probes: Array<{ objectName: string; relationshipField?: string }> = [];
+      const probes: Array<{ objectName: string; relationshipField?: string; attachments?: boolean }> = [];
       for (const rl of lists) {
         const objectName: string | undefined = rl?.properties?.objectName || rl?.objectName;
         if (!objectName) continue;
@@ -390,10 +412,18 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
           rl?.properties?.relationshipField || rl?.relationshipField;
         probes.push({ objectName, relationshipField });
       }
+      // Attachments tab (objectstack#4358): count sys_attachment rows scoped
+      // to this record. The synthetic `relationshipField` below is only a
+      // cache-key discriminator — the actual filter is injected by the probe
+      // wrapper in the effect, since the store's single-key filter shape
+      // can't express `(parent_object, parent_id)`.
+      if (recordObject && containsAttachmentsNode((it as any).children)) {
+        probes.push({ objectName: 'sys_attachment', relationshipField: `attachments:${recordObject}`, attachments: true });
+      }
       if (probes.length > 0) out.set(idx, probes);
     });
     return out;
-  }, [items]);
+  }, [items, recordObject]);
 
   React.useEffect(() => {
     if (!ds || typeof ds.find !== 'function') return;
@@ -403,8 +433,19 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       for (const probe of probes) {
         // RelatedCountStore.fetch is internally deduplicated, so concurrent
         // mounts of multiple tab strips don't generate redundant requests.
+        // The attachments probe overrides the store-built single-key filter
+        // with the two-key `(parent_object, parent_id)` scope; the synthetic
+        // relationshipField keeps the cache key unique, and the store's
+        // `sys_attachment` invalidation (data-change bus) still hits it.
+        const finder = probe.attachments
+          ? (object: string, query: any) =>
+              ds.find(object, {
+                ...query,
+                $filter: { parent_object: recordObject, parent_id: parentId },
+              })
+          : (object: string, query: any) => ds.find(object, query);
         void RelatedCountStore.fetch(
-          (object, query) => ds.find(object, query),
+          finder,
           probe.objectName,
           probe.relationshipField,
           parentId,

@@ -32,7 +32,11 @@ slotted pages are the right tool.
 | `details` | The Details tab body (other tabs stay synthesized) |
 | `tabs` | The entire `page:tabs` node — use to add or reorder tabs (wins over `details`) |
 | `discussion` | `record:discussion` (the inline conversation footer) |
-| `attachments` | `record:attachments` (the Attachments panel; synthesized to the left of the discussion footer for objects with `enable.files: true`) |
+
+Objects with `enable.files: true` also get a synthesized **Attachments** tab
+(`record:attachments`, with a count badge) beside Details/Related. It is not a
+slot of its own — override `tabs` to reshape it, or pass
+`hideAttachments: true` to the synthesizer to drop it.
 
 Each slot accepts a single component schema or an array (arrays are
 flattened in place). Each slot is a **full replacement at the slot

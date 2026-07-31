@@ -136,7 +136,7 @@ describe('hasExplicitAttachments', () => {
     ).toBe(true);
   });
 
-  it('detects attachments inside the synthesized footer grid (regions[].components[])', () => {
+  it('detects attachments inside the synthesized Attachments tab (regions[].components[].items[])', () => {
     // Mirrors buildDefaultPageSchema output for an enable.files object.
     const synthPage = {
       type: 'record',
@@ -145,15 +145,14 @@ describe('hasExplicitAttachments', () => {
           name: 'main',
           components: [
             { type: 'page:header' },
-            { type: 'page:tabs', items: [{ type: 'page:tab', children: [] }] },
             {
-              type: 'grid',
-              columns: { xs: 1, lg: 3 },
-              children: [
-                { type: 'record:attachments', className: 'lg:col-span-1' },
-                { type: 'record:discussion', className: 'lg:col-span-2' },
+              type: 'page:tabs',
+              items: [
+                { label: 'Details', value: 'details', children: [{ type: 'record:details' }] },
+                { label: 'Attachments', value: 'attachments', children: [{ type: 'record:attachments' }] },
               ],
             },
+            { type: 'record:discussion' },
           ],
         },
       ],
