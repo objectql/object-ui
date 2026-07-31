@@ -6,7 +6,7 @@
  * (which carries provenance and lock state).
  */
 
-import { useId } from 'react';
+import { cloneElement, isValidElement, useId, type ReactElement } from 'react';
 import {
   Input,
   Textarea,
@@ -46,6 +46,16 @@ export interface SettingsFieldProps {
   locked?: boolean;
   /** i18n helpers bound to the parent settings namespace. */
   labels?: SettingsLabelHelpers;
+  /**
+   * Server-side rejection for THIS field, from the last failed save
+   * (objectstack#4224). Already localized by the server — rendered verbatim,
+   * not re-worded here.
+   *
+   * Replaces the help text while present, rather than stacking below it: the
+   * two occupy the same slot and say the same kind of thing, and a description
+   * sitting under a red error reads as if the field has two states at once.
+   */
+  error?: string;
 }
 
 function InheritanceBadges({
@@ -132,8 +142,25 @@ function FieldDescription({ description }: { description?: string }) {
   return <p className="text-xs text-muted-foreground mt-1">{description}</p>;
 }
 
+/**
+ * The server's rejection for this field, in the slot the help text normally
+ * occupies (objectstack#4224).
+ *
+ * `role="alert"` so a screen reader announces it when it appears after a save
+ * attempt — the sighted cue is colour, which is not a cue at all for everyone.
+ * The `id` is what the input points `aria-describedby` at, so the association
+ * survives for assistive tech rather than being purely visual adjacency.
+ */
+function FieldError({ id, message }: { id: string; message: string }) {
+  return (
+    <p id={id} role="alert" className="text-xs text-destructive mt-1">
+      {message}
+    </p>
+  );
+}
+
 export function SettingsField(props: SettingsFieldProps) {
-  const { spec, resolved, value, onChange, onAction, locked, saving, labels } = props;
+  const { spec, resolved, value, onChange, onAction, locked, saving, labels, error } = props;
   const id = useId();
   const disabled = Boolean(locked || saving);
   const literalLabel = resolveLabel(spec.label);
@@ -231,11 +258,26 @@ export function SettingsField(props: SettingsFieldProps) {
 
   // -------- Inputs --------
 
+  // Wired onto the control itself, not just rendered beside it: `aria-invalid`
+  // is what announces "this one was rejected", and `aria-describedby` is what
+  // ties the message to the input for a screen reader. Every input type goes
+  // through `wrapper`, so marking it here covers all of them at once instead of
+  // per-case (objectstack#4224).
+  const errorId = `${id}-error`;
   const wrapper = (children: React.ReactNode) => (
     <div className="space-y-1.5 py-2">
       <FieldHeader spec={spec} resolved={resolved} labelText={fieldLabel} labels={labels} />
-      {children}
-      <FieldDescription description={fieldHelp} />
+      {error && isValidElement(children)
+        ? cloneElement(children as ReactElement<Record<string, unknown>>, {
+            'aria-invalid': true,
+            'aria-describedby': errorId,
+          })
+        : children}
+      {error ? (
+        <FieldError id={errorId} message={error} />
+      ) : (
+        <FieldDescription description={fieldHelp} />
+      )}
     </div>
   );
 

@@ -11,6 +11,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Loader2, ArrowLeft, RotateCcw } from 'lucide-react';
 import { Button, Card, CardContent, Skeleton, Badge } from '@object-ui/components';
+import { extractFieldErrors } from '@object-ui/react';
 import { getIcon } from '../../utils/getIcon';
 import { SettingsField } from './SettingsField';
 import {
@@ -42,6 +43,12 @@ function evalVisibility(expr: string | undefined, data: Record<string, unknown>)
   }
 }
 
+/** `{ ...rest }` without `key`, returned as a new object so React sees the change. */
+function omitKey<T>(map: Record<string, T>, key: string): Record<string, T> {
+  const { [key]: _dropped, ...rest } = map;
+  return rest;
+}
+
 export function SettingsView() {
   const params = useParams<{ namespace?: string }>();
   const navigate = useNavigate();
@@ -53,6 +60,16 @@ export function SettingsView() {
   const [error, setError] = useState<string | null>(null);
   /** Live edit map keyed by spec.key. Falls back to resolved value when undefined. */
   const [draft, setDraft] = useState<Record<string, unknown>>({});
+  /**
+   * Per-field rejections from the last failed save, keyed by field name
+   * (objectstack#4224). Empty until a save comes back `SETTINGS_VALIDATION`.
+   *
+   * Before #4224 the server sent this as a `Record<key, message>` hung beside
+   * `error.code`, which `extractFieldErrors` could not read — so the whole
+   * batch collapsed into one toast that named no field. It now arrives as the
+   * declared `FieldError[]` under `error.details.fields`.
+   */
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -61,6 +78,7 @@ export function SettingsView() {
       const p = await getSettingsNamespace(namespace);
       setPayload(p);
       setDraft({});
+      setFieldErrors({});
     } catch (err: any) {
       setError(err?.message ?? 'Failed to load settings');
     } finally {
@@ -127,6 +145,7 @@ export function SettingsView() {
       const res = await saveSettingsNamespace(namespace, draft);
       setPayload({ ...payload, values: { ...values, ...res.values } });
       setDraft({});
+      setFieldErrors({});
       toast.success('Settings saved');
     } catch (err: any) {
       const apiError = err?.payload?.error;
@@ -135,6 +154,19 @@ export function SettingsView() {
         const key = lockedKeyOf(apiError);
         toast.error(key ? `Locked by environment: ${key}` : 'Locked by environment');
       } else {
+        // Per-field rejections render against the inputs that caused them
+        // (objectstack#4224). `extractFieldErrors` reads `details.fields`, so it
+        // is handed `error` — the object that carries `details` — not the
+        // whole body.
+        //
+        // The toast still fires: the offending field can be scrolled out of
+        // view, or hidden behind a `visible` expression, and a save that
+        // silently does nothing is the worse failure. It carries the server's
+        // summary message, which already names the fields.
+        const perField = extractFieldErrors(apiError);
+        if (perField?.length) {
+          setFieldErrors(Object.fromEntries(perField.map((f) => [f.field, f.message])));
+        }
         toast.error(err?.message ?? 'Save failed');
       }
     } finally {
@@ -194,11 +226,20 @@ export function SettingsView() {
                 spec={spec}
                 resolved={resolved}
                 value={current}
-                onChange={(v) => key && setDraft((d) => ({ ...d, [key]: v }))}
+                onChange={(v) => {
+                  if (!key) return;
+                  setDraft((d) => ({ ...d, [key]: v }));
+                  // Clear this field's rejection the moment it is edited. The
+                  // error describes the value the server saw, so keeping it on
+                  // screen while the user types contradicts what is in the box —
+                  // and the next save re-derives the set from scratch anyway.
+                  setFieldErrors((e) => (key in e ? omitKey(e, key) : e));
+                }}
                 onAction={spec.type === 'action_button' ? () => onAction(spec.id ?? key ?? 'test') : undefined}
                 locked={resolved?.locked}
                 saving={saving}
                 labels={labels}
+                error={key ? fieldErrors[key] : undefined}
               />
             );
           })}
@@ -211,7 +252,17 @@ export function SettingsView() {
               {dirtyKeys.length} unsaved change{dirtyKeys.length > 1 ? 's' : ''}
             </div>
             <div className="flex gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setDraft({})} disabled={saving}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setDraft({});
+                  // Discarding reverts to the stored values, so rejections of
+                  // the edits being thrown away go with them.
+                  setFieldErrors({});
+                }}
+                disabled={saving}
+              >
                 <RotateCcw className="h-4 w-4 mr-1" /> Discard
               </Button>
               <Button onClick={onSave} disabled={saving}>
