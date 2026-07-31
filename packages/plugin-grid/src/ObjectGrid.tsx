@@ -36,7 +36,7 @@ import {
   RefreshIndicator,
 } from '@object-ui/components';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, isExpandableFieldType } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, columnIdentity, isExpandableFieldType } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
 import { ChevronRight, ChevronDown, ChevronLeft, ChevronsLeft, ChevronsRight, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock, Loader2 } from 'lucide-react';
 import { useRowColor } from './useRowColor';
@@ -542,13 +542,19 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
             // Always include 'id' so row click / navigation handlers can resolve
             // the record key — without it `record.id` is undefined and the
             // primary-field link silently no-ops.
+            // Both halves used to resolve identity differently — the probe was
+            // name-first while the projection below read `c.field` alone — so a
+            // legacy `{name}` column was projected as `undefined` while the
+            // probe happily saw its name (#3104). One reader now, both halves.
             const ensureId = (list: any[]): any[] => {
-              const names = list.map((f: any) => typeof f === 'string' ? f : (f?.name || f?.field));
+              const names = list.map((f: any) => columnIdentity(f));
               return names.includes('id') ? list : ['id', ...list];
             };
             if (schemaFields) return ensureId(schemaFields as any[]);
             if (schemaColumns && Array.isArray(schemaColumns)) {
-              const fields = schemaColumns.map((c: any) => typeof c === 'string' ? c : c.field);
+              const fields = schemaColumns
+                .map((c: any) => columnIdentity(c))
+                .filter((v): v is string => !!v);
               return ensureId(fields);
             }
             return undefined;

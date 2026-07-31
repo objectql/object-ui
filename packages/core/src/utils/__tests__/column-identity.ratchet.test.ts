@@ -4,11 +4,17 @@
  *
  * Ratchet — the column-identity dual read (`field` ?? `name`) may only shrink.
  *
- * objectui#3104. A column's identity is read in two incompatible precedences
- * across the repo, and the two halves land on different fields for the same
- * column (see `ListView.columnIdentity.test.tsx` for the live repro). This file
- * freezes the inventory so the family cannot grow while it is being retired:
- * a new dual read in a new file fails, and an extra one in a listed file fails.
+ * objectui#3104. A column's identity used to be read in two incompatible
+ * precedences across the repo, and the two halves landed on different fields
+ * for the same column (see `ListView.columnIdentity.test.tsx` for the repro).
+ *
+ * **The family is now at zero** (PR2): every column-identity read goes through
+ * `columnIdentity()`. What remains in the inventory below is the residue the
+ * scanner still matches — reads that share the key names but not the concept.
+ * They are listed, not converged, and each says why.
+ *
+ * This file freezes that state: a new dual read in a new file fails, and an
+ * extra one in a listed file fails.
  *
  * Shrinking also fails, deliberately — lower the number here in the same commit
  * that removes the read, so the count in the tree and the count on record never
@@ -78,71 +84,25 @@ interface Entry {
 }
 
 /**
- * The inventory, as of objectui#3104 PR1.
+ * The inventory, as of objectui#3104 PR2.
  *
- * The headline is not that two precedences exist — it is that ListView and
- * ObjectGrid each disagree with THEMSELVES. Both build their `$expand` /
- * `$select` from `f?.field` alone (a single-key read the scanner cannot see,
- * because it is not an alternation) while every render-side read in the same
- * file is name-first. That is the mechanism behind "relation column shows a
- * bare id": the request asks for one field, the renderer shows another.
+ * The column-identity family is EMPTY: all 22 reads now go through
+ * `columnIdentity()`. What is left below matched the scanner but was never the
+ * same concept — two-layer joins where both precedences are correct, the form
+ * cluster that #3090 settled the other way, and generic display fallbacks that
+ * merely share the key names. They stay listed so the scanner cannot quietly
+ * grow a real dual read inside a file we already decided about.
+ *
+ * PR1 recorded 24 family members; two of those were mis-triaged and are
+ * reclassified here after reading what they actually feed:
+ *  - `ViewPreview.tsx` converts a ViewItem FORM section into `object-form`'s
+ *    runtime shape (`field` -> `name`) — the #3090 two-layer join, not a column.
+ *  - `SchemaForm.tsx` renders an arbitrary metadata ARRAY into a summary string
+ *    and guesses at a display key; the entries are validations/actions/whatever
+ *    the JSON schema declares, so there is no column vocabulary to converge.
  */
 const INVENTORY: Record<string, Entry> = {
-  // ── the column-identity family (24) ──────────────────────────────────────
-  'plugin-list/src/ListView.tsx': {
-    count: 9,
-    order: 'name-first',
-    verdict: 'column-identity',
-    why: 'FLS gate, hidden-field filter, fieldOrder, export ×2, hide-fields list — all name-first, while $expand/$select in the same file read `f?.field` only.',
-  },
-  'plugin-detail/src/RelatedList.tsx': {
-    count: 8,
-    order: 'adapter-first',
-    verdict: 'column-identity',
-    why: '`accessorKey || field || name` — merges TanStack\'s column key with metadata identity. The adapter key is out of scope; the `field || name` tail is not.',
-  },
-  'core/src/utils/expand-fields.ts': {
-    count: 1,
-    order: 'field-first',
-    verdict: 'column-identity',
-    why: 'The request path. Canonical-first, so it is the side the renderers must converge ONTO.',
-  },
-  'plugin-grid/src/ObjectGrid.tsx': {
-    count: 1,
-    order: 'name-first',
-    verdict: 'column-identity',
-    why: 'The `ensureId` probe is name-first while `getSelectFields` right below it reads `c.field` only — the same self-disagreement as ListView.',
-  },
-  'plugin-tree/src/ObjectTree.tsx': {
-    count: 1,
-    order: 'name-first',
-    verdict: 'column-identity',
-    why: 'Tree column identity.',
-  },
-  'plugin-detail/src/renderers/record-details.tsx': {
-    count: 1,
-    order: 'field-first',
-    verdict: 'column-identity',
-    why: 'Detail field entry identity.',
-  },
-  'plugin-detail/src/renderers/record-related-list.tsx': {
-    count: 1,
-    order: 'field-first',
-    verdict: 'column-identity',
-    why: 'Related-list column identity.',
-  },
-  'app-shell/src/views/metadata-admin/previews/ViewPreview.tsx': {
-    count: 1,
-    order: 'field-first',
-    verdict: 'column-identity',
-    why: 'Studio preview column identity.',
-  },
-  'app-shell/src/views/metadata-admin/SchemaForm.tsx': {
-    count: 1,
-    order: 'field-first',
-    verdict: 'column-identity',
-    why: 'Renders a column array into a summary string.',
-  },
+  // ── the column-identity family: EMPTY (was 24 in PR1; 22 after re-triage) ──
 
   // ── two layers, not two spellings (6) ────────────────────────────────────
   'app-shell/src/utils/resolveActionParams.ts': {
@@ -166,7 +126,7 @@ const INVENTORY: Record<string, Entry> = {
     why: 'Action param name, same layering as resolveActionParams.',
   },
 
-  // ── the form cluster — settled the other way (#3090) (2) ─────────────────
+  // ── the form cluster — settled the other way (#3090) (3) ─────────────────
   'plugin-form/src/ObjectForm.tsx': {
     count: 1,
     verdict: 'form-cluster',
@@ -177,8 +137,13 @@ const INVENTORY: Record<string, Entry> = {
     verdict: 'form-cluster',
     why: 'The #3090 hub itself.',
   },
+  'app-shell/src/views/metadata-admin/previews/ViewPreview.tsx': {
+    count: 1,
+    verdict: 'form-cluster',
+    why: 'Re-triaged in PR2: `toFormFieldEntry` adapts a ViewItem FORM section to what `object-form` selects by (`name`), which is the #3090 join — not a list column. Converging it onto `columnIdentity` would be a category error.',
+  },
 
-  // ── not identity reads (2) ───────────────────────────────────────────────
+  // ── not identity reads (3) ───────────────────────────────────────────────
   'app-shell/src/views/metadata-admin/widgets.tsx': {
     count: 1,
     verdict: 'unrelated',
@@ -188,6 +153,11 @@ const INVENTORY: Record<string, Entry> = {
     count: 1,
     verdict: 'unrelated',
     why: '`c.object ?? c.name` — a citation label fallback that happens to sit on a line mentioning `c.field`.',
+  },
+  'app-shell/src/views/metadata-admin/SchemaForm.tsx': {
+    count: 1,
+    verdict: 'unrelated',
+    why: 'Re-triaged in PR2: `summariseComposite` renders ANY composite/array metadata value into a popover summary and guesses at a display key. The array items are whatever the JSON schema declares, so this is a display fallback over arbitrary objects, not a column read.',
   },
 };
 
@@ -265,28 +235,55 @@ describe('column identity dual-read ratchet (#3104)', () => {
     expect(drift).toEqual([]);
   });
 
-  it('keeps the family total from growing', () => {
-    // The number that has to reach zero. The other verdicts are inventory, not
-    // worklist: `two-layer` and `form-cluster` are settled decisions, and
-    // `unrelated` is scanner noise recorded so it cannot hide a real one.
-    expect(sum((e) => e.verdict === 'column-identity')).toBe(24);
-    expect(sum(() => true)).toBe(34);
+  it('holds the family at zero', () => {
+    // This is the number the battle was about, and it is done. The remaining
+    // verdicts are inventory, not worklist: `two-layer` and `form-cluster` are
+    // settled decisions, and `unrelated` is scanner residue recorded so it
+    // cannot hide a real one.
+    expect(sum((e) => e.verdict === 'column-identity')).toBe(0);
+    expect(sum(() => true)).toBe(12);
   });
 
-  it('records a precedence for every read in the family', () => {
+  it('records a precedence for every read left in the family', () => {
     const missing = Object.entries(INVENTORY)
       .filter(([, e]) => e.verdict === 'column-identity' && !e.order)
       .map(([file]) => file);
     expect(missing).toEqual([]);
   });
 
-  it('still shows both precedences in the family — the pollution this closes', () => {
-    const orders = new Set(
-      Object.values(INVENTORY)
-        .filter((e) => e.verdict === 'column-identity')
-        .map((e) => e.order),
+  it('routes every converged surface through the one reader', () => {
+    // The counterpart to "the family is zero": the reads did not vanish, they
+    // moved onto `columnIdentity`. If a surface silently dropped its identity
+    // resolution instead of converging it, this goes red.
+    const CONVERGED = [
+      'core/src/utils/expand-fields.ts',
+      'plugin-list/src/ListView.tsx',
+      'plugin-grid/src/ObjectGrid.tsx',
+      'plugin-detail/src/RelatedList.tsx',
+      'plugin-detail/src/renderers/record-details.tsx',
+      'plugin-detail/src/renderers/record-related-list.tsx',
+      'plugin-tree/src/ObjectTree.tsx',
+    ];
+    const missing = CONVERGED.filter((rel) => {
+      const src = readFileSync(path.join(packagesRoot, rel), 'utf8');
+      return !/\bcolumnIdentity\s*\(/.test(src);
+    });
+    expect(missing).toEqual([]);
+  });
+
+  it('keeps the table-adapter key ahead of metadata identity in RelatedList', () => {
+    // A source-level pin, and labelled as one: RelatedList's columns can arrive
+    // in TanStack's shape (`accessorKey`) or ObjectStack's (`field`). The
+    // convergence replaced only the `field || name` tail — if `accessorKey`
+    // ever loses its precedence here, imported TanStack columns stop resolving
+    // and every cell in them goes blank.
+    const src = readFileSync(
+      path.join(packagesRoot, 'plugin-detail/src/RelatedList.tsx'),
+      'utf8',
     );
-    // When PR2 lands this becomes a single order and this assertion inverts.
-    expect(orders.size).toBeGreaterThan(1);
+    const identityReads = [...src.matchAll(/\bcolumnIdentity\s*\(/g)].length;
+    const adapterFirst = [...src.matchAll(/accessorKey\s*\|\|\s*columnIdentity\s*\(/g)].length;
+    expect(identityReads).toBeGreaterThan(0);
+    expect(adapterFirst).toBe(identityReads);
   });
 });

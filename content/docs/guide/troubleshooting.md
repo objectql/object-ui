@@ -309,12 +309,19 @@ never expanded.
 { "field": "account" }
 ```
 
-**Fix:** Author columns with `field`. Metadata reaching a `list-view` is
-canonicalized at the component boundary by `normalizeListViewSchema`, which
-stamps `field` from whichever spelling is present and makes any legacy key it
-already carries agree — so mixed metadata resolves to one field everywhere
-instead of two. Legacy keys are still accepted, but they are a migration
-bridge, not a second contract: fix the producer.
+**Fix:** Author columns with `field`. Two mechanisms keep legacy metadata
+working, and both resolve the canonical key first:
+
+- Metadata reaching a `list-view` is canonicalized at the component boundary by
+  `normalizeListViewSchema`, which stamps `field` from whichever spelling is
+  present and makes any legacy key it already carries agree.
+- Every renderer that resolves a column — list, grid, tree, related lists, the
+  `$expand` / `$select` builders — reads that identity through one shared
+  function, so a surface rendered outside the fold (a standalone `object-grid`
+  node, for instance) still resolves the same field the request asked for.
+
+Legacy keys are still accepted, but they are a migration bridge, not a second
+contract: fix the producer.
 
 If you read column identity in your own code, use the one reader rather than
 spelling out a fallback chain — it resolves canonical-first, so it agrees with

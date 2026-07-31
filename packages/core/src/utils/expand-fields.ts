@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { columnIdentity } from './column-identity.js';
+
 /**
  * Relational ("reference-bearing") field types whose stored value is a foreign
  * key into another object — and which therefore benefit from `$expand` so a
@@ -101,12 +103,12 @@ export function buildExpandFields(
   if (columns && Array.isArray(columns) && columns.length > 0) {
     const columnFieldNames = new Set<string>();
     for (const col of columns) {
-      if (typeof col === 'string') {
-        columnFieldNames.add(col);
-      } else if (col && typeof col === 'object') {
-        const name = col.field ?? col.name ?? col.fieldName;
-        if (name) columnFieldNames.add(name);
-      }
+      // `columnIdentity` handles all three entry shapes (bare string, spec
+      // `{field}`, legacy `{name}`/`{fieldName}`) and resolves canonical-first
+      // — the same precedence every renderer now uses, so what gets expanded
+      // and what gets rendered can no longer name two different fields (#3104).
+      const name = columnIdentity(col);
+      if (name) columnFieldNames.add(name);
     }
     return referenceFieldNames.filter((f) => columnFieldNames.has(f));
   }

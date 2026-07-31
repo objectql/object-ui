@@ -19,7 +19,7 @@ import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveCrudAffordances, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, EXPANDABLE_FIELD_TYPES } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveCrudAffordances, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, EXPANDABLE_FIELD_TYPES } from '@object-ui/core';
 import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 
@@ -954,7 +954,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   const expandFields = React.useMemo(() => {
     const baseColumns = Array.isArray(schema.columns)
       ? (schema.columns as any[])
-          .map((f) => (typeof f === 'string' ? f : f?.field))
+          .map((f) => columnIdentity(f))
           .filter((v): v is string => typeof v === 'string' && v.length > 0)
       : [];
     const collected = new Set<string>(baseColumns);
@@ -1107,7 +1107,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         const selectFields = (() => {
           const rawCols = Array.isArray(schema.columns)
             ? (schema.columns as any[])
-                .map(f => (typeof f === 'string' ? f : f?.field))
+                .map(f => columnIdentity(f))
                 .filter((v): v is string => typeof v === 'string' && v.length > 0)
             : [];
           const cols = (perms?.isLoaded && schema.objectName)
@@ -1422,7 +1422,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     // FLS: drop columns the current user cannot read.
     if (perms?.isLoaded && schema.objectName) {
       fields = fields.filter((f: any) => {
-        const fieldName = typeof f === 'string' ? f : (f?.name || f?.fieldName || f?.field);
+        const fieldName = columnIdentity(f);
         if (!fieldName) return true;
         return perms.checkField(schema.objectName!, fieldName, 'read');
       });
@@ -1431,19 +1431,17 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     // Remove hidden fields
     if (hiddenFields.size > 0) {
       fields = fields.filter((f: any) => {
-        const fieldName = typeof f === 'string' ? f : (f?.name || f?.fieldName || f?.field);
+        const fieldName = columnIdentity(f);
         return fieldName != null && !hiddenFields.has(fieldName);
       });
     }
-    
+
     // Apply field order
     if (schema.fieldOrder && schema.fieldOrder.length > 0) {
       const orderMap = new Map<string, number>(schema.fieldOrder.map((f: any, i: number) => [f as string, i]));
       fields = [...fields].sort((a: any, b: any) => {
-        const nameA = typeof a === 'string' ? a : (a?.name || a?.fieldName || a?.field);
-        const nameB = typeof b === 'string' ? b : (b?.name || b?.fieldName || b?.field);
-        const orderA: number = orderMap.get(nameA) ?? Infinity;
-        const orderB: number = orderMap.get(nameB) ?? Infinity;
+        const orderA: number = orderMap.get(columnIdentity(a) as string) ?? Infinity;
+        const orderB: number = orderMap.get(columnIdentity(b) as string) ?? Infinity;
         return orderA - orderB;
       });
     }
@@ -1710,20 +1708,25 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
 
     if (!objectDef?.fields) {
         // Fallback to the declared columns if objectDef not loaded yet
-        fields = (Array.isArray(schema.columns) ? (schema.columns as any[]) : []).map((f: any) => {
-           if (typeof f === 'string') return { value: f, label: f, type: 'text' };
-           // `field` is the spec's ListColumn key; `name`/`fieldName` are the
-           // shapes hosts pass through from stored metadata.
-           const fieldName = f.name || f.fieldName || f.field;
-           return {
+        fields = (Array.isArray(schema.columns) ? (schema.columns as any[]) : [])
+          .flatMap((f: any) => {
+           if (typeof f === 'string') return [{ value: f, label: f, type: 'text' }];
+           // A column with no resolvable identity cannot be filtered or sorted
+           // on — it used to become an option keyed `undefined`. Drop it.
+           const fieldName = columnIdentity(f);
+           if (!fieldName) return [];
+           return [{
               value: fieldName,
-              label: tFieldLabel(fieldName, f.label || f.name),
+              // The label falls back to the identity, not to the raw `name`:
+              // after #3104 a legacy `name` mirrors the identity anyway, and
+              // reading it here would resurrect the second spelling.
+              label: tFieldLabel(fieldName, f.label || fieldName),
               type: f.type || 'text',
               options: buildOptions(fieldName, f.options),
               referenceTo: f.reference_to || f.reference,
               displayField: f.display_field || f.reference_field,
               idField: f.id_field,
-           };
+           }];
         });
     } else {
         fields = Object.entries(objectDef.fields).map(([key, field]: [string, any]) => ({
@@ -1843,8 +1846,8 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       && (exportConfig as any)?.streaming !== false;
     if (serverEligible) {
       const fields = effectiveFields
-        .map((f: any) => typeof f === 'string' ? f : (f.name || f.fieldName || f.field))
-        .filter(Boolean);
+        .map((f: any) => columnIdentity(f))
+        .filter(Boolean) as string[];
 
       // The same three filter sources as the data fetch, from the same function.
       const finalFilter = buildEffectiveFilter(schema.filter, currentFilters, userFilterConditions);
@@ -1903,7 +1906,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     const exportData = maxRecords > 0 ? data.slice(0, maxRecords) : data;
 
     if (format === 'csv') {
-      const fields = effectiveFields.map((f: any) => typeof f === 'string' ? f : (f.name || f.fieldName || f.field));
+      const fields = effectiveFields.map((f: any) => columnIdentity(f)).filter(Boolean) as string[];
       const rows: string[] = [];
       if (includeHeaders) {
         rows.push(fields.join(','));
@@ -1953,13 +1956,18 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
 
   // All available fields for hide/show (with i18n)
   const allFields = React.useMemo(() => {
-    return (Array.isArray(schema.columns) ? (schema.columns as any[]) : []).map((f: any) => {
+    return (Array.isArray(schema.columns) ? (schema.columns as any[]) : []).flatMap((f: any) => {
       if (typeof f === 'string') {
-        return { name: f, label: tFieldLabel(f, f) };
+        return [{ name: f, label: tFieldLabel(f, f) }];
       }
-      const name = f.name || f.fieldName || f.field;
-      const rawLabel = f.label || f.name || f.field;
-      return { name, label: tFieldLabel(name, rawLabel) };
+      // `name` here is this popover's OWN key (it drives `hiddenFields`), which
+      // is why it keeps that shape — but the value is the column identity, so
+      // hiding a column and projecting it now agree (#3104).
+      const name = columnIdentity(f);
+      // No resolvable identity → nothing to hide or show; it used to render a
+      // checkbox keyed `undefined` that could never match a column.
+      if (!name) return [];
+      return [{ name, label: tFieldLabel(name, f.label || name) }];
     });
   }, [schema.columns, tFieldLabel]);
 

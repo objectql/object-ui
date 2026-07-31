@@ -23,7 +23,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import type { DataSource, ViewData } from '@object-ui/types';
 import { useNavigationOverlay, useSafeFieldLabel } from '@object-ui/react';
 import { NavigationOverlay, cn } from '@object-ui/components';
-import { extractRecords, buildExpandFields } from '@object-ui/core';
+import { extractRecords, buildExpandFields, columnIdentity } from '@object-ui/core';
 import { ChevronRight, ChevronDown } from 'lucide-react';
 
 export interface ObjectTreeProps {
@@ -65,9 +65,9 @@ function getDataConfig(schema: any): ViewData | null {
  * resilient regardless of caller.
  */
 function fieldKey(f: any): string | undefined {
-  if (typeof f === 'string') return f;
-  if (f && typeof f === 'object') return f.name || f.fieldName || f.field || f.key;
-  return undefined;
+  // `key` stays a tail fallback — it is a generic entry key, not ObjectStack
+  // metadata identity, so it is not part of `columnIdentity` (#3104).
+  return columnIdentity(f) || (f && typeof f === 'object' ? f.key : undefined) || undefined;
 }
 
 function getTreeConfig(schema: any): TreeConfig {

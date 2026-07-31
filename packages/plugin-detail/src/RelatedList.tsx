@@ -41,6 +41,7 @@ import type { LucideIcon } from 'lucide-react';
 import type { DataSource, FieldMetadata } from '@object-ui/types';
 import { getCellRenderer, resolveCellRendererType, RecordPickerDialog } from '@object-ui/fields';
 import {
+  columnIdentity,
   compareSortValues,
   getSortValue,
   isExpandableFieldType,
@@ -695,7 +696,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     const filterFLS = (cols: any[]): any[] => {
       if (!perms?.isLoaded || !relatedObjectName) return cols;
       return cols.filter((c) => {
-        const key = c?.accessorKey || c?.field || c?.name;
+        const key = c?.accessorKey || columnIdentity(c);
         if (!key) return true;
         return perms.checkField(relatedObjectName, String(key), 'read');
       });
@@ -703,7 +704,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     const filterFK = (cols: any[]): any[] =>
       referenceField
         ? cols.filter((c) => {
-            const key = c?.accessorKey || c?.field || c?.name;
+            const key = c?.accessorKey || columnIdentity(c);
             return key !== referenceField;
           })
         : cols;
@@ -717,7 +718,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     const pruneEmpty = (cols: any[]): any[] => {
       if (!relatedData.length) return cols;
       return cols.filter((c) => {
-        const key = c?.accessorKey || c?.field || c?.name;
+        const key = c?.accessorKey || columnIdentity(c);
         if (!key) return true;
         return relatedData.some((r) => !isValueEmpty(r?.[key]));
       });
@@ -768,7 +769,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
        if (typeof c !== 'string') {
          // Object column: attach a cell renderer when it lacks one and we can
          // resolve the field def — preserves any author-supplied cell/render.
-         const key = c?.accessorKey || c?.field || c?.name;
+         const key = c?.accessorKey || columnIdentity(c);
          if (c && !c.cell && !c.render && key) {
            const def = (objectSchema?.fields as any)?.[key];
            const cell = def ? makeCell(String(key), def) : undefined;
@@ -895,7 +896,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   const sortableColumns = React.useMemo(() => {
     if (!windowed) return effectiveColumns;
     return effectiveColumns.map((col: any) => {
-      const field = col.accessorKey || col.field || col.name;
+      const field = col.accessorKey || columnIdentity(col);
       return field && isExpandableFieldType((objectSchema?.fields as any)?.[field])
         ? { ...col, sortable: false }
         : col;
@@ -921,10 +922,10 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     // duplicate renderer. Falls back to the data-table on desktop and
     // when explicit `type='list'` is requested (legacy path).
     if (isMobile && (type === 'grid' || type === 'table')) {
-      const titleField = effectiveColumns[0]?.accessorKey || effectiveColumns[0]?.field || effectiveColumns[0]?.name;
+      const titleField = effectiveColumns[0]?.accessorKey || columnIdentity(effectiveColumns[0]);
       const visibleFields = effectiveColumns
         .slice(1, 4)
-        .map((c: any) => c.accessorKey || c.field || c.name)
+        .map((c: any) => c.accessorKey || columnIdentity(c))
         .filter(Boolean);
       return {
         type: 'object-gallery',
@@ -1104,7 +1105,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
         {sortable && !hasSortableHeaders && effectiveColumns && effectiveColumns.length > 0 && relatedData.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-3">
             {effectiveColumns.map((col: any) => {
-              const field = col.accessorKey || col.field || col.name;
+              const field = col.accessorKey || columnIdentity(col);
               if (!field) return null;
               // A windowed sort goes out as a server `$orderby` on the flat
               // field name, so a relational column would order the collection by

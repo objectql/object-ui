@@ -16,15 +16,17 @@ import { useRecordContext, useSafeFieldLabel, useRelatedRecordActions } from '@o
 import { useFieldPermissions, usePermissions } from '@object-ui/permissions';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import { humanizeLabel } from '@object-ui/fields';
+import { columnIdentity } from '@object-ui/core';
 import type { RecordRelatedListComponentProps } from '@object-ui/types';
 import { RelatedList } from '../RelatedList';
 
-/** Normalize a column entry (string | {field} | {name} | {key}) to its name. */
-const colName = (entry: any): string | null => {
-  if (typeof entry === 'string') return entry;
-  if (entry && typeof entry === 'object') return entry.field || entry.name || entry.key || null;
-  return null;
-};
+/**
+ * Normalize a column entry (string | {field} | {name} | {key}) to its name.
+ * `key` is kept as a tail fallback rather than folded into `columnIdentity`:
+ * it is a generic entry key, not ObjectStack metadata identity (#3104).
+ */
+const colName = (entry: any): string | null =>
+  columnIdentity(entry) || (entry && typeof entry === 'object' ? entry.key : null) || null;
 
 /** Extract a record's primary key, tolerating the `id` / `_id` split. */
 const rowId = (row: any): string | number | null => row?.id ?? row?._id ?? null;

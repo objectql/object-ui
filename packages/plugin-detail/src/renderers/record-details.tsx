@@ -15,15 +15,11 @@ import { useRecordContext, useHighlightFieldNames, useSafeFieldLabel } from '@ob
 import { useFieldPermissions, usePermissions } from '@object-ui/permissions';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { RecordDetailsComponentProps } from '@object-ui/types';
-import { isObjectInlineEditable } from '@object-ui/core';
+import { columnIdentity, isObjectInlineEditable } from '@object-ui/core';
 import { DetailView } from '../DetailView';
 
 /** Normalize a field entry (string | {field} | {name}) to its machine name. */
-const fieldName = (entry: any): string | null => {
-  if (typeof entry === 'string') return entry;
-  if (entry && typeof entry === 'object') return entry.field || entry.name || null;
-  return null;
-};
+const fieldName = (entry: any): string | null => columnIdentity(entry) ?? null;
 
 const splitDesigner = (props: Record<string, any>) => {
   const { 'data-obj-id': id, 'data-obj-type': type, style, ...rest } = props || {};
