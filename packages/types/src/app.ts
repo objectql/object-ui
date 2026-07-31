@@ -19,6 +19,11 @@
  * configurations should use `NavigationItem` and the `navigation` / `areas` fields.
  */
 
+// The spec's own `NavigationItem` erases to `any` (its schema is declared
+// `z.ZodType<any>` to carry the recursive group variant), so objectui keeps a
+// real interface. Its per-variant types ARE properly typed, though, so the
+// fields below are derived from one of them rather than restated.
+import type { ObjectNavItem as SpecObjectNavItem } from '@objectstack/spec/ui';
 import type { BaseSchema } from './base';
 
 // ============================================================================
@@ -171,13 +176,35 @@ export interface NavigationItem {
   /** Badge text or count */
   badge?: string | number;
 
-  /** Badge visual variant */
-  badgeVariant?: 'default' | 'destructive' | 'outline';
+  /**
+   * Badge visual variant — derived from the spec's own nav-item variant
+   * rather than restated (objectstack#4115). The hand-written union this
+   * replaces was missing `'secondary'`, so a spec-valid badge was a type
+   * error here and was rejected outright by `objectui validate`.
+   */
+  badgeVariant?: NonNullable<SpecObjectNavItem['badgeVariant']>;
 
-  /** Whether group is expanded by default (for type: 'group') */
+  /**
+   * Whether a `type: 'group'` item starts expanded. This is the spec's
+   * field name and the one to author against.
+   */
+  expanded?: boolean;
+
+  /**
+   * @deprecated Legacy objectui spelling of {@link expanded}. `NavigationRenderer`
+   * honours whichever is set (`expanded` wins), so existing app metadata keeps
+   * working; new metadata should use `expanded`.
+   */
   defaultOpen?: boolean;
 
-  /** Whether this item is pinned */
+  /**
+   * Action payload for `type: 'action'` items. Without it the item names an
+   * action it cannot invoke — and before this was declared, `objectui validate`
+   * silently stripped it, so a broken action item validated clean.
+   */
+  actionDef?: { actionName: string; params?: Record<string, unknown> };
+
+  /** Whether this item is pinned. objectui-only; the spec has no counterpart. */
   pinned?: boolean;
 
   /** Sort order weight (lower = higher) */
@@ -203,6 +230,12 @@ export interface NavigationArea {
 
   /** Icon name (Lucide) */
   icon?: string;
+
+  /** Sort order weight among areas (lower first) — spec field (objectstack#4115). */
+  order?: number;
+
+  /** Longer description of the area — spec field (objectstack#4115). */
+  description?: string;
 
   /** Navigation items within this area */
   navigation: NavigationItem[];

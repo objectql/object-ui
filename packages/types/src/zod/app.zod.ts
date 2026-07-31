@@ -35,9 +35,14 @@ export const NavigationItemTypeSchema = z.enum([
  * Navigation Item Schema — unified model aligned with @objectstack/spec.
  */
 export const NavigationItemSchema: z.ZodType<any> = z.lazy(() => z.object({
-  id: z.string().describe('Unique identifier'),
+  // Declared optional so a bare `{ type: 'separator' }` — which the spec
+  // accepts, and which carries no identity or text by definition — validates
+  // here too (objectstack#4115). Every OTHER type still requires both; that is
+  // re-imposed by the refinement below rather than by the field declarations,
+  // because this is one flat shape and not the spec's discriminated union.
+  id: z.string().optional().describe('Unique identifier'),
   type: NavigationItemTypeSchema.describe('Navigation item type'),
-  label: z.string().describe('Display label'),
+  label: z.string().optional().describe('Display label'),
   icon: z.string().optional().describe('Icon name (Lucide)'),
 
   // Type-specific target fields
@@ -57,16 +62,46 @@ export const NavigationItemSchema: z.ZodType<any> = z.lazy(() => z.object({
   // Grouping
   children: z.array(z.lazy(() => NavigationItemSchema)).optional().describe('Child items (type: group)'),
 
+  // Action payload (type: 'action'). Undeclared until objectstack#4115: the
+  // schema strips unknown keys, so an action item validated clean while its
+  // entire payload was thrown away.
+  actionDef: z.object({
+    actionName: z.string(),
+    params: z.record(z.string(), z.unknown()).optional(),
+  }).optional().describe('Action payload (type: action)'),
+
   // Visibility & Permissions
   visible: z.union([z.boolean(), z.string()]).optional().describe('Visibility expression'),
   requiredPermissions: z.array(z.string()).optional().describe('Required permissions'),
+  // Runtime capability gates. `NavigationRenderer` has always honoured these
+  // and `NavigationItem` has always declared them — only this schema lagged,
+  // so `objectui validate` silently dropped them (objectstack#4115).
+  requiresObject: z.string().optional().describe('Object that must be registered for this entry to render'),
+  requiresService: z.string().optional().describe('Kernel service that must be registered for this entry to render'),
 
   // UX Enhancements
   badge: z.union([z.string(), z.number()]).optional().describe('Badge text or count'),
-  badgeVariant: z.enum(['default', 'destructive', 'outline']).optional().describe('Badge variant'),
-  defaultOpen: z.boolean().optional().describe('Group default expanded state'),
+  badgeVariant: z.enum(['default', 'secondary', 'destructive', 'outline']).optional().describe('Badge variant'),
+  expanded: z.boolean().optional().describe('Group default expanded state (spec field name)'),
+  /** @deprecated legacy objectui spelling of `expanded`; the renderer honours either. */
+  defaultOpen: z.boolean().optional().describe('Group default expanded state (legacy alias of `expanded`)'),
   pinned: z.boolean().optional().describe('Pinned item'),
   order: z.number().optional().describe('Sort order weight'),
+}).superRefine((item, ctx) => {
+  // Identity and text are required for every real destination; only the
+  // separator — a rule, not an entry — is exempt. Declaring the fields
+  // optional above is what lets `{ type: 'separator' }` through, so without
+  // this an id-less `type: 'object'` item would validate too.
+  if (item.type === 'separator') return;
+  for (const key of ['id', 'label'] as const) {
+    if (typeof item[key] !== 'string' || item[key] === '') {
+      ctx.addIssue({
+        code: 'custom',
+        path: [key],
+        message: `\`${key}\` is required for navigation items of type '${item.type}'`,
+      });
+    }
+  }
 }));
 
 /**
@@ -76,6 +111,10 @@ export const NavigationAreaSchema = z.object({
   id: z.string().describe('Unique identifier'),
   label: z.string().describe('Display label'),
   icon: z.string().optional().describe('Icon name (Lucide)'),
+  // Spec fields this schema used to drop on the floor (objectstack#4115):
+  // an area authored with a sort weight or a description lost both.
+  order: z.number().optional().describe('Sort order weight among areas'),
+  description: z.string().optional().describe('Longer description of the area'),
   navigation: z.array(NavigationItemSchema).describe('Navigation items within area'),
   visible: z.union([z.boolean(), z.string()]).optional().describe('Visibility expression'),
   requiredPermissions: z.array(z.string()).optional().describe('Required permissions'),

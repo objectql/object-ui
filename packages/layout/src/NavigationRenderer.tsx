@@ -866,8 +866,7 @@ function NavigationItemRenderer({
   //    group — otherwise an auto-collapsed group hides the active item
   //    and the user loses orientation.
   const explicitOpen = (() => {
-    const expanded = (item as any).expanded;
-    if (typeof expanded === 'boolean') return expanded;
+    if (typeof item.expanded === 'boolean') return item.expanded;
     if (typeof item.defaultOpen === 'boolean') return item.defaultOpen;
     return undefined;
   })();
