@@ -1,7 +1,14 @@
 // Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
 
 import { describe, it, expect } from 'vitest';
-import { fieldsForNodeType, isFieldVisible, getFieldValue, configKeyOf } from './flow-node-config';
+import {
+  fieldsForNodeType,
+  mergeServerFlowFields,
+  isFieldVisible,
+  getFieldValue,
+  configKeyOf,
+  type FlowConfigField,
+} from './flow-node-config';
 
 describe('start node trigger-field gating (#5)', () => {
   const fields = fieldsForNodeType('start');
@@ -232,5 +239,87 @@ describe('notify node — first-class static config editor (#1895)', () => {
     const severity = fields.find((f) => f.id === 'severity')!;
     expect(severity.kind).toBe('select');
     expect(severity.options!.map((o) => o.value)).toEqual(['info', 'warning', 'critical']);
+  });
+});
+
+/**
+ * A published `configSchema` describes `node.config` and nothing else, so it must
+ * not be allowed to delete the editors for a node's spec-structured SIBLING
+ * blocks (framework#4045).
+ *
+ * This is a real incident, not a hypothetical: `connector_action` shipped a
+ * descriptor whose `configSchema` declared `connectorId` / `actionId` / `input`
+ * as CONFIG keys. Against a live backend the generated form replaced this
+ * table's `connectorConfig.*` group — connector and action pickers included —
+ * so an author configuring a connector node in Studio wrote the trio to
+ * `node.config`, which the executor never reads, and the node refused to
+ * dispatch with "connectorConfig.connectorId and .actionId are required".
+ * framework#4210 retired that schema; these tests are what stop the next
+ * mis-rooted schema from doing the same to `wait` or `boundary_event`, whose
+ * whole contract lives in a sibling block.
+ */
+describe('server configSchema ↔ hand-written field merge (framework#4045)', () => {
+  const serverConnectorFields: FlowConfigField[] = [
+    { id: 'connectorId', path: ['config', 'connectorId'], label: 'Connector', kind: 'text' },
+    { id: 'actionId', path: ['config', 'actionId'], label: 'Action', kind: 'text' },
+    { id: 'input', path: ['config', 'input'], label: 'Input', kind: 'keyValue' },
+  ];
+
+  it('with no published schema, the hand-written group is used whole', () => {
+    expect(mergeServerFlowFields(null, 'connector_action')).toEqual(fieldsForNodeType('connector_action'));
+    expect(mergeServerFlowFields(undefined, 'wait')).toEqual(fieldsForNodeType('wait'));
+  });
+
+  it('the exact incident: a config-rooted connector schema cannot delete the connectorConfig pickers', () => {
+    const merged = mergeServerFlowFields(serverConnectorFields, 'connector_action');
+
+    // The structured editors survive, with their reference pickers intact.
+    const connectorId = merged.find((f) => f.path.join('.') === 'connectorConfig.connectorId');
+    const actionId = merged.find((f) => f.path.join('.') === 'connectorConfig.actionId');
+    expect(connectorId, 'connectorConfig.connectorId must survive a published schema').toBeDefined();
+    expect(actionId, 'connectorConfig.actionId must survive a published schema').toBeDefined();
+    expect(connectorId!.kind).toBe('reference');
+    expect(actionId!.ref?.kind).toBe('connector-action');
+
+    // And the server's mis-rooted duplicates do NOT ALSO appear — two editors for
+    // one value, one of them writing where nothing reads, is the same bug wearing
+    // a different hat.
+    expect(merged.filter((f) => f.path.join('.') === 'config.connectorId')).toEqual([]);
+    expect(merged.filter((f) => f.path.join('.') === 'config.actionId')).toEqual([]);
+    expect(merged.filter((f) => f.path.join('.') === 'config.input')).toEqual([]);
+  });
+
+  it('every node type with a sibling-block or top-level field keeps it under any schema', () => {
+    // The latent blast radius, enumerated: if a schema is ever published for one
+    // of these, this is what a plain replacement would have silently dropped.
+    const serverFields: FlowConfigField[] = [
+      { id: 'whatever', path: ['config', 'whatever'], label: 'Whatever', kind: 'text' },
+    ];
+    for (const type of ['connector_action', 'wait', 'boundary_event', 'subflow', 'script', 'http_request']) {
+      const nonConfig = fieldsForNodeType(type).filter((f) => f.path[0] !== 'config');
+      expect(nonConfig.length, `${type} should have sibling/top-level fields to protect`).toBeGreaterThan(0);
+      const merged = mergeServerFlowFields(serverFields, type);
+      for (const f of nonConfig) {
+        expect(
+          merged.some((m) => m.path.join('.') === f.path.join('.')),
+          `${type}: ${f.path.join('.')} was dropped by the published schema`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('the server still owns the config-rooted fields', () => {
+    // The other direction: the engine is the authority on what the executor
+    // reads, so its config fields replace the hand-written ones rather than
+    // merging with them — a stale client key must not linger.
+    const merged = mergeServerFlowFields(
+      [{ id: 'brandNew', path: ['config', 'brandNew'], label: 'Brand new', kind: 'text' }],
+      'http_request',
+    );
+    expect(merged.some((f) => f.path.join('.') === 'config.brandNew')).toBe(true);
+    // `url` is in the hand-written http_request group but not in this schema.
+    expect(merged.some((f) => f.path.join('.') === 'config.url')).toBe(false);
+    // …while the top-level timeoutMs, which no configSchema can describe, stays.
+    expect(merged.some((f) => f.path.join('.') === 'timeoutMs')).toBe(true);
   });
 });

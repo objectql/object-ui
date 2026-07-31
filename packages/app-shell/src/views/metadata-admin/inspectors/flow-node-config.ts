@@ -881,6 +881,55 @@ export function fieldsForNodeType(type?: string): FlowConfigField[] {
   return FLOW_NODE_CONFIG[canonical] ?? [];
 }
 
+/** A field that edits `node.config.<key>` rather than a spec-structured sibling block. */
+function isConfigRooted(field: FlowConfigField): boolean {
+  return field.path[0] === 'config';
+}
+
+/**
+ * Merge the engine-published field set with the hand-written group for a node
+ * type (framework#4045).
+ *
+ * A published `configSchema` describes **`node.config` and nothing else** — that
+ * is what the descriptor's contract says (ADR-0018) and what
+ * {@link jsonSchemaToFlowFields} produces, since it roots every field it emits
+ * at `['config', key]`. But several node types keep part (or all) of their
+ * contract in a spec-structured SIBLING block on the node — `connectorConfig`
+ * (connector_action), `waitEventConfig` (wait), `boundaryConfig`
+ * (boundary_event) — or at the node top level (`timeoutMs`, four types).
+ *
+ * Replacing the whole group with the server's therefore deletes editors the
+ * server never claimed to describe. That is not hypothetical: `connector_action`
+ * shipped a `configSchema` declaring `connectorId`/`actionId`/`input` as CONFIG
+ * keys, and against a live backend it replaced this table's `connectorConfig.*`
+ * fields — connector and action pickers included — so an author writing a
+ * connector node online filled in keys the executor never reads, and the node
+ * refused to dispatch. framework#4210 retired that schema; this merge is what
+ * stops the next one from doing the same to `wait` or `boundary_event`.
+ *
+ * So the server owns the config-rooted fields (it is the authority on what the
+ * executor reads), and the hand-written non-config fields are always preserved,
+ * in their declared order, after them. When no schema is published the
+ * hand-written group is used whole, unchanged.
+ */
+export function mergeServerFlowFields(
+  serverFields: FlowConfigField[] | null | undefined,
+  type?: string,
+): FlowConfigField[] {
+  const handWritten = fieldsForNodeType(type);
+  if (!serverFields) return handWritten;
+  // A sibling-block field the server also described (by id) is not duplicated —
+  // the server's config-rooted version is dropped in favour of the structured
+  // editor, since a `config`-rooted duplicate would write where nothing reads.
+  const serverConfigFields = serverFields.filter(isConfigRooted);
+  const preserved = handWritten.filter((f) => !isConfigRooted(f));
+  const preservedKeys = new Set(preserved.map((f) => f.path[f.path.length - 1]));
+  return [
+    ...serverConfigFields.filter((f) => !preservedKeys.has(f.path[f.path.length - 1])),
+    ...preserved,
+  ];
+}
+
 /** Overlay a column's zh label / option labels (English is the fallback). */
 function localizeColumn(
   col: FlowConfigColumn,

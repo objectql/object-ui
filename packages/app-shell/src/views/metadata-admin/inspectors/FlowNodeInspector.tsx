@@ -31,7 +31,7 @@ import {
   InspectorEmptyState,
 } from './_shared';
 import {
-  fieldsForNodeType,
+  mergeServerFlowFields,
   localizeFlowFields,
   isFieldVisible,
   getFieldValue,
@@ -140,7 +140,11 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
   const fields = React.useMemo(() => {
     const schema = node?.type ? configSchemas[node.type] : undefined;
     const serverFields = schema !== undefined ? jsonSchemaToFlowFields(schema) : null;
-    const resolved = serverFields ?? fieldsForNodeType(node?.type);
+    // A published configSchema describes `node.config` ONLY, so it replaces just
+    // the config-rooted fields — the spec-structured sibling blocks
+    // (connectorConfig / waitEventConfig / boundaryConfig) and top-level
+    // `timeoutMs` are always kept from the hand-written group (framework#4045).
+    const resolved = mergeServerFlowFields(serverFields, node?.type);
     // Localize both the hardcoded table and the engine-published configSchema
     // fields (they share field ids for built-in nodes); no-op for English.
     return localizeFlowFields(node?.type, resolved, locale);
