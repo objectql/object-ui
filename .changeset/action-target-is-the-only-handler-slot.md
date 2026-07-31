@@ -1,8 +1,8 @@
 ---
-'@object-ui/types': major
-'@object-ui/core': major
-'@object-ui/components': major
-'@object-ui/app-shell': major
+'@object-ui/types': minor
+'@object-ui/core': minor
+'@object-ui/components': minor
+'@object-ui/app-shell': minor
 ---
 
 **`target` is the only action handler slot — the `execute` alias is gone from the renderer (framework#3856).**

@@ -1,5 +1,5 @@
 ---
-'@object-ui/types': major
+'@object-ui/types': minor
 '@object-ui/core': patch
 '@object-ui/components': patch
 ---

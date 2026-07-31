@@ -166,6 +166,7 @@ export const SchemaRenderer = ({ schema }: { schema: UIComponent }) => {
 - **objectui 的 major 与 `@objectstack`(spec/client/formula)的 major 保持一致**:依赖到 `@objectstack ^11.x` 时,objectui 这个固定版本组(`.changeset/config.json` 的 `fixed`,39 个包一起发)的 major 必须是 `11`。心智模型:**major 相同即兼容**。
 - minor/patch **独立演进**——objectstack 没动时不必跟发;objectui 自己的改动照常用 changeset 推进(从当前 major 起步,如 `11.0.0 → 11.1.0`)。
 - objectstack 跨 major(→12)时,下一次 objectui 发版一并把 major 提到 `12`。
+- 推论:**changeset 里不要声明 `major`** —— fixed 组任一 `major` 都会把全组推上去、脱离 objectstack 的节奏(如 17.x 期间被推到 18)。objectui 自身的破坏性变更也标 `minor`(在正文里写清 breaking 语义即可);唯一例外是跟随 objectstack 跨 major 的那一次同步升级。
 - 这是约定优先于 semver 纯粹性的取舍(为可维护/好记),因此 objectui 的 major 不代表「它自身 API 的破坏性变更次数」。`@object-ui/site` 与 `@object-ui/example-*` 在 `ignore` 列表,不随组联动。
 
 ### 多 agent 协作纪律(并行修改本仓库,务必遵守)

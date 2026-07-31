@@ -1,5 +1,5 @@
 ---
-'@object-ui/app-shell': major
+'@object-ui/app-shell': minor
 ---
 
 **[ADR-0110 D1] The server-action URL identifies an action by `name`, not `target`.**

@@ -1,5 +1,5 @@
 ---
-'@object-ui/app-shell': major
+'@object-ui/app-shell': minor
 ---
 
 **[objectstack#3959] A `type: 'modal'` action is client-side only — the server fallthrough is removed.**

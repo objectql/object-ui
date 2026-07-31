@@ -1,5 +1,5 @@
 ---
-'@object-ui/types': major
+'@object-ui/types': minor
 ---
 
 **The action sub-vocabularies derive from `@objectstack/spec` instead of restating it (framework#4074).**
