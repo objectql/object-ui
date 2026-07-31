@@ -157,6 +157,7 @@ export type {
   ListSchema,
   ListItem,
   TableColumn,
+  TableSortItem,
   TableSchema,
   DataTableSchema,
   MarkdownSchema,

@@ -22,7 +22,7 @@
  */
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import type { ObjectGridSchema, DataSource, ListColumn, ViewData } from '@object-ui/types';
+import type { ObjectGridSchema, DataSource, ListColumn, ViewData, TableSortItem } from '@object-ui/types';
 import { isSystemManagedField } from '@object-ui/types';
 import type { I18nLabel } from '@objectstack/spec/ui';
 import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useSafeFieldLabel, usePredicateScope } from '@object-ui/react';
@@ -36,7 +36,7 @@ import {
   RefreshIndicator,
 } from '@object-ui/components';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, isExpandableFieldType } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
 import { ChevronRight, ChevronDown, ChevronLeft, ChevronsLeft, ChevronsRight, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock, Loader2 } from 'lucide-react';
 import { useRowColor } from './useRowColor';
@@ -52,6 +52,33 @@ import { BulkActionBar } from './components/BulkActionBar';
 import { BulkActionDialog } from './components/BulkActionDialog';
 import type { BulkResult } from './hooks/useBulkExecutor';
 import type { BulkActionDef } from '@object-ui/types';
+
+/**
+ * A view's declared `sort` → the shape the table's header indicators read.
+ *
+ * `@objectstack/spec` allows `"name desc"`, `["name desc", …]` and
+ * `[{ field, order }, …]`, and this grid's own fetch path already reads all
+ * three. The headers have to agree with it: a view that arrives sorted by
+ * `created_at desc` should show that arrow before anyone clicks anything —
+ * otherwise the first click on that column produces `asc` while the list was
+ * already `desc`, and the arrow tells the truth only from the second click on.
+ *
+ * Exported for the test that pins it against the fetch path's own reading.
+ */
+export function parseSchemaSort(sort: unknown): TableSortItem[] {
+  const entries = typeof sort === 'string' ? [sort] : Array.isArray(sort) ? sort : [];
+  const items: TableSortItem[] = [];
+  for (const entry of entries) {
+    if (typeof entry === 'string') {
+      const [field, order] = entry.trim().split(/\s+/);
+      if (field) items.push({ field, order: order?.toLowerCase() === 'desc' ? 'desc' : 'asc' });
+    } else if (entry && typeof entry === 'object' && typeof (entry as any).field === 'string') {
+      const { field, order } = entry as { field: string; order?: string };
+      items.push({ field, order: String(order).toLowerCase() === 'desc' ? 'desc' : 'asc' });
+    }
+  }
+  return items;
+}
 
 // Clickable text cell that can safely contain other interactive content
 // (e.g., EmailCellRenderer's copy button). Using <button> here would
@@ -416,6 +443,15 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     (schema.pagination as any)?.pageSize ?? schema.pageSize ?? 50,
   );
 
+  // Column-header sort, when this grid fetches its own rows (objectui#3106).
+  // `null` means "nobody has clicked a header" and the view's declared
+  // `schema.sort` is in force; once set it REPLACES that sort for the whole
+  // collection, not for the window on screen.
+  const [headerSort, setHeaderSort] = useState<TableSortItem[] | null>(null);
+  // A view whose declared sort changes underneath us (view switch, saved-view
+  // edit) invalidates a header sort taken against the previous one.
+  useEffect(() => { setHeaderSort(null); }, [JSON.stringify(schema.sort ?? null)]);
+
   // --- Inline data effect (synchronous, no fetch needed) ---
   useEffect(() => {
     if (hasInlineData && dataConfig?.provider === 'value') {
@@ -532,8 +568,15 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
             params.$filter = schema.defaultFilters;
           }
 
-          // Support new sort format
-          if (schemaSort) {
+          // Sort. A column-header click (objectui#3106) replaces the view's
+          // declared sort for the whole collection — which is what makes the
+          // arrow in the header true of the list rather than of this page.
+          // The `SortNode[]` form goes out rather than the `"field order"`
+          // string: it is the shape the server names in its own error messages,
+          // and it survives a field name containing a space.
+          if (headerSort && headerSort.length > 0) {
+            params.$orderby = headerSort.map((s) => ({ field: s.field, order: s.order }));
+          } else if (schemaSort) {
             if (typeof schemaSort === 'string') {
               params.$orderby = schemaSort;
             } else if (Array.isArray(schemaSort)) {
@@ -580,7 +623,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [objectName, schemaFields, schemaColumns, schemaFilter, schemaSort, schemaPagination, schemaPageSize, serverPage, serverPageSize, dataSource, hasInlineData, dataConfig, refreshKey]);
+  }, [objectName, schemaFields, schemaColumns, schemaFilter, schemaSort, headerSort, schemaPagination, schemaPageSize, serverPage, serverPageSize, dataSource, hasInlineData, dataConfig, refreshKey]);
 
   // Reset to page 1 whenever the query itself changes (object / filter / sort),
   // so we never request a page index that no longer exists for the new result
@@ -588,7 +631,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   React.useEffect(() => {
     setServerPage(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [objectName, schemaFilter, schemaSort]);
+  }, [objectName, schemaFilter, schemaSort, headerSort]);
 
   // --- NavigationConfig support ---
   // Must be called before any early returns to satisfy React hooks rules
@@ -1602,17 +1645,64 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     cellClassName: [rowHeightCellClass, col.cellClassName].filter(Boolean).join(' '),
   });
 
+  // Server-side pagination applies to the flat, server-fetched list only.
+  // Inline/static data and the grouped view paginate in-memory (grouped mode
+  // keeps whole groups together via its own groupedPage state), so they stay
+  // on DataTable's default client-side slicing.
+  //
+  // Declared here rather than beside the rest of the manual-mode wiring below
+  // because `orderedColumns` needs it: which columns may be sorted at all
+  // depends on whether the sort is the server's.
+  const useServerPagination = !hasInlineData && !isGrouped;
+
+  // Either we own the server fetch (useServerPagination) or a parent does
+  // (externalManualPagination). Grouped mode always keeps in-memory slicing so
+  // whole groups stay together. Both server modes feed DataTable a manual pager
+  // backed by the real match total.
+  const manualPaginationOn = (useServerPagination || externalManualPagination) && !isGrouped;
+
+  // Server-side sorting, in either of the two server modes (objectui#3106).
+  //
+  // Tied to who owns the ROWS, not to who owns the pager: whenever `data` is
+  // one window of a larger collection, sorting it in the browser orders that
+  // window and nothing else. Grouped mode holds every row it groups, so it
+  // keeps DataTable's own client-side sort.
+  const manualSortingOn = manualPaginationOn;
+
+  /**
+   * Withhold the sort affordance from a relational column when the sort is the
+   * server's (objectui#3096 + #3106).
+   *
+   * A `lookup` / `master_detail` / `user` / `tree` column stores a foreign-key
+   * id and shows the related record's name. A server `$orderby` can only order
+   * by the stored id — objectstack#4256 settled that no relation join is coming
+   * — so the column of names would come back in an order with no relation to
+   * the names. The ListView toolbar's sort picker already withholds these for
+   * exactly this reason; a clickable header would have been the same illusion
+   * through a different control.
+   *
+   * Only under manual sorting. A client-side sort keys off the label the cell
+   * renders (`getSortValue`, #3096), which is honest, so those headers stay.
+   */
+  const withSortability = (col: any) => {
+    if (!manualSortingOn || col.sortable === false) return col;
+    const fieldDef = (objectSchema as any)?.fields?.[col.accessorKey];
+    return isExpandableFieldType(fieldDef) ? { ...col, sortable: false } : col;
+  };
+
+  const applyColumnChrome = (col: any) => withSortability(applyDensity(col));
+
   const orderedColumns = hasPinnedColumns
     ? [
-        ...pinnedLeftCols.map(applyDensity),
-        ...unpinnedCols.map(applyDensity),
+        ...pinnedLeftCols.map(applyColumnChrome),
+        ...unpinnedCols.map(applyColumnChrome),
         ...pinnedRightCols.map((col: any) => ({
-          ...applyDensity(col),
+          ...applyColumnChrome(col),
           className: ['px-3', col.className, rightPinnedClasses].filter(Boolean).join(' '),
           cellClassName: [rowHeightCellClass, col.cellClassName, rightPinnedClasses].filter(Boolean).join(' '),
         })),
       ]
-    : columnsWithActions.map(applyDensity);
+    : columnsWithActions.map(applyColumnChrome);
 
   // Calculate frozenColumns: if the USER pinned columns, use their left-pinned
   // count; otherwise fall back to the schema default (freeze the first column).
@@ -1885,17 +1975,6 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     ? schema.searchableFields.length > 0
     : (schema.showSearch !== undefined ? schema.showSearch : true);
 
-  // Server-side pagination applies to the flat, server-fetched list only.
-  // Inline/static data and the grouped view paginate in-memory (grouped mode
-  // keeps whole groups together via its own groupedPage state), so they stay
-  // on DataTable's default client-side slicing.
-  const useServerPagination = !hasInlineData && !isGrouped;
-
-  // Either we own the server fetch (useServerPagination) or a parent does
-  // (externalManualPagination). Grouped mode always keeps in-memory slicing so
-  // whole groups stay together. Both server modes feed DataTable a manual pager
-  // backed by the real match total.
-  const manualPaginationOn = (useServerPagination || externalManualPagination) && !isGrouped;
   const manualRowCount = externalManualPagination ? (rest as any).rowCount : totalMatching;
   const manualPage = externalManualPagination ? (rest as any).page : serverPage;
   const manualPageSize = externalManualPagination
@@ -1907,6 +1986,26 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const manualOnPageSizeChange = externalManualPagination
     ? (rest as any).onPageSizeChange
     : (size: number) => { setServerPageSize(size); setServerPage(1); };
+
+  // Before anyone clicks, the headers show the sort the view was authored with
+  // — read with the same `schemaSort` → `defaultSort` precedence the fetch path
+  // above uses, so the arrow on screen and the `$orderby` on the wire are the
+  // same sort. Without that a view arriving `created_at desc` would show no
+  // arrow, and the first click on that column would ask for `asc` on a list
+  // that was already `desc`.
+  //
+  // A plain expression, not a `useMemo`: this sits below the component's early
+  // returns, where a hook would be skipped on some renders and change the hook
+  // order. Parsing at most a handful of sort keys costs nothing worth a hook.
+  const declaredSort = parseSchemaSort(
+    schemaSort ?? (schema.defaultSort ? [schema.defaultSort] : undefined),
+  );
+  const manualSort: TableSortItem[] = externalManualPagination
+    ? ((rest as any).sort ?? [])
+    : (headerSort ?? declaredSort);
+  const manualOnSortChange = externalManualPagination
+    ? (rest as any).onSortChange
+    : setHeaderSort;
 
   const dataTableSchema: any = {
     type: 'data-table',
@@ -1927,6 +2026,9 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     page: manualPaginationOn ? manualPage : undefined,
     onPageChange: manualPaginationOn ? manualOnPageChange : undefined,
     onPageSizeChange: manualPaginationOn ? manualOnPageSizeChange : undefined,
+    manualSorting: manualSortingOn,
+    sort: manualSortingOn ? manualSort : undefined,
+    onSortChange: manualSortingOn ? manualOnSortChange : undefined,
     searchable: searchEnabled,
     selectable: selectionMode,
     // ObjectGrid surfaces the selection via its own bottom BulkActionBar

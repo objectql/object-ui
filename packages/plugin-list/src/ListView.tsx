@@ -1780,6 +1780,32 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     return { sortFields: fields, sortHasRelationalField: excluded };
   }, [filterFields, currentSort, t]);
 
+  /**
+   * A column-header sort from the child grid (#3106).
+   *
+   * It lands in `currentSort` — the same state the toolbar's sort builder
+   * writes — so it becomes a server `$orderby` over the whole collection and
+   * the two controls can never disagree about what the list is sorted by. The
+   * table hands back `{field, order}`; `SortItem` carries an `id` for the
+   * builder's React keys, so one is minted here exactly as `parseSortConfig`
+   * does when reading a view's declared sort.
+   *
+   * The page goes back to 1: a new order makes "page 5" a different set of
+   * rows, and staying there would show a slice of an ordering the user has not
+   * seen the start of. `onSortChange` fires so a host persists this the same
+   * way it persists a builder edit — a header sort is not a lesser sort.
+   */
+  const handleHeaderSort = React.useCallback((next: Array<{ field: string; order: 'asc' | 'desc' }>) => {
+    const items: SortItem[] = next.map((s) => ({
+      id: crypto.randomUUID(),
+      field: s.field,
+      order: s.order,
+    }));
+    setCurrentSort(items);
+    setServerPage(1);
+    onSortChange?.(items);
+  }, [onSortChange]);
+
   // Export handler
   const handleExport = React.useCallback((format: 'csv' | 'xlsx' | 'json' | 'pdf') => {
     // Object-level export permission gate. Default-allow.
@@ -2679,6 +2705,14 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
                   pageSize: effectivePageSize,
                   onPageChange: (p: number) => setServerPage(p),
                   onPageSizeChange: (n: number) => { setDynamicPageSize(n); setServerPage(1); },
+                  // …and its sort from the same place (#3106). The column
+                  // headers and the toolbar's sort builder are two controls over
+                  // ONE `currentSort`, so a header click is a shortcut into the
+                  // builder rather than a second, page-local sort with its own
+                  // rules. That is what makes "priority of a header sort vs. the
+                  // saved view's sort" a non-question: there is one sort.
+                  sort: currentSort,
+                  onSortChange: handleHeaderSort,
                 }
               : {})}
           />

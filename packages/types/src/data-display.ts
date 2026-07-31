@@ -199,6 +199,20 @@ export interface ListItem {
 }
 
 /**
+ * One key of a table's sort order.
+ *
+ * Structurally the id-less half of `SortItem` in `@object-ui/components` (whose
+ * `id` exists only as a React key for the sort-builder rows), so a `SortItem[]`
+ * is assignable here without conversion. This package takes no dependencies, so
+ * the shared shape is declared rather than imported.
+ */
+export interface TableSortItem {
+  /** Field to sort by — an `accessorKey` of the table's columns. */
+  field: string;
+  order: 'asc' | 'desc';
+}
+
+/**
  * Table column definition
  */
 export interface TableColumn {
@@ -401,6 +415,50 @@ export interface DataTableSchema extends BaseSchema {
    * Called when the user changes the page size under `manualPagination`.
    */
   onPageSizeChange?: (pageSize: number) => void;
+  /**
+   * Server-side ("manual") sorting. When true the table does NOT sort `data`
+   * locally — it is already in the order the server returned — and a column
+   * header click reports the requested sort through `onSortChange` instead.
+   *
+   * Set this whenever `data` is one window of a larger collection. Sorting a
+   * window locally orders **that page**, which reads on screen as "the list is
+   * sorted by this column" and is not (objectui#3106).
+   *
+   * Deliberately independent of `manualPagination`: a windowed related list
+   * paginates itself (`pagination: false`) while its rows still come from the
+   * server one page at a time.
+   *
+   * The table keeps NO sort state of its own in this mode — `sort` is the only
+   * source of truth, and the header renders and cycles that. A private copy
+   * alongside a controlled prop is how the original defect arose.
+   * @default false
+   */
+  manualSorting?: boolean;
+  /**
+   * The active sort, when `manualSorting` is on. Drives the header indicators
+   * and is the value each header click transforms. Ignored otherwise (the table
+   * owns its sort in client mode).
+   */
+  sort?: TableSortItem[];
+  /**
+   * Called with the sort a header click asks for, when `manualSorting` is on.
+   *
+   * Always exactly one key: a header click REPLACES the order rather than
+   * appending to it, so the column under the cursor is the one the list is
+   * sorted by. Multi-key sorts come from a host's own sort builder, and the
+   * header renders them (numbered) without being able to produce one.
+   *
+   * Never empty. In client mode the third click clears the sort, which is
+   * meaningful there — the rows return to the order they arrived in. Against a
+   * server-paged collection there is no such order to return to: an unsorted
+   * paged read is arbitrary per page (objectstack#4363), so offering it from a
+   * header would hand the user a worse lie than the one being fixed. Removing
+   * a sort entirely stays with the host's sort builder.
+   *
+   * Without this callback the headers render inert (no cursor, no icons) rather
+   * than accepting clicks that go nowhere.
+   */
+  onSortChange?: (sort: TableSortItem[]) => void;
   /**
    * Enable search
    * @default true

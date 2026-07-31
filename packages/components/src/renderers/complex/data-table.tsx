@@ -12,7 +12,7 @@ import { cn } from '../../lib/utils';
 import { resolveIcon } from '../action/resolve-icon';
 import { useGridFieldAuthoring } from '../../context/gridFieldAuthoring';
 import { ComponentRegistry, compareSortValues, getSortValue } from '@object-ui/core';
-import type { DataTableSchema } from '@object-ui/types';
+import type { DataTableSchema, TableSortItem } from '@object-ui/types';
 import { useRowPredicate } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
 import { 
@@ -361,6 +361,9 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     page: controlledPage,
     onPageChange,
     onPageSizeChange,
+    manualSorting = false,
+    sort: controlledSort,
+    onSortChange,
     searchable = true,
     selectable: selectableProp = false,
     showSelectionCount = true,
@@ -601,6 +604,12 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
 
   // Sorting — client-side, over the rows this table was handed.
   //
+  // Under `manualSorting` there is nothing to do: `data` arrived in the order
+  // the server produced, for the whole collection rather than this window.
+  // Re-sorting it here would order the CURRENT PAGE — the defect objectui#3106
+  // reports, where "sorted by this column" is true of fifty rows and false of
+  // the list they came from.
+  //
   // Sort keys go through `getSortValue` so a relational column orders by the
   // label its cell shows, not by the `$expand`-ed record object (objectui#3096).
   // The old `aValue < bValue` was always false for two objects, so a lookup
@@ -610,6 +619,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   // Decorate → sort → undecorate: the key is resolved ONCE per row rather than
   // on every one of the O(n log n) comparisons.
   const sortedData = useMemo(() => {
+    if (manualSorting) return filteredData;
     if (!sortColumn || !sortDirection) return filteredData;
 
     const keyed = filteredData.map((row) => ({ row, key: getSortValue(row[sortColumn]) }));
@@ -619,7 +629,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
       return sortDirection === 'asc' ? comparison : -comparison;
     });
     return keyed.map((entry) => entry.row);
-  }, [filteredData, sortColumn, sortDirection]);
+  }, [filteredData, sortColumn, sortDirection, manualSorting]);
 
   // Pagination. Under manual (server-side) pagination the parent controls the
   // page and supplies the grand total via `rowCount`; `data` already IS the
@@ -678,10 +688,54 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     return row.id !== undefined ? row.id : `row-${index}`;
   };
 
+  // The sort the headers display and cycle.
+  //
+  // Under `manualSorting` this is the caller's prop and nothing else — the two
+  // `useState`s below are not read, not written, and not mirrored. Keeping a
+  // private copy in sync with a controlled prop is precisely how objectui#3106
+  // happened: the table held the user's sort somewhere the layer that fetches
+  // the rows could not see it.
+  const activeSort: TableSortItem[] = manualSorting
+    ? (controlledSort ?? [])
+    : (sortColumn && sortDirection ? [{ field: sortColumn, order: sortDirection }] : []);
+
+  // A manual-sorting table with nowhere to report a click renders inert headers
+  // rather than clickable ones that do nothing — a dead affordance is the same
+  // class of lie as a sort that only covers the current page.
+  const sortingEnabled = sortable && (!manualSorting || !!onSortChange);
+
+  /**
+   * Sort by one column in a given direction — the single write path, so the
+   * column-header cycle and the header context menu cannot diverge about where
+   * a sort goes. The menu used to call `setSortColumn`/`setSortDirection`
+   * directly, which under `manualSorting` would have written to state nothing
+   * reads: a menu item that highlights, closes, and changes nothing.
+   */
+  const applySort = (columnKey: string, order: 'asc' | 'desc') => {
+    if (manualSorting) {
+      onSortChange?.([{ field: columnKey, order }]);
+      return;
+    }
+    setSortColumn(columnKey);
+    setSortDirection(order);
+  };
+
   // Handlers
   const handleSort = (columnKey: string) => {
-    if (!sortable) return;
-    
+    if (!sortingEnabled) return;
+
+    if (manualSorting) {
+      // Two states, not three. A header click REPLACES the order — the column
+      // under the cursor becomes the one the list is sorted by — and it never
+      // produces "no sort": across a server-paged collection that is an
+      // arbitrary order per page (objectstack#4363), so it is not a state a
+      // header should be able to ask for. Clearing a sort belongs to the host's
+      // sort builder, which can also restore the view's configured default.
+      const current = activeSort.find((s) => s.field === columnKey);
+      applySort(columnKey, current?.order === 'asc' ? 'desc' : 'asc');
+      return;
+    }
+
     if (sortColumn === columnKey) {
       if (sortDirection === 'asc') {
         setSortDirection('desc');
@@ -773,14 +827,31 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     window.URL.revokeObjectURL(url);
   };
 
+  /**
+   * The indicator for one column, read from {@link activeSort}.
+   *
+   * Every participating key is marked, not just the first: a multi-key sort
+   * arrives from the host's sort builder, and showing only its primary column
+   * would say "sorted by Status" about a list actually ordered by Status then
+   * Rank. The rank badge appears only when there is more than one key, so the
+   * ordinary single-column case renders exactly as it always has.
+   */
   const getSortIcon = (columnKey: string) => {
-    if (sortColumn !== columnKey) {
+    const index = activeSort.findIndex((s) => s.field === columnKey);
+    if (index === -1) {
       return <ChevronsUpDown className="h-3 w-3 ml-0.5 opacity-0 group-hover:opacity-50 transition-opacity" />;
     }
-    if (sortDirection === 'asc') {
-      return <ChevronUp className="h-3 w-3 ml-0.5 text-primary" />;
-    }
-    return <ChevronDown className="h-3 w-3 ml-0.5 text-primary" />;
+    const Arrow = activeSort[index].order === 'asc' ? ChevronUp : ChevronDown;
+    return (
+      <span className="inline-flex items-center shrink-0">
+        <Arrow className="h-3 w-3 ml-0.5 text-primary" />
+        {activeSort.length > 1 && (
+          <span className="text-[10px] font-medium text-primary tabular-nums leading-none">
+            {index + 1}
+          </span>
+        )}
+      </span>
+    );
   };
 
   // Column resizing handlers
@@ -1374,7 +1445,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                     key={col.accessorKey}
                     className={cn(
                       col.className,
-                      sortable && col.sortable !== false && 'cursor-pointer select-none',
+                      sortingEnabled && col.sortable !== false && 'cursor-pointer select-none',
                       isDragging && 'opacity-50',
                       isDragOver && 'border-l-2 border-primary',
                       col.align === 'right' && 'text-right',
@@ -1401,7 +1472,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                     onDragOver={(e) => handleColumnDragOver(e, index)}
                     onDrop={(e) => handleColumnDrop(e, index)}
                     onDragEnd={handleColumnDragEnd}
-                    onClick={() => sortable && col.sortable !== false && handleSort(col.accessorKey)}
+                    onClick={() => sortingEnabled && col.sortable !== false && handleSort(col.accessorKey)}
                     onContextMenu={(e) => handleColumnContextMenu(e, col.accessorKey)}
                   >
                     <div className={cn(
@@ -1416,7 +1487,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                           <span className="text-muted-foreground shrink-0">{col.headerIcon}</span>
                         )}
                         <span className="text-xs font-medium text-muted-foreground whitespace-nowrap truncate">{col.header}</span>
-                        {sortable && col.sortable !== false && getSortIcon(col.accessorKey)}
+                        {sortingEnabled && col.sortable !== false && getSortIcon(col.accessorKey)}
                         {editColumnEnabled && (
                           <button
                             type="button"
@@ -2019,14 +2090,13 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
           data-testid="column-context-menu"
           onClick={(e) => e.stopPropagation()}
         >
-          {sortable && (
+          {sortingEnabled && (
             <>
               <button
                 type="button"
                 className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
                 onClick={() => {
-                  setSortColumn(contextMenu.columnKey);
-                  setSortDirection('asc');
+                  applySort(contextMenu.columnKey, 'asc');
                   setContextMenu(null);
                 }}
               >
@@ -2037,8 +2107,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                 type="button"
                 className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
                 onClick={() => {
-                  setSortColumn(contextMenu.columnKey);
-                  setSortDirection('desc');
+                  applySort(contextMenu.columnKey, 'desc');
                   setContextMenu(null);
                 }}
               >
