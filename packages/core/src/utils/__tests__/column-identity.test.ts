@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   CANONICAL_COLUMN_IDENTITY_KEY,
   LEGACY_COLUMN_IDENTITY_KEYS,
@@ -15,6 +15,7 @@ import {
   hasConflictingColumnIdentity,
   normalizeColumnIdentity,
   normalizeColumnIdentities,
+  resetColumnIdentityWarnings,
 } from '../column-identity';
 import { normalizeListViewSchema } from '../normalize-list-view';
 import { buildExpandFields } from '../expand-fields';
@@ -212,5 +213,86 @@ describe('normalizeListViewSchema — column identity fold (#3104)', () => {
   it('leaves string columns alone', () => {
     const schema = { viewType: 'grid', columns: ['name', 'stage'] };
     expect(normalizeListViewSchema(schema)).toBe(schema);
+  });
+});
+
+describe('conflicting-identity warning (#3104 PR3)', () => {
+  let warn: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    resetColumnIdentityWarnings();
+    warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => warn.mockRestore());
+
+  it('names the winner, the loser, and both values', () => {
+    normalizeColumnIdentity({ field: 'account', name: 'account_name' });
+    expect(warn).toHaveBeenCalledTimes(1);
+    const msg = String(warn.mock.calls[0]?.[0]);
+    // The whole point is that the author can act on it without reading source.
+    expect(msg).toContain("field: 'account'");
+    expect(msg).toContain("name: 'account_name'");
+    expect(msg).toContain('`field` wins');
+    expect(msg).toContain('objectui#3104');
+  });
+
+  it('warns once per conflict, not once per fold', () => {
+    const entry = { field: 'account', name: 'account_name' };
+    normalizeColumnIdentity(entry);
+    normalizeColumnIdentity(entry);
+    normalizeColumnIdentity({ ...entry });
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports each distinct conflicting spelling, not just the first', () => {
+    normalizeColumnIdentity({ field: 'account', name: 'a_name', fieldName: 'a_fname' });
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+
+  it('stays silent for a legacy-only column — that is not a contradiction', () => {
+    normalizeColumnIdentity({ name: 'stage' });
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('stays silent when the keys already agree', () => {
+    normalizeColumnIdentity({ field: 'stage', name: 'stage' });
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('stays silent for a clean spec column', () => {
+    normalizeColumnIdentity({ field: 'stage' });
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('fires through the ingestion fold, which is where hosts actually hit it', () => {
+    normalizeListViewSchema({
+      viewType: 'grid',
+      columns: [{ field: 'account', name: 'account_name' }],
+    });
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('is silent in production — a shipped app gets no console noise', () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      normalizeColumnIdentity({ field: 'account', name: 'account_name' });
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  });
+
+  it('still folds the column when the warning is suppressed', () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      expect(normalizeColumnIdentity({ field: 'account', name: 'account_name' })).toEqual({
+        field: 'account',
+        name: 'account',
+      });
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
   });
 });

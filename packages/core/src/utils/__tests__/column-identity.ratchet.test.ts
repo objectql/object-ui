@@ -30,6 +30,24 @@
  * accesses. That is precise enough to ratchet and loose enough to catch
  * spellings nobody has written yet; it is NOT a judgement that every hit is a
  * defect, which is what `verdict` below records.
+ *
+ * ## Why this is the gate, and no `no-restricted-syntax` lint rule
+ *
+ * objectui#3104 PR3 asked for the eslint option to be evaluated on its
+ * false-positive rate before adopting it. It was, and the answer is decisive:
+ * with the family at zero, **all 12 remaining scanner hits are legitimate** —
+ * two-layer joins where both precedences are correct, the form cluster #3090
+ * settled the other way, and display fallbacks that merely share the key names.
+ * A syntactic rule matching `.field ?? .name` cannot tell any of those from a
+ * real dual read, because the distinction is what the keys MEAN in that layer,
+ * not how the expression is spelled. Adopting it would mean 12 inline disables
+ * on correct code — which trains the next author to reach for the disable, the
+ * precise reflex that lets a real one through.
+ *
+ * The ratchet does what the lint rule cannot: it carries a `verdict` and a
+ * `why` per site, so a new hit has to be triaged rather than silenced. The
+ * assertion that the family is 0 (below) is exactly the statement that every
+ * hit a lint rule would fire on today is a false positive.
  */
 
 import { describe, it, expect } from 'vitest';

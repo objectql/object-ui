@@ -321,7 +321,17 @@ working, and both resolve the canonical key first:
   node, for instance) still resolves the same field the request asked for.
 
 Legacy keys are still accepted, but they are a migration bridge, not a second
-contract: fix the producer.
+contract: fix the producer. A column that carries two identity keys that
+*disagree* logs a one-time dev-mode warning naming which key won and what to
+change — the renderer recovering is not the same as the metadata being right:
+
+```
+[ObjectUI] Column carries two identities: `field: 'account'` and
+`name: 'account_name'`. `field` wins — it is the only key `ListColumnSchema`
+declares — and `name` has been rewritten to match, so the rendered column and
+the requested field agree. Fix the producer: drop `name` and author `field`
+only. (objectui#3104)
+```
 
 If you read column identity in your own code, use the one reader rather than
 spelling out a fallback chain — it resolves canonical-first, so it agrees with

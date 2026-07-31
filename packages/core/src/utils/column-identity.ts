@@ -95,6 +95,58 @@ export function hasConflictingColumnIdentity(entry: unknown): boolean {
   return false;
 }
 
+// Warn once per (identity, conflicting spelling), not once per fold: columns are
+// re-normalized on every ListView render, and a warning that floods the console
+// is a warning that gets muted. Keyed by the pair rather than by the identity
+// alone so a column carrying two different stale spellings reports both — the
+// author needs to fix every producer, not just the first one seen.
+const warnedConflicts = new Set<string>();
+
+/** Reset the warn-once memo. Exported for tests. */
+export function resetColumnIdentityWarnings(): void {
+  warnedConflicts.clear();
+}
+
+const isDev = (): boolean =>
+  (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.NODE_ENV !==
+  'production';
+
+/**
+ * Dev-mode only: say which key won, out loud, when a column carries two identity
+ * spellings that disagree.
+ *
+ * This is the audible half of objectui#3104. The fold below makes the two halves
+ * of such a column agree, which is what stops the bug — but silently rewriting
+ * `name` to match `field` also hides that the metadata producer is emitting a
+ * contradiction. The renderer recovering is not the same as the metadata being
+ * right, so the recovery says so.
+ *
+ * Non-breaking by construction: changes no types, rejects nothing, and is a
+ * no-op under `NODE_ENV=production`.
+ */
+function warnOnConflictingIdentity(
+  entry: Record<string, unknown>,
+  identity: string,
+  losing: readonly string[],
+): void {
+  if (!isDev() || losing.length === 0) return;
+  for (const key of losing) {
+    const memo = `${identity}:${key}:${String(entry[key])}`;
+    if (warnedConflicts.has(memo)) continue;
+    warnedConflicts.add(memo);
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[ObjectUI] Column carries two identities: \`${CANONICAL_COLUMN_IDENTITY_KEY}: ` +
+        `'${identity}'\` and \`${key}: '${String(entry[key])}'\`. ` +
+        `\`${CANONICAL_COLUMN_IDENTITY_KEY}\` wins — it is the only key ` +
+        `\`ListColumnSchema\` declares — and \`${key}\` has been rewritten to match, ` +
+        `so the rendered column and the requested field agree. Fix the producer: ` +
+        `drop \`${key}\` and author \`${CANONICAL_COLUMN_IDENTITY_KEY}\` only. ` +
+        `(objectui#3104)`,
+    );
+  }
+}
+
 /**
  * Stamp the canonical identity onto one column entry.
  *
@@ -134,6 +186,12 @@ export function normalizeColumnIdentity<T>(entry: T): T {
     (key) => entry[key] !== undefined && entry[key] !== identity,
   );
   if (!needsCanonical && staleLegacy.length === 0) return entry;
+
+  // Say who won before rewriting, while the losing spelling is still readable.
+  // Only genuine contradictions are reported: a column that merely lacks the
+  // canonical key (`{ name: 'stage' }`) is legacy, not conflicting, and gets
+  // stamped without noise.
+  warnOnConflictingIdentity(entry, identity, staleLegacy);
 
   const next: Record<string, unknown> = { ...entry };
   next[CANONICAL_COLUMN_IDENTITY_KEY] = identity;
