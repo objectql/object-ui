@@ -30,6 +30,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
+// The drift guard is the ONE legitimate importer of the spec's FormFieldSchema
+// in this repo: it exists to enumerate the spec's key set. Everywhere else the
+// import is a layer violation — see the no-restricted-imports entry in
+// eslint.config.js (#3090).
+// eslint-disable-next-line no-restricted-imports
 import { FormFieldSchema as SpecFormFieldSchema } from '@objectstack/spec/ui';
 import { mapFieldTypeToFormType } from '@object-ui/fields';
 import { normalizeSectionField } from './sectionFields';

@@ -1118,7 +1118,9 @@ ComponentRegistry.register('form',
       // ObjectForm) pass the field metadata through without hoisting
       // its `widget` to the top-level form-config, which would
       // otherwise degrade a picker field to its raw `type` input.
-      const resolvedType = widget || (fieldProps as any).field?.widget || type;
+      // (`.field` is the resolved metadata OBJECT — declared on FormField
+      // since #3090, never the spec string; see types/form.ts)
+      const resolvedType = widget || fieldProps.field?.widget || type;
 
       // Cascading / role-gated option lists (#2284). For option fields,
       // narrow the set by each option's `visibleWhen` (evaluated against
@@ -1251,9 +1253,11 @@ ComponentRegistry.register('form',
                 {/* Render the actual field component based on resolved type */}
                 {renderFieldComponent(resolvedType, {
                   ...fieldProps,
-                  // specialized fields needs raw metadata, but we should traverse down if it exists
-                  // field is the field configuration loop variable
-                  field: (field as any).field || field, 
+                  // Specialized fields need the raw metadata object. `.field`
+                  // is the declared metadata slot (#3090 — never the spec
+                  // string); fall back to the field config itself when no
+                  // metadata was stashed (standalone forms).
+                  field: field.field || field,
                   ...formField,
                   inputType: fieldProps.inputType,
                   options: isOptionField ? effectiveOptions : fieldProps.options,

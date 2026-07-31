@@ -77,6 +77,29 @@ const ALLOW = {
       "shape kept for backward compatibility and slated for removal in a future major.",
     issue: 4115,
   },
+  "@object-ui/types:FormField": {
+    reason:
+      "Two-LAYER vocabulary, not two dialects of one concept (objectui#3090): the spec's " +
+      "FormField is the authored form-VIEW shape (`field` = object-field reference, presentation " +
+      "deltas only) while this is the runtime widget config (`name` = form data path, " +
+      "self-contained). Not derivable — and the spec's FormField type erases to `any` in its dist " +
+      "(objectstack#4171), so a re-export would delete typing outright. The layers meet only in " +
+      "`normalizeSectionField` (@object-ui/plugin-form), gated by " +
+      "sectionFields.spec-parity.test.ts (per-key behavioral coverage of the spec key set, both " +
+      "directions). Misimport of the spec names is banned by the no-restricted-imports entry in " +
+      "eslint.config.js.",
+    issue: 4115,
+  },
+  "@object-ui/types:FormFieldSchema": {
+    reason:
+      "Zod twin of the two-layer FormField split (objectui#3090): validates the RUNTIME " +
+      "vocabulary (`name` + widget `type`) that `objectui validate` enforces; the spec's " +
+      "FormFieldSchema validates the authored form-view layer. Key set pinned by " +
+      "packages/types/src/__tests__/form-field-zod-coverage.test.ts; the spec-shape rejection " +
+      "(`{ field: … }` stays invalid here) is pinned there too, and the CLI names the boundary " +
+      "in its error output instead of suggesting a lossy rename.",
+    issue: 4115,
+  },
   "@object-ui/types:SelectOptionSchema": {
     reason:
       "Spec-derived dialect (objectui#3090): spec keys flow in by reference via " +
@@ -163,8 +186,6 @@ const DEBT = {
     "DatasourceSchema",
     "DriverInterface",
     "FileMetadata",
-    "FormField",
-    "FormFieldSchema",
     "FormatValidation",
     "GestureConfig",
     "GestureType",
