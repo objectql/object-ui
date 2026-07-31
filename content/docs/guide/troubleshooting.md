@@ -282,6 +282,50 @@ This reports duplicate registrations and namespace collisions.
 
 The components shipped in `@object-ui/components` and `@object-ui/plugin-calendar` already use the v9 API; this note exists so downstream apps with their own `<Calendar>` wrappers can apply the same migration.
 
+## 11. A list column is empty, or a relation column shows a raw id
+
+**Symptom:** A column appears in a list/grid but every cell is blank, or a
+`lookup` / `master_detail` / `user` column shows a record id (`8UY9zHWBfjYjYor4`)
+instead of the related record's name. Sorting by that column does nothing, and
+exports come out missing it.
+
+**Cause:** The column object names its field with more than one key. The
+canonical key is `field` — the only identity key `@objectstack/spec`'s
+`ListColumnSchema` declares — but stored objectui metadata also carries the
+legacy `name` (and, in older imports, `fieldName`). When a column carries two
+of them with different values, the renderer and the data request can resolve
+two different fields: the row fetch asks the server for one field while the
+grid renders another, so the cell has nothing behind it and the relation is
+never expanded.
+
+```jsonc
+// ✗ two identities on one column
+{ "field": "account", "name": "account_name" }
+
+// ✗ legacy-only: the renderer shows it, the request used to drop it
+{ "name": "account" }
+
+// ✓ canonical
+{ "field": "account" }
+```
+
+**Fix:** Author columns with `field`. Metadata reaching a `list-view` is
+canonicalized at the component boundary by `normalizeListViewSchema`, which
+stamps `field` from whichever spelling is present and makes any legacy key it
+already carries agree — so mixed metadata resolves to one field everywhere
+instead of two. Legacy keys are still accepted, but they are a migration
+bridge, not a second contract: fix the producer.
+
+If you read column identity in your own code, use the one reader rather than
+spelling out a fallback chain — it resolves canonical-first, so it agrees with
+what the data layer requested:
+
+```typescript
+import { columnIdentity } from '@object-ui/core';
+
+const fieldName = columnIdentity(column); // string | undefined
+```
+
 ## Getting Help
 
 If none of the above resolves your issue:

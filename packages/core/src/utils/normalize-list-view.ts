@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { normalizeColumnIdentities } from './column-identity.js';
+
 /** ListView's toolbar density vocabulary — three steps, not the spec's five. */
 export type DensityMode = 'compact' | 'comfortable' | 'spacious';
 
@@ -149,6 +151,13 @@ const ARIA_KEY_ALIASES: Record<string, string> = {
  *    metadata stores and hosts forward verbatim, becomes the renderable `'grid'`
  *    — otherwise it reaches the renderer's typeless default branch and shows as
  *    a red "Unknown component type" box.
+ *  - each `columns` entry's IDENTITY — `name` / `fieldName` → the spec's `field`
+ *    (#3104). This one MIRRORS instead of deleting, for the reason given on
+ *    {@link normalizeColumnIdentities}: `columns` entries cross the package
+ *    boundary into host renderers, so dropping `name` from under them is a
+ *    breaking change with no inventory. Runs AFTER the `fields` → `columns` fold
+ *    above, so a view that spells its column list the legacy way still gets its
+ *    entries canonicalized.
  */
 export function normalizeListViewSchema<T>(schema: T): T {
   if (!schema || typeof schema !== 'object') return schema;
@@ -168,9 +177,22 @@ export function normalizeListViewSchema<T>(schema: T): T {
   const foldSharing = !!sharing && (sharing.visibility !== undefined || sharing.enabled !== undefined);
   const viewType = s.viewType;
   const defaultViewKind = !viewType || viewType === 'list';
+  // The columns array the identity fold will see — mirroring the `foldColumns`
+  // precedence below (canonical `columns` wins; otherwise the legacy `fields`
+  // that is about to become it). `normalizeColumnIdentities` returns its input
+  // by reference when every entry is already canonical, so this comparison is
+  // also the "is there anything to do" test.
+  const columnsSource = Array.isArray(s.columns)
+    ? s.columns
+    : foldColumns
+      ? (legacyFields as unknown[])
+      : undefined;
+  const foldedColumns = normalizeColumnIdentities(columnsSource);
+  const foldColumnIdentity = foldedColumns !== columnsSource;
   if (
     !foldColumns && !foldRowHeight && !foldFilter && !legacyFlags.length &&
-    !foldDescription && !foldAria && !foldSharing && !defaultViewKind
+    !foldDescription && !foldAria && !foldSharing && !defaultViewKind &&
+    !foldColumnIdentity
   ) {
     return schema;
   }
@@ -180,6 +202,9 @@ export function normalizeListViewSchema<T>(schema: T): T {
     if (!Array.isArray(next.columns)) next.columns = legacyFields;
     delete next.fields;
   }
+  // After the `fields` → `columns` rename, so a legacy-spelled column LIST gets
+  // its per-entry identities canonicalized in the same pass.
+  if (foldColumnIdentity) next.columns = foldedColumns;
   if (foldRowHeight) {
     if (typeof next.rowHeight !== 'string') {
       next.rowHeight = DENSITY_MODE_TO_ROW_HEIGHT[legacyDensity as DensityMode];
