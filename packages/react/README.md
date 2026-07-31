@@ -211,7 +211,16 @@ notify({ title: 'Fix 2 fields', severity: 'error', displayType: 'inline', scope:
 
 A surface component subscribes with `useNotificationsByPresentation(type, scope?)`,
 which also registers the surface — raising a `banner` with no banner surface
-mounted warns in dev instead of vanishing. See the
+mounted warns in dev instead of vanishing.
+
+`config` is the spec `NotificationConfigSchema` (`defaultPosition`,
+`defaultDuration`, `maxVisible`, `stackDirection`, `pauseOnHover`); the legacy
+`position` / `stacking` spellings still resolve through
+`resolveNotificationConfig`. Three helpers apply it so every surface agrees:
+`resolveNotificationPosition` (a declared position always wins; nothing declared
+leaves the surface on its own anchor), `visibleNotificationStack` (`maxVisible` +
+`stackDirection`), and the context's `pauseAutoDismiss` / `resumeAutoDismiss`
+(`pauseOnHover`). See the
 [notifications guide](https://objectui.org/docs/guide/notifications).
 
 ## API Reference

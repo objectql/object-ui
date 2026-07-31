@@ -26,7 +26,10 @@ export { NotificationSnackbar, type NotificationSnackbarProps } from './Notifica
 export { NotificationAlerts, type NotificationAlertsProps } from './NotificationAlerts';
 export { NotificationInline, type NotificationInlineProps } from './NotificationInline';
 export {
+  NOTIFICATION_ACTION_BUTTON_VARIANTS,
+  NOTIFICATION_POSITION_CLASSES,
   NOTIFICATION_SEVERITY_STYLES,
+  notificationActionVariant,
   notificationIcon,
   notificationSeverityStyle,
   type NotificationSeverityStyle,

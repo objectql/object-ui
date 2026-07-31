@@ -143,11 +143,27 @@ export const SUPPORTED_NOTIFICATION_POSITIONS: ReadonlySet<string> = new Set([
   'top_left', 'top_center', 'top_right', 'bottom_left', 'bottom_center', 'bottom_right',
 ]);
 
+/**
+ * Action button variant — the spec `NotificationActionSchema.variant`
+ * (`primary | secondary | link`, default `primary`).
+ *
+ * This used to be the shadcn Button vocabulary (`default | destructive |
+ * outline`) — a renderer-local fork of a spec enum, i.e. a second de-facto
+ * contract. Surfaces map these three onto their own button styling instead.
+ */
+export type NotificationActionVariant = 'primary' | 'secondary' | 'link';
+
+/** The spec vocabulary this context implements — exported for the parity test. */
+export const SUPPORTED_NOTIFICATION_ACTION_VARIANTS: ReadonlySet<string> = new Set([
+  'primary', 'secondary', 'link',
+]);
+
 /** Action button on a notification */
 export interface NotificationActionButton {
   label: string;
   onClick: () => void;
-  variant?: 'default' | 'destructive' | 'outline';
+  /** Spec `NotificationActionSchema.variant`. Default: `primary`. */
+  variant?: NotificationActionVariant;
 }
 
 /** A single notification item */
@@ -183,6 +199,13 @@ export interface NotificationItem {
    * IS, not which React subtree hosts it.
    */
   scope?: string;
+  /**
+   * Spec `NotificationSchema.position` — "Override default position", falling
+   * back to `config.defaultPosition`. Honored by the FLOATING presentations
+   * (toast, snackbar); `banner` / `inline` / `alert` are anchored by what they
+   * are (content top / in place / centered modal) and ignore it.
+   */
+  position?: NotificationPositionValue;
   /** Whether the notification has been read */
   read?: boolean;
   /** Timestamp */
@@ -191,16 +214,70 @@ export interface NotificationItem {
   icon?: string;
 }
 
-/** Configuration for the notification system */
+/**
+ * Configuration for the notification system — the spec
+ * `NotificationConfigSchema` (`defaultPosition` / `defaultDuration` /
+ * `maxVisible` / `stackDirection` / `pauseOnHover`).
+ *
+ * The field names used to fork from it (`position`, and a renderer-local
+ * `stacking` boolean with no spec counterpart), and only `defaultDuration` was
+ * ever read — the other three were stored and ignored. The legacy names are
+ * still accepted; see {@link resolveNotificationConfig}.
+ */
 export interface NotificationSystemConfig {
-  /** Default position for toast notifications */
-  position?: NotificationPositionValue;
-  /** Default duration in ms */
+  /**
+   * Default screen position for the FLOATING presentations (toast, snackbar).
+   * A notification's own `position` overrides it.
+   *
+   * Deliberately undefined by default: "the host didn't say" has to be
+   * representable, otherwise a fabricated default silently competes with the
+   * host's own toast chrome (which also serves non-notification `toast.*`
+   * calls). Declared wins; undeclared defers to the surface's own anchor.
+   */
+  defaultPosition?: NotificationPositionValue;
+  /** Default duration in ms for the transient presentations. */
   defaultDuration?: number;
-  /** Maximum number of visible notifications */
+  /** Maximum number of notifications a stacking surface renders at once. */
   maxVisible?: number;
-  /** Whether to stack notifications */
+  /** Which way a stack grows: `down` puts the newest below (spec default). */
+  stackDirection?: 'up' | 'down';
+  /** Pause a transient notification's auto-dismiss timer while hovered. */
+  pauseOnHover?: boolean;
+  /** @deprecated renderer dialect — use `defaultPosition` */
+  position?: NotificationPositionValue;
+  /**
+   * @deprecated renderer dialect with no spec counterpart. Read as "show only
+   * the newest" (`maxVisible: 1`) when false, so it is honored rather than
+   * fossilized; declare `maxVisible` instead.
+   */
   stacking?: boolean;
+}
+
+/** Config with the legacy spellings folded in and the spec defaults applied. */
+export interface ResolvedNotificationConfig {
+  defaultPosition?: NotificationPositionValue;
+  defaultDuration: number;
+  maxVisible: number;
+  stackDirection: 'up' | 'down';
+  pauseOnHover: boolean;
+}
+
+/**
+ * Fold the deprecated spellings into the spec ones and apply the spec defaults
+ * (`NotificationConfigSchema`: 5000ms / 5 visible / stack down / pause on
+ * hover). `defaultPosition` gets no fabricated default — see the field docs.
+ */
+export function resolveNotificationConfig(
+  config: NotificationSystemConfig = {},
+): ResolvedNotificationConfig {
+  return {
+    defaultPosition: config.defaultPosition ?? config.position,
+    defaultDuration: config.defaultDuration ?? 5000,
+    // `stacking: false` means "don't stack" — one visible item.
+    maxVisible: config.stacking === false ? 1 : config.maxVisible ?? 5,
+    stackDirection: config.stackDirection ?? 'down',
+    pauseOnHover: config.pauseOnHover ?? true,
+  };
 }
 
 export interface NotificationProviderProps {
@@ -214,8 +291,12 @@ export interface NotificationProviderProps {
    * notification, which is why the other four spec types all surfaced as
    * toasts (#3014); they now render through their own surface components,
    * which subscribe via {@link useNotificationsByPresentation}.
+   *
+   * The resolved config comes with it so the delegate can honor the parts of
+   * the contract only it can apply — `defaultPosition` above all, since the
+   * toast overlay is the host's.
    */
-  onToast?: (notification: NotificationItem) => void;
+  onToast?: (notification: NotificationItem, config: ResolvedNotificationConfig) => void;
 }
 
 interface NotificationContextValue {
@@ -241,8 +322,16 @@ interface NotificationContextValue {
   dismiss: (id: string) => void;
   /** Clear all notifications */
   clearAll: () => void;
-  /** System configuration */
-  config: NotificationSystemConfig;
+  /** System configuration, spec-normalized (see {@link resolveNotificationConfig}). */
+  config: ResolvedNotificationConfig;
+  /**
+   * Hold a transient notification's auto-dismiss timer (spec `pauseOnHover`).
+   * A surface calls this on pointer-enter; no-op when the notification is
+   * persistent or the config opted out.
+   */
+  pauseAutoDismiss: (id: string) => void;
+  /** Resume a held timer with the time it had left. */
+  resumeAutoDismiss: (id: string) => void;
   /**
    * Announce that a surface is mounted and will render `surface` items.
    * Returns the unregister callback. Surfaces call this from an effect; the
@@ -303,14 +392,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   config: userConfig = {},
   onToast,
 }) => {
-  const config = useMemo<NotificationSystemConfig>(
-    () => ({
-      position: 'top-right',
-      defaultDuration: 5000,
-      maxVisible: 5,
-      stacking: true,
-      ...userConfig,
-    }),
+  const config = useMemo<ResolvedNotificationConfig>(
+    () => resolveNotificationConfig(userConfig),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [JSON.stringify(userConfig)],
   );
@@ -320,6 +403,39 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   // Surfaces currently mounted, by presentation surface. A ref (not state) so
   // `notify` can read the live set without re-creating itself on every mount.
   const mountedSurfaces = useRef<Map<NotificationSurface, number>>(new Map());
+
+  // Live auto-dismiss timers, so `pauseOnHover` can hold one and resume it with
+  // the time it had left. A plain `setTimeout` could only ever be cancelled,
+  // which is why the spec's `pauseOnHover` had nothing to attach to.
+  const timers = useRef<Map<string, { handle: ReturnType<typeof setTimeout>; endsAt: number; left: number }>>(new Map());
+
+  const scheduleAutoDismiss = useCallback((id: string, ms: number) => {
+    const handle = setTimeout(() => {
+      timers.current.delete(id);
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+    }, ms);
+    timers.current.set(id, { handle, endsAt: Date.now() + ms, left: ms });
+  }, []);
+
+  const pauseAutoDismiss = useCallback((id: string) => {
+    const timer = timers.current.get(id);
+    if (!timer) return;
+    clearTimeout(timer.handle);
+    timers.current.set(id, { ...timer, left: Math.max(0, timer.endsAt - Date.now()) });
+  }, []);
+
+  const resumeAutoDismiss = useCallback((id: string) => {
+    const timer = timers.current.get(id);
+    if (!timer) return;
+    clearTimeout(timer.handle);
+    scheduleAutoDismiss(id, timer.left);
+  }, [scheduleAutoDismiss]);
+
+  // Never leave a timer running past unmount.
+  useEffect(() => () => {
+    for (const { handle } of timers.current.values()) clearTimeout(handle);
+    timers.current.clear();
+  }, []);
 
   const registerSurface = useCallback((surface: NotificationSurface) => {
     const counts = mountedSurfaces.current;
@@ -353,7 +469,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       // it used to receive EVERY type, so a banner/alert/inline notification
       // presented as a toast (#3014). The other four are rendered by the
       // surface components subscribing through the context below.
-      if (surface === 'delegate') onToast?.(notification);
+      if (surface === 'delegate') onToast?.(notification, config);
 
       // A surface-rendered presentation with no surface mounted is invisible —
       // the "silently absent" shape this whole issue is about. Say so loudly in
@@ -370,16 +486,12 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       // Auto-dismiss transient presentations. A banner/alert/inline stays until
       // it is dismissed unless the raiser asked for a duration explicitly —
       // sharing the toast timer made "persistent" presentations evaporate.
-      const duration = input.duration ?? (transient ? config.defaultDuration ?? 5000 : 0);
-      if (duration > 0) {
-        setTimeout(() => {
-          setNotifications((prev) => prev.filter((n) => n.id !== id));
-        }, duration);
-      }
+      const duration = input.duration ?? (transient ? config.defaultDuration : 0);
+      if (duration > 0) scheduleAutoDismiss(id, duration);
 
       return id;
     },
-    [config.defaultDuration, onToast],
+    [config, onToast, scheduleAutoDismiss],
   );
 
   const info = useCallback(
@@ -417,6 +529,10 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   }, []);
 
   const dismiss = useCallback((id: string) => {
+    // Drop any pending auto-dismiss with it — a held (hovered) timer would
+    // otherwise sit in the map until unmount.
+    const timer = timers.current.get(id);
+    if (timer) { clearTimeout(timer.handle); timers.current.delete(id); }
     setNotifications((prev) => prev.filter((n) => n.id !== id));
   }, []);
 
@@ -443,6 +559,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       dismiss,
       clearAll,
       config,
+      pauseAutoDismiss,
+      resumeAutoDismiss,
       registerSurface,
     }),
     [
@@ -458,6 +576,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       dismiss,
       clearAll,
       config,
+      pauseAutoDismiss,
+      resumeAutoDismiss,
       registerSurface,
     ],
   );
@@ -492,6 +612,45 @@ export function useNotifications(): NotificationContextValue {
  */
 export function useHasNotificationProvider(): boolean {
   return useContext(NotificationCtx) !== null;
+}
+
+/**
+ * Apply the config's stack rules to a surface's items: keep the newest
+ * `maxVisible`, then order them so the stack GROWS in `stackDirection`
+ * (`down`, the spec default, puts the newest below the older ones).
+ *
+ * Shared by the stacking surfaces (banner, inline) so `maxVisible` means one
+ * thing. It used to mean nothing at all — the config carried it and no surface
+ * read it, while `NotificationBanners` capped at a hard-coded 3 of its own.
+ *
+ * @param items the surface's notifications, newest-first
+ */
+export function visibleNotificationStack(
+  items: NotificationItem[],
+  config: Pick<ResolvedNotificationConfig, 'maxVisible' | 'stackDirection'>,
+): NotificationItem[] {
+  // Cap BEFORE ordering — an over-long stack drops its oldest, never its newest.
+  const capped = config.maxVisible > 0 ? items.slice(0, config.maxVisible) : items;
+  return config.stackDirection === 'up' ? capped : [...capped].reverse();
+}
+
+/**
+ * The screen position a FLOATING notification (toast, snackbar) should take:
+ * its own `position`, else the configured `defaultPosition`, else `undefined`.
+ *
+ * `undefined` is a meaningful answer, not a missing one — it means "nothing was
+ * declared", and the surface should keep its own anchor (a snackbar's bottom
+ * edge) or defer to the host's toast chrome, rather than being moved by a
+ * default nobody asked for. Always returns the spec (underscore) spelling.
+ */
+export function resolveNotificationPosition(
+  notification: Pick<NotificationItem, 'position'>,
+  config?: Pick<ResolvedNotificationConfig, 'defaultPosition'>,
+): NotificationPositionValue | undefined {
+  const declared = notification.position ?? config?.defaultPosition;
+  if (!declared) return undefined;
+  const underscored = declared.replace(/-/g, '_') as NotificationPositionValue;
+  return SUPPORTED_NOTIFICATION_POSITIONS.has(underscored) ? underscored : undefined;
 }
 
 /**

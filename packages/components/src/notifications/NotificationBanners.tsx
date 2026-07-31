@@ -18,19 +18,18 @@
 
 import * as React from 'react';
 import { X } from 'lucide-react';
-import { useNotifications, useNotificationsByPresentation } from '@object-ui/react';
+import {
+  useNotifications,
+  useNotificationsByPresentation,
+  visibleNotificationStack,
+} from '@object-ui/react';
 import { cn } from '../lib/utils';
 import { Button } from '../ui/button';
-import { notificationIcon, notificationSeverityStyle } from './severity';
+import { notificationActionVariant, notificationIcon, notificationSeverityStyle } from './severity';
 
 export interface NotificationBannersProps {
   /** Extra classes for the banner stack container. */
   className?: string;
-  /**
-   * Cap on simultaneously rendered banners (newest first). Banners are
-   * persistent, so an uncapped stack can swallow the viewport. Default 3.
-   */
-  max?: number;
 }
 
 /**
@@ -44,15 +43,19 @@ export interface NotificationBannersProps {
  * </main>
  * ```
  */
-export function NotificationBanners({ className, max = 3 }: NotificationBannersProps) {
+export function NotificationBanners({ className }: NotificationBannersProps) {
   const banners = useNotificationsByPresentation('banner');
-  const { dismiss } = useNotifications();
+  const { dismiss, config } = useNotifications();
 
   if (banners.length === 0) return null;
 
+  // `maxVisible` / `stackDirection` come from the provider config — the spec's
+  // own knobs — instead of a cap this component invents for itself.
+  const visible = visibleNotificationStack(banners, config);
+
   return (
     <div className={cn('flex w-full flex-col', className)} data-notification-surface="banner">
-      {banners.slice(0, max).map((notification) => {
+      {visible.map((notification) => {
         const { tone } = notificationSeverityStyle(notification.severity);
         const Icon = notificationIcon(notification);
         return (
@@ -76,7 +79,7 @@ export function NotificationBanners({ className, max = 3 }: NotificationBannersP
               <Button
                 key={action.label}
                 size="sm"
-                variant={action.variant ?? 'outline'}
+                variant={notificationActionVariant(action.variant)}
                 className="h-7 shrink-0"
                 onClick={action.onClick}
               >

@@ -27,6 +27,7 @@ import { renderHook } from '@testing-library/react';
 import {
   TransitionPresetSchema,
   EasingFunctionSchema,
+  NotificationActionSchema,
   NotificationTypeSchema,
   NotificationPositionSchema,
 } from '@objectstack/spec/ui';
@@ -37,6 +38,7 @@ import {
 } from '../useAnimation';
 import { resolveOverlayWidth } from '../useNavigationOverlay';
 import {
+  SUPPORTED_NOTIFICATION_ACTION_VARIANTS,
   SUPPORTED_NOTIFICATION_DISPLAY_TYPES,
   SUPPORTED_NOTIFICATION_POSITIONS,
 } from '../../context/NotificationContext';
@@ -73,6 +75,24 @@ describe('react hooks cover the spec animation/notification vocabularies', () =>
 
   it('notification positions match NotificationPositionSchema both ways', () => {
     assertParity(options(NotificationPositionSchema), SUPPORTED_NOTIFICATION_POSITIONS, 'notification position');
+  });
+
+  // `NotificationActionButton.variant` was the shadcn Button vocabulary
+  // (`default | destructive | outline`) under a spec-shaped name — a fork of
+  // `NotificationActionSchema.variant`, and the one notification vocabulary
+  // this guard did not cover.
+  it('notification action variants match NotificationActionSchema both ways', () => {
+    // `variant` carries `.default('primary')`, so the enum sits one wrapper
+    // down: reading `.options` off the field itself returns nothing, which
+    // would make this guard pass by finding no spec values at all (the empty
+    // assertion in assertParity is what catches that).
+    const field = (NotificationActionSchema as { shape?: Record<string, unknown> })
+      .shape?.variant as { def?: { innerType?: unknown } } | undefined;
+    assertParity(
+      options(field?.def?.innerType),
+      SUPPORTED_NOTIFICATION_ACTION_VARIANTS,
+      'notification action variant',
+    );
   });
 });
 

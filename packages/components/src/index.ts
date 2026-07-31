@@ -58,6 +58,8 @@ export * from './custom';
 
 // Export the notification surfaces — one per spec `displayType` (#3014).
 export * from './notifications';
+// Spec position → sonner position ids, shared with the console's toast bridge.
+export { TOASTER_POSITIONS } from './renderers/feedback/toaster';
 
 // Export hooks
 export { useConfigDraft } from './hooks/use-config-draft';

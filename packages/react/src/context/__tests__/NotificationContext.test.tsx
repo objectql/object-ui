@@ -7,10 +7,15 @@ import React from 'react';
 import {
   NOTIFICATION_PRESENTATIONS,
   NotificationProvider,
+  resolveNotificationConfig,
+  resolveNotificationPosition,
   resolveNotificationPresentation,
   useNotifications,
   useNotificationsByPresentation,
   useHasNotificationProvider,
+  visibleNotificationStack,
+  type NotificationItem,
+  type NotificationPositionValue,
   type NotificationPresentation,
 } from '../NotificationContext';
 
@@ -153,8 +158,11 @@ describe('NotificationProvider', () => {
     });
 
     expect(onToast).toHaveBeenCalledTimes(1);
+    // The resolved config rides along so the delegate can honor the parts of
+    // the contract only it can apply (`defaultPosition`).
     expect(onToast).toHaveBeenCalledWith(
-      expect.objectContaining({ title: 'Toast test', severity: 'info' })
+      expect.objectContaining({ title: 'Toast test', severity: 'info' }),
+      expect.objectContaining({ defaultDuration: 5000, maxVisible: 5 }),
     );
   });
 });
@@ -201,7 +209,10 @@ describe('displayType routes to a distinct presentation', () => {
     });
 
     expect(onToast).toHaveBeenCalledTimes(1);
-    expect(onToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'A toast' }));
+    expect(onToast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'A toast' }),
+      expect.anything(),
+    );
   });
 
   it('exposes each notification to exactly one presentation surface', () => {
@@ -349,6 +360,125 @@ describe('presentation table', () => {
     expect(resolveNotificationPresentation(undefined)).toBe('toast');
     expect(resolveNotificationPresentation('modal')).toBe('alert');
     expect(resolveNotificationPresentation('nonsense' as NotificationPresentation)).toBe('toast');
+  });
+});
+
+/**
+ * The config used to be inert: `maxVisible`, `stacking` and `position` were
+ * carried and never read, and its field names forked from the spec
+ * `NotificationConfigSchema`. Per-notification `position` did not exist at all,
+ * so the #3008 parity guard asserted a position VOCABULARY that nothing used.
+ */
+describe('notification config', () => {
+  it('applies the spec defaults', () => {
+    expect(resolveNotificationConfig()).toEqual({
+      defaultPosition: undefined,
+      defaultDuration: 5000,
+      maxVisible: 5,
+      stackDirection: 'down',
+      pauseOnHover: true,
+    });
+  });
+
+  it('leaves defaultPosition unset so "the host did not say" is representable', () => {
+    // A fabricated default here would silently compete with the host's own
+    // toast chrome, which also places non-notification `toast.*` calls.
+    expect(resolveNotificationConfig({}).defaultPosition).toBeUndefined();
+  });
+
+  it('folds the deprecated position spelling in', () => {
+    expect(resolveNotificationConfig({ position: 'bottom_left' }).defaultPosition)
+      .toBe('bottom_left');
+    expect(resolveNotificationConfig({ defaultPosition: 'top_left', position: 'bottom_left' }).defaultPosition)
+      .toBe('top_left');
+  });
+
+  it('reads the deprecated `stacking: false` as "show only the newest"', () => {
+    expect(resolveNotificationConfig({ stacking: false }).maxVisible).toBe(1);
+    expect(resolveNotificationConfig({ stacking: true, maxVisible: 3 }).maxVisible).toBe(3);
+  });
+});
+
+describe('resolveNotificationPosition', () => {
+  const config = resolveNotificationConfig({ defaultPosition: 'top_right' });
+
+  it('prefers the notification over the config default', () => {
+    expect(resolveNotificationPosition({ position: 'bottom_left' }, config)).toBe('bottom_left');
+  });
+
+  it('falls back to the configured default', () => {
+    expect(resolveNotificationPosition({}, config)).toBe('top_right');
+  });
+
+  it('returns undefined when nothing is declared — the surface keeps its anchor', () => {
+    expect(resolveNotificationPosition({}, resolveNotificationConfig())).toBeUndefined();
+    expect(resolveNotificationPosition({})).toBeUndefined();
+  });
+
+  it('normalizes the legacy hyphen spelling to the spec one', () => {
+    expect(resolveNotificationPosition({ position: 'bottom-center' })).toBe('bottom_center');
+  });
+
+  it('drops a value outside the spec vocabulary', () => {
+    expect(resolveNotificationPosition({ position: 'middle' as NotificationPositionValue }))
+      .toBeUndefined();
+  });
+});
+
+describe('visibleNotificationStack', () => {
+  const items = ['newest', 'middle', 'oldest'].map(
+    (title, i) => ({ id: `n${i}`, title, severity: 'info', createdAt: new Date(0) }) as NotificationItem,
+  );
+
+  it('keeps the NEWEST maxVisible, never the oldest', () => {
+    const kept = visibleNotificationStack(items, { maxVisible: 2, stackDirection: 'up' });
+    expect(kept.map((n) => n.title)).toEqual(['newest', 'middle']);
+  });
+
+  it('grows downward by default — newest below', () => {
+    const stack = visibleNotificationStack(items, { maxVisible: 5, stackDirection: 'down' });
+    expect(stack.map((n) => n.title)).toEqual(['oldest', 'middle', 'newest']);
+  });
+
+  it('grows upward when asked — newest on top', () => {
+    const stack = visibleNotificationStack(items, { maxVisible: 5, stackDirection: 'up' });
+    expect(stack.map((n) => n.title)).toEqual(['newest', 'middle', 'oldest']);
+  });
+});
+
+describe('pauseOnHover', () => {
+  it('holds a transient timer and resumes it with the time left', () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useNotifications(), { wrapper });
+      let id = '';
+      act(() => { id = result.current.notify({ title: 'Transient', severity: 'info' }); });
+
+      act(() => { vi.advanceTimersByTime(4000); });
+      act(() => { result.current.pauseAutoDismiss(id); });
+      // Held: the remaining 1s must not elapse while hovered.
+      act(() => { vi.advanceTimersByTime(60_000); });
+      expect(result.current.notifications).toHaveLength(1);
+
+      act(() => { result.current.resumeAutoDismiss(id); });
+      act(() => { vi.advanceTimersByTime(999); });
+      expect(result.current.notifications).toHaveLength(1);
+      act(() => { vi.advanceTimersByTime(2); });
+      expect(result.current.notifications).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('is a no-op for a persistent notification', () => {
+    const { result } = renderHook(() => useNotifications(), { wrapper });
+    let id = '';
+    act(() => {
+      id = result.current.notify({ title: 'Banner', severity: 'info', displayType: 'banner' });
+    });
+    expect(() => { result.current.pauseAutoDismiss(id); result.current.resumeAutoDismiss(id); })
+      .not.toThrow();
+    expect(result.current.notifications).toHaveLength(1);
   });
 });
 

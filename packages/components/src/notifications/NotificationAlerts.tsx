@@ -32,7 +32,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../ui/alert-dialog';
-import { notificationIcon, notificationSeverityStyle } from './severity';
+import { notificationActionVariant, notificationIcon, notificationSeverityStyle } from './severity';
+
+/**
+ * Button-variant classes for the dialog footer. `AlertDialogAction` bakes in
+ * `buttonVariants()` (the `default` look), so a variant is expressed as an
+ * override rather than a prop — `primary` needs none.
+ */
+const ALERT_ACTION_CLASSES: Record<'default' | 'secondary' | 'link', string | undefined> = {
+  default: undefined,
+  secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+  link: 'bg-transparent text-primary underline-offset-4 hover:bg-transparent hover:underline',
+};
 
 export interface NotificationAlertsProps {
   /** Extra classes for the dialog content. */
@@ -90,14 +101,18 @@ export function NotificationAlerts({ className, acknowledgeLabel = 'OK' }: Notif
           {notification.actions?.map((action) => (
             <AlertDialogAction
               key={action.label}
-              className={cn(action.variant === 'destructive' && 'bg-destructive text-destructive-foreground hover:bg-destructive/90')}
+              // AlertDialogAction hard-codes the default Button styling, so the
+              // spec variant is applied as an override on top of it.
+              className={cn(ALERT_ACTION_CLASSES[notificationActionVariant(action.variant)])}
               onClick={() => { action.onClick(); acknowledge(); }}
             >
               {action.label}
             </AlertDialogAction>
           ))}
           <AlertDialogAction
-            className={cn(notification.actions?.length ? 'bg-secondary text-secondary-foreground hover:bg-secondary/80' : undefined)}
+            // Declared actions are the primary ones; the bare acknowledge steps
+            // back to secondary when it is not the only button.
+            className={cn(notification.actions?.length ? ALERT_ACTION_CLASSES.secondary : undefined)}
             onClick={acknowledge}
           >
             {acknowledgeLabel}

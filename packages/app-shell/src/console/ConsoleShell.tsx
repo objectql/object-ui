@@ -132,8 +132,13 @@ function GlobalActionRuntimeProvider({ dataSource, children }: { dataSource: unk
 export function ConsoleShell({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider defaultTheme="system" storageKey="object-ui-theme">
-      {/* `defaultDuration` matches ConsoleToaster's 4s toast default, so a
-          snackbar and a toast raised together disappear together. */}
+      {/* `defaultDuration` matches ConsoleToaster's 4s toast default and
+          `maxVisible` its `visibleToasts={4}`, so a snackbar and a toast raised
+          together disappear together and the banner stack caps like the toast
+          stack. No `defaultPosition`: nothing declared means the sonner
+          container keeps placing toasts (it also serves the console's direct
+          `toast.*` calls) and the snackbar keeps its own bottom anchor — a
+          notification that DECLARES a position still overrides both. */}
       <NotificationProvider config={{ defaultDuration: 4000, maxVisible: 4 }} onToast={presentNotificationToast}>
         <NavigationProvider>
           <UserStateAdaptersProvider>

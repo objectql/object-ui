@@ -14,8 +14,13 @@
  */
 
 import { toast } from 'sonner';
-import type { NotificationItem, NotificationSeverityLevel } from '@object-ui/react';
-import { isLucideIconName, LazyIcon } from '@object-ui/components';
+import {
+  resolveNotificationPosition,
+  type NotificationItem,
+  type NotificationSeverityLevel,
+  type ResolvedNotificationConfig,
+} from '@object-ui/react';
+import { isLucideIconName, LazyIcon, TOASTER_POSITIONS } from '@object-ui/components';
 
 /**
  * Typed as `Record<NotificationSeverityLevel, …>` so a new severity in the spec
@@ -35,8 +40,19 @@ const TOAST_BY_SEVERITY: Record<NotificationSeverityLevel, (message: string, dat
  * Duration follows the notification contract: `0` means persistent (sonner's
  * `Infinity`), and an absent duration defers to the `ConsoleToaster` default
  * rather than being invented here.
+ *
+ * Position follows the same rule, and it is the one that had to be settled: a
+ * DECLARED position (the notification's own, else `config.defaultPosition`) is
+ * passed per-toast so the contract always wins, and an UNDECLARED one omits the
+ * key entirely so the sonner container keeps placing it. That container is host
+ * chrome — it also serves the console's many direct `toast.*` calls, which are
+ * not spec notifications — so it stays the fallback authority, never a
+ * competing one.
  */
-export function presentNotificationToast(notification: NotificationItem): void {
+export function presentNotificationToast(
+  notification: NotificationItem,
+  config?: Pick<ResolvedNotificationConfig, 'defaultPosition'>,
+): void {
   const show = TOAST_BY_SEVERITY[notification.severity] ?? TOAST_BY_SEVERITY.info;
   // A toast carries at most one action button — sonner has one `action` slot,
   // and a notification needing more than one belongs on a banner or an alert.
@@ -48,12 +64,15 @@ export function presentNotificationToast(notification: NotificationItem): void {
   const icon = isLucideIconName(notification.icon)
     ? <LazyIcon name={notification.icon} className="h-4 w-4" />
     : undefined;
+  const declared = resolveNotificationPosition(notification, config);
+  const position = declared ? TOASTER_POSITIONS[declared] : undefined;
 
   show(notification.title, {
     description: notification.message,
     duration: notification.duration === 0 ? Infinity : notification.duration,
     dismissible: notification.dismissible,
     ...(icon ? { icon } : {}),
+    ...(position ? { position } : {}),
     ...(action ? { action: { label: action.label, onClick: action.onClick } } : {}),
   });
 }

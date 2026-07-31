@@ -18,10 +18,14 @@
 
 import * as React from 'react';
 import { X } from 'lucide-react';
-import { useNotifications, useNotificationsByPresentation } from '@object-ui/react';
+import {
+  useNotifications,
+  useNotificationsByPresentation,
+  visibleNotificationStack,
+} from '@object-ui/react';
 import { cn } from '../lib/utils';
 import { Button } from '../ui/button';
-import { notificationIcon, notificationSeverityStyle } from './severity';
+import { notificationActionVariant, notificationIcon, notificationSeverityStyle } from './severity';
 
 export interface NotificationInlineProps {
   /**
@@ -46,9 +50,12 @@ export interface NotificationInlineProps {
  */
 export function NotificationInline({ scope, className }: NotificationInlineProps) {
   const items = useNotificationsByPresentation('inline', scope);
-  const { dismiss } = useNotifications();
+  const { dismiss, config } = useNotifications();
 
   if (items.length === 0) return null;
+
+  // Same `maxVisible` / `stackDirection` contract as the banner stack.
+  const visible = visibleNotificationStack(items, config);
 
   return (
     <div
@@ -56,7 +63,7 @@ export function NotificationInline({ scope, className }: NotificationInlineProps
       data-notification-surface="inline"
       data-scope={scope}
     >
-      {items.map((notification) => {
+      {visible.map((notification) => {
         const { tone } = notificationSeverityStyle(notification.severity);
         const Icon = notificationIcon(notification);
         return (
@@ -78,7 +85,7 @@ export function NotificationInline({ scope, className }: NotificationInlineProps
                     <Button
                       key={action.label}
                       size="sm"
-                      variant={action.variant ?? 'outline'}
+                      variant={notificationActionVariant(action.variant)}
                       className="h-7"
                       onClick={action.onClick}
                     >

@@ -96,6 +96,26 @@ notify({ title: 'Viewing a draft', severity: 'warning', displayType: 'banner' })
 notify({ title: 'Session expired', severity: 'error', displayType: 'alert' });
 ```
 
+### `actions`
+
+An action's `variant` is the spec vocabulary — `primary` (default) / `secondary`
+/ `link` — describing the action's **role**. Each surface maps it onto its own
+button styling; it is not the shadcn Button vocabulary, which is a look.
+
+```tsx
+notify({
+  title: 'Storage almost full', severity: 'warning', displayType: 'banner',
+  actions: [
+    { label: 'Upgrade', onClick: upgrade },                    // primary by default
+    { label: 'Learn more', onClick: openDocs, variant: 'link' },
+  ],
+});
+```
+
+A `snackbar` and a `toast` render only the **first** action — both have one
+action slot by nature. A `banner` and an `inline` render all of them; an `alert`
+renders them beside its acknowledge button.
+
 ### `inline` and `scope`
 
 An inline notification is rendered by the surface that raised it. `scope` is the
@@ -129,6 +149,41 @@ A name Lucide doesn't have costs the author their override and nothing more —
 deliberately *not* the generic `Database` glyph `getLazyIcon` returns for
 data-shaped schema slots, which on an error notification would replace a
 meaningful icon with a meaningless one.
+
+### `position`
+
+Honored by the **floating** presentations — `toast` and `snackbar`. `banner`,
+`inline` and `alert` are anchored by what they are (content top / in place /
+centred modal) and ignore it.
+
+Resolution is `notification.position ?? config.defaultPosition ?? nothing`, and
+"nothing" is a real answer rather than a missing one:
+
+- **declared** → the surface pins itself there, always;
+- **undeclared** → the surface keeps its own anchor (a snackbar's bottom edge)
+  or defers to the host's toast chrome.
+
+That asymmetry is deliberate. The host's toast container is shared with toasts
+that are *not* spec notifications (in the console, the action runtime's own
+`toast.*` calls), so it stays the fallback authority for placement — but never a
+competing one. A declared position that a component prop could silently override
+would be the same "validates, then does nothing" shape this whole area is about.
+
+## Configuring the system
+
+`NotificationProvider`'s `config` is the spec `NotificationConfigSchema`:
+
+| Key | Default | Effect |
+|---|---|---|
+| `defaultPosition` | — | Fallback position for the floating presentations. Deliberately unset: see above. |
+| `defaultDuration` | `5000` | Auto-dismiss for the transient presentations. |
+| `maxVisible` | `5` | Cap on a stacking surface (banner, inline); the newest survive. |
+| `stackDirection` | `down` | Which way a stack grows — `down` puts the newest below. |
+| `pauseOnHover` | `true` | Hold a transient notification's timer while it is hovered. |
+
+The legacy spellings `position` and `stacking` are still accepted:
+`defaultPosition` wins over `position`, and `stacking: false` reads as
+`maxVisible: 1` ("show only the newest") rather than being ignored.
 
 ### `dismissible`
 

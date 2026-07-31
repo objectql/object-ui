@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { isValidElement } from 'react';
-import type { NotificationItem } from '@object-ui/react';
+import { resolveNotificationConfig, type NotificationItem } from '@object-ui/react';
 
 vi.mock('sonner', () => ({
   toast: Object.assign(vi.fn(), {
@@ -132,5 +132,40 @@ describe('presentNotificationToast', () => {
     presentNotificationToast(item());
     const options = vi.mocked(toast.success).mock.calls[0][1] as Record<string, unknown>;
     expect(options).not.toHaveProperty('icon');
+  });
+
+  // Position is the half of the contract that had to be settled: declared wins,
+  // undeclared defers to the sonner container (host chrome, which also places
+  // the console's many direct `toast.*` calls).
+  describe('position', () => {
+    it('omits the key when neither the notification nor the config declares one', () => {
+      presentNotificationToast(item(), resolveNotificationConfig());
+      const options = vi.mocked(toast.success).mock.calls[0][1] as Record<string, unknown>;
+      expect(options).not.toHaveProperty('position');
+    });
+
+    it('passes the configured default, translated to sonner ids', () => {
+      presentNotificationToast(item(), resolveNotificationConfig({ defaultPosition: 'top_right' }));
+      expect(toast.success).toHaveBeenCalledWith('Saved', expect.objectContaining({
+        position: 'top-right',
+      }));
+    });
+
+    it("lets the notification's own position win", () => {
+      presentNotificationToast(
+        item({ position: 'bottom_left' }),
+        resolveNotificationConfig({ defaultPosition: 'top_right' }),
+      );
+      expect(toast.success).toHaveBeenCalledWith('Saved', expect.objectContaining({
+        position: 'bottom-left',
+      }));
+    });
+
+    it('works with no config at all', () => {
+      presentNotificationToast(item({ position: 'top_center' }));
+      expect(toast.success).toHaveBeenCalledWith('Saved', expect.objectContaining({
+        position: 'top-center',
+      }));
+    });
   });
 });

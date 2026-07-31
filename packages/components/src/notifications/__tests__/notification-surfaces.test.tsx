@@ -27,12 +27,13 @@ import {
   useNotifications,
   type NotificationItem,
   type NotificationPresentation,
+  type NotificationSystemConfig,
 } from '@object-ui/react';
 import { NotificationBanners } from '../NotificationBanners';
 import { NotificationSnackbar } from '../NotificationSnackbar';
 import { NotificationAlerts } from '../NotificationAlerts';
 import { NotificationInline } from '../NotificationInline';
-import { notificationIcon, notificationSeverityStyle } from '../severity';
+import { notificationActionVariant, notificationIcon, notificationSeverityStyle } from '../severity';
 
 function specDisplayTypes(): string[] {
   const raw = (NotificationTypeSchema as { options?: readonly string[] }).options;
@@ -226,6 +227,103 @@ describe('notificationIcon', () => {
     // is always the better fallback, so a typo costs the override and no more.
     expect(notificationIcon({ severity: 'warning', icon: 'not-a-real-icon' }))
       .toBe(notificationSeverityStyle('warning').Icon);
+  });
+});
+
+/**
+ * The config used to be inert — `maxVisible` was carried and unread while
+ * `NotificationBanners` capped at a hard-coded 3 of its own, and no
+ * notification could declare a `position` at all.
+ */
+describe('config-driven surface behaviour', () => {
+  function renderWith(config: NotificationSystemConfig) {
+    return render(
+      <NotificationProvider config={config} onToast={vi.fn()}>
+        <Raiser />
+        <NotificationBanners />
+        <NotificationSnackbar />
+      </NotificationProvider>,
+    );
+  }
+
+  it('caps the banner stack at maxVisible, keeping the newest', () => {
+    renderWith({ maxVisible: 2 });
+    act(() => {
+      raise({ title: 'B oldest', severity: 'info', displayType: 'banner' });
+      raise({ title: 'B middle', severity: 'info', displayType: 'banner' });
+      raise({ title: 'B newest', severity: 'info', displayType: 'banner' });
+    });
+
+    expect(screen.queryByText('B oldest')).not.toBeInTheDocument();
+    expect(screen.getByText('B middle')).toBeInTheDocument();
+    expect(screen.getByText('B newest')).toBeInTheDocument();
+  });
+
+  /** Banner titles in DOM order. */
+  function bannerOrder(): string[] {
+    return [...document.querySelectorAll('[data-notification-surface="banner"] [role="status"]')]
+      .map((el) => el.querySelector('span')?.textContent ?? '');
+  }
+
+  it('grows the banner stack downward by default — newest below', () => {
+    renderWith({});
+    act(() => {
+      raise({ title: 'B first', severity: 'info', displayType: 'banner' });
+      raise({ title: 'B second', severity: 'info', displayType: 'banner' });
+    });
+
+    expect(bannerOrder()).toEqual(['B first', 'B second']);
+  });
+
+  it('grows the banner stack upward when stackDirection says so', () => {
+    renderWith({ stackDirection: 'up' });
+    act(() => {
+      raise({ title: 'B first', severity: 'info', displayType: 'banner' });
+      raise({ title: 'B second', severity: 'info', displayType: 'banner' });
+    });
+
+    expect(bannerOrder()).toEqual(['B second', 'B first']);
+  });
+
+  it('keeps the snackbar on its own anchor when nothing declares a position', () => {
+    renderWith({});
+    act(() => { raise({ title: 'Anchored', severity: 'info', displayType: 'snackbar' }); });
+
+    const bar = screen.getByText('Anchored').closest('[data-notification-surface="snackbar"]')!;
+    expect(bar).not.toHaveAttribute('data-position');
+    expect(bar.className).toMatch(/bottom-4/);
+  });
+
+  it('moves the snackbar to the configured default position', () => {
+    renderWith({ defaultPosition: 'top_right' });
+    act(() => { raise({ title: 'Top right', severity: 'info', displayType: 'snackbar' }); });
+
+    const bar = screen.getByText('Top right').closest('[data-notification-surface="snackbar"]')!;
+    expect(bar).toHaveAttribute('data-position', 'top_right');
+    expect(bar.className).toMatch(/top-4/);
+    expect(bar.className).toMatch(/right-4/);
+  });
+
+  it("lets a notification's own position beat the configured default", () => {
+    renderWith({ defaultPosition: 'top_right' });
+    act(() => {
+      raise({ title: 'Bottom left', severity: 'info', displayType: 'snackbar', position: 'bottom_left' });
+    });
+
+    const bar = screen.getByText('Bottom left').closest('[data-notification-surface="snackbar"]')!;
+    expect(bar).toHaveAttribute('data-position', 'bottom_left');
+  });
+});
+
+describe('action variants', () => {
+  it('maps the spec vocabulary onto Button variants', () => {
+    expect(notificationActionVariant('primary')).toBe('default');
+    expect(notificationActionVariant('secondary')).toBe('secondary');
+    expect(notificationActionVariant('link')).toBe('link');
+  });
+
+  it('defaults to the spec default (primary)', () => {
+    expect(notificationActionVariant()).toBe('default');
   });
 });
 
