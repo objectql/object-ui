@@ -2757,6 +2757,7 @@ const de = {
     slaRemaining: 'SLA noch {{dur}}',
     slaOverdue: 'SLA überfällig {{dur}}',
     actReassign: 'Übergeben',
+    reassignFromTo: 'von {{from}} an {{to}}',
     actRemind: 'Erinnert',
     actRequestInfo: 'Rückfrage gestellt',
     actComment: 'Kommentiert',

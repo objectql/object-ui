@@ -2757,6 +2757,7 @@ const ja = {
     slaRemaining: 'SLA 残り {{dur}}',
     slaOverdue: 'SLA 超過 {{dur}}',
     actReassign: '引き継ぎ',
+    reassignFromTo: '{{from}} から {{to}} へ',
     actRemind: 'リマインド',
     actRequestInfo: '追加情報を要求',
     actComment: 'コメント',

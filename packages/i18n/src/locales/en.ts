@@ -2861,6 +2861,7 @@ const en = {
     slaRemaining: 'SLA {{dur}} left',
     slaOverdue: 'SLA overdue {{dur}}',
     actReassign: 'Reassigned',
+    reassignFromTo: 'from {{from}} to {{to}}',
     actRemind: 'Reminder sent',
     actRequestInfo: 'Requested more info',
     actComment: 'Commented',

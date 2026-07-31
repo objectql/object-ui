@@ -2757,6 +2757,7 @@ const pt = {
     slaRemaining: 'SLA: faltam {{dur}}',
     slaOverdue: 'SLA vencido há {{dur}}',
     actReassign: 'Reatribuída',
+    reassignFromTo: 'de {{from}} para {{to}}',
     actRemind: 'Lembrete',
     actRequestInfo: 'Pediu mais informações',
     actComment: 'Comentou',

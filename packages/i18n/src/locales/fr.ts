@@ -2757,6 +2757,7 @@ const fr = {
     slaRemaining: 'SLA : {{dur}} restants',
     slaOverdue: 'SLA dépassé de {{dur}}',
     actReassign: 'Réattribuée',
+    reassignFromTo: 'de {{from}} à {{to}}',
     actRemind: 'Relance',
     actRequestInfo: 'Infos demandées',
     actComment: 'Commentaire',

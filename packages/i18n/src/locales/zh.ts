@@ -2845,6 +2845,7 @@ const zh = {
     slaRemaining: 'SLA 剩余 {{dur}}',
     slaOverdue: 'SLA 已超期 {{dur}}',
     actReassign: '转签',
+    reassignFromTo: '从 {{from}} 转给 {{to}}',
     actRemind: '催办',
     actRequestInfo: '要求补充材料',
     actComment: '评论',

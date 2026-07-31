@@ -2757,6 +2757,7 @@ const ar = {
     slaRemaining: 'SLA المتبقي {{dur}}',
     slaOverdue: 'SLA متأخر {{dur}}',
     actReassign: 'إعادة إسناد',
+    reassignFromTo: 'من {{from}} إلى {{to}}',
     actRemind: 'تذكير',
     actRequestInfo: 'طلب معلومات',
     actComment: 'تعليق',

@@ -2757,6 +2757,7 @@ const ko = {
     slaRemaining: 'SLA {{dur}} 남음',
     slaOverdue: 'SLA {{dur}} 초과',
     actReassign: '재할당',
+    reassignFromTo: '{{from}} 님에서 {{to}} 님으로',
     actRemind: '독촉',
     actRequestInfo: '보완 요청',
     actComment: '댓글',

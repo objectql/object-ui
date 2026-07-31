@@ -1904,6 +1904,25 @@ export function ApprovalsInboxPage() {
                               {formatRelative(a.created_at)}
                             </span>
                           </div>
+                          {/* Structured reassign hand-off (framework#4365): render
+                              "from A to B" from the resolved parties. Legacy rows
+                              predate the fields and only carry the old default
+                              comment — those keep the comment fallback below. */}
+                          {(() => {
+                            const ax = a as typeof a & {
+                              reassign_from?: string; reassign_to?: string;
+                              reassign_from_name?: string; reassign_to_name?: string;
+                            };
+                            if (a.action !== 'reassign' || (!ax.reassign_from && !ax.reassign_to)) return null;
+                            return (
+                              <div className="text-muted-foreground mt-0.5">
+                                {tr('reassignFromTo', 'from {{from}} to {{to}}', {
+                                  from: ax.reassign_from_name ?? formatIdentity(ax.reassign_from),
+                                  to: ax.reassign_to_name ?? formatIdentity(ax.reassign_to),
+                                })}
+                              </div>
+                            );
+                          })()}
                           {a.comment && (
                             <div className="text-muted-foreground italic mt-0.5">"{a.comment}"</div>
                           )}

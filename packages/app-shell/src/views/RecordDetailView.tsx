@@ -1225,12 +1225,18 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         const enriched = items.map((it, idx) => {
           const u = it?.user_id ? userMap.get(it.user_id) : undefined;
           // Attribution fallback chain: resolved user name → service/automation
-          // principal from the `actor` column (e.g. "svc:scheduler") → null
+          // principal from the `actor` column (e.g. "svc:flow:<name>") → null
           // (the timeline then shows its localized unknown-user text).
-          const actorLabel =
+          // A `svc:*` principal is a machine, not a person — render the
+          // localized "System" label rather than the raw principal string
+          // (framework#4366); the raw value stays available on the entry.
+          const rawActor =
             typeof it?.actor === 'string' && it.actor.trim() && it.actor !== it?.user_id
               ? it.actor.trim()
               : null;
+          const actorLabel = rawActor?.startsWith('svc:')
+            ? t('detail.systemActor', { defaultValue: 'System' })
+            : rawActor;
           const changes = rawChangesPerItem[idx].map((c) => ({
             field: c.field,
             label: fieldLabels[c.field] || c.field,

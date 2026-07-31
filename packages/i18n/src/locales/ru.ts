@@ -2757,6 +2757,7 @@ const ru = {
     slaRemaining: 'SLA: осталось {{dur}}',
     slaOverdue: 'SLA просрочен на {{dur}}',
     actReassign: 'Передано',
+    reassignFromTo: 'от {{from}} к {{to}}',
     actRemind: 'Напоминание',
     actRequestInfo: 'Запрошены данные',
     actComment: 'Комментарий',
