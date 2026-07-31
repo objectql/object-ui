@@ -277,6 +277,8 @@ function resolveNavItemLabel(
   viewResolver?: (objectName: string, viewName: string, fallbackLabel: string) => string,
   itemResolver?: (itemId: string, fallbackLabel: string) => string,
 ): string {
+  // A separator carries no label in the spec — it renders as a bare rule.
+  if (item.type === 'separator') return '';
   const base = resolveLabel(item.label, t);
   // Only apply convention-based resolution for items with plain string labels.
   // I18nLabel objects (with explicit key/defaultValue) already have their own translation keys.
@@ -774,7 +776,7 @@ function SortableNavigationItem({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: item.id, disabled: !enableReorder });
+  } = useSortable({ id: item.id ?? `sep_${item.type}`, disabled: !enableReorder });
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -866,9 +868,12 @@ function NavigationItemRenderer({
   //    group — otherwise an auto-collapsed group hides the active item
   //    and the user loses orientation.
   const explicitOpen = (() => {
-    const expanded = (item as any).expanded;
+    const expanded = item.type === 'group' ? item.expanded : undefined;
     if (typeof expanded === 'boolean') return expanded;
-    if (typeof item.defaultOpen === 'boolean') return item.defaultOpen;
+    // Legacy objectui spelling, kept for third-party metadata authored before
+    // objectstack#4171 renamed it. Not a spec key, hence the cast.
+    const legacy = (item as { defaultOpen?: unknown }).defaultOpen;
+    if (typeof legacy === 'boolean') return legacy;
     return undefined;
   })();
   const AUTO_COLLAPSE_THRESHOLD = 8;
@@ -888,8 +893,22 @@ function NavigationItemRenderer({
       : (explicitOpen ?? (childCount >= AUTO_COLLAPSE_THRESHOLD ? false : true));
   const [isOpen, setIsOpen] = useState(initialOpen);
 
+  // --- Separator ---
+  // Hoisted above the guards: the spec's separator variant carries no `visible`
+  // and no `requiredPermissions` (it is `type` / `id` / `order` only), so the
+  // guards below cannot read them. Behaviour is unchanged for spec-shaped
+  // metadata — both reads were `undefined` here anyway.
+  if (item.type === 'separator') {
+    return <Separator className="my-2" />;
+  }
+
   // --- Visibility guard ---
-  if (!evalVis(item.visible)) return null;
+  // The spec's expression input is either a bare string or `{ dialect, source }`;
+  // `VisibilityEvaluator` only speaks the string form, so unwrap.
+  const visibleExpr = typeof item.visible === 'object' && item.visible !== null
+    ? item.visible.source
+    : item.visible;
+  if (!evalVis(visibleExpr)) return null;
 
   // --- Permission guard ---
   if (item.requiredPermissions?.length && !checkPerm(item.requiredPermissions)) return null;
@@ -901,11 +920,6 @@ function NavigationItemRenderer({
   const requiresService = (item as any).requiresService as string | undefined;
   if (requiresObject && !checkCap('object', requiresObject)) return null;
   if (requiresService && !checkCap('service', requiresService)) return null;
-
-  // --- Separator ---
-  if (item.type === 'separator') {
-    return <Separator className="my-2" />;
-  }
 
   // --- Group (collapsible) ---
   if (item.type === 'group') {
@@ -1218,7 +1232,10 @@ export function NavigationRenderer({
 
   // --- No explicit groups → wrap in a single SidebarGroup ---
   if (!hasGroups) {
-    const topLevelIds = sorted.filter((i) => i.type !== 'group').map((i) => i.id);
+    const topLevelIds = sorted
+      .filter((i) => i.type !== 'group')
+      .map((i) => i.id)
+      .filter((id): id is string => id !== undefined);
 
     const menuContent = enableReorder ? (
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -1319,8 +1336,9 @@ function collectPinnedItems(items: NavigationItem[]): NavigationItem[] {
     if (item.pinned && item.type !== 'group' && item.type !== 'separator') {
       pinned.push(item);
     }
-    if (item.children?.length) {
-      pinned.push(...collectPinnedItems(item.children));
+    const children = item.type === 'group' || item.type === 'object' ? item.children : undefined;
+    if (children?.length) {
+      pinned.push(...collectPinnedItems(children));
     }
   }
   return pinned;

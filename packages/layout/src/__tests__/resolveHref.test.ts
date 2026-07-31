@@ -18,7 +18,10 @@ import { resolveHref } from '../NavigationRenderer';
 
 const BASE = '/apps/crm';
 
-function objectItem(extra: Partial<NavigationItem> = {}): NavigationItem {
+// `Partial<NavigationItem>` would spread an OPTIONAL `type` over a discriminated
+// union and destroy the discriminant, so each helper is scoped to its own variant.
+type ObjectNavItem = Extract<NavigationItem, { type: 'object' }>;
+function objectItem(extra: Partial<Omit<ObjectNavItem, 'type'>> = {}): ObjectNavItem {
   return { id: 'nav_task', type: 'object', label: 'Tasks', objectName: 'task', ...extra };
 }
 
@@ -219,8 +222,9 @@ describe('resolveActiveNavItem — single winner across the tree', () => {
 // ============================================================================
 
 describe('resolveHref — component targets', () => {
-  function componentItem(extra: Partial<NavigationItem> = {}): NavigationItem {
-    return { id: 'nav_comp', type: 'component', label: 'Comp', ...extra };
+  type ComponentNavItem = Extract<NavigationItem, { type: 'component' }>;
+  function componentItem(extra: Partial<Omit<ComponentNavItem, 'type'>> = {}): ComponentNavItem {
+    return { id: 'nav_comp', type: 'component', label: 'Comp', componentRef: 'ns:name', ...extra };
   }
 
   it('componentRef → /component/<ns>/<name>', () => {
@@ -244,7 +248,12 @@ describe('resolveHref — component targets', () => {
   });
 
   it('missing componentRef → dead link', () => {
-    expect(resolveHref(componentItem(), BASE).href).toBe('#');
+    // Deliberately off-spec: `componentRef` is REQUIRED on the spec's `component`
+    // variant, so this can only be built with a cast. The assertion is that the
+    // renderer degrades to a dead link rather than throwing when a third party
+    // hands it metadata that never passed `.parse()`.
+    const malformed = { id: 'nav_comp', type: 'component', label: 'Comp' } as unknown as ComponentNavItem;
+    expect(resolveHref(malformed, BASE).href).toBe('#');
   });
 
   it('metadata:directory → /metadata', () => {

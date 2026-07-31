@@ -301,7 +301,7 @@ describe('menuItemToNavigationItem', () => {
     };
 
     const result = menuItemToNavigationItem(menuItem, 0);
-    expect(result.type).toBe('page');
+    if (result.type !== 'page') throw new Error(`expected a page item, got ${result.type}`);
     expect(result.label).toBe('Dashboard');
     expect(result.icon).toBe('LayoutDashboard');
     expect(result.pageName).toBe('/dashboard');
@@ -316,7 +316,7 @@ describe('menuItemToNavigationItem', () => {
     };
 
     const result = menuItemToNavigationItem(menuItem, 1);
-    expect(result.type).toBe('url');
+    if (result.type !== 'url') throw new Error(`expected a url item, got ${result.type}`);
     expect(result.url).toBe('https://docs.example.com');
     expect(result.target).toBe('_blank');
   });
@@ -332,20 +332,25 @@ describe('menuItemToNavigationItem', () => {
     };
 
     const result = menuItemToNavigationItem(menuItem, 2);
-    expect(result.type).toBe('group');
+    if (result.type !== 'group') throw new Error(`expected a group item, got ${result.type}`);
     expect(result.label).toBe('Sales');
     expect(result.children).toHaveLength(2);
-    expect(result.children![0].type).toBe('page');
-    expect(result.children![0].pageName).toBe('/leads');
-    expect(result.defaultOpen).toBe(true);
+    const firstChild = result.children![0];
+    if (firstChild.type !== 'page') throw new Error(`expected a page child, got ${firstChild.type}`);
+    expect(firstChild.pageName).toBe('/leads');
+    // `expanded`, not `defaultOpen` — the spec's key (objectstack#4171).
+    expect(result.expanded).toBe(true);
   });
 
   it('should convert a separator', () => {
     const menuItem: MenuItem = { type: 'separator' };
 
     const result = menuItemToNavigationItem(menuItem, 3);
+    // The spec's separator is `type` / `id` / `order` only — no `label`. The old
+    // flat interface declared `label` on every variant, so this asserted a key
+    // that the schema would have rejected at parse (objectstack#4165).
     expect(result.type).toBe('separator');
-    expect(result.label).toBe('');
+    expect(result).not.toHaveProperty('label');
   });
 
   it('should invert hidden to visible', () => {
@@ -357,7 +362,11 @@ describe('menuItemToNavigationItem', () => {
     };
 
     const result = menuItemToNavigationItem(menuItem, 4);
-    expect(result.visible).toBe(false);
+    // `visible` is a PREDICATE in the spec, not a boolean: hidden becomes the
+    // constant-false expression. A separator has no `visible` at all, so the
+    // branch has to be stated before reading it.
+    if (result.type === 'separator') throw new Error('expected a targetable item');
+    expect(result.visible).toBe('false');
   });
 
   it('should preserve badge', () => {
@@ -369,6 +378,7 @@ describe('menuItemToNavigationItem', () => {
     };
 
     const result = menuItemToNavigationItem(menuItem, 5);
+    if (result.type === 'separator') throw new Error('expected a targetable item');
     expect(result.badge).toBe(42);
   });
 
@@ -379,7 +389,7 @@ describe('menuItemToNavigationItem', () => {
     };
 
     const result = menuItemToNavigationItem(menuItem, 6);
-    expect(result.type).toBe('page');
+    if (result.type !== 'page') throw new Error(`expected a page item, got ${result.type}`);
     expect(result.label).toBe('About');
   });
 });
@@ -396,7 +406,7 @@ describe('Type exports', () => {
       label: 'Test',
       objectName: 'test_object',
       icon: 'Database',
-      visible: true,
+      visible: 'true',
       requiredPermissions: ['test:read'],
       badge: 3,
       badgeVariant: 'default',

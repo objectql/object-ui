@@ -262,8 +262,8 @@ describe('AppSchemaRenderer', () => {
       name: 'crm',
       title: 'CRM',
       navigation: [
-        { id: 'n1', type: 'object', label: 'Public', objectName: 'public', visible: true },
-        { id: 'n2', type: 'object', label: 'Hidden', objectName: 'hidden', visible: false },
+        { id: 'n1', type: 'object', label: 'Public', objectName: 'public', visible: 'true' },
+        { id: 'n2', type: 'object', label: 'Hidden', objectName: 'hidden', visible: 'false' },
       ],
     };
     renderApp(schema, {

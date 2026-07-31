@@ -21,168 +21,46 @@
 
 import type { BaseSchema } from './base';
 
+import type { NavigationItemInput as SpecNavigationItemInput } from '@objectstack/spec/ui';
+
 // ============================================================================
 // Unified Navigation Model (aligned with @objectstack/spec)
 // ============================================================================
 
 /**
- * Navigation item type — determines the target and required fields.
+ * Navigation item type — derived from the spec union rather than restated, so a
+ * variant added there cannot go missing here (objectstack#4171).
  */
-export type NavigationItemType =
-  | 'object'
-  | 'dashboard'
-  | 'page'
-  | 'report'
-  | 'url'
-  | 'component'
-  | 'group'
-  | 'separator'
-  | 'action';
+export type NavigationItemType = SpecNavigationItemInput['type'];
 
 /**
- * Unified Navigation Item
- * 
- * The single navigation primitive used across ObjectUI and @objectstack/spec.
- * Replaces the legacy `MenuItem` for application navigation trees.
- * 
- * Supports typed navigation targets (object, dashboard, page, report, url),
- * nested groups, visibility expressions, RBAC permissions, and UX enhancements
- * like badges, pinning, and sort ordering.
+ * Unified Navigation Item — the spec's contract, plus the UI-only state the
+ * shell derives at render time.
+ *
+ * Was a 134-line local interface. objectstack#4171 established the rule that a
+ * spec-named symbol must be an IMPORT, not a re-declaration — but until
+ * objectstack#4171/#4221/#4227 the spec's `NavigationItem` resolved to `any`
+ * (its recursive schema was annotated `z.ZodType<any>`, and then
+ * `z.ZodType<NavigationItem>` with `Input` still defaulting to `unknown`), so
+ * binding to it would have traded a precise type for one that constrains
+ * nothing. Both halves are fixed now, so the fork can go.
+ *
+ * `pinned` deliberately does NOT move to the spec. It is not authored: it comes
+ * from the user's favorites (FavoritesProvider → localStorage) and is injected
+ * into the tree by `useNavPins.applyPins` on every render. The spec describes
+ * what an AUTHOR writes; this type is what the RENDERER sees. Keeping it here,
+ * named as runtime state, is the honest split.
+ *
+ * `defaultOpen` is gone: the spec's key is `expanded`. Nothing in this repo ever
+ * wrote it (every other `defaultOpen` hit is a shadcn component's own prop), and
+ * its one writer — objectstack's `account.app.ts` — was corrected in #4171.
+ * `NavigationRenderer` keeps reading it as a legacy fallback for third-party
+ * metadata authored before that.
  */
-export interface NavigationItem {
-  /** Unique identifier */
-  id: string;
-
-  /** Navigation item type */
-  type: NavigationItemType;
-
-  /** Display label (plain string per @objectstack/spec v4 protocol) */
-  label: string;
-
-  /** Icon name (Lucide) */
-  icon?: string;
-
-  // -- Type-specific target fields --
-
-  /** Target object name (for type: 'object') */
-  objectName?: string;
-
-  /** Target view name (for type: 'object') — opens a specific named list view e.g. 'calendar', 'pipeline' */
-  viewName?: string;
-
-  /**
-   * Target record id (for type: 'object') — when set, the nav item
-   * opens a single record's detail page instead of a list view.
-   *
-   * Supports template variables resolved at render time by the shell:
-   *   - `{current_user_id}` → currently signed-in user's id
-   *   - `{current_org_id}`  → currently active organization's id
-   *
-   * If the template can't be resolved (e.g. signed-out pre-render),
-   * the item falls back to opening the list view.
-   *
-   * When both `recordId` and `viewName` are set, `recordId` wins.
-   */
-  recordId?: string;
-
-  /**
-   * Record opening mode when `recordId` is set. Defaults to `'view'`.
-   * Use `'edit'` to land directly on the edit form (e.g. "Edit my profile").
-   */
-  recordMode?: 'view' | 'edit';
-
-  /**
-   * URL filter conditions (for type: 'object') — the entry targets the
-   * parameterized bare data surface `/:objectName/data` with each entry
-   * serialized as a `filter[<field>]=<value>` search param (equality),
-   * instead of anchoring to a saved view. Use for one-off / parameterized
-   * slices ("My open tickets" without authoring a view); slices worth
-   * curating belong in a named view via `viewName`.
-   *
-   * Values support the same template variables as `recordId`
-   * (`{current_user_id}`, `{current_org_id}`); entries whose template can't
-   * be resolved are dropped from the URL.
-   *
-   * Precedence within `type: 'object'`: `recordId` → `filters` → `viewName`.
-   */
-  filters?: Record<string, string>;
-
-  /** Target dashboard name (for type: 'dashboard') */
-  dashboardName?: string;
-
-  /** Target page name (for type: 'page') */
-  pageName?: string;
-
-  /** Target report name (for type: 'report') */
-  reportName?: string;
-
-  /** Target URL (for type: 'url') */
-  url?: string;
-
-  /** Link target (for type: 'url') */
-  target?: '_blank' | '_self';
-
-  /**
-   * Target component reference (for type: 'component') — a colon-joined
-   * `ComponentRegistry` key (e.g. `metadata:resource`, `setup:permission_matrix`)
-   * identifying a first-party UI shipped with the platform. Routed to
-   * `/component/<ns>/<name>`. Mirrors `@objectstack/spec` `ComponentNavItem`.
-   */
-  componentRef?: string;
-
-  /**
-   * Extra parameters (for type: 'component' | 'page') — serialised as
-   * querystring so the same component/page can be reused across nav entries
-   * with different inputs (e.g. `params: { type: 'object' }`). String values
-   * support the same template variables as `recordId`.
-   */
-  params?: Record<string, unknown>;
-
-  // -- Grouping --
-
-  /** Child navigation items (for type: 'group') */
-  children?: NavigationItem[];
-
-  // -- Visibility & Permissions --
-
-  /** Visibility expression — boolean or expression string e.g. "${user.role === 'admin'}" */
-  visible?: boolean | string;
-
-  /** Required permissions to see/access this item */
-  requiredPermissions?: string[];
-
-  /**
-   * Runtime capability gate — name of an object that must be registered
-   * in the runtime's SchemaRegistry for this entry to render. Used to
-   * hide cloud-only nav entries (e.g. `sys_app`, `sys_package`) in
-   * single-project runtimes that don't register those objects.
-   */
-  requiresObject?: string;
-
-  /**
-   * Runtime capability gate — name of a kernel service that must be
-   * registered for this entry to render. Mirrors `requiresObject` for
-   * service-bound features.
-   */
-  requiresService?: string;
-
-  // -- UX Enhancements --
-
-  /** Badge text or count */
-  badge?: string | number;
-
-  /** Badge visual variant */
-  badgeVariant?: 'default' | 'destructive' | 'outline';
-
-  /** Whether group is expanded by default (for type: 'group') */
-  defaultOpen?: boolean;
-
-  /** Whether this item is pinned */
+export type NavigationItem = SpecNavigationItemInput & {
+  /** Runtime-only, set by `useNavPins.applyPins` — never authored, never in the spec. */
   pinned?: boolean;
-
-  /** Sort order weight (lower = higher) */
-  order?: number;
-}
+};
 
 /**
  * Navigation Area — a business-domain partition of navigation items.
@@ -381,6 +259,20 @@ export interface MenuItem {
  * - `path` → `pageName` (last segment) or kept as-is for url
  * - `href` → `url` with `target: '_blank'`
  */
+/**
+ * Legacy `MenuItem.hidden` (a boolean) → the spec's `visible`, which is a CEL
+ * PREDICATE, not a boolean. `hidden: true` becomes the constant-false predicate;
+ * anything else omits the key, since visible-by-default is the schema's own
+ * behaviour. Emitting a bare `false` here produced metadata the spec rejects —
+ * invisible while this file kept its own looser `NavigationItem`.
+ */
+function hiddenToPredicate(hidden: boolean | string | undefined): string | undefined {
+  if (hidden === true || hidden === 'true') return 'false';
+  // A legacy `hidden` that is itself an expression inverts into one.
+  if (typeof hidden === 'string' && hidden !== '' && hidden !== 'false') return `!(${hidden})`;
+  return undefined;
+}
+
 export function menuItemToNavigationItem(
   item: MenuItem,
   index: number = 0,
@@ -388,11 +280,10 @@ export function menuItemToNavigationItem(
   const id = `migrated_${index}`;
 
   if (item.type === 'separator') {
-    return {
-      id,
-      type: 'separator',
-      label: item.label || '',
-    };
+    // The spec's separator is a pure divider: `type` / `id` / `order` only.
+    // A legacy MenuItem separator's `label` has nowhere to go, and `.strict()`
+    // (objectstack#4165) rejects it outright.
+    return { id, type: 'separator' };
   }
 
   if (item.type === 'group') {
@@ -404,9 +295,9 @@ export function menuItemToNavigationItem(
       children: (item.children || []).map((child, i) =>
         menuItemToNavigationItem(child, index * 100 + i),
       ),
-      visible: item.hidden !== undefined ? !item.hidden : undefined,
+      visible: hiddenToPredicate(item.hidden),
       badge: item.badge,
-      defaultOpen: true,
+      expanded: true,
     };
   }
 
@@ -419,7 +310,7 @@ export function menuItemToNavigationItem(
       icon: item.icon,
       url: item.href,
       target: '_blank',
-      visible: item.hidden !== undefined ? !item.hidden : undefined,
+      visible: hiddenToPredicate(item.hidden),
       badge: item.badge,
     };
   }
@@ -431,7 +322,7 @@ export function menuItemToNavigationItem(
     label: item.label || '',
     icon: item.icon,
     pageName: item.path || '',
-    visible: item.hidden !== undefined ? !item.hidden : undefined,
+    visible: hiddenToPredicate(item.hidden),
     badge: item.badge,
   };
 }

@@ -144,31 +144,46 @@ type SpecWindow = typeof SpecWindowFunction extends { options: readonly (infer T
 const _windowFunctionCovers = null as unknown as SpecWindow satisfies WindowFunction;
 
 /**
- * Inverted pins — three collisions that are NOT burnable, and the tripwire that
- * says when they become burnable.
+ * The three inverted pins FIRED, and the re-run triage they demanded came back
+ * with three different answers — which is why the tripwire asked for a triage
+ * rather than a burn.
  *
- * `NavigationItem`, `JoinNode` and `FormField` collide with a spec export whose
- * own declaration resolves to `any` (the spec annotates the recursive schemas
- * behind them as `z.ZodType<any>`, and `z.infer` of that is `any`). Binding
- * objectui's local interface to the spec would replace a precise, documented
- * shape with `any` — a type-safety regression wearing a burn-down's clothes. So
- * they stay in the ledger with their local declarations intact, which is the
- * right answer for as long as the spec cannot describe them.
+ * They were pinned because the spec's own declarations resolved to `any` (its
+ * recursive schemas were annotated `z.ZodType<any>`), so binding to them would
+ * have replaced a precise local shape with `any`. objectstack#4171 fixed that
+ * Output half and #4221/#4227 fixed the Input half, so `IsAny<…>` flipped to
+ * `false` on all three and `true satisfies false` stopped compiling — exactly as
+ * designed. Re-running the triage:
  *
- * Filed upstream as objectstack#4171 (4 of the spec's 2240 exported types).
+ *   - `NavigationItem` — a REAL fork, now burned down. `app.ts` binds to the
+ *     spec's `NavigationItemInput` (the renderer consumes authoring shape, not
+ *     parsed output: `VisibilityEvaluator` takes `string | boolean`, and
+ *     `.default()`ed keys like `expanded`/`target` are omissible). 134 lines
+ *     deleted. `pinned` stays local — it is runtime state injected by
+ *     `useNavPins.applyPins`, never authored, and must not enter the spec.
  *
- * Mutual assignability CANNOT distinguish this case on its own: `any` answers
- * every `extends` question affirmatively, so a naive probe reports these three
- * as "identical to the spec" and recommends exactly the wrong edit.
+ *   - `JoinNode` — NOT a fork. A name collision. objectui's is a node of its own
+ *     SQL-ish query AST (`extends QueryASTNode`, `type: 'join'` as the
+ *     discriminant, `join_type` for the join kind, `table`, `on: OperatorNode`);
+ *     the spec's `type` IS the join kind, and it uses `object` /
+ *     `on: FilterCondition` / `subquery`. Different concepts, same word.
  *
- * The day the spec types any of them properly, `IsAny<…>` flips to `false`,
- * `true satisfies false` stops compiling, and the failure is the instruction:
- * re-run the triage and burn that symbol down.
+ *   - `FormField` — NOT a fork either. objectui identifies a field by
+ *     `name`/`id`, the spec by `field`, and objectui carries renderer concepts
+ *     the spec does not model (`inputType`, `validation`, `condition`,
+ *     `readonlyWhen`, `requiredWhen`) while the spec carries authoring
+ *     constraints objectui does not (`reference`, `min`/`max`, `precision`,
+ *     `keyField`, `disclosure`).
+ *
+ * So the pins below now assert the OPPOSITE of what they used to: these types
+ * are no longer `any`. Keeping them pinned that way means a regression upstream
+ * — someone re-annotating a recursive schema `z.ZodType<any>` — fails here
+ * again, which is the property that made the original pins worth writing.
  */
 type IsAny<T> = 0 extends 1 & T ? true : false;
-const _specNavigationItemIsStillAny = true satisfies IsAny<SpecNavigationItem>;
-const _specJoinNodeIsStillAny = true satisfies IsAny<SpecJoinNode>;
-const _specFormFieldIsStillAny = true satisfies IsAny<SpecFormField>;
+const _specNavigationItemIsStillAny = false satisfies IsAny<SpecNavigationItem>;
+const _specJoinNodeIsStillAny = false satisfies IsAny<SpecJoinNode>;
+const _specFormFieldIsStillAny = false satisfies IsAny<SpecFormField>;
 
 void _chartCovers; void _reportCovers; void _actionCovers; void _pageCovers; void _vizCovers;
 void _runnableCovers; void _componentCovers; void _paramFieldCovers; void _resolvableCovers;

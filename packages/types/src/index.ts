@@ -1149,7 +1149,10 @@ export type {
 // v2.0.7 Spec UI Types — Performance & Page Transitions
 // ============================================================================
 export type {
-  PerformanceConfig,
+  // `PerformanceConfig` was dropped from the spec's `/ui` surface when
+  // objectstack#3896 retired `view.performance` (declared but never read by any
+  // renderer). Nothing here consumed this re-export — `packages/react`'s
+  // `usePerformance` declares its own — so it goes with it.
   PageTransition,
   PageComponentType,
 } from '@objectstack/spec/ui';

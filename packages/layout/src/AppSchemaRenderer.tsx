@@ -186,8 +186,12 @@ function MobileBottomNav({
   // Show up to 5 non-group leaf items. Flatten group children so apps that
   // organise navigation into groups (e.g. Setup → Overview / Administration /
   // …) still surface real links in the mobile bottom nav.
-  const collectLeaves = (list: typeof items): typeof items => {
-    const out: typeof items = [];
+  // The runtime already drops separators below; saying so in the type is what
+  // lets the callers read `label` / `icon`, which the separator variant of the
+  // spec union does not have.
+  type LeafNavItem = Exclude<NavigationItem, { type: 'separator' }>;
+  const collectLeaves = (list: NavigationItem[]): LeafNavItem[] => {
+    const out: LeafNavItem[] = [];
     for (const item of list) {
       if (item.type === 'separator') continue;
       if (item.type === 'group') {
