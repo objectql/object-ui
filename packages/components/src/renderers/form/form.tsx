@@ -23,6 +23,7 @@ import {
   SelectItem 
 } from '../../ui/select';
 import { renderChildren } from '../../lib/utils';
+import { toControlValue, matchOptionValue } from './option-value';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../../custom/resizable';
 import { Alert, AlertDescription } from '../../ui/alert';
@@ -1751,13 +1752,21 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
       }
 
       return (
-        <Select value={selectValue} onValueChange={selectOnChange} disabled={selDisabled || readonly} {...selectProps}>
+        // Radix speaks strings: stringify going in, map the selection back to
+        // the AUTHORED option value coming out, so a numeric/boolean option
+        // round-trips typed instead of morphing to "2" in the payload (#3090).
+        <Select
+          value={toControlValue(selectValue)}
+          onValueChange={(v) => selectOnChange?.(matchOptionValue(options, v))}
+          disabled={selDisabled || readonly}
+          {...selectProps}
+        >
           <SelectTrigger className="min-h-[44px] sm:min-h-0">
             <SelectValue placeholder={placeholder || 'Select an option'} />
           </SelectTrigger>
           <SelectContent>
             {options.map((opt: SelectOption) => (
-              <SelectItem key={opt.value} value={opt.value}>
+              <SelectItem key={String(opt.value)} value={String(opt.value)}>
                 {opt.label}
               </SelectItem>
             ))}

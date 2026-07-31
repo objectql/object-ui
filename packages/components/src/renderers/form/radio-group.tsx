@@ -9,6 +9,7 @@
 import { ComponentRegistry } from '@object-ui/core';
 import type { RadioGroupSchema } from '@object-ui/types';
 import { RadioGroup, RadioGroupItem, Label } from '../../ui';
+import { toControlValue } from './option-value';
 
 ComponentRegistry.register('radio-group', 
   ({ schema, className, ...props }: { schema: RadioGroupSchema; className?: string; [key: string]: any }) => {
@@ -21,17 +22,19 @@ ComponentRegistry.register('radio-group',
     } = props;
 
     return (
-    <RadioGroup 
-        defaultValue={schema.defaultValue} 
-        className={className} 
+    // Radix speaks strings — stringify authored (possibly numeric) values for
+    // the control; ids stay stable via the same stringification (#3090).
+    <RadioGroup
+        defaultValue={toControlValue(schema.defaultValue)}
+        className={className}
         {...radioProps}
         // Apply designer props to the root element
         {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType, style }}
     >
       {schema.options?.map((item) => (
-        <div key={item.value} className="flex items-center space-x-2">
-          <RadioGroupItem value={item.value} id={`${schema.id}-${item.value}`} />
-          <Label htmlFor={`${schema.id}-${item.value}`}>{item.label}</Label>
+        <div key={String(item.value)} className="flex items-center space-x-2">
+          <RadioGroupItem value={String(item.value)} id={`${schema.id}-${String(item.value)}`} />
+          <Label htmlFor={`${schema.id}-${String(item.value)}`}>{item.label}</Label>
         </div>
       ))}
     </RadioGroup>

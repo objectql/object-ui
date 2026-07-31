@@ -17,6 +17,7 @@ import {
   Label
 } from '../../ui';
 import { cn } from '../../lib/utils';
+import { toControlValue, matchOptionValue } from './option-value';
 import React from 'react';
 
 const SelectRenderer = ({ schema, className, onChange, value, ...props }: { schema: SelectSchema; className?: string; onChange?: (val: any) => void; value?: any; [key: string]: any }) => {
@@ -28,9 +29,11 @@ const SelectRenderer = ({ schema, className, onChange, value, ...props }: { sche
       ...selectProps 
   } = props;
 
+  // Map the control's string back to the AUTHORED option value (#3090): a
+  // numeric/boolean option reaches the handler typed, not as "2".
   const handleValueChange = (newValue: string) => {
     if (onChange) {
-      onChange(newValue);
+      onChange(matchOptionValue(schema.options, newValue));
     }
   };
 
@@ -42,9 +45,9 @@ const SelectRenderer = ({ schema, className, onChange, value, ...props }: { sche
         style={style}
     >
       {schema.label && <Label className={cn(schema.required && "text-destructive after:content-['*'] after:ml-0.5")}>{schema.label}</Label>}
-      <Select 
-        defaultValue={value === undefined ? schema.defaultValue : undefined} 
-        value={value ?? schema.value}
+      <Select
+        defaultValue={value === undefined ? toControlValue(schema.defaultValue) : undefined}
+        value={toControlValue(value ?? schema.value)}
         onValueChange={handleValueChange}
         disabled={schema.disabled}
         required={schema.required}
@@ -56,7 +59,7 @@ const SelectRenderer = ({ schema, className, onChange, value, ...props }: { sche
         </SelectTrigger>
         <SelectContent>
           {schema.options?.map((opt) => (
-             <SelectItem key={opt.value} value={opt.value} disabled={opt.disabled}>{opt.label}</SelectItem>
+             <SelectItem key={String(opt.value)} value={String(opt.value)} disabled={opt.disabled}>{opt.label}</SelectItem>
           ))}
         </SelectContent>
       </Select>

@@ -227,11 +227,11 @@ export interface SelectSchema extends BaseSchema {
   /**
    * Default selected value
    */
-  defaultValue?: string;
+  defaultValue?: string | number | boolean;
   /**
    * Controlled value
    */
-  value?: string;
+  value?: string | number | boolean;
   /**
    * Select options
    */
@@ -253,9 +253,11 @@ export interface SelectSchema extends BaseSchema {
    */
   error?: string;
   /**
-   * Change handler
+   * Change handler. Receives the AUTHORED option value — a numeric/boolean
+   * option arrives with its type intact (#3090), not stringified by the
+   * underlying control.
    */
-  onChange?: (value: string) => void;
+  onChange?: (value: string | number | boolean) => void;
 }
 
 /**
@@ -267,9 +269,15 @@ export interface SelectOption {
    */
   label: string;
   /**
-   * Option value (submitted in form)
+   * Option value (submitted in form).
+   *
+   * Widened beyond `string` (#3090) to match what `SelectOptionSchema` has
+   * always accepted: standalone UI forms legitimately bind numeric/boolean
+   * values. The renderers stringify for the string-speaking controls and map
+   * the selection back to the authored value (`matchOptionValue`), so the
+   * authored type survives the round trip instead of morphing to `"2"`.
    */
-  value: string;
+  value: string | number | boolean;
   /**
    * Whether option is disabled
    */
@@ -359,11 +367,11 @@ export interface RadioGroupSchema extends BaseSchema {
   /**
    * Default selected value
    */
-  defaultValue?: string;
+  defaultValue?: string | number;
   /**
    * Controlled value
    */
-  value?: string;
+  value?: string | number;
   /**
    * Radio options
    */
@@ -386,9 +394,10 @@ export interface RadioGroupSchema extends BaseSchema {
    */
   error?: string;
   /**
-   * Change handler
+   * Change handler. Receives the AUTHORED option value — a numeric option
+   * arrives with its type intact (#3090).
    */
-  onChange?: (value: string) => void;
+  onChange?: (value: string | number) => void;
 }
 
 /**
@@ -400,9 +409,10 @@ export interface RadioOption {
    */
   label: string;
   /**
-   * Option value
+   * Option value. Widened beyond `string` (#3090) to match
+   * `RadioOptionSchema`, which has always accepted numbers.
    */
-  value: string;
+  value: string | number;
   /**
    * Whether option is disabled
    */
