@@ -205,6 +205,12 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   // even when the record wasn't part of the Level 1 popover fetch.
   const [pickerResolvedRecords, setPickerResolvedRecords] = useState<LookupOption[]>([]);
 
+  // Ids whose hydration attempt has FINISHED — found or not — keyed by
+  // String(id). Distinguishes "still loading" from "unresolvable" (deleted
+  // record, fetch failure) so the trigger's hydrating state can't stick
+  // forever on an id that will never resolve (#3108).
+  const [hydrationSettled, setHydrationSettled] = useState<Set<string>>(() => new Set());
+
   // Arrow-key active index (-1 = none)
   const [activeIndex, setActiveIndex] = useState(-1);
   const listRef = useRef<HTMLDivElement>(null);
@@ -476,11 +482,12 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
     (async () => {
       try {
         const fetched: LookupOption[] = [];
-        for (const id of unresolved) {
-          // `findOne` resolves by PRIMARY id only. When the field commits a
-          // different column (`id_field: 'name'` — e.g. position machine
-          // names, objectstack #3508), hydrate by filtering on that column or
-          // the stored value would never resolve to a label.
+        // Single id: the pre-existing cheap paths — a primary-id `findOne`
+        // GET, or an equality filter when the field commits a different
+        // column (`id_field: 'name'` — e.g. position machine names,
+        // objectstack #3508).
+        if (unresolved.length === 1) {
+          const id = unresolved[0];
           if (typeof (dataSource as any).findOne === 'function' && idField === 'id') {
             const rec = await (dataSource as any).findOne(referenceTo, id);
             if (rec) fetched.push(recordToOption(rec, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema));
@@ -489,8 +496,34 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
               $filter: { [idField]: id },
               $top: 1,
             } as QueryParams);
-            const rows = res?.data ?? res ?? [];
+            const rows = (res as any)?.data ?? res ?? [];
             if (rows[0]) fetched.push(recordToOption(rows[0], displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema));
+          }
+        } else {
+          // SEVERAL unresolved ids: one `$in` query per chunk. A multi-value
+          // field can hold dozens of ids, and the old serial findOne-per-id
+          // took seconds while the trigger sat on the empty "Select…"
+          // placeholder (#3108).
+          // Chunked to LOOKUP_PAGE_SIZE so no request exceeds the page size
+          // a server may cap `$top` at; chunks run in parallel.
+          const chunks: any[][] = [];
+          for (let i = 0; i < unresolved.length; i += LOOKUP_PAGE_SIZE) {
+            chunks.push(unresolved.slice(i, i + LOOKUP_PAGE_SIZE));
+          }
+          const results = await Promise.all(
+            chunks.map((chunk) =>
+              dataSource.find(referenceTo, {
+                $filter: { [idField]: { $in: chunk } },
+                $top: chunk.length,
+              } as QueryParams),
+            ),
+          );
+          for (const res of results) {
+            const rows = (res as any)?.data ?? res ?? [];
+            if (!Array.isArray(rows)) continue;
+            for (const row of rows) {
+              fetched.push(recordToOption(row, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema));
+            }
           }
         }
         if (!cancelled && fetched.length) {
@@ -502,6 +535,17 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
         }
       } catch {
         // Ignore — chip will fall back to showing the raw id.
+      } finally {
+        // Mark the attempt settled — found or not — so `hydrating` below
+        // clears even for ids that no longer resolve (deleted records,
+        // fetch failures) instead of spinning forever.
+        if (!cancelled) {
+          setHydrationSettled((prev) => {
+            const next = new Set(prev);
+            for (const id of unresolved) next.add(String(id));
+            return next;
+          });
+        }
       }
     })();
     return () => {
@@ -579,6 +623,31 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
     },
     [findOption, findOptionLoose, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema],
   );
+
+  // A value can hold bare ids that no option list resolves YET — the batch
+  // hydration above is still in flight. While any such id is pending, the
+  // trigger must not present the field as empty: a 41-value lookup rendered
+  // the bare "Select…" placeholder for seconds, indistinguishable from
+  // having no value at all (#3108).
+  const hydrating = useMemo(() => {
+    if (!hasDataSource) return false;
+    const raw: any[] = multiple
+      ? Array.isArray(value) ? value : []
+      : value != null && value !== '' ? [value] : [];
+    return raw.some(
+      (v) =>
+        v != null && v !== '' && typeof v !== 'object' && !parseReferenceObjectString(v) &&
+        !findOption(v) && !findOptionLoose(v) &&
+        !hydrationSettled.has(String(v)),
+    );
+  }, [hasDataSource, multiple, value, findOption, findOptionLoose, hydrationSettled]);
+
+  // Committed-value count. During hydration the resolved-option count
+  // undercounts (unresolved ids are filtered out below), so the trigger
+  // shows this raw count instead.
+  const rawSelectedCount = multiple
+    ? (Array.isArray(value) ? value : []).filter((v) => v != null && v !== '').length
+    : value != null && value !== '' ? 1 : 0;
 
   const selectedOptions = multiple
     ? (Array.isArray(value) ? value : []).map(resolveSelectedOption).filter(Boolean)
@@ -801,6 +870,17 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
 
   if (readonly) {
     if (!selectedOptions.length) {
+      if (hydrating) {
+        return (
+          <span
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground"
+            data-testid="lookup-hydrating"
+          >
+            <Loader2 className="size-3.5 animate-spin" />
+            {multiple ? t('table.selected', { count: rawSelectedCount }) : t('lookup.loading')}
+          </span>
+        );
+      }
       return <EmptyValue />;
     }
 
@@ -846,15 +926,28 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
         ? t('lookup.selectFirst', { fields: dependsOn.map(d => d.field).join(', ') })
         : undefined}
     >
-      <Search className={cn('size-4 shrink-0 text-muted-foreground', compact ? 'mr-1.5' : 'mr-2')} />
+      {hydrating ? (
+        <Loader2
+          className={cn('size-4 shrink-0 animate-spin text-muted-foreground', compact ? 'mr-1.5' : 'mr-2')}
+          data-testid="lookup-hydrating"
+        />
+      ) : (
+        <Search className={cn('size-4 shrink-0 text-muted-foreground', compact ? 'mr-1.5' : 'mr-2')} />
+      )}
       <span className={cn('truncate', compact && selectedOptions.length === 0 && 'text-muted-foreground')}>
         {dependenciesMissing
           ? t('lookup.selectFirst', { fields: dependsOn.map(d => d.field).join(', ') })
-          : compact && !multiple && selectedOptions.length > 0
-            ? singleSelectedLabel
-            : selectedOptions.length === 0
-              ? lookupField?.placeholder || t('common.select')
-              : multiple ? t('table.selected', { count: selectedOptions.length }) : t('common.select')}
+          : hydrating
+            // The value EXISTS but its labels are still loading — say so
+            // instead of the empty placeholder (#3108).
+            ? multiple
+              ? t('table.selected', { count: rawSelectedCount })
+              : t('lookup.loading')
+            : compact && !multiple && selectedOptions.length > 0
+              ? singleSelectedLabel
+              : selectedOptions.length === 0
+                ? lookupField?.placeholder || t('common.select')
+                : multiple ? t('table.selected', { count: selectedOptions.length }) : t('common.select')}
       </span>
     </Button>
   );
