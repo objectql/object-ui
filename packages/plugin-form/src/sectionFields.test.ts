@@ -30,7 +30,7 @@ describe('normalizeSectionField', () => {
     expect(f.type).toBe(mapFieldTypeToFormType('text')); // merged from object schema
     expect(f.required).toBe(true);         // spec override
     expect((f as any).colSpan).toBe(2);    // spec override
-    expect((f as any).field).toMatchObject({ type: 'text' }); // metadata object, not the string
+    expect(f.field).toMatchObject({ type: 'text' }); // metadata object, not the string
   });
 
   it('merges select options + label from the object schema', () => {
@@ -160,6 +160,23 @@ describe('normalizeSectionField', () => {
   it('carries a view-level dependsOn (spec cascading declaration)', () => {
     const f = normalizeSectionField({ field: 'industry', dependsOn: 'country' }, ctx) as any;
     expect(f.dependsOn).toBe('country');
+  });
+
+  it('never emits a string `field` — the spec identity key ends at this boundary', () => {
+    // On a runtime FormField the declared `field` slot holds the resolved
+    // metadata OBJECT (or nothing) — never the spec's string reference. This
+    // is the invariant that makes the same-key pun safe (#3090): the string
+    // form exists only in AUTHORED defs, and this chokepoint is where it dies.
+    const shapes: Array<string | Record<string, any>> = [
+      'industry', // string shorthand
+      { field: 'industry', required: true }, // spec object
+      { field: 'ghost' }, // spec object, unknown to the schema
+      { name: 'custom', type: 'text' }, // already-runtime object
+    ];
+    for (const def of shapes) {
+      const out = normalizeSectionField(def as any, ctx);
+      expect(typeof out.field, `string field leaked for ${JSON.stringify(def)}`).not.toBe('string');
+    }
   });
 
   it('warns once when an entry mixes both vocabularies, and the spec key wins', () => {

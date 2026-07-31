@@ -938,6 +938,10 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
       // predicate must be merged onto the resolved field or it is silently
       // dropped — the form renderer evaluates it with the canonical engine.
       const sectionDefByName = new Map<string, any>(
+        // AUTHORED section defs, pre-normalization — here `field` may
+        // legitimately be the spec identity STRING (the cast is the boundary,
+        // not a leak; on runtime FormFields the declared `field` slot is
+        // always the metadata object, #3090).
         section.fields.map(f => [typeof f === 'string' ? f : ((f as any).field ?? f.name), f]),
       );
       const sectionFieldNames = Array.from(sectionDefByName.keys());

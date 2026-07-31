@@ -7,14 +7,23 @@
  */
 
 /**
- * Retry primitives for {@link MePermissionsProvider}'s `/me/permissions` fetch.
+ * Primitives for retrying a TRANSIENT HTTP failure.
  *
- * Their own module rather than the component's: they are plain functions with
- * plain tests, and a component file that also exports helpers breaks fast
- * refresh.
+ * These answer two questions only — "is this worth re-attempting?" and "how long
+ * until the next attempt?" — and nothing about what to do while waiting. That is
+ * deliberate: the two providers that use them have opposite postures.
+ * `MePermissionsProvider` is FAIL-CLOSED and holds its loading state across the
+ * waits, because rendering a permissive default early is a real hazard;
+ * `LocalizationFetchProvider` is COSMETIC and never blocks, because a missing
+ * currency just renders a plain number. One definition of "transient", two
+ * policies — rather than one policy forced on both, or two copies of the
+ * definition drifting apart.
+ *
+ * They live in this package because it is the lowest one both callers can reach
+ * (`@object-ui/types` has no `@object-ui` dependencies of its own).
  */
 
-/** Upper bound on any single backoff wait, so a bad `Retry-After` cannot park the UI. */
+/** Upper bound on any single backoff wait, so a bad `Retry-After` cannot park a caller. */
 export const MAX_RETRY_DELAY_MS = 30_000;
 
 /**
@@ -24,10 +33,10 @@ export const MAX_RETRY_DELAY_MS = 30_000;
  *  - `408` / `425` — the request itself did not land.
  *  - `429` — rate limited; `Retry-After` usually accompanies it.
  *  - `502` / `503` / `504` — the upstream is absent, warming or timing out.
- *    `503` is the load-bearing one here: on a multi-tenant host this endpoint is
- *    served by the environment kernel that owns the session, and the framework
- *    answers `503` + `Retry-After` while a cold one is still being built
- *    (objectstack#4159).
+ *    `503` is the load-bearing one: on a multi-tenant host the `/auth/me/*`
+ *    endpoints are served by the environment kernel that owns the session, and
+ *    the framework answers `503` + `Retry-After` while a cold one is still being
+ *    built (objectstack#4159). Both providers see it, so both must survive it.
  *
  * Deliberately NOT retried: `401` / `403` (a real answer about this caller),
  * `404` (no such endpoint — retrying cannot conjure one) and `500` (a genuine
@@ -36,10 +45,14 @@ export const MAX_RETRY_DELAY_MS = 30_000;
 export const TRANSIENT_STATUS: ReadonlySet<number> = new Set([408, 425, 429, 502, 503, 504]);
 
 /** An `Error` that also carries the HTTP status it came from. */
-export class PermissionsFetchError extends Error {
-  constructor(readonly status: number, readonly retryAfterMs?: number) {
-    super(`Permissions endpoint returned ${status}`);
-    this.name = 'PermissionsFetchError';
+export class HttpFetchError extends Error {
+  constructor(
+    readonly status: number,
+    readonly retryAfterMs?: number,
+    message?: string,
+  ) {
+    super(message ?? `Endpoint returned ${status}`);
+    this.name = 'HttpFetchError';
   }
 }
 
@@ -49,15 +62,18 @@ export class PermissionsFetchError extends Error {
  * never got an answer at all.
  */
 export function isTransientFailure(err: unknown): boolean {
-  return err instanceof PermissionsFetchError ? TRANSIENT_STATUS.has(err.status) : true;
+  return err instanceof HttpFetchError ? TRANSIENT_STATUS.has(err.status) : true;
 }
 
 /**
  * `Retry-After` in ms, or `undefined` when absent/unparseable. Accepts both wire
  * forms (delta-seconds and an HTTP-date) and clamps to {@link MAX_RETRY_DELAY_MS}
- * so a hostile or buggy value cannot park the UI on its loading state for hours.
+ * so a hostile or buggy value cannot park a caller for hours.
  */
-export function parseRetryAfterMs(value: string | null | undefined, nowMs: number): number | undefined {
+export function parseRetryAfterMs(
+  value: string | null | undefined,
+  nowMs: number,
+): number | undefined {
   if (!value) return undefined;
   const trimmed = value.trim();
   if (!trimmed) return undefined;
@@ -81,3 +97,8 @@ export function backoffMs(attempt: number, baseDelayMs: number, statedMs?: numbe
 
 export const sleep = (ms: number): Promise<void> =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** Read `Retry-After` off a response without assuming `headers` exists (test doubles often omit it). */
+export function retryAfterFrom(res: { headers?: { get?(name: string): string | null } }): number | undefined {
+  return parseRetryAfterMs(res.headers?.get?.('Retry-After'), Date.now());
+}

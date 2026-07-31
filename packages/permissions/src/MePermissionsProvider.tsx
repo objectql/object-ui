@@ -8,12 +8,12 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
-  PermissionsFetchError,
+  HttpFetchError,
   backoffMs,
   isTransientFailure,
-  parseRetryAfterMs,
+  retryAfterFrom,
   sleep,
-} from './retry';
+} from '@object-ui/types';
 import type {
   PermissionAction,
   PermissionCheckResult,
@@ -74,7 +74,7 @@ export interface MePermissionsProviderProps {
   errorFallback?: (err: Error, retry: () => void) => React.ReactNode;
   /**
    * How many times to re-attempt a TRANSIENT failure before giving up — a
-   * response that says "not now" (`TRANSIENT_STATUS` in `./retry`) or a network
+   * response that says "not now" (`TRANSIENT_STATUS` in `@object-ui/types`) or a network
    * error. `0` disables retrying.
    *
    * This exists because "not now" is a real answer from this endpoint. On a
@@ -148,9 +148,10 @@ export function MePermissionsProvider({
             headers: { Accept: 'application/json' },
           });
           if (!res.ok) {
-            throw new PermissionsFetchError(
+            throw new HttpFetchError(
               res.status,
-              parseRetryAfterMs(res.headers?.get?.('Retry-After'), Date.now()),
+              retryAfterFrom(res),
+              `Permissions endpoint returned ${res.status}`,
             );
           }
           const json = (await res.json()) as MePermissionsResponse;
@@ -168,7 +169,7 @@ export function MePermissionsProvider({
           }
           // `loading` stays true across the wait, so the fail-closed loading
           // state holds and the recovery is invisible to consumers.
-          const stated = err instanceof PermissionsFetchError ? err.retryAfterMs : undefined;
+          const stated = err instanceof HttpFetchError ? err.retryAfterMs : undefined;
           await sleep(backoffMs(attempt, retryBaseDelayMs, stated));
           if (!live()) return;
         }

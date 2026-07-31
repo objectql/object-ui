@@ -1002,6 +1002,23 @@ export interface FormField {
    */
   requiredWhen?: string | { dialect?: string; source: string };
   /**
+   * The resolved object-field metadata **object** (typically a
+   * {@link FieldMetadata} / server-served field definition), stashed by the
+   * object-bound form paths so widgets can read `precision`, `currency`,
+   * `reference_to`, `depends_on`, … It feeds the field-widget `field` prop.
+   *
+   * ⚠️ Same key, different layer: in the SPEC form-view vocabulary `field` is
+   * a **string** (the referenced object-field name). That authored shape ends
+   * at the `normalizeSectionField` chokepoint in `@object-ui/plugin-form` —
+   * on a runtime FormField this slot is never a string, and its tripwire test
+   * pins that. Declared (rather than ridden through the index signature) so
+   * assigning a string here is a compile error instead of a latent pun
+   * (#3090). Typed loosely because the stash's source is the server-served
+   * object schema, whose key set is wider than the designer-oriented
+   * {@link FieldMetadata} union.
+   */
+  field?: Record<string, any>;
+  /**
    * Additional field-specific props
    */
   [key: string]: any;

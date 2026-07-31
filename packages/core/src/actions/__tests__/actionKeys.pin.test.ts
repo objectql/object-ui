@@ -19,7 +19,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import ts from 'typescript';
-import * as SpecUI from '@objectstack/spec/ui';
+import { ActionSchema as SpecActionSchema } from '@objectstack/spec/ui';
 import {
   ACTION_DEF_KEYS,
   SPEC_ACTION_KEYS,
@@ -69,7 +69,7 @@ function specActionKeys(): string[] {
     }
     return null;
   };
-  const keys = walk(SpecUI.ActionSchema);
+  const keys = walk(SpecActionSchema);
   if (!keys) throw new Error('could not resolve @objectstack/spec/ui ActionSchema shape');
   return keys;
 }
@@ -99,7 +99,7 @@ describe('action key inventory (objectstack#4075 step 1)', () => {
   });
 
   it('`execute` is still a live spec tombstone, so it must not count as known', () => {
-    const parsed = SpecUI.ActionSchema.safeParse({
+    const parsed = SpecActionSchema.safeParse({
       name: 'mark_done',
       label: 'Mark Done',
       type: 'script',

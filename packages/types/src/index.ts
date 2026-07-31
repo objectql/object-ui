@@ -922,6 +922,9 @@ export {
  * ```
  */
 export type * as Data from '@objectstack/spec/data';
+// Deliberate public namespace export of the spec vocabulary. Note the #4171
+// caveat: `UI.FormField` erases to `any` until the spec types its unions.
+// eslint-disable-next-line no-restricted-imports
 export type * as UI from '@objectstack/spec/ui';
 export type * as System from '@objectstack/spec/system';
 export type * as AI from '@objectstack/spec/ai';
@@ -1106,11 +1109,15 @@ export type {
 // ============================================================================
 // v3.0.8 Spec UI Types — Form View (P1.2)
 // ============================================================================
+// Deliberate public aliases (the `Spec` prefix IS the disambiguation the
+// #3090 tripwire exists to force). #4171 caveat: SpecFormField is `any` today.
+/* eslint-disable no-restricted-imports -- reported at the specifier line, out of -next-line reach */
 export type {
   FormView as SpecFormView,
   FormSection as SpecFormSection,
   FormField as SpecFormField,
 } from '@objectstack/spec/ui';
+/* eslint-enable no-restricted-imports */
 
 // ============================================================================
 // v3.0.8 Spec UI Types — ListView (P1.1)
@@ -1205,3 +1212,17 @@ export type {
 } from './widget';
 
 export { errorCodeIs, errorCodeIsAnyOf } from './error-code';
+
+// Transient-HTTP-retry primitives, shared by the two `/auth/me/*` providers
+// (permissions is fail-closed and blocks across the waits, localization is
+// cosmetic and never blocks) so "what counts as transient" has ONE definition.
+export {
+    MAX_RETRY_DELAY_MS,
+    TRANSIENT_STATUS,
+    HttpFetchError,
+    isTransientFailure,
+    parseRetryAfterMs,
+    backoffMs,
+    sleep,
+    retryAfterFrom,
+} from './http-retry';

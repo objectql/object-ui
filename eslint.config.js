@@ -63,6 +63,25 @@ export default tseslint.config({
     // Error so a tenth copy fails CI; all known sites were converted first, so
     // this lints clean today.
     'object-ui/no-try-catch-around-hook': 'error',
+    // objectui#3090 tripwire — the spec's FormField/FormFieldSchema are the
+    // form-VIEW vocabulary (`field` = object-field reference), a DIFFERENT
+    // layer from objectui's runtime form-field contract (`name` = data path);
+    // the translation point is `normalizeSectionField` in @object-ui/
+    // plugin-form. Worse, the spec's FormField TYPE erases to `any` in its
+    // dist (objectstack#4171), so importing it here silently deletes type
+    // safety — tsc says nothing. Error so the misimport fails at write time,
+    // with this message as the correction.
+    'no-restricted-imports': ['error', {
+      paths: [{
+        name: '@objectstack/spec/ui',
+        importNames: ['FormField', 'FormFieldSchema'],
+        message:
+          'This is the spec form-VIEW vocabulary (field = object-field reference), and its type erases to ' +
+          '`any` (objectstack#4171) — importing it silently deletes type safety. The runtime form-field ' +
+          'contract is `FormField`/`FormFieldSchema` from @object-ui/types; the two layers meet only in ' +
+          '`normalizeSectionField` (@object-ui/plugin-form). See objectui#3090.',
+      }],
+    }],
   },
 }, {
   // objectui#3010/#3021 ratchet — a module loaded inside beforeAll/beforeEach
