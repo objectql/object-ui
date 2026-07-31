@@ -17,6 +17,9 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+// This re-export parity guard walks the WHOLE spec/ui surface — the namespace
+// import is its instrument, a sanctioned importer (#3090 tripwire).
+// eslint-disable-next-line no-restricted-imports
 import * as SpecUI from '@objectstack/spec/ui';
 import * as Types from '../index';
 

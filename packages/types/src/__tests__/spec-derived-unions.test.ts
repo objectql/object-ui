@@ -64,10 +64,14 @@ import {
   WindowFunction as SpecWindowFunction,
 } from '@objectstack/spec/data';
 import type { JoinNode as SpecJoinNode } from '@objectstack/spec/data';
+// The objectstack#4171 inverted pin must import the banned name to probe its
+// any-ness — this guard is a sanctioned importer (#3090 tripwire).
+/* eslint-disable no-restricted-imports -- reported at the specifier line, out of -next-line reach */
 import type {
   NavigationItem as SpecNavigationItem,
   FormField as SpecFormField,
 } from '@objectstack/spec/ui';
+/* eslint-enable no-restricted-imports */
 import type { BreakpointName } from '../mobile';
 import type { ExportJobStatus, ImportJobStatus, ImportWriteMode, ValidationError } from '../data';
 import type { JoinStrategy, WindowFunction } from '../data-protocol';
