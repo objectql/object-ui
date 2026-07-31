@@ -184,6 +184,28 @@ describe('ActionParamDialog — shared field-widget rendering (ADR-0059)', () =>
     await waitFor(() => expect(resolve).toHaveBeenCalledWith({ x: 'v' }));
   });
 
+  it('a lookup param WITH a reference target renders the picker without the degraded-lookup helpText (#3094)', async () => {
+    openDialog([def({ name: 'manager', type: 'lookup', referenceTo: 'sys_user' })]);
+    // The real picker widget mounts (its trigger button, behind Suspense)…
+    expect(await screen.findByTestId('lookup-trigger-manager')).toBeTruthy();
+    // …and the "no reference object configured" warning must NOT appear.
+    expect(screen.queryByText('actionDialog.lookupHelpText')).toBeNull();
+  });
+
+  it('a lookup param WITHOUT a reference target degrades to text and shows the degraded-lookup helpText', async () => {
+    openDialog([def({ name: 'manager', type: 'lookup' })]);
+    const input = await screen.findByLabelText('Param One');
+    expect(input.getAttribute('type')).toBe('text');
+    expect(await screen.findByText('actionDialog.lookupHelpText')).toBeTruthy();
+  });
+
+  it('a degraded lookup param with a custom helpText shows that text instead of the built-in warning', async () => {
+    openDialog([def({ name: 'manager', type: 'lookup', helpText: 'Paste the user id from the admin list' })]);
+    await screen.findByLabelText('Param One');
+    expect(await screen.findByText('Paste the user id from the admin list')).toBeTruthy();
+    expect(screen.queryByText('actionDialog.lookupHelpText')).toBeNull();
+  });
+
   it('seeds defaultValue and returns it untouched on confirm', async () => {
     const resolve = openDialog([def({ name: 'note', type: 'text', defaultValue: 'seed' })]);
     const input = await screen.findByLabelText('Param One');

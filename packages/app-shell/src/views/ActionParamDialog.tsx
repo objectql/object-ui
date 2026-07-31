@@ -277,7 +277,7 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
               {param.helpText && (
                 <p className="text-xs text-muted-foreground">{param.helpText}</p>
               )}
-              {isLookupParam && !param.helpText && (
+              {isLookupParam && field.type === 'text' && !param.helpText && (
                 <p className="text-xs text-muted-foreground">
                   {t('actionDialog.lookupHelpText')}
                 </p>
