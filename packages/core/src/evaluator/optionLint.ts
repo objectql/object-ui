@@ -141,7 +141,10 @@ export function lintOptionPredicates(fields: readonly LintFieldLike[] | null | u
     if (!f?.name) continue;
     knownFields.add(f.name);
     if (OPTION_FIELD_TYPES.has(fieldType(f)) && f.options && f.options.length > 0) {
-      domainByField.set(f.name, new Set(f.options.map((o) => o.value)));
+      // Values stringify at this boundary (#3090 widened OptionLike.value):
+      // the domain is compared against CEL literal TEXT, so the canonical
+      // string form is the right footing for numeric/boolean options too.
+      domainByField.set(f.name, new Set(f.options.map((o) => String(o.value))));
     }
   }
 
@@ -153,7 +156,7 @@ export function lintOptionPredicates(fields: readonly LintFieldLike[] | null | u
       if (opt?.visibleWhen == null) continue;
       const source = predicateSource(opt.visibleWhen);
       if (!source.trim()) continue;
-      const option = opt.value;
+      const option = String(opt.value); // report key — display form (#3090)
 
       // 1. Syntax — canonical CEL parse (no schema hint = no scope false-positives).
       const parsed = validateExpression('predicate', source);

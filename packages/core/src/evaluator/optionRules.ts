@@ -39,7 +39,10 @@ import { evalFieldPredicate, type FieldRulePredicate } from './fieldRules.js';
  */
 export interface OptionLike {
   label: string;
-  value: string;
+  /** Widened with `SelectOption.value` (#3090): the option engines treat the
+   * value opaquely (gate/filter by `visibleWhen`, compare by identity), so a
+   * numeric/boolean authored value flows through unchanged. */
+  value: string | number | boolean;
   /** Per-option visibility predicate (CEL). Omit = always available. */
   visibleWhen?: FieldRulePredicate;
 }

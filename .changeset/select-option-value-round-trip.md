@@ -1,6 +1,8 @@
 ---
 "@object-ui/types": patch
 "@object-ui/components": patch
+"@object-ui/core": patch
+"@object-ui/fields": patch
 ---
 
 fix(form): a numeric/boolean select option survives selection with its type intact — #3090
@@ -19,6 +21,12 @@ standalone `type: 'radio-group'` component. The TS types stop lying to match:
 `value`/`defaultValue`/`onChange` channels widen to what the zod schemas
 always accepted — a call site treating `option.value` as `string` is now a
 compile error pointing at a real latent crash, not a false comfort.
+
+The ripple the widening named, handled at each boundary: `@object-ui/core`'s
+`OptionLike.value` widens (the option engines compare by identity, so values
+flow opaquely; the option-lint's CEL-literal domain stringifies at its
+boundary), and the multi-value field widgets (checkboxes / multiselect /
+radio) stringify at theirs — multi-value fields store string arrays.
 
 Round-trip pinned by real Radix interactions in jsdom: the in-form select
 submits `2` (number), the standalone select hands its handler `false`

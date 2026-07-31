@@ -97,15 +97,18 @@ export function CheckboxesField({
       data-testid={fieldName ? `checkboxes-${fieldName}` : undefined}
     >
       {options.map((opt) => {
-        const id = `${groupId}-${opt.value}`;
+        // Multi-value fields store string arrays — stringify the (possibly
+        // numeric, #3090-widened) authored value at this boundary.
+        const value = String(opt.value);
+        const id = `${groupId}-${value}`;
         return (
-          <div key={opt.value} className="flex items-center space-x-2 py-0.5">
+          <div key={value} className="flex items-center space-x-2 py-0.5">
             <Checkbox
               id={id}
-              checked={selected.includes(opt.value)}
-              onCheckedChange={(checked) => toggle(opt.value, !!checked)}
+              checked={selected.includes(value)}
+              onCheckedChange={(checked) => toggle(value, !!checked)}
               disabled={(props as any).disabled}
-              data-testid={`checkboxes-option-${opt.value}`}
+              data-testid={`checkboxes-option-${value}`}
             />
             <Label htmlFor={id} className="font-normal">{opt.label}</Label>
           </div>

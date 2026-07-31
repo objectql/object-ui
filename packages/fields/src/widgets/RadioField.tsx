@@ -85,10 +85,13 @@ export function RadioField({
       className={className}
     >
       {options.map((opt) => {
-        const id = `${groupId}-${opt.value}`;
+        // Radix speaks strings — stringify the (possibly numeric,
+        // #3090-widened) authored value at this boundary.
+        const value = String(opt.value);
+        const id = `${groupId}-${value}`;
         return (
-          <div key={opt.value} className="flex items-center space-x-2">
-            <RadioGroupItem value={opt.value} id={id} data-testid={`radio-option-${opt.value}`} />
+          <div key={value} className="flex items-center space-x-2">
+            <RadioGroupItem value={value} id={id} data-testid={`radio-option-${value}`} />
             <Label htmlFor={id} className="font-normal">{opt.label}</Label>
           </div>
         );

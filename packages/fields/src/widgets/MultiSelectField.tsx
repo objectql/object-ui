@@ -98,12 +98,15 @@ export function MultiSelectField({
       data-testid={fieldName ? `multiselect-${fieldName}` : undefined}
     >
       {options.map((opt) => {
-        const active = selected.includes(opt.value);
+        // Multi-value fields store string arrays — stringify the (possibly
+        // numeric, #3090-widened) authored value at this boundary.
+        const value = String(opt.value);
+        const active = selected.includes(value);
         return (
           <button
             type="button"
-            key={opt.value}
-            onClick={() => toggle(opt.value)}
+            key={value}
+            onClick={() => toggle(value)}
             disabled={(props as any).disabled}
             aria-pressed={active}
             data-testid={`multiselect-option-${opt.value}`}
