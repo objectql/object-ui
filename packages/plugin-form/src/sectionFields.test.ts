@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { normalizeSectionField, buildSectionFields } from './sectionFields';
 import { mapFieldTypeToFormType } from '@object-ui/fields';
 
@@ -160,6 +160,21 @@ describe('normalizeSectionField', () => {
   it('carries a view-level dependsOn (spec cascading declaration)', () => {
     const f = normalizeSectionField({ field: 'industry', dependsOn: 'country' }, ctx) as any;
     expect(f.dependsOn).toBe('country');
+  });
+
+  it('warns once when an entry mixes both vocabularies, and the spec key wins', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const f = normalizeSectionField({ field: 'industry', name: 'legacy_key' }, ctx);
+      expect(f.name).toBe('industry'); // spec branch derives the name from `field`
+      normalizeSectionField({ field: 'industry', name: 'legacy_key' }, ctx); // same site again
+      const said = warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes('mixed'));
+      expect(said).toHaveLength(1); // deduped — this runs inside render loops
+      expect(said[0]).toContain("{ field: 'industry' }");
+      expect(said[0]).toContain("name: 'legacy_key'");
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('carries keyField and disclosure through for record/composite widgets', () => {

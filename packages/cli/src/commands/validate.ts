@@ -11,6 +11,7 @@ import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { load as loadYaml } from 'js-yaml';
 import { safeValidateSchema } from '@object-ui/types/zod';
+import { findSpecVocabularyFormFields } from '../utils/spec-vocabulary-hint.js';
 
 /**
  * Validate a schema file
@@ -76,7 +77,21 @@ export async function validate(schemaPath: string) {
       if (data.children && Array.isArray(data.children)) {
         console.log(chalk.gray('  Children:'), data.children.length);
       }
-      
+
+      // Mixed-vocabulary entries validate (the runtime `name` satisfies the
+      // schema) but the spec `field` key is dead weight: the renderer ignores
+      // it and strip-mode validation drops it. Valid ≠ clean — say so (#3090).
+      const mixed = findSpecVocabularyFormFields(schema).filter((f) => f.mixedName);
+      if (mixed.length > 0) {
+        console.log(chalk.yellow('\nWarnings:'));
+        for (const m of mixed) {
+          console.log(chalk.yellow(
+            `  ${m.path}: '${m.mixedName}' also carries { field: '${m.field}' } — mixed form-field ` +
+            `vocabularies. The renderer ignores \`field\` here; drop one of the two.`,
+          ));
+        }
+      }
+
       console.log('');
       process.exit(0);
     } else {
@@ -97,7 +112,28 @@ export async function validate(schemaPath: string) {
           console.error(chalk.gray(`   Code: ${issue.code}`));
         }
       });
-      
+
+      // "name: expected string, received undefined" on a `{ field: … }` entry
+      // reads as an instruction to bolt a `name` on — which converts the
+      // metadata WRONGLY (the spec shape stands for an object-schema merge
+      // that a bare rename throws away). When the input matches that
+      // signature, name the actual boundary and the real fixes (#3090).
+      const specShaped = findSpecVocabularyFormFields(schema).filter((f) => !f.mixedName);
+      if (specShaped.length > 0) {
+        console.error(chalk.bold('\nLikely cause — spec form-view vocabulary in a standalone form:'));
+        for (const s of specShaped) {
+          console.error(chalk.yellow(
+            `   ${s.path}: { field: '${s.field}' } is the spec form-VIEW shape (an object-field reference).`,
+          ));
+        }
+        console.error(chalk.yellow(
+          `   A standalone \`type: 'form'\` component uses { name: … } (the form data path).\n` +
+          `   Fix: author the field with \`name\` and its own type/label — or, to reference object fields\n` +
+          `   with the spec shape, use an object-bound form (\`type: 'object-form'\` with objectName +\n` +
+          `   sections), whose section fields are translated by the renderer.`,
+        ));
+      }
+
       console.error('');
       process.exit(1);
     }

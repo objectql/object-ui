@@ -345,7 +345,7 @@ ComponentRegistry.register('form',
     const { t } = useSafeFormTranslation();
     const {
       defaultValues = {},
-      fields = [],
+      fields: rawFields = [],
       submitLabel = 'Submit',
       cancelLabel = 'Cancel',
       showCancel = false,
@@ -360,6 +360,50 @@ ComponentRegistry.register('form',
       validationMode = 'onSubmit',
       disabled = false,
     } = schema;
+
+    // ── Spec-vocabulary boundary (#3090) ──────────────────────────────────
+    // `{ field: 'x' }` is the spec form-VIEW vocabulary — a reference to an
+    // object field, resolvable only where an object schema exists (the
+    // `normalizeSectionField` chokepoint in @object-ui/plugin-form). This
+    // standalone renderer's vocabulary is `{ name: 'x' }` (the form data
+    // path). Such an entry used to slip past the `f?.name` guards below and
+    // reach a react-hook-form Controller with `name === undefined`, crashing
+    // the WHOLE form on `name.split('.')` — with nothing saying which entry
+    // was to blame. Partition them out and surface them loudly instead.
+    const specVocabularyFields = React.useMemo(
+      () =>
+        (rawFields as any[]).filter(
+          (f) => f && typeof f.field === 'string' && typeof f.name !== 'string',
+        ),
+      [rawFields],
+    );
+    const fields = React.useMemo(
+      () =>
+        specVocabularyFields.length === 0
+          ? rawFields
+          : (rawFields as any[]).filter((f) => !specVocabularyFields.includes(f)),
+      [rawFields, specVocabularyFields],
+    );
+    React.useEffect(() => {
+      for (const f of specVocabularyFields) {
+        // This message doubles as the fix instruction — it is what an agent
+        // iterating on the metadata will read and follow.
+        console.error(
+          `[object-ui] form field { field: '${f.field}' } was NOT rendered: \`field\` is the spec form-view ` +
+            `vocabulary (a reference to an object field), and a standalone form has no object schema to resolve ` +
+            `it against. Rename the key to \`name\` (the form data path) — or use an object-bound form ` +
+            `(objectName + sections), whose section fields accept the spec shape.`,
+        );
+      }
+      for (const f of rawFields as any[]) {
+        if (f && typeof f.field === 'string' && typeof f.name === 'string') {
+          console.warn(
+            `[object-ui] form field '${f.name}' mixes vocabularies: it also carries { field: '${f.field}' } ` +
+              `(spec form-view key), which this standalone renderer ignores. Drop one of the two.`,
+          );
+        }
+      }
+    }, [rawFields, specVocabularyFields]);
 
     // Initialize react-hook-form. `shouldFocusError: false` because RHF's
     // native focus-on-error only works for fields whose registered ref is a
@@ -1305,6 +1349,19 @@ ComponentRegistry.register('form',
             <Alert variant="destructive" className="mb-4">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{submitError}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Spec-vocabulary entries cannot be rendered here (#3090) — say so
+              in the form instead of silently dropping the fields. */}
+          {specVocabularyFields.length > 0 && (
+            <Alert variant="destructive" className="mb-4" data-testid="form-spec-vocabulary-error">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {`Not rendered — spec form-view vocabulary ({ field: … }) in a standalone form: ` +
+                  specVocabularyFields.map((f: any) => f.field).join(', ') +
+                  '. Use { name: … }, or an object-bound form with sections.'}
+              </AlertDescription>
             </Alert>
           )}
 

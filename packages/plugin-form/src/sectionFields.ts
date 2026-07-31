@@ -69,6 +69,26 @@ function attachVisibility(formField: FormField, expr: any): FormField {
   return formField;
 }
 
+/**
+ * Mixed-vocabulary lint (#3090): an authored section field carrying BOTH the
+ * spec identity key (`field`, a string) and the runtime one (`name`) is
+ * ambiguous — the spec branch below derives the runtime name from `field`, so
+ * an authored `name` is silently overwritten. Say so once per site (this runs
+ * inside render loops, hence the dedupe).
+ */
+const warnedMixedVocabulary = new Set<string>();
+function warnOnMixedVocabulary(fd: Record<string, any>, objectName: string): void {
+  if (typeof fd.name !== 'string' || fd.name === fd.field) return;
+  const key = `${objectName}:${fd.field}:${fd.name}`;
+  if (warnedMixedVocabulary.has(key)) return;
+  warnedMixedVocabulary.add(key);
+  console.warn(
+    `[object-ui] section field { field: '${fd.field}' } also carries name: '${fd.name}' — mixed form-field ` +
+      `vocabularies. The spec key wins (the runtime name becomes '${fd.field}'); drop \`name\` from authored ` +
+      `form views.`,
+  );
+}
+
 /** Build a runtime FormField from object-schema metadata for `fieldName`. */
 function fromObjectSchema(fieldName: string, ctx: SectionFieldsContext): FormField {
   const field = ctx.objectSchema?.fields?.[fieldName];
@@ -121,6 +141,7 @@ export function normalizeSectionField(
   }
 
   // (2) spec FormFieldSchema object — merge object-schema base + spec overrides.
+  warnOnMixedVocabulary(fd, ctx.objectName);
   const fieldName = fd.field;
   const base = fromObjectSchema(fieldName, ctx) as any;
 
