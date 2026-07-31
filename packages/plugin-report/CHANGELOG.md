@@ -1,5 +1,133 @@
 # @object-ui/plugin-report
 
+## 17.1.0
+
+### Minor Changes
+
+- 8529444: feat(report): carry a report's `order` into the dataset selection (framework#3916)
+
+  `@objectstack/spec` 17 gave reports an ordering declaration — `ReportSchema.order`
+  (and `blocks[].order` for a joined report): a list of `{ by, direction }` keys,
+  most significant first. The framework executor applies it. `DatasetReportRenderer`
+  built the selection it posts and never carried the declaration into it, so an
+  authored `order` reached no query and did nothing.
+
+  `useDatasetRows` — the single fetch choke point behind every report path — now
+  takes the lowered ordering, and all four call sites supply it: the grouped table,
+  the embedded chart, the matrix cross-tab, and each joined block.
+
+  - **Lowering.** `readOrder()` turns the authored list into
+    `DatasetSelection.order`, the array's element order becoming the object's key
+    insertion order (which is how sort significance is expressed on the wire). It
+    is permissive about its input, like the neighbouring `readNames()` — stored
+    report JSON crosses the repo boundary and may lag the schema, so an entry with
+    no usable `by` is dropped rather than thrown. An absent or entirely-unusable
+    list yields `undefined`, so the field is OMITTED and the server's own defaults
+    still apply: a selected time dimension comes back chronological with nothing
+    declared.
+
+    Kept local rather than importing spec's `reportSelectionOrder` — the pinned
+    `^17.0.0-rc.0` predates that export. Swap it for the import on the next bump.
+
+  - **Scoped per sub-selection.** A report's `order` is validated against its
+    WHOLE selection, but this renderer issues narrower queries from it: the chart
+    plots one dimension × one measure, and the flat-table path drops the matrix
+    across-dimensions. The server rejects an order key naming nothing the
+    selection projects (a deliberate 400), so forwarding the full list would turn
+    a valid report into a failed chart. Keys outside a sub-selection are dropped
+    at the choke point instead. Nothing is masked: the schema already validated
+    every key against `rows` ∪ `columns` ∪ `values`, so the only keys that can be
+    lost are ones the narrower query genuinely has no column for.
+
+  - **Part of the refetch key.** The ordering changes the ROWS the server returns,
+    not just their presentation, so it joins the `useDatasetRows` signature — an
+    ordering edited from asc to desc refetches instead of re-rendering the stale
+    grid.
+
+  - **Matrix across-axis.** `colHeaders` are collected in row-arrival order, so
+    ordering the rows by the across dimension is what makes the columns read
+    left-to-right in that order. Ordering rides on the primary query only; the
+    server drops it for the totals sub-queries by design.
+
+  Ordering stays server-side throughout — never a client-side re-sort, which would
+  order the page rather than the query and could not sort by a derived measure at
+  all.
+
+### Patch Changes
+
+- Updated dependencies [62311b6]
+- Updated dependencies [fc0272a]
+- Updated dependencies [9e7349e]
+- Updated dependencies [8864971]
+- Updated dependencies [1cf0de7]
+- Updated dependencies [752e18f]
+- Updated dependencies [c785740]
+- Updated dependencies [b41f401]
+- Updated dependencies [5340879]
+- Updated dependencies [19e9fa0]
+- Updated dependencies [a149e90]
+- Updated dependencies [d61efd1]
+- Updated dependencies [95b7214]
+- Updated dependencies [7d9734d]
+- Updated dependencies [6ae818e]
+- Updated dependencies [9eb932b]
+- Updated dependencies [746dd00]
+- Updated dependencies [aebfa4f]
+- Updated dependencies [38ca8be]
+- Updated dependencies [3cb9646]
+- Updated dependencies [68ef584]
+- Updated dependencies [4952edf]
+- Updated dependencies [7f0252e]
+- Updated dependencies [c4d7b20]
+- Updated dependencies [c769d3d]
+- Updated dependencies [7639a61]
+- Updated dependencies [94e63ef]
+- Updated dependencies [c735bf7]
+- Updated dependencies [02aef0c]
+- Updated dependencies [6f29aa5]
+- Updated dependencies [d21794c]
+- Updated dependencies [c4db402]
+- Updated dependencies [5319bf1]
+- Updated dependencies [49e5671]
+- Updated dependencies [9a04d25]
+- Updated dependencies [b5b97e2]
+- Updated dependencies [f59f2c1]
+- Updated dependencies [07de839]
+- Updated dependencies [2a40b5e]
+- Updated dependencies [df613fa]
+- Updated dependencies [4874117]
+- Updated dependencies [ad0183a]
+- Updated dependencies [ce08d55]
+- Updated dependencies [eb4b740]
+- Updated dependencies [aecc934]
+- Updated dependencies [5b084eb]
+- Updated dependencies [aa1240a]
+- Updated dependencies [2374a49]
+- Updated dependencies [390c071]
+- Updated dependencies [d10f526]
+- Updated dependencies [2d5d594]
+- Updated dependencies [ea7f477]
+- Updated dependencies [379728f]
+- Updated dependencies [7f23cd0]
+- Updated dependencies [0ded602]
+- Updated dependencies [24e0e0a]
+- Updated dependencies [f8a95e5]
+- Updated dependencies [3a6cf24]
+- Updated dependencies [aa35561]
+- Updated dependencies [03bd53b]
+- Updated dependencies [3c1f321]
+- Updated dependencies [a045a32]
+- Updated dependencies [912496d]
+- Updated dependencies [80edbd4]
+- Updated dependencies [9867281]
+  - @object-ui/core@17.1.0
+  - @object-ui/components@17.1.0
+  - @object-ui/plugin-grid@17.1.0
+  - @object-ui/react@17.1.0
+  - @object-ui/types@17.1.0
+  - @object-ui/i18n@17.1.0
+  - @object-ui/fields@17.1.0
+
 ## 17.0.0
 
 ### Minor Changes

@@ -1,5 +1,390 @@
 # @object-ui/console
 
+## 17.1.0
+
+### Patch Changes
+
+- 752e18f: fix(console,app-shell): readable reassign hand-off + "System" label for svc:* audit actors — objectstack#4365 / objectstack#4366
+
+  - **Approvals inbox** (`ApprovalsInboxPage`): a reassign timeline entry now
+    renders "from A to B" from the structured
+    `reassign_from`/`reassign_to` fields (and their server-resolved
+    `*_name` companions) that objectstack#4365 added to
+    `sys_approval_action`, instead of relying on the old default comment that
+    baked two raw user ids into user-facing text. Legacy rows without the
+    structured fields keep the comment fallback. New i18n key
+    `approvalsInbox.reassignFromTo` across all ten locales.
+  - **Record history** (`RecordDetailView`): an audit row attributed to a
+    service principal (`svc:*` on the `actor` column — e.g. a
+    `runAs:'system'` flow's `svc:flow:<name>` label from objectstack#4366) now
+    renders the localized "System" label instead of the raw principal string;
+    the raw value stays on the entry for tooling.
+
+- 746dd00: feat(sdui): curate the page:\*, element:\* and action:\* families into the public contract
+
+  The AI-authoring vocabulary and the Studio page designer disagreed by thirteen
+  blocks: `PUBLIC_BLOCKS` carried one `page:` tag and one `element:` tag while
+  the designer palette — and @objectstack/spec's page schema — offered the whole
+  families. A block a human can drag in Studio was invisible to a model writing
+  the same page, which is the objectui#3006 state at 10× the scale.
+
+  Fifteen tags join the contract (36 → 42 → **57**), every one shipping a
+  renderer with declared inputs (objectui#3065):
+
+  - `page:` — tabs, card, accordion, section, footer, sidebar
+  - `element:` — text, number, button, definition-list, repeater
+  - `action:` — button, group, menu, icon
+
+  Five stay out, each with its reason recorded and guarded: `action:bar`
+  (`record:quick_actions` covers the record action strip; the spec blesses the
+  other four), `element:image` (duplicates the curated `image` — one spelling
+  per concept), and `element:record_picker` / `element:text_input` /
+  `element:metadata_viewer` (mirroring the Studio palette's own exclusions, so
+  the two vocabularies stay out for the same reasons rather than by
+  coincidence).
+
+  The console's reverse-coverage guard now sweeps all four semantic namespaces
+  instead of `record:` alone — checking only the namespace you just fixed is
+  exactly how the last 22 doubled keys went unnoticed (objectui#3037). A new
+  prop-less allowlist (`element:divider`, `page:section`, `page:footer`,
+  `page:sidebar`) keeps "declares no inputs" a pinned decision in both
+  directions: those four must stay at zero, everything else curated must declare
+  a surface.
+
+- 49e5671: fix(console): `LocalizationFetchProvider` retries a transient `/me/localization` failure instead of degrading for the whole session
+
+  `/auth/me/localization` is served by the environment kernel that owns the session
+  on a multi-tenant host, and a cold one answers `503` + `Retry-After` while it
+  warms (objectstack#4159). A transient failure is therefore a normal part of a
+  cold start — not an exception.
+
+  The provider made ONE attempt and `.catch()`-ed into silence. So a single 503
+  during warm-up left currency and locale unset for the **whole session**, silently
+  and permanently, long after the kernel was ready. Every money field rendered a
+  plain number and nothing ever tried again.
+
+  It now re-attempts a transient failure (`408`, `425`, `429`, `502`, `503`, `504`,
+  or a thrown fetch), server-stated `Retry-After` first, exponential backoff
+  otherwise. `401` / `403` / `404` / `500` are real answers about the caller and
+  still fail on the first attempt.
+
+  **It keeps its posture.** This provider is cosmetic, so it renders children
+  throughout — including mid-retry — and fills the value in if and when an attempt
+  succeeds. That is the opposite of `MePermissionsProvider`, which is fail-closed
+  and holds its loading state across the waits. Both are pinned by tests.
+
+  The retry PRIMITIVES ("is this transient", "how long to wait", `Retry-After`
+  parsing) move from `@object-ui/permissions`'s internal module to
+  `@object-ui/types` — the lowest package both callers can reach — and
+  `PermissionsFetchError` becomes the generic `HttpFetchError`. One definition of
+  transient, two policies, rather than a second copy free to drift from the first.
+  No behaviour change for `MePermissionsProvider`.
+
+- 2307b52: fix(permissions,console): `MePermissionsProvider` retries a transient `/me/permissions` failure instead of stranding the app on its loading state
+
+  "Not now" is a real answer from this endpoint. On a multi-tenant host it is served
+  by the environment kernel that owns the session, and a COLD one answers `503` +
+  `Retry-After` while it warms (objectstack#4159 / cloud#927). The provider treated
+  that like any other failure: it set `error` — and a consumer that passes no
+  `errorFallback` renders `loadingFallback` for the error state too. The console
+  does exactly that (`loadingFallback={<LoadingScreen />}`, no `errorFallback`), so
+  the app sat on its spinner indefinitely, with a `retry` nobody could reach.
+
+  The fetch now re-attempts a **transient** failure — `408`, `425`, `429`, `502`,
+  `503`, `504`, or a thrown fetch (offline / DNS / aborted), which never got an
+  answer at all. A server-stated `Retry-After` wins over the exponential backoff
+  (both wire forms are read, and clamped to 30s so a hostile value cannot park the
+  UI); otherwise the delay doubles from `retryBaseDelayMs`. `loading` stays true
+  across the waits, so the fail-closed loading state holds and consumers never see
+  a permissive flash mid-recovery.
+
+  Unchanged for a real answer about the caller: `401`, `403`, `404` and `500` fail
+  on the first attempt exactly as before. `500` is deliberately not retried — a
+  genuine server fault neither benefits from hammering nor should be hidden behind
+  a spinner.
+
+  **New props**, both optional and defaulted so no call site needs to change:
+
+  - `maxRetries` (default `3`) — `0` restores the previous single-attempt
+    behaviour.
+  - `retryBaseDelayMs` (default `500`) — base for the exponential backoff.
+
+  Also fixes a latent race the retries made much wider: the in-flight fetch is now
+  cancelled when the effect tears down, so a slow answer for a previous `endpoint`
+  or `fetcher` can no longer overwrite a fast answer for the current one. The retry
+  primitives (`parseRetryAfterMs`, `backoffMs`, `isTransientFailure`,
+  `TRANSIENT_STATUS`, `PermissionsFetchError`) live in a new internal `./retry`
+  module — not exported from the package root.
+
+  **The console now passes an `errorFallback`.** Retrying narrows the window but
+  cannot close it — a kernel build slower than the retry budget still lands in the
+  error state, and rendering `loadingFallback` there is what produced the eternal
+  spinner. It now renders `<LoadingScreen error={...} onRetry={retry} />`, using the
+  error + retry affordance that component has carried all along, so a user is never
+  left with a spinner and no way forward.
+
+- 9a04d25: fix(registry): prefix every namespaced key exactly once, in every namespace
+
+  objectui#3023 fixed eleven `record:*` blocks registered as
+  `register('record:x', …, { namespace: 'record' })` — an already-prefixed name
+  handed to a registry that prefixes it again, landing the block at
+  `record:record:x` — and guarded that namespace alone. Twenty-two more were
+  sitting in `action:` (5), `element:` (10) and `page:` (7), two of them
+  (`page:header`, `element:divider`) curated public blocks.
+
+  Checking one namespace is exactly what let them keep sitting there, so the
+  guard now asks the whole registry rather than a prefix of it.
+
+  Same fix as before: register the bare name and let `namespace` do the
+  prefixing, with `skipFallback: true` so the fallback does not claim that bare
+  name globally. It would otherwise take over `header`, `footer`, `sidebar`,
+  `tabs`, `card`, `accordion`, `section`, `text`, `image`, `button`, `icon` —
+  every one of which belongs to `ui:`. All 22 stay reachable exactly as
+  `<namespace>:<name>`; the registry goes 522 keys to 500, and the contract is
+  unchanged at 42/42.
+
+  Found while probing why six curated Tier B primitives report no `inputs`. They
+  do declare them — `vitest.setup.dom.tsx` registers simplified `text` / `image` /
+  `html` / `grid` stubs that shadow the real registrations inside the test
+  environment only. That shadowing is a separate question, left alone here; the
+  doubled keys it turned up are not test-environment artifacts.
+
+- 32462dd: feat(sdui): guard the public contract against silent drift — coverage test + manifest lazy-stub assertion
+
+  Follow-up to objectui#2953. That bug — every lazily-registered public block
+  missing from the contract, and so from every `kind:'react'` page's scope —
+  survived because nothing compared `PUBLIC_BLOCKS` against what an app actually
+  registers. Type-check, lint, build and the whole suite stayed green while seven
+  curated blocks were unusable. Two guards close that class.
+
+  **Console ↔ contract coverage.** `apps/console/src/register-plugins.ts` extracts
+  the plugin registration out of `main.tsx` so it can be imported without booting
+  the app. A new `apps/console/src/__tests__/public-contract.test.ts` reads that
+  real list and pins, as exact lists, which curated tags the console exposes (35),
+  which are still unimplemented (`line_items`), and which reach the contract
+  through a pending lazy stub. Exact lists rather than `toContain`, because the
+  failure mode is a _shrinking_ contract. Reverting the #2953 fix drops coverage
+  from 35 to 28 and fails all four assertions.
+
+  **Manifests must be generated from loaded registrations.** New exported
+  `assertFullyLoaded(configs)` in `@object-ui/sdui-parser`, plus `lazy?: boolean`
+  on `RegistryConfigLike`. A lazy stub carries metadata but no `inputs`, so it
+  would be written into `sdui.manifest.json` as a block that takes no props —
+  making every prop an author passes it an `unknown-prop` diagnostic in the save
+  gate. Both generators now assert instead: `gen-manifest.ts` throws, and
+  `dev/manifest-dump.tsx` also imports the console's real registration list, so a
+  plugin the console lazy-registers but the dump forgets to import eagerly is
+  caught rather than silently emitted propless. `scripts/dump-public-manifest.mjs`
+  surfaces that failure instead of timing out for 120s with no message.
+
+  Also documents `object-chart` as a seventh block affected by objectui#2953 —
+  the issue listed six.
+
+- 390c071: feat(record): declare inputs for the seven configurable record:\* blocks, and curate six
+
+  Seven `record:*` blocks shipped with renderers that read props but declared no
+  `inputs`. That combination is the worst of both: the renderer honours
+  `limit`, `severity`, `location` …, while every authoring surface — the designer
+  panel, the AI vocabulary, the generated manifest — reports the block takes no
+  configuration. objectui#3013 recorded them as deliberately uncurated for
+  exactly that reason.
+
+  The declarations mirror what each renderer actually reads:
+
+  | block                                  | inputs                                                                       |
+  | -------------------------------------- | ---------------------------------------------------------------------------- |
+  | `record:activity`                      | 11 — from `RecordActivityComponentProps`                                     |
+  | `record:chatter` / `record:discussion` | 5 — from `RecordChatterComponentProps`                                       |
+  | `record:alert`                         | 8 — severity, title, body, visible, icon, action, dismissible, dismissKey    |
+  | `record:quick_actions`                 | 7 — actionNames, requiredPermissions, location, align, inline, variant, size |
+  | `record:history`                       | 3 — limit, emptyText, unknownUserText                                        |
+  | `record:reference_rail`                | 1 — hideEmpty                                                                |
+
+  `inputs` describe what an AUTHOR writes, which is a subset of what the renderer
+  reads. `entries`, `loading` and resolved `actions` are injected by the host
+  shell off RecordContext; declaring them would invite a model to hand-write the
+  data the page is supposed to fetch. `aria` is omitted for the reason it is
+  omitted on `record:details` — an accessibility escape hatch, not a layout
+  choice. `location` takes its enum from the spec's `ACTION_LOCATIONS` rather
+  than restating it, per objectui#3019.
+
+  Six of the seven are now in `PUBLIC_BLOCKS`: configurable and absent from the
+  contract is the state objectui#3006 was about. The contract goes 36 → 42 tags,
+  all resolving.
+
+  `record:chatter` stays out — it is the same renderer as `record:discussion`
+  under a Salesforce-familiar name, kept for schemas already in the wild. Two
+  spellings of one block is ambiguity an authoring model cannot resolve, so the
+  vocabulary carries the spec's name. A test compares the two input lists, so the
+  day they diverge the exclusion stops being justified and fails.
+
+  A companion assertion requires every curated `record:*` tag to declare inputs.
+  A curated tag with none reads as "takes no configuration" when the renderer in
+  fact reads props — the same gap objectui#3006 opened, pointed the other way.
+
+- d10f526: fix(sdui): the curated contract lists `record:line_items`, the tag that actually resolves
+
+  `PUBLIC_BLOCKS` carried `line_items` — the bare tag. `@object-ui/plugin-form`
+  registers the block as `record:line_items` with `skipFallback: true`, which
+  exists precisely so the bare name is _not_ claimed, so that key never existed
+  and the curated entry could never resolve. Its four siblings in the list are all
+  `record:`-prefixed, and plugin-form's own comment says "Register
+  record:line_items"; the bare spelling was a slip.
+
+  The effect was a block that has shipped all along — a full renderer, a label,
+  five declared `inputs` — being absent from the public contract, from the JSX
+  type surface, from the generated manifest, and from every `kind:'react'` page's
+  scope. It read as an unimplemented aspirational entry, which is how it was
+  recorded when objectui#2979 added the contract-coverage guard.
+
+  With the tag corrected the contract has no gaps left: all 36 curated tags
+  resolve in the console, `record:line_items` among them with its full `inputs`.
+  The guard's known-unimplemented list is now empty and stays asserted, so the
+  next entry that cannot resolve surfaces instead of being explained away.
+
+- 2baa13f: fix(record): register the record:\* blocks under one key, prefixed once
+
+  Eleven blocks in plugin-detail were registered as
+  `register('record:x', …, { namespace: 'record' })` — an already-prefixed name
+  handed to a registry that prefixes it again. Each landed at
+  `record:record:x`, and the key authors actually resolved, `record:x`, was the
+  un-namespaced _fallback_ rather than the intended registration. The registry
+  carried 23 keys for 12 components.
+
+  Nothing failed, which is why it survived: `getPublicConfigs()` rewrites `type`
+  to the curated tag, so the doubled name never reached the contract, the
+  manifest, or the JSX surface. It was visible only when enumerating the registry
+  directly — which is what objectui#3013's reverse check does.
+
+  Registering the bare name is what makes `namespace` correct, and
+  `skipFallback: true` is what keeps the fallback from claiming that bare name
+  globally. Without it these would take over `details`, `path`, `history`,
+  `alert` … as top-level tags; `alert` is the live case, owned by `ui:`. Every
+  block stays reachable exactly as `record:<name>`, and 23 keys become 12.
+
+  `record:line_items` needed no change — it was the one already registered this
+  way, which is what made objectui#3006's near-miss possible in the first place.
+
+  Two console assertions hold the shape: no key carries a doubled prefix, and no
+  `record:*` block owns the bare spelling of its own name.
+
+- 9cdc992: test(sdui): check the contract in the direction that would have caught #3006
+
+  The console contract guard only looked one way: every tag in `PUBLIC_BLOCKS`
+  must resolve. That direction cannot tell "not built yet" from "built, but the
+  contract spells it wrong" — so `record:line_items` was filed as a known gap for
+  a release while its renderer shipped, fully configured, in plugin-form.
+
+  Two checks close the other direction:
+
+  - **Every shipped `record:*` block is curated, or listed with a reason.** Seven
+    are deliberately out, each declaring zero `inputs` — nothing for an author or
+    a model to configure. A new `record:*` registration now fails until someone
+    decides which side it belongs on, so the vocabulary cannot quietly drift from
+    what the platform can render. A companion assertion pins those seven at zero
+    inputs, so one growing a configurable surface re-opens the decision instead of
+    inheriting the exclusion.
+
+  - **A curated tag that near-misses a registered block.** `line_items` vs
+    `record:line_items` differ only by namespace; one of the two spellings is
+    always a typo. The check reports the candidate ("also try
+    `record:line_items`") rather than just "not covered".
+
+  Both were verified against the real bug: reverting the tag to `line_items`
+  fails them with exactly that diagnosis.
+
+  Grouping the registry by canonical `type` surfaced a second, latent issue —
+  eleven `record:*` blocks in plugin-detail are registered as
+  `register('record:x', …, { namespace: 'record' })`, prefixing an already-
+  prefixed name and yielding doubled `record:record:x` keys. It does not reach
+  the contract (`getPublicConfigs()` rewrites `type` to the curated tag), so this
+  changeset only documents it where the grouping happens; the registrations are
+  left for a separate change.
+
+- 0fcd4a9: fix(settings): read the locked key from `error.details`, tolerating both wire shapes — objectstack#4224
+
+  `SettingsView.onSave` rendered the `SETTINGS_LOCKED` toast from
+  `err.payload.error.key`. That key was a SIBLING of `code`/`message` inside
+  `error`, a position `ApiErrorSchema` never declared — it reached the console only
+  because the schema is a plain `z.object` and silently strips what it does not
+  declare, so nothing ever failed to flag it. objectstack#4224 moves it into
+  `error.details`, the slot the contract does declare.
+
+  This is the console's half, and it ships **first**: the read is now
+  `error.details?.key ?? error.key`, so the toast keeps naming the locked key
+  against servers on either side of that change rather than degrading to
+  `Locked by environment: undefined` during the window where the two repos are on
+  different versions. The fallback can go once the oldest supported server carries
+  the fix.
+
+  Also stops interpolating a missing key: when neither position carries one the
+  toast now reads `Locked by environment` rather than appending `undefined`.
+
+  This was the only in-console reader of the four keys objectstack#4224 relocated
+  (`namespace`, `key`, `reason`, `fields`) — a repo-wide grep for the other three
+  finds no consumer.
+
+- eddd4a1: feat(settings): a rejected save marks the fields that caused it — objectstack#4224 follow-up
+
+  A `SETTINGS_VALIDATION` rejection names the offending keys, and the settings page
+  threw all of it away. Every failure collapsed into one toast carrying the
+  server's summary sentence, with nothing marked on the inputs — so on a namespace
+  with a dozen keys the user was told a value was wrong and left to find which.
+
+  **That was not the console's fault, which is the part worth recording.** The
+  server sent `fields` as a `Record<key, message>` hung _beside_ `error.code`, a
+  position `ApiErrorSchema` never declared — it survived only because the schema
+  is a plain `z.object` and strips undeclared keys rather than rejecting them.
+  `extractFieldErrors` reads arrays (`details.fields`, `fields`,
+  `validationErrors`), so a map at an undeclared position matched nothing and
+  returned `null`. objectstack#4224 moved it to `error.details.fields` as the
+  declared `FieldError[]`, which is what makes this wiring a few lines rather than
+  a parser.
+
+  What changes for a user: the server's message now renders against the input that
+  caused it, in the slot the help text occupies, and clears the moment that field
+  is edited, on Discard, or on the next successful save. `SettingsField` gained an
+  `error` prop; it sets `aria-invalid` and `aria-describedby` on the control and
+  gives the message `role="alert"`, so the rejection is announced rather than being
+  conveyed by colour alone.
+
+  The toast still fires alongside the per-field marks. The offending field can be
+  scrolled out of view or hidden behind a `visible` expression, and a save that
+  appears to do nothing is the worse failure.
+
+  Fields the server did not name are left unmarked — a wrong mark on an innocent
+  input is worse than the generic toast that was already there — and a failure
+  carrying no field array (a 500, an unknown namespace) behaves exactly as before.
+
+- 96ee72e: **The shared-record page's redaction notice never rendered on the enveloped path.**
+
+  `GET /api/v1/share-links/:token/resolve` has two producers — the framework's
+  sharing plugin and the runtime dispatcher's `/share-links` domain, which is the
+  designed primary surface for cloud's per-environment kernels. `SharedRecordPage`
+  read both, but the wire spells the field `redactFields` while the render reads
+  `redactedFields`, and only the BARE branch did that rename. The enveloped branch
+  handed `body.data` straight through, so on the dispatcher path `redactedFields`
+  was always `undefined` and "Some fields are hidden by the owner" never appeared —
+  on exactly the pages where fields WERE being stripped. The record itself was
+  correctly redacted throughout; what was missing is the visitor being told.
+
+  The fold now lives in one place, `normalizeResolvedShare` in the new
+  `pages/shared-record-shape.ts`, with both envelopes covered by tests. Extracting
+  it out of the page module is also what lets those tests run without loading the
+  chat renderer and the app-shell graph behind it.
+
+  Prompted by objectstack#3983, which moves the plugin surface onto the same
+  enveloped shape the dispatcher already used: without this fix that convergence
+  would have spread the missing notice from the dispatcher path to every share
+  page. No API change — the page reads a superset of what it read before, so it
+  still works against a pre-#3983 framework.
+
+- Updated dependencies [32462dd]
+- Updated dependencies [aa1240a]
+- Updated dependencies [2374a49]
+  - @object-ui/sdui-parser@17.1.0
+  - @object-ui/react-runtime@17.1.0
+
 ## 17.0.0
 
 ### Minor Changes

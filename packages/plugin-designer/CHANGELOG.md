@@ -1,5 +1,111 @@
 # @object-ui/plugin-designer
 
+## 17.1.0
+
+### Patch Changes
+
+- b5b97e2: fix(types,layout): nav item type `component` joins `NavigationItemType` and its zod enum — objectui#2918
+
+  The renderers have carried a full `type: 'component'` implementation (Phase 3b:
+  `componentRef` colon-split to `/component/<ns>/<name>`, `params` serialised as
+  querystring, `metadata:*` special-cases) — but the vocabulary never gained the
+  member, and `@objectstack/spec` has had `ComponentNavItem` all along. The zod
+  enum was the part that bit: `NavigationItemTypeSchema` rejected
+  `type: 'component'` at validation time, so authors could not declare one and
+  the renderer half was unreachable — dead on arrival rather than dead code.
+
+  - `NavigationItemType` and `NavigationItemTypeSchema` gain `'component'`;
+    `NavigationItem` gains the fields the renderer consumes, `componentRef` and
+    `params` (also used by `type: 'page'`), mirroring spec's `ComponentNavItem` —
+    declared in zod too, so parse no longer strips them.
+  - The `(item as any).componentRef` / `params` casts in `NavigationRenderer`
+    and `AppSchemaRenderer` become typed access.
+  - `NavigationDesigner`'s exhaustive type-meta map gains a `component` badge
+    (new `appDesigner.navTypeComponent` key in all 10 locales).
+  - `@object-ui/layout` gains `type-check` (src + tests) with the #2915 `paths`
+    override; its DEBT entry in `check-type-check-coverage.mjs` is deleted.
+
+- Updated dependencies [62311b6]
+- Updated dependencies [fc0272a]
+- Updated dependencies [9e7349e]
+- Updated dependencies [8864971]
+- Updated dependencies [9b773f9]
+- Updated dependencies [1cf0de7]
+- Updated dependencies [752e18f]
+- Updated dependencies [c785740]
+- Updated dependencies [b41f401]
+- Updated dependencies [5340879]
+- Updated dependencies [19e9fa0]
+- Updated dependencies [a149e90]
+- Updated dependencies [d61efd1]
+- Updated dependencies [95b7214]
+- Updated dependencies [7d9734d]
+- Updated dependencies [6ae818e]
+- Updated dependencies [9eb932b]
+- Updated dependencies [746dd00]
+- Updated dependencies [aebfa4f]
+- Updated dependencies [38ca8be]
+- Updated dependencies [3cb9646]
+- Updated dependencies [68ef584]
+- Updated dependencies [4952edf]
+- Updated dependencies [7f0252e]
+- Updated dependencies [7d35010]
+- Updated dependencies [c4d7b20]
+- Updated dependencies [c769d3d]
+- Updated dependencies [7639a61]
+- Updated dependencies [94e63ef]
+- Updated dependencies [aeb0bd2]
+- Updated dependencies [c735bf7]
+- Updated dependencies [02aef0c]
+- Updated dependencies [6f29aa5]
+- Updated dependencies [d21794c]
+- Updated dependencies [c4db402]
+- Updated dependencies [5319bf1]
+- Updated dependencies [49e5671]
+- Updated dependencies [9a04d25]
+- Updated dependencies [b5b97e2]
+- Updated dependencies [f59f2c1]
+- Updated dependencies [07de839]
+- Updated dependencies [2a40b5e]
+- Updated dependencies [df613fa]
+- Updated dependencies [4874117]
+- Updated dependencies [ad0183a]
+- Updated dependencies [ce08d55]
+- Updated dependencies [a17ef09]
+- Updated dependencies [eb4b740]
+- Updated dependencies [aecc934]
+- Updated dependencies [5b084eb]
+- Updated dependencies [aa1240a]
+- Updated dependencies [2374a49]
+- Updated dependencies [390c071]
+- Updated dependencies [d10f526]
+- Updated dependencies [e339d60]
+- Updated dependencies [2d5d594]
+- Updated dependencies [ea7f477]
+- Updated dependencies [379728f]
+- Updated dependencies [7f23cd0]
+- Updated dependencies [0ded602]
+- Updated dependencies [24e0e0a]
+- Updated dependencies [f8a95e5]
+- Updated dependencies [3a6cf24]
+- Updated dependencies [aa35561]
+- Updated dependencies [03bd53b]
+- Updated dependencies [3c1f321]
+- Updated dependencies [a045a32]
+- Updated dependencies [912496d]
+- Updated dependencies [80edbd4]
+- Updated dependencies [c0d0bc8]
+- Updated dependencies [9867281]
+  - @object-ui/core@17.1.0
+  - @object-ui/components@17.1.0
+  - @object-ui/plugin-grid@17.1.0
+  - @object-ui/react@17.1.0
+  - @object-ui/types@17.1.0
+  - @object-ui/data-objectstack@17.1.0
+  - @object-ui/i18n@17.1.0
+  - @object-ui/plugin-form@17.1.0
+  - @object-ui/fields@17.1.0
+
 ## 17.0.0
 
 ### Patch Changes

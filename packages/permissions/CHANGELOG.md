@@ -1,5 +1,112 @@
 # @object-ui/permissions
 
+## 17.1.0
+
+### Minor Changes
+
+- 2307b52: fix(permissions,console): `MePermissionsProvider` retries a transient `/me/permissions` failure instead of stranding the app on its loading state
+
+  "Not now" is a real answer from this endpoint. On a multi-tenant host it is served
+  by the environment kernel that owns the session, and a COLD one answers `503` +
+  `Retry-After` while it warms (objectstack#4159 / cloud#927). The provider treated
+  that like any other failure: it set `error` — and a consumer that passes no
+  `errorFallback` renders `loadingFallback` for the error state too. The console
+  does exactly that (`loadingFallback={<LoadingScreen />}`, no `errorFallback`), so
+  the app sat on its spinner indefinitely, with a `retry` nobody could reach.
+
+  The fetch now re-attempts a **transient** failure — `408`, `425`, `429`, `502`,
+  `503`, `504`, or a thrown fetch (offline / DNS / aborted), which never got an
+  answer at all. A server-stated `Retry-After` wins over the exponential backoff
+  (both wire forms are read, and clamped to 30s so a hostile value cannot park the
+  UI); otherwise the delay doubles from `retryBaseDelayMs`. `loading` stays true
+  across the waits, so the fail-closed loading state holds and consumers never see
+  a permissive flash mid-recovery.
+
+  Unchanged for a real answer about the caller: `401`, `403`, `404` and `500` fail
+  on the first attempt exactly as before. `500` is deliberately not retried — a
+  genuine server fault neither benefits from hammering nor should be hidden behind
+  a spinner.
+
+  **New props**, both optional and defaulted so no call site needs to change:
+
+  - `maxRetries` (default `3`) — `0` restores the previous single-attempt
+    behaviour.
+  - `retryBaseDelayMs` (default `500`) — base for the exponential backoff.
+
+  Also fixes a latent race the retries made much wider: the in-flight fetch is now
+  cancelled when the effect tears down, so a slow answer for a previous `endpoint`
+  or `fetcher` can no longer overwrite a fast answer for the current one. The retry
+  primitives (`parseRetryAfterMs`, `backoffMs`, `isTransientFailure`,
+  `TRANSIENT_STATUS`, `PermissionsFetchError`) live in a new internal `./retry`
+  module — not exported from the package root.
+
+  **The console now passes an `errorFallback`.** Retrying narrows the window but
+  cannot close it — a kernel build slower than the retry budget still lands in the
+  error state, and rendering `loadingFallback` there is what produced the eternal
+  spinner. It now renders `<LoadingScreen error={...} onRetry={retry} />`, using the
+  error + retry affordance that component has carried all along, so a user is never
+  left with a spinner and no way forward.
+
+### Patch Changes
+
+- 49e5671: fix(console): `LocalizationFetchProvider` retries a transient `/me/localization` failure instead of degrading for the whole session
+
+  `/auth/me/localization` is served by the environment kernel that owns the session
+  on a multi-tenant host, and a cold one answers `503` + `Retry-After` while it
+  warms (objectstack#4159). A transient failure is therefore a normal part of a
+  cold start — not an exception.
+
+  The provider made ONE attempt and `.catch()`-ed into silence. So a single 503
+  during warm-up left currency and locale unset for the **whole session**, silently
+  and permanently, long after the kernel was ready. Every money field rendered a
+  plain number and nothing ever tried again.
+
+  It now re-attempts a transient failure (`408`, `425`, `429`, `502`, `503`, `504`,
+  or a thrown fetch), server-stated `Retry-After` first, exponential backoff
+  otherwise. `401` / `403` / `404` / `500` are real answers about the caller and
+  still fail on the first attempt.
+
+  **It keeps its posture.** This provider is cosmetic, so it renders children
+  throughout — including mid-retry — and fills the value in if and when an attempt
+  succeeds. That is the opposite of `MePermissionsProvider`, which is fail-closed
+  and holds its loading state across the waits. Both are pinned by tests.
+
+  The retry PRIMITIVES ("is this transient", "how long to wait", `Retry-After`
+  parsing) move from `@object-ui/permissions`'s internal module to
+  `@object-ui/types` — the lowest package both callers can reach — and
+  `PermissionsFetchError` becomes the generic `HttpFetchError`. One definition of
+  transient, two policies, rather than a second copy free to drift from the first.
+  No behaviour change for `MePermissionsProvider`.
+
+- Updated dependencies [9e7349e]
+- Updated dependencies [8864971]
+- Updated dependencies [b41f401]
+- Updated dependencies [19e9fa0]
+- Updated dependencies [38ca8be]
+- Updated dependencies [4952edf]
+- Updated dependencies [7f0252e]
+- Updated dependencies [7639a61]
+- Updated dependencies [94e63ef]
+- Updated dependencies [c4db402]
+- Updated dependencies [5319bf1]
+- Updated dependencies [49e5671]
+- Updated dependencies [b5b97e2]
+- Updated dependencies [f59f2c1]
+- Updated dependencies [4874117]
+- Updated dependencies [ce08d55]
+- Updated dependencies [2374a49]
+- Updated dependencies [ea7f477]
+- Updated dependencies [7f23cd0]
+- Updated dependencies [24e0e0a]
+- Updated dependencies [3a6cf24]
+- Updated dependencies [aa35561]
+- Updated dependencies [03bd53b]
+- Updated dependencies [3c1f321]
+- Updated dependencies [a045a32]
+- Updated dependencies [912496d]
+- Updated dependencies [9867281]
+  - @object-ui/types@17.1.0
+
 ## 17.0.0
 
 ### Minor Changes

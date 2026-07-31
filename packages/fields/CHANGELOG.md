@@ -1,5 +1,160 @@
 # @object-ui/fields
 
+## 17.1.0
+
+### Minor Changes
+
+- f8a95e5: fix(fields): the sharing-criteria builder stops calling an empty criteria "All records" (objectstack#3896)
+
+  `FilterConditionField` renders `sys_sharing_rule.criteria_json`. With no
+  criteria it displayed **"All records"**, and `filterGroupToMongo` carried a
+  matching `// empty = match all` comment. That was describing a bug as a
+  feature: a sharing rule with no predicate was stored as `criteria_json: null`
+  and evaluated as `find(object, { filter: {} })` under the system context —
+  every record of the object, granted to the recipient. `SharingRuleSchema` had
+  always forbidden the shape ("never seeded as a permissive match-all",
+  ADR-0049); the REST and data-API entries just never checked.
+
+  objectstack#3896 closes those entries: the server now refuses to save a rule
+  whose criteria would match everything, and one already stored shares nothing.
+  This is the renderer catching up.
+
+  - **The empty read-only state now says the rule shares nothing**, in
+    `destructive` styling — key renamed `fields.filterCondition.allRecords` →
+    `fields.filterCondition.noCriteria`, retranslated across all ten locales.
+    Nothing else read the old key.
+  - **A new `fields.filterCondition.criteriaRequired` hint** renders under the
+    builder (and the JSON editor) while the criteria is empty. The server's
+    rejection is precise but only arrives as a toast _after_ Save; this says it
+    while the admin is still looking at the empty builder.
+  - **`isMatchAllCriteria` is exported** — a client-side mirror of the server
+    predicate covering `{}`, `[]`, and the vacuous combinators (`{ $and: [] }`,
+    `{ $or: [{}] }`), conservative in the same direction. The server stays
+    authoritative; this only decides whether to show the hint.
+
+  Unparsable JSON keeps its own `invalidJson` message and does **not** also
+  collect the empty-criteria hint.
+
+  Note for anyone wiring this end-to-end: the Criteria field is not marked
+  `required` in the object metadata, deliberately — `sys_sharing_rule.criteria_json`
+  is nullable in deployed tenants, so `required: true` would only produce a
+  destructive `NOT NULL` migration that those nulls block. The invariant lives in
+  the server's write guards; this change makes the UI stop contradicting it.
+
+### Patch Changes
+
+- aecc934: fix(fields): PeoplePicker's keyboard cursor can no longer be eaten by a late reset
+
+  The cursor reset on new results lived in a `useEffect`. Effects flush
+  asynchronously after the render that delivered the records — so a reset queued
+  by their arrival could land AFTER a subsequent ArrowDown and wipe the just-set
+  cursor. That was the residual ArrowDown→Enter flake in
+  `PeoplePicker.test.tsx` (the earlier signature-keyed fix closed the
+  too-often resets, not the too-late one), and a real fast-fingers UX bug: rows
+  appear, the user presses ArrowDown, the highlight vanishes.
+
+  The reset now runs in the render phase (the "adjusting state during render"
+  pattern), in the same render that shows the new rows — by the time a row is
+  visible, the reset has already happened, so it can never race a keypress.
+  Semantics unchanged and now pinned by a test: a replaced result set does not
+  inherit the previous set's cursor.
+
+- 7f23cd0: fix(form): a numeric/boolean select option survives selection with its type intact — #3090
+
+  `SelectOptionSchema.value` has accepted `string | number | boolean` for as
+  long as it has existed, but the Radix controls underneath speak strings:
+  picking `{ value: 2 }` silently submitted `"2"` — a wrong-typed write into a
+  number field that nothing on the client ever reported. (Display half-worked:
+  a numeric default matched its numeric item; only SELECTION morphed the type.)
+
+  The renderers now stringify on the way into the control and map the selection
+  back to the AUTHORED option value on the way out (`matchOptionValue`), across
+  the in-form select, the standalone `type: 'select'` component, and the
+  standalone `type: 'radio-group'` component. The TS types stop lying to match:
+  `SelectOption.value` / `RadioOption.value` and the corresponding
+  `value`/`defaultValue`/`onChange` channels widen to what the zod schemas
+  always accepted — a call site treating `option.value` as `string` is now a
+  compile error pointing at a real latent crash, not a false comfort.
+
+  The ripple the widening named, handled at each boundary: `@object-ui/core`'s
+  `OptionLike.value` widens (the option engines compare by identity, so values
+  flow opaquely; the option-lint's CEL-literal domain stringifies at its
+  boundary), and the multi-value field widgets (checkboxes / multiselect /
+  radio) stringify at theirs — multi-value fields store string arrays.
+
+  Round-trip pinned by real Radix interactions in jsdom: the in-form select
+  submits `2` (number), the standalone select hands its handler `false`
+  (boolean).
+
+- Updated dependencies [62311b6]
+- Updated dependencies [fc0272a]
+- Updated dependencies [9e7349e]
+- Updated dependencies [8864971]
+- Updated dependencies [1cf0de7]
+- Updated dependencies [752e18f]
+- Updated dependencies [c785740]
+- Updated dependencies [b41f401]
+- Updated dependencies [19e9fa0]
+- Updated dependencies [d61efd1]
+- Updated dependencies [95b7214]
+- Updated dependencies [7d9734d]
+- Updated dependencies [6ae818e]
+- Updated dependencies [9eb932b]
+- Updated dependencies [746dd00]
+- Updated dependencies [aebfa4f]
+- Updated dependencies [38ca8be]
+- Updated dependencies [3cb9646]
+- Updated dependencies [68ef584]
+- Updated dependencies [4952edf]
+- Updated dependencies [7f0252e]
+- Updated dependencies [c4d7b20]
+- Updated dependencies [c769d3d]
+- Updated dependencies [7639a61]
+- Updated dependencies [94e63ef]
+- Updated dependencies [c735bf7]
+- Updated dependencies [02aef0c]
+- Updated dependencies [6f29aa5]
+- Updated dependencies [d21794c]
+- Updated dependencies [c4db402]
+- Updated dependencies [5319bf1]
+- Updated dependencies [49e5671]
+- Updated dependencies [9a04d25]
+- Updated dependencies [b5b97e2]
+- Updated dependencies [f59f2c1]
+- Updated dependencies [07de839]
+- Updated dependencies [2a40b5e]
+- Updated dependencies [df613fa]
+- Updated dependencies [4874117]
+- Updated dependencies [ad0183a]
+- Updated dependencies [ce08d55]
+- Updated dependencies [eb4b740]
+- Updated dependencies [5b084eb]
+- Updated dependencies [aa1240a]
+- Updated dependencies [2374a49]
+- Updated dependencies [390c071]
+- Updated dependencies [d10f526]
+- Updated dependencies [2d5d594]
+- Updated dependencies [ea7f477]
+- Updated dependencies [379728f]
+- Updated dependencies [7f23cd0]
+- Updated dependencies [0ded602]
+- Updated dependencies [24e0e0a]
+- Updated dependencies [f8a95e5]
+- Updated dependencies [3a6cf24]
+- Updated dependencies [aa35561]
+- Updated dependencies [03bd53b]
+- Updated dependencies [3c1f321]
+- Updated dependencies [a045a32]
+- Updated dependencies [912496d]
+- Updated dependencies [80edbd4]
+- Updated dependencies [9867281]
+  - @object-ui/core@17.1.0
+  - @object-ui/components@17.1.0
+  - @object-ui/react@17.1.0
+  - @object-ui/types@17.1.0
+  - @object-ui/i18n@17.1.0
+  - @object-ui/providers@17.1.0
+
 ## 17.0.0
 
 ### Minor Changes

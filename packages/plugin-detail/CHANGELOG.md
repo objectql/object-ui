@@ -1,5 +1,316 @@
 # @object-ui/plugin-detail
 
+## 17.1.0
+
+### Minor Changes
+
+- 1cf0de7: fix(detail): finish the approval-lock story, and warn on silently stripped fields (framework#3794)
+
+  The Console reported record writability wrong in both directions during an
+  approval, so a user had nothing to go on: what they _could_ edit said "locked",
+  and what they _couldn't_ said "updated successfully".
+
+  **The lock band told the truth; the Edit button did not.** objectui#2902 split
+  the band into "in approval · editable" vs locked, but the header **Edit** CTA
+  still keyed off nothing at all — on a genuinely locked record it stayed live, so
+  the user opened the form, filled a screen, and got `RECORD_LOCKED` back on Save.
+  It is now `disabled` on a locked record: visible-but-off, with the band beside it
+  saying why. This is the LOCK, not the mere presence of an approval — a
+  `lockRecord: false` node keeps Edit live, which is the point of that setting.
+
+  **And the band could still re-lock itself.** `DetailView` OR-ed the record's own
+  `approval_status` mirror into `isLocked` unconditionally. That mirror is written
+  on submit by any flow configuring an `approvalStatusField`, _regardless of_
+  `lockRecord` — so on a `lockRecord: false` node the host correctly resolved "not
+  locked" from the request's `lock_record` while the mirror dragged the band back
+  to "Locked for approval", with the pencils live and saves landing underneath it.
+  The host is now authoritative whenever it threads `approvalPending`; the mirror
+  is consulted only for bare/legacy `DetailView` hosts that thread nothing, where
+  it still reads as locked (no node granularity — the safe direction).
+
+  Recall's tooltip no longer promises to unlock a record the node never locked
+  (`detail.cancelApprovalTooltipUnlocked`).
+
+  **Silently stripped fields now surface on the record form's save path.** The
+  adapter emitted a write-warning for `create`/`update` responses carrying
+  `droppedFields`, but not for `batchTransaction` — which is how the record form
+  saves a master-detail record, i.e. the one surface where a user actually edits a
+  `readonlyWhen`-locked field. `batchTransaction` now emits one warning per event,
+  resolving each back to its operation via the response's `index`.
+
+  The toast itself was hardcoded English and called every strip "read-only". It is
+  now localized (`detail.writeStripped*`, ten locales) and worded by reason:
+  `readonly_when` says the field is not editable _in this record's current state_,
+  which is what actually happened — the field is editable in other states and the
+  form rendered it as an ordinary input, so "read-only" sent the user hunting for a
+  permission problem that does not exist.
+
+  **And it stopped crying wolf.** `createObjectStackUserStateAdapter` hand-stamped
+  the server-managed `updated_at` on every recents/favorites write, which the
+  server strips and reports — so the console popped "Some fields were not saved"
+  about a field no user ever touched, on page loads, drowning the signal the toast
+  exists for. It no longer sends the column; the server stamps it anyway.
+
+- 390c071: feat(record): declare inputs for the seven configurable record:\* blocks, and curate six
+
+  Seven `record:*` blocks shipped with renderers that read props but declared no
+  `inputs`. That combination is the worst of both: the renderer honours
+  `limit`, `severity`, `location` …, while every authoring surface — the designer
+  panel, the AI vocabulary, the generated manifest — reports the block takes no
+  configuration. objectui#3013 recorded them as deliberately uncurated for
+  exactly that reason.
+
+  The declarations mirror what each renderer actually reads:
+
+  | block                                  | inputs                                                                       |
+  | -------------------------------------- | ---------------------------------------------------------------------------- |
+  | `record:activity`                      | 11 — from `RecordActivityComponentProps`                                     |
+  | `record:chatter` / `record:discussion` | 5 — from `RecordChatterComponentProps`                                       |
+  | `record:alert`                         | 8 — severity, title, body, visible, icon, action, dismissible, dismissKey    |
+  | `record:quick_actions`                 | 7 — actionNames, requiredPermissions, location, align, inline, variant, size |
+  | `record:history`                       | 3 — limit, emptyText, unknownUserText                                        |
+  | `record:reference_rail`                | 1 — hideEmpty                                                                |
+
+  `inputs` describe what an AUTHOR writes, which is a subset of what the renderer
+  reads. `entries`, `loading` and resolved `actions` are injected by the host
+  shell off RecordContext; declaring them would invite a model to hand-write the
+  data the page is supposed to fetch. `aria` is omitted for the reason it is
+  omitted on `record:details` — an accessibility escape hatch, not a layout
+  choice. `location` takes its enum from the spec's `ACTION_LOCATIONS` rather
+  than restating it, per objectui#3019.
+
+  Six of the seven are now in `PUBLIC_BLOCKS`: configurable and absent from the
+  contract is the state objectui#3006 was about. The contract goes 36 → 42 tags,
+  all resolving.
+
+  `record:chatter` stays out — it is the same renderer as `record:discussion`
+  under a Salesforce-familiar name, kept for schemas already in the wild. Two
+  spellings of one block is ambiguity an authoring model cannot resolve, so the
+  vocabulary carries the spec's name. A test compares the two input lists, so the
+  day they diverge the exclusion stops being justified and fails.
+
+  A companion assertion requires every curated `record:*` tag to declare inputs.
+  A curated tag with none reads as "takes no configuration" when the renderer in
+  fact reads props — the same gap objectui#3006 opened, pointed the other way.
+
+- bac266c: fix(detail): a related list has one sorting semantics instead of two — #3106
+
+  A related list carried two. Its own sort-button row (opt-in via `sortable`) went
+  out as a server `$orderby` over the whole child collection; the `data-table` it
+  embeds took `sortable`'s default of `true` and sorted the rows it was holding —
+  which, in windowed mode, is **one page**.
+
+  Turning `sortable` on put both in the same card, with nothing saying they meant
+  different things. Leaving it off — the default — was worse: the page-local sort
+  was then the _only_ one the user could reach, and it looked exactly like the
+  list being sorted.
+
+  The table's column headers now drive this list's sort in both modes, so there is
+  one order behind them:
+
+  - **Windowed**: the header sort becomes the server `$orderby` and resets to page
+    one, the same path the buttons took.
+  - **Client mode**: this list keeps sorting in memory, where its key is the label
+    resolved through its own id → name map (#3096) — a key the embedded table
+    cannot see, so its sort was the worse of the two even when both were possible.
+
+  The button row survives only where there are no headers to click: a `list`
+  (`data-list`) related list, or a caller-supplied `schema` whose contents we
+  cannot assume. `sortable`'s documentation now says that is what it controls.
+
+  Relational columns keep #3096's rule, moved to the header: no sort affordance
+  while the sort is a server `$orderby` (the key would be the stored foreign-key
+  id while the cell shows a name), live in client mode where the key is the label.
+
+### Patch Changes
+
+- fc0272a: fix(actions): apply the ADR-0066 D4 capability gate on every action surface (framework#3923)
+
+  An action declaring `requiredPermissions` is supposed to be one declaration with
+  two enforcement surfaces: 403 on the server, hidden button in the UI. The UI half
+  only ever ran inside `ActionEngine.getActionsForLocation` — and the surfaces
+  `record_header`, `record_more`, `list_item` and `list_toolbar` actually render on
+  do not go through the engine. They filter their own action lists. So a button
+  declaring a capability nobody holds rendered, live and clickable, on the record
+  header, in every grid row menu, and on the list toolbar. For a `type: 'api'`
+  action pointed at a self-authored endpoint, nothing else was checking either: the
+  platform's action route (which is where the 403 comes from) never sees that
+  request.
+
+  `page:header`, `action:bar` (business _and_ `systemActions`) and the grid's
+  `RowActionMenu` now apply the same gate, via a shared `useCapabilityGate()` so
+  the surfaces cannot drift apart. The rule is the engine's, unchanged: hide unless
+  the caller holds **all** declared capabilities; an empty held set is "holds
+  nothing" and gates; **unknown** — no action runtime, no resolved capabilities —
+  fails OPEN, because the server is the authority and hiding a permitted user's
+  button on missing client data is the worse failure.
+
+  The record surface was also feeding the gate nothing to work with.
+  `RecordDetailView` mounts its own `<ActionProvider>`, which shadows the shell's
+  for every action on that page, and seeded it with identity only — no
+  `systemPermissions`. Since unknown fails open, that alone un-gated every
+  `record_header` / `record_more` / `record_section` action on the one page those
+  locations exist on. It now forwards the caller's resolved capabilities (and only
+  once they have actually resolved, so a standalone embed without a
+  `PermissionProvider` keeps failing open rather than hiding everything).
+
+  `useRecordEditable`'s record-level explain probe went out on a bare
+  `fetch(..., { credentials: 'include' })`. A bearer-token session carries its
+  credential in the `Authorization` header, not a cookie, so the probe came back
+  401 on a perfectly valid admin session and the verdict silently failed open —
+  the hook was inert in exactly the deployments it was written for. It now rides
+  the host's authenticated fetch (`SchemaRendererProvider`'s `apiFetch`), falling
+  back to the global one for standalone embeds.
+
+- c785740: fix(detail): record Attachments become their own tab (with count badge) and their copy is translated — objectstack#4358
+
+  Two defects on `enable.files: true` record detail pages:
+
+  1. **Buried placement.** `RecordDetailView` appended `RecordAttachmentsPanel`
+     AFTER the schema-rendered page tree, whose synthesized default embeds
+     `record:discussion` as the last main component — so the panel always
+     landed below an ever-growing feed timeline, undiscoverable without
+     scrolling to the very bottom, with no metadata knob to move it.
+
+     `buildDefaultTabs` now emits a peer **Attachments** tab (a new
+     `record:attachments` node rendered by an app-shell registration wrapping
+     the existing panel via RecordContext) between Related and
+     Activity/History. `PageTabsRenderer` derives the tab's count badge from a
+     `sys_attachment` probe scoped to `(parent_object, parent_id)`, riding the
+     same RelatedCountStore cache/invalidation bus as related-list badges — so
+     uploads and deletes update the badge live. A `hideAttachments` synthesizer
+     option suppresses the tab; RecordDetailView keeps its legacy bottom append
+     only as the fallback for authored pages without the node
+     (`hasExplicitAttachments`).
+
+  2. **Untranslated copy.** The panel's eleven `detail.*` keys (`attachments`,
+     `uploadAttachment`, `loadingAttachments`, `noAttachments`,
+     `downloadAttachment`, `deleteAttachment`, and the five
+     `attachment*Denied/Required` friendly errors) existed only as inline
+     English `defaultValue`s — no locale bundle carried them, so non-English
+     consoles always showed English. All ten locales now define them; the tab
+     label rides the existing well-known-label dictionary (→ 附件 etc.).
+
+- 95b7214: fix(list,grid,detail,tree,core): every column resolver reads one key (#3104 PR2)
+
+  PR1 (#3119) put a canonicalizing fold at ListView's ingestion boundary. This
+  converges the 22 read sites themselves onto `columnIdentity()` from
+  `@object-ui/core`, so a surface that is NOT downstream of that fold resolves
+  the same identity anyway.
+
+  That distinction is the user-visible part. A standalone `object-grid` node —
+  authored directly on a page, with no `list-view` above it — never passed
+  through `normalizeListViewSchema`. Its `getSelectFields` read `c.field` alone
+  while the `ensureId` probe one line above read `f?.name || f?.field`, so a
+  legacy `{ name: 'account' }` column reached `$select` as a literal `undefined`
+  hole: the server never returned the field and every cell in that column came
+  back empty. Same for `ObjectTree`, `RelatedList` and the `record:details` /
+  `record:related_list` renderers.
+
+  Converged:
+
+  | Surface                                  | Was                                            | Now                                 |
+  | ---------------------------------------- | ---------------------------------------------- | ----------------------------------- |
+  | `ListView` ×9 + its 2 request builders   | `name \|\| fieldName \|\| field` vs `f?.field` | `columnIdentity()`                  |
+  | `RelatedList` ×8                         | `accessorKey \|\| field \|\| name`             | `accessorKey \|\| columnIdentity()` |
+  | `ObjectGrid`                             | name-first probe vs `c.field` projection       | `columnIdentity()`                  |
+  | `ObjectTree`                             | `name \|\| fieldName \|\| field \|\| key`      | `columnIdentity() \|\| key`         |
+  | `buildExpandFields`                      | `field ?? name ?? fieldName`                   | `columnIdentity()`                  |
+  | `record-details` / `record-related-list` | `field \|\| name (\|\| key)`                   | `columnIdentity() (\|\| key)`       |
+
+  `accessorKey` keeps its precedence in `RelatedList` — it is TanStack Table's
+  column key, not ObjectStack metadata identity, and only the `field || name`
+  tail was converged. `key` stays a tail fallback in `ObjectTree` and
+  `record-related-list` for the same reason: it is a generic entry key.
+
+  Two incidental fixes that TypeScript surfaced once the resolver stopped
+  returning `any`: ListView's filter-field options and its hide-fields popover
+  both built entries keyed `undefined` for a column with no resolvable identity.
+  Those entries could never match a column; they are now dropped.
+
+  **Inventory re-triage.** PR1 recorded 24 family members. Two were mis-classified
+  and are reclassified here rather than converged — reading what they actually
+  feed shows they are not column reads at all:
+
+  - `ViewPreview.tsx` adapts a ViewItem **form** section to what `object-form`
+    selects by (`field` → `name`) — the #3090 two-layer join.
+  - `SchemaForm.tsx` renders an arbitrary metadata **array** into a popover
+    summary and guesses at a display key; the entries are validations, actions,
+    or whatever the JSON schema declares.
+
+  So the family was 22, and it is now **0**. The ratchet asserts that, asserts
+  each converged surface actually routes through the shared reader (a surface
+  that dropped identity resolution instead of converging it goes red), and pins
+  `accessorKey`'s precedence in `RelatedList`.
+
+- 2baa13f: fix(record): register the record:\* blocks under one key, prefixed once
+
+  Eleven blocks in plugin-detail were registered as
+  `register('record:x', …, { namespace: 'record' })` — an already-prefixed name
+  handed to a registry that prefixes it again. Each landed at
+  `record:record:x`, and the key authors actually resolved, `record:x`, was the
+  un-namespaced _fallback_ rather than the intended registration. The registry
+  carried 23 keys for 12 components.
+
+  Nothing failed, which is why it survived: `getPublicConfigs()` rewrites `type`
+  to the curated tag, so the doubled name never reached the contract, the
+  manifest, or the JSX surface. It was visible only when enumerating the registry
+  directly — which is what objectui#3013's reverse check does.
+
+  Registering the bare name is what makes `namespace` correct, and
+  `skipFallback: true` is what keeps the fallback from claiming that bare name
+  globally. Without it these would take over `details`, `path`, `history`,
+  `alert` … as top-level tags; `alert` is the live case, owned by `ui:`. Every
+  block stays reachable exactly as `record:<name>`, and 23 keys become 12.
+
+  `record:line_items` needed no change — it was the one already registered this
+  way, which is what made objectui#3006's near-miss possible in the first place.
+
+  Two console assertions hold the shape: no key carries a doubled prefix, and no
+  `record:*` block owns the bare spelling of its own name.
+
+- 2d5d594: fix(list,detail): sorting a lookup column no longer orders by an invisible key — #3096
+
+  A relational column (`lookup` / `master_detail` / `user` / `tree`) never holds
+  the string its cell shows: it holds the `$expand`-ed record, or a raw foreign-key
+  id whose label was resolved separately. Every sort path took that raw value as
+  its key, so the column of names came back in an order with no relation to the
+  names — sorting looked broken, with nothing saying the key was something else.
+
+  The two halves are fixed differently, because they can order by different things:
+
+  - **Client-side sorts** (grid column headers, any `data-table`, a non-windowed
+    related list) now key off the label the cell renders, via the new
+    `getSortValue` / `compareSortValues` in `@object-ui/core` — which resolves an
+    expanded record through `getRecordDisplayName` (ADR-0079), so the sort key and
+    the lookup cell agree on which field names a record. This replaces two broken
+    comparators: `a[col] < b[col]` is always false between two objects (the
+    comparator collapsed to a constant and permuted the rows), and
+    `String(a[col])` is `"[object Object]"` (every row compared equal, so the sort
+    silently did nothing).
+  - **Server `$orderby` sorts** cannot be fixed here — the key is the stored id by
+    construction, and `objectstack#4256` settled that no relation join is coming.
+    So those entry points stop offering the illusion: the ListView toolbar sort
+    picker withholds relational fields and explains why (pointing at a formula
+    field as the supported way to sort by a related name), and a windowed related
+    list renders no sort button for them.
+
+  A relational field the view's CURRENT sort already uses stays listed, labelled
+  `(by ID)`, so view metadata authored or saved with such a sort round-trips
+  instead of rendering a blank row and losing the sort on the next edit.
+
+- Updated dependencies [1cf0de7]
+- Updated dependencies [752e18f]
+- Updated dependencies [c785740]
+- Updated dependencies [d61efd1]
+- Updated dependencies [9eb932b]
+- Updated dependencies [3cb9646]
+- Updated dependencies [d21794c]
+- Updated dependencies [b5b97e2]
+- Updated dependencies [2d5d594]
+- Updated dependencies [f8a95e5]
+  - @object-ui/i18n@17.1.0
+
 ## 17.0.0
 
 ### Minor Changes

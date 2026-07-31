@@ -1,5 +1,359 @@
 # @object-ui/plugin-list
 
+## 17.1.0
+
+### Minor Changes
+
+- d21794c: fix(list,i18n): a 400 from the server no longer reads as "check your connection"
+
+  `classifyLoadError` was written because a 403 rendered the same
+  "check your connection and try again" panel as a genuine outage — its own doc
+  comment says users "were told to debug their network when the server had
+  (correctly) denied them access." It made that distinction for 401 and 403 and
+  then sent **everything else**, including 4xx, to the network branch.
+
+  A **400** is the server saying it understood the request and will never accept
+  it. Retrying resends the identical bad request, so "check your connection and
+  try again" is advice that cannot work — the same mistake the function exists to
+  prevent, one status code over.
+
+  This became reachable from ordinary stored metadata with
+  objectstack-ai/objectstack#4121: a `$filter` array that is not a filter AST is
+  now rejected at the protocol with `400 INVALID_FILTER`, where it previously
+  reached a driver (and, for a lone `['and']`, silently returned every row). A
+  view saved with such a filter now answers 400 on every load.
+
+  Adds a fourth classification, `rejected`, for `status === 400` and for the
+  server's 400-class codes (`INVALID_FILTER`, `UNSUPPORTED_QUERY_PARAM`,
+  `INVALID_QUERY`). Its copy points at the filter rather than the network, and
+  says who can fix it when the view is saved that way. 403/401 keep priority, so a
+  permission denial can never read as a bad request — pinned by a test.
+
+  The two new strings are added to **all ten locale packs**, not just `en`: the
+  neighbouring panels are translated, and `fallbackLng: 'en'` would have rendered
+  this one in English beside them. The full-parity gate
+  (`all-locales-key-parity.test.ts`) caught the pack I missed.
+
+  Verified: 5 new tests — numeric status, error code without a status, a status
+  embedded in the message text, and the 403/401 ordering guard. Reverting the
+  branch fails four of them. `plugin-list` + `i18n`: **403 tests across 29 files**,
+  green.
+
+- c4db402: refactor(views): ListView's `aria` and `sharing` are the spec sub-shapes (#2890 scope A step 5)
+
+  Last rename batch in the ListView vocabulary migration.
+
+  **`aria`** is now the spec's `AriaPropsSchema`: `label` → `ariaLabel`,
+  `describedBy` → `ariaDescribedBy`, folded at the ListView boundary like every
+  other legacy key. Two things fall out of adopting the spec shape:
+
+  - `role` becomes authorable. The list region hardcoded `role="region"`; it now
+    reads `aria.role` and falls back to `region`.
+  - `aria.live` stays as a documented local extension — it has no spec
+    counterpart, and dropping it would silently disable a shipped capability.
+    Promote it rather than growing that extension.
+
+  **`sharing`** is now the spec's `ViewSharingSchema` (`{ type, lockedBy }`),
+  imported by reference — the local four-key object is gone. The legacy pair folds
+  in: `visibility` collapses onto the two ownership kinds the spec models (only
+  `private` is `personal`; `team` / `organization` / `public` are all
+  `collaborative`), and a bare `enabled: true` maps to `personal`, which is the
+  badge the user already saw (the old title fell back to `'private'`).
+
+  _Visible change_: the share badge's tooltip shows the spec ownership type, so a
+  view authored with `visibility: 'team'` reads "Sharing: collaborative" instead
+  of "Sharing: team". The four-value audience has no spec home and nothing but
+  that tooltip consumed it; keeping a second audience enum alive would re-open the
+  fork this issue closes.
+
+  Also fixes the **spec bridge**, which was doing the opposite of its job: given a
+  spec-shaped `sharing`, `transformListView` _downgraded_ it — inventing a legacy
+  `visibility` audience and an `enabled` flag that the renderer then had to fold
+  back. Both sides speak `ViewSharing` now, so it passes through.
+
+  `conditionalFormatting` and `exportOptions` are deliberately **not** folded.
+  Both objectui shapes are supersets carrying capability the spec cannot express —
+  the `{ field, operator, value }` rule form, and `maxRecords` / `includeHeaders`
+  / `fileNamePrefix`. Folding them onto the narrower spec shapes would delete
+  working features; they want promotion upstream, not a rename.
+
+- 5319bf1: feat(views): the list toolbar speaks one vocabulary — `userActions` (#2890 scope A step 3)
+
+  The seven bare `show*` toolbar flags fold into the spec's `userActions`, and the
+  renderer reads nothing else. `showDescription` folds into
+  `appearance.showDescription` at the same boundary.
+
+  | legacy                                                    | canonical                                                 |
+  | :-------------------------------------------------------- | :-------------------------------------------------------- |
+  | `showSearch` / `showSort` / `showFilters` / `showDensity` | `userActions.search` / `.sort` / `.filter` / `.rowHeight` |
+  | `showGroup` / `showHideFields` / `showColor`              | `userActions.group` / `.hideFields` / `.rowColor`         |
+  | `showDescription`                                         | `appearance.showDescription`                              |
+
+  **The last three are new keys, and they close a capability hole rather than just
+  renaming one.** `@objectstack/spec`'s `UserActionsConfigSchema` documents itself
+  as "which interactive actions are available to users in the view toolbar — each
+  boolean toggles the corresponding toolbar element on/off", and already carries
+  `rowHeight` (objectui's `showDensity` under its spec name). Grouping, column
+  visibility and row coloring are the same kind of toggle: the spec models all
+  three as _configuration_ (`grouping`, `hiddenFields`, `rowColor`) but has no
+  "may the user change it" switch for any of them.
+
+  The consequence was visible in the product. With no `userActions` key to read,
+  the two list surfaces **hardcoded opposite policies**: `InterfaceListPage` (the
+  author-curated interface page) pinned all three OFF, `ObjectDataPage` pinned two
+  ON — and an interface-page author could not turn grouping back on for end users
+  at all. Both surfaces now express their policy as `userActions` defaults, which
+  an author can override.
+
+  Until the keys land in `@objectstack/spec`, `@object-ui/types` carries them as a
+  documented `.extend()` on `UserActionsConfigSchema` (the same shape
+  `ListColumnSchema` uses while waiting on objectstack#3761); it collapses into a
+  plain re-export once they do. Note the spec schema is not `.strict()`, so before
+  this an author writing `userActions: { group: false }` had it **silently
+  stripped** — valid on parse, no effect at render.
+
+  Defaults are unchanged and deliberately asymmetric, matching what these flags
+  have always done: `search` / `sort` / `filter` / `rowHeight` / `group` are on
+  unless turned off; `hideFields` / `rowColor` are off unless turned on. Making
+  them uniform would grow two buttons on every existing view, so it is left as its
+  own product decision rather than smuggled into a vocabulary migration.
+
+  Also drops a dead relay in app-shell's `ObjectView`, which forwarded
+  `showDescription` onto the node although `ListView` has only ever read
+  `appearance.showDescription`.
+
+- 24e0e0a: feat(components,grid,list): a column-header sort orders the whole list, not the page you can see — #3106
+
+  Clicking a column header under server pagination sorted **the current page**.
+  The user saw "sorted by this column" and got "these fifty rows are in order;
+  page 2 starts over". The sort was real — its scope was not the one the screen
+  implied — and it had no way out of `data-table` at all: the sort lived in two
+  `useState`s with no callback, so the layer that issues the request could not
+  see it even in principle.
+
+  `DataTable` gains `manualSorting` + a controlled `sort` + `onSortChange`. In
+  that mode it sorts nothing, reports what a header click asks for, and renders
+  `sort` as the indicator — keeping **no** sort state of its own, because a
+  private copy beside a controlled prop is the shape the defect had.
+
+  `ObjectGrid` turns that into a `$orderby` in both of its server modes (its own
+  fetch, and a parent-driven one), and `ListView` lands it in `currentSort` — the
+  same state the toolbar's sort builder writes. One sort, two controls: that is
+  what makes "does a header sort outrank the saved view's sort?" a non-question
+  rather than a precedence rule someone has to remember.
+
+  Three details that are decisions, not incidentals:
+
+  - **A header click replaces the order** instead of appending to it, so the
+    column under the cursor is the one the list is sorted by. Multi-key orders
+    still come from the sort builder, and the headers render them numbered.
+  - **It cannot ask for "no sort".** In client mode the third click clears, and
+    that is meaningful there — the rows return to the order they arrived in.
+    Across a server-paged collection there is no such order (objectstack#4363), so
+    a header offering it would hand the user a worse lie than the one being fixed.
+    Clearing stays with the sort builder, which can restore the view's default.
+  - **Relational columns render no sort affordance** under server sorting. A
+    `lookup` column shows a related record's name while `$orderby` can only order
+    by the stored id (objectstack#4256) — the same reason #3096 removed them from
+    the toolbar's sort picker. Client-side sorting keys off the rendered label, so
+    those headers stay live there.
+
+  Client-side tables are untouched: same three-state cycle, same local sort.
+
+### Patch Changes
+
+- 95b7214: fix(list,grid,detail,tree,core): every column resolver reads one key (#3104 PR2)
+
+  PR1 (#3119) put a canonicalizing fold at ListView's ingestion boundary. This
+  converges the 22 read sites themselves onto `columnIdentity()` from
+  `@object-ui/core`, so a surface that is NOT downstream of that fold resolves
+  the same identity anyway.
+
+  That distinction is the user-visible part. A standalone `object-grid` node —
+  authored directly on a page, with no `list-view` above it — never passed
+  through `normalizeListViewSchema`. Its `getSelectFields` read `c.field` alone
+  while the `ensureId` probe one line above read `f?.name || f?.field`, so a
+  legacy `{ name: 'account' }` column reached `$select` as a literal `undefined`
+  hole: the server never returned the field and every cell in that column came
+  back empty. Same for `ObjectTree`, `RelatedList` and the `record:details` /
+  `record:related_list` renderers.
+
+  Converged:
+
+  | Surface                                  | Was                                            | Now                                 |
+  | ---------------------------------------- | ---------------------------------------------- | ----------------------------------- |
+  | `ListView` ×9 + its 2 request builders   | `name \|\| fieldName \|\| field` vs `f?.field` | `columnIdentity()`                  |
+  | `RelatedList` ×8                         | `accessorKey \|\| field \|\| name`             | `accessorKey \|\| columnIdentity()` |
+  | `ObjectGrid`                             | name-first probe vs `c.field` projection       | `columnIdentity()`                  |
+  | `ObjectTree`                             | `name \|\| fieldName \|\| field \|\| key`      | `columnIdentity() \|\| key`         |
+  | `buildExpandFields`                      | `field ?? name ?? fieldName`                   | `columnIdentity()`                  |
+  | `record-details` / `record-related-list` | `field \|\| name (\|\| key)`                   | `columnIdentity() (\|\| key)`       |
+
+  `accessorKey` keeps its precedence in `RelatedList` — it is TanStack Table's
+  column key, not ObjectStack metadata identity, and only the `field || name`
+  tail was converged. `key` stays a tail fallback in `ObjectTree` and
+  `record-related-list` for the same reason: it is a generic entry key.
+
+  Two incidental fixes that TypeScript surfaced once the resolver stopped
+  returning `any`: ListView's filter-field options and its hide-fields popover
+  both built entries keyed `undefined` for a column with no resolvable identity.
+  Those entries could never match a column; they are now dropped.
+
+  **Inventory re-triage.** PR1 recorded 24 family members. Two were mis-classified
+  and are reclassified here rather than converged — reading what they actually
+  feed shows they are not column reads at all:
+
+  - `ViewPreview.tsx` adapts a ViewItem **form** section to what `object-form`
+    selects by (`field` → `name`) — the #3090 two-layer join.
+  - `SchemaForm.tsx` renders an arbitrary metadata **array** into a popover
+    summary and guesses at a display key; the entries are validations, actions,
+    or whatever the JSON schema declares.
+
+  So the family was 22, and it is now **0**. The ratchet asserts that, asserts
+  each converged surface actually routes through the shared reader (a surface
+  that dropped identity resolution instead of converging it goes red), and pins
+  `accessorKey`'s precedence in `RelatedList`.
+
+- 9eb932b: fix(console): three real-user console failures — 403 blamed on the network, ⌘K search capped at 8 objects, nav gating fields inert
+
+  1. **List error panel classifies the failure** (`plugin-list`, `i18n`): a 403/401 from the data source used to render the same "check your connection" copy as a genuine outage, sending users to debug their network while the server was correctly denying access. The panel now classifies by `httpStatus`/`status`/`statusCode`, the `PERMISSION_DENIED`/`UNAUTHORIZED` error codes, or an `HTTP <status>` message prefix, and renders dedicated permission-denied / sign-in-required copy (all nine locales).
+
+  2. **⌘K / full-page search scope is no longer truncated** (`react`): `maxObjectsQueried` caps the per-object fanout fallback, not the search scope — it used to slice the candidate pool itself, so the `objects` whitelist sent to the platform's `/api/v1/search` only ever named the first 8 nav objects. Which sidebar group came first decided which records were findable; everything later in the nav was unsearchable no matter what the user typed.
+
+  3. **Nav gating fields finally gate** (`app-shell`): `evaluateVisibility` only evaluated `${…}` template strings, so the `{ dialect: 'cel', source }` envelopes the spec normalizes every authored `visible` predicate into fell through to a blanket "visible" — a constant-false predicate still rendered for everyone. It now delegates to `ExpressionEvaluator.evaluateCondition`, which routes CEL envelopes to the canonical `@objectstack/formula` engine. And the sidebars' `requiredPermissions` check treats a bare name as an ADR-0066 system capability (union of the user's permission-set `systemPermissions` from `/me/permissions`) — the same subset rule the server applies to `AppSchema.requiredPermissions` — instead of misreading it as `can(<name>, 'read')`, which had degraded `requiredPermissions` into a hide-from-everyone switch (admins included). The `object:action` form and the legacy object-read fallback keep working.
+
+- 7f0252e: fix(list,data-objectstack,types): exporting a searched list no longer downloads the unsearched superset
+
+  The server-streamed export mirrored the view's `filter` and `sort`, and the
+  code comment claimed that made the file match the screen:
+
+  > Mirrors the active view's filter + sort so the exported file matches what the
+  > user sees.
+
+  It mirrored one half. There was no way to carry the term a user had typed into
+  the search box — `ExportDownloadRequest` had no field for one — so exporting
+  during a search produced **more rows than the list showed**, in a file that
+  looks authoritative, with nothing indicating the difference. The client-side
+  fallback was always correct (it serializes the already-searched `data`); only
+  the server path was wrong, and it is the one that handles xlsx.
+
+  Same family as a dropped filter (objectstack#3948, objectstack#4181): a
+  plausible answer that is quietly broader than the one asked for.
+
+  - `ExportDownloadRequest` gains `search` / `searchFields`.
+  - `ObjectStackAdapter.exportDownload` sends them as `search=` / `searchFields=`,
+    trimming the term and omitting both when it is blank (`searchFields` alone
+    means nothing).
+  - `ListView` passes the active `searchTerm` and the view's `searchableFields`,
+    and both are now in the export callback's dependency array — a stale closure
+    would export the wrong row set.
+
+  Requires a server with objectstack#4230. Older servers ignore unknown query
+  params on this route, so they keep today's behaviour rather than erroring.
+
+  **Also: the filter merge is no longer written twice.** The three filter sources
+  (view filter, filter-panel group, per-field user filters) were merged by
+  verbatim copies in the data fetch and in the export — two copies that must
+  agree, deciding respectively what the user _sees_ and what they _download_.
+  Both now call `buildEffectiveFilter`. This is a pure extraction: the copies did
+  agree, and the four parity tests added for it pass against the old code too.
+  They exist to keep it that way — the adapter's duplicated filter-shape check
+  had already drifted apart unnoticed (#3072).
+
+- c4d7b20: fix(view,list,core): a view's filter no longer disappears, or arrives as a predicate on columns that don't exist
+
+  Sweeping the other `$filter` producers after #3078 turned up two live defects in
+  `ObjectView`, which fetches its own data for calendar / kanban / gallery /
+  timeline (grid delegates to `ObjectGrid`).
+
+  **1. An object filter was dropped, and only for non-grid views.**
+  `table.defaultFilters` is declared `Record<string, any>`, and the merge tested
+  `baseFilter.length > 0` — `undefined > 0` for an object. So the filter vanished
+  and the view returned **every record**. `ObjectGrid` assigns the same value
+  straight to `params.$filter`, so one view definition filtered correctly as a
+  grid and returned everything as a calendar.
+
+  **2. Rule objects were spread into the `and`, not wrapped.**
+  `['and', ...baseFilter, ...userFilter]` is only correct when the source is an
+  array of AST nodes. `activeView.filter` is a spec `ViewFilterRule[]`, so
+  spreading put bare rule objects where the AST expects nodes:
+
+  ```js
+  isFilterAST([
+    "and",
+    { field: "stage", operator: "eq", value: "won" },
+    ["owner", "=", "me"],
+  ]);
+  // false → 400 since objectstack#4121
+  parseFilterAST(same);
+  // {$and:[{field:'stage',operator:'eq',value:'won'}, {owner:'me'}]}
+  ```
+
+  That second line is a predicate over three columns named `field`, `operator`
+  and `value` — which don't exist.
+
+  > **Correction.** The first version of this note said the spread was "reachable
+  > whenever a view with a filter meets a user filter value". That was wrong for
+  > `ObjectView`: the branch required a non-empty user filter, and nothing ever
+  > wrote the state it was built from, so it could never run. The shape is
+  > genuinely broken — a live server answers it with a 400 — and the adapter-level
+  > defence added alongside is still warranted for any producer that emits it, but
+  > **this particular site was dead code, not a live defect.** Defect 1 above was
+  > live: it sat on the always-taken path. The dead machinery behind the wrong
+  > claim is removed in a follow-up.
+
+  New in `@object-ui/core`: `toFilterNode` normalizes one source (rule array / AST
+  / MongoDB object) and `mergeFilterNodes` combines sources as siblings under one
+  `and`. `ObjectView` and `ListView.buildEffectiveFilter` both use them, so the
+  three filter shapes are reconciled in one place instead of by hand at each
+  renderer.
+
+  `ObjectStackAdapter` also now translates a bare rule object sitting directly
+  under a logical node — the chokepoint defence for any producer still emitting
+  the spread shape. Only rule-_shaped_ objects are touched; a child with no
+  `field` is a genuine MongoDB condition and passes through untouched.
+
+  **Correcting a comment shipped in #3078.** `buildEffectiveFilter` documented the
+  dropped-object case as unreachable, "nothing in this repo produces one for a
+  list view". That was wrong: `ObjectView` passes `mergedFilters` straight into
+  that schema's `filter`, and its last fallback is `table.defaultFilters`. The
+  case is now handled rather than explained away.
+
+  Verified with 19 tests across the four packages; reverting each source file
+  fails the ones that cover it. Emitted filters are asserted against the spec's
+  own `isFilterAST` / `parseFilterAST`, including an executable pin on what the
+  old spread shape produced.
+
+- 2d5d594: fix(list,detail): sorting a lookup column no longer orders by an invisible key — #3096
+
+  A relational column (`lookup` / `master_detail` / `user` / `tree`) never holds
+  the string its cell shows: it holds the `$expand`-ed record, or a raw foreign-key
+  id whose label was resolved separately. Every sort path took that raw value as
+  its key, so the column of names came back in an order with no relation to the
+  names — sorting looked broken, with nothing saying the key was something else.
+
+  The two halves are fixed differently, because they can order by different things:
+
+  - **Client-side sorts** (grid column headers, any `data-table`, a non-windowed
+    related list) now key off the label the cell renders, via the new
+    `getSortValue` / `compareSortValues` in `@object-ui/core` — which resolves an
+    expanded record through `getRecordDisplayName` (ADR-0079), so the sort key and
+    the lookup cell agree on which field names a record. This replaces two broken
+    comparators: `a[col] < b[col]` is always false between two objects (the
+    comparator collapsed to a constant and permuted the rows), and
+    `String(a[col])` is `"[object Object]"` (every row compared equal, so the sort
+    silently did nothing).
+  - **Server `$orderby` sorts** cannot be fixed here — the key is the stored id by
+    construction, and `objectstack#4256` settled that no relation join is coming.
+    So those entry points stop offering the illusion: the ListView toolbar sort
+    picker withholds relational fields and explains why (pointing at a formula
+    field as the supported way to sort by a related name), and a windowed related
+    list renders no sort button for them.
+
+  A relational field the view's CURRENT sort already uses stays listed, labelled
+  `(by ID)`, so view metadata authored or saved with such a sort round-trips
+  instead of rendering a blank row and losing the sort on the next edit.
+
 ## 17.0.0
 
 ### Minor Changes

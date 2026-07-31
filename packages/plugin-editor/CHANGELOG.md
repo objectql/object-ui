@@ -1,5 +1,70 @@
 # @object-ui/plugin-editor
 
+## 17.1.0
+
+### Patch Changes
+
+- Updated dependencies [62311b6]
+- Updated dependencies [fc0272a]
+- Updated dependencies [9e7349e]
+- Updated dependencies [8864971]
+- Updated dependencies [c785740]
+- Updated dependencies [b41f401]
+- Updated dependencies [19e9fa0]
+- Updated dependencies [95b7214]
+- Updated dependencies [7d9734d]
+- Updated dependencies [6ae818e]
+- Updated dependencies [9eb932b]
+- Updated dependencies [746dd00]
+- Updated dependencies [aebfa4f]
+- Updated dependencies [38ca8be]
+- Updated dependencies [68ef584]
+- Updated dependencies [4952edf]
+- Updated dependencies [7f0252e]
+- Updated dependencies [c4d7b20]
+- Updated dependencies [c769d3d]
+- Updated dependencies [7639a61]
+- Updated dependencies [94e63ef]
+- Updated dependencies [c735bf7]
+- Updated dependencies [02aef0c]
+- Updated dependencies [6f29aa5]
+- Updated dependencies [c4db402]
+- Updated dependencies [5319bf1]
+- Updated dependencies [49e5671]
+- Updated dependencies [9a04d25]
+- Updated dependencies [b5b97e2]
+- Updated dependencies [f59f2c1]
+- Updated dependencies [07de839]
+- Updated dependencies [2a40b5e]
+- Updated dependencies [df613fa]
+- Updated dependencies [4874117]
+- Updated dependencies [ad0183a]
+- Updated dependencies [ce08d55]
+- Updated dependencies [eb4b740]
+- Updated dependencies [5b084eb]
+- Updated dependencies [aa1240a]
+- Updated dependencies [2374a49]
+- Updated dependencies [390c071]
+- Updated dependencies [d10f526]
+- Updated dependencies [2d5d594]
+- Updated dependencies [ea7f477]
+- Updated dependencies [379728f]
+- Updated dependencies [7f23cd0]
+- Updated dependencies [0ded602]
+- Updated dependencies [24e0e0a]
+- Updated dependencies [3a6cf24]
+- Updated dependencies [aa35561]
+- Updated dependencies [03bd53b]
+- Updated dependencies [3c1f321]
+- Updated dependencies [a045a32]
+- Updated dependencies [912496d]
+- Updated dependencies [80edbd4]
+- Updated dependencies [9867281]
+  - @object-ui/core@17.1.0
+  - @object-ui/components@17.1.0
+  - @object-ui/react@17.1.0
+  - @object-ui/types@17.1.0
+
 ## 17.0.0
 
 ### Patch Changes

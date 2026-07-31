@@ -1,5 +1,375 @@
 # @object-ui/plugin-form
 
+## 17.1.0
+
+### Minor Changes
+
+- 38ca8be: refactor(fields): `requiredWhen` is the only required-predicate slot — drop the retired `conditionalRequired` alias
+
+  `@objectstack/spec` 17 (objectstack#3855) **retired** `Field.conditionalRequired`,
+  the long-deprecated alias of `requiredWhen`. ObjectUI carried a back-compat read
+  for it in seven places; all of them are removed.
+
+  The removal is safe because the spec did not merely _stop emitting_ the key — it
+  made authoring it **fail loudly**. `retiredKey()` declares the key as
+  `z.never()`, so:
+
+  - `z.input` types it as `never` — writing it is a `tsc` error at the authoring site;
+  - the parse **rejects** it (verified against `17.0.0-rc.0`), at both `FieldSchema`
+    and `ObjectSchema`, with the prescription as the message:
+
+    > `conditionalRequired` was removed in @objectstack/spec 17 (#3855) — use
+    > `requiredWhen`. Rename the key; the value (a CEL predicate) is unchanged.
+    > Run `os migrate meta --from 16` to rewrite it automatically.
+
+  So spec-parsed metadata cannot carry the key — an object declaring it fails to
+  load rather than loading with the rule silently dropped. Keeping a renderer-side
+  `requiredWhen ?? conditionalRequired` would have re-created exactly the second
+  de-facto contract the tombstone exists to prevent: the key would have kept
+  working in the UI while being rejected everywhere else, hiding the producer's bug
+  (AGENTS.md #0.1). "Backend-agnostic" (#1) does not argue for keeping it either —
+  `conditionalRequired` is an ObjectStack-spec-ism, so the only producers that ever
+  emit it are ObjectStack producers on ≤16, and the spec ships them a converter.
+
+  Removed from:
+
+  | package                  | site                                                                                                      |
+  | :----------------------- | :-------------------------------------------------------------------------------------------------------- |
+  | `@object-ui/types`       | the `conditionalRequired?:` member on `FormField`                                                         |
+  | `@object-ui/core`        | the `??` fallback + rules-param member in `resolveFieldRuleState`                                         |
+  | `@object-ui/components`  | three pass-throughs in the form renderer                                                                  |
+  | `@object-ui/plugin-form` | `ObjectForm`, `ModalForm`, `sectionFields`, `deriveMasterDetail` (×2)                                     |
+  | `@object-ui/app-shell`   | the field inspector's legacy read/auto-migrate, and the key's entry in `clientValidation`'s CEL lint list |
+
+  **Studio authors lose nothing.** The object designer's draft validation parses
+  against the spec's own `ObjectSchema`, so a draft carrying the key now surfaces
+  the tombstone's rename prescription under the same `fields.<name>.conditionalRequired`
+  path the CEL lint used to report — a better message than the inspector's silent
+  auto-migration, and one the server agrees with. That behavior is pinned by a test.
+
+  **Migrating:** rename the key to `requiredWhen` (the CEL value is unchanged), or
+  run `os migrate meta --from 16`.
+
+- 03bd53b: feat(form): `SplitForm` honours the spec's new `FormSection.pane`
+
+  A split form's panel assignment was a hardcoded positional rule — first section
+  left, everything else right. The rule was invisible in the metadata, so
+  reordering sections silently moved them across the divider, and an author could
+  not place two sections in the left pane at all.
+
+  Sections now declare their panel: `pane: 'primary' | 'secondary'`
+  (@objectstack/spec `FormSection.pane`, objectstack#4160). Placement follows the
+  key, not the array position — reordering paned sections never changes the
+  layout. Omitted keys keep the exact legacy rule (first section `primary`, rest
+  `secondary`), so existing metadata renders unchanged.
+
+  `ObjectForm`'s split dispatch copies the key through its per-key section mapping
+  (the path that once silently dropped `visibleOn`), and `ObjectFormSection`
+  declares it. The spec side rejects `pane` on non-split form types at parse, so
+  the key can never be an accepted-but-ignored no-op.
+
+### Patch Changes
+
+- 7639a61: fix(form): the spec↔runtime form-field chokepoint stops dropping spec 17 vocabulary, and the validator stops contradicting the renderer — #3090
+
+  `normalizeSectionField` — the one translation point between the spec's authored
+  form-field shape (`field` = object-field reference) and the runtime shape
+  (`name` = data path) — silently dropped four spec keys, worst of all the
+  ADR-0089 **canonical** `visibleWhen` spelling while the deprecated `visibleOn`
+  worked. Now:
+
+  - view-level `visibleWhen` routes into the view-level slot (`visibleOn`) so it
+    ANDs with the object-level rule instead of clobbering it, and the wizard's
+    final-submit gate folds the same slot into its verdict (before, a required
+    field the view itself hides could block submission from off-screen);
+  - `dependsOn`, `keyField`, and `disclosure` carry through;
+  - a behavioral parity gate walks the spec `FormFieldSchema` key set — a key the
+    spec adds fails as unmapped, a key it retires fails as stale.
+
+  `SelectOptionSchema` is now derived from `@objectstack/spec/data` by reference
+  (it used to strip `color` — which `@object-ui/fields` renders — plus `default`
+  and the per-option `visibleWhen` gate), with pinned divergences (`value`
+  widened for UI forms, `visibleWhen` on the #2212 wire contract) and documented
+  UI-only extensions (`disabled`, `icon`). `SelectOption` (TS) gains `color` and
+  `default`.
+
+  `FormFieldSchema` (the runtime vocabulary `objectui validate` enforces) now
+  covers every key the `FormField` interface declares — `widget`, `dependsOn`,
+  `hidden`, `readonly`, `visibleOn`/`visibleWhen`/`readonlyWhen`/`requiredWhen`,
+  `span` — and `type` is optional, matching the interface. A typo'd predicate now
+  fails loudly instead of being stripped; spec-shape fields (`{ field: … }`) are
+  still rejected, pinning the two-layer boundary.
+
+- 94e63ef: fix(form): the runtime `field` metadata slot is declared instead of smuggled, and importing the spec's FormField is a lint error — #3090
+
+  `FormField.field` — the slot where object-bound form paths stash the resolved
+  field-metadata **object** for widgets — rode through the index signature,
+  undeclared, readable only via `as any`. Same key, different layer: in the spec
+  form-view vocabulary `field` is a _string_ (the referenced object-field name),
+  and the undeclared slot kept that pun latent. The slot is now declared
+  (`field?: Record<string, any>`) with the invariant in its JSDoc: on a runtime
+  FormField it is never a string — the authored string form ends at the
+  `normalizeSectionField` chokepoint, and a tripwire test pins that across all
+  three input shapes. Assigning a string is now a compile error; the `as any`
+  casts at the read sites are gone.
+
+  A `no-restricted-imports` tripwire bans importing `FormField`/
+  `FormFieldSchema` from `@objectstack/spec/ui` inside this repo: the spec's
+  FormField TYPE erases to `any` in its dist (objectstack#4171), so the
+  misimport silently deletes type safety — tsc says nothing. The lint message
+  names the two layers and the correct import. The drift-guard parity test is
+  the one legitimate importer, exempted inline with its reason.
+
+  Ledger: `FormField` and `FormFieldSchema` move from untriaged DEBT to ALLOW
+  with the two-layer rationale written down (122 → 120).
+
+- aeb0bd2: fix(form): a tabbed/split form honours the form view's own `columns`
+
+  `FormView.columns` is a spec key, but only `ObjectForm`'s simple path and
+  `ModalForm` read it. `TabbedForm` and `SplitForm` derived the grid width from the
+  per-section `columns` alone, so a view declaring `columns: 3` rendered 3 columns
+  in a modal and **single-column** as a tab or split — the same metadata laying out
+  differently depending on which host picked it up.
+
+  Both now resolve the grid the way the other hosts already did:
+
+      explicit form `columns`  ??  widest section's `columns`  ??  1
+
+  The two keys answer different questions and the precedence reflects that: the
+  view's `columns` is how wide the grid is, a section's `columns` is how densely
+  that section fills it (via per-field `colSpan`). `columns` is declared on
+  `TabbedFormSchema` / `SplitFormSchema` accordingly — `ObjectForm` already spread
+  it through, it was simply being dropped on arrival.
+
+- c735bf7: fix(form): a spec-vocabulary field no longer crashes the standalone form, and every surface now says which vocabulary you meant — #3090
+
+  Writing the regression test against the unfixed renderer proved the failure
+  was worse than the assumed silent drop: a `{ field: 'x' }` entry (spec
+  form-VIEW vocabulary) slipped past the `f?.name` guards into a
+  react-hook-form Controller with `name === undefined` and crashed the whole
+  standalone form on `name.split('.')`, with nothing naming the culprit entry.
+  The renderer now partitions such entries out — the rest of the form renders —
+  and surfaces them with an inline alert plus a console.error whose text is the
+  fix instruction (rename to `name`, or use an object-bound form whose sections
+  accept the spec shape).
+
+  `objectui validate` grows the same boundary awareness: on failure, a
+  `{ field: … }` entry in a standalone form gets a "likely cause" hint naming
+  the real fix instead of the bare `invalid_union` — the previous message read
+  as "bolt a `name` on", which converts spec metadata wrongly. On success,
+  mixed-vocabulary entries (`name` + string `field`) get a warning: they
+  validate, but the spec key is dead weight the renderer ignores.
+
+  `normalizeSectionField` warns (once per site) when an authored section field
+  mixes both identity keys — the spec branch derives the runtime name from
+  `field`, so an authored `name` was silently overwritten.
+
+- e339d60: fix(plugin-form): swapping `recordId` no longer leaves the previous record on screen
+
+  `loading` in `ModalForm` / `DrawerForm` / `TabbedForm` / `SplitForm` was only ever
+  set `true` once, by `useState(true)`, and thereafter only ever set `false`. A
+  `recordId` change therefore re-entered the fetch effect **without** going back
+  through the loading branch: the form stayed mounted showing — and accepting edits
+  to — record A's values, with nothing indicating a different record had been asked
+  for, until B's response landed and replaced them in place. Anything typed in that
+  window read as A's on screen and would have been submitted against B.
+
+  The same effect had no staleness guard either, so two overlapping reads landed in
+  **completion** order rather than request order: ask for B then C, and a slow B
+  arriving last left the form showing B while the caller had asked for C.
+
+  Both are the same defect from the user's side — the form displays a record nobody
+  asked for — so both are fixed:
+
+  - a change of record re-enters the loading state before the read, so the previous
+    record is off screen while the next one is in flight. Gated on the record
+    actually changing: the effect also re-runs on `initialData`/`initialValues`
+    identity churn (callers rebuild those objects every render), and flashing the
+    loading state for that would thrash;
+  - the effect's cleanup marks its read stale, so a response that is no longer the
+    one being awaited is dropped instead of overwriting a newer record.
+
+  `ObjectForm` already re-entered loading before its fetch, which is why this only
+  ever reproduced on the four sectioned variants.
+
+  **Also fixed, a consequence of the above:** hiding the form unmounts the inner
+  renderer, and that renderer is the only thing that reports dirtiness via
+  `onDirtyChange` — it gets no chance to report `false` on the way out. Without
+  clearing the flag, the overlay's unsaved-input guards would stay armed for input
+  belonging to a record no longer on screen: a plain refresh would prompt, and
+  closing would offer to discard nothing.
+
+- aa35561: fix(form): a split create/edit form no longer loses the panel you are not submitting from (#2153)
+
+  `SplitForm` rendered one `SchemaRenderer` — one react-hook-form instance and one
+  `<form>` element — **per section**, and its two groups of sections live in
+  separate resizable panels. So each panel owned isolated form state: submitting
+  from one panel's action bar sent only that section's fields and silently dropped
+  everything the user had typed on the other side of the divider. Filling both
+  panels and clicking Create persisted `{ subject }` alone.
+
+  The same isolation killed cross-panel field rules: a `visibleWhen` in the right
+  panel referencing a left-panel field never saw that field in its record, so the
+  predicate faulted and failed **open** — the field the author meant to hide was
+  always shown.
+
+  Both panels are now ONE form. The panel group became a layout the form renderer
+  owns, via a new `FormSchema.fieldPanes` (+ `fieldPanesOrientation`,
+  `fieldPanesResizable`) that mirrors `fieldTabs` (#2959): the `<form>` wraps the
+  whole `ResizablePanelGroup` and each pane holds only fields, which is what lets a
+  single react-hook-form instance span the divider. Sections inside a pane render
+  behind the inline `section-divider` header, each at its own declared column
+  density within the form's shared grid.
+
+  One more fix falls out of moving the panels into the renderer: `splitResizable:
+false` now actually pins the divider. It previously only hid the grip — the
+  separator stayed draggable, because nothing passed the panel library's
+  `disabled`.
+
+  Each pane is its own `@container`, so a multi-column section collapses to fewer
+  columns as its panel is dragged narrower instead of overflowing.
+
+- 3c1f321: fix(form): a tabbed/sectioned create-edit form no longer loses the tabs you are not looking at (#2959, #2153)
+
+  The explicit-`sections` path rendered one `SchemaRenderer` — one react-hook-form
+  instance and one `<form>` element — **per section**, all sharing the same
+  `formId`. Two failures compounded:
+
+  1. the footer submit button (`form={formId}`) can only be associated with the
+     **first** of those forms, so section 2+ never reached the payload; and
+  2. in the `tabbed` variant Radix unmounted the inactive panel, destroying that
+     tab's form state outright.
+
+  Reported flow (HotCRM, 3 tabs, required `description` on tab 3): fill tab 1 →
+  submit → server 400 `description is required` → switch to tab 3, fill it →
+  submit → the server now reports `subject; description; status; priority` **all**
+  missing, because the second submit's body had lost every earlier value.
+
+  `ModalForm` (stacked and `contentLayout: 'tabbed'`) and `TabbedForm` now render
+  ONE form for all sections, matching `ObjectForm` / `DrawerForm`. Stacked sections
+  use the existing inline `section-divider` header (which now also renders the
+  section's `description`); tabbed sections go through a new
+  `FormSchema.fieldTabs` (+ `defaultFieldTab`, `fieldTabsPosition`) that the form
+  renderer distributes into **force-mounted** Radix panels — CSS-hidden rather
+  than unmounted, since react-hook-form skips validation for unmounted fields,
+  which is how a required field on a tab nobody opened used to sail past the
+  client and come back as a server 400.
+
+  Validation feedback now points at the tab: a rejected field activates its tab and
+  every tab holding one is marked on its trigger, for client-side rules and server
+  `fields[]` rejections alike.
+
+- c0d0bc8: fix(form): a wizard with `allowSkip` no longer submits past the required fields you skipped
+
+  `allowSkip` let the user jump to any step from the indicator, and
+  `handleStepClick` did so without validating anything on the way. Since a wizard
+  mounts ONE step at a time and react-hook-form only validates the fields currently
+  **mounted**, a required field on a step nobody opened was never registered, never
+  validated, and simply absent from the payload.
+
+  Measured against the unfixed component — 3 steps, required `owner` on step 2,
+  `allowSkip: true`, click step 3's indicator, fill it, hit Create:
+
+      createCalls: 1
+      payload:     { subject: 'S1', notes: 'S3' }   // `owner` missing entirely
+      UI mentions "required": false                 // nothing said so
+
+  So an invalid create went out and the client said nothing about why — #2959's
+  validation half, wearing a wizard's clothes.
+
+  The final submit now checks the WHOLE declared field set, and when something is
+  outstanding it returns the user to the first step that has one, marks that step's
+  indicator (`data-error="true"`, destructive circle + icon), names the fields in a
+  toast, and sends nothing. Conditional rules are honoured: the check runs on the
+  canonical `resolveFieldRuleState`, the same engine the form renderer and the
+  server's rule-validator use, so a field hidden by `visibleWhen` or not yet
+  required by `requiredWhen` is not demanded. The sequential path is unaffected —
+  a forward jump is refused without `allowSkip`, so Next already validated each step.
+
+  Also in `WizardForm`:
+
+  - `FormView.columns` is now honoured (spec key, previously dropped): the grid
+    width is the view's `columns`, else the step's own. Unlike the tabbed/split
+    hosts there is no widest-section fallback — wizard steps never share a viewport,
+    so each keeps its authored width.
+  - the root gained `@container`. The step grid is sized with container queries, and
+    without a container ancestor every `@md:`/`@2xl:` variant was inert — a step
+    declaring 2 columns rendered single-column. Found by running it in a browser;
+    the class was present all along, which is why asserting the class alone had
+    missed it.
+
+- Updated dependencies [62311b6]
+- Updated dependencies [fc0272a]
+- Updated dependencies [9e7349e]
+- Updated dependencies [8864971]
+- Updated dependencies [1cf0de7]
+- Updated dependencies [752e18f]
+- Updated dependencies [c785740]
+- Updated dependencies [b41f401]
+- Updated dependencies [19e9fa0]
+- Updated dependencies [d61efd1]
+- Updated dependencies [95b7214]
+- Updated dependencies [7d9734d]
+- Updated dependencies [6ae818e]
+- Updated dependencies [9eb932b]
+- Updated dependencies [746dd00]
+- Updated dependencies [aebfa4f]
+- Updated dependencies [38ca8be]
+- Updated dependencies [3cb9646]
+- Updated dependencies [68ef584]
+- Updated dependencies [4952edf]
+- Updated dependencies [7f0252e]
+- Updated dependencies [c4d7b20]
+- Updated dependencies [c769d3d]
+- Updated dependencies [7639a61]
+- Updated dependencies [94e63ef]
+- Updated dependencies [c735bf7]
+- Updated dependencies [02aef0c]
+- Updated dependencies [6f29aa5]
+- Updated dependencies [d21794c]
+- Updated dependencies [c4db402]
+- Updated dependencies [5319bf1]
+- Updated dependencies [49e5671]
+- Updated dependencies [2307b52]
+- Updated dependencies [9a04d25]
+- Updated dependencies [b5b97e2]
+- Updated dependencies [f59f2c1]
+- Updated dependencies [07de839]
+- Updated dependencies [2a40b5e]
+- Updated dependencies [df613fa]
+- Updated dependencies [4874117]
+- Updated dependencies [ad0183a]
+- Updated dependencies [ce08d55]
+- Updated dependencies [eb4b740]
+- Updated dependencies [aecc934]
+- Updated dependencies [5b084eb]
+- Updated dependencies [aa1240a]
+- Updated dependencies [2374a49]
+- Updated dependencies [390c071]
+- Updated dependencies [d10f526]
+- Updated dependencies [2d5d594]
+- Updated dependencies [ea7f477]
+- Updated dependencies [379728f]
+- Updated dependencies [7f23cd0]
+- Updated dependencies [0ded602]
+- Updated dependencies [24e0e0a]
+- Updated dependencies [f8a95e5]
+- Updated dependencies [3a6cf24]
+- Updated dependencies [aa35561]
+- Updated dependencies [03bd53b]
+- Updated dependencies [3c1f321]
+- Updated dependencies [a045a32]
+- Updated dependencies [912496d]
+- Updated dependencies [80edbd4]
+- Updated dependencies [9867281]
+  - @object-ui/core@17.1.0
+  - @object-ui/components@17.1.0
+  - @object-ui/react@17.1.0
+  - @object-ui/types@17.1.0
+  - @object-ui/i18n@17.1.0
+  - @object-ui/permissions@17.1.0
+  - @object-ui/fields@17.1.0
+
 ## 17.0.0
 
 ### Minor Changes

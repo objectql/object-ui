@@ -1,5 +1,916 @@
 # @object-ui/app-shell — Changelog
 
+## 17.1.0
+
+### Minor Changes
+
+- 9e7349e: **`target` is the only action handler slot — the `execute` alias is gone from the renderer (framework#3856).**
+
+  `ActionRunner.executeScript` read `action.target || action.execute`. That fallback
+  is unreachable against `@objectstack/spec` 17: `execute` is now a tombstoned key
+  (framework#3855) that the parser **rejects** with the rename prescription, so no
+  parsed action can carry it and the `||` could only ever yield `target`. Verified
+  against 17.0.0-rc.0 — an action declaring `execute` fails `ActionSchema.safeParse`,
+  and a `target` action's parsed output has no `execute` key at all.
+
+  Deleted rather than left as harmless residue: two handler slots is what let one
+  action run one script server-side and a different one client-side (framework#3713,
+  where this renderer preferred the alias while the spec transform preferred
+  `target`). A dead slot still reads as a live contract to the next maintainer.
+
+  `execute` is also **removed from the types**, which is the part that had never
+  landed. framework#3856 predicted a compile error here; there wasn't one, because
+  neither reader was typed against the spec's `z.infer`:
+
+  - `@object-ui/types` `ActionSchema` hand-declared `execute?: string`. Removed, so
+    `execute: '…'` now fails `tsc` at the authoring site (TS2353).
+  - `@object-ui/core` `ActionDef` hand-declared it too. Removed — but `ActionDef`
+    carries a `[key: string]: any` index signature, so stale hand-authored metadata
+    that never passed through the parser still compiles. For that path
+    `executeScript` now returns the rename prescription instead of a bare
+    "No script provided", matching the spec tombstone's rule that removing an
+    authorable key must be audible: silently binding no handler is the
+    "Mark Done does nothing" shape (framework#2169).
+
+  The four action renderers (`action:button`, `action:icon`, `action:menu`,
+  `action:group`) no longer forward `execute` into the runner, and Studio's
+  `ActionPreview` no longer falls back to it — previewing an alias-only draft as
+  "bound" contradicted the parse that rejects it on save.
+
+  Requires `@objectstack/spec` 17. Metadata still on the alias is rewritten by
+  `os migrate meta --from 16`.
+
+- 1c07e6a: **[ADR-0110 D1] The server-action URL identifies an action by `name`, not `target`.**
+
+  `serverActionHandler` posted `action.target || action.name` — the handler's
+  registration KEY — to `/api/v1/actions/:object/:action`. For a target-bound
+  action (`{ name: 'complete_task', target: 'completeTask' }`) the server resolves
+  the declaration by name, so posting the target meant it resolved **no**
+  declaration and silently skipped both the ADR-0066 D4 capability gate and the
+  ADR-0104 param contract: a Console button correctly hidden from users without
+  the capability posted to an endpoint that accepted anyone (framework#3935).
+
+  `target` is a binding expression — a handler key here, a flow id for
+  `type: 'flow'`, a URL for `type: 'url'`, `${param.X}`-interpolatable, and
+  legitimately non-unique — so it can never identify a declaration. The URL now
+  carries `action.name`, and the server derives the handler key from the
+  declaration it resolves. An action with no `name` is refused rather than
+  falling back to `target`.
+
+  `apiHandler` and `flowHandler` are unchanged: their `target` genuinely is the
+  endpoint / flow id they dispatch on.
+
+  Requires a framework with the ADR-0110 handler-key rotation (protocol 17); the
+  two ship in lockstep.
+
+- 1cf0de7: fix(detail): finish the approval-lock story, and warn on silently stripped fields (framework#3794)
+
+  The Console reported record writability wrong in both directions during an
+  approval, so a user had nothing to go on: what they _could_ edit said "locked",
+  and what they _couldn't_ said "updated successfully".
+
+  **The lock band told the truth; the Edit button did not.** objectui#2902 split
+  the band into "in approval · editable" vs locked, but the header **Edit** CTA
+  still keyed off nothing at all — on a genuinely locked record it stayed live, so
+  the user opened the form, filled a screen, and got `RECORD_LOCKED` back on Save.
+  It is now `disabled` on a locked record: visible-but-off, with the band beside it
+  saying why. This is the LOCK, not the mere presence of an approval — a
+  `lockRecord: false` node keeps Edit live, which is the point of that setting.
+
+  **And the band could still re-lock itself.** `DetailView` OR-ed the record's own
+  `approval_status` mirror into `isLocked` unconditionally. That mirror is written
+  on submit by any flow configuring an `approvalStatusField`, _regardless of_
+  `lockRecord` — so on a `lockRecord: false` node the host correctly resolved "not
+  locked" from the request's `lock_record` while the mirror dragged the band back
+  to "Locked for approval", with the pencils live and saves landing underneath it.
+  The host is now authoritative whenever it threads `approvalPending`; the mirror
+  is consulted only for bare/legacy `DetailView` hosts that thread nothing, where
+  it still reads as locked (no node granularity — the safe direction).
+
+  Recall's tooltip no longer promises to unlock a record the node never locked
+  (`detail.cancelApprovalTooltipUnlocked`).
+
+  **Silently stripped fields now surface on the record form's save path.** The
+  adapter emitted a write-warning for `create`/`update` responses carrying
+  `droppedFields`, but not for `batchTransaction` — which is how the record form
+  saves a master-detail record, i.e. the one surface where a user actually edits a
+  `readonlyWhen`-locked field. `batchTransaction` now emits one warning per event,
+  resolving each back to its operation via the response's `index`.
+
+  The toast itself was hardcoded English and called every strip "read-only". It is
+  now localized (`detail.writeStripped*`, ten locales) and worded by reason:
+  `readonly_when` says the field is not editable _in this record's current state_,
+  which is what actually happened — the field is editable in other states and the
+  form rendered it as an ordinary input, so "read-only" sent the user hunting for a
+  permission problem that does not exist.
+
+  **And it stopped crying wolf.** `createObjectStackUserStateAdapter` hand-stamped
+  the server-managed `updated_at` on every recents/favorites write, which the
+  server strips and reports — so the console popped "Some fields were not saved"
+  about a field no user ever touched, on page loads, drowning the signal the toast
+  exists for. It no longer sends the column; the server stamps it anyway.
+
+- 2bb1809: feat(app-shell): the console mounts the notification surfaces, so `displayType` works there (#3014 follow-up)
+
+  #3071 gave each spec `NotificationTypeSchema` member its own presentation, but no
+  host mounted `NotificationProvider` — the capability existed and the console
+  could not reach it. `ConsoleShell` now mounts the provider and the surfaces with
+  a single global home; `ConsoleLayout` mounts the one that belongs in the content
+  area:
+
+  | `displayType` | Surface                                        | Mounted by                                           |
+  | ------------- | ---------------------------------------------- | ---------------------------------------------------- |
+  | `toast`       | sonner, via the new `presentNotificationToast` | `ConsoleShell`                                       |
+  | `snackbar`    | `<NotificationSnackbar />`                     | `ConsoleShell`                                       |
+  | `alert`       | `<NotificationAlerts />`                       | `ConsoleShell`                                       |
+  | `banner`      | `<NotificationBanners />`                      | `ConsoleLayout`, beside the draft / unpublished bars |
+  | `inline`      | `<NotificationInline scope="…" />`             | the raising surface — **not** mounted globally       |
+
+  `inline` is left out deliberately: rendering in place at the raiser is the whole
+  difference between it and a banner, so a global inline outlet would collapse the
+  two again.
+
+  `presentNotificationToast` is the single place a notification becomes a sonner
+  call — severity → variant, `duration: 0` → `Infinity` (the contract's
+  "persistent", which passed through raw would have made the toast vanish on the
+  next tick), first action → the one action slot sonner offers, an absent duration
+  left to the `ConsoleToaster` default rather than reinvented. Its severity table
+  is `Record<NotificationSeverityLevel, …>`, so a new spec severity fails
+  type-check instead of silently rendering neutral.
+
+  The banners go through `ConsoleNotificationBanners`, which gates on
+  `useHasNotificationProvider()`. `ConsoleShell` is deliberately a set of
+  composable pieces a host assembles in its own `App.tsx`, so `ConsoleLayout` can
+  legitimately render without the provider above it — and `useNotifications()`
+  throws there, which would white-screen the whole app instead of simply showing
+  no banners.
+
+  Both pieces are exported (`presentNotificationToast`, `ConsoleNotificationBanners`)
+  for hand-assembled shells. The provider's `defaultDuration` matches
+  `ConsoleToaster`'s 4s, so a snackbar and a toast raised together disappear
+  together.
+
+- 6937572: fix(approvals): decision outputs reach both decision surfaces (objectui#2955, framework#3447 P2)
+
+  An approval node can ask the approver for structured data with their decision
+  (`decisionOutputs`) — typically to route the next node's approvers, which the
+  flow then reads as `vars.<nodeId>.<key>`. The server has shipped this since
+  framework#3447 P2 and surfaces the typed declaration on the request row
+  (`decision_output_defs`), but neither Console decision surface actually
+  delivered it.
+
+  **The Approval Center asked for a record id instead of showing a picker.** The
+  typed pickers landed in objectui#2831 and the drawer really did synthesize a
+  `lookup` param per declared output — but it spelled the picker target
+  `referenceTo`, and `resolveActionParams()` (which every collected param passes
+  through before the dialog renders it) rebuilds an inline param from a fixed key
+  list, reading the target from `reference`. The target was dropped there, and
+  `paramToField()` degrades a targetless picker to a plain text input — so a
+  `position` output rendered as a box labelled "<label> 的记录 ID". The approver
+  had to go find the record id somewhere else and paste it back. `user`-typed
+  outputs were unaffected (that widget needs no target), which is why this
+  survived: `department` / `position` / `team` were the broken three.
+
+  **The record header decided without collecting anything at all.** Approve /
+  Reject on the detail page shipped their inputs under `collectParams` — a key
+  nothing in the codebase reads (`ActionRunner` collects from `actionParams`).
+  No dialog had opened on that surface since the ADR-0019 rework: the approver's
+  comment was silently dropped on every record-page decision, and a node
+  declaring `decisionOutputs` got no inputs either, so the flow resumed with
+  `vars.<node>.<key>` missing — the next node's `expression` approver then failed
+  with `EXPRESSION_FAILED`, or fell through to `onEmptyApprovers`, with nothing
+  surfaced to the approver or the flow author. The header now collects through
+  `actionParams`, renders the node's declared outputs with the same pickers the
+  Approval Center uses, and posts them under `outputs` on the decide call. The
+  comment box works again as a side effect, and it is a real textarea (the param
+  resolver drops `multiline`, so the intent has to ride the type).
+
+  The widget mapping now lives in one place (`utils/decisionOutputParams`), so
+  the two surfaces cannot drift apart again, and the round trip through param
+  resolution — the stage that actually broke — is pinned by tests.
+
+  **And a `required` output is now enforced at the field.** The spec grew
+  `decisionOutputs[].required` (the platform half of this issue, shipping in
+  `@objectstack/spec` + `@objectstack/plugin-approvals`) — the server rejects an
+  approve carrying no value for one, before any write. The dialog marks those params
+  required, so the approver is stopped at the empty field with the Confirm button
+  refusing rather than by a 400 after the round trip. Only on APPROVE: the server
+  never requires them on a reject (the run leaves down the reject edge, where
+  nothing reads the outputs), so the two dialogs differ in exactly that flag. On a
+  backend that predates the field nothing is required, which is the behavior above
+  unchanged.
+
+- 38ca8be: refactor(fields): `requiredWhen` is the only required-predicate slot — drop the retired `conditionalRequired` alias
+
+  `@objectstack/spec` 17 (objectstack#3855) **retired** `Field.conditionalRequired`,
+  the long-deprecated alias of `requiredWhen`. ObjectUI carried a back-compat read
+  for it in seven places; all of them are removed.
+
+  The removal is safe because the spec did not merely _stop emitting_ the key — it
+  made authoring it **fail loudly**. `retiredKey()` declares the key as
+  `z.never()`, so:
+
+  - `z.input` types it as `never` — writing it is a `tsc` error at the authoring site;
+  - the parse **rejects** it (verified against `17.0.0-rc.0`), at both `FieldSchema`
+    and `ObjectSchema`, with the prescription as the message:
+
+    > `conditionalRequired` was removed in @objectstack/spec 17 (#3855) — use
+    > `requiredWhen`. Rename the key; the value (a CEL predicate) is unchanged.
+    > Run `os migrate meta --from 16` to rewrite it automatically.
+
+  So spec-parsed metadata cannot carry the key — an object declaring it fails to
+  load rather than loading with the rule silently dropped. Keeping a renderer-side
+  `requiredWhen ?? conditionalRequired` would have re-created exactly the second
+  de-facto contract the tombstone exists to prevent: the key would have kept
+  working in the UI while being rejected everywhere else, hiding the producer's bug
+  (AGENTS.md #0.1). "Backend-agnostic" (#1) does not argue for keeping it either —
+  `conditionalRequired` is an ObjectStack-spec-ism, so the only producers that ever
+  emit it are ObjectStack producers on ≤16, and the spec ships them a converter.
+
+  Removed from:
+
+  | package                  | site                                                                                                      |
+  | :----------------------- | :-------------------------------------------------------------------------------------------------------- |
+  | `@object-ui/types`       | the `conditionalRequired?:` member on `FormField`                                                         |
+  | `@object-ui/core`        | the `??` fallback + rules-param member in `resolveFieldRuleState`                                         |
+  | `@object-ui/components`  | three pass-throughs in the form renderer                                                                  |
+  | `@object-ui/plugin-form` | `ObjectForm`, `ModalForm`, `sectionFields`, `deriveMasterDetail` (×2)                                     |
+  | `@object-ui/app-shell`   | the field inspector's legacy read/auto-migrate, and the key's entry in `clientValidation`'s CEL lint list |
+
+  **Studio authors lose nothing.** The object designer's draft validation parses
+  against the spec's own `ObjectSchema`, so a draft carrying the key now surfaces
+  the tombstone's rename prescription under the same `fields.<name>.conditionalRequired`
+  path the CEL lint used to report — a better message than the inspector's silent
+  auto-migration, and one the server agrees with. That behavior is pinned by a test.
+
+  **Migrating:** rename the key to `requiredWhen` (the CEL value is unchanged), or
+  run `os migrate meta --from 16`.
+
+- 4a74ea6: feat(studio): a page button created in Studio can be given an action
+
+  `element:button` renders inert without an `action`, and Studio had no way to add
+  one. The inspector's curated `BLOCK_CONFIG` entry listed `label`, `variant`,
+  `size`, `icon` — no `action` — and the generic "Advanced" section is not a
+  fallback for that, because it enumerates the keys the block **already has**
+  (`Object.keys(blockProps)`). So it could edit an `action` authored in source, and
+  never add one to a button dragged from the palette.
+
+  Adds a `json` field kind — the same `InspectorJsonField` editor Advanced uses,
+  reachable for a property that does not exist yet — and an `action` field on
+  `element:button` carrying `{ "type": "url", "target": "/environments" }` as its
+  placeholder. An empty JSON textarea is otherwise the whole affordance, so
+  `placeholder` is now threaded through to the textarea and asserted for every
+  `json` field.
+
+  Raw JSON rather than typed sub-fields deliberately: the spec declares the prop as
+  `InlineActionSchema` (objectstack-ai/objectstack#4135), and the inspector cannot
+  render a nested schema as fields yet. A JSON box the author can actually use
+  beats a curated form that models a fraction of the shape.
+
+  Refs objectstack-ai/objectui#2997
+
+- 5319bf1: feat(views): the list toolbar speaks one vocabulary — `userActions` (#2890 scope A step 3)
+
+  The seven bare `show*` toolbar flags fold into the spec's `userActions`, and the
+  renderer reads nothing else. `showDescription` folds into
+  `appearance.showDescription` at the same boundary.
+
+  | legacy                                                    | canonical                                                 |
+  | :-------------------------------------------------------- | :-------------------------------------------------------- |
+  | `showSearch` / `showSort` / `showFilters` / `showDensity` | `userActions.search` / `.sort` / `.filter` / `.rowHeight` |
+  | `showGroup` / `showHideFields` / `showColor`              | `userActions.group` / `.hideFields` / `.rowColor`         |
+  | `showDescription`                                         | `appearance.showDescription`                              |
+
+  **The last three are new keys, and they close a capability hole rather than just
+  renaming one.** `@objectstack/spec`'s `UserActionsConfigSchema` documents itself
+  as "which interactive actions are available to users in the view toolbar — each
+  boolean toggles the corresponding toolbar element on/off", and already carries
+  `rowHeight` (objectui's `showDensity` under its spec name). Grouping, column
+  visibility and row coloring are the same kind of toggle: the spec models all
+  three as _configuration_ (`grouping`, `hiddenFields`, `rowColor`) but has no
+  "may the user change it" switch for any of them.
+
+  The consequence was visible in the product. With no `userActions` key to read,
+  the two list surfaces **hardcoded opposite policies**: `InterfaceListPage` (the
+  author-curated interface page) pinned all three OFF, `ObjectDataPage` pinned two
+  ON — and an interface-page author could not turn grouping back on for end users
+  at all. Both surfaces now express their policy as `userActions` defaults, which
+  an author can override.
+
+  Until the keys land in `@objectstack/spec`, `@object-ui/types` carries them as a
+  documented `.extend()` on `UserActionsConfigSchema` (the same shape
+  `ListColumnSchema` uses while waiting on objectstack#3761); it collapses into a
+  plain re-export once they do. Note the spec schema is not `.strict()`, so before
+  this an author writing `userActions: { group: false }` had it **silently
+  stripped** — valid on parse, no effect at render.
+
+  Defaults are unchanged and deliberately asymmetric, matching what these flags
+  have always done: `search` / `sort` / `filter` / `rowHeight` / `group` are on
+  unless turned off; `hideFields` / `rowColor` are off unless turned on. Making
+  them uniform would grow two buttons on every existing view, so it is left as its
+  own product decision rather than smuggled into a vocabulary migration.
+
+  Also drops a dead relay in app-shell's `ObjectView`, which forwarded
+  `showDescription` onto the node although `ListView` has only ever read
+  `appearance.showDescription`.
+
+- a136322: **[objectstack#3959] A `type: 'modal'` action is client-side only — the server fallthrough is removed.**
+
+  `modalActionHandler` fell through to `serverActionHandler` when the action's
+  target resolved to neither a page nor an object, documented as "how a modal
+  action bound to `engine.registerAction(...)` still runs". It never ran: the
+  framework's `headlessActionTypeError` rejects `type: 'modal'` over REST with a
+  400, because a modal action has no server dispatch. The fallthrough only turned
+  an authoring mistake — a target naming no page — into a confusing round-trip,
+  and it let apps ship handlers that no declaration could address (app-todo's
+  `deferTask` / `setReminder` sat dead for exactly this reason).
+
+  An unresolvable target is now reported as what it is, naming the action, the
+  dud target, and the way out. To collect input and then run server-side,
+  declare `type: 'script'` with `params` — the runner collects the same dialog
+  and the handler runs with those values.
+
+- 07de839: fix(notifications): the config, `position` and action `variant` are read instead of forked or ignored (#3014 follow-up)
+
+  The last of the notification contract. After `displayType` (#3071) and `icon`
+  (#3076), four gaps of the same family were left:
+
+  - **the config was 3/4 inert** — only `defaultDuration` was ever read.
+    `maxVisible` and `stacking` were carried and ignored, while
+    `NotificationBanners` capped at a hard-coded `3` of its own;
+  - **its field names forked from `NotificationConfigSchema`** — `position` vs
+    `defaultPosition`, a renderer-local `stacking` boolean with no spec
+    counterpart, and no `pauseOnHover` at all;
+  - **a notification could not declare a `position`.** The #3008 parity guard
+    asserted the position _vocabulary_ matched the spec while nothing positioned
+    anything by it — a guard passing over an unused value;
+  - **`NotificationActionButton.variant` was the shadcn Button vocabulary**
+    (`default | destructive | outline`) under a spec-shaped name, forking
+    `NotificationActionSchema.variant` (`primary | secondary | link`).
+
+  **How positioning resolves now** — `notification.position ?? config.defaultPosition
+?? nothing`, and "nothing" is a real answer:
+
+  - **declared** → the surface pins itself there, always. `presentNotificationToast`
+    passes it per-toast so the contract wins over the container;
+  - **undeclared** → the surface keeps its own anchor (a snackbar's bottom edge) or
+    defers to the host's toast chrome.
+
+  That asymmetry is the design decision. The host's sonner container also serves
+  toasts that are _not_ spec notifications (the console action runtime's own
+  `toast.*` calls), so it stays the fallback authority for placement — never a
+  competing one. A declared position a component prop could silently override
+  would be the same "validates, then does nothing" shape this whole area is about.
+  Hence `defaultPosition` has no fabricated default: "the host didn't say" has to
+  be representable.
+
+  Also: `maxVisible` / `stackDirection` now drive every stacking surface through
+  one shared `visibleNotificationStack` (cap keeps the NEWEST, stack grows in the
+  declared direction); `pauseOnHover` holds a transient notification's timer and
+  resumes it with the time it had left, which needed the provider to track live
+  timers rather than fire-and-forget `setTimeout`s. Legacy spellings still resolve:
+  `position` folds into `defaultPosition`, and `stacking: false` reads as
+  `maxVisible: 1` rather than being ignored.
+
+  `onToast` now receives the resolved config as a second argument, so the delegate
+  can apply the parts of the contract only it can. Existing one-argument handlers
+  are unaffected. The spec-parity guard gained the action-variant vocabulary, the
+  one notification enum it did not cover.
+
+- df613fa: fix(notifications): the spec `icon` is read instead of stored and ignored (#3014 follow-up)
+
+  `NotificationSchema.icon` — "Icon name override" — reached `NotificationItem` and
+  stopped there. Every surface drew the severity icon, so an author writing
+  `icon: 'rocket'` got the success checkmark. Same shape as the `displayType`
+  collapse #3071 fixed: a value that validates, is carried, and renders nothing.
+
+  All five presentations now resolve it through one rule (`notificationIcon`): a
+  declared Lucide name — kebab-case or PascalCase — replaces the severity icon;
+  anything else falls back to it. That includes the console's sonner toast, so the
+  override behaves identically on a toast, a banner, a snackbar, an alert and an
+  inline message.
+
+  **The fallback is the interesting part.** `getLazyIcon` degrades an unknown name
+  to a `Database` glyph, which is right for a data-shaped schema slot and wrong
+  here — on an error notification it swaps a meaningful icon for a meaningless one.
+  So the name is checked first, via a new `isLucideIconName` export, and a typo
+  costs the author their override and nothing more.
+
+- c7c5294: feat(flow-designer): the script node's form authors what the executor runs — framework#4278
+
+  The `script` flow node is one of five builtins whose designer form lives only
+  in this package's hand-written `FLOW_NODE_CONFIG` table (the engine publishes
+  no `configSchema` for them, deliberately), and nothing reconciled that table
+  against the executor. It had drifted user-visibly: of the four `actionType`
+  options offered, `code` was a recognized no-op (the built-in runtime has no
+  server-side JS sandbox) and `sms` / `notification` failed every run (neither
+  is a built-in — they resolve as function names); the "Output variables"
+  (plural) field was read by nothing; and the one path that runs real logic —
+  `function` + `inputs` + `outputVariable` — could not be authored at all.
+
+  - The `actionType` select now offers **Call function** (default) / **Email** /
+    **Slack**, mirroring the executor's dispatch set
+    (`SCRIPT_BUILTIN_ACTION_TYPES` + the `invoke_function` marker). The function
+    path fields (`function`, `inputs`, `outputVariable`) are first-class.
+  - The inline `script` body becomes render-only: hidden for new nodes (its help
+    states it is NOT executed and steers to a registered function), still shown
+    whenever a stored node carries one. The dead plural `outputVariables` field
+    is removed; stored values surface in the Advanced (JSON) block.
+  - A scalar select whose stored value was dropped from the options now renders
+    it as a flagged "`<value> (deprecated)`" entry instead of blanking it —
+    the same rule FlowObjectListField already applied to select cells.
+  - The data picker (`flow-scope`) and the flow simulator stop pretending the
+    legacy `outputVariables[]` list binds variables — the engine never binds
+    those names; only the singular `outputVariable` does.
+  - New reconciliation test: the hand-written `script` / `subflow` / `decision`
+    groups are compared bidirectionally against the executor-derived config
+    contracts `@objectstack/spec/automation` publishes for exactly this purpose
+    (framework#4278), and the `wait` / `connector_action` / `boundary_event`
+    groups against the `FlowNodeSchema` sibling blocks. The spec-export panels
+    feature-detect and arm themselves on the next `@objectstack/spec` bump.
+
+### Patch Changes
+
+- 4db7eb3: fix(actions): a failed server action no longer reports as success (green toast) — objectstack#3913
+
+  `useConsoleActionRuntime.serverActionHandler` — the console's **main** action
+  path (list toolbars, row actions, page actions) — decided success from
+  `res.ok` and the OUTER envelope only:
+
+  ```ts
+  if (!res.ok || (json && json.success === false)) {
+    /* failure */
+  }
+  ```
+
+  A server older than objectstack#3913 reports a handler failure as HTTP **200**
+  with the failure nested one level down:
+
+  ```json
+  {
+    "success": true,
+    "data": {
+      "success": false,
+      "error": "Action 'log_call' on object '*' not found"
+    }
+  }
+  ```
+
+  Both guards pass, so the action was reported as completed: the ActionRunner
+  fired its green "completed" toast, the list refreshed, and the real error was
+  swallowed. `RecordDetailView`'s copy of the same handler already inspected the
+  inner envelope; the shared runtime now does too, and the marketplace install
+  call (`marketplaceApi.installPackage`), which had the identical hole and could
+  report a package as installed when it was not.
+
+  Current servers answer a failed action with a real HTTP status, which `!res.ok`
+  catches first — the inner-envelope check is what keeps the console honest
+  against a runtime that has not been upgraded yet.
+
+  **Also fixed:** with objectstack#3913 the failure body is
+  `{success: false, error: {message, code}}`. `RecordDetailView` read `json?.error`
+  raw and would have handed that **object** to `toast.error()` as a React child,
+  crashing the page (React #31) — the exact failure the console runtime's
+  `errorDetail` helper existed to prevent. That helper is now a shared util
+  (`utils/actionErrorDetail`) and both call sites go through it, so a nested
+  `{message}` always resolves to a string.
+
+- fc0272a: fix(actions): apply the ADR-0066 D4 capability gate on every action surface (framework#3923)
+
+  An action declaring `requiredPermissions` is supposed to be one declaration with
+  two enforcement surfaces: 403 on the server, hidden button in the UI. The UI half
+  only ever ran inside `ActionEngine.getActionsForLocation` — and the surfaces
+  `record_header`, `record_more`, `list_item` and `list_toolbar` actually render on
+  do not go through the engine. They filter their own action lists. So a button
+  declaring a capability nobody holds rendered, live and clickable, on the record
+  header, in every grid row menu, and on the list toolbar. For a `type: 'api'`
+  action pointed at a self-authored endpoint, nothing else was checking either: the
+  platform's action route (which is where the 403 comes from) never sees that
+  request.
+
+  `page:header`, `action:bar` (business _and_ `systemActions`) and the grid's
+  `RowActionMenu` now apply the same gate, via a shared `useCapabilityGate()` so
+  the surfaces cannot drift apart. The rule is the engine's, unchanged: hide unless
+  the caller holds **all** declared capabilities; an empty held set is "holds
+  nothing" and gates; **unknown** — no action runtime, no resolved capabilities —
+  fails OPEN, because the server is the authority and hiding a permitted user's
+  button on missing client data is the worse failure.
+
+  The record surface was also feeding the gate nothing to work with.
+  `RecordDetailView` mounts its own `<ActionProvider>`, which shadows the shell's
+  for every action on that page, and seeded it with identity only — no
+  `systemPermissions`. Since unknown fails open, that alone un-gated every
+  `record_header` / `record_more` / `record_section` action on the one page those
+  locations exist on. It now forwards the caller's resolved capabilities (and only
+  once they have actually resolved, so a standalone embed without a
+  `PermissionProvider` keeps failing open rather than hiding everything).
+
+  `useRecordEditable`'s record-level explain probe went out on a bare
+  `fetch(..., { credentials: 'include' })`. A bearer-token session carries its
+  credential in the `Authorization` header, not a cookie, so the probe came back
+  401 on a perfectly valid admin session and the verdict silently failed open —
+  the hook was inert in exactly the deployments it was written for. It now rides
+  the host's authenticated fetch (`SchemaRendererProvider`'s `apiFetch`), falling
+  back to the global one for standalone embeds.
+
+- 52ec79d: fix(actions): one source for the `/actions` envelope rule, and `redirectUrl` finally works (objectstack#3913 follow-up)
+
+  The `/actions` response wraps **twice** — the route's own `{success, data}`
+  inside the dispatcher's — and a failure has three shapes, only one of which
+  `res.ok` catches. That rule was hand-rolled in two places
+  (`useConsoleActionRuntime.serverActionHandler` and `RecordDetailView`'s copy of
+  the same handler), and the two drifted. Four hand-rolled copies produced three
+  distinct bugs:
+
+  1. **A failed action reported as success** — the copy that didn't inspect the
+     inner envelope was the console's _main_ action path, so a failure fired the
+     green "completed" toast on every list and page surface (fixed in #2963).
+  2. **React #31 crash** — the nested `{message, code}` object handed to
+     `toast.error()` as a React child (fixed in #2963).
+  3. **`redirectUrl` never fired** — _fixed here._
+
+  Both handlers now call `interpretActionResponse` from `utils/actionResponse`,
+  and a ratchet test (`actions-envelope.ratchet.test.ts`) fails if a third
+  hand-rolled copy appears.
+
+  ## `redirectUrl` was unreachable
+
+  A script action can return `{ redirectUrl: 'https://…' }` to ask the console to
+  open a URL. Both handlers read it off `body.data` — the **action** envelope,
+  one level too shallow:
+
+  ```
+  { success: true, data: { success: true, data: { redirectUrl: '…' } } }
+                   ^^^^ read here          ^^^^ actually lives here
+  ```
+
+  `body.data` is constructed by the server and only ever holds `success` / `data`,
+  so `body.data.redirectUrl` was **always** undefined — the convention could never
+  fire, and no handler could work around it. An `opensInNewTab` action was worse
+  than a no-op: it pre-opens a tab on a spinner page for popup-blocker safety, and
+  with no redirect to drive it to, that tab sat on the spinner forever.
+
+  `ActionResult.data` still carries the **action envelope**, unchanged — some
+  `resultDialog` field paths in the wild may have adapted to that depth, so it is
+  not silently re-pointed here.
+
+- aecc934: fix(actions): read objectstack#3962's single-wrapped /actions responses; legacy double wrap detected narrowly
+
+  objectstack#3962 made `/actions` failures speak HTTP (400 rejection / 404 / 403
+  / 503 / 500) and single-wrapped success — `body.data` IS the handler's return
+  value. `interpretActionResponse` / `readActionPayload` now treat that as the
+  primary shape: the pre-#3962 double envelope is detected NARROWLY (a boolean
+  `success` and no keys beyond the envelope's own) and unwrapped for older
+  runtimes, so a handler value that merely contains a `success` key is
+  handler-owned and passes through untouched. `ActionResult.data`'s depth quirk
+  self-heals on #3962 servers.
+
+- 9b773f9: fix(analytics): a missing analytics capability no longer renders as an empty KPI — objectstack#3891
+
+  The framework retired its degraded in-kernel analytics fallback (objectstack#3891):
+  it dropped the caller's RLS/tenant scope and ignored the contract filter, so it
+  answered `200` with over-broad numbers. `@objectstack/service-analytics` is now
+  the only implementation, and a deployment without it answers `404` on
+  `/analytics/query` (objectstack#4019 stops mounting the routes) or `501` on
+  `/analytics/dataset/query`.
+
+  Three things were wrong on this side of that boundary:
+
+  **① A KPI on such a deployment rendered a confident zero.** `aggregate()`'s
+  `catch` promises a client-side fallback, and the fallback is correct — but the
+  adapter never got there for the most likely failure. It now classifies the
+  failure (`classifyAnalyticsFailure`) instead of treating every error alike:
+  capability-absent (404/501) degrades to a client-side aggregate over a
+  **server-scoped** `find()` — same rows, same filter, RLS still applied — and
+  says so **once per adapter** in the console, naming the package to install,
+  rather than once per widget or not at all.
+
+  **② A rejected query was answered with plausible numbers.** The framework
+  validates `/analytics/query` at the entry now (objectstack#4010), so a `400
+VALIDATION_FAILED` means _this adapter_ sent an off-contract body. Degrading
+  there would bury our own bug behind output from a different code path — the
+  misdirection objectstack#3878 documented. It now throws
+  `AnalyticsQueryRejectedError` and never falls back. Transient failures (5xx,
+  network) degrade exactly as before.
+
+  **③ The dataset preview blamed the author for a missing capability.**
+  `queryDataset` mapped `501`/`404` to `Dataset query failed: 501 Not Implemented
+— …`; it now throws the typed `AnalyticsNotInstalledError`
+  (`code: 'ANALYTICS_NOT_INSTALLED'`) with a message a UI can render verbatim, and
+  `DatasetPreview` shows it as a "analytics capability not installed" empty state
+  instead of a red error banner. A real compile error (e.g. "relationship not
+  declared in include") keeps its server detail and its banner.
+
+  New exports from `@object-ui/data-objectstack`: `AnalyticsNotInstalledError`,
+  `AnalyticsQueryRejectedError`, `isAnalyticsNotInstalledError`,
+  `classifyAnalyticsFailure`.
+
+- 752e18f: fix(console,app-shell): readable reassign hand-off + "System" label for svc:* audit actors — objectstack#4365 / objectstack#4366
+
+  - **Approvals inbox** (`ApprovalsInboxPage`): a reassign timeline entry now
+    renders "from A to B" from the structured
+    `reassign_from`/`reassign_to` fields (and their server-resolved
+    `*_name` companions) that objectstack#4365 added to
+    `sys_approval_action`, instead of relying on the old default comment that
+    baked two raw user ids into user-facing text. Legacy rows without the
+    structured fields keep the comment fallback. New i18n key
+    `approvalsInbox.reassignFromTo` across all ten locales.
+  - **Record history** (`RecordDetailView`): an audit row attributed to a
+    service principal (`svc:*` on the `actor` column — e.g. a
+    `runAs:'system'` flow's `svc:flow:<name>` label from objectstack#4366) now
+    renders the localized "System" label instead of the raw principal string;
+    the raw value stays on the entry for tooling.
+
+- c785740: fix(detail): record Attachments become their own tab (with count badge) and their copy is translated — objectstack#4358
+
+  Two defects on `enable.files: true` record detail pages:
+
+  1. **Buried placement.** `RecordDetailView` appended `RecordAttachmentsPanel`
+     AFTER the schema-rendered page tree, whose synthesized default embeds
+     `record:discussion` as the last main component — so the panel always
+     landed below an ever-growing feed timeline, undiscoverable without
+     scrolling to the very bottom, with no metadata knob to move it.
+
+     `buildDefaultTabs` now emits a peer **Attachments** tab (a new
+     `record:attachments` node rendered by an app-shell registration wrapping
+     the existing panel via RecordContext) between Related and
+     Activity/History. `PageTabsRenderer` derives the tab's count badge from a
+     `sys_attachment` probe scoped to `(parent_object, parent_id)`, riding the
+     same RelatedCountStore cache/invalidation bus as related-list badges — so
+     uploads and deletes update the badge live. A `hideAttachments` synthesizer
+     option suppresses the tab; RecordDetailView keeps its legacy bottom append
+     only as the fallback for authored pages without the node
+     (`hasExplicitAttachments`).
+
+  2. **Untranslated copy.** The panel's eleven `detail.*` keys (`attachments`,
+     `uploadAttachment`, `loadingAttachments`, `noAttachments`,
+     `downloadAttachment`, `deleteAttachment`, and the five
+     `attachment*Denied/Required` friendly errors) existed only as inline
+     English `defaultValue`s — no locale bundle carried them, so non-English
+     consoles always showed English. All ten locales now define them; the tab
+     label rides the existing well-known-label dictionary (→ 附件 etc.).
+
+- 19e9fa0: fix(grid): drop the `bulkEnabled` derivation — the spec key is a tombstone
+
+  Follow-up to objectui#3002 / #3031. That change folded two sources into the
+  selection bar: a view's `bulkActions` names resolved against
+  `objectDef.actions`, and object actions declaring `ActionSchema.bulkEnabled`.
+  The second source is dead.
+
+  `@objectstack/spec` 17.0.0 retired `action.bulkEnabled` in the #3896 audit
+  close-out (framework#4054, landed while #3031 was in flight — the spec source
+  still carried the key when its design was settled). It is now a `retiredKey()`
+  tombstone, so it is not merely ignored: `defineStack` **hard-rejects** a config
+  that sets it, and the backend refuses to boot. Browser verification against a
+  real showcase backend is what surfaced this — the derivation branch could never
+  run, and #3031's changeset pointed authors at a key that breaks their app.
+
+  The tombstone's own prescription is the path that survives:
+
+  > the multi-select toolbar is driven by the LIST VIEW's `bulkActions` /
+  > `bulkActionDefs`, never by this flag … declare the action in the view's
+  > `bulkActions` instead.
+
+  So `resolveBulkActions` now folds exactly two vocabularies — inline-authored
+  `bulkActionDefs`, and `bulkActions` names promoted to their declared object
+  action — which is what #3031's other half already did and what the end-to-end
+  run exercised: naming `showcase_mark_done` in the view's `bulkActions` issued
+  one `POST /api/v1/actions/showcase_task/showcase_mark_done` per selected
+  record (10/10 → `done: true, progress: 100` server-side). Everything downstream
+  of the fold is unchanged: promoted defs still carry the action's label, icon,
+  `visible`, confirm text and params; still run through `BulkActionDialog`
+  (params → confirm → progress → result); still dispatch per record with
+  `_rowRecord` attached; still attribute failures per record.
+
+  A stale `bulkEnabled: true` on an object action is now inert rather than a
+  second path into the bar. Note tsc cannot catch this class of drift here — the
+  fold reads a loosely-typed `NamedActionDef` with an index signature, so the
+  retired key never surfaces as `never`.
+
+- 9eb932b: fix(console): three real-user console failures — 403 blamed on the network, ⌘K search capped at 8 objects, nav gating fields inert
+
+  1. **List error panel classifies the failure** (`plugin-list`, `i18n`): a 403/401 from the data source used to render the same "check your connection" copy as a genuine outage, sending users to debug their network while the server was correctly denying access. The panel now classifies by `httpStatus`/`status`/`statusCode`, the `PERMISSION_DENIED`/`UNAUTHORIZED` error codes, or an `HTTP <status>` message prefix, and renders dedicated permission-denied / sign-in-required copy (all nine locales).
+
+  2. **⌘K / full-page search scope is no longer truncated** (`react`): `maxObjectsQueried` caps the per-object fanout fallback, not the search scope — it used to slice the candidate pool itself, so the `objects` whitelist sent to the platform's `/api/v1/search` only ever named the first 8 nav objects. Which sidebar group came first decided which records were findable; everything later in the nav was unsearchable no matter what the user typed.
+
+  3. **Nav gating fields finally gate** (`app-shell`): `evaluateVisibility` only evaluated `${…}` template strings, so the `{ dialect: 'cel', source }` envelopes the spec normalizes every authored `visible` predicate into fell through to a blanket "visible" — a constant-false predicate still rendered for everyone. It now delegates to `ExpressionEvaluator.evaluateCondition`, which routes CEL envelopes to the canonical `@objectstack/formula` engine. And the sidebars' `requiredPermissions` check treats a bare name as an ADR-0066 system capability (union of the user's permission-set `systemPermissions` from `/me/permissions`) — the same subset rule the server applies to `AppSchema.requiredPermissions` — instead of misreading it as `can(<name>, 'read')`, which had degraded `requiredPermissions` into a hide-from-everyone switch (admins included). The `object:action` form and the legacy object-read fallback keep working.
+
+- 3cb9646: fix(app-shell,i18n): record forms no longer render the developer-voiced default subtitle
+
+  Every create/edit record form (both the console dialog in `AppContent` and the
+  full-page `RecordFormPage`) hardcoded a platform default description under the
+  title: "Add a new {{object}} to your database." / "Update details for
+  {{object}}" (zh: 「向数据库添加新的{{object}}。」/「更新{{object}}的详情」).
+
+  The copy is developer-tooling voice leaking into end-user business apps — a
+  scheduling clerk filling in a 排班计划 has no business being told about "the
+  database", and the phrasing came straight from admin-panel boilerplate. The
+  line carried no information the form title didn't already have, and neither
+  call site let a form view override it.
+
+  The default subtitle is now gone: both call sites stop passing `description`,
+  and the unused `form.createDescription` / `form.editDescription` keys are
+  removed from all ten locale bundles (the `workspace.createDescription` key is
+  unrelated and stays).
+
+- 4952edf: fix(errors): error-code branches survive the framework's ADR-0112 rename — objectstack#3841
+
+  Framework ADR-0112 renamed the whole `error.code` vocabulary from lowercase
+  `snake_case` to `SCREAMING_SNAKE` (`destructive_change` → `DESTRUCTIVE_CHANGE`).
+  Eleven places compared `err.code` against the old spelling with `===`, so against
+  a swept server they simply stopped matching — and nothing threw. The affordance
+  each branch guards just vanished and the user got the generic error toast instead:
+
+  - the destructive-change confirm dialog (resource editor, permission matrix)
+  - the "create a writable package first" hint
+  - field-scoped validation issues on embedded item saves
+  - the all-or-nothing publish summary naming the causal item
+  - unknown-object tolerance in the app header and in record search
+  - the marketplace's local-install messages for conflict / auth / unavailable
+  - `isNotFoundError` in the data layer
+
+  `RECORD_NOT_FOUND` had already been renamed a release earlier, so that branch was
+  already dead before this fix.
+
+  New `errorCodeIs` / `errorCodeIsAnyOf` in `@object-ui/types` compare
+  case-insensitively, so the console keeps working against servers on either side
+  of the rename — the console ships separately from the server it talks to. Every
+  call site now passes the catalog (SCREAMING) spelling, and `error-code.ts` is the
+  single file to delete once no supported server emits the old vocabulary.
+
+- d132bb5: fix(flow-designer): a published `configSchema` can no longer delete a node's sibling-block editors — objectstack#4045
+
+  `FlowNodeInspector` resolved its form as `serverFields ?? fieldsForNodeType(type)`,
+  so an engine-published `configSchema` **replaced the hand-written field group
+  wholesale**. But a `configSchema` describes `node.config` and nothing else
+  (ADR-0018), and `jsonSchemaToFlowFields` roots every field it emits at
+  `['config', key]` — so the replacement silently deleted every editor rooted
+  anywhere else.
+
+  18 fields sit in that blast radius: `connectorConfig.*` (3), `waitEventConfig.*`
+  (5), `boundaryConfig.*` (6) and the top-level `timeoutMs` (4). For `wait` and
+  `boundary_event` those blocks are the node's **entire** contract.
+
+  This already happened once. `connector_action`'s descriptor published a schema
+  declaring `connectorId` / `actionId` / `input` as CONFIG keys, so against a live
+  backend the generated form replaced the `connectorConfig` group — connector and
+  action pickers included — and an author configuring a connector node in Studio
+  wrote the trio to `node.config`, which the executor never reads. The node then
+  refused to dispatch with `connectorConfig.connectorId and .actionId are
+required`. objectstack#4210 retired that schema on the server; this change is
+  what stops the next mis-rooted one from doing the same to `wait` or
+  `boundary_event`.
+
+  New `mergeServerFlowFields()` splits the resolution by root:
+
+  - **the server owns the config-rooted fields** — it is the authority on what the
+    executor actually reads, so its set replaces the hand-written config fields
+    rather than merging with them (a stale client key must not linger);
+  - **non-config fields are always preserved** from the hand-written group, in
+    declared order;
+  - a server field duplicating a preserved sibling key is **dropped**, not rendered
+    twice — two editors for one value, one of them writing where nothing reads, is
+    the same bug wearing a different hat.
+
+  With no published schema the hand-written group is still used whole, unchanged.
+
+  Verified by mutation: reverting to the old replacement turns all three new
+  assertions red, one of which replays the `connector_action` incident directly.
+
+- 4874117: fix(grid): an object-declared bulk action runs over the selected records — objectui#3002
+
+  A list view declaring `bulkActions: ['push_down']` rendered a selection-bar
+  button that never ran the action: `ObjectGrid` dispatched the legacy form as
+  `{ type: <action name>, params: { records } }`, putting the action _name_ in the
+  runner's `type` slot. Since objectui#2996 that fails loudly instead of
+  green-toasting a no-op, but it still never ran. Nor could the object declare a
+  bulk action to resolve against — `bulkActionDefs` was passed through from the
+  view JSON verbatim, never derived from `objectDef.actions` the way
+  `rowActionDefs` is derived from `locations: ['list_item']`.
+
+  **No spec change was needed.** `ActionSchema.bulkEnabled` — _"Whether this
+  action can be applied to multiple selected records"_ — has always been the
+  declaration; what was missing was a consumer, exactly as framework's own
+  property-liveness audit recorded (_"engine has `getBulkActions`/`executeBulk`,
+  but no spec-driven view path calls `executeBulk`"_). So no new `locations`
+  entry: a list's selection bar is the only surface on which records are
+  multi-selected, which is what the flag already names. `locations` stays
+  orthogonal — it places an action's single-record entry, and an action may carry
+  both (`locations: ['list_item'], bulkEnabled: true` = one row from the kebab, N
+  rows from the selection bar).
+
+  **`ObjectGrid` folds three sources into the selection bar** (new pure
+  `resolveBulkActions`, the twin of `resolveLegacyRowActions`; `ObjectGrid` is the
+  single convergence point of all three list callers):
+
+  - defs authored inline in the view JSON — unchanged, they win every collision;
+  - object actions declaring `bulkEnabled: true` — **derived**, which is what
+    "declare a bulk action on the object" now means;
+  - legacy `bulkActions` names — resolved against `objectDef.actions` and
+    **promoted** to that def, so they carry the action's label, icon, `visible`
+    predicate, confirm text and params instead of a bare humanized name. A name
+    matching a def already on the bar is dropped rather than rendered as a dead
+    twin; a name matching nothing is still dispatched by name, since a consumer
+    may have registered a runner handler under it.
+
+  **Execution reuses the existing `BulkActionDialog` model** (params → confirm →
+  progress → result). A derived def carries the source action under `actionDef`,
+  and `useBulkExecutor` dispatches it through the action runner once per selected
+  record with the row attached as `_rowRecord` — so `recordIdParam` injection
+  behaves exactly as it does for a `list_item` row action. Client fan-out is the
+  only semantics the single-record action contract supports; a server-side "take
+  every id at once" variant would need its own spec key and endpoint contract.
+  Params and confirmation are collected once by the dialog and handed to the
+  runner as values so it never re-prompts per record, per-record toasts are muted
+  in favour of the dialog's aggregate result, and a failing record is attributed
+  in the result list (and error CSV) rather than counted as a success.
+
+  Also fixed: the bar rendered legacy string buttons **only when no defs
+  existed**, so a view mixing both silently lost half its buttons. After the fold
+  the two lists are disjoint, and both render.
+
+- Updated dependencies [62311b6]
+- Updated dependencies [fc0272a]
+- Updated dependencies [9e7349e]
+- Updated dependencies [8864971]
+- Updated dependencies [9b773f9]
+- Updated dependencies [1cf0de7]
+- Updated dependencies [752e18f]
+- Updated dependencies [c785740]
+- Updated dependencies [b41f401]
+- Updated dependencies [19e9fa0]
+- Updated dependencies [d61efd1]
+- Updated dependencies [95b7214]
+- Updated dependencies [7d9734d]
+- Updated dependencies [6ae818e]
+- Updated dependencies [9eb932b]
+- Updated dependencies [746dd00]
+- Updated dependencies [aebfa4f]
+- Updated dependencies [38ca8be]
+- Updated dependencies [3cb9646]
+- Updated dependencies [68ef584]
+- Updated dependencies [4952edf]
+- Updated dependencies [7f0252e]
+- Updated dependencies [7d35010]
+- Updated dependencies [c4d7b20]
+- Updated dependencies [c769d3d]
+- Updated dependencies [7639a61]
+- Updated dependencies [94e63ef]
+- Updated dependencies [c735bf7]
+- Updated dependencies [02aef0c]
+- Updated dependencies [6f29aa5]
+- Updated dependencies [d21794c]
+- Updated dependencies [c4db402]
+- Updated dependencies [5319bf1]
+- Updated dependencies [49e5671]
+- Updated dependencies [2307b52]
+- Updated dependencies [9a04d25]
+- Updated dependencies [b5b97e2]
+- Updated dependencies [f59f2c1]
+- Updated dependencies [07de839]
+- Updated dependencies [2a40b5e]
+- Updated dependencies [df613fa]
+- Updated dependencies [4874117]
+- Updated dependencies [ad0183a]
+- Updated dependencies [ce08d55]
+- Updated dependencies [a17ef09]
+- Updated dependencies [fc60ad3]
+- Updated dependencies [eb4b740]
+- Updated dependencies [aecc934]
+- Updated dependencies [5b084eb]
+- Updated dependencies [aa1240a]
+- Updated dependencies [2374a49]
+- Updated dependencies [390c071]
+- Updated dependencies [d10f526]
+- Updated dependencies [2d5d594]
+- Updated dependencies [ea7f477]
+- Updated dependencies [379728f]
+- Updated dependencies [7f23cd0]
+- Updated dependencies [0ded602]
+- Updated dependencies [24e0e0a]
+- Updated dependencies [f8a95e5]
+- Updated dependencies [3a6cf24]
+- Updated dependencies [aa35561]
+- Updated dependencies [03bd53b]
+- Updated dependencies [3c1f321]
+- Updated dependencies [a045a32]
+- Updated dependencies [912496d]
+- Updated dependencies [80edbd4]
+- Updated dependencies [9867281]
+  - @object-ui/core@17.1.0
+  - @object-ui/components@17.1.0
+  - @object-ui/react@17.1.0
+  - @object-ui/types@17.1.0
+  - @object-ui/data-objectstack@17.1.0
+  - @object-ui/i18n@17.1.0
+  - @object-ui/permissions@17.1.0
+  - @object-ui/layout@17.1.0
+  - @object-ui/auth@17.1.0
+  - @object-ui/fields@17.1.0
+  - @object-ui/plugin-editor@17.1.0
+  - @object-ui/collaboration@17.1.0
+  - @object-ui/providers@17.1.0
+
 ## 17.0.0
 
 ### Minor Changes

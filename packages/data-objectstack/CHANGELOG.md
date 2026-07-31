@@ -1,5 +1,435 @@
 # @object-ui/data-objectstack
 
+## 17.1.0
+
+### Minor Changes
+
+- 9b773f9: fix(analytics): a missing analytics capability no longer renders as an empty KPI — objectstack#3891
+
+  The framework retired its degraded in-kernel analytics fallback (objectstack#3891):
+  it dropped the caller's RLS/tenant scope and ignored the contract filter, so it
+  answered `200` with over-broad numbers. `@objectstack/service-analytics` is now
+  the only implementation, and a deployment without it answers `404` on
+  `/analytics/query` (objectstack#4019 stops mounting the routes) or `501` on
+  `/analytics/dataset/query`.
+
+  Three things were wrong on this side of that boundary:
+
+  **① A KPI on such a deployment rendered a confident zero.** `aggregate()`'s
+  `catch` promises a client-side fallback, and the fallback is correct — but the
+  adapter never got there for the most likely failure. It now classifies the
+  failure (`classifyAnalyticsFailure`) instead of treating every error alike:
+  capability-absent (404/501) degrades to a client-side aggregate over a
+  **server-scoped** `find()` — same rows, same filter, RLS still applied — and
+  says so **once per adapter** in the console, naming the package to install,
+  rather than once per widget or not at all.
+
+  **② A rejected query was answered with plausible numbers.** The framework
+  validates `/analytics/query` at the entry now (objectstack#4010), so a `400
+VALIDATION_FAILED` means _this adapter_ sent an off-contract body. Degrading
+  there would bury our own bug behind output from a different code path — the
+  misdirection objectstack#3878 documented. It now throws
+  `AnalyticsQueryRejectedError` and never falls back. Transient failures (5xx,
+  network) degrade exactly as before.
+
+  **③ The dataset preview blamed the author for a missing capability.**
+  `queryDataset` mapped `501`/`404` to `Dataset query failed: 501 Not Implemented
+— …`; it now throws the typed `AnalyticsNotInstalledError`
+  (`code: 'ANALYTICS_NOT_INSTALLED'`) with a message a UI can render verbatim, and
+  `DatasetPreview` shows it as a "analytics capability not installed" empty state
+  instead of a red error banner. A real compile error (e.g. "relationship not
+  declared in include") keeps its server detail and its banner.
+
+  New exports from `@object-ui/data-objectstack`: `AnalyticsNotInstalledError`,
+  `AnalyticsQueryRejectedError`, `isAnalyticsNotInstalledError`,
+  `classifyAnalyticsFailure`.
+
+- 1cf0de7: fix(detail): finish the approval-lock story, and warn on silently stripped fields (framework#3794)
+
+  The Console reported record writability wrong in both directions during an
+  approval, so a user had nothing to go on: what they _could_ edit said "locked",
+  and what they _couldn't_ said "updated successfully".
+
+  **The lock band told the truth; the Edit button did not.** objectui#2902 split
+  the band into "in approval · editable" vs locked, but the header **Edit** CTA
+  still keyed off nothing at all — on a genuinely locked record it stayed live, so
+  the user opened the form, filled a screen, and got `RECORD_LOCKED` back on Save.
+  It is now `disabled` on a locked record: visible-but-off, with the band beside it
+  saying why. This is the LOCK, not the mere presence of an approval — a
+  `lockRecord: false` node keeps Edit live, which is the point of that setting.
+
+  **And the band could still re-lock itself.** `DetailView` OR-ed the record's own
+  `approval_status` mirror into `isLocked` unconditionally. That mirror is written
+  on submit by any flow configuring an `approvalStatusField`, _regardless of_
+  `lockRecord` — so on a `lockRecord: false` node the host correctly resolved "not
+  locked" from the request's `lock_record` while the mirror dragged the band back
+  to "Locked for approval", with the pencils live and saves landing underneath it.
+  The host is now authoritative whenever it threads `approvalPending`; the mirror
+  is consulted only for bare/legacy `DetailView` hosts that thread nothing, where
+  it still reads as locked (no node granularity — the safe direction).
+
+  Recall's tooltip no longer promises to unlock a record the node never locked
+  (`detail.cancelApprovalTooltipUnlocked`).
+
+  **Silently stripped fields now surface on the record form's save path.** The
+  adapter emitted a write-warning for `create`/`update` responses carrying
+  `droppedFields`, but not for `batchTransaction` — which is how the record form
+  saves a master-detail record, i.e. the one surface where a user actually edits a
+  `readonlyWhen`-locked field. `batchTransaction` now emits one warning per event,
+  resolving each back to its operation via the response's `index`.
+
+  The toast itself was hardcoded English and called every strip "read-only". It is
+  now localized (`detail.writeStripped*`, ten locales) and worded by reason:
+  `readonly_when` says the field is not editable _in this record's current state_,
+  which is what actually happened — the field is editable in other states and the
+  form rendered it as an ordinary input, so "read-only" sent the user hunting for a
+  permission problem that does not exist.
+
+  **And it stopped crying wolf.** `createObjectStackUserStateAdapter` hand-stamped
+  the server-managed `updated_at` on every recents/favorites write, which the
+  server strips and reports — so the console popped "Some fields were not saved"
+  about a field no user ever touched, on page loads, drowning the signal the toast
+  exists for. It no longer sends the column; the server stamps it anyway.
+
+- 0ded602: fix(form): a server rejection that names fields now marks those fields (objectstack#3896)
+
+  The server has always said which field it rejected. `@objectstack/objectql`'s
+  validators throw `VALIDATION_FAILED` with `fields[]` — one entry per offending
+  field, each with a human `message` — and both the REST layer and the runtime
+  dispatcher serve that as a 400 with the entries intact.
+
+  Every form dropped them. The submit handler caught the rejection, ran the
+  message through `extractWriteErrorMessage`, and showed **one undirected toast**:
+  the user was told something was wrong but not _what_, on a surface that already
+  knows how to mark an input — and already does exactly that for client-side
+  validation. On a long form the offending field was often off-screen, so "创建"
+  appeared to do nothing.
+
+  **Now the two failures behave identically, because they share one
+  implementation.** The per-field marking, the toast naming the fields, and the
+  scroll-and-focus of the first offender (#2793) were extracted from the
+  client-side invalid handler; the server path calls the same function. As far as
+  the person filling in the form is concerned these are the same event — only the
+  referee differs.
+
+  Three layers, each of which was dropping the detail:
+
+  - **`@object-ui/react`** — new `extractFieldErrors(err)` (exported alongside
+    `extractWriteErrorMessage` / `isPermissionError`) normalises the three shapes
+    the error can arrive in: a typed `ValidationError` from the ObjectStack
+    adapter, the raw `@objectstack/client` error (whose `details` falls back to the
+    whole response body, which is where `fields[]` lands), and a hand-rolled error
+    carrying `fields` directly — the server duck-types that shape identically, so
+    the client must not be pickier than the server. Entries with no usable `field`
+    are **dropped rather than guessed at**: marking an innocent input is worse than
+    the generic toast.
+  - **`@object-ui/data-objectstack`** — `normaliseClientError` now maps a 400
+    `VALIDATION_FAILED` onto the `ValidationError` class that has sat in
+    `errors.ts` since the package was written, exported and **never once
+    constructed**. Its `validationErrors: Array<{ field, message }>` shape was
+    already exactly right. `create` also now normalises at all: only `update` did,
+    so a rejected insert reached callers as the raw client error — and a create is
+    the path that most often trips required-field validation.
+  - **`@object-ui/components`** — the form renderer maps the entries onto
+    `form.setError` and takes over the failure, **but only when every rejected
+    field has a visible input to carry it**. If the server also rejected something
+    the form does not render, it falls through to the banner, whose top-level
+    message concatenates every field's reason — so the part the user cannot see
+    inline is still said out loud instead of silently dropped.
+
+  This also removes the need for the client-side predicate mirroring added in
+  #2962: a form no longer has to guess what the server will reject in order to
+  warn about it beforehand, and mirrored predicates drift.
+
+  Non-field failures (403 / permission denials / anything without `fields[]`) take
+  exactly the path they took before.
+
+### Patch Changes
+
+- 4952edf: fix(errors): error-code branches survive the framework's ADR-0112 rename — objectstack#3841
+
+  Framework ADR-0112 renamed the whole `error.code` vocabulary from lowercase
+  `snake_case` to `SCREAMING_SNAKE` (`destructive_change` → `DESTRUCTIVE_CHANGE`).
+  Eleven places compared `err.code` against the old spelling with `===`, so against
+  a swept server they simply stopped matching — and nothing threw. The affordance
+  each branch guards just vanished and the user got the generic error toast instead:
+
+  - the destructive-change confirm dialog (resource editor, permission matrix)
+  - the "create a writable package first" hint
+  - field-scoped validation issues on embedded item saves
+  - the all-or-nothing publish summary naming the causal item
+  - unknown-object tolerance in the app header and in record search
+  - the marketplace's local-install messages for conflict / auth / unavailable
+  - `isNotFoundError` in the data layer
+
+  `RECORD_NOT_FOUND` had already been renamed a release earlier, so that branch was
+  already dead before this fix.
+
+  New `errorCodeIs` / `errorCodeIsAnyOf` in `@object-ui/types` compare
+  case-insensitively, so the console keeps working against servers on either side
+  of the rename — the console ships separately from the server it talks to. Every
+  call site now passes the catalog (SCREAMING) spelling, and `error-code.ts` is the
+  single file to delete once no supported server emits the old vocabulary.
+
+- 7f0252e: fix(list,data-objectstack,types): exporting a searched list no longer downloads the unsearched superset
+
+  The server-streamed export mirrored the view's `filter` and `sort`, and the
+  code comment claimed that made the file match the screen:
+
+  > Mirrors the active view's filter + sort so the exported file matches what the
+  > user sees.
+
+  It mirrored one half. There was no way to carry the term a user had typed into
+  the search box — `ExportDownloadRequest` had no field for one — so exporting
+  during a search produced **more rows than the list showed**, in a file that
+  looks authoritative, with nothing indicating the difference. The client-side
+  fallback was always correct (it serializes the already-searched `data`); only
+  the server path was wrong, and it is the one that handles xlsx.
+
+  Same family as a dropped filter (objectstack#3948, objectstack#4181): a
+  plausible answer that is quietly broader than the one asked for.
+
+  - `ExportDownloadRequest` gains `search` / `searchFields`.
+  - `ObjectStackAdapter.exportDownload` sends them as `search=` / `searchFields=`,
+    trimming the term and omitting both when it is blank (`searchFields` alone
+    means nothing).
+  - `ListView` passes the active `searchTerm` and the view's `searchableFields`,
+    and both are now in the export callback's dependency array — a stale closure
+    would export the wrong row set.
+
+  Requires a server with objectstack#4230. Older servers ignore unknown query
+  params on this route, so they keep today's behaviour rather than erroring.
+
+  **Also: the filter merge is no longer written twice.** The three filter sources
+  (view filter, filter-panel group, per-field user filters) were merged by
+  verbatim copies in the data fetch and in the export — two copies that must
+  agree, deciding respectively what the user _sees_ and what they _download_.
+  Both now call `buildEffectiveFilter`. This is a pure extraction: the copies did
+  agree, and the four parity tests added for it pass against the old code too.
+  They exist to keep it that way — the adapter's duplicated filter-shape check
+  had already drifted apart unnoticed (#3072).
+
+- 7d35010: fix(data-objectstack): a view's own filter no longer disappears when the user adds one
+
+  `ObjectStackAdapter` translated object-form filter entries
+  (`[{ field, operator, value }, ...]`) only at the **top level** of a `$filter`.
+  The moment a list has both a stored view filter and a user filter, it builds
+
+  ```js
+  [
+    "and",
+    [{ field: "stage", operator: "eq", value: "won" }],
+    [["amount", ">", 1]],
+  ];
+  ```
+
+  whose head is the string `and`, so the old check called the whole thing
+  "already AST" and shipped the rules untranslated. Both server answers to that
+  are wrong:
+
+  ```js
+  isFilterAST(above); // false — a bare rule object is not an AST child
+  parseFilterAST(above); // { amount: { $gt: 1 } }   ← `stage = won` is GONE
+  ```
+
+  Since objectstack#4121 the `isFilterAST` gate turns it into a **400 and the
+  list fails to load**. Before it — or anywhere `parseFilterAST` is reached
+  without that gate — **the view's own condition is dropped without a word** and
+  the list returns records the view exists to exclude.
+
+  Translation is now recursive through `and`/`or` nodes and legacy flat child
+  arrays, so the shape reaches the server as a valid AST
+  (`{$and: [{stage: 'won'}, {amount: {$gt: 1}}]}`).
+
+  Three related fixes in the same code:
+
+  - **An untranslatable entry is now an error, not an omission.** Entries that
+    failed to translate were dropped, and dropping one conjunct of an `and`
+    returns a _superset_ of the rows asked for — dropping the last one sent no
+    `filter=` at all, so the whole table came back. `find()` now throws
+    `MalformedFilterError`, carrying `code: 'INVALID_FILTER'` / `httpStatus: 400`
+    so a failed list renders "the filter is malformed" rather than "check your
+    connection". A rule with a blank `field` passes `ViewFilterRuleSchema`
+    (`z.string()` admits `''`), so this is reachable from real stored metadata.
+    A _mixed_ array (`[{ field, operator, value }, ['amount', '>', 1]]`) now
+    keeps both halves instead of dropping the tuple — that case was a lost
+    condition, not a malformed one.
+  - **The two `find()` routes can no longer disagree.** The "is this object
+    form?" test existed twice — once in `translateFilterToAST`, once inline in
+    `convertQueryParams` — and the copies had already drifted: the inline one
+    omitted a `!== null` guard, so a `$filter` of `[null]` threw a `TypeError` on
+    the plain route while the same value was handled on the `$expand` route. One
+    definition now serves both.
+  - **Dropped an unreachable `entry.name` fallback.** `objectFilterEntryToAST`
+    read `entry.field ?? entry.name` while the shape check keyed on `field`
+    alone, so the `name` half was dead from the commit that introduced it. The
+    spec agrees it is not a real shape — `ViewFilterRuleSchema.field` is
+    required, so such a rule cannot be saved as view metadata.
+
+  Refs objectstack#3948, objectstack#4121, #2945
+
+- c4d7b20: fix(view,list,core): a view's filter no longer disappears, or arrives as a predicate on columns that don't exist
+
+  Sweeping the other `$filter` producers after #3078 turned up two live defects in
+  `ObjectView`, which fetches its own data for calendar / kanban / gallery /
+  timeline (grid delegates to `ObjectGrid`).
+
+  **1. An object filter was dropped, and only for non-grid views.**
+  `table.defaultFilters` is declared `Record<string, any>`, and the merge tested
+  `baseFilter.length > 0` — `undefined > 0` for an object. So the filter vanished
+  and the view returned **every record**. `ObjectGrid` assigns the same value
+  straight to `params.$filter`, so one view definition filtered correctly as a
+  grid and returned everything as a calendar.
+
+  **2. Rule objects were spread into the `and`, not wrapped.**
+  `['and', ...baseFilter, ...userFilter]` is only correct when the source is an
+  array of AST nodes. `activeView.filter` is a spec `ViewFilterRule[]`, so
+  spreading put bare rule objects where the AST expects nodes:
+
+  ```js
+  isFilterAST([
+    "and",
+    { field: "stage", operator: "eq", value: "won" },
+    ["owner", "=", "me"],
+  ]);
+  // false → 400 since objectstack#4121
+  parseFilterAST(same);
+  // {$and:[{field:'stage',operator:'eq',value:'won'}, {owner:'me'}]}
+  ```
+
+  That second line is a predicate over three columns named `field`, `operator`
+  and `value` — which don't exist.
+
+  > **Correction.** The first version of this note said the spread was "reachable
+  > whenever a view with a filter meets a user filter value". That was wrong for
+  > `ObjectView`: the branch required a non-empty user filter, and nothing ever
+  > wrote the state it was built from, so it could never run. The shape is
+  > genuinely broken — a live server answers it with a 400 — and the adapter-level
+  > defence added alongside is still warranted for any producer that emits it, but
+  > **this particular site was dead code, not a live defect.** Defect 1 above was
+  > live: it sat on the always-taken path. The dead machinery behind the wrong
+  > claim is removed in a follow-up.
+
+  New in `@object-ui/core`: `toFilterNode` normalizes one source (rule array / AST
+  / MongoDB object) and `mergeFilterNodes` combines sources as siblings under one
+  `and`. `ObjectView` and `ListView.buildEffectiveFilter` both use them, so the
+  three filter shapes are reconciled in one place instead of by hand at each
+  renderer.
+
+  `ObjectStackAdapter` also now translates a bare rule object sitting directly
+  under a logical node — the chokepoint defence for any producer still emitting
+  the spread shape. Only rule-_shaped_ objects are touched; a child with no
+  `field` is a genuine MongoDB condition and passes through untouched.
+
+  **Correcting a comment shipped in #3078.** `buildEffectiveFilter` documented the
+  dropped-object case as unreachable, "nothing in this repo produces one for a
+  list view". That was wrong: `ObjectView` passes `mergedFilters` straight into
+  that schema's `filter`, and its last fallback is `table.defaultFilters`. The
+  case is now handled rather than explained away.
+
+  Verified with 19 tests across the four packages; reverting each source file
+  fails the ones that cover it. Emitted filters are asserted against the spec's
+  own `isFilterAST` / `parseFilterAST`, including an executable pin on what the
+  old spread shape produced.
+
+- ad0183a: fix(data-objectstack,core): an object filter no longer depends on whether the query expands a lookup
+
+  #3072 single-sourced the ARRAY branch of the adapter's two `find()` routes. The
+  object branch was left as it was: `convertQueryParams` converted a MongoDB-style
+  filter to AST while `translateFilterToAST` returned it verbatim — so the same
+  `$filter` went out in two formats, decided by whether the query happened to
+  expand a lookup.
+
+  Measured across 21 operator shapes, **four diverged**. Most of the gap turned
+  out to be harmless — `{$and: […]}` survives the plain route as a
+  `['$and','=',[…]]` comparison that `parseFilterAST` reads back as a real `$and`,
+  and `$exists` vs `$null` is a difference the server treats identically. Two were
+  not harmless:
+
+  - **The unknown-operator guard only ran on one route.** `convertFiltersToAST`
+    throws on an unrecognised operator, with a comment saying it does so "to avoid
+    silent failure" — but the expanded route never called it, so a typo'd operator
+    threw on a plain read and shipped silently whenever a lookup was expanded.
+  - **`$regex` was silently rewritten to `contains`.** `$regex: 'a.c'` matches
+    "abc"; `contains 'a.c'` matches only those three literal characters. That is a
+    _different question_, not a weaker version of the same one, and neither result
+    looks wrong on screen. The rewrite sat behind a `console.warn`, which is not
+    an error channel in a deployed app — and the function's own unknown-operator
+    message never listed `$regex` among the supported set. The spec has no
+    `$regex` (`FILTER_OPERATORS`, `data/filter.zod.ts`), so there is nothing to
+    translate it into: it is now refused, the same treatment the neighbouring
+    unknown operator already got. Nothing in the repo depended on the conversion.
+
+  Both refusals now throw `FilterOperatorError`, carrying `code: 'INVALID_FILTER'`
+  / `httpStatus: 400`. The pre-existing unknown-operator throw was a bare `Error`,
+  which `classifyLoadError` classifies as a network fault — so a malformed filter
+  told the user to check their connection (#3066), the one thing it definitely
+  was not.
+
+- a17ef09: fix(data-objectstack): a string `$orderby` reaches the server as a sort instead of a list of character indices — #3106
+
+  `QueryParams['$orderby']` declares four shapes — `string`, `string[]`,
+  `SortNode[]`, `Record<field, direction>`. Both of this adapter's `find()` routes
+  (`convertQueryParams` for a plain read, `rawFindWithPopulate` for one carrying
+  `$expand`/`$search`) carried their own copy of the fold that serializes it, and
+  both copies handled the same three. The bare string fell through to the
+  `Record` branch, where `Object.entries('name asc')` enumerates the string's
+  character indices — so the request went out as `sort=0,1,2,3,4,5,6,7`.
+
+  Since `objectstack#4226` the server refuses a sort it cannot read
+  (`400 INVALID_SORT`) rather than dropping it silently, so this was not a
+  degraded ordering but a list that failed to load outright — and `"${field}
+${order}"` is exactly the shape `ObjectGrid` builds from its view metadata's
+  `sort`, making every standalone grid with a configured sort a broken one.
+
+  Both routes now share one exported `serializeOrderBy`, for the same reason the
+  filter path already shares one: two copies of a fold can only agree by
+  inspection, and these two did not.
+
+- Updated dependencies [62311b6]
+- Updated dependencies [9e7349e]
+- Updated dependencies [8864971]
+- Updated dependencies [b41f401]
+- Updated dependencies [19e9fa0]
+- Updated dependencies [95b7214]
+- Updated dependencies [7d9734d]
+- Updated dependencies [6ae818e]
+- Updated dependencies [746dd00]
+- Updated dependencies [aebfa4f]
+- Updated dependencies [38ca8be]
+- Updated dependencies [4952edf]
+- Updated dependencies [7f0252e]
+- Updated dependencies [c4d7b20]
+- Updated dependencies [7639a61]
+- Updated dependencies [94e63ef]
+- Updated dependencies [02aef0c]
+- Updated dependencies [6f29aa5]
+- Updated dependencies [c4db402]
+- Updated dependencies [5319bf1]
+- Updated dependencies [49e5671]
+- Updated dependencies [b5b97e2]
+- Updated dependencies [f59f2c1]
+- Updated dependencies [4874117]
+- Updated dependencies [ad0183a]
+- Updated dependencies [ce08d55]
+- Updated dependencies [aa1240a]
+- Updated dependencies [2374a49]
+- Updated dependencies [390c071]
+- Updated dependencies [d10f526]
+- Updated dependencies [2d5d594]
+- Updated dependencies [ea7f477]
+- Updated dependencies [7f23cd0]
+- Updated dependencies [24e0e0a]
+- Updated dependencies [3a6cf24]
+- Updated dependencies [aa35561]
+- Updated dependencies [03bd53b]
+- Updated dependencies [3c1f321]
+- Updated dependencies [a045a32]
+- Updated dependencies [912496d]
+- Updated dependencies [9867281]
+  - @object-ui/core@17.1.0
+  - @object-ui/types@17.1.0
+
 ## 17.0.0
 
 ### Minor Changes

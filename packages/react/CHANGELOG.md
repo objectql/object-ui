@@ -1,5 +1,420 @@
 # @object-ui/react
 
+## 17.1.0
+
+### Minor Changes
+
+- c4db402: refactor(views): ListView's `aria` and `sharing` are the spec sub-shapes (#2890 scope A step 5)
+
+  Last rename batch in the ListView vocabulary migration.
+
+  **`aria`** is now the spec's `AriaPropsSchema`: `label` → `ariaLabel`,
+  `describedBy` → `ariaDescribedBy`, folded at the ListView boundary like every
+  other legacy key. Two things fall out of adopting the spec shape:
+
+  - `role` becomes authorable. The list region hardcoded `role="region"`; it now
+    reads `aria.role` and falls back to `region`.
+  - `aria.live` stays as a documented local extension — it has no spec
+    counterpart, and dropping it would silently disable a shipped capability.
+    Promote it rather than growing that extension.
+
+  **`sharing`** is now the spec's `ViewSharingSchema` (`{ type, lockedBy }`),
+  imported by reference — the local four-key object is gone. The legacy pair folds
+  in: `visibility` collapses onto the two ownership kinds the spec models (only
+  `private` is `personal`; `team` / `organization` / `public` are all
+  `collaborative`), and a bare `enabled: true` maps to `personal`, which is the
+  badge the user already saw (the old title fell back to `'private'`).
+
+  _Visible change_: the share badge's tooltip shows the spec ownership type, so a
+  view authored with `visibility: 'team'` reads "Sharing: collaborative" instead
+  of "Sharing: team". The four-value audience has no spec home and nothing but
+  that tooltip consumed it; keeping a second audience enum alive would re-open the
+  fork this issue closes.
+
+  Also fixes the **spec bridge**, which was doing the opposite of its job: given a
+  spec-shaped `sharing`, `transformListView` _downgraded_ it — inventing a legacy
+  `visibility` audience and an `enabled` flag that the renderer then had to fold
+  back. Both sides speak `ViewSharing` now, so it passes through.
+
+  `conditionalFormatting` and `exportOptions` are deliberately **not** folded.
+  Both objectui shapes are supersets carrying capability the spec cannot express —
+  the `{ field, operator, value }` rule form, and `maxRecords` / `includeHeaders`
+  / `fileNamePrefix`. Folding them onto the narrower spec shapes would delete
+  working features; they want promotion upstream, not a rename.
+
+- 07de839: fix(notifications): the config, `position` and action `variant` are read instead of forked or ignored (#3014 follow-up)
+
+  The last of the notification contract. After `displayType` (#3071) and `icon`
+  (#3076), four gaps of the same family were left:
+
+  - **the config was 3/4 inert** — only `defaultDuration` was ever read.
+    `maxVisible` and `stacking` were carried and ignored, while
+    `NotificationBanners` capped at a hard-coded `3` of its own;
+  - **its field names forked from `NotificationConfigSchema`** — `position` vs
+    `defaultPosition`, a renderer-local `stacking` boolean with no spec
+    counterpart, and no `pauseOnHover` at all;
+  - **a notification could not declare a `position`.** The #3008 parity guard
+    asserted the position _vocabulary_ matched the spec while nothing positioned
+    anything by it — a guard passing over an unused value;
+  - **`NotificationActionButton.variant` was the shadcn Button vocabulary**
+    (`default | destructive | outline`) under a spec-shaped name, forking
+    `NotificationActionSchema.variant` (`primary | secondary | link`).
+
+  **How positioning resolves now** — `notification.position ?? config.defaultPosition
+?? nothing`, and "nothing" is a real answer:
+
+  - **declared** → the surface pins itself there, always. `presentNotificationToast`
+    passes it per-toast so the contract wins over the container;
+  - **undeclared** → the surface keeps its own anchor (a snackbar's bottom edge) or
+    defers to the host's toast chrome.
+
+  That asymmetry is the design decision. The host's sonner container also serves
+  toasts that are _not_ spec notifications (the console action runtime's own
+  `toast.*` calls), so it stays the fallback authority for placement — never a
+  competing one. A declared position a component prop could silently override
+  would be the same "validates, then does nothing" shape this whole area is about.
+  Hence `defaultPosition` has no fabricated default: "the host didn't say" has to
+  be representable.
+
+  Also: `maxVisible` / `stackDirection` now drive every stacking surface through
+  one shared `visibleNotificationStack` (cap keeps the NEWEST, stack grows in the
+  declared direction); `pauseOnHover` holds a transient notification's timer and
+  resumes it with the time it had left, which needed the provider to track live
+  timers rather than fire-and-forget `setTimeout`s. Legacy spellings still resolve:
+  `position` folds into `defaultPosition`, and `stacking: false` reads as
+  `maxVisible: 1` rather than being ignored.
+
+  `onToast` now receives the resolved config as a second argument, so the delegate
+  can apply the parts of the contract only it can. Existing one-argument handlers
+  are unaffected. The spec-parity guard gained the action-variant vocabulary, the
+  one notification enum it did not cover.
+
+- 2a40b5e: feat(notifications): each spec `displayType` gets its own presentation instead of a toast (#3014)
+
+  #3008 closed the **contract** half of this: `NotificationContext`'s union matched
+  `NotificationTypeSchema`, and `notify()` materialized the declared type so a
+  consumer _could_ branch on it. Nothing did. `NotificationProvider` handed every
+  item to the host's `onToast` delegate regardless of type, so an author picking
+  `banner` or `inline` got a transient overlay — plausible output, wrong output.
+
+  Each of the five spec types now has a presentation of its own:
+
+  | `displayType` | Presentation                                           | Rendered by                        |
+  | ------------- | ------------------------------------------------------ | ---------------------------------- |
+  | `toast`       | transient overlay (unchanged)                          | the host's `onToast` delegate      |
+  | `snackbar`    | bottom-anchored bar, one at a time, at most one action | `<NotificationSnackbar />`         |
+  | `banner`      | page-width strip **in the content flow**               | `<NotificationBanners />`          |
+  | `alert`       | blocking acknowledgement dialog, FIFO queue            | `<NotificationAlerts />`           |
+  | `inline`      | in place, at the raising surface                       | `<NotificationInline scope="…" />` |
+
+  The four surface components ship from `@object-ui/components` and subscribe via
+  `useNotificationsByPresentation(type, scope?)`.
+
+  **Answers to the three questions the issue left open:**
+
+  1. **Banner/inline placement is the host's.** They are not overlays: a banner takes
+     space at the top of the content area and an `inline` notification belongs next to
+     the thing that raised it. So the context exposes the items and the surfaces
+     subscribe, rather than one `onToast`-style delegate positioning everything. An
+     `inline` notification carries a `scope` that pairs it with its outlet, so two
+     forms on one page don't show each other's messages.
+  2. **`alert` is modal-ish but NOT the action system's `ModalHandler`.** That handler
+     resolves a page/object, renders it, and reports an `ActionResult` back to the
+     `ActionRunner`; a notification alert has no schema, no target and no result.
+     Routing it there would mean synthesizing a page just to say "OK". It renders
+     through the `AlertDialog` primitive instead — no second action-modal path.
+  3. **`snackbar` earns its own component.** It supersedes rather than stacks, anchors
+     bottom regardless of the toast position config, and takes at most one action.
+     Making it a sonner variant is what "presents as a toast" means.
+
+  **Also fixed:** auto-dismiss now follows the presentation. `toast`/`snackbar` keep
+  the transient timer; `banner`/`alert`/`inline` are persistent unless the raiser sets
+  `duration` explicitly — a persistent banner used to evaporate on the shared 5s toast
+  timer. `dismissible` is honored on the persistent surfaces (an `alert` always keeps
+  its acknowledge button; `dismissible: false` only closes the Escape route).
+
+  `onToast` now receives **only** `toast` items. A provider with no `onToast` remains
+  the supported store-only mode (a bell reading `notifications`/`unreadCount`), but
+  raising one of the other four types with its surface unmounted warns in dev, naming
+  the component to mount — that failure used to be silent.
+
+  `NOTIFICATION_PRESENTATIONS` is typed `Record<NotificationPresentation, …>`, so a new
+  member in the spec enum fails type-check until its presentation is decided; a parity
+  test additionally asserts the table covers `NotificationTypeSchema` exactly and that
+  no two types share a surface.
+
+- ce08d55: chore(deps): upgrade `@objectstack/*` to 17.0.0-rc.0, and let the spec take back what it now owns
+
+  `spec` / `client` / `formula` / `lint` move from `^16.x` to `^17.0.0-rc.0`. Two
+  groups of v17 changes reach this repo, and they pull in opposite directions —
+  the spec pruned surface objectui re-exported, and adopted surface objectui had
+  been carrying locally.
+
+  **The spec pruned dead Theme config (objectstack#3494), so the re-exports went
+  with it.** `ThemeSchema` dropped `spacing`, `breakpoints`, `logo`, `density`,
+  `wcagContrast`, `rtl`, `touchTarget` and `keyboardNavigation` — authorable but
+  never enforced, so authoring them was already a silent no-op. `@object-ui/types`
+  re-exported those sub-schemas _by reference_ (issue #2231), so they could not
+  survive the prune without becoming hand-written mirrors — exactly the second
+  de-facto contract AGENTS.md #0.1 forbids. Removed from the public surface:
+
+  - Types: `Spacing`, `Breakpoints`, `DensityMode`, `WcagContrastLevel`,
+    `ThemeLogo`, and the deprecated `SpacingScale` alias
+  - Schemas: `SpacingSchema`, `SpacingScaleSchema`, `BreakpointsSchema`,
+    `ThemeLogoSchema`, and the `SpacingSchemaType` / `BreakpointsSchemaType` helpers
+  - `Theme.spacing`, `Theme.breakpoints` and `Theme.logo`
+
+  `mergeThemes` no longer merges the three dropped keys. `generateThemeVars` is
+  unaffected — it never emitted them, which is why the liveness audit called them
+  dead. The one real consumer was `ThemeProvider`, which set the favicon from
+  `theme.logo.favicon`; that path is gone, because v17 strips the key at parse and
+  it could never arrive again. The live favicon is unaffected: it comes from
+  operator branding (`getFaviconUrl()`), applied in the console's `index.html`,
+  `main.tsx`, and on route change.
+
+  Nothing else read the pruned types. In particular the list-density feature is
+  untouched — `useDensityMode` and `rowHeightToDensityMode` use `@object-ui/core`'s
+  own local `DensityMode`, which never came from the spec.
+
+  **The spec adopted objectui's ListColumn extensions (objectui#2231), so the
+  extension collapsed.** `ListColumnSchema` used to `.extend()` the spec with two
+  fields, each carrying a note to promote it upstream rather than grow the
+  extension; v17 did exactly that. `summary` is now the spec's
+  `union([ColumnSummarySchema, ColumnSummaryConfigSchema])` — the same enum ∪
+  `{ type, field }` form `useColumnSummary` reads — and `prefix` is the spec's
+  `ColumnPrefixSchema`. `ListColumnSchema` is now a plain by-reference re-export.
+  One behavior change rides along: `prefix.type` defaults to `'text'` on parse
+  instead of staying `undefined`, so the cell renderer always gets a value.
+
+  **Node 22 is now the floor.** Every `@objectstack` package declares
+  `engines.node: ">=22.0.0"` (objectstack#3825; Node 20 reached EOL 2026-04-30).
+  This repo claimed `>=20` and ran CI on Node 20.x, so it promised — and validated
+  — a runtime its own core dependency does not support. `engines.node` is now
+  `>=22`, CI runs Node 22.x, and the CI/deployment docs say so.
+
+  The major stays 17: per AGENTS.md the major tracks `@objectstack`'s major, which
+  is also 17, and that convention deliberately outranks semver purity — so the
+  removals above ship as a minor rather than desyncing the two.
+
+- 0ded602: fix(form): a server rejection that names fields now marks those fields (objectstack#3896)
+
+  The server has always said which field it rejected. `@objectstack/objectql`'s
+  validators throw `VALIDATION_FAILED` with `fields[]` — one entry per offending
+  field, each with a human `message` — and both the REST layer and the runtime
+  dispatcher serve that as a 400 with the entries intact.
+
+  Every form dropped them. The submit handler caught the rejection, ran the
+  message through `extractWriteErrorMessage`, and showed **one undirected toast**:
+  the user was told something was wrong but not _what_, on a surface that already
+  knows how to mark an input — and already does exactly that for client-side
+  validation. On a long form the offending field was often off-screen, so "创建"
+  appeared to do nothing.
+
+  **Now the two failures behave identically, because they share one
+  implementation.** The per-field marking, the toast naming the fields, and the
+  scroll-and-focus of the first offender (#2793) were extracted from the
+  client-side invalid handler; the server path calls the same function. As far as
+  the person filling in the form is concerned these are the same event — only the
+  referee differs.
+
+  Three layers, each of which was dropping the detail:
+
+  - **`@object-ui/react`** — new `extractFieldErrors(err)` (exported alongside
+    `extractWriteErrorMessage` / `isPermissionError`) normalises the three shapes
+    the error can arrive in: a typed `ValidationError` from the ObjectStack
+    adapter, the raw `@objectstack/client` error (whose `details` falls back to the
+    whole response body, which is where `fields[]` lands), and a hand-rolled error
+    carrying `fields` directly — the server duck-types that shape identically, so
+    the client must not be pickier than the server. Entries with no usable `field`
+    are **dropped rather than guessed at**: marking an innocent input is worse than
+    the generic toast.
+  - **`@object-ui/data-objectstack`** — `normaliseClientError` now maps a 400
+    `VALIDATION_FAILED` onto the `ValidationError` class that has sat in
+    `errors.ts` since the package was written, exported and **never once
+    constructed**. Its `validationErrors: Array<{ field, message }>` shape was
+    already exactly right. `create` also now normalises at all: only `update` did,
+    so a rejected insert reached callers as the raw client error — and a create is
+    the path that most often trips required-field validation.
+  - **`@object-ui/components`** — the form renderer maps the entries onto
+    `form.setError` and takes over the failure, **but only when every rejected
+    field has a visible input to carry it**. If the server also rejected something
+    the form does not render, it falls through to the banner, whose top-level
+    message concatenates every field's reason — so the part the user cannot see
+    inline is still said out loud instead of silently dropped.
+
+  This also removes the need for the client-side predicate mirroring added in
+  #2962: a form no longer has to guess what the server will reject in order to
+  warn about it beforehand, and mirrored predicates drift.
+
+  Non-field failures (403 / permission denials / anything without `fields[]`) take
+  exactly the path they took before.
+
+### Patch Changes
+
+- fc0272a: fix(actions): apply the ADR-0066 D4 capability gate on every action surface (framework#3923)
+
+  An action declaring `requiredPermissions` is supposed to be one declaration with
+  two enforcement surfaces: 403 on the server, hidden button in the UI. The UI half
+  only ever ran inside `ActionEngine.getActionsForLocation` — and the surfaces
+  `record_header`, `record_more`, `list_item` and `list_toolbar` actually render on
+  do not go through the engine. They filter their own action lists. So a button
+  declaring a capability nobody holds rendered, live and clickable, on the record
+  header, in every grid row menu, and on the list toolbar. For a `type: 'api'`
+  action pointed at a self-authored endpoint, nothing else was checking either: the
+  platform's action route (which is where the 403 comes from) never sees that
+  request.
+
+  `page:header`, `action:bar` (business _and_ `systemActions`) and the grid's
+  `RowActionMenu` now apply the same gate, via a shared `useCapabilityGate()` so
+  the surfaces cannot drift apart. The rule is the engine's, unchanged: hide unless
+  the caller holds **all** declared capabilities; an empty held set is "holds
+  nothing" and gates; **unknown** — no action runtime, no resolved capabilities —
+  fails OPEN, because the server is the authority and hiding a permitted user's
+  button on missing client data is the worse failure.
+
+  The record surface was also feeding the gate nothing to work with.
+  `RecordDetailView` mounts its own `<ActionProvider>`, which shadows the shell's
+  for every action on that page, and seeded it with identity only — no
+  `systemPermissions`. Since unknown fails open, that alone un-gated every
+  `record_header` / `record_more` / `record_section` action on the one page those
+  locations exist on. It now forwards the caller's resolved capabilities (and only
+  once they have actually resolved, so a standalone embed without a
+  `PermissionProvider` keeps failing open rather than hiding everything).
+
+  `useRecordEditable`'s record-level explain probe went out on a bare
+  `fetch(..., { credentials: 'include' })`. A bearer-token session carries its
+  credential in the `Authorization` header, not a cookie, so the probe came back
+  401 on a perfectly valid admin session and the verdict silently failed open —
+  the hook was inert in exactly the deployments it was written for. It now rides
+  the host's authenticated fetch (`SchemaRendererProvider`'s `apiFetch`), falling
+  back to the global one for standalone embeds.
+
+- 9eb932b: fix(console): three real-user console failures — 403 blamed on the network, ⌘K search capped at 8 objects, nav gating fields inert
+
+  1. **List error panel classifies the failure** (`plugin-list`, `i18n`): a 403/401 from the data source used to render the same "check your connection" copy as a genuine outage, sending users to debug their network while the server was correctly denying access. The panel now classifies by `httpStatus`/`status`/`statusCode`, the `PERMISSION_DENIED`/`UNAUTHORIZED` error codes, or an `HTTP <status>` message prefix, and renders dedicated permission-denied / sign-in-required copy (all nine locales).
+
+  2. **⌘K / full-page search scope is no longer truncated** (`react`): `maxObjectsQueried` caps the per-object fanout fallback, not the search scope — it used to slice the candidate pool itself, so the `objects` whitelist sent to the platform's `/api/v1/search` only ever named the first 8 nav objects. Which sidebar group came first decided which records were findable; everything later in the nav was unsearchable no matter what the user typed.
+
+  3. **Nav gating fields finally gate** (`app-shell`): `evaluateVisibility` only evaluated `${…}` template strings, so the `{ dialect: 'cel', source }` envelopes the spec normalizes every authored `visible` predicate into fell through to a blanket "visible" — a constant-false predicate still rendered for everyone. It now delegates to `ExpressionEvaluator.evaluateCondition`, which routes CEL envelopes to the canonical `@objectstack/formula` engine. And the sidebars' `requiredPermissions` check treats a bare name as an ADR-0066 system capability (union of the user's permission-set `systemPermissions` from `/me/permissions`) — the same subset rule the server applies to `AppSchema.requiredPermissions` — instead of misreading it as `can(<name>, 'read')`, which had degraded `requiredPermissions` into a hide-from-everyone switch (admins included). The `object:action` form and the legacy object-read fallback keep working.
+
+- 4952edf: fix(errors): error-code branches survive the framework's ADR-0112 rename — objectstack#3841
+
+  Framework ADR-0112 renamed the whole `error.code` vocabulary from lowercase
+  `snake_case` to `SCREAMING_SNAKE` (`destructive_change` → `DESTRUCTIVE_CHANGE`).
+  Eleven places compared `err.code` against the old spelling with `===`, so against
+  a swept server they simply stopped matching — and nothing threw. The affordance
+  each branch guards just vanished and the user got the generic error toast instead:
+
+  - the destructive-change confirm dialog (resource editor, permission matrix)
+  - the "create a writable package first" hint
+  - field-scoped validation issues on embedded item saves
+  - the all-or-nothing publish summary naming the causal item
+  - unknown-object tolerance in the app header and in record search
+  - the marketplace's local-install messages for conflict / auth / unavailable
+  - `isNotFoundError` in the data layer
+
+  `RECORD_NOT_FOUND` had already been renamed a release earlier, so that branch was
+  already dead before this fix.
+
+  New `errorCodeIs` / `errorCodeIsAnyOf` in `@object-ui/types` compare
+  case-insensitively, so the console keeps working against servers on either side
+  of the rename — the console ships separately from the server it talks to. Every
+  call site now passes the catalog (SCREAMING) spelling, and `error-code.ts` is the
+  single file to delete once no supported server emits the old vocabulary.
+
+- 2374a49: fix(sdui): a react page no longer loses its state to a memo that never held, and a source that exports nothing fails loudly
+
+  Writing the regression guard for objectui#2954's "latent hazard" found it was
+  already real.
+
+  **`evaluatedSchema` was memoised on values rebuilt every render.**
+  `SchemaRenderer` fell back to a fresh `{}` when no `SchemaRendererProvider` sat
+  above it, and `usePageVariables()` returned a brand-new object literal outside a
+  `PageVariablesProvider`. Both feed the `evaluatedSchema` memo's dependency list,
+  so for any tree without those providers the memo never hit: the schema was
+  re-cloned and the ExpressionEvaluator re-run on every render, and children got a
+  new schema identity every time. A `kind:'react'` page memoises its compiled
+  source on that identity, so the page was recompiled — a new page function, a new
+  element type — and React remounted it, silently discarding the user's `useState`.
+  Any registry notification (every lazy plugin's first load) triggered it. Both
+  fallbacks are now module constants.
+
+  **A source that exports nothing now throws instead of rendering blank.**
+  `generateElement` inserts the implicit `export default` only when the source
+  _starts with_ JSX, a `function` declaration, `()` or `class` — so the very
+  common `const Page = () => …` exported nothing, and the page rendered blank with
+  no error reported anywhere. It now throws with a message naming the fix, which
+  `ReactRunner`'s error panel surfaces. `export default null` still means "render
+  nothing"; a default export that is not a component throws too.
+
+  **`PageSchema['kind']` matches `@objectstack/spec`.** It declared
+  `'full' | 'slotted'` while the renderer had shipped `'react'` and
+  `'html'`/`'jsx'` since ADR-0080 and read the field through a cast. The union now
+  spells all five and the cast is gone.
+
+  Docs: new `content/docs/guide/react-pages.md` (choosing between the executed and
+  parsed tiers, the capability gate, the injected scope, flat props, `Block`,
+  `useAdapter`, source shapes, error handling) and a `@object-ui/react-runtime`
+  README — the package had neither, while being the tier AI-authored pages target.
+
+- Updated dependencies [62311b6]
+- Updated dependencies [9e7349e]
+- Updated dependencies [8864971]
+- Updated dependencies [9b773f9]
+- Updated dependencies [1cf0de7]
+- Updated dependencies [752e18f]
+- Updated dependencies [c785740]
+- Updated dependencies [b41f401]
+- Updated dependencies [19e9fa0]
+- Updated dependencies [d61efd1]
+- Updated dependencies [95b7214]
+- Updated dependencies [7d9734d]
+- Updated dependencies [6ae818e]
+- Updated dependencies [9eb932b]
+- Updated dependencies [746dd00]
+- Updated dependencies [aebfa4f]
+- Updated dependencies [38ca8be]
+- Updated dependencies [3cb9646]
+- Updated dependencies [4952edf]
+- Updated dependencies [7f0252e]
+- Updated dependencies [7d35010]
+- Updated dependencies [c4d7b20]
+- Updated dependencies [7639a61]
+- Updated dependencies [94e63ef]
+- Updated dependencies [02aef0c]
+- Updated dependencies [6f29aa5]
+- Updated dependencies [d21794c]
+- Updated dependencies [c4db402]
+- Updated dependencies [5319bf1]
+- Updated dependencies [49e5671]
+- Updated dependencies [b5b97e2]
+- Updated dependencies [f59f2c1]
+- Updated dependencies [4874117]
+- Updated dependencies [ad0183a]
+- Updated dependencies [ce08d55]
+- Updated dependencies [a17ef09]
+- Updated dependencies [aa1240a]
+- Updated dependencies [2374a49]
+- Updated dependencies [390c071]
+- Updated dependencies [d10f526]
+- Updated dependencies [2d5d594]
+- Updated dependencies [ea7f477]
+- Updated dependencies [7f23cd0]
+- Updated dependencies [0ded602]
+- Updated dependencies [24e0e0a]
+- Updated dependencies [f8a95e5]
+- Updated dependencies [3a6cf24]
+- Updated dependencies [aa35561]
+- Updated dependencies [03bd53b]
+- Updated dependencies [3c1f321]
+- Updated dependencies [a045a32]
+- Updated dependencies [912496d]
+- Updated dependencies [9867281]
+  - @object-ui/core@17.1.0
+  - @object-ui/types@17.1.0
+  - @object-ui/data-objectstack@17.1.0
+  - @object-ui/i18n@17.1.0
+
 ## 17.0.0
 
 ### Major Changes

@@ -1,5 +1,984 @@
 # @object-ui/components
 
+## 17.1.0
+
+### Minor Changes
+
+- 9e7349e: **`target` is the only action handler slot — the `execute` alias is gone from the renderer (framework#3856).**
+
+  `ActionRunner.executeScript` read `action.target || action.execute`. That fallback
+  is unreachable against `@objectstack/spec` 17: `execute` is now a tombstoned key
+  (framework#3855) that the parser **rejects** with the rename prescription, so no
+  parsed action can carry it and the `||` could only ever yield `target`. Verified
+  against 17.0.0-rc.0 — an action declaring `execute` fails `ActionSchema.safeParse`,
+  and a `target` action's parsed output has no `execute` key at all.
+
+  Deleted rather than left as harmless residue: two handler slots is what let one
+  action run one script server-side and a different one client-side (framework#3713,
+  where this renderer preferred the alias while the spec transform preferred
+  `target`). A dead slot still reads as a live contract to the next maintainer.
+
+  `execute` is also **removed from the types**, which is the part that had never
+  landed. framework#3856 predicted a compile error here; there wasn't one, because
+  neither reader was typed against the spec's `z.infer`:
+
+  - `@object-ui/types` `ActionSchema` hand-declared `execute?: string`. Removed, so
+    `execute: '…'` now fails `tsc` at the authoring site (TS2353).
+  - `@object-ui/core` `ActionDef` hand-declared it too. Removed — but `ActionDef`
+    carries a `[key: string]: any` index signature, so stale hand-authored metadata
+    that never passed through the parser still compiles. For that path
+    `executeScript` now returns the rename prescription instead of a bare
+    "No script provided", matching the spec tombstone's rule that removing an
+    authorable key must be audible: silently binding no handler is the
+    "Mark Done does nothing" shape (framework#2169).
+
+  The four action renderers (`action:button`, `action:icon`, `action:menu`,
+  `action:group`) no longer forward `execute` into the runner, and Studio's
+  `ActionPreview` no longer falls back to it — previewing an alias-only draft as
+  "bound" contradicted the parse that rejects it on save.
+
+  Requires `@objectstack/spec` 17. Metadata still on the alias is rewritten by
+  `os migrate meta --from 16`.
+
+- 38ca8be: refactor(fields): `requiredWhen` is the only required-predicate slot — drop the retired `conditionalRequired` alias
+
+  `@objectstack/spec` 17 (objectstack#3855) **retired** `Field.conditionalRequired`,
+  the long-deprecated alias of `requiredWhen`. ObjectUI carried a back-compat read
+  for it in seven places; all of them are removed.
+
+  The removal is safe because the spec did not merely _stop emitting_ the key — it
+  made authoring it **fail loudly**. `retiredKey()` declares the key as
+  `z.never()`, so:
+
+  - `z.input` types it as `never` — writing it is a `tsc` error at the authoring site;
+  - the parse **rejects** it (verified against `17.0.0-rc.0`), at both `FieldSchema`
+    and `ObjectSchema`, with the prescription as the message:
+
+    > `conditionalRequired` was removed in @objectstack/spec 17 (#3855) — use
+    > `requiredWhen`. Rename the key; the value (a CEL predicate) is unchanged.
+    > Run `os migrate meta --from 16` to rewrite it automatically.
+
+  So spec-parsed metadata cannot carry the key — an object declaring it fails to
+  load rather than loading with the rule silently dropped. Keeping a renderer-side
+  `requiredWhen ?? conditionalRequired` would have re-created exactly the second
+  de-facto contract the tombstone exists to prevent: the key would have kept
+  working in the UI while being rejected everywhere else, hiding the producer's bug
+  (AGENTS.md #0.1). "Backend-agnostic" (#1) does not argue for keeping it either —
+  `conditionalRequired` is an ObjectStack-spec-ism, so the only producers that ever
+  emit it are ObjectStack producers on ≤16, and the spec ships them a converter.
+
+  Removed from:
+
+  | package                  | site                                                                                                      |
+  | :----------------------- | :-------------------------------------------------------------------------------------------------------- |
+  | `@object-ui/types`       | the `conditionalRequired?:` member on `FormField`                                                         |
+  | `@object-ui/core`        | the `??` fallback + rules-param member in `resolveFieldRuleState`                                         |
+  | `@object-ui/components`  | three pass-throughs in the form renderer                                                                  |
+  | `@object-ui/plugin-form` | `ObjectForm`, `ModalForm`, `sectionFields`, `deriveMasterDetail` (×2)                                     |
+  | `@object-ui/app-shell`   | the field inspector's legacy read/auto-migrate, and the key's entry in `clientValidation`'s CEL lint list |
+
+  **Studio authors lose nothing.** The object designer's draft validation parses
+  against the spec's own `ObjectSchema`, so a draft carrying the key now surfaces
+  the tombstone's rename prescription under the same `fields.<name>.conditionalRequired`
+  path the CEL lint used to report — a better message than the inspector's silent
+  auto-migration, and one the server agrees with. That behavior is pinned by a test.
+
+  **Migrating:** rename the key to `requiredWhen` (the CEL value is unchanged), or
+  run `os migrate meta --from 16`.
+
+- 07de839: fix(notifications): the config, `position` and action `variant` are read instead of forked or ignored (#3014 follow-up)
+
+  The last of the notification contract. After `displayType` (#3071) and `icon`
+  (#3076), four gaps of the same family were left:
+
+  - **the config was 3/4 inert** — only `defaultDuration` was ever read.
+    `maxVisible` and `stacking` were carried and ignored, while
+    `NotificationBanners` capped at a hard-coded `3` of its own;
+  - **its field names forked from `NotificationConfigSchema`** — `position` vs
+    `defaultPosition`, a renderer-local `stacking` boolean with no spec
+    counterpart, and no `pauseOnHover` at all;
+  - **a notification could not declare a `position`.** The #3008 parity guard
+    asserted the position _vocabulary_ matched the spec while nothing positioned
+    anything by it — a guard passing over an unused value;
+  - **`NotificationActionButton.variant` was the shadcn Button vocabulary**
+    (`default | destructive | outline`) under a spec-shaped name, forking
+    `NotificationActionSchema.variant` (`primary | secondary | link`).
+
+  **How positioning resolves now** — `notification.position ?? config.defaultPosition
+?? nothing`, and "nothing" is a real answer:
+
+  - **declared** → the surface pins itself there, always. `presentNotificationToast`
+    passes it per-toast so the contract wins over the container;
+  - **undeclared** → the surface keeps its own anchor (a snackbar's bottom edge) or
+    defers to the host's toast chrome.
+
+  That asymmetry is the design decision. The host's sonner container also serves
+  toasts that are _not_ spec notifications (the console action runtime's own
+  `toast.*` calls), so it stays the fallback authority for placement — never a
+  competing one. A declared position a component prop could silently override
+  would be the same "validates, then does nothing" shape this whole area is about.
+  Hence `defaultPosition` has no fabricated default: "the host didn't say" has to
+  be representable.
+
+  Also: `maxVisible` / `stackDirection` now drive every stacking surface through
+  one shared `visibleNotificationStack` (cap keeps the NEWEST, stack grows in the
+  declared direction); `pauseOnHover` holds a transient notification's timer and
+  resumes it with the time it had left, which needed the provider to track live
+  timers rather than fire-and-forget `setTimeout`s. Legacy spellings still resolve:
+  `position` folds into `defaultPosition`, and `stacking: false` reads as
+  `maxVisible: 1` rather than being ignored.
+
+  `onToast` now receives the resolved config as a second argument, so the delegate
+  can apply the parts of the contract only it can. Existing one-argument handlers
+  are unaffected. The spec-parity guard gained the action-variant vocabulary, the
+  one notification enum it did not cover.
+
+- 2a40b5e: feat(notifications): each spec `displayType` gets its own presentation instead of a toast (#3014)
+
+  #3008 closed the **contract** half of this: `NotificationContext`'s union matched
+  `NotificationTypeSchema`, and `notify()` materialized the declared type so a
+  consumer _could_ branch on it. Nothing did. `NotificationProvider` handed every
+  item to the host's `onToast` delegate regardless of type, so an author picking
+  `banner` or `inline` got a transient overlay — plausible output, wrong output.
+
+  Each of the five spec types now has a presentation of its own:
+
+  | `displayType` | Presentation                                           | Rendered by                        |
+  | ------------- | ------------------------------------------------------ | ---------------------------------- |
+  | `toast`       | transient overlay (unchanged)                          | the host's `onToast` delegate      |
+  | `snackbar`    | bottom-anchored bar, one at a time, at most one action | `<NotificationSnackbar />`         |
+  | `banner`      | page-width strip **in the content flow**               | `<NotificationBanners />`          |
+  | `alert`       | blocking acknowledgement dialog, FIFO queue            | `<NotificationAlerts />`           |
+  | `inline`      | in place, at the raising surface                       | `<NotificationInline scope="…" />` |
+
+  The four surface components ship from `@object-ui/components` and subscribe via
+  `useNotificationsByPresentation(type, scope?)`.
+
+  **Answers to the three questions the issue left open:**
+
+  1. **Banner/inline placement is the host's.** They are not overlays: a banner takes
+     space at the top of the content area and an `inline` notification belongs next to
+     the thing that raised it. So the context exposes the items and the surfaces
+     subscribe, rather than one `onToast`-style delegate positioning everything. An
+     `inline` notification carries a `scope` that pairs it with its outlet, so two
+     forms on one page don't show each other's messages.
+  2. **`alert` is modal-ish but NOT the action system's `ModalHandler`.** That handler
+     resolves a page/object, renders it, and reports an `ActionResult` back to the
+     `ActionRunner`; a notification alert has no schema, no target and no result.
+     Routing it there would mean synthesizing a page just to say "OK". It renders
+     through the `AlertDialog` primitive instead — no second action-modal path.
+  3. **`snackbar` earns its own component.** It supersedes rather than stacks, anchors
+     bottom regardless of the toast position config, and takes at most one action.
+     Making it a sonner variant is what "presents as a toast" means.
+
+  **Also fixed:** auto-dismiss now follows the presentation. `toast`/`snackbar` keep
+  the transient timer; `banner`/`alert`/`inline` are persistent unless the raiser sets
+  `duration` explicitly — a persistent banner used to evaporate on the shared 5s toast
+  timer. `dismissible` is honored on the persistent surfaces (an `alert` always keeps
+  its acknowledge button; `dismissible: false` only closes the Escape route).
+
+  `onToast` now receives **only** `toast` items. A provider with no `onToast` remains
+  the supported store-only mode (a bell reading `notifications`/`unreadCount`), but
+  raising one of the other four types with its surface unmounted warns in dev, naming
+  the component to mount — that failure used to be silent.
+
+  `NOTIFICATION_PRESENTATIONS` is typed `Record<NotificationPresentation, …>`, so a new
+  member in the spec enum fails type-check until its presentation is decided; a parity
+  test additionally asserts the table covers `NotificationTypeSchema` exactly and that
+  no two types share a surface.
+
+- df613fa: fix(notifications): the spec `icon` is read instead of stored and ignored (#3014 follow-up)
+
+  `NotificationSchema.icon` — "Icon name override" — reached `NotificationItem` and
+  stopped there. Every surface drew the severity icon, so an author writing
+  `icon: 'rocket'` got the success checkmark. Same shape as the `displayType`
+  collapse #3071 fixed: a value that validates, is carried, and renders nothing.
+
+  All five presentations now resolve it through one rule (`notificationIcon`): a
+  declared Lucide name — kebab-case or PascalCase — replaces the severity icon;
+  anything else falls back to it. That includes the console's sonner toast, so the
+  override behaves identically on a toast, a banner, a snackbar, an alert and an
+  inline message.
+
+  **The fallback is the interesting part.** `getLazyIcon` degrades an unknown name
+  to a `Database` glyph, which is right for a data-shaped schema slot and wrong
+  here — on an error notification it swaps a meaningful icon for a meaningless one.
+  So the name is checked first, via a new `isLucideIconName` export, and a typo
+  costs the author their override and nothing more.
+
+- 0ded602: fix(form): a server rejection that names fields now marks those fields (objectstack#3896)
+
+  The server has always said which field it rejected. `@objectstack/objectql`'s
+  validators throw `VALIDATION_FAILED` with `fields[]` — one entry per offending
+  field, each with a human `message` — and both the REST layer and the runtime
+  dispatcher serve that as a 400 with the entries intact.
+
+  Every form dropped them. The submit handler caught the rejection, ran the
+  message through `extractWriteErrorMessage`, and showed **one undirected toast**:
+  the user was told something was wrong but not _what_, on a surface that already
+  knows how to mark an input — and already does exactly that for client-side
+  validation. On a long form the offending field was often off-screen, so "创建"
+  appeared to do nothing.
+
+  **Now the two failures behave identically, because they share one
+  implementation.** The per-field marking, the toast naming the fields, and the
+  scroll-and-focus of the first offender (#2793) were extracted from the
+  client-side invalid handler; the server path calls the same function. As far as
+  the person filling in the form is concerned these are the same event — only the
+  referee differs.
+
+  Three layers, each of which was dropping the detail:
+
+  - **`@object-ui/react`** — new `extractFieldErrors(err)` (exported alongside
+    `extractWriteErrorMessage` / `isPermissionError`) normalises the three shapes
+    the error can arrive in: a typed `ValidationError` from the ObjectStack
+    adapter, the raw `@objectstack/client` error (whose `details` falls back to the
+    whole response body, which is where `fields[]` lands), and a hand-rolled error
+    carrying `fields` directly — the server duck-types that shape identically, so
+    the client must not be pickier than the server. Entries with no usable `field`
+    are **dropped rather than guessed at**: marking an innocent input is worse than
+    the generic toast.
+  - **`@object-ui/data-objectstack`** — `normaliseClientError` now maps a 400
+    `VALIDATION_FAILED` onto the `ValidationError` class that has sat in
+    `errors.ts` since the package was written, exported and **never once
+    constructed**. Its `validationErrors: Array<{ field, message }>` shape was
+    already exactly right. `create` also now normalises at all: only `update` did,
+    so a rejected insert reached callers as the raw client error — and a create is
+    the path that most often trips required-field validation.
+  - **`@object-ui/components`** — the form renderer maps the entries onto
+    `form.setError` and takes over the failure, **but only when every rejected
+    field has a visible input to carry it**. If the server also rejected something
+    the form does not render, it falls through to the banner, whose top-level
+    message concatenates every field's reason — so the part the user cannot see
+    inline is still said out loud instead of silently dropped.
+
+  This also removes the need for the client-side predicate mirroring added in
+  #2962: a form no longer has to guess what the server will reject in order to
+  warn about it beforehand, and mirrored predicates drift.
+
+  Non-field failures (403 / permission denials / anything without `fields[]`) take
+  exactly the path they took before.
+
+- 24e0e0a: feat(components,grid,list): a column-header sort orders the whole list, not the page you can see — #3106
+
+  Clicking a column header under server pagination sorted **the current page**.
+  The user saw "sorted by this column" and got "these fifty rows are in order;
+  page 2 starts over". The sort was real — its scope was not the one the screen
+  implied — and it had no way out of `data-table` at all: the sort lived in two
+  `useState`s with no callback, so the layer that issues the request could not
+  see it even in principle.
+
+  `DataTable` gains `manualSorting` + a controlled `sort` + `onSortChange`. In
+  that mode it sorts nothing, reports what a header click asks for, and renders
+  `sort` as the indicator — keeping **no** sort state of its own, because a
+  private copy beside a controlled prop is the shape the defect had.
+
+  `ObjectGrid` turns that into a `$orderby` in both of its server modes (its own
+  fetch, and a parent-driven one), and `ListView` lands it in `currentSort` — the
+  same state the toolbar's sort builder writes. One sort, two controls: that is
+  what makes "does a header sort outrank the saved view's sort?" a non-question
+  rather than a precedence rule someone has to remember.
+
+  Three details that are decisions, not incidentals:
+
+  - **A header click replaces the order** instead of appending to it, so the
+    column under the cursor is the one the list is sorted by. Multi-key orders
+    still come from the sort builder, and the headers render them numbered.
+  - **It cannot ask for "no sort".** In client mode the third click clears, and
+    that is meaningful there — the rows return to the order they arrived in.
+    Across a server-paged collection there is no such order (objectstack#4363), so
+    a header offering it would hand the user a worse lie than the one being fixed.
+    Clearing stays with the sort builder, which can restore the view's default.
+  - **Relational columns render no sort affordance** under server sorting. A
+    `lookup` column shows a related record's name while `$orderby` can only order
+    by the stored id (objectstack#4256) — the same reason #3096 removed them from
+    the toolbar's sort picker. Client-side sorting keys off the rendered label, so
+    those headers stay live there.
+
+  Client-side tables are untouched: same three-state cycle, same local sort.
+
+- 80edbd4: fix(view,components): the spec→FilterBuilder operator table covers the whole view vocabulary, and the dead write direction is gone
+
+  `view-config-utils`' `SPEC_TO_BUILDER_OP` resolved **10 of the spec's 19
+  canonical `VIEW_FILTER_OPERATORS`**. The nine it missed —
+  `not_equals`, `starts_with`, `ends_with`, `greater_than`, `less_than`,
+  `greater_than_or_equal`, `less_than_or_equal`, `is_null`, `is_not_null` — all
+  appear in stored view metadata (they are canonical; `ViewFilterRuleSchema`
+  validates against exactly this list), and each reached the FilterBuilder as a
+  raw spelling its operator dropdown cannot select.
+
+  Same defect and same cause as #2974, one table over: spellings were enumerated
+  by hand. That table is now derived from the spec's own canonical list and
+  `VIEW_FILTER_OPERATOR_ALIASES`, matched case- and separator-insensitively, so
+  `not_in` / `notIn` / `'not in'` / `NOT_IN` are one entry rather than four
+  chances to miss one.
+
+  Four canonical operators have no FilterBuilder equivalent —
+  `starts_with`/`ends_with` (absent from its vocabulary) and `is_null`/
+  `is_not_null` (distinct from the `is_empty`/`is_not_empty` it does have). They
+  are recorded as explicit `null`s and asserted, and deliberately left unmapped:
+  folding them onto a near-equivalent would silently rewrite the author's
+  operator on the next save, whereas an unmapped operator surfaces as a condition
+  row the author must complete.
+
+  Also retired `BUILDER_TO_SPEC_OP` and `toSpecFilter` — the write direction,
+  dead since the legacy `buildViewConfigSchema` engine was replaced by the
+  studio's spec-driven inspector (no caller anywhere in the repo, and not part of
+  `@object-ui/plugin-view`'s public exports). It was objectui's last emitter of
+  `'not in'` with a space, plus `before`/`after`, as _filter-AST_ operators —
+  spellings that reached the server outside `VALID_AST_OPERATORS` and were dropped
+  without an error (objectstack-ai/objectstack#3948).
+
+  `@object-ui/components` now exports `FILTER_BUILDER_OPERATORS` (and the
+  `FilterBuilderOperator` type), derived from the operators the FilterBuilder
+  actually renders, so tables mapping onto that vocabulary can assert against it
+  instead of restating it.
+
+  Refs objectstack-ai/objectui#2945, #2901.
+
+### Patch Changes
+
+- fc0272a: fix(actions): apply the ADR-0066 D4 capability gate on every action surface (framework#3923)
+
+  An action declaring `requiredPermissions` is supposed to be one declaration with
+  two enforcement surfaces: 403 on the server, hidden button in the UI. The UI half
+  only ever ran inside `ActionEngine.getActionsForLocation` — and the surfaces
+  `record_header`, `record_more`, `list_item` and `list_toolbar` actually render on
+  do not go through the engine. They filter their own action lists. So a button
+  declaring a capability nobody holds rendered, live and clickable, on the record
+  header, in every grid row menu, and on the list toolbar. For a `type: 'api'`
+  action pointed at a self-authored endpoint, nothing else was checking either: the
+  platform's action route (which is where the 403 comes from) never sees that
+  request.
+
+  `page:header`, `action:bar` (business _and_ `systemActions`) and the grid's
+  `RowActionMenu` now apply the same gate, via a shared `useCapabilityGate()` so
+  the surfaces cannot drift apart. The rule is the engine's, unchanged: hide unless
+  the caller holds **all** declared capabilities; an empty held set is "holds
+  nothing" and gates; **unknown** — no action runtime, no resolved capabilities —
+  fails OPEN, because the server is the authority and hiding a permitted user's
+  button on missing client data is the worse failure.
+
+  The record surface was also feeding the gate nothing to work with.
+  `RecordDetailView` mounts its own `<ActionProvider>`, which shadows the shell's
+  for every action on that page, and seeded it with identity only — no
+  `systemPermissions`. Since unknown fails open, that alone un-gated every
+  `record_header` / `record_more` / `record_section` action on the one page those
+  locations exist on. It now forwards the caller's resolved capabilities (and only
+  once they have actually resolved, so a standalone embed without a
+  `PermissionProvider` keeps failing open rather than hiding everything).
+
+  `useRecordEditable`'s record-level explain probe went out on a bare
+  `fetch(..., { credentials: 'include' })`. A bearer-token session carries its
+  credential in the `Authorization` header, not a cookie, so the probe came back
+  401 on a perfectly valid admin session and the verdict silently failed open —
+  the hook was inert in exactly the deployments it was written for. It now rides
+  the host's authenticated fetch (`SchemaRendererProvider`'s `apiFetch`), falling
+  back to the global one for standalone embeds.
+
+- c785740: fix(detail): record Attachments become their own tab (with count badge) and their copy is translated — objectstack#4358
+
+  Two defects on `enable.files: true` record detail pages:
+
+  1. **Buried placement.** `RecordDetailView` appended `RecordAttachmentsPanel`
+     AFTER the schema-rendered page tree, whose synthesized default embeds
+     `record:discussion` as the last main component — so the panel always
+     landed below an ever-growing feed timeline, undiscoverable without
+     scrolling to the very bottom, with no metadata knob to move it.
+
+     `buildDefaultTabs` now emits a peer **Attachments** tab (a new
+     `record:attachments` node rendered by an app-shell registration wrapping
+     the existing panel via RecordContext) between Related and
+     Activity/History. `PageTabsRenderer` derives the tab's count badge from a
+     `sys_attachment` probe scoped to `(parent_object, parent_id)`, riding the
+     same RelatedCountStore cache/invalidation bus as related-list badges — so
+     uploads and deletes update the badge live. A `hideAttachments` synthesizer
+     option suppresses the tab; RecordDetailView keeps its legacy bottom append
+     only as the fallback for authored pages without the node
+     (`hasExplicitAttachments`).
+
+  2. **Untranslated copy.** The panel's eleven `detail.*` keys (`attachments`,
+     `uploadAttachment`, `loadingAttachments`, `noAttachments`,
+     `downloadAttachment`, `deleteAttachment`, and the five
+     `attachment*Denied/Required` friendly errors) existed only as inline
+     English `defaultValue`s — no locale bundle carried them, so non-English
+     consoles always showed English. All ten locales now define them; the tab
+     label rides the existing well-known-label dictionary (→ 附件 etc.).
+
+- b41f401: **Authoring types are input types (framework#4074 steps 2–3): `ActionParam` takes the spec's declaration forms, `ListViewSchema` stops promising parse-output defaults, and `FormField.dependsOn` matches its runtime reader.**
+
+  Three public types said something different from what the platform accepts. All
+  three divergences were found by making `packages/types`' tests compile (#3009)
+  and then resolving the declared `p1-spec-alignment.test.ts` debt site-by-site
+  instead of papering over it.
+
+  **`ActionParam` is now the authoring shape, aligned with the spec's input.**
+  `name` / `label` / `type` become optional and `field` / `objectOverride` appear:
+  the spec's primary way to declare a param — a bare field reference that inherits
+  label/type/validation/options from an object field — was unrepresentable while
+  all three were required. The _resolved_ shape the dialog consumes (after
+  app-shell's `resolveActionParams()` inlines the reference) remains
+  `@object-ui/core`'s `ActionParamDef`, with all three required. Authoring and
+  resolved are different types on purpose. `label` and option labels take the
+  spec's `I18nLabel` by import — which the new compile-time guard promptly
+  revealed to be aliased to plain `string` in the current spec (the per-locale
+  record is the separate `I18nObject`), so this is not a behavioural widening
+  today; importing the alias means objectui tracks any future widening
+  automatically.
+
+  **Breaking:** code destructuring `param.name` / `param.label` / `param.type` as
+  guaranteed must now handle the field-backed form (or consume the resolved
+  `ActionParamDef` instead, which is what dialog-side code should be doing).
+
+  **`ListViewInferred` is `z.input`, not `z.infer`.** The spec sub-schemas that
+  flow into the list-view surface (`userActions`, `tabs` → `ViewTab`, `sharing`)
+  carry `.default()`s, so the inferred output type made fields like
+  `userActions.refresh` or a tab's `pinned`/`visible` _required_ — but nothing on
+  the render path ever runs `.parse()`: `normalizeListViewSchema` deliberately
+  applies no defaults ("an absent flag stays absent", its own suite). The output
+  type therefore rejected valid authored metadata (`userActions: { sort: true }`)
+  while promising renderers defaults that never arrive. Typing the surface as
+  input matches both the author and the runtime object. Code that _trusted_ those
+  phantom defaults now gets an optionality error — which is a latent bug surfacing,
+  not a regression: the value really could be absent.
+
+  **`FormField.dependsOn` is `DependsOnInput`.** The runtime reader
+  (`resolveCascadingOptions`) has always accepted a bare name, a list of names, or
+  lookup-parameter entries `{ field, param }` — its parameter type says so. The
+  public property said `string`, so array-authored metadata type-errored while
+  working, and the form renderer read the key through `(f as any).dependsOn` to
+  get past its own type. The shape now lives in `@object-ui/types` (single source
+  of truth next to `FormField`), `@object-ui/core` imports and re-exports it, and
+  the two `as any` reads in the components form renderer are typed.
+
+  **The `p1-spec-alignment.test.ts` exclusion is gone.** Its 14 errors resolved:
+  the two "sharing in ObjectUI format" tests and the legacy-ARIA-spelling fixture
+  are deleted/rewritten — those dialects are _normalizer input_, folded by
+  `normalizeListViewSchema` and asserted branch-by-branch in core's
+  `normalize-list-view.test.ts`, the seam where the fold actually runs; asserting
+  them on the canonical type only ever "passed" because nothing compiled the file.
+  One fixture claimed a shape no surface ever admitted (an ObjectQL triplet as a
+  spec `ViewTab.filter`) and was corrected to the rule-object form. Every test
+  file in `@object-ui/types` is now compiled, with no exclusions.
+
+  Discrimination-checked: reverting `ListViewInferred` to `z.infer`, `dependsOn`
+  to `string`, or `ActionParam.name` to required each produces the expected
+  compile error in the now-compiled test files (`TS2739` / `TS2322` / `TS2741`);
+  restored, all projects are clean.
+
+- 68ef584: fix(test-setup): stop shadowing ten real registrations, and declare page:header's inputs
+
+  `vitest.setup.dom.tsx` re-registered `text`, `email`, `password`, `textarea`,
+  `image`, `html`, `avatar`, `select`, `slider` and `grid` by hand — ~380 lines of
+  renderer copied out of @object-ui/components — to undo bare-name fallbacks that
+  @object-ui/fields and the plugins claimed by loading after it.
+
+  Both sides now register under their own namespace with `skipFallback: true`, so
+  nothing overwrites the `ui:` originals and the workaround is obsolete. It was
+  not free: the copies carried no `inputs` and no `defaultProps`, so inside the
+  test environment four curated public blocks reported an empty configuration
+  surface while the real registrations declare one. `apps/console`'s contract
+  test reads that registry, so its picture of the contract was fiction for those
+  tags — a guard that measures a fixture instead of the product.
+
+  Deleting the block restores what the app actually boots with. Verified: the ten
+  tags keep their namespace and canonical type, and their declared surface comes
+  back — `text` 1 input, `email` 6, `password` 6, `textarea` 6, `image` 3,
+  `html` 1, `avatar` 4, `select` 6, `slider` 5, `grid` 7, plus `defaultProps`.
+  The heavy DOM setup also got roughly twice as fast (~545s to ~235s of setup
+  time across the suite), since every file in that project was paying to evaluate
+  the duplicated renderers.
+
+  With the shadowing gone, `page:header` was left as a genuine gap: a curated
+  public block whose renderer reads `title`, `subtitle`, `actions`, `breadcrumb`,
+  `recordChrome`, `showStar` and `showCopyId`, with none of them declared. Now
+  declared.
+
+  `element:divider` keeps zero inputs on purpose — its renderer reads only
+  `className`, so there is nothing to author.
+
+- c769d3d: fix(form): a `defaultValues` change no longer discards the field the user is filling
+
+  The form renderer adopts a changed `defaultValues` with `form.reset()`, which
+  replaces the **whole** react-hook-form record — so it also blanks the fields the
+  incoming defaults say nothing about. And it runs in a **passive effect**, one
+  commit after those fields have been committed and painted, so input landing in
+  that window was silently dropped.
+
+  The caught case is the wizard (objectui#2982). It reuses ONE inner form across
+  steps and feeds it `defaultValues={formData}` — the merge of the steps submitted
+  **so far** — so at every step boundary the incoming defaults are missing exactly
+  the fields now on screen:
+
+  ```
+  RESET to {"name":"Alice"}   (values before: {"name":"Alice","note":"hello"})
+  -> create POST {"name":"Alice"}   — the last step is gone
+  ```
+
+  In a browser this needs a busy main thread plus typing on the first frame after
+  the new defaults arrive — unlikely by hand, but paste and autofill land in a
+  single tick. The same shape had already bitten once before, as a `reset()` on
+  `defaultValues` **identity** churn wiping input mid-interaction; comparing by
+  value fixed that, and this is the residual hole where the value genuinely did
+  change.
+
+  The reset now carries such a value across instead of dropping it. Deliberately
+  narrow: only a field the **caller has never carried** — absent from both the
+  outgoing and the incoming defaults — and whose value the user actually changed
+  is eligible. Wherever the caller has an opinion it stays authoritative, so the
+  load-bearing paths are unchanged:
+
+  - an edit-mode record landing after first paint still fills every field it names
+    (a field the user has NOT touched is empty-ish against the baseline, using the
+    same comparison the dirty check uses, so a widget normalizing its own empty
+    value on mount is not mistaken for input);
+  - a `recordId` swap still replaces the record outright — drawer/modal/split
+    forms re-fetch without re-entering their loading branch, so record B lands in
+    the still-mounted form and must not inherit an abandoned edit to record A;
+  - a field the caller withdraws from its defaults stops being the user's.
+
+  A reset that carries input now also reports the form as dirty (it is, against
+  the caller's defaults) instead of unconditionally announcing pristine, so a
+  host's discard guard keeps hearing the truth.
+
+- 94e63ef: fix(form): the runtime `field` metadata slot is declared instead of smuggled, and importing the spec's FormField is a lint error — #3090
+
+  `FormField.field` — the slot where object-bound form paths stash the resolved
+  field-metadata **object** for widgets — rode through the index signature,
+  undeclared, readable only via `as any`. Same key, different layer: in the spec
+  form-view vocabulary `field` is a _string_ (the referenced object-field name),
+  and the undeclared slot kept that pun latent. The slot is now declared
+  (`field?: Record<string, any>`) with the invariant in its JSDoc: on a runtime
+  FormField it is never a string — the authored string form ends at the
+  `normalizeSectionField` chokepoint, and a tripwire test pins that across all
+  three input shapes. Assigning a string is now a compile error; the `as any`
+  casts at the read sites are gone.
+
+  A `no-restricted-imports` tripwire bans importing `FormField`/
+  `FormFieldSchema` from `@objectstack/spec/ui` inside this repo: the spec's
+  FormField TYPE erases to `any` in its dist (objectstack#4171), so the
+  misimport silently deletes type safety — tsc says nothing. The lint message
+  names the two layers and the correct import. The drift-guard parity test is
+  the one legitimate importer, exempted inline with its reason.
+
+  Ledger: `FormField` and `FormFieldSchema` move from untriaged DEBT to ALLOW
+  with the two-layer rationale written down (122 → 120).
+
+- c735bf7: fix(form): a spec-vocabulary field no longer crashes the standalone form, and every surface now says which vocabulary you meant — #3090
+
+  Writing the regression test against the unfixed renderer proved the failure
+  was worse than the assumed silent drop: a `{ field: 'x' }` entry (spec
+  form-VIEW vocabulary) slipped past the `f?.name` guards into a
+  react-hook-form Controller with `name === undefined` and crashed the whole
+  standalone form on `name.split('.')`, with nothing naming the culprit entry.
+  The renderer now partitions such entries out — the rest of the form renders —
+  and surfaces them with an inline alert plus a console.error whose text is the
+  fix instruction (rename to `name`, or use an object-bound form whose sections
+  accept the spec shape).
+
+  `objectui validate` grows the same boundary awareness: on failure, a
+  `{ field: … }` entry in a standalone form gets a "likely cause" hint naming
+  the real fix instead of the bare `invalid_union` — the previous message read
+  as "bolt a `name` on", which converts spec metadata wrongly. On success,
+  mixed-vocabulary entries (`name` + string `field`) get a warning: they
+  validate, but the spec key is dead weight the renderer ignores.
+
+  `normalizeSectionField` warns (once per site) when an authored section field
+  mixes both identity keys — the spec branch derives the runtime name from
+  `field`, so an authored `name` was silently overwritten.
+
+- 02aef0c: fix(sdui): a `kind:'html'` page can use lazily-registered blocks, and recovers when one registers late
+
+  objectui#2953 had a twin one tier over, unreported. The whitelist a
+  `kind:'html'` page's source compiles against was built from `getAllTypes()` +
+  `getConfig()` — both loaded-only — so any block registered via `registerLazy()`
+  was rejected as _"not an allowed component"_.
+
+  The blast radius is worse than the react tier's. There, a missing block cost one
+  identifier; here a compile diagnostic fails the **whole page**, so a single
+  `<object-kanban>` replaced the entire page with `HTML page failed to compile (2)`.
+  And it never recovered: `layoutElement` was memoised on `[schema, pageType]` with
+  no registry signal, so the cached error panel outlived the plugin actually
+  landing — permanently broken for the session.
+
+  `ComponentRegistry` gains three lazy-aware reads:
+
+  - `getKnownTypes()` — loaded registrations **plus** pending lazy stubs, deduped.
+    The set a whitelist or manifest should be built from. `getAllTypes()` keeps its
+    loaded-only meaning ("what can render right now") and now says so.
+  - `getMeta(type, namespace?)` — metadata from the loaded registration, else from
+    a pending stub. `getConfig()` stays loaded-only, since callers read
+    `.component` off it.
+  - `getVersion()` — monotonic counter of changes to the known set, bumped on
+    register / unregister / registerLazy. A cache key that a type _count_ cannot
+    substitute for: one registration plus one unregistration leaves the count
+    untouched while the set changed.
+
+  `getJsxManifest()` builds from those, and `PageRenderer` subscribes to the
+  registry so a page that could not compile retries when the registry grows.
+
+  A stub carries no `inputs` yet, so its props surface as `unknown-prop` warnings
+  rather than errors — the page compiles and renders, and the inner
+  `SchemaRenderer` triggers the loader and swaps in the real block. Authoring-time
+  prop validation is unaffected: `sdui.manifest.json` is generated with every
+  plugin eagerly loaded, and asserts as much.
+
+- 9a04d25: fix(registry): prefix every namespaced key exactly once, in every namespace
+
+  objectui#3023 fixed eleven `record:*` blocks registered as
+  `register('record:x', …, { namespace: 'record' })` — an already-prefixed name
+  handed to a registry that prefixes it again, landing the block at
+  `record:record:x` — and guarded that namespace alone. Twenty-two more were
+  sitting in `action:` (5), `element:` (10) and `page:` (7), two of them
+  (`page:header`, `element:divider`) curated public blocks.
+
+  Checking one namespace is exactly what let them keep sitting there, so the
+  guard now asks the whole registry rather than a prefix of it.
+
+  Same fix as before: register the bare name and let `namespace` do the
+  prefixing, with `skipFallback: true` so the fallback does not claim that bare
+  name globally. It would otherwise take over `header`, `footer`, `sidebar`,
+  `tabs`, `card`, `accordion`, `section`, `text`, `image`, `button`, `icon` —
+  every one of which belongs to `ui:`. All 22 stay reachable exactly as
+  `<namespace>:<name>`; the registry goes 522 keys to 500, and the contract is
+  unchanged at 42/42.
+
+  Found while probing why six curated Tier B primitives report no `inputs`. They
+  do declare them — `vitest.setup.dom.tsx` registers simplified `text` / `image` /
+  `html` / `grid` stubs that shadow the real registrations inside the test
+  environment only. That shadowing is a separate question, left alone here; the
+  doubled keys it turned up are not test-environment artifacts.
+
+- eb4b740: feat(page,element): declare inputs for the eight configurable page:\* / element:\* blocks
+
+  Same gap objectui#3027 closed for `record:*`, in the two namespaces next door:
+  renderers that read real props while every authoring surface reported "takes no
+  configuration". Declarations mirror what each renderer reads —
+
+  | block                     | inputs                                                                           |
+  | ------------------------- | -------------------------------------------------------------------------------- |
+  | `page:tabs`               | items, tabStyle (line/card/pill), position (top/left)                            |
+  | `page:card`               | title, bordered, body (slot), footer (slot)                                      |
+  | `page:accordion`          | items, allowMultiple, variant (flush/card)                                       |
+  | `element:text`            | content, variant (heading/subheading/body/caption), align                        |
+  | `element:number`          | object, aggregate (count/sum/avg/min/max), field, filter, format, prefix, suffix |
+  | `element:button`          | label, action (inline ActionDef), variant, size, icon, iconPosition, disabled    |
+  | `element:definition-list` | items, columns, inline                                                           |
+  | `element:repeater`        | object, titleField, fields, filter, sort, limit, emptyText, divided              |
+
+  `page:section`, `page:footer` and `page:sidebar` are left at zero inputs on
+  purpose: their renderers render `children`/`body` and nothing else — like
+  `element:divider`, they are genuinely prop-less containers, and inventing
+  inputs for them would be the opposite falsehood.
+
+  `aria` and `className` stay undeclared throughout, per the convention on
+  `record:details`: escape hatches and styling pass-throughs, not authoring
+  choices. `element:button`'s registration also documents the split against
+  `action:button` — inline ActionDef vs a declared action referenced by name —
+  so the two stop reading as duplicates.
+
+  Declaration only; no renderer behavior changes. Curation (which of these join
+  `PUBLIC_BLOCKS`) is a separate change.
+
+- 5b084eb: fix(sdui): the react page's "no adapter yet" fallback stops churning its provider context
+
+  Audit of the remaining half of `ReactKindPage`'s scope memo, `[schema, adapter]`.
+  The `schema` half was the live bug fixed in objectui#2984; this is the adapter
+  half.
+
+  **The hosts are fine.** Both `AdapterCtx.Provider` call sites pass a stable
+  value — `AdapterProvider` from `useState`, the console preview from a module
+  constant — so there is no state loss in the shipped app.
+
+  **One real instance remained**, one layer down: `<SchemaRendererProvider
+dataSource={adapter ?? {}}>` minted a fresh object on every render while the
+  adapter was still null (the window before the host connects). That is a context
+  value, and `SchemaRendererProvider` memoises on its identity, so every block
+  inside the page had its schema re-cloned and its expressions re-run on each
+  render of the page. Now a module constant, like the `SchemaRenderer` fallback
+  it mirrors.
+
+  **The `adapter` dependency itself must stay**, and is now pinned. It looks like
+  the obvious thing to optimise away — it is the last remaining trigger that can
+  recompile a page and cost its `useState`. But `ReactRunner` hands React the same
+  element object while `(code, scope)` hold, and React bails out on an identical
+  element reference, so the page subtree never re-renders on its own: recompiling
+  is the _only_ path by which a new adapter reaches the blocks inside the page.
+  Removing the dependency strands every block on the first adapter forever — no
+  error, just a dead data source. `react-page-adapter.test.tsx` pins both
+  directions, so the tradeoff cannot be quietly re-litigated.
+
+  Docs: the react-pages guide now states the host-side requirement — an adapter
+  constructed inline on every render resets every react page on every render.
+
+- aa1240a: fix(sdui): lazily-registered public blocks reach a `kind:'react'` page's scope, and ReactRunner keeps the errors it catches
+
+  Two defects in the trusted `kind:'react'` page tier.
+
+  **objectui#2953 — the contract skipped lazy blocks.** `getPublicConfigs()`
+  resolved every curated `PUBLIC_BLOCKS` tag through `getConfig()`, which reads
+  loaded registrations only, so a block registered with `registerLazy()` was
+  absent from the contract until its plugin chunk happened to be imported. In
+  `apps/console` that silently dropped `object-kanban`, `object-calendar`,
+  `object-gantt`, `object-timeline`, `object-map` and `markdown` from every react
+  page's scope — writing `<ObjectKanban/>` threw `ReferenceError` even though the
+  tag is a first-class contract member, and whether it threw depended on load
+  order. `getPublicConfigs()` now resolves pending lazy stubs too, returning them
+  with `lazy: true` and no `component` (new `PublicComponentConfig` type); the
+  injected wrapper renders through `SchemaRenderer`, which triggers the loader and
+  shows its placeholder. `getConfig()` stays loaded-only by design.
+
+  **objectui#2954 — ReactRunner discarded its own error state.**
+  `getDerivedStateFromProps` re-transpiled and re-evaluated the page source on
+  every render and unconditionally set `error: null`. React runs it before the
+  re-render that follows `getDerivedStateFromError`, so the boundary threw away
+  the error it had just caught, rebuilt an identical throwing element, and the
+  throw escaped past its own `fallback` to the renderer's generic panel; `onError`
+  was gated on state that had already been cleared and never fired for a
+  compile-time error at all; and each compile minted a fresh page function — a new
+  element type — that remounted the subtree and wiped the page's `useState`. The
+  transpile+eval is now memoised on `(code, scope)`, errors persist until the
+  inputs actually change, and `onError` reports each error exactly once.
+
+- 2374a49: fix(sdui): a react page no longer loses its state to a memo that never held, and a source that exports nothing fails loudly
+
+  Writing the regression guard for objectui#2954's "latent hazard" found it was
+  already real.
+
+  **`evaluatedSchema` was memoised on values rebuilt every render.**
+  `SchemaRenderer` fell back to a fresh `{}` when no `SchemaRendererProvider` sat
+  above it, and `usePageVariables()` returned a brand-new object literal outside a
+  `PageVariablesProvider`. Both feed the `evaluatedSchema` memo's dependency list,
+  so for any tree without those providers the memo never hit: the schema was
+  re-cloned and the ExpressionEvaluator re-run on every render, and children got a
+  new schema identity every time. A `kind:'react'` page memoises its compiled
+  source on that identity, so the page was recompiled — a new page function, a new
+  element type — and React remounted it, silently discarding the user's `useState`.
+  Any registry notification (every lazy plugin's first load) triggered it. Both
+  fallbacks are now module constants.
+
+  **A source that exports nothing now throws instead of rendering blank.**
+  `generateElement` inserts the implicit `export default` only when the source
+  _starts with_ JSX, a `function` declaration, `()` or `class` — so the very
+  common `const Page = () => …` exported nothing, and the page rendered blank with
+  no error reported anywhere. It now throws with a message naming the fix, which
+  `ReactRunner`'s error panel surfaces. `export default null` still means "render
+  nothing"; a default export that is not a component throws too.
+
+  **`PageSchema['kind']` matches `@objectstack/spec`.** It declared
+  `'full' | 'slotted'` while the renderer had shipped `'react'` and
+  `'html'`/`'jsx'` since ADR-0080 and read the field through a cast. The union now
+  spells all five and the cast is gone.
+
+  Docs: new `content/docs/guide/react-pages.md` (choosing between the executed and
+  parsed tiers, the capability gate, the injected scope, flat props, `Block`,
+  `useAdapter`, source shapes, error handling) and a `@object-ui/react-runtime`
+  README — the package had neither, while being the tier AI-authored pages target.
+
+- 2d5d594: fix(list,detail): sorting a lookup column no longer orders by an invisible key — #3096
+
+  A relational column (`lookup` / `master_detail` / `user` / `tree`) never holds
+  the string its cell shows: it holds the `$expand`-ed record, or a raw foreign-key
+  id whose label was resolved separately. Every sort path took that raw value as
+  its key, so the column of names came back in an order with no relation to the
+  names — sorting looked broken, with nothing saying the key was something else.
+
+  The two halves are fixed differently, because they can order by different things:
+
+  - **Client-side sorts** (grid column headers, any `data-table`, a non-windowed
+    related list) now key off the label the cell renders, via the new
+    `getSortValue` / `compareSortValues` in `@object-ui/core` — which resolves an
+    expanded record through `getRecordDisplayName` (ADR-0079), so the sort key and
+    the lookup cell agree on which field names a record. This replaces two broken
+    comparators: `a[col] < b[col]` is always false between two objects (the
+    comparator collapsed to a constant and permuted the rows), and
+    `String(a[col])` is `"[object Object]"` (every row compared equal, so the sort
+    silently did nothing).
+  - **Server `$orderby` sorts** cannot be fixed here — the key is the stored id by
+    construction, and `objectstack#4256` settled that no relation join is coming.
+    So those entry points stop offering the illusion: the ListView toolbar sort
+    picker withholds relational fields and explains why (pointing at a formula
+    field as the supported way to sort by a related name), and a windowed related
+    list renders no sort button for them.
+
+  A relational field the view's CURRENT sort already uses stays listed, labelled
+  `(by ID)`, so view metadata authored or saved with such a sort round-trips
+  instead of rendering a blank row and losing the sort on the next edit.
+
+- 379728f: fix(fields): a `select` no longer wipes itself when its value outruns its options (#2968)
+
+  Radix keeps a hidden native `<select>` mirror so a Select's value takes part in
+  native form submission. Assigning a value that mirror has no `<option>` for is a
+  no-op — the element stays on `''` — but Radix still dispatches the synthetic
+  `change`, so `''` comes straight back out through `onValueChange` and lands in
+  react-hook-form on top of the value the caller just set.
+
+  The window is not theoretical: `SelectContent` registers its native options a
+  commit AFTER the trigger mounts, so a record that lands after first paint — an
+  edit modal whose `findOne` is still in flight — resets the form into exactly
+  that gap. Every rendered select came back empty while RHF's `_defaultValues`
+  still held the right value. When one of the wiped fields is the one a
+  `visibleWhen` predicate reads, the predicate flips back to false, the
+  conditional fields hide again and the form **latches** in the broken state:
+  pressing Update then fails validation, or submits an empty enum, on a form the
+  user never touched. The wipe is also recorded as a user edit, so Cancel prompts
+  "discard changes?" on an untouched form.
+
+  `SelectItem` rejects `value=""` outright, so `''` can never be a value the user
+  actually picked — it is always the mirror talking. It is now dropped at the
+  single `Select` chokepoint, which covers every surface that renders one (object
+  form, inline grid editor, action param dialog). Clearing a select still goes
+  through `undefined`, which is untouched — the `dependsOn` cascade-clear behaves
+  exactly as before.
+
+- 7f23cd0: fix(form): a numeric/boolean select option survives selection with its type intact — #3090
+
+  `SelectOptionSchema.value` has accepted `string | number | boolean` for as
+  long as it has existed, but the Radix controls underneath speak strings:
+  picking `{ value: 2 }` silently submitted `"2"` — a wrong-typed write into a
+  number field that nothing on the client ever reported. (Display half-worked:
+  a numeric default matched its numeric item; only SELECTION morphed the type.)
+
+  The renderers now stringify on the way into the control and map the selection
+  back to the AUTHORED option value on the way out (`matchOptionValue`), across
+  the in-form select, the standalone `type: 'select'` component, and the
+  standalone `type: 'radio-group'` component. The TS types stop lying to match:
+  `SelectOption.value` / `RadioOption.value` and the corresponding
+  `value`/`defaultValue`/`onChange` channels widen to what the zod schemas
+  always accepted — a call site treating `option.value` as `string` is now a
+  compile error pointing at a real latent crash, not a false comfort.
+
+  The ripple the widening named, handled at each boundary: `@object-ui/core`'s
+  `OptionLike.value` widens (the option engines compare by identity, so values
+  flow opaquely; the option-lint's CEL-literal domain stringifies at its
+  boundary), and the multi-value field widgets (checkboxes / multiselect /
+  radio) stringify at theirs — multi-value fields store string arrays.
+
+  Round-trip pinned by real Radix interactions in jsdom: the in-form select
+  submits `2` (number), the standalone select hands its handler `false`
+  (boolean).
+
+- aa35561: fix(form): a split create/edit form no longer loses the panel you are not submitting from (#2153)
+
+  `SplitForm` rendered one `SchemaRenderer` — one react-hook-form instance and one
+  `<form>` element — **per section**, and its two groups of sections live in
+  separate resizable panels. So each panel owned isolated form state: submitting
+  from one panel's action bar sent only that section's fields and silently dropped
+  everything the user had typed on the other side of the divider. Filling both
+  panels and clicking Create persisted `{ subject }` alone.
+
+  The same isolation killed cross-panel field rules: a `visibleWhen` in the right
+  panel referencing a left-panel field never saw that field in its record, so the
+  predicate faulted and failed **open** — the field the author meant to hide was
+  always shown.
+
+  Both panels are now ONE form. The panel group became a layout the form renderer
+  owns, via a new `FormSchema.fieldPanes` (+ `fieldPanesOrientation`,
+  `fieldPanesResizable`) that mirrors `fieldTabs` (#2959): the `<form>` wraps the
+  whole `ResizablePanelGroup` and each pane holds only fields, which is what lets a
+  single react-hook-form instance span the divider. Sections inside a pane render
+  behind the inline `section-divider` header, each at its own declared column
+  density within the form's shared grid.
+
+  One more fix falls out of moving the panels into the renderer: `splitResizable:
+false` now actually pins the divider. It previously only hid the grip — the
+  separator stayed draggable, because nothing passed the panel library's
+  `disabled`.
+
+  Each pane is its own `@container`, so a multi-column section collapses to fewer
+  columns as its panel is dragged narrower instead of overflowing.
+
+- 3c1f321: fix(form): a tabbed/sectioned create-edit form no longer loses the tabs you are not looking at (#2959, #2153)
+
+  The explicit-`sections` path rendered one `SchemaRenderer` — one react-hook-form
+  instance and one `<form>` element — **per section**, all sharing the same
+  `formId`. Two failures compounded:
+
+  1. the footer submit button (`form={formId}`) can only be associated with the
+     **first** of those forms, so section 2+ never reached the payload; and
+  2. in the `tabbed` variant Radix unmounted the inactive panel, destroying that
+     tab's form state outright.
+
+  Reported flow (HotCRM, 3 tabs, required `description` on tab 3): fill tab 1 →
+  submit → server 400 `description is required` → switch to tab 3, fill it →
+  submit → the server now reports `subject; description; status; priority` **all**
+  missing, because the second submit's body had lost every earlier value.
+
+  `ModalForm` (stacked and `contentLayout: 'tabbed'`) and `TabbedForm` now render
+  ONE form for all sections, matching `ObjectForm` / `DrawerForm`. Stacked sections
+  use the existing inline `section-divider` header (which now also renders the
+  section's `description`); tabbed sections go through a new
+  `FormSchema.fieldTabs` (+ `defaultFieldTab`, `fieldTabsPosition`) that the form
+  renderer distributes into **force-mounted** Radix panels — CSS-hidden rather
+  than unmounted, since react-hook-form skips validation for unmounted fields,
+  which is how a required field on a tab nobody opened used to sail past the
+  client and come back as a server 400.
+
+  Validation feedback now points at the tab: a rejected field activates its tab and
+  every tab holding one is marked on its trigger, for client-side rules and server
+  `fields[]` rejections alike.
+
+- Updated dependencies [62311b6]
+- Updated dependencies [fc0272a]
+- Updated dependencies [9e7349e]
+- Updated dependencies [8864971]
+- Updated dependencies [1cf0de7]
+- Updated dependencies [752e18f]
+- Updated dependencies [c785740]
+- Updated dependencies [b41f401]
+- Updated dependencies [19e9fa0]
+- Updated dependencies [d61efd1]
+- Updated dependencies [95b7214]
+- Updated dependencies [7d9734d]
+- Updated dependencies [6ae818e]
+- Updated dependencies [9eb932b]
+- Updated dependencies [746dd00]
+- Updated dependencies [aebfa4f]
+- Updated dependencies [38ca8be]
+- Updated dependencies [3cb9646]
+- Updated dependencies [4952edf]
+- Updated dependencies [7f0252e]
+- Updated dependencies [c4d7b20]
+- Updated dependencies [7639a61]
+- Updated dependencies [94e63ef]
+- Updated dependencies [02aef0c]
+- Updated dependencies [6f29aa5]
+- Updated dependencies [d21794c]
+- Updated dependencies [c4db402]
+- Updated dependencies [5319bf1]
+- Updated dependencies [49e5671]
+- Updated dependencies [b5b97e2]
+- Updated dependencies [f59f2c1]
+- Updated dependencies [07de839]
+- Updated dependencies [2a40b5e]
+- Updated dependencies [4874117]
+- Updated dependencies [ad0183a]
+- Updated dependencies [ce08d55]
+- Updated dependencies [32462dd]
+- Updated dependencies [aa1240a]
+- Updated dependencies [2374a49]
+- Updated dependencies [390c071]
+- Updated dependencies [d10f526]
+- Updated dependencies [2d5d594]
+- Updated dependencies [ea7f477]
+- Updated dependencies [7f23cd0]
+- Updated dependencies [0ded602]
+- Updated dependencies [24e0e0a]
+- Updated dependencies [f8a95e5]
+- Updated dependencies [3a6cf24]
+- Updated dependencies [aa35561]
+- Updated dependencies [03bd53b]
+- Updated dependencies [3c1f321]
+- Updated dependencies [a045a32]
+- Updated dependencies [912496d]
+- Updated dependencies [9867281]
+  - @object-ui/core@17.1.0
+  - @object-ui/react@17.1.0
+  - @object-ui/types@17.1.0
+  - @object-ui/i18n@17.1.0
+  - @object-ui/sdui-parser@17.1.0
+  - @object-ui/react-runtime@17.1.0
+
 ## 17.0.0
 
 ### Patch Changes

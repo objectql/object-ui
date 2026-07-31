@@ -1,5 +1,407 @@
 # @object-ui/plugin-grid
 
+## 17.1.0
+
+### Minor Changes
+
+- 24e0e0a: feat(components,grid,list): a column-header sort orders the whole list, not the page you can see — #3106
+
+  Clicking a column header under server pagination sorted **the current page**.
+  The user saw "sorted by this column" and got "these fifty rows are in order;
+  page 2 starts over". The sort was real — its scope was not the one the screen
+  implied — and it had no way out of `data-table` at all: the sort lived in two
+  `useState`s with no callback, so the layer that issues the request could not
+  see it even in principle.
+
+  `DataTable` gains `manualSorting` + a controlled `sort` + `onSortChange`. In
+  that mode it sorts nothing, reports what a header click asks for, and renders
+  `sort` as the indicator — keeping **no** sort state of its own, because a
+  private copy beside a controlled prop is the shape the defect had.
+
+  `ObjectGrid` turns that into a `$orderby` in both of its server modes (its own
+  fetch, and a parent-driven one), and `ListView` lands it in `currentSort` — the
+  same state the toolbar's sort builder writes. One sort, two controls: that is
+  what makes "does a header sort outrank the saved view's sort?" a non-question
+  rather than a precedence rule someone has to remember.
+
+  Three details that are decisions, not incidentals:
+
+  - **A header click replaces the order** instead of appending to it, so the
+    column under the cursor is the one the list is sorted by. Multi-key orders
+    still come from the sort builder, and the headers render them numbered.
+  - **It cannot ask for "no sort".** In client mode the third click clears, and
+    that is meaningful there — the rows return to the order they arrived in.
+    Across a server-paged collection there is no such order (objectstack#4363), so
+    a header offering it would hand the user a worse lie than the one being fixed.
+    Clearing stays with the sort builder, which can restore the view's default.
+  - **Relational columns render no sort affordance** under server sorting. A
+    `lookup` column shows a related record's name while `$orderby` can only order
+    by the stored id (objectstack#4256) — the same reason #3096 removed them from
+    the toolbar's sort picker. Client-side sorting keys off the rendered label, so
+    those headers stay live there.
+
+  Client-side tables are untouched: same three-state cycle, same local sort.
+
+### Patch Changes
+
+- fc0272a: fix(actions): apply the ADR-0066 D4 capability gate on every action surface (framework#3923)
+
+  An action declaring `requiredPermissions` is supposed to be one declaration with
+  two enforcement surfaces: 403 on the server, hidden button in the UI. The UI half
+  only ever ran inside `ActionEngine.getActionsForLocation` — and the surfaces
+  `record_header`, `record_more`, `list_item` and `list_toolbar` actually render on
+  do not go through the engine. They filter their own action lists. So a button
+  declaring a capability nobody holds rendered, live and clickable, on the record
+  header, in every grid row menu, and on the list toolbar. For a `type: 'api'`
+  action pointed at a self-authored endpoint, nothing else was checking either: the
+  platform's action route (which is where the 403 comes from) never sees that
+  request.
+
+  `page:header`, `action:bar` (business _and_ `systemActions`) and the grid's
+  `RowActionMenu` now apply the same gate, via a shared `useCapabilityGate()` so
+  the surfaces cannot drift apart. The rule is the engine's, unchanged: hide unless
+  the caller holds **all** declared capabilities; an empty held set is "holds
+  nothing" and gates; **unknown** — no action runtime, no resolved capabilities —
+  fails OPEN, because the server is the authority and hiding a permitted user's
+  button on missing client data is the worse failure.
+
+  The record surface was also feeding the gate nothing to work with.
+  `RecordDetailView` mounts its own `<ActionProvider>`, which shadows the shell's
+  for every action on that page, and seeded it with identity only — no
+  `systemPermissions`. Since unknown fails open, that alone un-gated every
+  `record_header` / `record_more` / `record_section` action on the one page those
+  locations exist on. It now forwards the caller's resolved capabilities (and only
+  once they have actually resolved, so a standalone embed without a
+  `PermissionProvider` keeps failing open rather than hiding everything).
+
+  `useRecordEditable`'s record-level explain probe went out on a bare
+  `fetch(..., { credentials: 'include' })`. A bearer-token session carries its
+  credential in the `Authorization` header, not a cookie, so the probe came back
+  401 on a perfectly valid admin session and the verdict silently failed open —
+  the hook was inert in exactly the deployments it was written for. It now rides
+  the host's authenticated fetch (`SchemaRendererProvider`'s `apiFetch`), falling
+  back to the global one for standalone embeds.
+
+- 5340879: fix(grid): bulk-action params render the shared form field widgets — a failed lookup fetch shows an error + Retry instead of a permanent "Loading…" (#3064, ADR-0059)
+
+  `BulkActionDialog`'s hand-rolled param controls (a 2026-05 MVP predating the
+  PeoplePicker and ADR-0059) are replaced by the same field-widget renderer the
+  object form and `ActionParamDialog` use, via a new pure `bulkParamToField()`
+  adapter + `getLazyFieldWidget()`:
+
+  - `lookup` params get the real searchable `LookupField` (server-side search,
+    record-picker dialog, loading/error/empty states owned by `useRecordQuery`);
+    a `sys_user` target — or a `user`-typed param — is promoted to the form's
+    search-first PeoplePicker (avatar + subtitle rows, recents, banned users
+    excluded). Every other param type (date/datetime/boolean/select/multiselect/
+    textarea/number/…) renders its form widget too, so param support can no
+    longer drift behind the form surface.
+  - The #3064 failure pipeline is gone by construction: no more eager
+    `find($top:200)` prefetch on open, no error swallowed into an empty option
+    list rendering as permanent "Loading…", and no per-param failure cache —
+    reopening or Retry refetches.
+  - Preserved semantics: #2204 schema-fallback multi-value detection, required
+    gating, #2185 nested-popper dismissal guard, and human-readable confirm-step
+    labels (now resolved per selected id via `findOne`, replacing the removed
+    candidate prefetch).
+
+- 19e9fa0: fix(grid): drop the `bulkEnabled` derivation — the spec key is a tombstone
+
+  Follow-up to objectui#3002 / #3031. That change folded two sources into the
+  selection bar: a view's `bulkActions` names resolved against
+  `objectDef.actions`, and object actions declaring `ActionSchema.bulkEnabled`.
+  The second source is dead.
+
+  `@objectstack/spec` 17.0.0 retired `action.bulkEnabled` in the #3896 audit
+  close-out (framework#4054, landed while #3031 was in flight — the spec source
+  still carried the key when its design was settled). It is now a `retiredKey()`
+  tombstone, so it is not merely ignored: `defineStack` **hard-rejects** a config
+  that sets it, and the backend refuses to boot. Browser verification against a
+  real showcase backend is what surfaced this — the derivation branch could never
+  run, and #3031's changeset pointed authors at a key that breaks their app.
+
+  The tombstone's own prescription is the path that survives:
+
+  > the multi-select toolbar is driven by the LIST VIEW's `bulkActions` /
+  > `bulkActionDefs`, never by this flag … declare the action in the view's
+  > `bulkActions` instead.
+
+  So `resolveBulkActions` now folds exactly two vocabularies — inline-authored
+  `bulkActionDefs`, and `bulkActions` names promoted to their declared object
+  action — which is what #3031's other half already did and what the end-to-end
+  run exercised: naming `showcase_mark_done` in the view's `bulkActions` issued
+  one `POST /api/v1/actions/showcase_task/showcase_mark_done` per selected
+  record (10/10 → `done: true, progress: 100` server-side). Everything downstream
+  of the fold is unchanged: promoted defs still carry the action's label, icon,
+  `visible`, confirm text and params; still run through `BulkActionDialog`
+  (params → confirm → progress → result); still dispatch per record with
+  `_rowRecord` attached; still attribute failures per record.
+
+  A stale `bulkEnabled: true` on an object action is now inert rather than a
+  second path into the bar. Note tsc cannot catch this class of drift here — the
+  fold reads a loosely-typed `NamedActionDef` with an index signature, so the
+  retired key never surfaces as `never`.
+
+- a149e90: fix(grid): a bulk delete / by-name action clears the row checkboxes, not just the toolbar — objectui#3056
+
+  After a successful bulk delete (or a bulk action dispatched to a
+  consumer-registered runner handler), the selection toolbar vanished but every
+  row stayed visibly ticked. The user was left on a page of selected rows with no
+  toolbar to act on them, and no way back except unticking each row or reloading.
+
+  `ObjectGrid` carries two selection sources that must move together:
+  `selectedRows` (ours — drives the toolbar) and the data-table's internal
+  `selectedRowIds` (drives the checkboxes, cleared only when the host bumps
+  `selectionResetKey`). `handleBulkDialogClose` reset both; `dispatchBulkAction`
+  reset only the first, on both of its branches.
+
+  Both now go through one `resetSelection()` helper — including the dialog path,
+  so the invariant is structural rather than three call sites remembering to
+  agree. Failure semantics are untouched: a by-name action that reports
+  `success: false` still keeps the toolbar AND the checkboxes so the user can fix
+  the cause and retry the same rows.
+
+- d61efd1: fix(grid): a bulk action's `visible` is evaluated per selected record — objectui#3067
+
+  The selection bar evaluated a def's `visible` against the ambient scope with no
+  record bound. That does not fail open, it answers wrongly: with no `record` in
+  scope the lenient evaluator returned `true` for **every** row-scoped predicate,
+  including the ones that should be false — `${record.done}` and
+  `${record.owner == user.id}` both came back `true`. An authored gate was not
+  weakened, it was inverted for half its inputs, and nothing distinguished that
+  from a real verdict.
+
+  `visible` is now evaluated **once per selected record, with that record in
+  scope**, fail-closed per record and warning once on a fault — the same contract
+  the row kebab uses. One evaluation answers both questions:
+
+  - **Is the button offered?** When at least one selected record passes. A
+    record-free predicate (`features.x`, `current_user.y`) returns the same
+    verdict for every row, so it still behaves as a plain button-level gate — no
+    syntactic sniffing for `record` references is involved.
+  - **Which records does it run on?** The ones that passed. The confirm step
+    states how many were skipped, so a run over fewer records than the user
+    ticked says so instead of quietly shrinking the selection.
+
+  Eligibility is re-applied to the EXPANDED set after "select all N matching",
+  not just the page selection the button could see.
+
+  The mechanism predates objectui#3002, but only inline-authored
+  `bulkActionDefs[].visible` used to reach it — written by authors who knew there
+  was no record. #3031 began promoting object actions into the bar, and their
+  `visible` is typically written for a row/record surface, which is what put
+  row-scoped predicates in front of a record-free evaluation.
+
+- 95b7214: fix(list,grid,detail,tree,core): every column resolver reads one key (#3104 PR2)
+
+  PR1 (#3119) put a canonicalizing fold at ListView's ingestion boundary. This
+  converges the 22 read sites themselves onto `columnIdentity()` from
+  `@object-ui/core`, so a surface that is NOT downstream of that fold resolves
+  the same identity anyway.
+
+  That distinction is the user-visible part. A standalone `object-grid` node —
+  authored directly on a page, with no `list-view` above it — never passed
+  through `normalizeListViewSchema`. Its `getSelectFields` read `c.field` alone
+  while the `ensureId` probe one line above read `f?.name || f?.field`, so a
+  legacy `{ name: 'account' }` column reached `$select` as a literal `undefined`
+  hole: the server never returned the field and every cell in that column came
+  back empty. Same for `ObjectTree`, `RelatedList` and the `record:details` /
+  `record:related_list` renderers.
+
+  Converged:
+
+  | Surface                                  | Was                                            | Now                                 |
+  | ---------------------------------------- | ---------------------------------------------- | ----------------------------------- |
+  | `ListView` ×9 + its 2 request builders   | `name \|\| fieldName \|\| field` vs `f?.field` | `columnIdentity()`                  |
+  | `RelatedList` ×8                         | `accessorKey \|\| field \|\| name`             | `accessorKey \|\| columnIdentity()` |
+  | `ObjectGrid`                             | name-first probe vs `c.field` projection       | `columnIdentity()`                  |
+  | `ObjectTree`                             | `name \|\| fieldName \|\| field \|\| key`      | `columnIdentity() \|\| key`         |
+  | `buildExpandFields`                      | `field ?? name ?? fieldName`                   | `columnIdentity()`                  |
+  | `record-details` / `record-related-list` | `field \|\| name (\|\| key)`                   | `columnIdentity() (\|\| key)`       |
+
+  `accessorKey` keeps its precedence in `RelatedList` — it is TanStack Table's
+  column key, not ObjectStack metadata identity, and only the `field || name`
+  tail was converged. `key` stays a tail fallback in `ObjectTree` and
+  `record-related-list` for the same reason: it is a generic entry key.
+
+  Two incidental fixes that TypeScript surfaced once the resolver stopped
+  returning `any`: ListView's filter-field options and its hide-fields popover
+  both built entries keyed `undefined` for a column with no resolvable identity.
+  Those entries could never match a column; they are now dropped.
+
+  **Inventory re-triage.** PR1 recorded 24 family members. Two were mis-classified
+  and are reclassified here rather than converged — reading what they actually
+  feed shows they are not column reads at all:
+
+  - `ViewPreview.tsx` adapts a ViewItem **form** section to what `object-form`
+    selects by (`field` → `name`) — the #3090 two-layer join.
+  - `SchemaForm.tsx` renders an arbitrary metadata **array** into a popover
+    summary and guesses at a display key; the entries are validations, actions,
+    or whatever the JSON schema declares.
+
+  So the family was 22, and it is now **0**. The ratchet asserts that, asserts
+  each converged surface actually routes through the shared reader (a surface
+  that dropped identity resolution instead of converging it goes red), and pins
+  `accessorKey`'s precedence in `RelatedList`.
+
+- 6f29aa5: fix(grid): a legacy string row action runs instead of green-toasting a no-op — objectui#2960
+
+  A list view declaring `rowActions: ['convert_lead']` rendered a menu item that
+  performed **zero network requests** and reported success. Where the object also
+  declared the same action with `locations: ['list_item']`, the row menu showed a
+  working entry and a dead duplicate of it side by side.
+
+  **The name never became an action.** `ObjectGrid` dispatched the legacy form as
+  `{ type: <action name>, params: { record } }` — the action _name_ landing in the
+  runner's `type` slot, never resolved against the object's action defs. It
+  matches no built-in type and (absent a handler registered under that exact name)
+  no handler either, so it fell through to `ActionRunner.executeActionSchema`,
+  which returned `{success: true, reload: true, close: true}` for a schema with
+  nothing in it. `handlePostExecution` then fired the green "Action completed
+  successfully" toast.
+
+  Two changes, either of which would have surfaced the bug:
+
+  **① `ObjectGrid` resolves legacy names against `objectDef.actions`.** A name
+  that matches a declared action is promoted to that def and dispatched through
+  the same path as a `list_item` action — so it actually runs, and it picks up the
+  def's label, `visible`/`disabled` predicates, param dialog and capability gate,
+  none of which the string form could carry. A name that matches an action already
+  rendered as a def is dropped, which is what removes the dead twin. Names that
+  resolve to nothing are still dispatched by name, since a consumer may have
+  registered a runner handler under exactly that name.
+
+  **② `ActionRunner`'s empty-schema fallthrough fails loudly.** It no longer
+  reports success for an action it never ran: a dispatch with no registered
+  handler and no `api`/`endpoint`/`navigate`/`redirect`/`onClick` returns a
+  failure naming the action. Schema-only shapes that _do_ declare something — a
+  bare `redirect`, an explicit `reload`/`close` — run exactly as before.
+
+- 4874117: fix(grid): an object-declared bulk action runs over the selected records — objectui#3002
+
+  A list view declaring `bulkActions: ['push_down']` rendered a selection-bar
+  button that never ran the action: `ObjectGrid` dispatched the legacy form as
+  `{ type: <action name>, params: { records } }`, putting the action _name_ in the
+  runner's `type` slot. Since objectui#2996 that fails loudly instead of
+  green-toasting a no-op, but it still never ran. Nor could the object declare a
+  bulk action to resolve against — `bulkActionDefs` was passed through from the
+  view JSON verbatim, never derived from `objectDef.actions` the way
+  `rowActionDefs` is derived from `locations: ['list_item']`.
+
+  **No spec change was needed.** `ActionSchema.bulkEnabled` — _"Whether this
+  action can be applied to multiple selected records"_ — has always been the
+  declaration; what was missing was a consumer, exactly as framework's own
+  property-liveness audit recorded (_"engine has `getBulkActions`/`executeBulk`,
+  but no spec-driven view path calls `executeBulk`"_). So no new `locations`
+  entry: a list's selection bar is the only surface on which records are
+  multi-selected, which is what the flag already names. `locations` stays
+  orthogonal — it places an action's single-record entry, and an action may carry
+  both (`locations: ['list_item'], bulkEnabled: true` = one row from the kebab, N
+  rows from the selection bar).
+
+  **`ObjectGrid` folds three sources into the selection bar** (new pure
+  `resolveBulkActions`, the twin of `resolveLegacyRowActions`; `ObjectGrid` is the
+  single convergence point of all three list callers):
+
+  - defs authored inline in the view JSON — unchanged, they win every collision;
+  - object actions declaring `bulkEnabled: true` — **derived**, which is what
+    "declare a bulk action on the object" now means;
+  - legacy `bulkActions` names — resolved against `objectDef.actions` and
+    **promoted** to that def, so they carry the action's label, icon, `visible`
+    predicate, confirm text and params instead of a bare humanized name. A name
+    matching a def already on the bar is dropped rather than rendered as a dead
+    twin; a name matching nothing is still dispatched by name, since a consumer
+    may have registered a runner handler under it.
+
+  **Execution reuses the existing `BulkActionDialog` model** (params → confirm →
+  progress → result). A derived def carries the source action under `actionDef`,
+  and `useBulkExecutor` dispatches it through the action runner once per selected
+  record with the row attached as `_rowRecord` — so `recordIdParam` injection
+  behaves exactly as it does for a `list_item` row action. Client fan-out is the
+  only semantics the single-record action contract supports; a server-side "take
+  every id at once" variant would need its own spec key and endpoint contract.
+  Params and confirmation are collected once by the dialog and handed to the
+  runner as values so it never re-prompts per record, per-record toasts are muted
+  in favour of the dialog's aggregate result, and a failing record is attributed
+  in the result list (and error CSV) rather than counted as a success.
+
+  Also fixed: the bar rendered legacy string buttons **only when no defs
+  existed**, so a view mixing both silently lost half its buttons. After the fold
+  the two lists are disjoint, and both render.
+
+- Updated dependencies [62311b6]
+- Updated dependencies [fc0272a]
+- Updated dependencies [9e7349e]
+- Updated dependencies [8864971]
+- Updated dependencies [1cf0de7]
+- Updated dependencies [752e18f]
+- Updated dependencies [c785740]
+- Updated dependencies [b41f401]
+- Updated dependencies [19e9fa0]
+- Updated dependencies [d61efd1]
+- Updated dependencies [95b7214]
+- Updated dependencies [7d9734d]
+- Updated dependencies [6ae818e]
+- Updated dependencies [9eb932b]
+- Updated dependencies [746dd00]
+- Updated dependencies [aebfa4f]
+- Updated dependencies [38ca8be]
+- Updated dependencies [3cb9646]
+- Updated dependencies [68ef584]
+- Updated dependencies [4952edf]
+- Updated dependencies [7f0252e]
+- Updated dependencies [c4d7b20]
+- Updated dependencies [c769d3d]
+- Updated dependencies [7639a61]
+- Updated dependencies [94e63ef]
+- Updated dependencies [c735bf7]
+- Updated dependencies [02aef0c]
+- Updated dependencies [6f29aa5]
+- Updated dependencies [d21794c]
+- Updated dependencies [c4db402]
+- Updated dependencies [5319bf1]
+- Updated dependencies [49e5671]
+- Updated dependencies [2307b52]
+- Updated dependencies [9a04d25]
+- Updated dependencies [b5b97e2]
+- Updated dependencies [f59f2c1]
+- Updated dependencies [07de839]
+- Updated dependencies [2a40b5e]
+- Updated dependencies [df613fa]
+- Updated dependencies [4874117]
+- Updated dependencies [ad0183a]
+- Updated dependencies [ce08d55]
+- Updated dependencies [eb4b740]
+- Updated dependencies [aecc934]
+- Updated dependencies [5b084eb]
+- Updated dependencies [aa1240a]
+- Updated dependencies [2374a49]
+- Updated dependencies [390c071]
+- Updated dependencies [d10f526]
+- Updated dependencies [2d5d594]
+- Updated dependencies [ea7f477]
+- Updated dependencies [379728f]
+- Updated dependencies [7f23cd0]
+- Updated dependencies [0ded602]
+- Updated dependencies [24e0e0a]
+- Updated dependencies [f8a95e5]
+- Updated dependencies [3a6cf24]
+- Updated dependencies [aa35561]
+- Updated dependencies [03bd53b]
+- Updated dependencies [3c1f321]
+- Updated dependencies [a045a32]
+- Updated dependencies [912496d]
+- Updated dependencies [80edbd4]
+- Updated dependencies [9867281]
+  - @object-ui/core@17.1.0
+  - @object-ui/components@17.1.0
+  - @object-ui/react@17.1.0
+  - @object-ui/types@17.1.0
+  - @object-ui/i18n@17.1.0
+  - @object-ui/permissions@17.1.0
+  - @object-ui/fields@17.1.0
+  - @object-ui/mobile@17.1.0
+
 ## 17.0.0
 
 ### Minor Changes

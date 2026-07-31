@@ -1,5 +1,319 @@
 # @object-ui/plugin-view
 
+## 17.1.0
+
+### Minor Changes
+
+- 5319bf1: feat(views): the list toolbar speaks one vocabulary — `userActions` (#2890 scope A step 3)
+
+  The seven bare `show*` toolbar flags fold into the spec's `userActions`, and the
+  renderer reads nothing else. `showDescription` folds into
+  `appearance.showDescription` at the same boundary.
+
+  | legacy                                                    | canonical                                                 |
+  | :-------------------------------------------------------- | :-------------------------------------------------------- |
+  | `showSearch` / `showSort` / `showFilters` / `showDensity` | `userActions.search` / `.sort` / `.filter` / `.rowHeight` |
+  | `showGroup` / `showHideFields` / `showColor`              | `userActions.group` / `.hideFields` / `.rowColor`         |
+  | `showDescription`                                         | `appearance.showDescription`                              |
+
+  **The last three are new keys, and they close a capability hole rather than just
+  renaming one.** `@objectstack/spec`'s `UserActionsConfigSchema` documents itself
+  as "which interactive actions are available to users in the view toolbar — each
+  boolean toggles the corresponding toolbar element on/off", and already carries
+  `rowHeight` (objectui's `showDensity` under its spec name). Grouping, column
+  visibility and row coloring are the same kind of toggle: the spec models all
+  three as _configuration_ (`grouping`, `hiddenFields`, `rowColor`) but has no
+  "may the user change it" switch for any of them.
+
+  The consequence was visible in the product. With no `userActions` key to read,
+  the two list surfaces **hardcoded opposite policies**: `InterfaceListPage` (the
+  author-curated interface page) pinned all three OFF, `ObjectDataPage` pinned two
+  ON — and an interface-page author could not turn grouping back on for end users
+  at all. Both surfaces now express their policy as `userActions` defaults, which
+  an author can override.
+
+  Until the keys land in `@objectstack/spec`, `@object-ui/types` carries them as a
+  documented `.extend()` on `UserActionsConfigSchema` (the same shape
+  `ListColumnSchema` uses while waiting on objectstack#3761); it collapses into a
+  plain re-export once they do. Note the spec schema is not `.strict()`, so before
+  this an author writing `userActions: { group: false }` had it **silently
+  stripped** — valid on parse, no effect at render.
+
+  Defaults are unchanged and deliberately asymmetric, matching what these flags
+  have always done: `search` / `sort` / `filter` / `rowHeight` / `group` are on
+  unless turned off; `hideFields` / `rowColor` are off unless turned on. Making
+  them uniform would grow two buttons on every existing view, so it is left as its
+  own product decision rather than smuggled into a vocabulary migration.
+
+  Also drops a dead relay in app-shell's `ObjectView`, which forwarded
+  `showDescription` onto the node although `ListView` has only ever read
+  `appearance.showDescription`.
+
+### Patch Changes
+
+- 4545380: fix(view): the spec→FilterBuilder map follows the four operators #2942 added
+
+  `CANONICAL_TO_BUILDER` mapped `starts_with`, `ends_with`, `is_null` and
+  `is_not_null` to `null`, with a comment asserting the FilterBuilder had no such
+  operator. #2942 gave it `startsWith`, `endsWith`, `isNull` and `isNotNull` —
+  and this table did not follow, so a stored view carrying any of the four still
+  reached the builder as a raw spelling it could by then have rendered, and the
+  comment claiming otherwise was simply false.
+
+  All four now map. `is_null`/`is_not_null` go to `isNull`/`isNotNull` and **not**
+  to `isEmpty`/`isNotEmpty`: the builder draws both pairs, and folding the NULL
+  predicate onto the empty-string one would silently rewrite the author's operator
+  the next time the view was saved.
+
+  **The guard could not have caught this, and now can.** The parity test asserted
+  the unmapped set equalled a hand-kept list of gaps — which stays true when the
+  _builder_ gains an operator, because neither side of that comparison moves. The
+  new assertion is derived instead: `starts_with` and `startsWith` fold to the same
+  key, so an unmapped canonical operator whose folded name matches a folded builder
+  id is an omission by definition. Verified by reverting the four mappings, which
+  reproduces the drift as four named failures.
+
+  The unmapped set is now empty — all 19 canonical `VIEW_FILTER_OPERATORS` members
+  translate.
+
+  Refs #2945, #2942, #2989
+
+- c4d7b20: fix(view,list,core): a view's filter no longer disappears, or arrives as a predicate on columns that don't exist
+
+  Sweeping the other `$filter` producers after #3078 turned up two live defects in
+  `ObjectView`, which fetches its own data for calendar / kanban / gallery /
+  timeline (grid delegates to `ObjectGrid`).
+
+  **1. An object filter was dropped, and only for non-grid views.**
+  `table.defaultFilters` is declared `Record<string, any>`, and the merge tested
+  `baseFilter.length > 0` — `undefined > 0` for an object. So the filter vanished
+  and the view returned **every record**. `ObjectGrid` assigns the same value
+  straight to `params.$filter`, so one view definition filtered correctly as a
+  grid and returned everything as a calendar.
+
+  **2. Rule objects were spread into the `and`, not wrapped.**
+  `['and', ...baseFilter, ...userFilter]` is only correct when the source is an
+  array of AST nodes. `activeView.filter` is a spec `ViewFilterRule[]`, so
+  spreading put bare rule objects where the AST expects nodes:
+
+  ```js
+  isFilterAST([
+    "and",
+    { field: "stage", operator: "eq", value: "won" },
+    ["owner", "=", "me"],
+  ]);
+  // false → 400 since objectstack#4121
+  parseFilterAST(same);
+  // {$and:[{field:'stage',operator:'eq',value:'won'}, {owner:'me'}]}
+  ```
+
+  That second line is a predicate over three columns named `field`, `operator`
+  and `value` — which don't exist.
+
+  > **Correction.** The first version of this note said the spread was "reachable
+  > whenever a view with a filter meets a user filter value". That was wrong for
+  > `ObjectView`: the branch required a non-empty user filter, and nothing ever
+  > wrote the state it was built from, so it could never run. The shape is
+  > genuinely broken — a live server answers it with a 400 — and the adapter-level
+  > defence added alongside is still warranted for any producer that emits it, but
+  > **this particular site was dead code, not a live defect.** Defect 1 above was
+  > live: it sat on the always-taken path. The dead machinery behind the wrong
+  > claim is removed in a follow-up.
+
+  New in `@object-ui/core`: `toFilterNode` normalizes one source (rule array / AST
+  / MongoDB object) and `mergeFilterNodes` combines sources as siblings under one
+  `and`. `ObjectView` and `ListView.buildEffectiveFilter` both use them, so the
+  three filter shapes are reconciled in one place instead of by hand at each
+  renderer.
+
+  `ObjectStackAdapter` also now translates a bare rule object sitting directly
+  under a logical node — the chokepoint defence for any producer still emitting
+  the spread shape. Only rule-_shaped_ objects are touched; a child with no
+  `field` is a genuine MongoDB condition and passes through untouched.
+
+  **Correcting a comment shipped in #3078.** `buildEffectiveFilter` documented the
+  dropped-object case as unreachable, "nothing in this repo produces one for a
+  list view". That was wrong: `ObjectView` passes `mergedFilters` straight into
+  that schema's `filter`, and its last fallback is `table.defaultFilters`. The
+  case is now handled rather than explained away.
+
+  Verified with 19 tests across the four packages; reverting each source file
+  fails the ones that cover it. Emitted filters are asserted against the spec's
+  own `isFilterAST` / `parseFilterAST`, including an executable pin on what the
+  old spread shape produced.
+
+- bebaebd: refactor(view): remove ObjectView's filter/sort bar, which was never connected
+
+  `ObjectView` carried its own filter and sort bar: `filterValues` / `sortConfig`
+  state, a `filter-ui` schema and a `sort-ui` schema, ~80 lines of field
+  introspection to build them. None of it was wired. No setter was ever called and
+  neither schema was ever rendered — both states sat at their initial empty value
+  for the component's entire life.
+
+  Removed rather than wired, because the real filter and sort UI belongs to the
+  renderer this component delegates to. `showFilters`, `showSort` and
+  `filterableFields` are forwarded downstream and `ListView` implements them for
+  real. Connecting the local copy would have produced a _second_ filter bar
+  competing with that one.
+
+  The dead state was not inert, though — it left a branch in every merge path that
+  could never run, and those branches read as live code:
+
+  - The fetch path merged `baseFilter` with a `userFilter` that was always `[]`.
+  - `mergedFilters` (what the `renderListView` slot receives, used by the Studio
+    design surface) opened with a branch that **replaced** the view's filter with
+    the user's instead of combining them — which would have been a real bug had
+    the state ever been written.
+
+  Two "defects" reported against these branches during #3081 were unreachable for
+  exactly this reason; that changeset carries the correction. Keeping code that
+  looks live and cannot run is what made the misreading possible twice, which is
+  the argument for deleting it rather than leaving it for the next reader.
+
+  No behaviour change: every removed branch was unreachable, and the surviving
+  paths are pinned by new tests covering both what the component queries with and
+  what it hands the delegated renderer.
+
+- 80edbd4: fix(view,components): the spec→FilterBuilder operator table covers the whole view vocabulary, and the dead write direction is gone
+
+  `view-config-utils`' `SPEC_TO_BUILDER_OP` resolved **10 of the spec's 19
+  canonical `VIEW_FILTER_OPERATORS`**. The nine it missed —
+  `not_equals`, `starts_with`, `ends_with`, `greater_than`, `less_than`,
+  `greater_than_or_equal`, `less_than_or_equal`, `is_null`, `is_not_null` — all
+  appear in stored view metadata (they are canonical; `ViewFilterRuleSchema`
+  validates against exactly this list), and each reached the FilterBuilder as a
+  raw spelling its operator dropdown cannot select.
+
+  Same defect and same cause as #2974, one table over: spellings were enumerated
+  by hand. That table is now derived from the spec's own canonical list and
+  `VIEW_FILTER_OPERATOR_ALIASES`, matched case- and separator-insensitively, so
+  `not_in` / `notIn` / `'not in'` / `NOT_IN` are one entry rather than four
+  chances to miss one.
+
+  Four canonical operators have no FilterBuilder equivalent —
+  `starts_with`/`ends_with` (absent from its vocabulary) and `is_null`/
+  `is_not_null` (distinct from the `is_empty`/`is_not_empty` it does have). They
+  are recorded as explicit `null`s and asserted, and deliberately left unmapped:
+  folding them onto a near-equivalent would silently rewrite the author's
+  operator on the next save, whereas an unmapped operator surfaces as a condition
+  row the author must complete.
+
+  Also retired `BUILDER_TO_SPEC_OP` and `toSpecFilter` — the write direction,
+  dead since the legacy `buildViewConfigSchema` engine was replaced by the
+  studio's spec-driven inspector (no caller anywhere in the repo, and not part of
+  `@object-ui/plugin-view`'s public exports). It was objectui's last emitter of
+  `'not in'` with a space, plus `before`/`after`, as _filter-AST_ operators —
+  spellings that reached the server outside `VALID_AST_OPERATORS` and were dropped
+  without an error (objectstack-ai/objectstack#3948).
+
+  `@object-ui/components` now exports `FILTER_BUILDER_OPERATORS` (and the
+  `FilterBuilderOperator` type), derived from the operators the FilterBuilder
+  actually renders, so tables mapping onto that vocabulary can assert against it
+  instead of restating it.
+
+  Refs objectstack-ai/objectui#2945, #2901.
+
+- e4c2783: fix(view): the chart view gets a label and an icon in the view switcher — objectui#2916
+
+  `ViewSwitcher`'s two exhaustive `Record<ViewType, …>` maps — `DEFAULT_VIEW_LABELS`
+  and `DEFAULT_VIEW_ICONS` — were each missing the `chart` key. `chart` is a member
+  of `ViewType` and `plugin-charts` is a registered view, so a chart tab rendered
+  with no icon and with its raw type key `chart` as the label, while every sibling
+  view showed a glyph and a capitalized name.
+
+  Both maps now carry `chart`, using the same `BarChart3` glyph and `'Chart'` label
+  that `plugin-list`'s switcher, `app-shell`'s `ObjectView`/`CreateViewDialog`, and
+  the `console.objectView.viewTypeChart` translation already agree on — so the
+  switcher no longer disagrees with the rest of the UI. An explicit per-view
+  `label`/`icon` still overrides the default, unchanged.
+
+  Why the compiler did not catch it: `@object-ui/plugin-view` had no `type-check`
+  script, so `Record<ViewType, …>` — the exhaustiveness guard that exists precisely
+  to make a missing member a compile error — was never evaluated by CI. The package
+  now type-checks both its sources and its tests, and its `DEBT` entry in
+  `scripts/check-type-check-coverage.mjs` is deleted. Compiling the tests for the
+  first time also surfaced three unused destructured spy parameters, and the
+  package's one remaining reported error (a `dnd-kit` `SyntheticListenerMap`
+  mismatch in `ViewTabBar`) is fixed by typing the listener bag as `dnd-kit`'s own
+  exported `DraggableSyntheticListeners` rather than a hand-written structural fork.
+
+  Refs objectui#2911, objectui#2915.
+
+- Updated dependencies [62311b6]
+- Updated dependencies [fc0272a]
+- Updated dependencies [9e7349e]
+- Updated dependencies [8864971]
+- Updated dependencies [1cf0de7]
+- Updated dependencies [752e18f]
+- Updated dependencies [c785740]
+- Updated dependencies [b41f401]
+- Updated dependencies [5340879]
+- Updated dependencies [19e9fa0]
+- Updated dependencies [a149e90]
+- Updated dependencies [d61efd1]
+- Updated dependencies [95b7214]
+- Updated dependencies [7d9734d]
+- Updated dependencies [6ae818e]
+- Updated dependencies [9eb932b]
+- Updated dependencies [746dd00]
+- Updated dependencies [aebfa4f]
+- Updated dependencies [38ca8be]
+- Updated dependencies [3cb9646]
+- Updated dependencies [68ef584]
+- Updated dependencies [4952edf]
+- Updated dependencies [7f0252e]
+- Updated dependencies [c4d7b20]
+- Updated dependencies [c769d3d]
+- Updated dependencies [7639a61]
+- Updated dependencies [94e63ef]
+- Updated dependencies [aeb0bd2]
+- Updated dependencies [c735bf7]
+- Updated dependencies [02aef0c]
+- Updated dependencies [6f29aa5]
+- Updated dependencies [d21794c]
+- Updated dependencies [c4db402]
+- Updated dependencies [5319bf1]
+- Updated dependencies [49e5671]
+- Updated dependencies [9a04d25]
+- Updated dependencies [b5b97e2]
+- Updated dependencies [f59f2c1]
+- Updated dependencies [07de839]
+- Updated dependencies [2a40b5e]
+- Updated dependencies [df613fa]
+- Updated dependencies [4874117]
+- Updated dependencies [ad0183a]
+- Updated dependencies [ce08d55]
+- Updated dependencies [eb4b740]
+- Updated dependencies [5b084eb]
+- Updated dependencies [aa1240a]
+- Updated dependencies [2374a49]
+- Updated dependencies [390c071]
+- Updated dependencies [d10f526]
+- Updated dependencies [e339d60]
+- Updated dependencies [2d5d594]
+- Updated dependencies [ea7f477]
+- Updated dependencies [379728f]
+- Updated dependencies [7f23cd0]
+- Updated dependencies [0ded602]
+- Updated dependencies [24e0e0a]
+- Updated dependencies [f8a95e5]
+- Updated dependencies [3a6cf24]
+- Updated dependencies [aa35561]
+- Updated dependencies [03bd53b]
+- Updated dependencies [3c1f321]
+- Updated dependencies [a045a32]
+- Updated dependencies [912496d]
+- Updated dependencies [80edbd4]
+- Updated dependencies [c0d0bc8]
+- Updated dependencies [9867281]
+  - @object-ui/core@17.1.0
+  - @object-ui/components@17.1.0
+  - @object-ui/plugin-grid@17.1.0
+  - @object-ui/react@17.1.0
+  - @object-ui/types@17.1.0
+  - @object-ui/i18n@17.1.0
+  - @object-ui/plugin-form@17.1.0
+
 ## 17.0.0
 
 ### Minor Changes

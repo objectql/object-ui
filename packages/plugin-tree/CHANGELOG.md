@@ -1,5 +1,122 @@
 # @object-ui/plugin-tree
 
+## 17.1.0
+
+### Patch Changes
+
+- 95b7214: fix(list,grid,detail,tree,core): every column resolver reads one key (#3104 PR2)
+
+  PR1 (#3119) put a canonicalizing fold at ListView's ingestion boundary. This
+  converges the 22 read sites themselves onto `columnIdentity()` from
+  `@object-ui/core`, so a surface that is NOT downstream of that fold resolves
+  the same identity anyway.
+
+  That distinction is the user-visible part. A standalone `object-grid` node —
+  authored directly on a page, with no `list-view` above it — never passed
+  through `normalizeListViewSchema`. Its `getSelectFields` read `c.field` alone
+  while the `ensureId` probe one line above read `f?.name || f?.field`, so a
+  legacy `{ name: 'account' }` column reached `$select` as a literal `undefined`
+  hole: the server never returned the field and every cell in that column came
+  back empty. Same for `ObjectTree`, `RelatedList` and the `record:details` /
+  `record:related_list` renderers.
+
+  Converged:
+
+  | Surface                                  | Was                                            | Now                                 |
+  | ---------------------------------------- | ---------------------------------------------- | ----------------------------------- |
+  | `ListView` ×9 + its 2 request builders   | `name \|\| fieldName \|\| field` vs `f?.field` | `columnIdentity()`                  |
+  | `RelatedList` ×8                         | `accessorKey \|\| field \|\| name`             | `accessorKey \|\| columnIdentity()` |
+  | `ObjectGrid`                             | name-first probe vs `c.field` projection       | `columnIdentity()`                  |
+  | `ObjectTree`                             | `name \|\| fieldName \|\| field \|\| key`      | `columnIdentity() \|\| key`         |
+  | `buildExpandFields`                      | `field ?? name ?? fieldName`                   | `columnIdentity()`                  |
+  | `record-details` / `record-related-list` | `field \|\| name (\|\| key)`                   | `columnIdentity() (\|\| key)`       |
+
+  `accessorKey` keeps its precedence in `RelatedList` — it is TanStack Table's
+  column key, not ObjectStack metadata identity, and only the `field || name`
+  tail was converged. `key` stays a tail fallback in `ObjectTree` and
+  `record-related-list` for the same reason: it is a generic entry key.
+
+  Two incidental fixes that TypeScript surfaced once the resolver stopped
+  returning `any`: ListView's filter-field options and its hide-fields popover
+  both built entries keyed `undefined` for a column with no resolvable identity.
+  Those entries could never match a column; they are now dropped.
+
+  **Inventory re-triage.** PR1 recorded 24 family members. Two were mis-classified
+  and are reclassified here rather than converged — reading what they actually
+  feed shows they are not column reads at all:
+
+  - `ViewPreview.tsx` adapts a ViewItem **form** section to what `object-form`
+    selects by (`field` → `name`) — the #3090 two-layer join.
+  - `SchemaForm.tsx` renders an arbitrary metadata **array** into a popover
+    summary and guesses at a display key; the entries are validations, actions,
+    or whatever the JSON schema declares.
+
+  So the family was 22, and it is now **0**. The ratchet asserts that, asserts
+  each converged surface actually routes through the shared reader (a surface
+  that dropped identity resolution instead of converging it goes red), and pins
+  `accessorKey`'s precedence in `RelatedList`.
+
+- Updated dependencies [62311b6]
+- Updated dependencies [fc0272a]
+- Updated dependencies [9e7349e]
+- Updated dependencies [8864971]
+- Updated dependencies [c785740]
+- Updated dependencies [b41f401]
+- Updated dependencies [19e9fa0]
+- Updated dependencies [95b7214]
+- Updated dependencies [7d9734d]
+- Updated dependencies [6ae818e]
+- Updated dependencies [9eb932b]
+- Updated dependencies [746dd00]
+- Updated dependencies [aebfa4f]
+- Updated dependencies [38ca8be]
+- Updated dependencies [68ef584]
+- Updated dependencies [4952edf]
+- Updated dependencies [7f0252e]
+- Updated dependencies [c4d7b20]
+- Updated dependencies [c769d3d]
+- Updated dependencies [7639a61]
+- Updated dependencies [94e63ef]
+- Updated dependencies [c735bf7]
+- Updated dependencies [02aef0c]
+- Updated dependencies [6f29aa5]
+- Updated dependencies [c4db402]
+- Updated dependencies [5319bf1]
+- Updated dependencies [49e5671]
+- Updated dependencies [9a04d25]
+- Updated dependencies [b5b97e2]
+- Updated dependencies [f59f2c1]
+- Updated dependencies [07de839]
+- Updated dependencies [2a40b5e]
+- Updated dependencies [df613fa]
+- Updated dependencies [4874117]
+- Updated dependencies [ad0183a]
+- Updated dependencies [ce08d55]
+- Updated dependencies [eb4b740]
+- Updated dependencies [5b084eb]
+- Updated dependencies [aa1240a]
+- Updated dependencies [2374a49]
+- Updated dependencies [390c071]
+- Updated dependencies [d10f526]
+- Updated dependencies [2d5d594]
+- Updated dependencies [ea7f477]
+- Updated dependencies [379728f]
+- Updated dependencies [7f23cd0]
+- Updated dependencies [0ded602]
+- Updated dependencies [24e0e0a]
+- Updated dependencies [3a6cf24]
+- Updated dependencies [aa35561]
+- Updated dependencies [03bd53b]
+- Updated dependencies [3c1f321]
+- Updated dependencies [a045a32]
+- Updated dependencies [912496d]
+- Updated dependencies [80edbd4]
+- Updated dependencies [9867281]
+  - @object-ui/core@17.1.0
+  - @object-ui/components@17.1.0
+  - @object-ui/react@17.1.0
+  - @object-ui/types@17.1.0
+
 ## 17.0.0
 
 ### Patch Changes

@@ -1,5 +1,283 @@
 # @object-ui/i18n
 
+## 17.1.0
+
+### Minor Changes
+
+- 1cf0de7: fix(detail): finish the approval-lock story, and warn on silently stripped fields (framework#3794)
+
+  The Console reported record writability wrong in both directions during an
+  approval, so a user had nothing to go on: what they _could_ edit said "locked",
+  and what they _couldn't_ said "updated successfully".
+
+  **The lock band told the truth; the Edit button did not.** objectui#2902 split
+  the band into "in approval · editable" vs locked, but the header **Edit** CTA
+  still keyed off nothing at all — on a genuinely locked record it stayed live, so
+  the user opened the form, filled a screen, and got `RECORD_LOCKED` back on Save.
+  It is now `disabled` on a locked record: visible-but-off, with the band beside it
+  saying why. This is the LOCK, not the mere presence of an approval — a
+  `lockRecord: false` node keeps Edit live, which is the point of that setting.
+
+  **And the band could still re-lock itself.** `DetailView` OR-ed the record's own
+  `approval_status` mirror into `isLocked` unconditionally. That mirror is written
+  on submit by any flow configuring an `approvalStatusField`, _regardless of_
+  `lockRecord` — so on a `lockRecord: false` node the host correctly resolved "not
+  locked" from the request's `lock_record` while the mirror dragged the band back
+  to "Locked for approval", with the pencils live and saves landing underneath it.
+  The host is now authoritative whenever it threads `approvalPending`; the mirror
+  is consulted only for bare/legacy `DetailView` hosts that thread nothing, where
+  it still reads as locked (no node granularity — the safe direction).
+
+  Recall's tooltip no longer promises to unlock a record the node never locked
+  (`detail.cancelApprovalTooltipUnlocked`).
+
+  **Silently stripped fields now surface on the record form's save path.** The
+  adapter emitted a write-warning for `create`/`update` responses carrying
+  `droppedFields`, but not for `batchTransaction` — which is how the record form
+  saves a master-detail record, i.e. the one surface where a user actually edits a
+  `readonlyWhen`-locked field. `batchTransaction` now emits one warning per event,
+  resolving each back to its operation via the response's `index`.
+
+  The toast itself was hardcoded English and called every strip "read-only". It is
+  now localized (`detail.writeStripped*`, ten locales) and worded by reason:
+  `readonly_when` says the field is not editable _in this record's current state_,
+  which is what actually happened — the field is editable in other states and the
+  form rendered it as an ordinary input, so "read-only" sent the user hunting for a
+  permission problem that does not exist.
+
+  **And it stopped crying wolf.** `createObjectStackUserStateAdapter` hand-stamped
+  the server-managed `updated_at` on every recents/favorites write, which the
+  server strips and reports — so the console popped "Some fields were not saved"
+  about a field no user ever touched, on page loads, drowning the signal the toast
+  exists for. It no longer sends the column; the server stamps it anyway.
+
+- d21794c: fix(list,i18n): a 400 from the server no longer reads as "check your connection"
+
+  `classifyLoadError` was written because a 403 rendered the same
+  "check your connection and try again" panel as a genuine outage — its own doc
+  comment says users "were told to debug their network when the server had
+  (correctly) denied them access." It made that distinction for 401 and 403 and
+  then sent **everything else**, including 4xx, to the network branch.
+
+  A **400** is the server saying it understood the request and will never accept
+  it. Retrying resends the identical bad request, so "check your connection and
+  try again" is advice that cannot work — the same mistake the function exists to
+  prevent, one status code over.
+
+  This became reachable from ordinary stored metadata with
+  objectstack-ai/objectstack#4121: a `$filter` array that is not a filter AST is
+  now rejected at the protocol with `400 INVALID_FILTER`, where it previously
+  reached a driver (and, for a lone `['and']`, silently returned every row). A
+  view saved with such a filter now answers 400 on every load.
+
+  Adds a fourth classification, `rejected`, for `status === 400` and for the
+  server's 400-class codes (`INVALID_FILTER`, `UNSUPPORTED_QUERY_PARAM`,
+  `INVALID_QUERY`). Its copy points at the filter rather than the network, and
+  says who can fix it when the view is saved that way. 403/401 keep priority, so a
+  permission denial can never read as a bad request — pinned by a test.
+
+  The two new strings are added to **all ten locale packs**, not just `en`: the
+  neighbouring panels are translated, and `fallbackLng: 'en'` would have rendered
+  this one in English beside them. The full-parity gate
+  (`all-locales-key-parity.test.ts`) caught the pack I missed.
+
+  Verified: 5 new tests — numeric status, error code without a status, a status
+  embedded in the message text, and the 403/401 ordering guard. Reverting the
+  branch fails four of them. `plugin-list` + `i18n`: **403 tests across 29 files**,
+  green.
+
+- f8a95e5: fix(fields): the sharing-criteria builder stops calling an empty criteria "All records" (objectstack#3896)
+
+  `FilterConditionField` renders `sys_sharing_rule.criteria_json`. With no
+  criteria it displayed **"All records"**, and `filterGroupToMongo` carried a
+  matching `// empty = match all` comment. That was describing a bug as a
+  feature: a sharing rule with no predicate was stored as `criteria_json: null`
+  and evaluated as `find(object, { filter: {} })` under the system context —
+  every record of the object, granted to the recipient. `SharingRuleSchema` had
+  always forbidden the shape ("never seeded as a permissive match-all",
+  ADR-0049); the REST and data-API entries just never checked.
+
+  objectstack#3896 closes those entries: the server now refuses to save a rule
+  whose criteria would match everything, and one already stored shares nothing.
+  This is the renderer catching up.
+
+  - **The empty read-only state now says the rule shares nothing**, in
+    `destructive` styling — key renamed `fields.filterCondition.allRecords` →
+    `fields.filterCondition.noCriteria`, retranslated across all ten locales.
+    Nothing else read the old key.
+  - **A new `fields.filterCondition.criteriaRequired` hint** renders under the
+    builder (and the JSON editor) while the criteria is empty. The server's
+    rejection is precise but only arrives as a toast _after_ Save; this says it
+    while the admin is still looking at the empty builder.
+  - **`isMatchAllCriteria` is exported** — a client-side mirror of the server
+    predicate covering `{}`, `[]`, and the vacuous combinators (`{ $and: [] }`,
+    `{ $or: [{}] }`), conservative in the same direction. The server stays
+    authoritative; this only decides whether to show the hint.
+
+  Unparsable JSON keeps its own `invalidJson` message and does **not** also
+  collect the empty-criteria hint.
+
+  Note for anyone wiring this end-to-end: the Criteria field is not marked
+  `required` in the object metadata, deliberately — `sys_sharing_rule.criteria_json`
+  is nullable in deployed tenants, so `required: true` would only produce a
+  destructive `NOT NULL` migration that those nulls block. The invariant lives in
+  the server's write guards; this change makes the UI stop contradicting it.
+
+### Patch Changes
+
+- 752e18f: fix(console,app-shell): readable reassign hand-off + "System" label for svc:* audit actors — objectstack#4365 / objectstack#4366
+
+  - **Approvals inbox** (`ApprovalsInboxPage`): a reassign timeline entry now
+    renders "from A to B" from the structured
+    `reassign_from`/`reassign_to` fields (and their server-resolved
+    `*_name` companions) that objectstack#4365 added to
+    `sys_approval_action`, instead of relying on the old default comment that
+    baked two raw user ids into user-facing text. Legacy rows without the
+    structured fields keep the comment fallback. New i18n key
+    `approvalsInbox.reassignFromTo` across all ten locales.
+  - **Record history** (`RecordDetailView`): an audit row attributed to a
+    service principal (`svc:*` on the `actor` column — e.g. a
+    `runAs:'system'` flow's `svc:flow:<name>` label from objectstack#4366) now
+    renders the localized "System" label instead of the raw principal string;
+    the raw value stays on the entry for tooling.
+
+- c785740: fix(detail): record Attachments become their own tab (with count badge) and their copy is translated — objectstack#4358
+
+  Two defects on `enable.files: true` record detail pages:
+
+  1. **Buried placement.** `RecordDetailView` appended `RecordAttachmentsPanel`
+     AFTER the schema-rendered page tree, whose synthesized default embeds
+     `record:discussion` as the last main component — so the panel always
+     landed below an ever-growing feed timeline, undiscoverable without
+     scrolling to the very bottom, with no metadata knob to move it.
+
+     `buildDefaultTabs` now emits a peer **Attachments** tab (a new
+     `record:attachments` node rendered by an app-shell registration wrapping
+     the existing panel via RecordContext) between Related and
+     Activity/History. `PageTabsRenderer` derives the tab's count badge from a
+     `sys_attachment` probe scoped to `(parent_object, parent_id)`, riding the
+     same RelatedCountStore cache/invalidation bus as related-list badges — so
+     uploads and deletes update the badge live. A `hideAttachments` synthesizer
+     option suppresses the tab; RecordDetailView keeps its legacy bottom append
+     only as the fallback for authored pages without the node
+     (`hasExplicitAttachments`).
+
+  2. **Untranslated copy.** The panel's eleven `detail.*` keys (`attachments`,
+     `uploadAttachment`, `loadingAttachments`, `noAttachments`,
+     `downloadAttachment`, `deleteAttachment`, and the five
+     `attachment*Denied/Required` friendly errors) existed only as inline
+     English `defaultValue`s — no locale bundle carried them, so non-English
+     consoles always showed English. All ten locales now define them; the tab
+     label rides the existing well-known-label dictionary (→ 附件 etc.).
+
+- d61efd1: fix(grid): a bulk action's `visible` is evaluated per selected record — objectui#3067
+
+  The selection bar evaluated a def's `visible` against the ambient scope with no
+  record bound. That does not fail open, it answers wrongly: with no `record` in
+  scope the lenient evaluator returned `true` for **every** row-scoped predicate,
+  including the ones that should be false — `${record.done}` and
+  `${record.owner == user.id}` both came back `true`. An authored gate was not
+  weakened, it was inverted for half its inputs, and nothing distinguished that
+  from a real verdict.
+
+  `visible` is now evaluated **once per selected record, with that record in
+  scope**, fail-closed per record and warning once on a fault — the same contract
+  the row kebab uses. One evaluation answers both questions:
+
+  - **Is the button offered?** When at least one selected record passes. A
+    record-free predicate (`features.x`, `current_user.y`) returns the same
+    verdict for every row, so it still behaves as a plain button-level gate — no
+    syntactic sniffing for `record` references is involved.
+  - **Which records does it run on?** The ones that passed. The confirm step
+    states how many were skipped, so a run over fewer records than the user
+    ticked says so instead of quietly shrinking the selection.
+
+  Eligibility is re-applied to the EXPANDED set after "select all N matching",
+  not just the page selection the button could see.
+
+  The mechanism predates objectui#3002, but only inline-authored
+  `bulkActionDefs[].visible` used to reach it — written by authors who knew there
+  was no record. #3031 began promoting object actions into the bar, and their
+  `visible` is typically written for a row/record surface, which is what put
+  row-scoped predicates in front of a record-free evaluation.
+
+- 9eb932b: fix(console): three real-user console failures — 403 blamed on the network, ⌘K search capped at 8 objects, nav gating fields inert
+
+  1. **List error panel classifies the failure** (`plugin-list`, `i18n`): a 403/401 from the data source used to render the same "check your connection" copy as a genuine outage, sending users to debug their network while the server was correctly denying access. The panel now classifies by `httpStatus`/`status`/`statusCode`, the `PERMISSION_DENIED`/`UNAUTHORIZED` error codes, or an `HTTP <status>` message prefix, and renders dedicated permission-denied / sign-in-required copy (all nine locales).
+
+  2. **⌘K / full-page search scope is no longer truncated** (`react`): `maxObjectsQueried` caps the per-object fanout fallback, not the search scope — it used to slice the candidate pool itself, so the `objects` whitelist sent to the platform's `/api/v1/search` only ever named the first 8 nav objects. Which sidebar group came first decided which records were findable; everything later in the nav was unsearchable no matter what the user typed.
+
+  3. **Nav gating fields finally gate** (`app-shell`): `evaluateVisibility` only evaluated `${…}` template strings, so the `{ dialect: 'cel', source }` envelopes the spec normalizes every authored `visible` predicate into fell through to a blanket "visible" — a constant-false predicate still rendered for everyone. It now delegates to `ExpressionEvaluator.evaluateCondition`, which routes CEL envelopes to the canonical `@objectstack/formula` engine. And the sidebars' `requiredPermissions` check treats a bare name as an ADR-0066 system capability (union of the user's permission-set `systemPermissions` from `/me/permissions`) — the same subset rule the server applies to `AppSchema.requiredPermissions` — instead of misreading it as `can(<name>, 'read')`, which had degraded `requiredPermissions` into a hide-from-everyone switch (admins included). The `object:action` form and the legacy object-read fallback keep working.
+
+- 3cb9646: fix(app-shell,i18n): record forms no longer render the developer-voiced default subtitle
+
+  Every create/edit record form (both the console dialog in `AppContent` and the
+  full-page `RecordFormPage`) hardcoded a platform default description under the
+  title: "Add a new {{object}} to your database." / "Update details for
+  {{object}}" (zh: 「向数据库添加新的{{object}}。」/「更新{{object}}的详情」).
+
+  The copy is developer-tooling voice leaking into end-user business apps — a
+  scheduling clerk filling in a 排班计划 has no business being told about "the
+  database", and the phrasing came straight from admin-panel boilerplate. The
+  line carried no information the form title didn't already have, and neither
+  call site let a form view override it.
+
+  The default subtitle is now gone: both call sites stop passing `description`,
+  and the unused `form.createDescription` / `form.editDescription` keys are
+  removed from all ten locale bundles (the `workspace.createDescription` key is
+  unrelated and stays).
+
+- b5b97e2: fix(types,layout): nav item type `component` joins `NavigationItemType` and its zod enum — objectui#2918
+
+  The renderers have carried a full `type: 'component'` implementation (Phase 3b:
+  `componentRef` colon-split to `/component/<ns>/<name>`, `params` serialised as
+  querystring, `metadata:*` special-cases) — but the vocabulary never gained the
+  member, and `@objectstack/spec` has had `ComponentNavItem` all along. The zod
+  enum was the part that bit: `NavigationItemTypeSchema` rejected
+  `type: 'component'` at validation time, so authors could not declare one and
+  the renderer half was unreachable — dead on arrival rather than dead code.
+
+  - `NavigationItemType` and `NavigationItemTypeSchema` gain `'component'`;
+    `NavigationItem` gains the fields the renderer consumes, `componentRef` and
+    `params` (also used by `type: 'page'`), mirroring spec's `ComponentNavItem` —
+    declared in zod too, so parse no longer strips them.
+  - The `(item as any).componentRef` / `params` casts in `NavigationRenderer`
+    and `AppSchemaRenderer` become typed access.
+  - `NavigationDesigner`'s exhaustive type-meta map gains a `component` badge
+    (new `appDesigner.navTypeComponent` key in all 10 locales).
+  - `@object-ui/layout` gains `type-check` (src + tests) with the #2915 `paths`
+    override; its DEBT entry in `check-type-check-coverage.mjs` is deleted.
+
+- 2d5d594: fix(list,detail): sorting a lookup column no longer orders by an invisible key — #3096
+
+  A relational column (`lookup` / `master_detail` / `user` / `tree`) never holds
+  the string its cell shows: it holds the `$expand`-ed record, or a raw foreign-key
+  id whose label was resolved separately. Every sort path took that raw value as
+  its key, so the column of names came back in an order with no relation to the
+  names — sorting looked broken, with nothing saying the key was something else.
+
+  The two halves are fixed differently, because they can order by different things:
+
+  - **Client-side sorts** (grid column headers, any `data-table`, a non-windowed
+    related list) now key off the label the cell renders, via the new
+    `getSortValue` / `compareSortValues` in `@object-ui/core` — which resolves an
+    expanded record through `getRecordDisplayName` (ADR-0079), so the sort key and
+    the lookup cell agree on which field names a record. This replaces two broken
+    comparators: `a[col] < b[col]` is always false between two objects (the
+    comparator collapsed to a constant and permuted the rows), and
+    `String(a[col])` is `"[object Object]"` (every row compared equal, so the sort
+    silently did nothing).
+  - **Server `$orderby` sorts** cannot be fixed here — the key is the stored id by
+    construction, and `objectstack#4256` settled that no relation join is coming.
+    So those entry points stop offering the illusion: the ListView toolbar sort
+    picker withholds relational fields and explains why (pointing at a formula
+    field as the supported way to sort by a related name), and a windowed related
+    list renders no sort button for them.
+
+  A relational field the view's CURRENT sort already uses stays listed, labelled
+  `(by ID)`, so view metadata authored or saved with such a sort round-trips
+  instead of rendering a blank row and losing the sort on the next edit.
+
 ## 17.0.0
 
 ### Minor Changes

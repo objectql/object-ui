@@ -1,5 +1,1066 @@
 # @object-ui/types
 
+## 17.1.0
+
+### Minor Changes
+
+- 9e7349e: **`target` is the only action handler slot — the `execute` alias is gone from the renderer (framework#3856).**
+
+  `ActionRunner.executeScript` read `action.target || action.execute`. That fallback
+  is unreachable against `@objectstack/spec` 17: `execute` is now a tombstoned key
+  (framework#3855) that the parser **rejects** with the rename prescription, so no
+  parsed action can carry it and the `||` could only ever yield `target`. Verified
+  against 17.0.0-rc.0 — an action declaring `execute` fails `ActionSchema.safeParse`,
+  and a `target` action's parsed output has no `execute` key at all.
+
+  Deleted rather than left as harmless residue: two handler slots is what let one
+  action run one script server-side and a different one client-side (framework#3713,
+  where this renderer preferred the alias while the spec transform preferred
+  `target`). A dead slot still reads as a live contract to the next maintainer.
+
+  `execute` is also **removed from the types**, which is the part that had never
+  landed. framework#3856 predicted a compile error here; there wasn't one, because
+  neither reader was typed against the spec's `z.infer`:
+
+  - `@object-ui/types` `ActionSchema` hand-declared `execute?: string`. Removed, so
+    `execute: '…'` now fails `tsc` at the authoring site (TS2353).
+  - `@object-ui/core` `ActionDef` hand-declared it too. Removed — but `ActionDef`
+    carries a `[key: string]: any` index signature, so stale hand-authored metadata
+    that never passed through the parser still compiles. For that path
+    `executeScript` now returns the rename prescription instead of a bare
+    "No script provided", matching the spec tombstone's rule that removing an
+    authorable key must be audible: silently binding no handler is the
+    "Mark Done does nothing" shape (framework#2169).
+
+  The four action renderers (`action:button`, `action:icon`, `action:menu`,
+  `action:group`) no longer forward `execute` into the runner, and Studio's
+  `ActionPreview` no longer falls back to it — previewing an alias-only draft as
+  "bound" contradicted the parse that rejects it on save.
+
+  Requires `@objectstack/spec` 17. Metadata still on the alias is rewritten by
+  `os migrate meta --from 16`.
+
+- 8864971: **The action sub-vocabularies derive from `@objectstack/spec` instead of restating it (framework#4074).**
+
+  `packages/types/src/ui-action.ts` imported exactly one of the spec's action
+  vocabularies — `ActionType`, derived in #2231/#2901 — and hand-declared the rest
+  under doc comments claiming spec canonicity. `ActionLocation`'s comment said
+  "Single source of truth lives in `@objectstack/spec/ui` … **re-export** here"
+  while the code re-_declared_ a parallel union, `as const` tuple, and `z.enum`.
+
+  That is why framework#3856 predicted a compile error when spec 17 removed
+  `action.execute` and there wasn't one: nothing in this package was bound to the
+  spec's `z.infer`, so a key removal upstream produced no signal here.
+
+  **Already drifted, not merely drift-prone.** `ActionParamSchema.type` is
+  `FieldType.optional()` and `FieldType` carries **49** members; the hand-written
+  `ActionParamFieldType` listed **16**. A spec-valid param typed `lookup`,
+  `multiselect`, `currency`, `user`, `tags` or `json` failed `tsc` against this
+  package even though `ActionParamDialog` renders it — the same failure `ActionType`
+  had before it was derived (missing `form` while `ActionRunner.executeForm`
+  implemented it).
+
+  - `ActionLocation` / `ACTION_LOCATIONS` / `ActionLocationSchema` are now the spec's
+    own three symbols, re-exported. `ACTION_LOCATIONS` and `ActionLocationSchema`
+    stay **value** exports, as #2561 decision (a) explicitly keeps them.
+  - `ActionComponent` is `NonNullable<Action['component']>`. Read off the spec's
+    resolved `Action` rather than `ActionSchema.shape.component`, because spec
+    exports `ActionSchema` as a `lazySchema` proxy that does not forward `.shape`.
+  - `ActionParamFieldType` is the spec's `FieldType` (16 → 49 members), with
+    `ACTION_PARAM_FIELD_TYPES` as its runtime witness.
+  - `ActionParam` gains the 13 optional capability fields it could not express —
+    `visible`, `accept`, `maxSize`, `multiple`, and the lookup-picker group
+    (`referenceTo`, `displayField`, `idField`, `descriptionField`, `titleFormat`,
+    `lookupColumns`, `lookupFilters`, `lookupPageSize`, `dependsOn`) — all of which
+    `@object-ui/core`'s `ActionParamDef` already declares and app-shell's
+    `paramToField.ts` maps into the shared field renderer (ADR-0059).
+
+  **The legacy param spellings are now named, not hidden.** `paramToField.ts` folds
+  `checkbox` → `boolean`, `reference` → `lookup`, `datetime-local` → `datetime`.
+  None is a spec `FieldType`, so deriving `ActionParamFieldType` alone would have
+  made authored metadata a type error. They are declared as
+  `ObjectUiLocalParamFieldType` / `OBJECTUI_LOCAL_PARAM_FIELD_TYPES` and
+  `ActionParam.type` accepts `ResolvableParamFieldType` (spec ∪ local) — the same
+  shape `ObjectUiLocalActionType` / `RunnableActionType` already use for
+  `navigation`, and for the same reason: a dialect hidden inside a
+  `Record<string, string>` in another package is invisible to an importer.
+
+  **Breaking:** `ActionParamFieldType` widens from 16 members to 49, so an
+  exhaustive `switch` over a param `type` in a host app stops being exhaustive. The
+  16 old members are all still valid, so no authored metadata breaks. The added
+  `ActionParam` fields are optional and additive.
+
+  Not included, and still open on framework#4074: `ActionParam`'s `name` / `label` /
+  `type` stay required where the spec makes them optional, and the
+  `field` / `objectOverride` field-reference form remains unrepresentable. Both are
+  breaking in a way that needs its own migration note.
+
+- b41f401: **Authoring types are input types (framework#4074 steps 2–3): `ActionParam` takes the spec's declaration forms, `ListViewSchema` stops promising parse-output defaults, and `FormField.dependsOn` matches its runtime reader.**
+
+  Three public types said something different from what the platform accepts. All
+  three divergences were found by making `packages/types`' tests compile (#3009)
+  and then resolving the declared `p1-spec-alignment.test.ts` debt site-by-site
+  instead of papering over it.
+
+  **`ActionParam` is now the authoring shape, aligned with the spec's input.**
+  `name` / `label` / `type` become optional and `field` / `objectOverride` appear:
+  the spec's primary way to declare a param — a bare field reference that inherits
+  label/type/validation/options from an object field — was unrepresentable while
+  all three were required. The _resolved_ shape the dialog consumes (after
+  app-shell's `resolveActionParams()` inlines the reference) remains
+  `@object-ui/core`'s `ActionParamDef`, with all three required. Authoring and
+  resolved are different types on purpose. `label` and option labels take the
+  spec's `I18nLabel` by import — which the new compile-time guard promptly
+  revealed to be aliased to plain `string` in the current spec (the per-locale
+  record is the separate `I18nObject`), so this is not a behavioural widening
+  today; importing the alias means objectui tracks any future widening
+  automatically.
+
+  **Breaking:** code destructuring `param.name` / `param.label` / `param.type` as
+  guaranteed must now handle the field-backed form (or consume the resolved
+  `ActionParamDef` instead, which is what dialog-side code should be doing).
+
+  **`ListViewInferred` is `z.input`, not `z.infer`.** The spec sub-schemas that
+  flow into the list-view surface (`userActions`, `tabs` → `ViewTab`, `sharing`)
+  carry `.default()`s, so the inferred output type made fields like
+  `userActions.refresh` or a tab's `pinned`/`visible` _required_ — but nothing on
+  the render path ever runs `.parse()`: `normalizeListViewSchema` deliberately
+  applies no defaults ("an absent flag stays absent", its own suite). The output
+  type therefore rejected valid authored metadata (`userActions: { sort: true }`)
+  while promising renderers defaults that never arrive. Typing the surface as
+  input matches both the author and the runtime object. Code that _trusted_ those
+  phantom defaults now gets an optionality error — which is a latent bug surfacing,
+  not a regression: the value really could be absent.
+
+  **`FormField.dependsOn` is `DependsOnInput`.** The runtime reader
+  (`resolveCascadingOptions`) has always accepted a bare name, a list of names, or
+  lookup-parameter entries `{ field, param }` — its parameter type says so. The
+  public property said `string`, so array-authored metadata type-errored while
+  working, and the form renderer read the key through `(f as any).dependsOn` to
+  get past its own type. The shape now lives in `@object-ui/types` (single source
+  of truth next to `FormField`), `@object-ui/core` imports and re-exports it, and
+  the two `as any` reads in the components form renderer are typed.
+
+  **The `p1-spec-alignment.test.ts` exclusion is gone.** Its 14 errors resolved:
+  the two "sharing in ObjectUI format" tests and the legacy-ARIA-spelling fixture
+  are deleted/rewritten — those dialects are _normalizer input_, folded by
+  `normalizeListViewSchema` and asserted branch-by-branch in core's
+  `normalize-list-view.test.ts`, the seam where the fold actually runs; asserting
+  them on the canonical type only ever "passed" because nothing compiled the file.
+  One fixture claimed a shape no surface ever admitted (an ObjectQL triplet as a
+  spec `ViewTab.filter`) and was corrected to the rule-object form. Every test
+  file in `@object-ui/types` is now compiled, with no exclusions.
+
+  Discrimination-checked: reverting `ListViewInferred` to `z.infer`, `dependsOn`
+  to `string`, or `ActionParam.name` to required each produces the expected
+  compile error in the now-compiled test files (`TS2739` / `TS2322` / `TS2741`);
+  restored, all projects are clean.
+
+- 38ca8be: refactor(fields): `requiredWhen` is the only required-predicate slot — drop the retired `conditionalRequired` alias
+
+  `@objectstack/spec` 17 (objectstack#3855) **retired** `Field.conditionalRequired`,
+  the long-deprecated alias of `requiredWhen`. ObjectUI carried a back-compat read
+  for it in seven places; all of them are removed.
+
+  The removal is safe because the spec did not merely _stop emitting_ the key — it
+  made authoring it **fail loudly**. `retiredKey()` declares the key as
+  `z.never()`, so:
+
+  - `z.input` types it as `never` — writing it is a `tsc` error at the authoring site;
+  - the parse **rejects** it (verified against `17.0.0-rc.0`), at both `FieldSchema`
+    and `ObjectSchema`, with the prescription as the message:
+
+    > `conditionalRequired` was removed in @objectstack/spec 17 (#3855) — use
+    > `requiredWhen`. Rename the key; the value (a CEL predicate) is unchanged.
+    > Run `os migrate meta --from 16` to rewrite it automatically.
+
+  So spec-parsed metadata cannot carry the key — an object declaring it fails to
+  load rather than loading with the rule silently dropped. Keeping a renderer-side
+  `requiredWhen ?? conditionalRequired` would have re-created exactly the second
+  de-facto contract the tombstone exists to prevent: the key would have kept
+  working in the UI while being rejected everywhere else, hiding the producer's bug
+  (AGENTS.md #0.1). "Backend-agnostic" (#1) does not argue for keeping it either —
+  `conditionalRequired` is an ObjectStack-spec-ism, so the only producers that ever
+  emit it are ObjectStack producers on ≤16, and the spec ships them a converter.
+
+  Removed from:
+
+  | package                  | site                                                                                                      |
+  | :----------------------- | :-------------------------------------------------------------------------------------------------------- |
+  | `@object-ui/types`       | the `conditionalRequired?:` member on `FormField`                                                         |
+  | `@object-ui/core`        | the `??` fallback + rules-param member in `resolveFieldRuleState`                                         |
+  | `@object-ui/components`  | three pass-throughs in the form renderer                                                                  |
+  | `@object-ui/plugin-form` | `ObjectForm`, `ModalForm`, `sectionFields`, `deriveMasterDetail` (×2)                                     |
+  | `@object-ui/app-shell`   | the field inspector's legacy read/auto-migrate, and the key's entry in `clientValidation`'s CEL lint list |
+
+  **Studio authors lose nothing.** The object designer's draft validation parses
+  against the spec's own `ObjectSchema`, so a draft carrying the key now surfaces
+  the tombstone's rename prescription under the same `fields.<name>.conditionalRequired`
+  path the CEL lint used to report — a better message than the inspector's silent
+  auto-migration, and one the server agrees with. That behavior is pinned by a test.
+
+  **Migrating:** rename the key to `requiredWhen` (the CEL value is unchanged), or
+  run `os migrate meta --from 16`.
+
+- 4952edf: fix(errors): error-code branches survive the framework's ADR-0112 rename — objectstack#3841
+
+  Framework ADR-0112 renamed the whole `error.code` vocabulary from lowercase
+  `snake_case` to `SCREAMING_SNAKE` (`destructive_change` → `DESTRUCTIVE_CHANGE`).
+  Eleven places compared `err.code` against the old spelling with `===`, so against
+  a swept server they simply stopped matching — and nothing threw. The affordance
+  each branch guards just vanished and the user got the generic error toast instead:
+
+  - the destructive-change confirm dialog (resource editor, permission matrix)
+  - the "create a writable package first" hint
+  - field-scoped validation issues on embedded item saves
+  - the all-or-nothing publish summary naming the causal item
+  - unknown-object tolerance in the app header and in record search
+  - the marketplace's local-install messages for conflict / auth / unavailable
+  - `isNotFoundError` in the data layer
+
+  `RECORD_NOT_FOUND` had already been renamed a release earlier, so that branch was
+  already dead before this fix.
+
+  New `errorCodeIs` / `errorCodeIsAnyOf` in `@object-ui/types` compare
+  case-insensitively, so the console keeps working against servers on either side
+  of the rename — the console ships separately from the server it talks to. Every
+  call site now passes the catalog (SCREAMING) spelling, and `error-code.ts` is the
+  single file to delete once no supported server emits the old vocabulary.
+
+- c4db402: refactor(views): ListView's `aria` and `sharing` are the spec sub-shapes (#2890 scope A step 5)
+
+  Last rename batch in the ListView vocabulary migration.
+
+  **`aria`** is now the spec's `AriaPropsSchema`: `label` → `ariaLabel`,
+  `describedBy` → `ariaDescribedBy`, folded at the ListView boundary like every
+  other legacy key. Two things fall out of adopting the spec shape:
+
+  - `role` becomes authorable. The list region hardcoded `role="region"`; it now
+    reads `aria.role` and falls back to `region`.
+  - `aria.live` stays as a documented local extension — it has no spec
+    counterpart, and dropping it would silently disable a shipped capability.
+    Promote it rather than growing that extension.
+
+  **`sharing`** is now the spec's `ViewSharingSchema` (`{ type, lockedBy }`),
+  imported by reference — the local four-key object is gone. The legacy pair folds
+  in: `visibility` collapses onto the two ownership kinds the spec models (only
+  `private` is `personal`; `team` / `organization` / `public` are all
+  `collaborative`), and a bare `enabled: true` maps to `personal`, which is the
+  badge the user already saw (the old title fell back to `'private'`).
+
+  _Visible change_: the share badge's tooltip shows the spec ownership type, so a
+  view authored with `visibility: 'team'` reads "Sharing: collaborative" instead
+  of "Sharing: team". The four-value audience has no spec home and nothing but
+  that tooltip consumed it; keeping a second audience enum alive would re-open the
+  fork this issue closes.
+
+  Also fixes the **spec bridge**, which was doing the opposite of its job: given a
+  spec-shaped `sharing`, `transformListView` _downgraded_ it — inventing a legacy
+  `visibility` audience and an `enabled` flag that the renderer then had to fold
+  back. Both sides speak `ViewSharing` now, so it passes through.
+
+  `conditionalFormatting` and `exportOptions` are deliberately **not** folded.
+  Both objectui shapes are supersets carrying capability the spec cannot express —
+  the `{ field, operator, value }` rule form, and `maxRecords` / `includeHeaders`
+  / `fileNamePrefix`. Folding them onto the narrower spec shapes would delete
+  working features; they want promotion upstream, not a rename.
+
+- 5319bf1: feat(views): the list toolbar speaks one vocabulary — `userActions` (#2890 scope A step 3)
+
+  The seven bare `show*` toolbar flags fold into the spec's `userActions`, and the
+  renderer reads nothing else. `showDescription` folds into
+  `appearance.showDescription` at the same boundary.
+
+  | legacy                                                    | canonical                                                 |
+  | :-------------------------------------------------------- | :-------------------------------------------------------- |
+  | `showSearch` / `showSort` / `showFilters` / `showDensity` | `userActions.search` / `.sort` / `.filter` / `.rowHeight` |
+  | `showGroup` / `showHideFields` / `showColor`              | `userActions.group` / `.hideFields` / `.rowColor`         |
+  | `showDescription`                                         | `appearance.showDescription`                              |
+
+  **The last three are new keys, and they close a capability hole rather than just
+  renaming one.** `@objectstack/spec`'s `UserActionsConfigSchema` documents itself
+  as "which interactive actions are available to users in the view toolbar — each
+  boolean toggles the corresponding toolbar element on/off", and already carries
+  `rowHeight` (objectui's `showDensity` under its spec name). Grouping, column
+  visibility and row coloring are the same kind of toggle: the spec models all
+  three as _configuration_ (`grouping`, `hiddenFields`, `rowColor`) but has no
+  "may the user change it" switch for any of them.
+
+  The consequence was visible in the product. With no `userActions` key to read,
+  the two list surfaces **hardcoded opposite policies**: `InterfaceListPage` (the
+  author-curated interface page) pinned all three OFF, `ObjectDataPage` pinned two
+  ON — and an interface-page author could not turn grouping back on for end users
+  at all. Both surfaces now express their policy as `userActions` defaults, which
+  an author can override.
+
+  Until the keys land in `@objectstack/spec`, `@object-ui/types` carries them as a
+  documented `.extend()` on `UserActionsConfigSchema` (the same shape
+  `ListColumnSchema` uses while waiting on objectstack#3761); it collapses into a
+  plain re-export once they do. Note the spec schema is not `.strict()`, so before
+  this an author writing `userActions: { group: false }` had it **silently
+  stripped** — valid on parse, no effect at render.
+
+  Defaults are unchanged and deliberately asymmetric, matching what these flags
+  have always done: `search` / `sort` / `filter` / `rowHeight` / `group` are on
+  unless turned off; `hideFields` / `rowColor` are off unless turned on. Making
+  them uniform would grow two buttons on every existing view, so it is left as its
+  own product decision rather than smuggled into a vocabulary migration.
+
+  Also drops a dead relay in app-shell's `ObjectView`, which forwarded
+  `showDescription` onto the node although `ListView` has only ever read
+  `appearance.showDescription`.
+
+- 49e5671: fix(console): `LocalizationFetchProvider` retries a transient `/me/localization` failure instead of degrading for the whole session
+
+  `/auth/me/localization` is served by the environment kernel that owns the session
+  on a multi-tenant host, and a cold one answers `503` + `Retry-After` while it
+  warms (objectstack#4159). A transient failure is therefore a normal part of a
+  cold start — not an exception.
+
+  The provider made ONE attempt and `.catch()`-ed into silence. So a single 503
+  during warm-up left currency and locale unset for the **whole session**, silently
+  and permanently, long after the kernel was ready. Every money field rendered a
+  plain number and nothing ever tried again.
+
+  It now re-attempts a transient failure (`408`, `425`, `429`, `502`, `503`, `504`,
+  or a thrown fetch), server-stated `Retry-After` first, exponential backoff
+  otherwise. `401` / `403` / `404` / `500` are real answers about the caller and
+  still fail on the first attempt.
+
+  **It keeps its posture.** This provider is cosmetic, so it renders children
+  throughout — including mid-retry — and fills the value in if and when an attempt
+  succeeds. That is the opposite of `MePermissionsProvider`, which is fail-closed
+  and holds its loading state across the waits. Both are pinned by tests.
+
+  The retry PRIMITIVES ("is this transient", "how long to wait", `Retry-After`
+  parsing) move from `@object-ui/permissions`'s internal module to
+  `@object-ui/types` — the lowest package both callers can reach — and
+  `PermissionsFetchError` becomes the generic `HttpFetchError`. One definition of
+  transient, two policies, rather than a second copy free to drift from the first.
+  No behaviour change for `MePermissionsProvider`.
+
+- b5b97e2: fix(types,layout): nav item type `component` joins `NavigationItemType` and its zod enum — objectui#2918
+
+  The renderers have carried a full `type: 'component'` implementation (Phase 3b:
+  `componentRef` colon-split to `/component/<ns>/<name>`, `params` serialised as
+  querystring, `metadata:*` special-cases) — but the vocabulary never gained the
+  member, and `@objectstack/spec` has had `ComponentNavItem` all along. The zod
+  enum was the part that bit: `NavigationItemTypeSchema` rejected
+  `type: 'component'` at validation time, so authors could not declare one and
+  the renderer half was unreachable — dead on arrival rather than dead code.
+
+  - `NavigationItemType` and `NavigationItemTypeSchema` gain `'component'`;
+    `NavigationItem` gains the fields the renderer consumes, `componentRef` and
+    `params` (also used by `type: 'page'`), mirroring spec's `ComponentNavItem` —
+    declared in zod too, so parse no longer strips them.
+  - The `(item as any).componentRef` / `params` casts in `NavigationRenderer`
+    and `AppSchemaRenderer` become typed access.
+  - `NavigationDesigner`'s exhaustive type-meta map gains a `component` badge
+    (new `appDesigner.navTypeComponent` key in all 10 locales).
+  - `@object-ui/layout` gains `type-check` (src + tests) with the #2915 `paths`
+    override; its DEBT entry in `check-type-check-coverage.mjs` is deleted.
+
+- f59f2c1: refactor(actions): `navigation` becomes a named alias of the spec's `url`, sharing one navigator (#2944)
+
+  The last open item of #2944: `ActionRunner` dispatched a seventh action type,
+  `navigation`, that `@objectstack/spec`'s `ActionType` does not contain. The issue
+  asked for a decision — promote it upstream or delete the case. Neither, as stated.
+
+  - **Promoting it is wrong.** The spec already has `url` for "go to a location",
+    with `openIn` for the new-tab/same-tab choice. A seventh type would put a
+    second spec name on one operation, which is the exact failure the #2901 audit
+    is named after: _a second definition of the vocabulary exists, and the renderer
+    is faithful to the wrong one_.
+  - **Deleting it is worse, because it is silent.** `{ type: 'navigation', to: … }`
+    is authored today (`element:button` CTAs). Without the case the action falls
+    through to `executeActionSchema`, which returns `{ success: true }` — a green
+    toast that navigates nowhere. That is #2960's trap.
+
+  So it stays, but stops being dialect. `ObjectUiLocalActionType` /
+  `OBJECTUI_LOCAL_ACTION_TYPES` in `@object-ui/types` declare it as objectui's own
+  alias of `url` — the same treatment #2985 gave `PageVisualizationAlias` — and the
+  runner routes both names through one navigator.
+
+  **The alias had already drifted, which is the point.** `executeNavigation` was
+  quietly the weaker of the two implementations: no `${param.X}` / `${ctx.X}`
+  interpolation, `openIn` ignored, and no `/api/…` full-page short-circuit (the
+  redirect-dance case `url` exists to handle). An author who wrote
+  `{ type: 'navigation', to: '/x?p=${param.p}' }` shipped the literal `${param.p}`,
+  while the identical `url` action resolved it. Both names now behave identically;
+  `url` in turn gains `replace` pass-through, the one modifier only the alias had.
+
+  Additive only. `replace` is omitted from the `NavigationHandler` options object
+  when unset, so hosts see the option shape they already saw.
+
+  The new guard is structural rather than another assertion. The runner's built-in
+  dispatch is a table typed `Record<RunnableActionType, …>` instead of a `switch`,
+  so an `ActionType` the spec **adds** stops compiling until an executor exists for
+  it — the Tier-2 "validates at save, renders nothing at run time" failure (#2942)
+  becomes a build error for actions. `spec-derived-unions.test.ts` additionally
+  asserts `navigation` is _absent_ from the spec enum, so the day it is adopted
+  upstream, the test fails and names the alias to retire.
+
+- ce08d55: chore(deps): upgrade `@objectstack/*` to 17.0.0-rc.0, and let the spec take back what it now owns
+
+  `spec` / `client` / `formula` / `lint` move from `^16.x` to `^17.0.0-rc.0`. Two
+  groups of v17 changes reach this repo, and they pull in opposite directions —
+  the spec pruned surface objectui re-exported, and adopted surface objectui had
+  been carrying locally.
+
+  **The spec pruned dead Theme config (objectstack#3494), so the re-exports went
+  with it.** `ThemeSchema` dropped `spacing`, `breakpoints`, `logo`, `density`,
+  `wcagContrast`, `rtl`, `touchTarget` and `keyboardNavigation` — authorable but
+  never enforced, so authoring them was already a silent no-op. `@object-ui/types`
+  re-exported those sub-schemas _by reference_ (issue #2231), so they could not
+  survive the prune without becoming hand-written mirrors — exactly the second
+  de-facto contract AGENTS.md #0.1 forbids. Removed from the public surface:
+
+  - Types: `Spacing`, `Breakpoints`, `DensityMode`, `WcagContrastLevel`,
+    `ThemeLogo`, and the deprecated `SpacingScale` alias
+  - Schemas: `SpacingSchema`, `SpacingScaleSchema`, `BreakpointsSchema`,
+    `ThemeLogoSchema`, and the `SpacingSchemaType` / `BreakpointsSchemaType` helpers
+  - `Theme.spacing`, `Theme.breakpoints` and `Theme.logo`
+
+  `mergeThemes` no longer merges the three dropped keys. `generateThemeVars` is
+  unaffected — it never emitted them, which is why the liveness audit called them
+  dead. The one real consumer was `ThemeProvider`, which set the favicon from
+  `theme.logo.favicon`; that path is gone, because v17 strips the key at parse and
+  it could never arrive again. The live favicon is unaffected: it comes from
+  operator branding (`getFaviconUrl()`), applied in the console's `index.html`,
+  `main.tsx`, and on route change.
+
+  Nothing else read the pruned types. In particular the list-density feature is
+  untouched — `useDensityMode` and `rowHeightToDensityMode` use `@object-ui/core`'s
+  own local `DensityMode`, which never came from the spec.
+
+  **The spec adopted objectui's ListColumn extensions (objectui#2231), so the
+  extension collapsed.** `ListColumnSchema` used to `.extend()` the spec with two
+  fields, each carrying a note to promote it upstream rather than grow the
+  extension; v17 did exactly that. `summary` is now the spec's
+  `union([ColumnSummarySchema, ColumnSummaryConfigSchema])` — the same enum ∪
+  `{ type, field }` form `useColumnSummary` reads — and `prefix` is the spec's
+  `ColumnPrefixSchema`. `ListColumnSchema` is now a plain by-reference re-export.
+  One behavior change rides along: `prefix.type` defaults to `'text'` on parse
+  instead of staying `undefined`, so the cell renderer always gets a value.
+
+  **Node 22 is now the floor.** Every `@objectstack` package declares
+  `engines.node: ">=22.0.0"` (objectstack#3825; Node 20 reached EOL 2026-04-30).
+  This repo claimed `>=20` and ran CI on Node 20.x, so it promised — and validated
+  — a runtime its own core dependency does not support. `engines.node` is now
+  `>=22`, CI runs Node 22.x, and the CI/deployment docs say so.
+
+  The major stays 17: per AGENTS.md the major tracks `@objectstack`'s major, which
+  is also 17, and that convention deliberately outranks semver purity — so the
+  removals above ship as a minor rather than desyncing the two.
+
+- 2374a49: fix(sdui): a react page no longer loses its state to a memo that never held, and a source that exports nothing fails loudly
+
+  Writing the regression guard for objectui#2954's "latent hazard" found it was
+  already real.
+
+  **`evaluatedSchema` was memoised on values rebuilt every render.**
+  `SchemaRenderer` fell back to a fresh `{}` when no `SchemaRendererProvider` sat
+  above it, and `usePageVariables()` returned a brand-new object literal outside a
+  `PageVariablesProvider`. Both feed the `evaluatedSchema` memo's dependency list,
+  so for any tree without those providers the memo never hit: the schema was
+  re-cloned and the ExpressionEvaluator re-run on every render, and children got a
+  new schema identity every time. A `kind:'react'` page memoises its compiled
+  source on that identity, so the page was recompiled — a new page function, a new
+  element type — and React remounted it, silently discarding the user's `useState`.
+  Any registry notification (every lazy plugin's first load) triggered it. Both
+  fallbacks are now module constants.
+
+  **A source that exports nothing now throws instead of rendering blank.**
+  `generateElement` inserts the implicit `export default` only when the source
+  _starts with_ JSX, a `function` declaration, `()` or `class` — so the very
+  common `const Page = () => …` exported nothing, and the page rendered blank with
+  no error reported anywhere. It now throws with a message naming the fix, which
+  `ReactRunner`'s error panel surfaces. `export default null` still means "render
+  nothing"; a default export that is not a component throws too.
+
+  **`PageSchema['kind']` matches `@objectstack/spec`.** It declared
+  `'full' | 'slotted'` while the renderer had shipped `'react'` and
+  `'html'`/`'jsx'` since ADR-0080 and read the field through a cast. The union now
+  spells all five and the cast is gone.
+
+  Docs: new `content/docs/guide/react-pages.md` (choosing between the executed and
+  parsed tiers, the capability gate, the injected scope, flat props, `Block`,
+  `useAdapter`, source shapes, error handling) and a `@object-ui/react-runtime`
+  README — the package had neither, while being the tier AI-authored pages target.
+
+- ea7f477: refactor(types): retire the five forks that shadowed a `@objectstack/spec` vocabulary (#2944)
+
+  Five declarations in `@object-ui/types` restated a spec vocabulary, four of them
+  re-exported under **the spec's own symbol name** — so an importer could not tell
+  which definition they had. Every one had already drifted:
+
+  | Declaration                                   | Was                           | Spec      |
+  | --------------------------------------------- | ----------------------------- | --------- |
+  | `ChartTypeSchema` (`zod/data-display.zod.ts`) | 7 values                      | **19**    |
+  | `ChartType` (`data-display.ts`)               | 7 values                      | **19**    |
+  | `PageTypeSchema` (`zod/layout.zod.ts`)        | 4 — no `list`                 | 5         |
+  | `PageType` (`layout.ts`)                      | 10 — five the spec repudiates | 5 + local |
+  | `ReportType` (`reports.ts`)                   | 3 — no `joined`               | 4         |
+  | `ActionType` (`ui-action.ts`)                 | 5 — no `form`                 | 6         |
+
+  All are now the spec's schema by reference, or its type re-exported/derived.
+
+  **This is why #2901 was filed with an inverted premise.** It read the 7-value
+  `ChartTypeSchema` as the protocol and concluded `plugin-charts` had outgrown it
+  with renderer-local dialect. The spec has 19; the 7-value list was this fork.
+
+  **Widening only for consumers.** `ActionType` gains `form` (which
+  `ActionRunner.executeForm` already implemented, so a host app previously got a
+  type error on working code), `ReportType` gains `joined`, `ChartType` goes 7 → 19,
+  and `PageTypeSchema` gains `list`. Nothing was removed, so no existing value
+  stops type-checking or validating. Verified against the whole repo: 76/76
+  type-check tasks and 8215 tests pass.
+
+  **`PageType` keeps a named local extension.** `grid`/`gallery`/`kanban`/
+  `calendar`/`timeline` are visualizations, not page kinds — `ui/page.zod.ts` says
+  so outright — but narrowing them away is a breaking type change for anyone
+  assigning `pageType: 'kanban'`. They are now `PageVisualizationAlias`, a
+  sanctioned and documented local extension (issue #2231's prescription) rather
+  than five names hidden inside a hand-written union. Removing it is the separate
+  "visualizations are not page types" cleanup.
+
+  Guarded going forward: `spec-subschema-parity.test.ts` pins the two zod schemas
+  **by reference** (a faithful copy fails, because a copy is a fork), and the new
+  `spec-derived-unions.test.ts` covers the type aliases, which reference identity
+  cannot reach.
+
+- 24e0e0a: feat(components,grid,list): a column-header sort orders the whole list, not the page you can see — #3106
+
+  Clicking a column header under server pagination sorted **the current page**.
+  The user saw "sorted by this column" and got "these fifty rows are in order;
+  page 2 starts over". The sort was real — its scope was not the one the screen
+  implied — and it had no way out of `data-table` at all: the sort lived in two
+  `useState`s with no callback, so the layer that issues the request could not
+  see it even in principle.
+
+  `DataTable` gains `manualSorting` + a controlled `sort` + `onSortChange`. In
+  that mode it sorts nothing, reports what a header click asks for, and renders
+  `sort` as the indicator — keeping **no** sort state of its own, because a
+  private copy beside a controlled prop is the shape the defect had.
+
+  `ObjectGrid` turns that into a `$orderby` in both of its server modes (its own
+  fetch, and a parent-driven one), and `ListView` lands it in `currentSort` — the
+  same state the toolbar's sort builder writes. One sort, two controls: that is
+  what makes "does a header sort outrank the saved view's sort?" a non-question
+  rather than a precedence rule someone has to remember.
+
+  Three details that are decisions, not incidentals:
+
+  - **A header click replaces the order** instead of appending to it, so the
+    column under the cursor is the one the list is sorted by. Multi-key orders
+    still come from the sort builder, and the headers render them numbered.
+  - **It cannot ask for "no sort".** In client mode the third click clears, and
+    that is meaningful there — the rows return to the order they arrived in.
+    Across a server-paged collection there is no such order (objectstack#4363), so
+    a header offering it would hand the user a worse lie than the one being fixed.
+    Clearing stays with the sort builder, which can restore the view's default.
+  - **Relational columns render no sort affordance** under server sorting. A
+    `lookup` column shows a related record's name while `$orderby` can only order
+    by the stored id (objectstack#4256) — the same reason #3096 removed them from
+    the toolbar's sort picker. Client-side sorting keys off the rendered label, so
+    those headers stay live there.
+
+  Client-side tables are untouched: same three-state cycle, same local sort.
+
+- 03bd53b: feat(form): `SplitForm` honours the spec's new `FormSection.pane`
+
+  A split form's panel assignment was a hardcoded positional rule — first section
+  left, everything else right. The rule was invisible in the metadata, so
+  reordering sections silently moved them across the divider, and an author could
+  not place two sections in the left pane at all.
+
+  Sections now declare their panel: `pane: 'primary' | 'secondary'`
+  (@objectstack/spec `FormSection.pane`, objectstack#4160). Placement follows the
+  key, not the array position — reordering paned sections never changes the
+  layout. Omitted keys keep the exact legacy rule (first section `primary`, rest
+  `secondary`), so existing metadata renders unchanged.
+
+  `ObjectForm`'s split dispatch copies the key through its per-key section mapping
+  (the path that once silently dropped `visibleOn`), and `ObjectFormSection`
+  declares it. The spec side rejects `pane` on non-split form types at parse, so
+  the key can never be an accepted-but-ignored no-op.
+
+- 912496d: feat(types,core): the `*Validation` rule types derive from spec 17, and the engine agrees with the server — objectstack#4115
+
+  The five spec-named rule variants in `data-protocol.ts` were hand-written
+  interfaces, each labelled `(ObjectStack Spec v2.0.1)` while the installed spec
+  was `17.0.0-rc.0`. Nothing bound them to the spec, so fifteen majors of drift
+  accumulated with `tsc` silent throughout and the comment still vouching for it.
+  They are now `z.input` derivations of `ScriptValidationSchema` /
+  `StateMachineValidationSchema` / `CrossFieldValidationSchema` /
+  `ConditionalValidationSchema` / `FormatValidationSchema`, and canonicity is
+  carried by that binding plus a parity gate rather than by a comment (#3017).
+
+  `z.input`, not `z.infer`, because objectui consumes **authored** metadata as it
+  arrives over `/meta` — before the spec applies its defaults and canonicalizes
+  expressions. That is the shape actually in the JSON.
+
+  **Breaking, in the shape of the rule types** (minor per this repo's version
+  policy — see AGENTS.md §9):
+
+  |                                   | was                                         | is                                                      |
+  | --------------------------------- | ------------------------------------------- | ------------------------------------------------------- |
+  | `ConditionalValidation`           | `condition` + `rules[]`                     | `when` + `then` / `otherwise`                           |
+  | `FormatValidation`                | `pattern` + `flags`, 8 named formats        | `regex`, the 4 formats the server implements            |
+  | `Script`/`CrossField` `condition` | `string`                                    | `string \| { dialect, source }`                         |
+  | `StateMachineValidation`          | —                                           | gains `initialStates` (objectstack#3165)                |
+  | `BaseValidation`                  | no `priority`, `events` included `'delete'` | gains `priority`; `'delete'` retired (objectstack#3184) |
+
+  `UniquenessValidation` / `AsyncValidation` / `RangeValidation` are now
+  `@deprecated`. They have no spec counterpart — the spec removed the first two
+  deliberately (uniqueness → a unique index, since SELECT-then-INSERT is racy;
+  async → the form layer) — and the spec's `ValidationRuleSchema` rejects all
+  three, so no rule in those shapes can ride in `ObjectSchema.validations`.
+
+  **`ObjectValidationEngine` now agrees with `objectql`'s rule-validator.** It is a
+  client PRE-CHECK of rules the server enforces, so every disagreement cost the
+  user something real. Fixed:
+
+  - **Polarity was inverted.** The server violates a rule when the predicate is
+    TRUE; the engine violated it when the predicate was FALSE. Every
+    spec-authored `script` / `cross_field` rule produced the opposite verdict.
+  - **Envelope conditions were a silent no-op.** `{ dialect, source }` reached
+    `expression.trim()`, threw, was caught, and read as "passes".
+  - **`conditional` was a silent no-op**, reading `rule.condition` / `rule.rules`
+    where the spec says `when` / `then`; `otherwise` was never evaluated at all.
+  - **`format` produced FALSE REJECTIONS** — it read `rule.pattern`, and
+    `undefined.test(...)` threw into a catch that reported a violation, blocking
+    writes the server accepts.
+  - **An absent `active` disabled the rule** and an absent `events` threw; both
+    arrive absent from `/meta` because the spec defaults them at parse time.
+  - `priority` now orders execution; `initialStates` is enforced on insert;
+    `format`/`state_machine` only fire when the write touches the field; a broken
+    predicate or an uncompilable `regex` fails OPEN with a warning; and a rule type
+    the engine cannot evaluate (the spec's `json_schema`) warns instead of
+    reporting the record as valid.
+
+  The default `SimpleExpressionEvaluator` is not CEL and never was; it now binds
+  both the spec's `record.x` scope and objectui's historical bare `x`, and
+  documents that richer predicates need a CEL-backed evaluator. `validateRecord`'s
+  `event` parameter no longer accepts `'delete'`.
+
+  Gates: `packages/types/src/__tests__/validation-rule-spec-parity.test.ts` (key
+  sets, wire shapes, the pinned `then`/`otherwise` divergence with an inverted pin
+  that fails when objectstack#4171 is fixed upstream) and the rewritten engine
+  suite. objectstack#4115's ledger drops 120 → 115.
+
+### Patch Changes
+
+- 19e9fa0: fix(grid): drop the `bulkEnabled` derivation — the spec key is a tombstone
+
+  Follow-up to objectui#3002 / #3031. That change folded two sources into the
+  selection bar: a view's `bulkActions` names resolved against
+  `objectDef.actions`, and object actions declaring `ActionSchema.bulkEnabled`.
+  The second source is dead.
+
+  `@objectstack/spec` 17.0.0 retired `action.bulkEnabled` in the #3896 audit
+  close-out (framework#4054, landed while #3031 was in flight — the spec source
+  still carried the key when its design was settled). It is now a `retiredKey()`
+  tombstone, so it is not merely ignored: `defineStack` **hard-rejects** a config
+  that sets it, and the backend refuses to boot. Browser verification against a
+  real showcase backend is what surfaced this — the derivation branch could never
+  run, and #3031's changeset pointed authors at a key that breaks their app.
+
+  The tombstone's own prescription is the path that survives:
+
+  > the multi-select toolbar is driven by the LIST VIEW's `bulkActions` /
+  > `bulkActionDefs`, never by this flag … declare the action in the view's
+  > `bulkActions` instead.
+
+  So `resolveBulkActions` now folds exactly two vocabularies — inline-authored
+  `bulkActionDefs`, and `bulkActions` names promoted to their declared object
+  action — which is what #3031's other half already did and what the end-to-end
+  run exercised: naming `showcase_mark_done` in the view's `bulkActions` issued
+  one `POST /api/v1/actions/showcase_task/showcase_mark_done` per selected
+  record (10/10 → `done: true, progress: 100` server-side). Everything downstream
+  of the fold is unchanged: promoted defs still carry the action's label, icon,
+  `visible`, confirm text and params; still run through `BulkActionDialog`
+  (params → confirm → progress → result); still dispatch per record with
+  `_rowRecord` attached; still attribute failures per record.
+
+  A stale `bulkEnabled: true` on an object action is now inert rather than a
+  second path into the bar. Note tsc cannot catch this class of drift here — the
+  fold reads a loosely-typed `NamedActionDef` with an index signature, so the
+  retired key never surfaces as `never`.
+
+- 7f0252e: fix(list,data-objectstack,types): exporting a searched list no longer downloads the unsearched superset
+
+  The server-streamed export mirrored the view's `filter` and `sort`, and the
+  code comment claimed that made the file match the screen:
+
+  > Mirrors the active view's filter + sort so the exported file matches what the
+  > user sees.
+
+  It mirrored one half. There was no way to carry the term a user had typed into
+  the search box — `ExportDownloadRequest` had no field for one — so exporting
+  during a search produced **more rows than the list showed**, in a file that
+  looks authoritative, with nothing indicating the difference. The client-side
+  fallback was always correct (it serializes the already-searched `data`); only
+  the server path was wrong, and it is the one that handles xlsx.
+
+  Same family as a dropped filter (objectstack#3948, objectstack#4181): a
+  plausible answer that is quietly broader than the one asked for.
+
+  - `ExportDownloadRequest` gains `search` / `searchFields`.
+  - `ObjectStackAdapter.exportDownload` sends them as `search=` / `searchFields=`,
+    trimming the term and omitting both when it is blank (`searchFields` alone
+    means nothing).
+  - `ListView` passes the active `searchTerm` and the view's `searchableFields`,
+    and both are now in the export callback's dependency array — a stale closure
+    would export the wrong row set.
+
+  Requires a server with objectstack#4230. Older servers ignore unknown query
+  params on this route, so they keep today's behaviour rather than erroring.
+
+  **Also: the filter merge is no longer written twice.** The three filter sources
+  (view filter, filter-panel group, per-field user filters) were merged by
+  verbatim copies in the data fetch and in the export — two copies that must
+  agree, deciding respectively what the user _sees_ and what they _download_.
+  Both now call `buildEffectiveFilter`. This is a pure extraction: the copies did
+  agree, and the four parity tests added for it pass against the old code too.
+  They exist to keep it that way — the adapter's duplicated filter-shape check
+  had already drifted apart unnoticed (#3072).
+
+- 7639a61: fix(form): the spec↔runtime form-field chokepoint stops dropping spec 17 vocabulary, and the validator stops contradicting the renderer — #3090
+
+  `normalizeSectionField` — the one translation point between the spec's authored
+  form-field shape (`field` = object-field reference) and the runtime shape
+  (`name` = data path) — silently dropped four spec keys, worst of all the
+  ADR-0089 **canonical** `visibleWhen` spelling while the deprecated `visibleOn`
+  worked. Now:
+
+  - view-level `visibleWhen` routes into the view-level slot (`visibleOn`) so it
+    ANDs with the object-level rule instead of clobbering it, and the wizard's
+    final-submit gate folds the same slot into its verdict (before, a required
+    field the view itself hides could block submission from off-screen);
+  - `dependsOn`, `keyField`, and `disclosure` carry through;
+  - a behavioral parity gate walks the spec `FormFieldSchema` key set — a key the
+    spec adds fails as unmapped, a key it retires fails as stale.
+
+  `SelectOptionSchema` is now derived from `@objectstack/spec/data` by reference
+  (it used to strip `color` — which `@object-ui/fields` renders — plus `default`
+  and the per-option `visibleWhen` gate), with pinned divergences (`value`
+  widened for UI forms, `visibleWhen` on the #2212 wire contract) and documented
+  UI-only extensions (`disabled`, `icon`). `SelectOption` (TS) gains `color` and
+  `default`.
+
+  `FormFieldSchema` (the runtime vocabulary `objectui validate` enforces) now
+  covers every key the `FormField` interface declares — `widget`, `dependsOn`,
+  `hidden`, `readonly`, `visibleOn`/`visibleWhen`/`readonlyWhen`/`requiredWhen`,
+  `span` — and `type` is optional, matching the interface. A typo'd predicate now
+  fails loudly instead of being stripped; spec-shape fields (`{ field: … }`) are
+  still rejected, pinning the two-layer boundary.
+
+- 94e63ef: fix(form): the runtime `field` metadata slot is declared instead of smuggled, and importing the spec's FormField is a lint error — #3090
+
+  `FormField.field` — the slot where object-bound form paths stash the resolved
+  field-metadata **object** for widgets — rode through the index signature,
+  undeclared, readable only via `as any`. Same key, different layer: in the spec
+  form-view vocabulary `field` is a _string_ (the referenced object-field name),
+  and the undeclared slot kept that pun latent. The slot is now declared
+  (`field?: Record<string, any>`) with the invariant in its JSDoc: on a runtime
+  FormField it is never a string — the authored string form ends at the
+  `normalizeSectionField` chokepoint, and a tripwire test pins that across all
+  three input shapes. Assigning a string is now a compile error; the `as any`
+  casts at the read sites are gone.
+
+  A `no-restricted-imports` tripwire bans importing `FormField`/
+  `FormFieldSchema` from `@objectstack/spec/ui` inside this repo: the spec's
+  FormField TYPE erases to `any` in its dist (objectstack#4171), so the
+  misimport silently deletes type safety — tsc says nothing. The lint message
+  names the two layers and the correct import. The drift-guard parity test is
+  the one legitimate importer, exempted inline with its reason.
+
+  Ledger: `FormField` and `FormFieldSchema` move from untriaged DEBT to ALLOW
+  with the two-layer rationale written down (122 → 120).
+
+- 4874117: fix(grid): an object-declared bulk action runs over the selected records — objectui#3002
+
+  A list view declaring `bulkActions: ['push_down']` rendered a selection-bar
+  button that never ran the action: `ObjectGrid` dispatched the legacy form as
+  `{ type: <action name>, params: { records } }`, putting the action _name_ in the
+  runner's `type` slot. Since objectui#2996 that fails loudly instead of
+  green-toasting a no-op, but it still never ran. Nor could the object declare a
+  bulk action to resolve against — `bulkActionDefs` was passed through from the
+  view JSON verbatim, never derived from `objectDef.actions` the way
+  `rowActionDefs` is derived from `locations: ['list_item']`.
+
+  **No spec change was needed.** `ActionSchema.bulkEnabled` — _"Whether this
+  action can be applied to multiple selected records"_ — has always been the
+  declaration; what was missing was a consumer, exactly as framework's own
+  property-liveness audit recorded (_"engine has `getBulkActions`/`executeBulk`,
+  but no spec-driven view path calls `executeBulk`"_). So no new `locations`
+  entry: a list's selection bar is the only surface on which records are
+  multi-selected, which is what the flag already names. `locations` stays
+  orthogonal — it places an action's single-record entry, and an action may carry
+  both (`locations: ['list_item'], bulkEnabled: true` = one row from the kebab, N
+  rows from the selection bar).
+
+  **`ObjectGrid` folds three sources into the selection bar** (new pure
+  `resolveBulkActions`, the twin of `resolveLegacyRowActions`; `ObjectGrid` is the
+  single convergence point of all three list callers):
+
+  - defs authored inline in the view JSON — unchanged, they win every collision;
+  - object actions declaring `bulkEnabled: true` — **derived**, which is what
+    "declare a bulk action on the object" now means;
+  - legacy `bulkActions` names — resolved against `objectDef.actions` and
+    **promoted** to that def, so they carry the action's label, icon, `visible`
+    predicate, confirm text and params instead of a bare humanized name. A name
+    matching a def already on the bar is dropped rather than rendered as a dead
+    twin; a name matching nothing is still dispatched by name, since a consumer
+    may have registered a runner handler under it.
+
+  **Execution reuses the existing `BulkActionDialog` model** (params → confirm →
+  progress → result). A derived def carries the source action under `actionDef`,
+  and `useBulkExecutor` dispatches it through the action runner once per selected
+  record with the row attached as `_rowRecord` — so `recordIdParam` injection
+  behaves exactly as it does for a `list_item` row action. Client fan-out is the
+  only semantics the single-record action contract supports; a server-side "take
+  every id at once" variant would need its own spec key and endpoint contract.
+  Params and confirmation are collected once by the dialog and handed to the
+  runner as values so it never re-prompts per record, per-record toasts are muted
+  in favour of the dialog's aggregate result, and a failing record is attributed
+  in the result list (and error CSV) rather than counted as a success.
+
+  Also fixed: the bar rendered legacy string buttons **only when no defs
+  existed**, so a view mixing both silently lost half its buttons. After the fold
+  the two lists are disjoint, and both render.
+
+- 7f23cd0: fix(form): a numeric/boolean select option survives selection with its type intact — #3090
+
+  `SelectOptionSchema.value` has accepted `string | number | boolean` for as
+  long as it has existed, but the Radix controls underneath speak strings:
+  picking `{ value: 2 }` silently submitted `"2"` — a wrong-typed write into a
+  number field that nothing on the client ever reported. (Display half-worked:
+  a numeric default matched its numeric item; only SELECTION morphed the type.)
+
+  The renderers now stringify on the way into the control and map the selection
+  back to the AUTHORED option value on the way out (`matchOptionValue`), across
+  the in-form select, the standalone `type: 'select'` component, and the
+  standalone `type: 'radio-group'` component. The TS types stop lying to match:
+  `SelectOption.value` / `RadioOption.value` and the corresponding
+  `value`/`defaultValue`/`onChange` channels widen to what the zod schemas
+  always accepted — a call site treating `option.value` as `string` is now a
+  compile error pointing at a real latent crash, not a false comfort.
+
+  The ripple the widening named, handled at each boundary: `@object-ui/core`'s
+  `OptionLike.value` widens (the option engines compare by identity, so values
+  flow opaquely; the option-lint's CEL-literal domain stringifies at its
+  boundary), and the multi-value field widgets (checkboxes / multiselect /
+  radio) stringify at theirs — multi-value fields store string arrays.
+
+  Round-trip pinned by real Radix interactions in jsdom: the in-form select
+  submits `2` (number), the standalone select hands its handler `false`
+  (boolean).
+
+- 3a6cf24: refactor(types): bind seven spec-named symbols to the spec instead of re-declaring them — objectstack#4115 ledger burn-down
+
+  The `check-spec-symbol-derivation` ledger opened at **156** untriaged collisions.
+  This is the first tranche: **149** remain, and every symbol removed was _proved_
+  equivalent to the spec's before being replaced, not assumed equivalent because
+  its doc comment said so. Four of the seven carried exactly such a comment —
+  "Mirrors the server's `ImportWriteMode` (`@objectstack/spec`)", "(ObjectStack
+  Spec v2.0.1)" — which is the claim this issue exists to make true.
+
+  Bound as re-exports (`@objectstack/spec/api`, `/kernel`, `/ui`):
+  `BreakpointName`, `ExportJobStatus`, `ImportJobStatus`, `ImportWriteMode`,
+  `ValidationError`.
+
+  Derived with `z.infer` (`@objectstack/spec/data`): `JoinStrategy`,
+  `WindowFunction` — the spec exports these as zod enums rather than as types, so
+  a re-export would not compile against them.
+
+  All seven are structurally unchanged, so no consumer changes: the full repo
+  type-check passes 76/76.
+
+  **What decided the tranche.** Mutual assignability (`[Local] extends [Spec]` and
+  back) looks like the obvious test for "is this a safe re-export", and it lies in
+  three ways, all of them present in this repo:
+
+  - The **spec's own** export resolves to `any` — `NavigationItem`, `JoinNode`,
+    `FormField`. Binding these would replace a precise local interface with `any`,
+    a type-safety regression wearing a burn-down's clothes. A naive probe reports
+    them as "identical to the spec" and recommends exactly the wrong edit.
+  - The **local** declaration resolves to `any` — recursive zod schemas annotated
+    `z.ZodType<any>` (`FilterConditionSchema`, `NavigationItemSchema`).
+  - The local declaration carries `[key: string]: any` — the objectstack#4075
+    mechanism, which absorbs any extra member so two types compare equal while
+    accepting wildly different objects (`FormField`, `AppSchema`, `PageSchema`,
+    `ThemeSchema`, and 12 more).
+
+  A zod schema needs one question more than a type does: `FormFieldSchema` has an
+  **identical `_output` and a divergent `_input`**, so re-exporting it would have
+  silently changed what authoring input parses. All of this is now written into the
+  ledger's burn-down instructions, with the detection probe for each case.
+
+  `spec-derived-unions.test.ts` gains an **inverted pin** for the three spec-side
+  `any` cases: it asserts they are _still_ `any`. The day the spec types any of
+  them properly the assertion stops compiling, and the failure is the instruction
+  to re-run the triage and burn that symbol down.
+
+  **Guard fix:** `referencesSpec` walked the declaration's own name node, so a
+  symbol whose name was also bound to a spec import counted as derived from
+  itself. TypeScript rejects that particular pair as a duplicate identifier, so it
+  was not reachable in compiling code — but a guard that depends on the compiler
+  having run first is a guard with a hole in it. The clean-tree result is
+  unchanged, confirming it was masking nothing.
+
+- aa35561: fix(form): a split create/edit form no longer loses the panel you are not submitting from (#2153)
+
+  `SplitForm` rendered one `SchemaRenderer` — one react-hook-form instance and one
+  `<form>` element — **per section**, and its two groups of sections live in
+  separate resizable panels. So each panel owned isolated form state: submitting
+  from one panel's action bar sent only that section's fields and silently dropped
+  everything the user had typed on the other side of the divider. Filling both
+  panels and clicking Create persisted `{ subject }` alone.
+
+  The same isolation killed cross-panel field rules: a `visibleWhen` in the right
+  panel referencing a left-panel field never saw that field in its record, so the
+  predicate faulted and failed **open** — the field the author meant to hide was
+  always shown.
+
+  Both panels are now ONE form. The panel group became a layout the form renderer
+  owns, via a new `FormSchema.fieldPanes` (+ `fieldPanesOrientation`,
+  `fieldPanesResizable`) that mirrors `fieldTabs` (#2959): the `<form>` wraps the
+  whole `ResizablePanelGroup` and each pane holds only fields, which is what lets a
+  single react-hook-form instance span the divider. Sections inside a pane render
+  behind the inline `section-divider` header, each at its own declared column
+  density within the form's shared grid.
+
+  One more fix falls out of moving the panels into the renderer: `splitResizable:
+false` now actually pins the divider. It previously only hid the grip — the
+  separator stayed draggable, because nothing passed the panel library's
+  `disabled`.
+
+  Each pane is its own `@container`, so a multi-column section collapses to fewer
+  columns as its panel is dragged narrower instead of overflowing.
+
+- 3c1f321: fix(form): a tabbed/sectioned create-edit form no longer loses the tabs you are not looking at (#2959, #2153)
+
+  The explicit-`sections` path rendered one `SchemaRenderer` — one react-hook-form
+  instance and one `<form>` element — **per section**, all sharing the same
+  `formId`. Two failures compounded:
+
+  1. the footer submit button (`form={formId}`) can only be associated with the
+     **first** of those forms, so section 2+ never reached the payload; and
+  2. in the `tabbed` variant Radix unmounted the inactive panel, destroying that
+     tab's form state outright.
+
+  Reported flow (HotCRM, 3 tabs, required `description` on tab 3): fill tab 1 →
+  submit → server 400 `description is required` → switch to tab 3, fill it →
+  submit → the server now reports `subject; description; status; priority` **all**
+  missing, because the second submit's body had lost every earlier value.
+
+  `ModalForm` (stacked and `contentLayout: 'tabbed'`) and `TabbedForm` now render
+  ONE form for all sections, matching `ObjectForm` / `DrawerForm`. Stacked sections
+  use the existing inline `section-divider` header (which now also renders the
+  section's `description`); tabbed sections go through a new
+  `FormSchema.fieldTabs` (+ `defaultFieldTab`, `fieldTabsPosition`) that the form
+  renderer distributes into **force-mounted** Radix panels — CSS-hidden rather
+  than unmounted, since react-hook-form skips validation for unmounted fields,
+  which is how a required field on a tab nobody opened used to sail past the
+  client and come back as a server 400.
+
+  Validation feedback now points at the tab: a rejected field activates its tab and
+  every tab holding one is marked on its trigger, for client-side rules and server
+  `fields[]` rejections alike.
+
+- a045a32: **`@object-ui/types`' tests are type-checked, so the spec-derivation guards actually run (framework#4074).**
+
+  `spec-derived-unions.test.ts` exists to stop a spec-derived union from being
+  re-forked into a hand-written copy, and its header claimed the `satisfies` checks
+  in it "are the real enforcement". They were not. `tsconfig.json` excludes test
+  files — correctly, since it is the package build with `rootDir` / `composite` /
+  `declaration`, so tests would emit into dist — and no other `tsc` invocation read
+  them. Measured, not assumed: reverting `ActionParamFieldType` from the spec's
+  `FieldType` back to its old hand-written subset produced **zero** type errors.
+
+  It now produces `TS1360` on the `satisfies` line. Same for the sibling guards over
+  `ChartType`, `ReportType`, `ActionType` and `PageType`, which were equally inert —
+  the anti-regression mechanism left by #2944/#2901 was not running.
+
+  `packages/types/tsconfig.test.json` follows the shape the package already uses for
+  `tsconfig.examples.json`: a separate, emit-free project chained from `type-check`.
+  Kept separate rather than deleting the exclude so the BUILD stays honest — the
+  reexport guard's source scan needs `types: ["node"]`, and folding that into
+  `tsconfig.json` would let package source reference Node APIs and still compile, in
+  a package that ships to browsers.
+
+  Turning it on surfaced 39 pre-existing type errors in test files, all fixed here
+  except one declared gap:
+
+  - **`p2-spec-exports.test.ts`** imported eight `…Schema` names as types from
+    `../index`. #2561 decision (a) removed those, and the sibling
+    `spec-ui-schema-reexports.test.ts` asserts their absence — so this file
+    contradicted its own guard for the whole interval. A type-only import of a
+    nonexistent name erases at runtime, so the suite stayed green. Its minimal
+    fixtures were also typed as parsed OUTPUT while being parse INPUT (these schemas
+    `.default()` several fields); they now use `z.input<>`, the distinction spec
+    draws itself with `ActionInput`. `operator: 'eq'` is likewise a legacy alias spec
+    folds at parse time, valid as input and absent from the canonical output union.
+  - **`app-creation-types.test.ts` / `system-fields.test.ts`** imported the package
+    by its own name. `turbo`'s `type-check` depends on `^build` (upstream only), so
+    the package's own `dist` does not exist when it runs; they now use the relative
+    import every sibling test uses.
+  - **`p1-spec-alignment.test.ts`** is excluded with a written reason, and is real
+    debt rather than hygiene: all 14 of its errors sit in tests named
+    "should accept &lt;shape&gt;" whose entire purpose is asserting the type accepts
+    that shape, and the type rejects it. The clearest case —
+    "should accept sharing in ObjectUI format `{ visibility, enabled }`" — describes
+    a shape that IS handled, by `foldSharing` in core's `normalize-list-view.ts`, but
+    only as untyped input (`normalizeListViewSchema<T>(schema: T): T`), so no type
+    names it. Each site is a separate decision (widen the type so the claim becomes
+    true, or drop the claim) and several touch the public surface, so they are
+    tracked on framework#4074 instead of being silently rewritten here.
+
+  Only `packages/types` is converted. 28 other packages still exclude their tests
+  from type-checking, and 5 (`fields`, `cli`, `data-objectstack`, `plugin-charts`,
+  `plugin-editor`) already include them — this establishes the pattern for the rest
+  rather than sweeping them.
+
+- 9867281: fix(types): zod-validation example and zod README teach the Zod 4 `.issues` accessor, and `examples/` is now type-checked
+
+  `ZodError.errors` was removed in Zod 4 (the repo is on 4.4.3). The
+  `packages/types/examples/zod-validation-example.ts` documentation example read
+  `.errors` in seven places, so every `console.error` printed `undefined` and the
+  last one — `invalidButtonResult.error.errors.length` — threw
+  `TypeError: Cannot read properties of undefined (reading 'length')`, killing the
+  example before its summary. Same bug, same cause as the `objectui validate` fix
+  in #2919; now reads `.issues`.
+
+  `src/zod/README.md` documented the same dead accessor plus a Zod 3 issue shape
+  (`code: 'invalid_enum_value'`, `"Invalid enum value. Expected …"`). Both were
+  corrected against what 4.4.3 actually emits: `code: 'invalid_value'` with a
+  `values` array and `'Invalid option: expected one of …'`.
+
+  **The example was invisible to CI, so the swap alone would let this rot again.**
+  `packages/types` type-checks with `tsc --noEmit` over a project whose `include`
+  is `["src/**/*"]` — `examples/` was outside it (the `"examples"` entry in
+  `exclude` was belt-and-braces; deleting it alone would have changed nothing).
+  Examples cannot simply join that project either: it is the package build
+  (`tsc` → `dist`) with `rootDir: "./src"`, `composite` and `declaration`, so
+  example files are both outside `rootDir` and would emit into `dist`.
+
+  Added `packages/types/tsconfig.examples.json` — an emit-free project covering
+  `examples/**/*.ts` — and chained it: `"type-check": "tsc --noEmit && tsc -p
+tsconfig.examples.json"`. The example also now imports from `../src/zod/index.zod`
+  rather than `../dist/zod/index.zod.js`, matching its three sibling example files
+  (`dashboard.ts`, `login-form.ts`, `rest-data-source.ts`, all on `../src/index`)
+  so the check needs no prior build.
+
+  Verified the gate has teeth rather than trusting the green: restoring `.errors`
+  makes `tsc -p tsconfig.examples.json` fail with seven
+  `TS2339: Property 'errors' does not exist on type 'ZodError<…>'`. The example
+  also runs clean end-to-end again, printing `Expected validation errors: 2`
+  where it previously threw.
+
+  No runtime or published-type change: `examples/` is not in the package's `files`.
+
 ## 17.0.0
 
 ### Major Changes

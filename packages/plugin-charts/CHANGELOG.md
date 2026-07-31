@@ -1,5 +1,139 @@
 # @object-ui/plugin-charts
 
+## 17.1.0
+
+### Minor Changes
+
+- f1c04b6: fix(charts): a spec `series[].type` override actually draws, and a spec-shape `series` plots at all (#2945)
+
+  #2945 listed `combo` (`plugin-charts`) as renderer-local dialect to "promote or
+  delete". Neither: the spec **already models a combo chart**, per-series, and its
+  own field comment says so —
+
+  ```ts
+  // spec/src/ui/chart.zod.ts — ChartSeriesSchema
+  /** Series type override (combo charts) */
+  type: ChartTypeSchema.optional().describe('Override chart type for this series'),
+  ```
+
+  — exactly as it models stacking with `ChartSeries.stack` rather than a
+  `stacked-bar` family. So `combo` is not a name an author should reach for; it is
+  what "the series disagree about their family" looks like from the renderer's
+  side. `effectiveChartFamily` now derives it, and `combo` stays a documented
+  renderer-local marker (internal callers pass it directly today).
+
+  Chasing that turned up two live bugs, both silent, on the path a spec author
+  takes.
+
+  **1. The per-series override was parsed, carried, and then dropped.** Only the
+  renderer's `chartType === 'combo'` branch read `series[].chartType`, so
+
+  ```ts
+  { type: 'bar', series: [{ name: 'revenue' }, { name: 'margin', type: 'line' }] }
+  ```
+
+  drew `margin` as a bar. Nothing was wrong at any layer but the last — a unit test
+  even asserted the value was carried.
+
+  **2. A spec-shape `series` rendered nothing at all.** `series` is the one binding
+  both shapes spell with the same key, so `ChartRenderer`'s blanket "internal props
+  win" rule let the author's `[{ name }]` shadow the normalized `[{ dataKey }]` and
+  reach a renderer that reads `dataKey`. Blank chart. Every other spec binding has a
+  distinct name (`xAxis` vs `xAxisKey`), which is why only this one broke — and why
+  the isolated normalization tests all passed over a dead path. The raw array is now
+  preferred only when it already speaks the internal shape, so internal callers are
+  byte-for-byte unchanged and a mixed array works too.
+
+  **Also fixed in passing:** the combo branch had an `area` arm under a `BarChart`
+  container, and Recharts renders an `<Area>` child of `BarChart` as nothing — so an
+  authored combo with an `area` series drew a blank series. The container is now
+  `ComposedChart`, which is what Recharts provides for mixed marks.
+
+  Widening only. A chart whose series all resolve to one family keeps its own
+  family, an explicit `combo` is untouched, and a family with no per-series meaning
+  (`pie`, `horizontal-bar`, …) is never widened. A derived combo binds series to the
+  left axis unless one asks for `yAxis: 'right'` — the spec's own default — so
+  widening changes the series' mark and not its scale; the legacy bar→left/line→right
+  guess is kept for an authored `combo`, where it was historically the only way to
+  reach a second axis.
+
+  Guards: `effectiveChartFamily` / `comboBaseFamily` are unit-tested over the whole
+  family matrix; DOM-level tests assert the **marks** rather than the derived family,
+  since the carry was already covered and the drawing was what broke; and
+  `spec-derived-unions.test.ts` asserts `combo` is absent from the spec's
+  `ChartTypeSchema`, so the day it is adopted upstream the derivation is named as the
+  thing to retire.
+
+### Patch Changes
+
+- Updated dependencies [62311b6]
+- Updated dependencies [fc0272a]
+- Updated dependencies [9e7349e]
+- Updated dependencies [8864971]
+- Updated dependencies [1cf0de7]
+- Updated dependencies [752e18f]
+- Updated dependencies [c785740]
+- Updated dependencies [b41f401]
+- Updated dependencies [19e9fa0]
+- Updated dependencies [d61efd1]
+- Updated dependencies [95b7214]
+- Updated dependencies [7d9734d]
+- Updated dependencies [6ae818e]
+- Updated dependencies [9eb932b]
+- Updated dependencies [746dd00]
+- Updated dependencies [aebfa4f]
+- Updated dependencies [38ca8be]
+- Updated dependencies [3cb9646]
+- Updated dependencies [68ef584]
+- Updated dependencies [4952edf]
+- Updated dependencies [7f0252e]
+- Updated dependencies [c4d7b20]
+- Updated dependencies [c769d3d]
+- Updated dependencies [7639a61]
+- Updated dependencies [94e63ef]
+- Updated dependencies [c735bf7]
+- Updated dependencies [02aef0c]
+- Updated dependencies [6f29aa5]
+- Updated dependencies [d21794c]
+- Updated dependencies [c4db402]
+- Updated dependencies [5319bf1]
+- Updated dependencies [49e5671]
+- Updated dependencies [9a04d25]
+- Updated dependencies [b5b97e2]
+- Updated dependencies [f59f2c1]
+- Updated dependencies [07de839]
+- Updated dependencies [2a40b5e]
+- Updated dependencies [df613fa]
+- Updated dependencies [4874117]
+- Updated dependencies [ad0183a]
+- Updated dependencies [ce08d55]
+- Updated dependencies [eb4b740]
+- Updated dependencies [5b084eb]
+- Updated dependencies [aa1240a]
+- Updated dependencies [2374a49]
+- Updated dependencies [390c071]
+- Updated dependencies [d10f526]
+- Updated dependencies [2d5d594]
+- Updated dependencies [ea7f477]
+- Updated dependencies [379728f]
+- Updated dependencies [7f23cd0]
+- Updated dependencies [0ded602]
+- Updated dependencies [24e0e0a]
+- Updated dependencies [f8a95e5]
+- Updated dependencies [3a6cf24]
+- Updated dependencies [aa35561]
+- Updated dependencies [03bd53b]
+- Updated dependencies [3c1f321]
+- Updated dependencies [a045a32]
+- Updated dependencies [912496d]
+- Updated dependencies [80edbd4]
+- Updated dependencies [9867281]
+  - @object-ui/core@17.1.0
+  - @object-ui/components@17.1.0
+  - @object-ui/react@17.1.0
+  - @object-ui/types@17.1.0
+  - @object-ui/i18n@17.1.0
+
 ## 17.0.0
 
 ### Minor Changes
