@@ -139,15 +139,28 @@ export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, 
           />
         );
       case 'select':
-        return (
-          <InspectorSelectField
-            label={field.label}
-            value={value != null ? String(value) : ''}
-            options={field.options ?? []}
-            onCommit={(v) => onCommit(v)}
-            disabled={disabled}
-          />
-        );
+        return (() => {
+          const current = value != null ? String(value) : '';
+          const opts = field.options ?? [];
+          // A stored value dropped from the options (e.g. a script node's
+          // legacy `code` / `sms` actionType, framework#4278) must still
+          // render, or editing a legacy node would silently blank it. Surface
+          // it as selectable but flag it — it is not offered to fresh nodes.
+          // Same rule as FlowObjectListField's select cells (ADR-0090 D3).
+          const shown =
+            current && !opts.some((o) => o.value === current)
+              ? [...opts, { value: current, label: `${current} (deprecated)` }]
+              : opts;
+          return (
+            <InspectorSelectField
+              label={field.label}
+              value={current}
+              options={shown}
+              onCommit={(v) => onCommit(v)}
+              disabled={disabled}
+            />
+          );
+        })();
       case 'textarea':
         return (
           <div className="space-y-1">

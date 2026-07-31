@@ -211,6 +211,57 @@ describe('loop / map collection is a template, not a CEL predicate', () => {
   });
 });
 
+describe('script node — the form authors what the executor runs (framework#4278)', () => {
+  const fields = fieldsForNodeType('script');
+  const actionType = fields.find((f) => f.id === 'actionType')!;
+
+  it('offers Call function / Email / Slack — not the broken sms / notification / no-op code', () => {
+    // `sms` / `notification` were in no dispatch set: the executor resolved
+    // them as function names and failed every run. `code` was a recognized
+    // no-op (no server-side JS sandbox). The offered options now mirror the
+    // executor's SCRIPT_BUILTIN_ACTION_TYPES + the invoke_function marker.
+    expect(actionType.options!.map((o) => o.value)).toEqual(['invoke_function', 'email', 'slack']);
+    expect(actionType.defaultValue).toBe('invoke_function');
+  });
+
+  it('authors the function path — the one that runs real logic', () => {
+    for (const id of ['function', 'inputs', 'outputVariable']) {
+      const f = fields.find((x) => x.id === id);
+      expect(f, `script.${id} must be authorable`).toBeDefined();
+      expect(f!.path).toEqual(['config', id]);
+      // Shown by default (invoke_function is the default action type).
+      expect(isFieldVisible(f!, { id: 's', type: 'script' }, fields)).toBe(true);
+    }
+    expect(fields.find((f) => f.id === 'inputs')!.kind).toBe('keyValue');
+  });
+
+  it('gates the builtin side-effect fields to email / slack', () => {
+    const template = fields.find((f) => f.id === 'template')!;
+    expect(template.showWhen).toEqual({ field: 'actionType', equals: ['email', 'slack'] });
+    expect(isFieldVisible(template, { id: 's', type: 'script', config: { actionType: 'slack' } }, fields)).toBe(true);
+    expect(isFieldVisible(template, { id: 's', type: 'script' }, fields)).toBe(false);
+  });
+
+  it('drops the dead plural outputVariables field (declared-but-unread — nothing ever bound it)', () => {
+    expect(fields.find((f) => f.id === 'outputVariables')).toBeUndefined();
+  });
+
+  it('keeps the inline script body render-only: hidden for new nodes, visible when stored', () => {
+    const script = fields.find((f) => f.id === 'script')!;
+    expect(script.showWhen).toEqual({ field: '__legacy__', equals: [] });
+    expect(isFieldVisible(script, { id: 's', type: 'script' }, fields)).toBe(false);
+    expect(
+      isFieldVisible(script, { id: 's', type: 'script', config: { script: 'return 1;' } }, fields),
+    ).toBe(true);
+  });
+
+  it('a stored legacy sms node still renders its builtin fields (stored values are never hidden)', () => {
+    const template = fields.find((f) => f.id === 'template')!;
+    const node = { id: 's', type: 'script', config: { actionType: 'sms', template: 'notify_owner' } };
+    expect(isFieldVisible(template, node, fields)).toBe(true);
+  });
+});
+
 describe('notify node — first-class static config editor (#1895)', () => {
   const fields = fieldsForNodeType('notify');
   const ids = fields.map((f) => f.id);

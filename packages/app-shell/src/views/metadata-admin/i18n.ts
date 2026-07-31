@@ -3420,14 +3420,19 @@ const FLOW_FIELD_ZH: Record<string, Record<string, FlowFieldZh>> = {
   script: {
     actionType: {
       label: '动作类型',
-      help: '本步骤如何运行。原始脚本保持为“代码”。',
-      opts: { code: '代码', email: '邮件', sms: '短信', notification: '通知' },
+      help: '本步骤如何运行。“调用函数”会调用已注册的函数 —— 真正执行逻辑的路径。',
+      opts: { invoke_function: '调用函数', email: '邮件', slack: 'Slack' },
     },
+    function: { label: '函数', help: '要调用的已注册函数 —— 经 defineStack({ functions }) 声明。优先于动作类型。' },
+    inputs: { label: '输入', help: '传给函数的值;{var} 引用会按流程变量解析。' },
+    outputVariable: { label: '输出变量', help: '绑定函数返回值的流程变量,供后续步骤使用。' },
     template: { label: '模板', help: '消息模板 id。' },
     recipients: { label: '收件人', help: '每行一个收件人(用户 id、字段引用或地址)。' },
     variables: { label: '模板变量', help: '注入模板的值。' },
-    script: { label: '代码', help: '脚本主体(JS/TS)。' },
-    outputVariables: { label: '输出变量', help: '此脚本写回的变量名。' },
+    script: {
+      label: '代码(不执行)',
+      help: '内置运行时不执行内联脚本 —— 此节点为 no-op。请把逻辑移入已注册函数并使用“调用函数”。',
+    },
     timeoutMs: { label: '超时(毫秒)' },
   },
   screen: {

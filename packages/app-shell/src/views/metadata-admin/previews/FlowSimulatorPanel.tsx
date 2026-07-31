@@ -74,10 +74,10 @@ function mockableNodes(nodes: SimNode[]): MockableNode[] {
     if (!MOCKABLE.has(n.type)) continue;
     const cfg = (n.config ?? {}) as Record<string, unknown>;
     const outputs: string[] = [];
+    // Singular only — the engine never binds the script node's legacy
+    // `outputVariables` list (framework#4278), so the simulator no longer
+    // pretends it does.
     if (typeof cfg.outputVariable === 'string' && cfg.outputVariable) outputs.push(cfg.outputVariable);
-    if (Array.isArray(cfg.outputVariables)) {
-      for (const o of cfg.outputVariables) if (typeof o === 'string') outputs.push(o);
-    }
     out.push({ id: n.id, label: n.label || n.id, type: n.type, outputs });
   }
   return out;

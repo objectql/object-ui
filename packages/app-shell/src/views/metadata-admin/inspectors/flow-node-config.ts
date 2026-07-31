@@ -468,46 +468,72 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
     cfg('outputVariable', 'Output variable', 'text', { placeholder: 'response' }),
     { id: 'timeoutMs', path: ['timeoutMs'], label: 'Timeout (ms)', kind: 'number', placeholder: '30000' },
   ],
-  // Script — overloaded in real metadata. Two observed shapes, discriminated by
-  // `actionType`: notification (actionType: email/sms/... → template/recipients/
-  // variables) and code (no actionType → script/outputVariables). The form adapts
-  // on actionType; unknown values still show the code fields so nothing is lost.
+  // Script — a callable step (framework#1870): call a registered function
+  // (`function` + `inputs` + `outputVariable` — the only path that runs real
+  // logic), or one of the executor's built-in side effects (email / slack —
+  // `template` / `recipients` / `variables`). The offered options mirror the
+  // spec's `SCRIPT_BUILTIN_ACTION_TYPES` + the `invoke_function` marker, and
+  // the whole group is reconciled against the spec-published
+  // `ScriptConfigSchema` (framework#4278) — before that reconciliation this
+  // group offered `sms` / `notification` (fail every run: neither is built in,
+  // so they resolve as function names), defaulted to `code` (a recognized
+  // no-op: the built-in runtime has no server-side JS sandbox), declared an
+  // `outputVariables` list nothing reads (the executor binds the singular
+  // `outputVariable`), and could not author the function path at all.
+  //
+  // A stored legacy node still renders completely: unknown `actionType` values
+  // (`code` / `sms` / `notification`) show as "(deprecated)" select options,
+  // and the `script` body / builtin fields surface whenever they hold a value
+  // (stored values are never hidden).
   script: [
     cfg('actionType', 'Action type', 'select', {
       options: [
-        { value: 'code', label: 'Code' },
+        { value: 'invoke_function', label: 'Call function' },
         { value: 'email', label: 'Email' },
-        { value: 'sms', label: 'SMS' },
-        { value: 'notification', label: 'Notification' },
+        { value: 'slack', label: 'Slack' },
       ],
-      defaultValue: 'code',
-      help: 'How this step runs. Leave as Code for a raw script.',
+      defaultValue: 'invoke_function',
+      help: 'How this step runs. "Call function" invokes a registered function — the path that runs real logic.',
+    }),
+    cfg('function', 'Function', 'text', {
+      placeholder: 'score_lead',
+      help: 'Registered function to call — declared via defineStack({ functions }). Always wins over Action type.',
+      showWhen: { field: 'actionType', equals: ['invoke_function'] },
+    }),
+    cfg('inputs', 'Inputs', 'keyValue', {
+      help: 'Values passed to the function; {var} references resolve against the live flow variables.',
+      showWhen: { field: 'actionType', equals: ['invoke_function'] },
+    }),
+    cfg('outputVariable', 'Output variable', 'text', {
+      placeholder: 'aiResult',
+      help: "Flow variable the function's return value is bound to, for later steps.",
+      showWhen: { field: 'actionType', equals: ['invoke_function'] },
     }),
     cfg('template', 'Template', 'reference', {
-      // Polymorphic: an email step picks from the email-template catalog; sms /
-      // notification have no flat catalog yet, so they degrade to free text.
+      // Polymorphic: an email step picks from the email-template catalog; slack
+      // has no flat catalog yet, so it degrades to free text.
       ref: { kindFrom: 'actionType', map: { email: 'email-template' } },
       placeholder: 'case_escalated',
       help: 'Message template id.',
-      showWhen: { field: 'actionType', equals: ['email', 'sms', 'notification'] },
+      showWhen: { field: 'actionType', equals: ['email', 'slack'] },
     }),
     cfg('recipients', 'Recipients', 'stringList', {
       help: 'One recipient per row (user id, field ref, or address).',
-      showWhen: { field: 'actionType', equals: ['email', 'sms', 'notification'] },
+      showWhen: { field: 'actionType', equals: ['email', 'slack'] },
     }),
     cfg('variables', 'Template variables', 'keyValue', {
       help: 'Values injected into the template.',
-      showWhen: { field: 'actionType', equals: ['email', 'sms', 'notification'] },
+      showWhen: { field: 'actionType', equals: ['email', 'slack'] },
     }),
-    cfg('script', 'Code', 'textarea', {
+    // Legacy render-only (`__legacy__` never matches): the built-in runtime
+    // does NOT execute inline script bodies (no server-side JS sandbox — the
+    // executor warns and completes as a no-op), so the field is not offered
+    // for new authoring; a stored body still renders so nothing is hidden.
+    cfg('script', 'Code (not executed)', 'textarea', {
       placeholder: 'return { ok: true };',
-      help: 'Script body (JS/TS).',
+      help: 'Inline scripts are NOT executed by the built-in runtime — this node is a no-op. Move the logic into a registered function and use "Call function".',
       refMode: 'expression',
-      showWhen: { field: 'actionType', equals: ['code'] },
-    }),
-    cfg('outputVariables', 'Output variables', 'stringList', {
-      help: 'Names of variables this script writes back.',
-      showWhen: { field: 'actionType', equals: ['code'] },
+      showWhen: { field: '__legacy__', equals: [] },
     }),
     { id: 'timeoutMs', path: ['timeoutMs'], label: 'Timeout (ms)', kind: 'number', placeholder: '30000' },
   ],

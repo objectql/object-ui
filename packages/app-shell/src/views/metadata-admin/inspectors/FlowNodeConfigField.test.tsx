@@ -100,3 +100,30 @@ describe('FlowNodeConfigField — expression vs template validation gating', () 
     expect(screen.queryByRole('note')).toBeNull();
   });
 });
+
+describe('FlowNodeConfigField — select keeps a stored value dropped from the options (framework#4278)', () => {
+  const ACTION_TYPE: FlowConfigField = {
+    id: 'actionType',
+    path: ['config', 'actionType'],
+    label: 'Action type',
+    kind: 'select',
+    options: [
+      { value: 'invoke_function', label: 'Call function' },
+      { value: 'email', label: 'Email' },
+      { value: 'slack', label: 'Slack' },
+    ],
+  };
+
+  it('renders a legacy stored value as a flagged "(deprecated)" option instead of blanking it', () => {
+    // A stored script node with the retired `sms` actionType must keep showing
+    // that value — the same rule FlowObjectListField applies to select cells.
+    render(<FlowNodeConfigField field={ACTION_TYPE} value="sms" onCommit={() => {}} />);
+    expect(screen.getByText('sms (deprecated)')).toBeInTheDocument();
+  });
+
+  it('offers only the declared options when the stored value is one of them', () => {
+    render(<FlowNodeConfigField field={ACTION_TYPE} value="email" onCommit={() => {}} />);
+    expect(screen.getByText('Email')).toBeInTheDocument();
+    expect(screen.queryByText(/deprecated/)).toBeNull();
+  });
+});

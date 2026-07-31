@@ -112,8 +112,9 @@ export interface FlowValidation {
 }
 
 /**
- * Author-supplied mock outputs, keyed by node id. The value is merged into the
- * simulation variables according to the node type (single `outputVariable` or a
- * `outputVariables` list). For a `screen` node it supplies the captured inputs.
+ * Author-supplied mock outputs, keyed by node id. The value is bound to the
+ * node's `outputVariable` (the engine's only output binding — the legacy
+ * script `outputVariables` list is ignored, framework#4278). For a `screen`
+ * node it supplies the captured inputs.
  */
 export type MockResults = Record<string, unknown>;

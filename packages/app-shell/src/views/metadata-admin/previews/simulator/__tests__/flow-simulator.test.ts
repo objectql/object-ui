@@ -221,7 +221,27 @@ describe('FlowSimulator', () => {
     expect(sim.state.steps.find((s) => s.nodeId === 'g')?.status).toBe('mocked');
   });
 
-  it('writes mocked outputVariables[] for a code script', () => {
+  it('writes a mocked outputVariable for a function script', () => {
+    const sim = run(
+      [
+        { id: 's', type: 'start' },
+        { id: 'sc', type: 'script', config: { function: 'score_lead', outputVariable: 'score' } },
+        { id: 'e', type: 'end' },
+      ],
+      [
+        { source: 's', target: 'sc' },
+        { source: 'sc', target: 'e' },
+      ],
+      {},
+      { sc: 42 },
+    );
+    expect(sim.state.variables.score).toBe(42);
+  });
+
+  it('does NOT bind the legacy script outputVariables[] list (framework#4278)', () => {
+    // The engine never binds those names — it binds the singular
+    // `outputVariable` on the function path. Simulating the list taught
+    // authors a binding that does not exist at run time.
     const sim = run(
       [
         { id: 's', type: 'start' },
@@ -235,7 +255,7 @@ describe('FlowSimulator', () => {
       {},
       { sc: { score: 42 } },
     );
-    expect(sim.state.variables.score).toBe(42);
+    expect(sim.state.variables.score).toBeUndefined();
   });
 
   it('pauses on a wait node and resumes', () => {

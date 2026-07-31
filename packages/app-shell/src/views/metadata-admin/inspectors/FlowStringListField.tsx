@@ -2,7 +2,7 @@
 
 /**
  * FlowStringListField — a repeatable single-column editor for string-array
- * config (e.g. a notification's `recipients`, a script's `outputVariables`).
+ * config (e.g. a notification's `recipients` or `channels`).
  *
  * Mirrors FlowKeyValueField's local-draft pattern: rows live in LOCAL state
  * with a STABLE id and only flush to `onCommit` on blur / Enter / add / remove,

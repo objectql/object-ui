@@ -385,7 +385,13 @@ export class FlowSimulator {
     return this.state.variables[key];
   }
 
-  /** Apply a node's mock output to the simulation variables; returns what it wrote. */
+  /**
+   * Apply a node's mock output to the simulation variables; returns what it
+   * wrote. Only the singular `outputVariable` binds — the script node's legacy
+   * `outputVariables` list is deliberately ignored, because the engine never
+   * binds those names (framework#4278); simulating them taught authors a
+   * binding that does not exist at run time.
+   */
   private applyMock(node: SimNode): Record<string, unknown> | undefined {
     const cfg = node.config ?? {};
     const mock = this.mocks[node.id];
@@ -395,16 +401,6 @@ export class FlowSimulator {
     if (single) {
       wrote[single] = mock !== undefined ? mock : {};
       this.state.variables[single] = wrote[single];
-    }
-
-    const list = Array.isArray(cfg.outputVariables) ? (cfg.outputVariables as unknown[]) : [];
-    if (list.length) {
-      const m = mock && typeof mock === 'object' ? (mock as Record<string, unknown>) : {};
-      for (const name of list) {
-        if (typeof name !== 'string') continue;
-        wrote[name] = name in m ? m[name] : undefined;
-        this.state.variables[name] = wrote[name];
-      }
     }
     return Object.keys(wrote).length ? wrote : undefined;
   }

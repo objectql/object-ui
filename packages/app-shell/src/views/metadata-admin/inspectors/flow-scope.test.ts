@@ -50,8 +50,12 @@ describe('nodeOutputRefs', () => {
   it('reads a single outputVariable', () => {
     expect(tokens(nodeOutputRefs({ id: 'g', type: 'get_record', config: { outputVariable: 'records' } }))).toEqual(['records']);
   });
-  it('reads a list of outputVariables (script)', () => {
-    expect(tokens(nodeOutputRefs({ id: 's', type: 'script', config: { outputVariables: ['lead_score', 'qualified'] } }))).toEqual(['lead_score', 'qualified']);
+  it('does NOT read the legacy script outputVariables[] list (framework#4278)', () => {
+    // The engine never binds those names — suggesting them offered successors
+    // variables that never exist at run time. The script node's real output
+    // binding is the singular `outputVariable` on the function path.
+    expect(tokens(nodeOutputRefs({ id: 's', type: 'script', config: { outputVariables: ['lead_score', 'qualified'] } }))).toEqual([]);
+    expect(tokens(nodeOutputRefs({ id: 's', type: 'script', config: { function: 'score', outputVariable: 'lead_score' } }))).toEqual(['lead_score']);
   });
   it('flags a loop/map iterator as a loop ref and collects its output', () => {
     const refs = nodeOutputRefs({ id: 'm', type: 'map', config: { iteratorVariable: 'item', outputVariable: 'results' } });

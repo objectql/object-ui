@@ -143,11 +143,16 @@ export function flowAncestors(nodeId: string, edges: FlowEdgeLike[]): Set<string
 /**
  * The variable names a node INTRODUCES into scope for its successors — mirroring
  * what the simulator (flow-simulator.ts) and engine actually write:
- * `outputVariable` (single), `outputVariables` (list), an assignment node's
- * `assignments` keys (map / array / flat shapes), a screen's collected
- * `fields[].name`, a screen object-form's `idVariable`, and a loop/map
- * `iteratorVariable` (flagged as a `loop` ref). The start node is NOT handled
- * here — its trigger record is resolved separately.
+ * `outputVariable` (single), an assignment node's `assignments` keys (map /
+ * array / flat shapes), a screen's collected `fields[].name`, a screen
+ * object-form's `idVariable`, and a loop/map `iteratorVariable` (flagged as a
+ * `loop` ref). The start node is NOT handled here — its trigger record is
+ * resolved separately.
+ *
+ * Deliberately NOT read: the script node's legacy `outputVariables` list. The
+ * engine never binds those names (it binds the singular `outputVariable` on the
+ * function path — framework#4278), so suggesting them in the data picker
+ * offered successors variables that never exist at run time.
  */
 export function nodeOutputRefs(node: FlowNodeLike): ScopeRef[] {
   const type = str(node.type);
@@ -165,9 +170,8 @@ export function nodeOutputRefs(node: FlowNodeLike): ScopeRef[] {
   // Loop / map iterator — its own group.
   if (type === 'loop' || type === 'map') add(str(cfg.iteratorVariable), 'loop');
 
-  // Single + multi output variables (create/get/http/subflow/map/end/script).
+  // Single output variable (create/get/http/subflow/map/end/script).
   add(str(cfg.outputVariable));
-  for (const name of asArray(cfg.outputVariables)) add(str(name));
 
   // Screen object-form: the saved record's id is bound to a variable.
   add(str(cfg.idVariable));

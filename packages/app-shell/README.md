@@ -442,13 +442,15 @@ be faithfully modelled is surfaced loudly instead of faked.
   free-form **Set variables** editor that injects/overrides *any* variable at
   start, so **every branch is reachable**. A **Mock outputs** editor lets the
   author pin what each mocked side-effect node "returns" (written to its
-  `outputVariable` / `outputVariables`), so data-dependent logic downstream of a
-  `get_record` or `script` can be exercised too.
+  `outputVariable`), so data-dependent logic downstream of a `get_record` or
+  `script` can be exercised too.
 - **Semantics** — `start`/`assignment` pass through; a `decision` routes
   **edge-first** (first truthy outgoing `condition`, else the `isDefault` edge,
   else a surfaced dead-end), evaluating CEL via `@object-ui/core`'s
   `ExpressionEvaluator` and **surfacing eval errors** (not swallowing them);
-  side-effect nodes write their mock to `outputVariable` / `outputVariables[]`;
+  side-effect nodes write their mock to `outputVariable` (the legacy script
+  `outputVariables[]` list is ignored — the engine never binds those names,
+  framework#4278);
   `wait` and `screen` **pause** for manual continue; `join_gateway`, `subflow`,
   and `boundary_event` are marked **unsupported** (token sync / nested runs are
   not modelled) rather than faked.
