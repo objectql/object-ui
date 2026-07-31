@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hasExplicitDiscussion } from '../pageSchemaIntrospect';
+import { hasExplicitDiscussion, hasExplicitAttachments } from '../pageSchemaIntrospect';
 
 describe('hasExplicitDiscussion', () => {
   it('returns false for nullish and primitive inputs', () => {
@@ -113,5 +113,59 @@ describe('hasExplicitDiscussion', () => {
     const b: any = { type: 'page:section', children: [a] };
     a.children = [b];
     expect(hasExplicitDiscussion(a)).toBe(false);
+  });
+});
+
+// objectstack#4358 — the synthesized default page now places
+// `record:attachments` beside the discussion feed; RecordDetailView uses this
+// walker to skip its legacy bottom-of-page append.
+describe('hasExplicitAttachments', () => {
+  it('returns false for nullish and primitive inputs', () => {
+    expect(hasExplicitAttachments(null)).toBe(false);
+    expect(hasExplicitAttachments(undefined)).toBe(false);
+    expect(hasExplicitAttachments('record:attachments')).toBe(false);
+  });
+
+  it('detects record:attachments at the root and nested in children', () => {
+    expect(hasExplicitAttachments({ type: 'record:attachments' })).toBe(true);
+    expect(
+      hasExplicitAttachments({
+        type: 'grid',
+        children: [{ type: 'record:attachments' }, { type: 'record:discussion' }],
+      }),
+    ).toBe(true);
+  });
+
+  it('detects attachments inside the synthesized footer grid (regions[].components[])', () => {
+    // Mirrors buildDefaultPageSchema output for an enable.files object.
+    const synthPage = {
+      type: 'record',
+      regions: [
+        {
+          name: 'main',
+          components: [
+            { type: 'page:header' },
+            { type: 'page:tabs', items: [{ type: 'page:tab', children: [] }] },
+            {
+              type: 'grid',
+              columns: { xs: 1, lg: 3 },
+              children: [
+                { type: 'record:attachments', className: 'lg:col-span-1' },
+                { type: 'record:discussion', className: 'lg:col-span-2' },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    expect(hasExplicitAttachments(synthPage)).toBe(true);
+  });
+
+  it('returns false when no attachments node exists (discussion alone)', () => {
+    expect(
+      hasExplicitAttachments({
+        regions: [{ components: [{ type: 'record:discussion' }] }],
+      }),
+    ).toBe(false);
   });
 });

@@ -829,6 +829,18 @@ const zh = {
     attachmentCount: '{{count}} 个附件',
     attachmentCountPlural: '{{count}} 个附件',
     removeAttachment: '移除附件',
+    // Record Attachments panel (enable.files, objectstack#4358)
+    attachments: '附件',
+    uploadAttachment: '上传',
+    loadingAttachments: '正在加载附件…',
+    noAttachments: '暂无附件。上传一个文件开始吧。',
+    downloadAttachment: '下载',
+    deleteAttachment: '删除附件',
+    attachmentDeleteDenied: '只有上传者或可编辑此记录的用户才能删除此附件。',
+    attachmentParentAccessDenied: '您无权为此记录添加附件。',
+    attachmentDownloadDenied: '您无权下载此附件。',
+    attachmentAuthRequired: '请登录后再下载此附件。',
+    attachmentPermissionDenied: '您没有执行此操作的权限。',
     // Diff
     unifiedDiff: '统一视图',
     sideBySideDiff: '并排视图',

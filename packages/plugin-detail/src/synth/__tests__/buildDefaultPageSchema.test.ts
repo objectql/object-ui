@@ -14,6 +14,7 @@ import {
   buildDefaultHighlights,
   buildDefaultTabs,
   buildDefaultDiscussion,
+  buildDefaultAttachments,
   detectStatusField,
   deriveStages,
   deriveHighlightFields,
@@ -720,6 +721,81 @@ describe('buildDefaultPageSchema', () => {
 
     it('buildDefaultDiscussion returns the record:discussion node', () => {
       expect(buildDefaultDiscussion()).toEqual({ type: 'record:discussion' });
+    });
+
+    it('buildDefaultAttachments returns the record:attachments node', () => {
+      expect(buildDefaultAttachments()).toEqual({ type: 'record:attachments' });
+    });
+  });
+
+  // objectstack#4358 — `enable.files` objects get the Attachments panel to
+  // the LEFT of the discussion feed instead of the legacy below-the-feed
+  // append that a growing timeline buried.
+  describe('attachments footer row (enable.files, objectstack#4358)', () => {
+    const filesDef: ObjectDefLike = { ...leadDef, enable: { files: true } };
+
+    it('no enable.files → no record:attachments anywhere', () => {
+      const page = buildDefaultPageSchema(leadDef);
+      expect(JSON.stringify(page)).not.toContain('record:attachments');
+    });
+
+    it('enable.files → footer grid with attachments LEFT of discussion', () => {
+      const page = buildDefaultPageSchema(filesDef);
+      const components = page.regions[0].components;
+      const footer = components[components.length - 1];
+      expect(footer.type).toBe('grid');
+      expect(footer.columns).toEqual({ xs: 1, lg: 3 });
+      expect(footer.children.map((c: any) => c.type)).toEqual([
+        'record:attachments',
+        'record:discussion',
+      ]);
+      // Attachments takes the narrow column, discussion the wide one.
+      expect(footer.children[0].className).toContain('lg:col-span-1');
+      expect(footer.children[1].className).toContain('lg:col-span-2');
+      // The bare record:discussion node is gone from the top level.
+      expect(components.map((c: any) => c.type)).not.toContain('record:discussion');
+    });
+
+    it('enable.files + hideDiscussion → full-width attachments, no grid', () => {
+      const page = buildDefaultPageSchema(filesDef, { hideDiscussion: true });
+      const components = page.regions[0].components;
+      const last = components[components.length - 1];
+      expect(last).toEqual({ type: 'record:attachments' });
+    });
+
+    it('hideAttachments suppresses the panel and restores the plain discussion footer', () => {
+      const page = buildDefaultPageSchema(filesDef, { hideAttachments: true });
+      const components = page.regions[0].components;
+      expect(components[components.length - 1].type).toBe('record:discussion');
+      expect(JSON.stringify(page)).not.toContain('record:attachments');
+    });
+
+    it('attachments slot overrides the default node inside the grid cell', () => {
+      const page = buildDefaultPageSchema(filesDef, {
+        slots: { attachments: { type: 'div', id: 'custom-attachments' } },
+      });
+      const footer = page.regions[0].components[page.regions[0].components.length - 1];
+      expect(footer.type).toBe('grid');
+      expect(footer.children[0].id).toBe('custom-attachments');
+      expect(footer.children[0].className).toContain('lg:col-span-1');
+    });
+
+    it('a multi-node discussion slot is wrapped into ONE grid cell', () => {
+      const page = buildDefaultPageSchema(filesDef, {
+        slots: {
+          discussion: [
+            { type: 'div', id: 'd1' },
+            { type: 'div', id: 'd2' },
+          ],
+        },
+      });
+      const footer = page.regions[0].components[page.regions[0].components.length - 1];
+      expect(footer.type).toBe('grid');
+      expect(footer.children).toHaveLength(2);
+      const cell = footer.children[1];
+      expect(cell.type).toBe('flex');
+      expect(cell.className).toContain('lg:col-span-2');
+      expect(cell.children.map((c: any) => c.id)).toEqual(['d1', 'd2']);
     });
   });
 });

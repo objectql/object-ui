@@ -235,6 +235,9 @@ import './console/home/CloudOnboardingNext';
 // SDUI widget: read-only admin diagnostic for the env's effective AI model
 // (cloud#797) — fetches GET /api/v1/ai/effective-model.
 import './console/diagnostics/CloudAiModelStatus';
+// `record:attachments` — schema-addressable Attachments panel referenced by
+// synthesized record pages when `enable.files: true` (objectstack#4358).
+import './views/record-attachments-renderer';
 
 // Phase 3c — generic metadata admin engine. Re-exported so plugins
 // can call `registerMetadataResource()` to override the per-type

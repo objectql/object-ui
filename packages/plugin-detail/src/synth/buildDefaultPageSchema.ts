@@ -62,6 +62,13 @@ export interface ObjectDefLike {
     /** @deprecated pre-ADR-0085 pair; honoured by the shared derivation. */
     collapsed?: boolean;
   }>;
+  /**
+   * Spec `enable` capability toggles. Only `files` is read here:
+   * `enable.files === true` (opt-in, #2727) makes the synthesizer emit the
+   * `record:attachments` panel beside the discussion feed
+   * (objectstack#4358).
+   */
+  enable?: { files?: boolean; [key: string]: any };
   // NOTE: the per-surface `detail` hints block was REMOVED from the spec by
   // ADR-0085 — presentation intent is declared via the top-level semantic
   // roles above (stageField / highlightFields / fieldGroups). Per-page
@@ -89,6 +96,8 @@ export interface BuildPageOptions {
   sections?: Array<{ title?: string; columns?: number; fields?: any[] }>;
   /** Suppress the auto-appended `record:discussion` slot. */
   hideDiscussion?: boolean;
+  /** Suppress the auto-emitted `record:attachments` panel (`enable.files`). */
+  hideAttachments?: boolean;
   /** Suppress the auto-prepended `record:highlights` strip. */
   hideHighlights?: boolean;
   /** Suppress the auto-prepended `record:path` stepper. */
@@ -215,6 +224,7 @@ export interface BuildPageOptions {
     details?: any | any[];
     tabs?: any | any[];
     discussion?: any | any[];
+    attachments?: any | any[];
     rightRail?: any | any[];
   };
 }
@@ -622,13 +632,43 @@ export function buildDefaultDiscussion(): any {
 }
 
 /**
+ * Sub-builder: the `record:attachments` panel (#2727). Emitted only when the
+ * object opts in via `enable.files: true` — the same gate the server enforces
+ * on `sys_attachment` rows (403 FILES_DISABLED otherwise).
+ */
+export function buildDefaultAttachments(): any {
+  return { type: 'record:attachments' };
+}
+
+/**
+ * Place `nodes` into one cell of the footer grid. A single node carries the
+ * span class itself; multiple nodes (slotted overrides) get a neutral flex
+ * column wrapper so they stay one grid cell instead of fanning out into
+ * their own columns.
+ */
+function toFooterCell(nodes: any[], spanClass: string): any {
+  if (nodes.length === 1) {
+    const node = nodes[0];
+    return {
+      ...node,
+      className: [node?.className, spanClass].filter(Boolean).join(' '),
+    };
+  }
+  return { type: 'flex', direction: 'col', gap: 4, className: spanClass, children: nodes };
+}
+
+/**
  * Synthesize the canonical Page schema for an object's default detail
  * page.
  *
  * Shape:
  *   { type:'record', template:'full-width', regions:[ { name:'main',
  *     components: [page:header, record:highlights?, record:path?,
- *     page:tabs, record:discussion?] } ] }
+ *     page:tabs, footer] } ] }
+ *   where `footer` is `record:discussion?` alone, or — when the object
+ *   declares `enable.files: true` — a responsive grid row placing
+ *   `record:attachments` to the left of the discussion feed
+ *   (objectstack#4358).
  *
  * Notes:
  *   - The `record:details` tab content is registered separately and
@@ -742,11 +782,39 @@ export function buildDefaultPageSchema(
     }));
   }
 
-  // 5) Discussion footer.
-  if ('discussion' in slots && slots.discussion !== undefined) {
-    components.push(...toNodeArray(slots.discussion));
-  } else if (!options.hideDiscussion) {
-    components.push(buildDefaultDiscussion());
+  // 5) Footer row: Discussion — and, when the object opts into record
+  //    attachments (`enable.files`, #2727), the Attachments panel to the
+  //    LEFT of the feed. Side-by-side (attachments 1/3, discussion 2/3 on
+  //    lg+; stacked attachments-first below) instead of the old
+  //    below-the-feed append, where an ever-growing timeline buried the
+  //    panel beyond discoverability (objectstack#4358).
+  const attachmentNodes: any[] =
+    'attachments' in slots && slots.attachments !== undefined
+      ? toNodeArray(slots.attachments)
+      : !options.hideAttachments && def?.enable?.files === true
+        ? [buildDefaultAttachments()]
+        : [];
+  const discussionNodes: any[] =
+    'discussion' in slots && slots.discussion !== undefined
+      ? toNodeArray(slots.discussion)
+      : !options.hideDiscussion
+        ? [buildDefaultDiscussion()]
+        : [];
+  if (attachmentNodes.length > 0 && discussionNodes.length > 0) {
+    components.push({
+      type: 'grid',
+      columns: { xs: 1, lg: 3 },
+      gap: 4,
+      // items-start: the attachments card keeps its natural height instead
+      // of stretching to match a long feed.
+      className: 'items-start',
+      children: [
+        toFooterCell(attachmentNodes, 'lg:col-span-1'),
+        toFooterCell(discussionNodes, 'lg:col-span-2'),
+      ],
+    });
+  } else {
+    components.push(...attachmentNodes, ...discussionNodes);
   }
 
   // 6) Reference Rail — Salesforce/HubSpot-style aside summary of

@@ -8,10 +8,11 @@
  */
 
 const DISCUSSION_TYPES = new Set(['record:discussion', 'record:chatter']);
+const ATTACHMENT_TYPES = new Set(['record:attachments']);
 
 /**
- * Walks a page schema tree and returns true if any node has a
- * `type` of `record:discussion` or `record:chatter`.
+ * Walks a page schema tree and returns true if any node's `type` is in
+ * `types`.
  *
  * Recurses into:
  *  - `children`, `items`, `body`, `components`
@@ -20,7 +21,7 @@ const DISCUSSION_TYPES = new Set(['record:discussion', 'record:chatter']);
  *
  * Cycles are guarded with a WeakSet.
  */
-export function hasExplicitDiscussion(root: unknown): boolean {
+function hasNodeOfType(root: unknown, types: ReadonlySet<string>): boolean {
   const seen = new WeakSet<object>();
   const walk = (node: any): boolean => {
     if (!node || typeof node !== 'object') return false;
@@ -28,7 +29,7 @@ export function hasExplicitDiscussion(root: unknown): boolean {
     seen.add(node);
     if (Array.isArray(node)) return node.some(walk);
     const t = node?.type;
-    if (typeof t === 'string' && DISCUSSION_TYPES.has(t)) return true;
+    if (typeof t === 'string' && types.has(t)) return true;
     const candidates: any[] = [
       node.children,
       node.items,
@@ -46,4 +47,22 @@ export function hasExplicitDiscussion(root: unknown): boolean {
     return candidates.some(walk);
   };
   return walk(root);
+}
+
+/**
+ * True when the page schema already places a `record:discussion` /
+ * `record:chatter` node — the host must then skip its bottom auto-append.
+ */
+export function hasExplicitDiscussion(root: unknown): boolean {
+  return hasNodeOfType(root, DISCUSSION_TYPES);
+}
+
+/**
+ * True when the page schema already places a `record:attachments` node —
+ * the synthesized default does whenever the object declares
+ * `enable.files: true` (objectstack#4358). The host must then skip its
+ * legacy bottom-of-page attachments append.
+ */
+export function hasExplicitAttachments(root: unknown): boolean {
+  return hasNodeOfType(root, ATTACHMENT_TYPES);
 }

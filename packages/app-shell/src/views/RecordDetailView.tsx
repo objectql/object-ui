@@ -24,7 +24,7 @@ import { SkeletonDetail } from '../skeletons';
 import { ManagedByBadge } from '../components/ManagedByBadge';
 import { resolveCrudAffordances } from '../utils/crudAffordances';
 import { deriveRelatedLists } from '../utils/deriveRelatedLists';
-import { hasExplicitDiscussion } from '../utils/pageSchemaIntrospect';
+import { hasExplicitDiscussion, hasExplicitAttachments } from '../utils/pageSchemaIntrospect';
 import { ActionConfirmDialog, type ConfirmDialogState } from './ActionConfirmDialog';
 import { ActionParamDialog, type ParamDialogState } from './ActionParamDialog';
 import { ActionResultDialog, type ResultDialogState } from './ActionResultDialog';
@@ -1873,6 +1873,10 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // `enable.feeds: false` (#2707) suppresses the discussion panel outright —
   // same opt-out contract the server enforces on sys_comment creation.
   const showAutoDiscussion = !disableDiscussion && !hasDiscussion && feedsEnabled;
+  // Synthesized pages place `record:attachments` beside the discussion feed
+  // (objectstack#4358); the legacy bottom-of-page append below stays only as
+  // the fallback for authored pages that don't slot the panel themselves.
+  const hasAttachments = hasExplicitAttachments(effectivePage as any);
 
   // System actions (Edit / Share / Delete) — synthesized for every record
   // page so objects without authored record_header actions still surface
@@ -2106,8 +2110,12 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
               )}
               {/* Generic Attachments panel (#2727) — opt-in via
                   `enable.files: true`; the server rejects attachments
-                  targeting any other object (403 FILES_DISABLED). */}
-              {filesEnabled && pureRecordId && (
+                  targeting any other object (403 FILES_DISABLED).
+                  Fallback only: synthesized pages already place a
+                  `record:attachments` node beside the discussion feed
+                  (objectstack#4358), so this bottom append fires only for
+                  authored pages that omit the panel. */}
+              {filesEnabled && !hasAttachments && pureRecordId && (
                 <div className="mt-6">
                   <RecordAttachmentsPanel
                     objectName={objectName!}

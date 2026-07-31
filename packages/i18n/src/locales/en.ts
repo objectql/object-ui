@@ -817,6 +817,18 @@ const en = {
     attachmentCount: '{{count}} attachment',
     attachmentCountPlural: '{{count}} attachments',
     removeAttachment: 'Remove attachment',
+    // Record Attachments panel (enable.files, objectstack#4358)
+    attachments: 'Attachments',
+    uploadAttachment: 'Upload',
+    loadingAttachments: 'Loading attachments…',
+    noAttachments: 'No attachments yet. Upload a file to get started.',
+    downloadAttachment: 'Download',
+    deleteAttachment: 'Delete attachment',
+    attachmentDeleteDenied: 'Only the uploader or someone who can edit this record may delete this attachment.',
+    attachmentParentAccessDenied: "You don't have access to attach files to this record.",
+    attachmentDownloadDenied: "You don't have access to download this attachment.",
+    attachmentAuthRequired: 'Please sign in to download this attachment.',
+    attachmentPermissionDenied: "You don't have permission to do that.",
     // Diff
     unifiedDiff: 'Unified diff',
     sideBySideDiff: 'Side-by-side diff',
