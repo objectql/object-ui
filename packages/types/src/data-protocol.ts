@@ -21,12 +21,19 @@ import type { SortConfig as BaseSortConfig } from './objectql';
 import type { FilterBuilderOperator as BaseFilterOperator } from './complex';
 
 // Spec-owned vocabulary, bound rather than re-declared (objectstack#4115). The
-// spec exports both of these as zod enums, not as types, so they are derived
-// through `z.infer` — `export type { … } from` would not compile against a value.
+// spec exports these as zod schemas, not as types, so they are derived through
+// `z.infer` / `z.input` — `export type { … } from` would not compile against a
+// value. See the validation-rules section below for why the rule schemas are
+// derived on the `z.input` (authored/wire) side rather than `z.infer`.
 import type { z } from 'zod';
 import type {
   JoinStrategy as SpecJoinStrategy,
   WindowFunction as SpecWindowFunction,
+  ScriptValidationSchema as SpecScriptValidationSchema,
+  StateMachineValidationSchema as SpecStateMachineValidationSchema,
+  CrossFieldValidationSchema as SpecCrossFieldValidationSchema,
+  ConditionalValidationSchema as SpecConditionalValidationSchema,
+  FormatValidationSchema as SpecFormatValidationSchema,
 } from '@objectstack/spec/data';
 
 /**
@@ -169,12 +176,12 @@ export interface AggregateNode extends QueryASTNode {
 export type WindowFunction = z.infer<typeof SpecWindowFunction>;
 
 /**
- * Window frame unit (ObjectStack Spec v2.0.1)
+ * Window frame unit — objectui query-AST vocabulary (no spec counterpart).
  */
 export type WindowFrameUnit = 'rows' | 'range';
 
 /**
- * Window frame boundary (ObjectStack Spec v2.0.1)
+ * Window frame boundary — objectui query-AST vocabulary (no spec counterpart).
  */
 export type WindowFrameBoundary = 
   | 'unbounded_preceding'
@@ -184,7 +191,7 @@ export type WindowFrameBoundary =
   | { type: 'following'; offset: number };
 
 /**
- * Window frame specification (ObjectStack Spec v2.0.1)
+ * Window frame specification — objectui query-AST vocabulary (no spec counterpart).
  */
 export interface WindowFrame {
   unit: WindowFrameUnit;
@@ -193,7 +200,8 @@ export interface WindowFrame {
 }
 
 /**
- * Window function node (ObjectStack Spec v2.0.1)
+ * Window function node — objectui query-AST vocabulary. Only `function` is
+ * spec-owned (see `WindowFunction` above); the frame/partition shape is local.
  */
 export interface WindowNode extends QueryASTNode {
   type: 'window';
@@ -337,7 +345,7 @@ export interface QuerySchema {
   group_by?: string[];
   
   /**
-   * Window functions (ObjectStack Spec v2.0.1)
+   * Window functions
    */
   windows?: WindowConfig[];
   
@@ -384,7 +392,7 @@ export interface AggregationConfig {
 }
 
 /**
- * Window function configuration (ObjectStack Spec v2.0.1)
+ * Window function configuration — objectui query-AST vocabulary (no spec counterpart).
  */
 export interface WindowConfig {
   /** Window function name */
@@ -822,116 +830,157 @@ export interface AdvancedValidationError {
 
 /**
  * =============================================================================
- * ObjectStack Spec v2.0.1: Object-Level Validation Framework
+ * Object-Level Validation Rules
  * =============================================================================
+ *
+ * These are the rules an object declares in `ObjectSchema.validations`. The
+ * vocabulary is **spec-owned**: the server evaluates it on the write path
+ * (`objectql/src/validation/rule-validator.ts`), and objectui's
+ * `ObjectValidationEngine` is a client-side PRE-CHECK of the very same rules.
+ * One concept, one vocabulary — so the five spec-named variants below are
+ * DERIVED from `@objectstack/spec/data` rather than re-declared
+ * (objectstack#4115). Two consequences worth stating, because the hand-written
+ * copies these replaced got both wrong for 15 spec majors:
+ *
+ * ## `z.input`, not `z.infer`
+ *
+ * objectui consumes AUTHORED metadata as it arrives over `/meta` — before the
+ * spec's parse-time defaults and its ExpressionInput canonicalization have run.
+ * `z.input` is the shape actually present in that JSON:
+ *
+ *  - `condition` / `when` are `string | { dialect, source }`, not the canonical
+ *    envelope alone. `z.infer` would type away the bare-string form that every
+ *    hand-authored rule uses.
+ *  - `active` / `events` / `priority` / `severity` may be ABSENT, because the
+ *    spec supplies their defaults at parse time. An absent key is not a falsy
+ *    one: `active` defaults to `true`, `events` to `['insert','update']`.
+ *    `ObjectValidationEngine` applies those defaults instead of reading
+ *    undefined as "off".
+ *
+ * ## Predicate polarity
+ *
+ * A `script` / `cross_field` `condition` and a `conditional` `when` express the
+ * **failure** condition: if the predicate evaluates TRUE, the rule is VIOLATED.
+ * That is the server's semantics. A client pre-check that inverts it rejects
+ * precisely the writes the server accepts, and accepts the ones it rejects.
+ *
+ * Drift guard: `packages/types/src/__tests__/validation-rule-spec-parity.test.ts`.
  */
 
 /**
- * Base validation interface (ObjectStack Spec v2.0.1)
+ * Fields every validation rule carries, derived from the spec's (unexported)
+ * `BaseValidationSchema` by subtracting one variant's own discriminant and
+ * payload. Deriving rather than re-listing keeps `priority` — and whatever the
+ * spec adds next — from going missing here.
  */
-export interface BaseValidation {
-  /** Unique validation name (snake_case) */
-  name: string;
-  
-  /** Display label for the validation */
-  label?: string;
-  
-  /** Description of what this validation does */
-  description?: string;
-  
-  /** Whether this validation is currently active */
-  active: boolean;
-  
-  /** When this validation should run */
-  events: Array<'insert' | 'update' | 'delete'>;
-  
-  /** Severity of validation failure */
-  severity: 'error' | 'warning' | 'info';
-  
-  /** Error message to display on failure */
-  message: string;
-  
-  /** Tags for categorization */
-  tags?: string[];
-}
+export type BaseValidation = Omit<ScriptValidation, 'type' | 'condition'>;
 
 /**
- * Script-based validation (ObjectStack Spec v2.0.1)
- * Uses expression language to define conditions
+ * Script validation — a CEL predicate over the record.
+ *
+ * `condition` is the FAILURE condition (TRUE ⇒ violated), and accepts either the
+ * bare-string shorthand or the `{ dialect, source }` envelope.
  */
-export interface ScriptValidation extends BaseValidation {
-  type: 'script';
-  
-  /** Expression that must evaluate to true */
-  condition: string;
-}
+export type ScriptValidation = z.input<typeof SpecScriptValidationSchema>;
 
 /**
- * Uniqueness validation (ObjectStack Spec v2.0.1)
- * Ensures field combinations are unique
+ * State-machine validation (ADR-0020) — legal transitions for one state field.
+ *
+ * A flat `field` plus a `transitions` map of `{ fromState: [allowedToStates] }`,
+ * governing UPDATE. `initialStates` governs INSERT (the FSM entry point,
+ * objectstack#3165): without it a record can be created mid-flow, because a
+ * `select` field admits any declared option as an initial value.
+ */
+export type StateMachineValidation = z.input<typeof SpecStateMachineValidationSchema>;
+
+/**
+ * Cross-field validation — a CEL predicate spanning several fields.
+ *
+ * Shares `script`'s evaluation path and polarity (TRUE ⇒ violated). Only
+ * `fields[0]` is read, to label which field the violation attaches to; the rest
+ * are documentation.
+ */
+export type CrossFieldValidation = z.input<typeof SpecCrossFieldValidationSchema>;
+
+/**
+ * Format validation — one field against a `regex` and/or a named `format`.
+ *
+ * The named formats are the four the server implements. The hand-written copy
+ * this replaces offered five more (`ipv4`/`ipv6`/`uuid`/`iso_date`/
+ * `credit_card`) plus regex `flags`; none of them can survive the spec's
+ * discriminated union, so a rule using them could never reach the server — the
+ * client would have been enforcing a rule the server never saw.
+ */
+export type FormatValidation = z.input<typeof SpecFormatValidationSchema>;
+
+/**
+ * Conditional validation — evaluate `when`, then apply `then` or `otherwise`.
+ *
+ * PINNED DIVERGENCE (objectstack#4171): every key comes from the spec except
+ * `then` / `otherwise`, which the spec's published types erase to `unknown`
+ * (its `ValidationRuleSchema` is annotated `z.ZodType<BaseValidationRuleShape>`,
+ * an index-signature bag). Re-exporting that would replace a discriminated
+ * union with `unknown` — a type-safety regression wearing a burn-down's
+ * clothes. They are re-typed to objectui's union here, and
+ * `validation-rule-spec-parity.test.ts` carries an inverted pin that fails the
+ * day the spec types them properly, so this divergence cannot outlive its
+ * reason.
+ */
+export type ConditionalValidation = Omit<
+  z.input<typeof SpecConditionalValidationSchema>,
+  'then' | 'otherwise'
+> & {
+  /** Rule applied when `when` evaluates TRUE. */
+  then: ObjectValidationRule;
+  /** Rule applied when `when` evaluates FALSE. */
+  otherwise?: ObjectValidationRule;
+};
+
+/**
+ * Uniqueness validation — objectui-local, NOT spec vocabulary.
+ *
+ * @deprecated The spec removed this deliberately: a SELECT-then-INSERT check is
+ * racy (TOCTOU) where a DB constraint is not. Declare a unique **index**
+ * (`ObjectSchema.indexes`, `{ fields, unique: true }`, `partial` for a scoped
+ * constraint) or field-level `unique: true` instead. `ValidationRuleSchema`
+ * rejects `type: 'unique'`, so a rule in this shape cannot reach the server —
+ * `ObjectValidationEngine` only evaluates it for callers that build rules by
+ * hand.
  */
 export interface UniquenessValidation extends BaseValidation {
   type: 'unique';
-  
+
   /** Fields that must be unique together */
   fields: string[];
-  
+
   /** Optional scope expression (e.g., "tenant_id = ${current_tenant}") */
   scope?: string;
-  
+
   /** Whether comparison is case-sensitive */
   caseSensitive?: boolean;
 }
 
 /**
- * State machine validation (ObjectStack Spec — ADR-0020)
- * Enforces valid state transitions on a single state field.
+ * Async/remote validation — objectui-local, NOT spec vocabulary.
  *
- * ADR-0020 converged record state machines onto this one flat rule: a state
- * `field` plus a `transitions` map of `{ fromState: [allowedToStates] }`.
- * (The legacy `{ stateField, transitions: Array<{from,to,condition}> }`
- * shape and the separate `workflow` metadata type were retired.)
- */
-export interface StateMachineValidation extends BaseValidation {
-  type: 'state_machine';
-
-  /** Field containing the state (e.g. `status`). */
-  field: string;
-
-  /** Map of `{ fromState: [allowedToStates] }`. */
-  transitions: Record<string, string[]>;
-}
-
-/**
- * Cross-field validation (ObjectStack Spec v2.0.1)
- * Validates relationships between multiple fields
- */
-export interface CrossFieldValidation extends BaseValidation {
-  type: 'cross_field';
-  
-  /** Fields involved in the validation */
-  fields: string[];
-  
-  /** Condition expression involving multiple fields */
-  condition: string;
-}
-
-/**
- * Async/remote validation (ObjectStack Spec v2.0.1)
- * Calls external endpoint for validation
+ * @deprecated The spec removed this deliberately: `debounce`/endpoint semantics
+ * only mean something against keystrokes, and it is an SSRF/latency hazard on
+ * the write path. Keep it in the form layer, or enforce the underlying
+ * invariant with a unique index or a lifecycle hook. `ValidationRuleSchema`
+ * rejects `type: 'async'`, so a rule in this shape cannot reach the server.
  */
 export interface AsyncValidation extends BaseValidation {
   type: 'async';
-  
+
   /** API endpoint to call */
   endpoint: string;
-  
+
   /** HTTP method */
   method?: 'GET' | 'POST';
-  
+
   /** Debounce delay in milliseconds */
   debounce?: number;
-  
+
   /** Cache configuration */
   cache?: {
     enabled: boolean;
@@ -940,73 +989,51 @@ export interface AsyncValidation extends BaseValidation {
 }
 
 /**
- * Conditional validation (ObjectStack Spec v2.0.1)
- * Applies nested rules only when condition is met
- */
-export interface ConditionalValidation extends BaseValidation {
-  type: 'conditional';
-  
-  /** Condition that determines if rules should apply */
-  condition: string;
-  
-  /** Nested validation rules to apply when condition is true */
-  rules: ObjectValidationRule[];
-}
-
-/**
- * Format validation (ObjectStack Spec v2.0.1)
- * Validates field format using regex or predefined patterns
- */
-export interface FormatValidation extends BaseValidation {
-  type: 'format';
-  
-  /** Field to validate */
-  field: string;
-  
-  /** Regex pattern or predefined format name */
-  pattern: string | RegExp;
-  
-  /** Predefined format (email, url, phone, etc.) */
-  format?: 'email' | 'url' | 'phone' | 'ipv4' | 'ipv6' | 'uuid' | 'iso_date' | 'credit_card';
-  
-  /** Validation flags for regex (i, g, m, etc.) */
-  flags?: string;
-}
-
-/**
- * Range validation (ObjectStack Spec v2.0.1)
- * Validates numeric or date ranges
+ * Range validation — objectui-local, NOT spec vocabulary.
+ *
+ * @deprecated The spec has never carried a `range` rule; bounds belong on the
+ * field (`min`/`max`) or in a `script` predicate. `ValidationRuleSchema` rejects
+ * `type: 'range'`, so a rule in this shape cannot reach the server.
  */
 export interface RangeValidation extends BaseValidation {
   type: 'range';
-  
+
   /** Field to validate */
   field: string;
-  
+
   /** Minimum value (inclusive) */
   min?: number | string | Date;
-  
+
   /** Maximum value (inclusive) */
   max?: number | string | Date;
-  
+
   /** Whether min is exclusive */
   minExclusive?: boolean;
-  
+
   /** Whether max is exclusive */
   maxExclusive?: boolean;
 }
 
 /**
- * Union type for all validation rules (ObjectStack Spec v2.0.1)
+ * Every validation rule `ObjectValidationEngine` dispatches on.
+ *
+ * This is NOT the spec's `ValidationRuleSchema` union and does not claim to be
+ * — hence the distinct name. Two documented deltas:
+ *
+ *  - **Missing** `json_schema` (spec's sixth variant). objectui does not carry a
+ *    JSON-Schema validator on the client; the engine warns loudly rather than
+ *    reporting such a rule as passing.
+ *  - **Extra** `unique` / `async` / `range` — the three @deprecated local
+ *    variants above, which the spec's union rejects outright.
  */
-export type ObjectValidationRule = 
+export type ObjectValidationRule =
   | ScriptValidation
-  | UniquenessValidation
   | StateMachineValidation
   | CrossFieldValidation
-  | AsyncValidation
   | ConditionalValidation
   | FormatValidation
+  | UniquenessValidation
+  | AsyncValidation
   | RangeValidation;
 
 /**

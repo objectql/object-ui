@@ -8,11 +8,19 @@
 
 /**
  * @object-ui/core - Object Validation Engine Tests
- * 
- * Tests for ObjectStack Spec v2.0.1 object-level validation
+ *
+ * The engine is a CLIENT PRE-CHECK of the rules the server evaluates in
+ * `objectql/src/validation/rule-validator.ts`. Every expectation below is
+ * anchored to what the server does with the same rule, because the failure mode
+ * that matters is DISAGREEMENT: a pre-check that greenlights a write the server
+ * rejects loses the user their client-side check, and one that rejects a write
+ * the server accepts blocks work outright.
+ *
+ * The `#3103 regression` blocks pin the behaviours that were broken while the
+ * rule types were hand-written copies claiming spec canonicity.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { ObjectValidationEngine, type ObjectValidationContext } from '../validators/object-validation-engine';
 import type {
   ScriptValidation,
@@ -23,530 +31,704 @@ import type {
   ConditionalValidation,
   FormatValidation,
   RangeValidation,
+  ObjectValidationRule,
 } from '@object-ui/types';
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe('ObjectValidationEngine', () => {
-  describe('ScriptValidation', () => {
-    it('should validate when script condition is true', async () => {
-      const engine = new ObjectValidationEngine();
-      const rule: ScriptValidation = {
-        type: 'script',
-        name: 'age_check',
-        label: 'Age Check',
-        active: true,
-        events: ['insert', 'update'],
-        severity: 'error',
-        message: 'Must be 18 or older',
-        condition: 'age >= 18',
-      };
-
-      const context: ObjectValidationContext = {
-        record: { age: 25 },
-      };
-
-      const results = await engine.validateRecord([rule], context, 'insert');
-      expect(results).toHaveLength(0); // No errors
-    });
-
-    it('should fail validation when script condition is false', async () => {
-      const engine = new ObjectValidationEngine();
-      const rule: ScriptValidation = {
-        type: 'script',
-        name: 'age_check',
-        active: true,
-        events: ['insert', 'update'],
-        severity: 'error',
-        message: 'Must be 18 or older',
-        condition: 'age >= 18',
-      };
-
-      const context: ObjectValidationContext = {
-        record: { age: 16 },
-      };
-
-      const results = await engine.validateRecord([rule], context, 'insert');
-      expect(results).toHaveLength(1);
-      expect(results[0]).toMatchObject({
-        valid: false,
-        message: 'Must be 18 or older',
-        rule: 'age_check',
-        severity: 'error',
-      });
-    });
-
-    it('should support complex script conditions', async () => {
-      const engine = new ObjectValidationEngine();
-      const rule: ScriptValidation = {
-        type: 'script',
-        name: 'discount_check',
-        active: true,
-        events: ['insert', 'update'],
-        severity: 'error',
-        message: 'Discount cannot exceed 50% for non-premium customers',
-        condition: 'discount <= 50 || is_premium === true',
-      };
-
-      const context1: ObjectValidationContext = {
-        record: { discount: 30, is_premium: false },
-      };
-      const results1 = await engine.validateRecord([rule], context1, 'insert');
-      expect(results1).toHaveLength(0);
-
-      const context2: ObjectValidationContext = {
-        record: { discount: 75, is_premium: true },
-      };
-      const results2 = await engine.validateRecord([rule], context2, 'insert');
-      expect(results2).toHaveLength(0);
-
-      const context3: ObjectValidationContext = {
-        record: { discount: 75, is_premium: false },
-      };
-      const results3 = await engine.validateRecord([rule], context3, 'insert');
-      expect(results3).toHaveLength(1);
-    });
-  });
-
-  describe('UniquenessValidation', () => {
-    it('should validate uniqueness using custom checker', async () => {
-      const uniquenessChecker = vi.fn().mockResolvedValue(true);
-      const engine = new ObjectValidationEngine(undefined, uniquenessChecker);
-
-      const rule: UniquenessValidation = {
-        type: 'unique',
-        name: 'unique_email',
-        active: true,
-        events: ['insert', 'update'],
-        severity: 'error',
-        message: 'Email must be unique',
-        fields: ['email'],
-      };
-
-      const context: ObjectValidationContext = {
-        record: { email: 'user@example.com' },
-      };
-
-      const results = await engine.validateRecord([rule], context, 'insert');
-      expect(results).toHaveLength(0);
-      expect(uniquenessChecker).toHaveBeenCalledWith(
-        ['email'],
-        { email: 'user@example.com' },
-        undefined,
-        context
-      );
-    });
-
-    it('should fail when uniqueness check fails', async () => {
-      const uniquenessChecker = vi.fn().mockResolvedValue(false);
-      const engine = new ObjectValidationEngine(undefined, uniquenessChecker);
-
-      const rule: UniquenessValidation = {
-        type: 'unique',
-        name: 'unique_email',
-        active: true,
-        events: ['insert', 'update'],
-        severity: 'error',
-        message: 'Email must be unique',
-        fields: ['email'],
-      };
-
-      const context: ObjectValidationContext = {
-        record: { email: 'duplicate@example.com' },
-      };
-
-      const results = await engine.validateRecord([rule], context, 'insert');
-      expect(results).toHaveLength(1);
-      expect(results[0]).toMatchObject({
-        valid: false,
-        message: 'Email must be unique',
-      });
-    });
-
-    it('should support multi-field uniqueness', async () => {
-      const uniquenessChecker = vi.fn().mockResolvedValue(true);
-      const engine = new ObjectValidationEngine(undefined, uniquenessChecker);
-
-      const rule: UniquenessValidation = {
-        type: 'unique',
-        name: 'unique_email_tenant',
-        active: true,
-        events: ['insert', 'update'],
-        severity: 'error',
-        message: 'Email must be unique within tenant',
-        fields: ['email', 'tenant_id'],
-      };
-
-      const context: ObjectValidationContext = {
-        record: { email: 'user@example.com', tenant_id: 'tenant-123' },
-      };
-
-      await engine.validateRecord([rule], context, 'insert');
-      expect(uniquenessChecker).toHaveBeenCalledWith(
-        ['email', 'tenant_id'],
-        { email: 'user@example.com', tenant_id: 'tenant-123' },
-        undefined,
-        context
-      );
-    });
-  });
-
-  describe('StateMachineValidation', () => {
-    // ADR-0020 flat FSM: `field` + `{ from: [allowedTo] }` map (no guards).
-    const orderFlow: StateMachineValidation = {
-      type: 'state_machine',
-      name: 'order_status_flow',
-      active: true,
-      events: ['update'],
+  describe('predicate polarity (script / cross_field)', () => {
+    // The server's contract: "if the predicate evaluates TRUE the rule is
+    // violated" (rule-validator.ts `checkPredicate`). The hand-written engine
+    // had this exactly backwards, so every spec-authored rule produced the
+    // opposite verdict to the server's.
+    const rule: ScriptValidation = {
+      type: 'script',
+      name: 'amount_must_not_be_negative',
+      label: 'Amount check',
       severity: 'error',
-      message: 'Invalid status transition',
-      field: 'status',
-      transitions: {
-        draft: ['submitted'],
-        submitted: ['approved', 'rejected'],
-        approved: ['completed'],
-      },
+      message: 'Amount must not be negative',
+      condition: 'amount < 0',
     };
 
-    it('should allow valid state transition', async () => {
+    it('reports a violation when the failure predicate is TRUE', async () => {
       const engine = new ObjectValidationEngine();
-      const context: ObjectValidationContext = {
-        record: { status: 'submitted' },
-        oldRecord: { status: 'draft' },
-      };
+      const results = await engine.validateRecord([rule], { record: { amount: -5 } }, 'insert');
 
-      const results = await engine.validateRecord([orderFlow], context, 'update');
-      expect(results).toHaveLength(0);
-    });
-
-    it('should prevent invalid state transition', async () => {
-      const engine = new ObjectValidationEngine();
-      const context: ObjectValidationContext = {
-        record: { status: 'approved' },
-        oldRecord: { status: 'draft' },
-      };
-
-      const results = await engine.validateRecord([orderFlow], context, 'update');
       expect(results).toHaveLength(1);
-      expect(results[0]).toMatchObject({ valid: false });
-      expect(results[0].message).toContain('transition');
+      expect(results[0].message).toBe('Amount must not be negative');
+      expect(results[0].rule).toBe('amount_must_not_be_negative');
+      expect(results[0].severity).toBe('error');
     });
 
-    it('should allow the initial assignment on insert (no prior state)', async () => {
+    it('passes when the failure predicate is FALSE', async () => {
       const engine = new ObjectValidationEngine();
-      const context: ObjectValidationContext = {
-        record: { status: 'draft' },
-        oldRecord: undefined,
-      };
+      const results = await engine.validateRecord([rule], { record: { amount: 5 } }, 'insert');
 
-      const results = await engine.validateRecord([orderFlow], context, 'insert');
       expect(results).toHaveLength(0);
     });
 
-    it('should be a no-op when the state field is unchanged', async () => {
+    it('applies the same polarity to cross_field', async () => {
       const engine = new ObjectValidationEngine();
-      const context: ObjectValidationContext = {
-        record: { status: 'draft', other: 'changed' },
-        oldRecord: { status: 'draft', other: 'original' },
-      };
-
-      const results = await engine.validateRecord([orderFlow], context, 'update');
-      expect(results).toHaveLength(0);
-    });
-
-    it('should leave an undeclared from-state unconstrained (lenient)', async () => {
-      const engine = new ObjectValidationEngine();
-      const context: ObjectValidationContext = {
-        // `completed` is a declared dead-end (no entry as a from-key), so any
-        // outbound transition is left unconstrained rather than rejected.
-        record: { status: 'reopened' },
-        oldRecord: { status: 'completed' },
-      };
-
-      const results = await engine.validateRecord([orderFlow], context, 'update');
-      expect(results).toHaveLength(0);
-    });
-  });
-
-  describe('CrossFieldValidation', () => {
-    it('should validate cross-field constraints', async () => {
-      const engine = new ObjectValidationEngine();
-      const rule: CrossFieldValidation = {
+      const crossField: CrossFieldValidation = {
         type: 'cross_field',
-        name: 'date_range',
-        active: true,
-        events: ['insert', 'update'],
+        name: 'end_after_start',
         severity: 'error',
         message: 'End date must be after start date',
-        fields: ['start_date', 'end_date'],
-        condition: 'end_date > start_date',
+        condition: 'end_date < start_date',
+        fields: ['end_date', 'start_date'],
       };
 
-      const context1: ObjectValidationContext = {
-        record: { start_date: new Date('2024-01-01'), end_date: new Date('2024-12-31') },
-      };
-      const results1 = await engine.validateRecord([rule], context1, 'insert');
-      expect(results1).toHaveLength(0);
+      const bad = await engine.validateRecord(
+        [crossField],
+        { record: { start_date: '2026-02-01', end_date: '2026-01-01' } },
+        'insert'
+      );
+      const good = await engine.validateRecord(
+        [crossField],
+        { record: { start_date: '2026-01-01', end_date: '2026-02-01' } },
+        'insert'
+      );
 
-      const context2: ObjectValidationContext = {
-        record: { start_date: new Date('2024-12-31'), end_date: new Date('2024-01-01') },
-      };
-      const results2 = await engine.validateRecord([rule], context2, 'insert');
-      expect(results2).toHaveLength(1);
+      expect(bad).toHaveLength(1);
+      expect(good).toHaveLength(0);
     });
   });
 
-  describe('FormatValidation', () => {
-    it('should validate email format', async () => {
+  describe('#3103 regression — ExpressionInput envelope conditions', () => {
+    // `condition` is `string | { dialect, source }` on the wire. The old engine
+    // typed it `string` and handed the object straight to the evaluator, where
+    // `expression.trim()` threw; the catch turned that into `false`, which under
+    // the old polarity meant "validation passes" — a silent no-op on a rule the
+    // server was enforcing.
+    it('evaluates an envelope-valued condition instead of silently passing', async () => {
       const engine = new ObjectValidationEngine();
-      const rule: FormatValidation = {
-        type: 'format',
-        name: 'email_format',
-        active: true,
-        events: ['insert', 'update'],
+      const rule: ScriptValidation = {
+        type: 'script',
+        name: 'amount_must_not_be_negative',
         severity: 'error',
-        message: 'Invalid email format',
-        field: 'email',
-        format: 'email',
+        message: 'Amount must not be negative',
+        condition: { dialect: 'cel', source: 'amount < 0' },
       };
 
-      const context1: ObjectValidationContext = {
-        record: { email: 'user@example.com' },
-      };
-      const results1 = await engine.validateRecord([rule], context1, 'insert');
-      expect(results1).toHaveLength(0);
+      const violated = await engine.validateRecord([rule], { record: { amount: -5 } }, 'insert');
+      const clean = await engine.validateRecord([rule], { record: { amount: 5 } }, 'insert');
 
-      const context2: ObjectValidationContext = {
-        record: { email: 'invalid-email' },
-      };
-      const results2 = await engine.validateRecord([rule], context2, 'insert');
-      expect(results2).toHaveLength(1);
+      expect(violated).toHaveLength(1);
+      expect(violated[0].message).toBe('Amount must not be negative');
+      expect(clean).toHaveLength(0);
     });
 
-    it('should validate URL format', async () => {
-      const engine = new ObjectValidationEngine();
-      const rule: FormatValidation = {
-        type: 'format',
-        name: 'url_format',
-        active: true,
-        events: ['insert', 'update'],
-        severity: 'error',
-        message: 'Invalid URL format',
-        field: 'website',
-        format: 'url',
-      };
-
-      const context1: ObjectValidationContext = {
-        record: { website: 'https://example.com' },
-      };
-      const results1 = await engine.validateRecord([rule], context1, 'insert');
-      expect(results1).toHaveLength(0);
-
-      const context2: ObjectValidationContext = {
-        record: { website: 'not-a-url' },
-      };
-      const results2 = await engine.validateRecord([rule], context2, 'insert');
-      expect(results2).toHaveLength(1);
-    });
-
-    it('should validate custom regex pattern', async () => {
-      const engine = new ObjectValidationEngine();
-      const rule: FormatValidation = {
-        type: 'format',
-        name: 'custom_pattern',
-        active: true,
-        events: ['insert', 'update'],
-        severity: 'error',
-        message: 'Must be 3 uppercase letters',
-        field: 'code',
-        pattern: '^[A-Z]{3}$',
-      };
-
-      const context1: ObjectValidationContext = {
-        record: { code: 'ABC' },
-      };
-      const results1 = await engine.validateRecord([rule], context1, 'insert');
-      expect(results1).toHaveLength(0);
-
-      const context2: ObjectValidationContext = {
-        record: { code: 'ab' },
-      };
-      const results2 = await engine.validateRecord([rule], context2, 'insert');
-      expect(results2).toHaveLength(1);
-    });
-  });
-
-  describe('RangeValidation', () => {
-    it('should validate numeric ranges', async () => {
-      const engine = new ObjectValidationEngine();
-      const rule: RangeValidation = {
-        type: 'range',
-        name: 'age_range',
-        active: true,
-        events: ['insert', 'update'],
-        severity: 'error',
-        message: 'Age must be between 18 and 65',
-        field: 'age',
-        min: 18,
-        max: 65,
-      };
-
-      const context1: ObjectValidationContext = {
-        record: { age: 30 },
-      };
-      const results1 = await engine.validateRecord([rule], context1, 'insert');
-      expect(results1).toHaveLength(0);
-
-      const context2: ObjectValidationContext = {
-        record: { age: 16 },
-      };
-      const results2 = await engine.validateRecord([rule], context2, 'insert');
-      expect(results2).toHaveLength(1);
-
-      const context3: ObjectValidationContext = {
-        record: { age: 70 },
-      };
-      const results3 = await engine.validateRecord([rule], context3, 'insert');
-      expect(results3).toHaveLength(1);
-    });
-
-    it('should validate date ranges', async () => {
-      const engine = new ObjectValidationEngine();
-      const rule: RangeValidation = {
-        type: 'range',
-        name: 'date_range',
-        active: true,
-        events: ['insert', 'update'],
-        severity: 'error',
-        message: 'Date must be in 2024',
-        field: 'event_date',
-        min: new Date('2024-01-01'),
-        max: new Date('2024-12-31'),
-      };
-
-      const context1: ObjectValidationContext = {
-        record: { event_date: new Date('2024-06-15') },
-      };
-      const results1 = await engine.validateRecord([rule], context1, 'insert');
-      expect(results1).toHaveLength(0);
-
-      const context2: ObjectValidationContext = {
-        record: { event_date: new Date('2025-01-01') },
-      };
-      const results2 = await engine.validateRecord([rule], context2, 'insert');
-      expect(results2).toHaveLength(1);
-    });
-  });
-
-  describe('ConditionalValidation', () => {
-    it('should apply nested rules when condition is met', async () => {
+    it('evaluates an envelope-valued `when` on a conditional', async () => {
       const engine = new ObjectValidationEngine();
       const rule: ConditionalValidation = {
         type: 'conditional',
-        name: 'conditional_validation',
-        active: true,
-        events: ['insert', 'update'],
+        name: 'company_needs_name',
         severity: 'error',
-        message: 'Conditional validation',
-        condition: 'is_company === true',
-        rules: [
-          {
-            type: 'script',
-            name: 'company_name_required',
-            active: true,
-            events: ['insert', 'update'],
-            severity: 'error',
-            message: 'Company name is required',
-            condition: 'company_name !== null && company_name !== ""',
-          },
-        ],
+        message: 'Company validation',
+        when: { dialect: 'cel', source: 'is_company == true' },
+        then: {
+          type: 'script',
+          name: 'company_name_required',
+          severity: 'error',
+          message: 'Company name is required',
+          condition: 'company_name == null',
+        },
       };
 
-      const context1: ObjectValidationContext = {
-        record: { is_company: true, company_name: 'Acme Corp' },
-      };
-      const results1 = await engine.validateRecord([rule], context1, 'insert');
-      expect(results1).toHaveLength(0);
+      const results = await engine.validateRecord(
+        [rule],
+        { record: { is_company: true, company_name: null } },
+        'insert'
+      );
 
-      const context2: ObjectValidationContext = {
-        record: { is_company: true, company_name: '' },
-      };
-      const results2 = await engine.validateRecord([rule], context2, 'insert');
-      expect(results2).toHaveLength(1);
+      expect(results).toHaveLength(1);
+      expect(results[0].message).toBe('Company name is required');
+    });
 
-      const context3: ObjectValidationContext = {
-        record: { is_company: false, company_name: '' },
+    it('fails OPEN on an envelope with nothing evaluable, and says so', async () => {
+      // An `ast`-only envelope, or a non-CEL dialect, is a BROKEN rule — the
+      // server logs and skips it rather than rejecting the write. Loud, not
+      // silent: the warning is what tells a developer the pre-check abstained.
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const engine = new ObjectValidationEngine();
+      const rule: ScriptValidation = {
+        type: 'script',
+        name: 'ast_only',
+        severity: 'error',
+        message: 'should never be reported',
+        condition: { dialect: 'cel', ast: { op: '<', args: [] } },
       };
-      const results3 = await engine.validateRecord([rule], context3, 'insert');
-      expect(results3).toHaveLength(0); // Condition not met, rules not applied
+
+      const results = await engine.validateRecord([rule], { record: { amount: -5 } }, 'insert');
+
+      expect(results).toHaveLength(0);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('ast_only'));
+    });
+
+    it('binds both the spec`s `record.x` scope and objectui`s bare `x`', async () => {
+      // The server binds `{ record, previous }`, so spec-authored predicates read
+      // `record.amount`. Passing only the raw record — as the old engine did —
+      // left `record.amount` resolving to undefined, i.e. another silent no-op.
+      const engine = new ObjectValidationEngine();
+      const specStyle: ScriptValidation = {
+        type: 'script',
+        name: 'spec_style',
+        severity: 'error',
+        message: 'negative',
+        condition: 'record.amount < 0',
+      };
+
+      const results = await engine.validateRecord([specStyle], { record: { amount: -5 } }, 'insert');
+      expect(results).toHaveLength(1);
     });
   });
 
-  describe('Event Filtering', () => {
-    it('should only run rules for matching events', async () => {
+  describe('#3103 regression — spec defaults are defaults, not falsy reads', () => {
+    it('runs a rule that omits `active` (spec default: true)', async () => {
+      // `/meta` ships authored metadata, so `active` is usually absent. Reading
+      // absent as "off" silently disabled every rule authored without it.
+      const engine = new ObjectValidationEngine();
+      const rule = {
+        type: 'script',
+        name: 'no_active_key',
+        message: 'Amount must not be negative',
+        condition: 'amount < 0',
+      } as ScriptValidation;
+
+      const results = await engine.validateRecord([rule], { record: { amount: -5 } }, 'insert');
+      expect(results).toHaveLength(1);
+    });
+
+    it('runs a rule that omits `events` (spec default: insert + update)', async () => {
+      const engine = new ObjectValidationEngine();
+      const rule = {
+        type: 'script',
+        name: 'no_events_key',
+        message: 'Amount must not be negative',
+        condition: 'amount < 0',
+      } as ScriptValidation;
+
+      for (const event of ['insert', 'update'] as const) {
+        const results = await engine.validateRecord([rule], { record: { amount: -5 } }, event);
+        expect(results, `event '${event}'`).toHaveLength(1);
+      }
+    });
+
+    it('still honours an explicit `active: false`', async () => {
+      const engine = new ObjectValidationEngine();
+      const rule: ScriptValidation = {
+        type: 'script',
+        name: 'disabled',
+        active: false,
+        message: 'Amount must not be negative',
+        condition: 'amount < 0',
+      };
+
+      const results = await engine.validateRecord([rule], { record: { amount: -5 } }, 'insert');
+      expect(results).toHaveLength(0);
+    });
+
+    it('still honours an explicit `events` list', async () => {
       const engine = new ObjectValidationEngine();
       const rule: ScriptValidation = {
         type: 'script',
         name: 'insert_only',
-        active: true,
         events: ['insert'],
-        severity: 'error',
-        message: 'Validation message',
-        condition: 'value > 0',
+        message: 'Amount must not be negative',
+        condition: 'amount < 0',
       };
 
-      const context: ObjectValidationContext = {
-        record: { value: -1 },
-      };
+      expect(await engine.validateRecord([rule], { record: { amount: -5 } }, 'insert')).toHaveLength(1);
+      expect(await engine.validateRecord([rule], { record: { amount: -5 } }, 'update')).toHaveLength(0);
+    });
 
-      const insertResults = await engine.validateRecord([rule], context, 'insert');
-      expect(insertResults).toHaveLength(1);
+    it('evaluates rules in `priority` order (lower first, stable)', async () => {
+      const engine = new ObjectValidationEngine();
+      const mk = (name: string, priority?: number): ScriptValidation => ({
+        type: 'script',
+        name,
+        priority,
+        message: name,
+        condition: 'amount < 0',
+      });
 
-      const updateResults = await engine.validateRecord([rule], context, 'update');
-      expect(updateResults).toHaveLength(0); // Rule not applied for update
+      // Authored out of order, with one rule leaving `priority` at its default.
+      const rules = [mk('last', 900), mk('defaulted'), mk('first', 1)];
+      const results = await engine.validateRecord(rules, { record: { amount: -5 } }, 'insert');
+
+      expect(results.map((r) => r.rule)).toEqual(['first', 'defaulted', 'last']);
     });
   });
 
-  describe('Active Flag', () => {
-    it('should skip inactive rules', async () => {
-      const engine = new ObjectValidationEngine();
-      const rule: ScriptValidation = {
+  describe('#3103 regression — conditional is when / then / otherwise', () => {
+    const rule: ConditionalValidation = {
+      type: 'conditional',
+      name: 'regional_compliance',
+      severity: 'error',
+      message: 'Regional compliance',
+      when: 'region == "EU"',
+      then: {
         type: 'script',
-        name: 'inactive_rule',
-        active: false,
-        events: ['insert', 'update'],
+        name: 'gdpr_consent',
         severity: 'error',
-        message: 'Validation message',
-        condition: 'false',
-      };
-
-      const context: ObjectValidationContext = {
-        record: { value: 1 },
-      };
-
-      const results = await engine.validateRecord([rule], context, 'insert');
-      expect(results).toHaveLength(0); // Rule skipped because inactive
-    });
-  });
-
-  describe('Severity Levels', () => {
-    it('should return validation results with correct severity', async () => {
-      const engine = new ObjectValidationEngine();
-      const warningRule: ScriptValidation = {
+        message: 'GDPR consent is required for EU customers',
+        condition: 'gdpr_consent_given == false',
+      },
+      otherwise: {
         type: 'script',
-        name: 'warning_check',
-        active: true,
-        events: ['insert', 'update'],
-        severity: 'warning',
-        message: 'This is a warning',
-        condition: 'false',
-      };
+        name: 'tos_acceptance',
+        severity: 'error',
+        message: 'Terms of Service acceptance required',
+        condition: 'tos_accepted == false',
+      },
+    };
 
-      const context: ObjectValidationContext = {
-        record: {},
-      };
+    it('takes the `then` branch when `when` is TRUE', async () => {
+      const engine = new ObjectValidationEngine();
+      const results = await engine.validateRecord(
+        [rule],
+        { record: { region: 'EU', gdpr_consent_given: false, tos_accepted: true } },
+        'insert'
+      );
 
-      const results = await engine.validateRecord([warningRule], context, 'insert');
       expect(results).toHaveLength(1);
-      expect(results[0].severity).toBe('warning');
+      expect(results[0].message).toBe('GDPR consent is required for EU customers');
+    });
+
+    it('takes the `otherwise` branch when `when` is FALSE', async () => {
+      // The old shape had no else-branch at all: `rules[]` only ever ran on the
+      // true side, so an `otherwise` authored against the spec was dropped.
+      const engine = new ObjectValidationEngine();
+      const results = await engine.validateRecord(
+        [rule],
+        { record: { region: 'US', gdpr_consent_given: false, tos_accepted: false } },
+        'insert'
+      );
+
+      expect(results).toHaveLength(1);
+      expect(results[0].message).toBe('Terms of Service acceptance required');
+    });
+
+    it('passes when the selected branch is satisfied', async () => {
+      const engine = new ObjectValidationEngine();
+      const results = await engine.validateRecord(
+        [rule],
+        { record: { region: 'EU', gdpr_consent_given: true, tos_accepted: false } },
+        'insert'
+      );
+
+      expect(results).toHaveLength(0);
+    });
+
+    it('skips a branch whose own `active` is false', async () => {
+      const engine = new ObjectValidationEngine();
+      const withInactiveBranch: ConditionalValidation = {
+        ...rule,
+        then: { ...(rule.then as ScriptValidation), active: false },
+      };
+
+      const results = await engine.validateRecord(
+        [withInactiveBranch],
+        { record: { region: 'EU', gdpr_consent_given: false } },
+        'insert'
+      );
+
+      expect(results).toHaveLength(0);
+    });
+
+    it('nests', async () => {
+      const engine = new ObjectValidationEngine();
+      const nested: ConditionalValidation = {
+        type: 'conditional',
+        name: 'country_state',
+        message: 'US validation',
+        when: 'country == "US"',
+        then: {
+          type: 'conditional',
+          name: 'california',
+          message: 'California validation',
+          when: 'state == "CA"',
+          then: {
+            type: 'script',
+            name: 'ca_tax_id_required',
+            message: 'California requires a tax ID',
+            condition: 'tax_id == null',
+          },
+        },
+      };
+
+      const hit = await engine.validateRecord(
+        [nested],
+        { record: { country: 'US', state: 'CA', tax_id: null } },
+        'insert'
+      );
+      const miss = await engine.validateRecord(
+        [nested],
+        { record: { country: 'US', state: 'NV', tax_id: null } },
+        'insert'
+      );
+
+      expect(hit).toHaveLength(1);
+      expect(hit[0].message).toBe('California requires a tax ID');
+      expect(miss).toHaveLength(0);
+    });
+  });
+
+  describe('#3103 regression — format is `regex`, not `pattern`', () => {
+    it('checks a spec-authored `regex` instead of throwing a false violation', async () => {
+      // The old engine read `rule.pattern`; against a spec-authored rule that was
+      // `undefined`, `undefined.test(...)` threw, and the catch reported a
+      // VIOLATION — the client blocking a write the server accepts.
+      const engine = new ObjectValidationEngine();
+      const rule: FormatValidation = {
+        type: 'format',
+        name: 'code_shape',
+        severity: 'error',
+        message: 'Code must be three capitals',
+        field: 'code',
+        regex: '^[A-Z]{3}$',
+      };
+
+      expect(await engine.validateRecord([rule], { record: { code: 'ABC' } }, 'insert')).toHaveLength(0);
+
+      const bad = await engine.validateRecord([rule], { record: { code: 'abc' } }, 'insert');
+      expect(bad).toHaveLength(1);
+      expect(bad[0].message).toBe('Code must be three capitals');
+    });
+
+    it.each([
+      ['email', 'user@example.com', 'not-an-email'],
+      ['url', 'https://example.com/x', 'not a url'],
+      ['phone', '+1 (555) 123-4567', 'abc'],
+      ['json', '{"a":1}', '{oops'],
+    ] as const)('implements the named format `%s`', async (format, valid, invalid) => {
+      const engine = new ObjectValidationEngine();
+      const rule: FormatValidation = {
+        type: 'format',
+        name: `${format}_shape`,
+        message: `Invalid ${format}`,
+        field: 'value',
+        format,
+      };
+
+      expect(await engine.validateRecord([rule], { record: { value: valid } }, 'insert')).toHaveLength(0);
+      expect(await engine.validateRecord([rule], { record: { value: invalid } }, 'insert')).toHaveLength(1);
+    });
+
+    it('skips an absent or empty value rather than calling it a bad format', async () => {
+      // Requiredness and type-shape are the field-level validator's job, so
+      // neither an absent field nor a blank value is a FORMAT violation — the
+      // server draws the same line.
+      //
+      // Note the engine keeps the server's `field in record` guard as well, but
+      // it is defensive rather than load-bearing here: objectui validates a
+      // record snapshot where the server validates a patch payload, so "absent"
+      // already collapses into "undefined" and the empty-value check catches it.
+      // Deleting that guard leaves this suite green — it is retained for
+      // structural parity with `rule-validator.ts`, not claimed as a gate.
+      const engine = new ObjectValidationEngine();
+      const rule: FormatValidation = {
+        type: 'format',
+        name: 'email_shape',
+        message: 'Invalid email',
+        field: 'email',
+        format: 'email',
+      };
+
+      expect(await engine.validateRecord([rule], { record: { name: 'x' } }, 'insert')).toHaveLength(0);
+      expect(await engine.validateRecord([rule], { record: { email: '' } }, 'insert')).toHaveLength(0);
+      expect(await engine.validateRecord([rule], { record: { email: null } }, 'insert')).toHaveLength(0);
+    });
+
+    it('fails OPEN on a regex that will not compile', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const engine = new ObjectValidationEngine();
+      const rule: FormatValidation = {
+        type: 'format',
+        name: 'broken_regex',
+        message: 'should never be reported',
+        field: 'code',
+        regex: '([unclosed',
+      };
+
+      expect(await engine.validateRecord([rule], { record: { code: 'x' } }, 'insert')).toHaveLength(0);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('broken_regex'));
+    });
+
+    it('applies both `regex` and `format` when both are declared', async () => {
+      const engine = new ObjectValidationEngine();
+      const rule: FormatValidation = {
+        type: 'format',
+        name: 'corp_email',
+        message: 'Must be a corporate email',
+        field: 'email',
+        format: 'email',
+        regex: '@example\\.com$',
+      };
+
+      expect(
+        await engine.validateRecord([rule], { record: { email: 'a@example.com' } }, 'insert')
+      ).toHaveLength(0);
+      // Valid email, wrong domain → the regex half rejects it.
+      expect(
+        await engine.validateRecord([rule], { record: { email: 'a@other.com' } }, 'insert')
+      ).toHaveLength(1);
+    });
+  });
+
+  describe('StateMachineValidation', () => {
+    const rule: StateMachineValidation = {
+      type: 'state_machine',
+      name: 'order_status',
+      severity: 'error',
+      message: 'Invalid status transition',
+      field: 'status',
+      transitions: {
+        pending: ['processing', 'cancelled'],
+        processing: ['shipped', 'cancelled'],
+        shipped: ['delivered'],
+      },
+    };
+
+    it('allows a declared transition', async () => {
+      const engine = new ObjectValidationEngine();
+      const results = await engine.validateRecord(
+        [rule],
+        { record: { status: 'processing' }, oldRecord: { status: 'pending' } },
+        'update'
+      );
+      expect(results).toHaveLength(0);
+    });
+
+    it('rejects an undeclared transition', async () => {
+      const engine = new ObjectValidationEngine();
+      const results = await engine.validateRecord(
+        [rule],
+        { record: { status: 'delivered' }, oldRecord: { status: 'pending' } },
+        'update'
+      );
+      expect(results).toHaveLength(1);
+      expect(results[0].message).toBe('Invalid status transition');
+    });
+
+    it('is a no-op when the write does not touch the state field', async () => {
+      const engine = new ObjectValidationEngine();
+      const results = await engine.validateRecord(
+        [rule],
+        { record: { note: 'edited' }, oldRecord: { status: 'pending' } },
+        'update'
+      );
+      expect(results).toHaveLength(0);
+    });
+
+    it('is a no-op when the state is unchanged', async () => {
+      const engine = new ObjectValidationEngine();
+      const results = await engine.validateRecord(
+        [rule],
+        { record: { status: 'pending' }, oldRecord: { status: 'pending' } },
+        'update'
+      );
+      expect(results).toHaveLength(0);
+    });
+
+    it('leaves an undeclared from-state unconstrained (lenient)', async () => {
+      const engine = new ObjectValidationEngine();
+      const results = await engine.validateRecord(
+        [rule],
+        { record: { status: 'pending' }, oldRecord: { status: 'archived' } },
+        'update'
+      );
+      expect(results).toHaveLength(0);
+    });
+
+    describe('#3103 regression — initialStates (objectstack#3165)', () => {
+      const withInitial: StateMachineValidation = { ...rule, initialStates: ['pending'] };
+
+      it('rejects an insert that starts mid-flow', async () => {
+        // Without this the FSM has no entry point: a `select` field admits any
+        // declared option, so a record can be created already `shipped`.
+        const engine = new ObjectValidationEngine();
+        const results = await engine.validateRecord(
+          [withInitial],
+          { record: { status: 'shipped' } },
+          'insert'
+        );
+        expect(results).toHaveLength(1);
+      });
+
+      it('allows an insert at a declared initial state', async () => {
+        const engine = new ObjectValidationEngine();
+        const results = await engine.validateRecord(
+          [withInitial],
+          { record: { status: 'pending' } },
+          'insert'
+        );
+        expect(results).toHaveLength(0);
+      });
+
+      it('leaves insert unconstrained when no initialStates are declared', async () => {
+        const engine = new ObjectValidationEngine();
+        const results = await engine.validateRecord([rule], { record: { status: 'shipped' } }, 'insert');
+        expect(results).toHaveLength(0);
+      });
+
+      it('leaves an absent or empty state to required-validation', async () => {
+        const engine = new ObjectValidationEngine();
+        expect(
+          await engine.validateRecord([withInitial], { record: { note: 'x' } }, 'insert')
+        ).toHaveLength(0);
+        expect(
+          await engine.validateRecord([withInitial], { record: { status: '' } }, 'insert')
+        ).toHaveLength(0);
+      });
+    });
+  });
+
+  describe('an unimplemented rule type is loud, not silently valid', () => {
+    it('warns for the spec`s `json_schema`, which this engine does not evaluate', async () => {
+      // Reporting it as valid would let the pre-check green-light a record the
+      // server is about to reject, with nothing to explain the disagreement.
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const engine = new ObjectValidationEngine();
+      const rule = {
+        type: 'json_schema',
+        name: 'payload_shape',
+        message: 'Bad payload',
+        field: 'payload',
+        schema: { type: 'object' },
+      } as unknown as ObjectValidationRule;
+
+      const results = await engine.validateRecord([rule], { record: { payload: {} } }, 'insert');
+
+      expect(results).toHaveLength(0);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('json_schema'));
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('payload_shape'));
+    });
+  });
+
+  describe('deprecated objectui-local variants still dispatch', () => {
+    // These three cannot arrive from `/meta` — the spec's union rejects them —
+    // but the engine keeps evaluating them for callers that build rules by hand.
+    describe('UniquenessValidation', () => {
+      const rule: UniquenessValidation = {
+        type: 'unique',
+        name: 'email_unique',
+        severity: 'error',
+        message: 'Email already exists',
+        fields: ['email'],
+      };
+
+      it('passes when the checker reports unique', async () => {
+        const checker = vi.fn().mockResolvedValue(true);
+        const engine = new ObjectValidationEngine(undefined, checker);
+        const results = await engine.validateRecord(
+          [rule],
+          { record: { email: 'a@example.com' } },
+          'insert'
+        );
+        expect(results).toHaveLength(0);
+        expect(checker).toHaveBeenCalledWith(
+          ['email'],
+          { email: 'a@example.com' },
+          undefined,
+          expect.anything()
+        );
+      });
+
+      it('fails when the checker reports a duplicate', async () => {
+        const engine = new ObjectValidationEngine(undefined, vi.fn().mockResolvedValue(false));
+        const results = await engine.validateRecord(
+          [rule],
+          { record: { email: 'a@example.com' } },
+          'insert'
+        );
+        expect(results).toHaveLength(1);
+        expect(results[0].message).toBe('Email already exists');
+      });
+
+      it('supports multi-field uniqueness', async () => {
+        const checker = vi.fn().mockResolvedValue(false);
+        const engine = new ObjectValidationEngine(undefined, checker);
+        const multi: UniquenessValidation = { ...rule, fields: ['tenant_id', 'email'] };
+        const results = await engine.validateRecord(
+          [multi],
+          { record: { tenant_id: 't1', email: 'a@example.com' } },
+          'insert'
+        );
+        expect(results).toHaveLength(1);
+        expect(checker).toHaveBeenCalledWith(
+          ['tenant_id', 'email'],
+          { tenant_id: 't1', email: 'a@example.com' },
+          undefined,
+          expect.anything()
+        );
+      });
+    });
+
+    describe('RangeValidation', () => {
+      it('validates numeric ranges', async () => {
+        const engine = new ObjectValidationEngine();
+        const rule: RangeValidation = {
+          type: 'range',
+          name: 'age_range',
+          severity: 'error',
+          message: 'Age must be between 0 and 120',
+          field: 'age',
+          min: 0,
+          max: 120,
+        };
+
+        expect(await engine.validateRecord([rule], { record: { age: 30 } }, 'insert')).toHaveLength(0);
+        expect(await engine.validateRecord([rule], { record: { age: 150 } }, 'insert')).toHaveLength(1);
+        expect(await engine.validateRecord([rule], { record: { age: -1 } }, 'insert')).toHaveLength(1);
+      });
+
+      it('validates date ranges', async () => {
+        const engine = new ObjectValidationEngine();
+        const rule: RangeValidation = {
+          type: 'range',
+          name: 'date_range',
+          severity: 'error',
+          message: 'Date out of range',
+          field: 'start_date',
+          min: '2026-01-01',
+          max: '2026-12-31',
+        };
+
+        expect(
+          await engine.validateRecord([rule], { record: { start_date: '2026-06-01' } }, 'insert')
+        ).toHaveLength(0);
+        expect(
+          await engine.validateRecord([rule], { record: { start_date: '2027-01-01' } }, 'insert')
+        ).toHaveLength(1);
+      });
+    });
+
+    describe('AsyncValidation', () => {
+      it('reports the remote verdict', async () => {
+        const fetchMock = vi
+          .spyOn(globalThis, 'fetch')
+          .mockResolvedValue(
+            new Response(JSON.stringify({ valid: false, message: 'Taken' }), { status: 200 })
+          );
+        const engine = new ObjectValidationEngine();
+        const rule: AsyncValidation = {
+          type: 'async',
+          name: 'remote_check',
+          severity: 'error',
+          message: 'Remote validation failed',
+          endpoint: 'https://example.test/validate',
+        };
+
+        const results = await engine.validateRecord([rule], { record: { a: 1 } }, 'insert');
+
+        expect(results).toHaveLength(1);
+        expect(results[0].message).toBe('Taken');
+        expect(fetchMock).toHaveBeenCalled();
+      });
     });
   });
 });

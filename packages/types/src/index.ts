@@ -498,7 +498,9 @@ export type {
   ValidationContext,
   AdvancedValidationResult,
   AdvancedValidationError,
-  // ObjectStack Spec v2.0.1 Validation
+  // Object-level validation rules. The five spec-named variants are derived from
+  // `@objectstack/spec/data`; the other three are @deprecated objectui-local
+  // variants the spec's union rejects. See data-protocol.ts.
   BaseValidation,
   ScriptValidation,
   UniquenessValidation,
