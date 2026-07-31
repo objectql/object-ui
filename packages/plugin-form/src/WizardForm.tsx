@@ -17,7 +17,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import type { FormField, DataSource } from '@object-ui/types';
 import { Button, cn, toast } from '@object-ui/components';
 import { AlertCircle, Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
-import { resolveFieldRuleState } from '@object-ui/core';
+import { resolveFieldRuleState, evalFieldPredicate } from '@object-ui/core';
 import { createSafeTranslation } from '@object-ui/i18n';
 import { FormSection } from './FormSection';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
@@ -352,8 +352,16 @@ export const WizardForm: React.FC<WizardFormProps> = ({
             record,
             { required: !!field.required, readonly: (field as any).readonly === true },
           );
+          // View-level FormField.visibleOn hides the field the same way a
+          // field-level visibleWhen does — fold it into the verdict exactly
+          // like the form renderer (form.tsx) does, or the gate demands a
+          // field the view itself hides (#3090). Since #3090 this slot also
+          // receives the ADR-0089 canonical view-level `visibleWhen` spelling.
+          const viewVisible =
+            (field as any).visibleOn == null ||
+            evalFieldPredicate((field as any).visibleOn, record, true);
           // A hidden or read-only field is not the user's to fill in.
-          if (!state.visible || state.readonly || !state.required) continue;
+          if (!viewVisible || !state.visible || state.readonly || !state.required) continue;
           if (!isEmptyValue(record[name])) continue;
           out.set(index, [...(out.get(index) ?? []), (field as any).label || name]);
         }

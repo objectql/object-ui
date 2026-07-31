@@ -106,6 +106,71 @@ describe('normalizeSectionField', () => {
     expect((f as any).visibleOn).toEqual(expr);
   });
 
+  // ── Spec 17 late-added / renamed keys (#3090) ─────────────────────────────
+  // ADR-0089 renamed the view-level predicate to `visibleWhen` — which is also
+  // the runtime slot for the OBJECT-level rule. The view predicate must land in
+  // the view-level slot (`visibleOn`) so the renderer ANDs both layers
+  // (form.tsx evaluates the two slots independently) instead of one clobbering
+  // the other. Before the fix the canonical spelling was silently dropped while
+  // the DEPRECATED spelling worked.
+
+  it('routes a view-level `visibleWhen` (canonical spelling) into the view-level slot', () => {
+    const f = normalizeSectionField(
+      { field: 'name', visibleWhen: "record.stage == 'won'" },
+      ctx,
+    ) as any;
+    expect(f.visibleOn).toBe("record.stage == 'won'");
+  });
+
+  it('carries a `{ dialect, source }` view-level visibleWhen expression', () => {
+    const expr = { dialect: 'cel', source: "record.priority == 'urgent'" };
+    const f = normalizeSectionField({ field: 'name', visibleWhen: expr }, ctx) as any;
+    expect(f.visibleOn).toEqual(expr);
+  });
+
+  it('layers the view predicate OVER the object-level rule instead of clobbering it', () => {
+    const rulesCtx = {
+      ...ctx,
+      objectSchema: {
+        ...objectSchema,
+        fields: {
+          ...objectSchema.fields,
+          paid_on: { type: 'date', label: 'Paid on', visibleWhen: "record.status == 'paid'" },
+        },
+      },
+    };
+    const f = normalizeSectionField(
+      { field: 'paid_on', visibleWhen: 'record.amount > 0' },
+      rulesCtx,
+    ) as any;
+    expect(f.visibleWhen).toBe("record.status == 'paid'"); // object-level rule intact
+    expect(f.visibleOn).toBe('record.amount > 0'); // view predicate in the view slot
+  });
+
+  it('prefers the canonical spelling when both visibleWhen and deprecated visibleOn are authored', () => {
+    // `saveMeta` persists verbatim, so served metadata can carry either (or,
+    // after a partial migration, both). Canonical wins.
+    const f = normalizeSectionField(
+      { field: 'name', visibleWhen: "record.a == 1", visibleOn: "record.b == 2" },
+      ctx,
+    ) as any;
+    expect(f.visibleOn).toBe("record.a == 1");
+  });
+
+  it('carries a view-level dependsOn (spec cascading declaration)', () => {
+    const f = normalizeSectionField({ field: 'industry', dependsOn: 'country' }, ctx) as any;
+    expect(f.dependsOn).toBe('country');
+  });
+
+  it('carries keyField and disclosure through for record/composite widgets', () => {
+    const f = normalizeSectionField(
+      { field: 'billing_address', keyField: { field: 'name', immutable: true }, disclosure: 'popover' },
+      ctx,
+    ) as any;
+    expect(f.keyField).toEqual({ field: 'name', immutable: true });
+    expect(f.disclosure).toBe('popover');
+  });
+
   it('copies field-level conditional rules from the object schema (#2212)', () => {
     const rulesSchema = {
       ...objectSchema,

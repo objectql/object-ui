@@ -17,14 +17,43 @@
  */
 
 import { z } from 'zod';
+import { SelectOptionSchema as SpecSelectOptionSchema } from '@objectstack/spec/data';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
 
 /**
- * Select Option Schema
+ * The wire shape of a CEL predicate (#2212): a bare string or the spec
+ * Expression object `{ dialect?, source }`. Deliberately NOT the spec's
+ * ExpressionInput pipe, which canonicalizes strings into an envelope at parse
+ * time and would change this module's output shape.
+ */
+const ExpressionWireSchema = z.union([
+  z.string(),
+  z.object({ dialect: z.string().optional(), source: z.string() }),
+]);
+
+/**
+ * Select Option Schema — derived from `@objectstack/spec/data`
+ * `SelectOptionSchema` (objectstack#4115), with two pinned divergences and two
+ * UI-only extensions. Drift guard: `__tests__/select-option-spec-parity.test.ts`.
+ *
+ * Spec keys flow in **by reference** via the spread: before this derivation the
+ * schema silently stripped `color` (which `@object-ui/fields` renders as
+ * badge/dot colors), `default`, and `visibleWhen` (which the select widgets
+ * evaluate for per-option gating) — a strip-mode schema fails silently, which
+ * is why the gap survived.
  */
 export const SelectOptionSchema = z.object({
-  label: z.string().describe('Option label'),
+  ...SpecSelectOptionSchema.shape,
+  // Deliberate divergence: the spec requires a lowercase machine identifier;
+  // standalone UI forms legitimately bind numeric/boolean values. The parity
+  // test pins both directions so a future spec widening gets noticed.
   value: z.union([z.string(), z.number(), z.boolean()]).describe('Option value'),
+  // Deliberate divergence: keep objectui's wire contract (#2212) instead of
+  // the spec's envelope-canonicalizing ExpressionInput pipe.
+  visibleWhen: ExpressionWireSchema.optional()
+    .describe('Per-option visibility predicate (CEL) — option offered only when TRUE'),
+  // objectui-only UI extensions (not in the spec; the parity test asserts the
+  // spec has not claimed these names).
   disabled: z.boolean().optional().describe('Whether option is disabled'),
   icon: z.string().optional().describe('Option icon'),
 });
@@ -369,22 +398,52 @@ export const CommandSchema = BaseSchema.extend({
 });
 
 /**
- * Form Field Schema
+ * Form Field Schema — the RUNTIME form-field vocabulary (`name` = data path,
+ * `type` = widget). This is deliberately NOT the spec's `FormFieldSchema`
+ * (`field` = object-field reference, presentation deltas only): the two are
+ * different layers, and `normalizeSectionField` in `@object-ui/plugin-form` is
+ * the translation chokepoint between them (#3090).
+ *
+ * Keys mirror the `FormField` interface in `../form.ts`. Until #3090 this
+ * schema validated only 13 of the interface's declared keys and *required*
+ * `type` (the interface says optional) — so `objectui validate` silently
+ * ignored typos in `visibleWhen`/`widget`/`dependsOn`/… (strip mode) and
+ * rejected metadata the renderer accepts. The pinned key list lives in
+ * `__tests__/form-field-zod-coverage.test.ts`.
  */
 export const FormFieldSchema = z.object({
   id: z.string().optional().describe('Field ID'),
-  name: z.string().describe('Field name'),
+  name: z.string().describe('Field name (form data path)'),
   label: z.string().optional().describe('Field label'),
   description: z.string().optional().describe('Field description'),
-  type: z.string().describe('Field type'),
+  type: z.string().optional().describe('Widget type (defaults per renderer when omitted)'),
   inputType: z.string().optional().describe('Input type'),
   required: z.boolean().optional().describe('Required flag'),
   disabled: z.boolean().optional().describe('Disabled flag'),
   placeholder: z.string().optional().describe('Placeholder text'),
   options: z.array(SelectOptionSchema).optional().describe('Options for select/radio'),
   validation: FieldConstraintsSchema.optional().describe('Validation rules'),
-  condition: FieldConditionSchema.optional().describe('Conditional display'),
-  colSpan: z.number().optional().describe('Column span in grid layout'),
+  condition: FieldConditionSchema.optional().describe('Conditional display (legacy)'),
+  widget: z.string().optional().describe('Custom widget/component name override'),
+  dependsOn: z.union([
+    z.string(),
+    z.array(z.union([
+      z.string(),
+      z.object({ field: z.string(), param: z.string().optional() }),
+    ])),
+  ]).nullish().describe('Parent field(s) for cascading/dependent fields'),
+  hidden: z.boolean().optional().describe('Whether the field is hidden'),
+  readonly: z.boolean().optional().describe('Whether the field is read-only'),
+  visibleOn: ExpressionWireSchema.optional()
+    .describe('View-level visibility predicate (CEL) — ANDed with visibleWhen'),
+  visibleWhen: ExpressionWireSchema.optional()
+    .describe('Field-level visibility rule (CEL) — field shown only when TRUE'),
+  readonlyWhen: ExpressionWireSchema.optional()
+    .describe('Field-level read-only rule (CEL)'),
+  requiredWhen: ExpressionWireSchema.optional()
+    .describe('Field-level required rule (CEL)'),
+  colSpan: z.number().optional().describe('Column span in grid layout (legacy — prefer span)'),
+  span: z.enum(['auto', 'full']).optional().describe('Relative field width'),
 });
 
 /**

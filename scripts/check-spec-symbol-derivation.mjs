@@ -77,6 +77,26 @@ const ALLOW = {
       "shape kept for backward compatibility and slated for removal in a future major.",
     issue: 4115,
   },
+  "@object-ui/types:SelectOptionSchema": {
+    reason:
+      "Spec-derived dialect (objectui#3090): spec keys flow in by reference via " +
+      "`SpecSelectOptionSchema.shape`, with two pinned divergences (`value` widened to " +
+      "string|number|boolean for standalone UI forms; `visibleWhen` kept on the #2212 wire " +
+      "contract instead of the spec's envelope-canonicalizing ExpressionInput pipe) and two " +
+      "UI-only extensions (`disabled`, `icon`). Drift guard: " +
+      "packages/types/src/__tests__/select-option-spec-parity.test.ts — it fails if the spec " +
+      "adds a key, retires one, claims an extension name, or widens `value` itself.",
+    issue: 4115,
+  },
+  "@object-ui/types:SelectOption": {
+    reason:
+      "TS twin of the SelectOptionSchema dialect (objectui#3090): carries every spec key " +
+      "(label/value/color/default/visibleWhen) plus the documented UI-only extensions " +
+      "(`disabled`, `icon`). Kept an interface because the spec type is sound but the " +
+      "objectui `value`/`visibleWhen` divergences are deliberate; the zod twin's parity " +
+      "test pins the key set.",
+    issue: 4115,
+  },
 };
 
 // ── Untriaged collisions (the ledger) ────────────────────────────────────────
@@ -164,8 +184,6 @@ const DEBT = {
     "QuerySchema",
     "ResponsiveConfig",
     "ScriptValidation",
-    "SelectOption",
-    "SelectOptionSchema",
     "StateMachineValidation",
     "Theme",
     "WidgetManifest",

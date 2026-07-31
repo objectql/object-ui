@@ -152,8 +152,25 @@ export function normalizeSectionField(
   if (fd.scale != null) base.scale = fd.scale;
   if (fd.language != null) base.language = fd.language;
   if (Array.isArray(fd.fields)) base.fields = fd.fields;
+  // View-level cascading declaration (spec FormField.dependsOn, a bare parent
+  // name). The form renderer gates + recomputes options off the runtime
+  // field's top-level `dependsOn`; without this copy the declaration vanished.
+  if (fd.dependsOn != null) base.dependsOn = fd.dependsOn;
+  // Record/composite widget config (ADR-0007). Pass-through: no widget reads
+  // them from the runtime field yet, but dropping them here would make that
+  // support impossible to ship metadata-first.
+  if (fd.keyField != null) base.keyField = fd.keyField;
+  if (fd.disclosure != null) base.disclosure = fd.disclosure;
 
-  return attachVisibility(base as FormField, fd.visibleOn);
+  // View-level visibility predicate. ADR-0089 renamed it to `visibleWhen` —
+  // which collides with the runtime slot holding the OBJECT-level rule (copied
+  // from the object schema in `fromObjectSchema`). Route the view predicate
+  // into the view-level slot (`visibleOn`) instead: the renderer evaluates the
+  // two slots independently and ANDs them, so layering is preserved and the
+  // object rule is never clobbered. Canonical spelling wins over the
+  // deprecated one when both are authored (`saveMeta` persists verbatim, so
+  // served metadata can carry either).
+  return attachVisibility(base as FormField, fd.visibleWhen ?? fd.visibleOn);
 }
 
 /** Normalize every field def in a section. */

@@ -175,6 +175,36 @@ describe('WizardForm allowSkip — required fields on a skipped step (#2959)', (
     expect(stepIndicator(1)).not.toHaveAttribute('data-error');
   });
 
+  it('does not demand a required field the view itself hides (view-level visibleWhen false)', async () => {
+    // The section field def carries the SPEC vocabulary: `field` + a view-level
+    // `visibleWhen` (ADR-0089 canonical spelling). `normalizeSectionField`
+    // routes that predicate into the view-level slot (`visibleOn`, #3090) and
+    // the renderer hides the field — so the submit gate must fold the same
+    // slot into its verdict, or it demands a field the user cannot see.
+    const dataSource = renderWizard({
+      allowSkip: true,
+      sections: [
+        { name: 's1', label: 'Step 1', fields: ['subject'] },
+        {
+          name: 's2',
+          label: 'Step 2',
+          fields: [{ field: 'owner', visibleWhen: "record.subject == 'urgent'" }],
+        },
+        { name: 's3', label: 'Step 3', fields: ['notes'] },
+      ],
+    });
+
+    await waitFor(() => expect(document.body.querySelector('[data-field="subject"]')).toBeTruthy());
+    fill('subject', 'routine'); // predicate false → owner is view-hidden
+    fireEvent.click(stepIndicator(2));
+    await waitFor(() => expect(document.body.querySelector('[data-field="notes"]')).toBeTruthy());
+    fill('notes', 'S3');
+    fireEvent.click(screen.getByRole('button', { name: /Create/i }));
+
+    await waitFor(() => expect(dataSource.create).toHaveBeenCalledTimes(1));
+    expect(stepIndicator(1)).not.toHaveAttribute('data-error');
+  });
+
   it('still lets the sequential wizard submit (the gate is not a new blocker)', async () => {
     const dataSource = renderWizard();
 

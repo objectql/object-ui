@@ -279,6 +279,17 @@ export interface SelectOption {
    */
   icon?: string;
   /**
+   * Color code for badges/charts. Aligns with @objectstack/spec
+   * SelectOption.color — `@object-ui/fields` already resolves it for the
+   * select badge/dot rendering; only this contract lagged (objectstack#4115).
+   */
+  color?: string;
+  /**
+   * Whether this is the default option. Aligns with @objectstack/spec
+   * SelectOption.default.
+   */
+  default?: boolean;
+  /**
    * Per-option visibility predicate (CEL). The option is offered only when this
    * evaluates TRUE against the live record + `current_user` (same engine/env as
    * field-level {@link FormFieldConfig.visibleWhen}). Omit = always available.
