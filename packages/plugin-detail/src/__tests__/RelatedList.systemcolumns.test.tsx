@@ -9,9 +9,25 @@
  * column cap. System audit fields are now sorted last.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import React from 'react';
 import { RelatedList } from '../RelatedList';
+
+// Read the column order straight off the schema handed to the renderer. This
+// used to infer it from the row of sort buttons, which a `table` list no longer
+// renders now that its column headers carry the sort (objectui#3106) — and
+// which was always a proxy for the thing under test anyway.
+const h = vi.hoisted(() => ({ schema: null as any }));
+vi.mock('@object-ui/react', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    SchemaRenderer: (props: any) => {
+      h.schema = props.schema;
+      return null;
+    },
+  };
+});
 
 // Declare the system audit fields FIRST to reproduce the pre-fix ordering.
 const fields = {
@@ -49,13 +65,12 @@ describe('RelatedList — system audit columns are deprioritized', () => {
       />,
     );
 
-    // `sortable` renders one button per effective column, in column order.
     const labels = await waitFor(() => {
-      const texts = screen.getAllByRole('button').map((b) => (b.textContent || '').trim());
-      if (!texts.some((t) => t.includes('Product'))) throw new Error('headers not ready');
+      const texts = (h.schema?.columns ?? []).map((c: any) => String(c.header ?? '').trim());
+      if (!texts.some((t: string) => t.includes('Product'))) throw new Error('columns not ready');
       return texts;
     });
-    const idx = (s: string) => labels.findIndex((t) => t.includes(s));
+    const idx = (s: string) => labels.findIndex((t: string) => t.includes(s));
 
     expect(idx('Product')).toBeGreaterThanOrEqual(0);
     // A business field must lead; any shown system audit column comes after it.

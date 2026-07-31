@@ -111,7 +111,17 @@ export interface RelatedListProps {
    * `$orderby`, keeping page windows deterministic.
    */
   defaultSort?: string | Array<{ field: string; order: 'asc' | 'desc' }>;
-  /** Enable column sorting */
+  /**
+   * Render the standalone row of sort buttons above the list.
+   *
+   * Only meaningful for a `list` (`data-list`) related list, which has no
+   * column headers to click. A `grid`/`table` one sorts through its table
+   * headers, which are live regardless of this flag — they always were, and
+   * since objectui#3106 they sort the collection rather than the page, so the
+   * button row above them would be a second control over the same order.
+   *
+   * @default false
+   */
   sortable?: boolean;
   /** Enable text filtering */
   filterable?: boolean;
@@ -591,6 +601,38 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     }
   }, [sortField]);
 
+  /**
+   * The order the embedded table's headers display — this list's own sort, so
+   * the arrow on a column header and the rows underneath it come from the same
+   * place (objectui#3106).
+   *
+   * Before any click that is the declared `defaultSort`, which is what the
+   * windowed fetch above sends. A header showing nothing while the server was
+   * asked for `created_at desc` would make the first click on that column
+   * request `asc` on a list that is already `desc`.
+   */
+  const activeSort = React.useMemo(
+    () => (sortField ? [{ field: sortField, order: sortDirection }] : defaultSortSpec),
+    [sortField, sortDirection, defaultSortSpec],
+  );
+
+  /**
+   * A header click from the embedded table. It arrives with the direction
+   * already resolved against {@link activeSort}, so this assigns rather than
+   * toggling — running it back through `handleSort`'s own toggle would undo it
+   * whenever the two disagreed about the current state.
+   */
+  const handleTableSort = React.useCallback(
+    (next: Array<{ field: string; order: 'asc' | 'desc' }>) => {
+      const first = next[0];
+      if (!first) return;
+      setCurrentPage(0);
+      setSortField(first.field);
+      setSortDirection(first.order);
+    },
+    [],
+  );
+
   // Confirm-delete dialog state. Replaces window.confirm() so the related
   // list matches the rest of the app's Shadcn AlertDialog UX.
   const [deleteTarget, setDeleteTarget] = React.useState<any | null>(null);
@@ -836,6 +878,36 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     return pruned.slice(0, Math.max(1, maxColumns));
   }, [columns, objectSchema, objectName, api, resolveFieldLabel, referenceField, relatedData, maxColumns, lookupLabels, perms]);
 
+  /**
+   * The same columns, with the sort affordance withheld from relational ones
+   * while the sort is the server's.
+   *
+   * A windowed sort goes out as `$orderby` on the flat field name, and a
+   * relational column stores a foreign-key id — so "sort by Owner" would order
+   * the collection by `rec_7f3…` while the cells show names (objectui#3096;
+   * objectstack#4256 settled that no relation join is coming). This is the rule
+   * the sort-button row already applied; the headers inherit it rather than
+   * re-opening the same door.
+   *
+   * In client mode the sort keys off the resolved label, so those headers stay
+   * live — the same split `sortedData` makes.
+   */
+  const sortableColumns = React.useMemo(() => {
+    if (!windowed) return effectiveColumns;
+    return effectiveColumns.map((col: any) => {
+      const field = col.accessorKey || col.field || col.name;
+      return field && isExpandableFieldType((objectSchema?.fields as any)?.[field])
+        ? { ...col, sortable: false }
+        : col;
+    });
+  }, [effectiveColumns, windowed, objectSchema]);
+
+  // A `grid`/`table` list renders a real table, whose column headers carry the
+  // sort. `list` renders `data-list`, which has none — so it keeps the button
+  // row as its only sort control. A caller-supplied `schema` renders whatever
+  // it says, so we cannot claim headers for it either.
+  const hasSortableHeaders = !schema && (type === 'grid' || type === 'table');
+
   const hasCustomRowActions = Array.isArray(rowActions) && rowActions.length > 0;
   const hasRowActions = !!onRowEdit || !!onRowDelete || hasCustomRowActions;
   const isMobile = useIsMobile();
@@ -883,11 +955,24 @@ export const RelatedList: React.FC<RelatedListProps> = ({
         return {
           type: 'data-table',
           data: paginatedData,
-          columns: effectiveColumns,
+          columns: sortableColumns,
           pagination: false, // We handle pagination ourselves
           pageSize: effectivePageSize || 10,
           searchable: false,
           exportable: false,
+          // Sorting is THIS list's, in both modes (objectui#3106).
+          //
+          // Windowed: `data` is one page, so a table-local sort would order
+          // that page and call it the list — the defect. Client mode: this
+          // list's own sort resolves a relational column through the label map
+          // it built (`lookupLabels`), which the table cannot see, so its sort
+          // is the better one even when both are possible.
+          //
+          // Either way there is now ONE sort behind the headers instead of a
+          // table-local order sitting on top of a server order.
+          manualSorting: true,
+          sort: activeSort,
+          onSortChange: handleTableSort,
           rowActions: hasRowActions,
           onRowEdit,
           onRowDelete: onRowDelete ? handleDeleteRow : undefined,
@@ -907,7 +992,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
       default:
         return { type: 'div', children: 'No view configured' };
     }
-  }, [type, paginatedData, effectiveColumns, schema, effectivePageSize, hasRowActions, hasCustomRowActions, rowActions, onRowAction, onRowEdit, onRowDelete, handleDeleteRow, onRowClick, isMobile, api, objectSchema]);
+  }, [type, paginatedData, sortableColumns, effectiveColumns, schema, effectivePageSize, hasRowActions, hasCustomRowActions, rowActions, onRowAction, onRowEdit, onRowDelete, handleDeleteRow, onRowClick, isMobile, api, objectSchema, activeSort, handleTableSort]);
 
   const headerClassName = collapsible ? 'cursor-pointer select-none' : undefined;
   const handleHeaderClick = collapsible ? () => setCollapsed((c) => !c) : undefined;
@@ -1008,8 +1093,15 @@ export const RelatedList: React.FC<RelatedListProps> = ({
           </div>
         )}
 
-        {/* Sortable column headers */}
-        {sortable && effectiveColumns && effectiveColumns.length > 0 && relatedData.length > 0 && (
+        {/* Sort buttons — only where there are no column headers to click.
+            A `grid`/`table` related list renders a real table whose headers now
+            drive this same sort (objectui#3106), so a second row of buttons
+            above it would be two controls over one order — and, before the
+            headers were wired up, two DIFFERENT orders: the buttons sorted the
+            collection through the server while the headers sorted the page in
+            the browser, in one card, with nothing saying so. `data-list` has no
+            headers, so there the buttons stay the only way to sort. */}
+        {sortable && !hasSortableHeaders && effectiveColumns && effectiveColumns.length > 0 && relatedData.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-3">
             {effectiveColumns.map((col: any) => {
               const field = col.accessorKey || col.field || col.name;

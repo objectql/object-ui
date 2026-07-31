@@ -13,10 +13,17 @@
  *
  *   - windowed (server `$orderby` over the whole child collection): the key is
  *     the stored foreign-key id, and no join is available to reach the related
- *     record's name (objectstack#4256). The button is withheld.
+ *     record's name (objectstack#4256). The affordance is withheld.
  *   - client mode (sorting the rows already in memory): the key can be — and
  *     now is — the label the cell shows, resolved from this list's own
- *     id → name map. The button stays, and it sorts by the name.
+ *     id → name map. The affordance stays, and it sorts by the name.
+ *
+ * The guarantee is unchanged since #3106 moved the affordance; what carries it
+ * is now the embedded table's column headers rather than a separate row of sort
+ * buttons, so these assertions read the column's `sortable` flag and drive the
+ * table's `onSortChange` instead of clicking buttons that no longer exist for a
+ * `table` list. (The button row survives for `data-list`, which has no headers
+ * — covered in `RelatedList.headerSort.test.tsx`.)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, waitFor, fireEvent, screen } from '@testing-library/react';
@@ -72,14 +79,18 @@ const makeDataSource = () => ({
   }),
 });
 
-const sortButton = (name: RegExp) => screen.queryByRole('button', { name });
+/** Whether the embedded table offers a sort on this column. */
+const columnSortable = (accessorKey: string) => {
+  const col = h.schema?.columns?.find((c: any) => c.accessorKey === accessorKey);
+  return col ? col.sortable !== false : undefined;
+};
 
 beforeEach(() => {
   h.schema = null;
 });
 
 describe('RelatedList sort entry points — relational columns (objectui#3096)', () => {
-  it('withholds the relational sort button when the sort is a server $orderby', async () => {
+  it('withholds the relational column header when the sort is a server $orderby', async () => {
     const dataSource = makeDataSource();
     render(
       <RelatedList
@@ -95,9 +106,9 @@ describe('RelatedList sort entry points — relational columns (objectui#3096)',
         dataSource={dataSource as any}
       />,
     );
-    // A plain column still offers its button — proving the row rendered at all.
-    await waitFor(() => expect(sortButton(/^name/i)).not.toBeNull());
-    expect(sortButton(/^owner/i)).toBeNull();
+    // A plain column stays sortable — proving the table rendered at all.
+    await waitFor(() => expect(columnSortable('name')).toBe(true));
+    expect(columnSortable('owner')).toBe(false);
   });
 
   it('keeps it in client mode and orders by the resolved label, not the id', async () => {
@@ -119,9 +130,10 @@ describe('RelatedList sort entry points — relational columns (objectui#3096)',
     // Wait for the id → name map to resolve; until then the cells show ids.
     await waitFor(() => expect(dataSource.find).toHaveBeenCalledWith('sys_user', expect.anything()));
 
-    const owner = sortButton(/^owner/i);
-    expect(owner).not.toBeNull();
-    fireEvent.click(owner!);
+    expect(columnSortable('owner')).toBe(true);
+    await React.act(async () => {
+      h.schema.onSortChange([{ field: 'owner', order: 'asc' }]);
+    });
 
     await waitFor(() =>
       expect(h.schema.data.map((row: any) => owners[row.owner])).toEqual([

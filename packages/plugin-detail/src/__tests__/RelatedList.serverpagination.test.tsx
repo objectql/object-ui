@@ -196,7 +196,12 @@ describe('RelatedList — server-windowed pagination (#2711)', () => {
     fireEvent.click(nextButton());
     await screen.findByText('Page 2 of 3');
 
-    fireEvent.click(screen.getByRole('button', { name: /name/i }));
+    // The sort now arrives from the embedded table's column headers rather
+    // than a separate row of sort buttons (objectui#3106) — same server
+    // `$orderby`, same page reset, one control instead of two.
+    await React.act(async () => {
+      h.schema.onSortChange([{ field: 'name', order: 'asc' }]);
+    });
     await waitFor(() => {
       expect(ds.find).toHaveBeenCalledWith('contact', {
         $filter: { account: 'ACC-1' },
