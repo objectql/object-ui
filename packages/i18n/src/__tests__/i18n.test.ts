@@ -56,8 +56,6 @@ describe('@object-ui/i18n', () => {
       const i18n = createI18n({ defaultLanguage: 'en', detectBrowserLanguage: false });
       expect(i18n.t('form.createTitle', { object: 'Contact' })).toBe('Create Contact');
       expect(i18n.t('form.editTitle', { object: 'Contact' })).toBe('Edit Contact');
-      expect(i18n.t('form.createDescription', { object: 'Contact' })).toBe('Add a new Contact to your database.');
-      expect(i18n.t('form.editDescription', { object: 'Contact' })).toBe('Update details for Contact');
       expect(i18n.t('form.saveRecord')).toBe('Save');
     });
 
@@ -75,8 +73,6 @@ describe('@object-ui/i18n', () => {
       const i18n = createI18n({ defaultLanguage: 'zh', detectBrowserLanguage: false });
       expect(i18n.t('form.createTitle', { object: '联系人' })).toBe('新建联系人');
       expect(i18n.t('form.editTitle', { object: '联系人' })).toBe('编辑联系人');
-      expect(i18n.t('form.createDescription', { object: '联系人' })).toBe('向数据库添加新的联系人。');
-      expect(i18n.t('form.editDescription', { object: '联系人' })).toBe('更新联系人的详情');
       expect(i18n.t('form.saveRecord')).toBe('保存');
     });
 

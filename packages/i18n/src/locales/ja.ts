@@ -127,8 +127,6 @@ const ja = {
     stepOf: "ステップ {{current}} / {{total}}",
     createTitle: "{{object}}を作成",
     editTitle: "{{object}}を編集",
-    createDescription: "新しい{{object}}をデータベースに追加します。",
-    editDescription: "{{object}}の詳細を更新",
     saveRecord: "レコードを保存",
     create: "作成",
     update: "更新",

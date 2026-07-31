@@ -337,16 +337,6 @@ export function RecordFormPage({ mode }: RecordFormPageProps) {
                 ...(formDef.buttons && { buttons: formDef.buttons }),
                 ...(formDef.defaults && { defaults: formDef.defaults }),
                 title: pageTitle,
-                description:
-                  mode === 'create'
-                    ? t('form.createDescription', {
-                        object: label,
-                        defaultValue: `Create a new ${label}.`,
-                      })
-                    : t('form.editDescription', {
-                        object: label,
-                        defaultValue: `Edit this ${label}.`,
-                      }),
                 layout: 'vertical',
                 fields,
                 // Master-detail by config: if the object's form view declares

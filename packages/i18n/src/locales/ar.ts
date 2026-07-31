@@ -127,8 +127,6 @@ const ar = {
     stepOf: "الخطوة {{current}} من {{total}}",
     createTitle: "إنشاء {{object}}",
     editTitle: "تعديل {{object}}",
-    createDescription: "إضافة {{object}} جديد إلى قاعدة البيانات.",
-    editDescription: "تحديث تفاصيل {{object}}",
     saveRecord: "حفظ السجل",
     create: "إنشاء",
     update: "تحديث",

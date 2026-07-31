@@ -127,8 +127,6 @@ const ru = {
     stepOf: "Шаг {{current}} из {{total}}",
     createTitle: "Создать {{object}}",
     editTitle: "Редактировать {{object}}",
-    createDescription: "Добавить новый {{object}} в базу данных.",
-    editDescription: "Обновить данные {{object}}",
     saveRecord: "Сохранить запись",
     create: "Создать",
     update: "Обновить",

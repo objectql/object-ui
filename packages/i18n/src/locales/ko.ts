@@ -127,8 +127,6 @@ const ko = {
     stepOf: "{{total}}단계 중 {{current}}단계",
     createTitle: "{{object}} 생성",
     editTitle: "{{object}} 편집",
-    createDescription: "새 {{object}}을(를) 데이터베이스에 추가합니다.",
-    editDescription: "{{object}} 세부 정보 업데이트",
     saveRecord: "레코드 저장",
     create: "생성",
     update: "업데이트",

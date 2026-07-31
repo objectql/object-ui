@@ -127,8 +127,6 @@ const pt = {
     stepOf: "Etapa {{current}} de {{total}}",
     createTitle: "Criar {{object}}",
     editTitle: "Editar {{object}}",
-    createDescription: "Adicionar um novo {{object}} ao seu banco de dados.",
-    editDescription: "Atualizar detalhes de {{object}}",
     saveRecord: "Salvar registro",
     create: "Criar",
     update: "Atualizar",

@@ -127,8 +127,6 @@ const fr = {
     stepOf: "Étape {{current}} sur {{total}}",
     createTitle: "Créer {{object}}",
     editTitle: "Modifier {{object}}",
-    createDescription: "Ajouter un nouveau {{object}} à votre base de données.",
-    editDescription: "Mettre à jour les détails de {{object}}",
     saveRecord: "Enregistrer",
     create: "Créer",
     update: "Mettre à jour",

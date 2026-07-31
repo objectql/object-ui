@@ -133,8 +133,6 @@ const en = {
     stepOf: 'Step {{current}} of {{total}}',
     createTitle: 'Create {{object}}',
     editTitle: 'Edit {{object}}',
-    createDescription: 'Add a new {{object}} to your database.',
-    editDescription: 'Update details for {{object}}',
     saveRecord: 'Save',
     create: 'Create',
     update: 'Update',

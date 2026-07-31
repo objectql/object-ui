@@ -786,9 +786,6 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
                 title: editingRecord
                   ? t('form.editTitle', { object: objectLabel(formObjectDef as any) })
                   : t('form.createTitle', { object: objectLabel(formObjectDef as any) }),
-                description: editingRecord
-                  ? t('form.editDescription', { object: objectLabel(formObjectDef as any) })
-                  : t('form.createDescription', { object: objectLabel(formObjectDef as any) }),
                 open: isDialogOpen,
                 onOpenChange: (open: boolean) => { if (!open) closeRecordForm(); },
                 layout: 'vertical',
