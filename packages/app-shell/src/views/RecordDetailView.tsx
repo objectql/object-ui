@@ -228,7 +228,15 @@ export function buildApprovalDecisionActions(
       order: -99,
       locations: ['record_header'],
       refreshAfter: true,
-      confirmText: t('approvals.rejectConfirm', { defaultValue: 'Reject this approval request?' }),
+      // NO `confirmText` here (objectui#3126). The runner chains confirm THEN
+      // param collection, so carrying both queued two dialogs: the approver
+      // answered "Reject this approval request? → Continue" and the request
+      // still didn't fire — it waited on a second, unexpected comment dialog
+      // (opened since #2961 made `actionParams` live on this surface), which
+      // reads as a silent no-op. The param dialog IS the confirmation: it is
+      // titled by this label, carries the confirm question as its description,
+      // and nothing is sent until its own Confirm.
+      description: t('approvals.rejectConfirm', { defaultValue: 'Reject this approval request?' }),
       actionParams: decisionParams('reject'),
       successMessage: t('approvals.rejectSuccess', { defaultValue: 'Rejected' }),
     },

@@ -56,7 +56,22 @@ describe('buildApprovalDecisionActions — param key (objectui#2955)', () => {
     const actions = byName(buildApprovalDecisionActions(pending(), t) as any[]);
     expect(actions.approve_request.order).toBe(-100);
     expect(actions.reject_request.order).toBe(-99);
-    expect(actions.reject_request.confirmText).toBeDefined();
+  });
+});
+
+describe('buildApprovalDecisionActions — one dialog per decision (objectui#3126)', () => {
+  it('never carries `confirmText` — the param dialog is the confirmation', () => {
+    // The runner chains confirm THEN param collection, so `confirmText` +
+    // `actionParams` queued TWO dialogs: after "Continue" nothing was sent
+    // until a second, unexpected comment dialog was also confirmed — the
+    // #3126 "reject silently does nothing" report. One decision, one dialog.
+    const actions = buildApprovalDecisionActions(pending(), t) as any[];
+    for (const a of actions) expect(a.confirmText).toBeUndefined();
+  });
+
+  it('keeps the reject confirm question as the dialog description', () => {
+    const actions = byName(buildApprovalDecisionActions(pending(), t) as any[]);
+    expect(actions.reject_request.description).toBe('Reject this approval request?');
   });
 });
 
