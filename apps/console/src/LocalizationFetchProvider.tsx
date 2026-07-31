@@ -7,9 +7,28 @@
  * Cosmetic, NOT fail-closed: while loading or on error it renders children with
  * an empty value (no tenant default → renderers show a plain number), so a slow
  * or missing endpoint never blocks the app.
+ *
+ * That posture is why it retries QUIETLY. On a multi-tenant host this endpoint
+ * is served by the environment kernel that owns the session, and a cold one
+ * answers `503` + `Retry-After` while it warms (objectstack#4159) — so a
+ * transient failure is a normal part of a cold start, not an exception. A single
+ * attempt meant one 503 during warm-up degraded currency and locale for the
+ * WHOLE session, silently and permanently, long after the kernel was ready.
+ *
+ * It shares the "is this transient / how long to wait" primitives with
+ * `MePermissionsProvider` but not its policy: that one is fail-closed and holds
+ * its loading state across the waits, this one keeps rendering throughout and
+ * simply fills the value in if and when an attempt succeeds.
  */
 import { useEffect, useState } from 'react';
 import { LocalizationProvider, type LocalizationValue } from '@object-ui/i18n';
+import {
+  HttpFetchError,
+  backoffMs,
+  isTransientFailure,
+  retryAfterFrom,
+  sleep,
+} from '@object-ui/types';
 
 interface MeLocalizationResponse {
   authenticated?: boolean;
@@ -17,6 +36,16 @@ interface MeLocalizationResponse {
   locale?: string | null;
   timezone?: string | null;
 }
+
+/**
+ * Attempts for a transient failure, and the base for the exponential backoff.
+ * Deliberately more patient than the permission layer's: nothing is waiting on
+ * this, so it can afford to still be trying when a slow environment finishes
+ * warming, and a user who never sees a currency symbol is better served by a
+ * late answer than by no answer.
+ */
+const MAX_RETRIES = 4;
+const BASE_DELAY_MS = 1_000;
 
 export function LocalizationFetchProvider({
   endpoint,
@@ -29,15 +58,33 @@ export function LocalizationFetchProvider({
 
   useEffect(() => {
     let cancelled = false;
-    fetch(endpoint, { credentials: 'include', headers: { Accept: 'application/json' } })
-      .then((r) => (r.ok ? (r.json() as Promise<MeLocalizationResponse>) : null))
-      .then((json) => {
-        if (cancelled || !json) return;
-        setValue({ currency: json.currency ?? undefined, locale: json.locale ?? undefined });
-      })
-      .catch(() => {
-        /* cosmetic — leave the empty value, renderers show plain numbers */
-      });
+
+    void (async () => {
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          const res = await fetch(endpoint, {
+            credentials: 'include',
+            headers: { Accept: 'application/json' },
+          });
+          if (!res.ok) throw new HttpFetchError(res.status, retryAfterFrom(res));
+
+          const json = (await res.json()) as MeLocalizationResponse;
+          if (cancelled) return;
+          setValue({ currency: json.currency ?? undefined, locale: json.locale ?? undefined });
+          return;
+        } catch (err) {
+          // A real answer about this caller (401/403/404/500) will not change on
+          // a retry, and neither will the last attempt — either way, stop and
+          // leave the empty value. Cosmetic: renderers show plain numbers.
+          if (!isTransientFailure(err) || attempt === MAX_RETRIES) return;
+
+          const stated = err instanceof HttpFetchError ? err.retryAfterMs : undefined;
+          await sleep(backoffMs(attempt, BASE_DELAY_MS, stated));
+          if (cancelled) return;
+        }
+      }
+    })();
+
     return () => {
       cancelled = true;
     };

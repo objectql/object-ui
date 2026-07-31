@@ -1205,3 +1205,17 @@ export type {
 } from './widget';
 
 export { errorCodeIs, errorCodeIsAnyOf } from './error-code';
+
+// Transient-HTTP-retry primitives, shared by the two `/auth/me/*` providers
+// (permissions is fail-closed and blocks across the waits, localization is
+// cosmetic and never blocks) so "what counts as transient" has ONE definition.
+export {
+    MAX_RETRY_DELAY_MS,
+    TRANSIENT_STATUS,
+    HttpFetchError,
+    isTransientFailure,
+    parseRetryAfterMs,
+    backoffMs,
+    sleep,
+    retryAfterFrom,
+} from './http-retry';
