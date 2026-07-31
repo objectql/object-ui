@@ -34,6 +34,23 @@ export type FilterNode =
  * @param operator - MongoDB-style operator (e.g., '$gte', '$in')
  * @returns ObjectStack operator or null if not recognized
  */
+/**
+ * A filter operator this layer will not translate.
+ *
+ * Carries the data API's own code and status for the same refusal so a failed
+ * list renders "the filter is malformed" rather than "check your connection" —
+ * `classifyLoadError` reads these, and a bare `Error` classifies as a network
+ * fault, which is the one thing this is definitely not.
+ */
+export class FilterOperatorError extends Error {
+  readonly code = 'INVALID_FILTER';
+  readonly httpStatus = 400;
+  constructor(message: string) {
+    super(message);
+    this.name = 'FilterOperatorError';
+  }
+}
+
 export function convertOperatorToAST(operator: string): string | null {
   // Spec reference: framework/packages/spec/src/data/filter.zod.ts
   // Canonical MongoDB-style keys are camelCase ($startsWith, $endsWith, $notContains).
@@ -95,16 +112,24 @@ export function convertFiltersToAST(filter: Record<string, any>): FilterNode | R
     if (typeof value === 'object' && !Array.isArray(value)) {
       // Handle operator-based filters
       for (const [operator, operatorValue] of Object.entries(value)) {
-        // Special handling for $regex - warn users about limited support
+        // `$regex` is refused, not downgraded. It used to become `contains`
+        // behind a `console.warn` — but substring matching is a DIFFERENT
+        // QUESTION, not a weaker version of the same one: `$regex: 'a.c'`
+        // matches "abc", `contains 'a.c'` does not, and neither result looks
+        // wrong on screen. A warning is not an error channel; nobody reads the
+        // console of a deployed app.
+        //
+        // The spec has no `$regex` (`FILTER_OPERATORS`, data/filter.zod.ts), so
+        // there is nothing to translate it INTO. Same treatment the unknown
+        // operator below already gets, and for the same stated reason.
         if (operator === '$regex') {
-          console.warn(
-            `[ObjectUI] Warning: $regex operator is not fully supported. ` +
-            `Converting to 'contains' which only supports substring matching, not regex patterns. ` +
+          throw new FilterOperatorError(
+            `[ObjectUI] The '$regex' filter operator is not supported. It used to be ` +
+            `converted to 'contains', which matches a literal substring rather than a ` +
+            `pattern — a different result, not a degraded one. ` +
             `Field: '${field}', Value: ${JSON.stringify(operatorValue)}. ` +
-            `Consider using $contains or $startsWith instead.`
+            `Use $contains, $startsWith or $endsWith.`
           );
-          conditions.push([field, 'contains', operatorValue]);
-          continue;
         }
 
         // $null / $exists translate based on their boolean value (per spec semantics).
@@ -125,7 +150,7 @@ export function convertFiltersToAST(filter: Record<string, any>): FilterNode | R
           conditions.push([field, astOperator, operatorValue]);
         } else {
           // Unknown operator - throw error to avoid silent failure
-          throw new Error(
+          throw new FilterOperatorError(
             `[ObjectUI] Unknown filter operator '${operator}' for field '${field}'. ` +
             `Supported operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $between, ` +
             `$contains, $notContains, $startsWith, $endsWith, $null, $exists. ` +

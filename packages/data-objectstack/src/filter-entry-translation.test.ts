@@ -283,6 +283,60 @@ describe('a bare rule object directly under a logical node', () => {
   );
 });
 
+describe('an OBJECT filter reaches the same predicate on both routes', () => {
+  beforeEach(() => clearSharedDiscoveryCache());
+
+  /**
+   * The array branch was single-sourced in #3072; the object branch was not.
+   * `convertQueryParams` converted a MongoDB-style filter to AST while
+   * `translateFilterToAST` returned it verbatim — so the same `$filter` went out
+   * in two formats, decided by whether the query expanded a lookup.
+   *
+   * Measured across 21 operator shapes, four diverged. `$exists` vs `$null` was
+   * a cosmetic difference the server treats identically, but the other three
+   * were not: see below.
+   */
+  bothRoutes(
+    'converts a plain equality object',
+    { status: 'active' },
+    (wire) => expect(wire).toEqual(['status', '=', 'active']),
+  );
+
+  bothRoutes(
+    'converts an operator object',
+    { age: { $gte: 18 } },
+    (wire) => expect(wire).toEqual(['age', '>=', 18]),
+  );
+
+  bothRoutes(
+    'leaves a top-level Mongo logical node alone',
+    // `mergeFilters` (dashboard scope filters) produces this. It survives as a
+    // `['$and', '=', [...]]` comparison that `parseFilterAST` reads back as a
+    // real `$and` — verified, and the reason this is NOT rewritten here.
+    { $and: [{ a: 1 }, { b: 2 }] },
+    (wire) => expect(wire).toEqual(['$and', '=', [{ a: 1 }, { b: 2 }]]),
+  );
+
+  for (const route of ['plain', 'expand'] as const) {
+    it(`refuses an unknown operator on the ${route} route`, async () => {
+      // The guard exists "to avoid silent failure" — it used to run on one
+      // route only, so a typo shipped silently whenever a lookup was expanded.
+      const err = await findRejects({ s: { $bogus: 1 } }, route);
+      expect(err).toBeInstanceOf(Error);
+      expect(String((err as Error).message)).toContain('$bogus');
+      expect(isMalformedFilterError(err)).toBe(true);
+    });
+
+    it(`refuses $regex rather than answering a different question (${route})`, async () => {
+      // Was silently rewritten to `contains`: `$regex: 'a.c'` matches "abc",
+      // `contains 'a.c'` does not. The spec has no `$regex` to translate into.
+      const err = await findRejects({ s: { $regex: 'a.c' } }, route);
+      expect(isMalformedFilterError(err)).toBe(true);
+      expect(String((err as Error).message)).toMatch(/regex/i);
+    });
+  }
+});
+
 describe('the two routes agree on shapes that are neither form', () => {
   beforeEach(() => clearSharedDiscoveryCache());
 

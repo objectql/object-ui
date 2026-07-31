@@ -287,7 +287,14 @@ function translateFilterToAST(filter: unknown): unknown | undefined {
 
   if (typeof filter === 'object') {
     if (Object.keys(filter as Record<string, unknown>).length === 0) return undefined;
-    return filter;
+    // Same conversion `convertQueryParams` applies. This branch used to return
+    // the object VERBATIM, so the two `find()` routes disagreed about the same
+    // filter — decided, as ever, by whether the query happened to expand a
+    // lookup. Measured across 21 operator shapes, four diverged; the one that
+    // mattered is that `convertFiltersToAST`'s unknown-operator guard — added
+    // expressly "to avoid silent failure" — never ran on this route, so a typo'd
+    // operator threw on a plain read and shipped silently on an expanded one.
+    return convertFiltersToAST(filter as Record<string, unknown>);
   }
 
   return undefined;

@@ -74,19 +74,41 @@ describe('Filter Converter Utilities', () => {
       expect(result).toEqual(['status', 'nin', ['archived']]);
     });
 
-    it('should warn on $regex operator and convert to contains', () => {
+    /**
+     * This used to assert the opposite — `$regex` converted to `contains`
+     * behind a `console.warn`. The example it used is the argument against it:
+     * `$regex: '^John'` means "starts with John", while `contains '^John'`
+     * looks for a literal caret, so "John Smith" does NOT match. The rewrite
+     * answered a different question and returned a result that looks fine.
+     *
+     * A `console.warn` is not an error channel in a deployed app, the spec has
+     * no `$regex` to translate into (`FILTER_OPERATORS`, data/filter.zod.ts),
+     * and the neighbouring unknown-operator case already throws for exactly
+     * this reason. So it is refused.
+     */
+    it('should refuse $regex rather than answer with a substring match', () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      
-      const result = convertFiltersToAST({
-        name: { $regex: '^John' }
-      });
-      
-      expect(result).toEqual(['name', 'contains', '^John']);
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[ObjectUI] Warning: $regex operator is not fully supported')
-      );
-      
+
+      expect(() => convertFiltersToAST({ name: { $regex: '^John' } }))
+        .toThrow(/\$regex/);
+      // Refused loudly, not warned about quietly.
+      expect(consoleSpy).not.toHaveBeenCalled();
+
       consoleSpy.mockRestore();
+    });
+
+    it('should tag both refusals as a rejected request, not a network fault', () => {
+      // A bare `Error` reads as "check your connection" in the list error panel
+      // (#3066) — the one thing a malformed filter definitely is not.
+      for (const bad of [{ n: { $regex: 'x' } }, { n: { $unknown: 1 } }]) {
+        expect(() => convertFiltersToAST(bad as any)).toThrow();
+        try {
+          convertFiltersToAST(bad as any);
+        } catch (e: any) {
+          expect(e.code).toBe('INVALID_FILTER');
+          expect(e.httpStatus).toBe(400);
+        }
+      }
     });
 
     it('should throw error on unknown operator', () => {

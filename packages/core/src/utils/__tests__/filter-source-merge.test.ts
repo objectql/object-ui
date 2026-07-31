@@ -29,7 +29,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { isFilterAST, parseFilterAST } from '@objectstack/spec/data';
-import { toFilterNode, mergeFilterNodes } from '../filter-converter';
+import { toFilterNode, mergeFilterNodes, convertFiltersToAST, FilterOperatorError } from '../filter-converter';
 
 const RULES = [{ field: 'stage', operator: 'eq', value: 'won' }];
 const TUPLE = ['owner', '=', 'me'];
@@ -100,5 +100,41 @@ describe('what reaches the server', () => {
     expect(parseFilterAST(spread)).toEqual({
       $and: [{ field: 'stage', operator: 'eq', value: 'won' }, { owner: 'me' }],
     });
+  });
+});
+
+describe('operators this layer will not translate', () => {
+  it('refuses $regex instead of silently answering with `contains`', () => {
+    // `$regex: 'a.c'` matches "abc"; `contains 'a.c'` matches only the literal
+    // three characters. Neither result looks wrong on screen, which is exactly
+    // why the old `console.warn` + rewrite was the wrong shape of handling —
+    // a warning is not an error channel in a deployed app.
+    expect(() => convertFiltersToAST({ name: { $regex: 'a.c' } }))
+      .toThrow(/regex/i);
+  });
+
+  it('refuses an unknown operator', () => {
+    expect(() => convertFiltersToAST({ name: { $bogus: 1 } })).toThrow(/\$bogus/);
+  });
+
+  it('carries the code that classifies it as a rejected request, not a network fault', () => {
+    // A bare Error reads as "check your connection" in the list error panel
+    // (#3066). Both refusals above are the server-understood-and-refused kind.
+    for (const bad of [{ n: { $regex: 'x' } }, { n: { $bogus: 1 } }]) {
+      try {
+        convertFiltersToAST(bad as any);
+        throw new Error('expected a refusal');
+      } catch (e: any) {
+        expect(e).toBeInstanceOf(FilterOperatorError);
+        expect(e.code).toBe('INVALID_FILTER');
+        expect(e.httpStatus).toBe(400);
+      }
+    }
+  });
+
+  it('still translates every operator it does support', () => {
+    expect(convertFiltersToAST({ a: { $gte: 1 } })).toEqual(['a', '>=', 1]);
+    expect(convertFiltersToAST({ a: { $contains: 'x' } })).toEqual(['a', 'contains', 'x']);
+    expect(convertFiltersToAST({ a: { $null: true } })).toEqual(['a', 'is_null', true]);
   });
 });
