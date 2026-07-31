@@ -493,6 +493,9 @@ const es = {
     filterRecords: "Filtrar registros",
     sort: "Ordenar",
     sortRecords: "Ordenar registros",
+    sortByIdSuffix: "(por ID)",
+    sortRelationalHint:
+      "Las columnas que apuntan a otro registro no aparecen aquí: solo pueden ordenarse por el ID almacenado, no por el nombre que se muestra en la celda. Para ordenar por ese nombre, añada un campo de fórmula que lo contenga.",
     group: "Agrupar",
     groupBy: "Agrupar por",
     export: "Exportar",

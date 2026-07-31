@@ -19,7 +19,7 @@ import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveCrudAffordances, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveCrudAffordances, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, EXPANDABLE_FIELD_TYPES } from '@object-ui/core';
 import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 
@@ -376,6 +376,9 @@ const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'list.filterRecords': 'Filter Records',
   'list.sort': 'Sort',
   'list.sortRecords': 'Sort Records',
+  'list.sortByIdSuffix': '(by ID)',
+  'list.sortRelationalHint':
+    'Columns that link to another record are not listed: they can only be sorted by the stored ID, not by the name shown in the cell. To sort by that name, add a formula field holding it.',
   'list.group': 'Group',
   'list.groupBy': 'Group By',
   'list.export': 'Export',
@@ -1743,6 +1746,40 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     return fields;
   }, [objectDef, schema.columns, schema.filterableFields, schema.objectName, tFieldLabel, translateOptions]);
 
+  // Sort candidates ⊂ filter candidates (objectui#3096).
+  //
+  // This view's sort becomes a server `$orderby` on the FLAT field name, and a
+  // relational field stores a foreign-key id — so "sort by Owner" orders the
+  // whole collection by `rec_7f3…` while the column shows names. It reads as
+  // "sorting is broken", with nothing saying the key is something else. The
+  // server cannot sort by the related record's name without a join
+  // (objectstack#4256 settled that it won't), so the honest move is to stop
+  // offering the illusion: relational fields leave the picker, and the hint
+  // below points at the supported alternative (a formula field that
+  // denormalizes the name onto this object, which sorts like any text column).
+  //
+  // Exception: a field the CURRENT sort already uses stays listed — flagged as
+  // ordering by ID — so opening this popover on a view that was authored (or
+  // saved before this change) with a relational sort neither renders a blank
+  // row nor silently drops that sort on the next edit.
+  const { sortFields, sortHasRelationalField } = React.useMemo(() => {
+    const inUse = new Set(currentSort.map((item) => item.field).filter(Boolean));
+    let excluded = false;
+    const fields: Array<{ value: string; label: string }> = [];
+    for (const field of filterFields) {
+      if (!EXPANDABLE_FIELD_TYPES.has(field.type)) {
+        fields.push({ value: field.value, label: field.label });
+        continue;
+      }
+      if (inUse.has(field.value)) {
+        fields.push({ value: field.value, label: `${field.label} ${t('list.sortByIdSuffix')}` });
+        continue;
+      }
+      excluded = true;
+    }
+    return { sortFields: fields, sortHasRelationalField: excluded };
+  }, [filterFields, currentSort, t]);
+
   // Export handler
   const handleExport = React.useCallback((format: 'csv' | 'xlsx' | 'json' | 'pdf') => {
     // Object-level export permission gate. Default-allow.
@@ -2167,13 +2204,18 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
                   <h4 className="font-medium text-sm">{t('list.sortRecords')}</h4>
                 </div>
                 <SortBuilder
-                  fields={filterFields}
+                  fields={sortFields}
                   value={currentSort}
                   onChange={(newSort) => {
                     setCurrentSort(newSort);
                     if (onSortChange) onSortChange(newSort);
                   }}
                 />
+                {sortHasRelationalField && (
+                  <p className="text-xs text-muted-foreground" data-testid="sort-relational-hint">
+                    {t('list.sortRelationalHint')}
+                  </p>
+                )}
               </div>
             </PopoverContent>
           </Popover>

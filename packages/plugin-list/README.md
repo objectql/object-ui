@@ -180,6 +180,26 @@ interface ListViewSchema {
 }
 ```
 
+## Sorting (and why relational columns are not offered)
+
+The toolbar sort becomes a server `$orderby` on the **flat field name**, so the
+sort key is whatever that field stores. For a relational field
+(`lookup` / `master_detail` / `user` / `tree`) that is the foreign-key **id**,
+while the column shows the related record's name — the rows would come back in
+an order with no visible relation to the column ("sorting is broken", from the
+user's side). The server cannot order by the related name without a join, and
+`objectstack#4256` settled that it will not add one.
+
+So the sort picker withholds relational fields and says so. To sort by a related
+record's name, denormalize it onto this object with a **formula field** and sort
+that column like any other text column. A relational field that the view's
+CURRENT sort already uses stays listed, labelled `(by ID)`, so existing view
+metadata round-trips instead of silently losing its sort.
+
+Column-header sorting inside the grid is unaffected: it is client-side over the
+rows already loaded, where the label the cell shows IS available, so it orders by
+that label (see `getSortValue` in `@object-ui/core`).
+
 ## View Persistence
 
 The ListView automatically persists the user's view type preference in localStorage using the key `listview-{objectName}-view`.

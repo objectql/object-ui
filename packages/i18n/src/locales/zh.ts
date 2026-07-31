@@ -471,6 +471,9 @@ const zh = {
     filterRecords: '筛选记录',
     sort: '排序',
     sortRecords: '排序记录',
+    sortByIdSuffix: '(按 ID)',
+    sortRelationalHint:
+      '指向其他记录的列未列出:它们只能按存储的 ID 排序,而不是单元格中显示的名称。若要按该名称排序,请添加一个存放该名称的公式字段。',
     group: '分组',
     groupBy: '分组依据',
     export: '导出',

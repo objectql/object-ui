@@ -202,6 +202,12 @@ reads the collection size from `QueryResult.total` (falling back to a
 `hasMore` estimate), so large child tables never ship wholesale to the
 browser. A user column sort becomes a server `$orderby` (ordering stays
 global across pages), and the node's `sort` prop seeds the initial order.
+Because that `$orderby` names a flat field, a **relational column**
+(`lookup` / `master_detail` / `user` / `tree`) would order the collection by the
+stored foreign-key id while its cells show related-record names — so on the
+windowed path those columns offer no sort button at all. In client mode the
+sort key is the label this list already resolved for the cell, so the button
+stays and orders by that name.
 Passing `data` directly keeps the historical client-side slicing, and typing
 in the opt-in filter box temporarily falls back to the full-fetch client
 pipeline (the contains-filter sweeps every field, which no generic server

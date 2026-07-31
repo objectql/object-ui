@@ -18,6 +18,7 @@ export * from './utils/filter-converter.js';
 export * from './utils/managedBy.js';
 export * from './utils/extract-records.js';
 export * from './utils/expand-fields.js';
+export * from './utils/sort-values.js';
 export * from './evaluator/index.js';
 export * from './actions/index.js';
 export * from './query/index.js';

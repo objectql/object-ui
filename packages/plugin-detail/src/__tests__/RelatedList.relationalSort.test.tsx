@@ -1,0 +1,137 @@
+/**
+ * ObjectUI
+ * Copyright (c) 2024-present ObjectStack Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+/**
+ * objectui#3096 — a related list must not offer a sort whose key is invisible.
+ *
+ * The two branches differ in what a sort even CAN order by, so they diverge:
+ *
+ *   - windowed (server `$orderby` over the whole child collection): the key is
+ *     the stored foreign-key id, and no join is available to reach the related
+ *     record's name (objectstack#4256). The button is withheld.
+ *   - client mode (sorting the rows already in memory): the key can be — and
+ *     now is — the label the cell shows, resolved from this list's own
+ *     id → name map. The button stays, and it sorts by the name.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, waitFor, fireEvent, screen } from '@testing-library/react';
+import * as React from 'react';
+import { RelatedList } from '../RelatedList';
+
+// Capture the schema RelatedList hands to SchemaRenderer (the data-table), so
+// we can read the row order it renders without depending on the table itself.
+const h = vi.hoisted(() => ({ schema: null as any }));
+vi.mock('@object-ui/react', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    SchemaRenderer: (props: any) => {
+      h.schema = props.schema;
+      return null;
+    },
+  };
+});
+
+const objectSchema = {
+  name: 'contact',
+  fields: {
+    name: { type: 'text', label: 'Name' },
+    owner: { type: 'lookup', label: 'Owner', reference_to: 'sys_user' },
+  },
+};
+
+const columns = [
+  { accessorKey: 'name', header: 'Name' },
+  { accessorKey: 'owner', header: 'Owner' },
+];
+
+/** Owner ids are opaque and deliberately disagree with the owner NAMES. */
+const owners: Record<string, string> = { u_1: 'Zoe', u_2: 'Alice', u_3: 'Mallory' };
+
+const contacts = [
+  { id: 'c1', name: 'Row 1', owner: 'u_1' },
+  { id: 'c2', name: 'Row 2', owner: 'u_2' },
+  { id: 'c3', name: 'Row 3', owner: 'u_3' },
+];
+
+const makeDataSource = () => ({
+  getObjectSchema: vi.fn(async () => objectSchema),
+  find: vi.fn(async (api: string, params: any) => {
+    if (api === 'sys_user') {
+      const ids: string[] = params?.$filter?.id?.$in ?? [];
+      return { data: ids.map((id) => ({ id, name: owners[id] })) };
+    }
+    const skip = params?.$skip ?? 0;
+    const top = params?.$top ?? contacts.length;
+    return { data: contacts.slice(skip, skip + top), total: contacts.length };
+  }),
+});
+
+const sortButton = (name: RegExp) => screen.queryByRole('button', { name });
+
+beforeEach(() => {
+  h.schema = null;
+});
+
+describe('RelatedList sort entry points — relational columns (objectui#3096)', () => {
+  it('withholds the relational sort button when the sort is a server $orderby', async () => {
+    const dataSource = makeDataSource();
+    render(
+      <RelatedList
+        title="Contacts"
+        type="table"
+        api="contact"
+        objectName="contact"
+        referenceField="account"
+        parentId="ACC-1"
+        pageSize={5}
+        columns={columns}
+        sortable
+        dataSource={dataSource as any}
+      />,
+    );
+    // A plain column still offers its button — proving the row rendered at all.
+    await waitFor(() => expect(sortButton(/^name/i)).not.toBeNull());
+    expect(sortButton(/^owner/i)).toBeNull();
+  });
+
+  it('keeps it in client mode and orders by the resolved label, not the id', async () => {
+    const dataSource = makeDataSource();
+    render(
+      <RelatedList
+        title="Contacts"
+        type="table"
+        api="contact"
+        objectName="contact"
+        referenceField="account"
+        parentId="ACC-1"
+        columns={columns}
+        sortable
+        data={contacts}
+        dataSource={dataSource as any}
+      />,
+    );
+    // Wait for the id → name map to resolve; until then the cells show ids.
+    await waitFor(() => expect(dataSource.find).toHaveBeenCalledWith('sys_user', expect.anything()));
+
+    const owner = sortButton(/^owner/i);
+    expect(owner).not.toBeNull();
+    fireEvent.click(owner!);
+
+    await waitFor(() =>
+      expect(h.schema.data.map((row: any) => owners[row.owner])).toEqual([
+        'Alice',
+        'Mallory',
+        'Zoe',
+      ]),
+    );
+    // The stored ids would have ordered them Zoe / Alice / Mallory.
+    expect([...contacts].sort((a, b) => a.owner.localeCompare(b.owner)).map((r) => owners[r.owner]))
+      .toEqual(['Zoe', 'Alice', 'Mallory']);
+  });
+});

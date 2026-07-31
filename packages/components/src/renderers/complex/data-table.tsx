@@ -11,7 +11,7 @@ import React, { useState, useMemo, useRef, useEffect, useLayoutEffect } from 're
 import { cn } from '../../lib/utils';
 import { resolveIcon } from '../action/resolve-icon';
 import { useGridFieldAuthoring } from '../../context/gridFieldAuthoring';
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, compareSortValues, getSortValue } from '@object-ui/core';
 import type { DataTableSchema } from '@object-ui/types';
 import { useRowPredicate } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
@@ -599,19 +599,26 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     );
   }, [data, searchQuery, columns]);
 
-  // Sorting
+  // Sorting — client-side, over the rows this table was handed.
+  //
+  // Sort keys go through `getSortValue` so a relational column orders by the
+  // label its cell shows, not by the `$expand`-ed record object (objectui#3096).
+  // The old `aValue < bValue` was always false for two objects, so a lookup
+  // column's comparator collapsed to the constant `1` and the sort produced an
+  // order unrelated to anything on screen.
+  //
+  // Decorate → sort → undecorate: the key is resolved ONCE per row rather than
+  // on every one of the O(n log n) comparisons.
   const sortedData = useMemo(() => {
     if (!sortColumn || !sortDirection) return filteredData;
-    
-    return [...filteredData].sort((a, b) => {
-      const aValue = a[sortColumn];
-      const bValue = b[sortColumn];
-      
-      if (aValue === bValue) return 0;
-      
-      const comparison = aValue < bValue ? -1 : 1;
+
+    const keyed = filteredData.map((row) => ({ row, key: getSortValue(row[sortColumn]) }));
+    // Array#sort is stable, so rows with equal keys keep their incoming order.
+    keyed.sort((a, b) => {
+      const comparison = compareSortValues(a.key, b.key);
       return sortDirection === 'asc' ? comparison : -comparison;
     });
+    return keyed.map((entry) => entry.row);
   }, [filteredData, sortColumn, sortDirection]);
 
   // Pagination. Under manual (server-side) pagination the parent controls the

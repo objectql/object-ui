@@ -463,6 +463,9 @@ const en = {
     filterRecords: 'Filter Records',
     sort: 'Sort',
     sortRecords: 'Sort Records',
+    sortByIdSuffix: '(by ID)',
+    sortRelationalHint:
+      'Columns that link to another record are not listed: they can only be sorted by the stored ID, not by the name shown in the cell. To sort by that name, add a formula field holding it.',
     group: 'Group',
     groupBy: 'Group By',
     export: 'Export',

@@ -493,6 +493,9 @@ const ja = {
     filterRecords: "レコードをフィルター",
     sort: "並べ替え",
     sortRecords: "レコードを並べ替え",
+    sortByIdSuffix: "(ID順)",
+    sortRelationalHint:
+      "他のレコードを参照する列は表示されていません。保存されている ID でしか並べ替えられず、セルに表示される名称では並べ替えできません。その名称で並べ替えるには、名称を保持する数式項目を追加してください。",
     group: "グループ",
     groupBy: "グループ化",
     export: "エクスポート",

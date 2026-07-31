@@ -40,7 +40,12 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import type { DataSource, FieldMetadata } from '@object-ui/types';
 import { getCellRenderer, resolveCellRendererType, RecordPickerDialog } from '@object-ui/fields';
-import { userActionPredicates } from '@object-ui/core';
+import {
+  compareSortValues,
+  getSortValue,
+  isExpandableFieldType,
+  userActionPredicates,
+} from '@object-ui/core';
 import { useSafeFieldLabel } from '@object-ui/react';
 import { usePermissions } from '@object-ui/permissions';
 import { useDetailTranslation } from './useDetailTranslation';
@@ -532,18 +537,23 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   }, [relatedData, filterText, windowed]);
 
   // Sort data (client mode only — a windowed sort is a server $orderby)
+  //
+  // A relational column holds a raw foreign-key id (this list resolves labels
+  // itself, see `lookupLabels`) or — when the parent handed us `$expand`-ed
+  // rows — the related record object. `String(aVal)` ordered the first by an
+  // opaque id and reduced the second to "[object Object]", i.e. every row equal.
+  // Feeding the resolved label map to `getSortValue` sorts by the string the
+  // cell actually renders (objectui#3096).
   const sortedData = React.useMemo(() => {
     if (windowed || !sortField) return filteredData;
-    return [...filteredData].sort((a, b) => {
-      const aVal = a[sortField];
-      const bVal = b[sortField];
-      if (aVal == null && bVal == null) return 0;
-      if (aVal == null) return 1;
-      if (bVal == null) return -1;
-      const cmp = String(aVal).localeCompare(String(bVal), undefined, { numeric: true });
+    const labels = lookupLabels[sortField];
+    const keyed = filteredData.map((row) => ({ row, key: getSortValue(row[sortField], { labels }) }));
+    keyed.sort((a, b) => {
+      const cmp = compareSortValues(a.key, b.key);
       return sortDirection === 'asc' ? cmp : -cmp;
     });
-  }, [filteredData, sortField, sortDirection, windowed]);
+    return keyed.map((entry) => entry.row);
+  }, [filteredData, sortField, sortDirection, windowed, lookupLabels]);
 
   // Paginate data. Windowed mode already holds exactly one page; client mode
   // slices the in-memory collection as before.
@@ -1004,6 +1014,16 @@ export const RelatedList: React.FC<RelatedListProps> = ({
             {effectiveColumns.map((col: any) => {
               const field = col.accessorKey || col.field || col.name;
               if (!field) return null;
+              // A windowed sort goes out as a server `$orderby` on the flat
+              // field name, so a relational column would order the collection by
+              // its stored foreign-key id while the cells show related-record
+              // names — sorting looks broken (objectui#3096). No button rather
+              // than a button that sorts by something invisible. The client-mode
+              // branch keeps its button: there the sort key is the resolved
+              // label (see `sortedData`).
+              if (windowed && isExpandableFieldType((objectSchema?.fields as any)?.[field])) {
+                return null;
+              }
               const label = col.header || col.label || field;
               const isActive = sortField === field;
               return (

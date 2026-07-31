@@ -493,6 +493,9 @@ const fr = {
     filterRecords: "Filtrer les enregistrements",
     sort: "Trier",
     sortRecords: "Trier les enregistrements",
+    sortByIdSuffix: "(par ID)",
+    sortRelationalHint:
+      "Les colonnes qui pointent vers un autre enregistrement ne sont pas listées : elles ne peuvent être triées que par l'ID stocké, et non par le nom affiché dans la cellule. Pour trier par ce nom, ajoutez un champ de formule qui le contient.",
     group: "Grouper",
     groupBy: "Grouper par",
     export: "Exporter",
