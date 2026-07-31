@@ -39,6 +39,48 @@ function withEnvAuth(headers: Record<string, string>): Record<string, string> {
 }
 
 /**
+ * Read a code + human message out of a failed cloud response, whichever dialect
+ * it arrived in.
+ *
+ * The routes behind this file (`service-cloud`) answer failures in two shapes,
+ * and are mid-conversion from one to the other (cloud#944):
+ *
+ *   { success: false, error: '<message>' }              today, via `fail()`
+ *   { success: false, error: { code, message } }        the declared envelope
+ *
+ * Seven call sites in this file each hand-rolled their own read of that, in
+ * four different ways, and the spread was not harmless:
+ *
+ *   - two read `payload?.error` bare, with no nested fallback. Once the
+ *     producer converts, those receive an OBJECT where the surrounding type
+ *     declares `error?: string` — and an object handed to a toast as a React
+ *     child crashes the page. That is objectstack#3913's exact symptom, which
+ *     `interpretActionResponse` already exists to prevent on the actions route.
+ *   - two read only the nested form, so against a server shipping TODAY they
+ *     find nothing and degrade a real explanation into a bare status code.
+ *
+ * So this is not only preparation for the conversion — it fixes messages that
+ * are already being swallowed. One function, so the next reader has one place
+ * to look and the next route has nothing to hand-roll.
+ *
+ * The `typeof … === 'string'` guard is what makes it safe to hand the result
+ * straight to a `string` field: an unexpected shape degrades to the code rather
+ * than travelling onward as an object.
+ */
+export function readApiError(
+  payload: any,
+  res: { status: number; statusText: string },
+): { code: string; message: string } {
+  const code = payload?.error?.code ?? payload?.code ?? `HTTP_${res.status}`;
+  const raw =
+    payload?.error?.message   // the declared envelope
+    ?? payload?.error         // `fail()`'s bare string
+    ?? payload?.message       // a few routes put the text here
+    ?? res.statusText;
+  return { code: String(code), message: typeof raw === 'string' ? raw : String(code) };
+}
+
+/**
  * Per-locale overrides for translatable package fields. Mirrors
  * `PackageTranslation` from @objectstack/spec/cloud — duplicated here
  * to avoid pulling the spec package into the app-shell bundle.
@@ -143,8 +185,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   let payload: any = null;
   try { payload = await res.json(); } catch { /* empty body */ }
   if (!res.ok) {
-    const code = payload?.error?.code ?? payload?.code ?? `HTTP_${res.status}`;
-    const message = payload?.error?.message ?? payload?.error ?? res.statusText;
+    const { code, message } = readApiError(payload, res);
     const err = new Error(typeof message === 'string' ? message : `${code}`);
     (err as any).code = code;
     (err as any).status = res.status;
@@ -221,8 +262,7 @@ export async function installPackage(input: {
     let payload: any = null;
     try { payload = await res.json(); } catch { /* empty */ }
     if (!res.ok || payload?.success === false) {
-      const code = payload?.error?.code ?? payload?.code ?? `HTTP_${res.status}`;
-      const message = payload?.error?.message ?? payload?.error ?? payload?.message ?? res.statusText;
+      const { code, message } = readApiError(payload, res);
       const err = new Error(typeof message === 'string' ? message : `${code}`);
       (err as any).code = code;
       (err as any).status = res.status;
@@ -255,13 +295,11 @@ export async function installPackage(input: {
   const inner = payload?.data;
   const innerFailed = !!inner && typeof inner === 'object' && inner.success === false;
   if (!res.ok || innerFailed) {
-    const code = payload?.code ?? payload?.error?.code ?? `HTTP_${res.status}`;
-    // `error` is a nested `{code, message}` object on the current wire and a
-    // plain string on the older one — read the message out of both before
-    // falling back, or a real explanation degrades into a bare status code.
-    const message = innerFailed
-      ? (inner.error ?? res.statusText)
-      : (payload?.error?.message ?? payload?.error ?? payload?.message ?? res.statusText);
+    // The inner branch reads a DIFFERENT object — the 200-with-`data.success:
+    // false` shape above — so it stays hand-read; only the outer one is shared.
+    const outer = readApiError(payload, res);
+    const code = payload?.code ?? outer.code;
+    const message = innerFailed ? (inner.error ?? res.statusText) : outer.message;
     const err = new Error(typeof message === 'string' ? message : `${code}`);
     (err as any).code = code;
     (err as any).status = res.status;
@@ -488,7 +526,7 @@ export async function reseedSampleData(installationId: string): Promise<{ ok: bo
     });
     const payload: any = await res.json().catch(() => ({}));
     if (!res.ok || payload?.success === false) {
-      return { ok: false, error: payload?.error || `HTTP ${res.status}` };
+      return { ok: false, error: readApiError(payload, res).message };
     }
     return { ok: true };
   } catch (err: any) {
@@ -509,7 +547,7 @@ export async function purgeSampleData(installationId: string): Promise<{ ok: boo
     });
     const payload: any = await res.json().catch(() => ({}));
     if (!res.ok || payload?.success === false) {
-      return { ok: false, error: payload?.error || `HTTP ${res.status}` };
+      return { ok: false, error: readApiError(payload, res).message };
     }
     return { ok: true, deleted: Number(payload?.data?.deleted ?? 0) };
   } catch (err: any) {
@@ -604,8 +642,7 @@ export async function installLocal(input: {
   let payload: any = null;
   try { payload = await res.json(); } catch { /* empty */ }
   if (!res.ok) {
-    const code = payload?.error?.code ?? `HTTP_${res.status}`;
-    const message = payload?.error?.message ?? res.statusText;
+    const { code, message } = readApiError(payload, res);
     const err = new Error(typeof message === 'string' ? message : `${code}`);
     (err as any).code = code;
     (err as any).status = res.status;
@@ -683,8 +720,7 @@ export async function uninstallLocal(manifestId: string): Promise<void> {
   });
   if (!res.ok) {
     const payload: any = await res.json().catch(() => ({}));
-    const message = payload?.error?.message ?? res.statusText;
-    throw new Error(typeof message === 'string' ? message : `HTTP_${res.status}`);
+    throw new Error(readApiError(payload, res).message);
   }
 }
 
