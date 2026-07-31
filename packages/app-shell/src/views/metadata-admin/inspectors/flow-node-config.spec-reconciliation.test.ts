@@ -52,9 +52,17 @@ const SCRIPT_INVOKE_FUNCTION_ACTION_TYPE = spec.SCRIPT_INVOKE_FUNCTION_ACTION_TY
  * marks it with a `[REMOVED]` description), but it is NOT part of the
  * authorable contract — a form field writing one produces metadata the loader
  * rejects. Counting tombstones as contract keys would false-pass exactly that
- * drift (e.g. `waitEventConfig.timeoutMs` / `.onTimeout`, retired at spec 18
- * by framework#4198 — this filter is what makes the `wait` panel fire on that
- * bump until the form drops the two fields).
+ * drift (e.g. `waitEventConfig.timeoutMs` / `.onTimeout`, retired by
+ * framework#4198 — this filter is what makes the `wait` panel fire on the spec
+ * bump that carries their tombstones, until the form drops the two fields).
+ *
+ * That bump is a **17.0.0-rc refresh**, not the "spec 18" the tombstone text
+ * itself names: changesets computes a pre-release train off the last
+ * *published* major (`@objectstack/spec` latest is 16.1.0, `rc` is
+ * 17.0.0-rc.0), so the retirement's `major` resolves to **17.0.0** — and
+ * framework main carries the tombstones with `PROTOCOL_VERSION = '17.0.0'`.
+ * The trigger is the next rc this repo installs, not a major that the current
+ * release train cannot produce. Tracked in #3101.
  */
 function zodKeys(schema: unknown): string[] {
   const shape = (schema as { shape?: Record<string, unknown> }).shape;
