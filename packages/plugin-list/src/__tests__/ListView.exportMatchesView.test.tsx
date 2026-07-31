@@ -100,6 +100,34 @@ describe('ListView export mirrors the active view', () => {
   });
 });
 
+describe('a MongoDB-style view filter is not dropped', () => {
+  beforeEach(() => {
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:x');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  /**
+   * `ObjectView` passes `mergedFilters` straight into this schema's `filter`,
+   * and its last fallback is `table.defaultFilters` — declared
+   * `Record<string, any>`. The old `baseFilter.length > 0` guard read false for
+   * an object, so the list queried unfiltered and showed every record. An
+   * earlier comment here called that unreachable; it was not.
+   */
+  it('reaches the query as an AST instead of vanishing', async () => {
+    const { find } = harness({ ...BASE, filter: { status: 'active' } as any });
+    await vi.waitFor(() => expect(find).toHaveBeenCalled());
+    expect(find.mock.calls[0][1]?.$filter).toEqual(['status', '=', 'active']);
+  });
+
+  it('reaches the export too, by the same route', async () => {
+    const { exportDownload } = harness({ ...BASE, filter: { status: 'active' } as any });
+    await clickExportCsv();
+    await vi.waitFor(() => expect(exportDownload).toHaveBeenCalledTimes(1));
+    expect(exportDownload.mock.calls[0][1]?.filter).toEqual(['status', '=', 'active']);
+  });
+});
+
 describe('the fetch and the export build the SAME filter', () => {
   beforeEach(() => {
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:x');

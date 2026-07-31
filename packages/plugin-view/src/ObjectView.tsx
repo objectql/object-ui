@@ -58,7 +58,7 @@ import {
 } from '@object-ui/components';
 import { Plus } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { buildExpandFields, normalizeListViewSchema } from '@object-ui/core';
+import { buildExpandFields, normalizeListViewSchema, mergeFilterNodes } from '@object-ui/core';
 import { SchemaRenderer as ImportedSchemaRenderer } from '@object-ui/react';
 import { ViewSwitcher } from './ViewSwitcher';
 import { deriveRecordSurface } from './recordSurface';
@@ -358,22 +358,27 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
 
       setLoading(true);
       try {
-        // Build filter
-        const baseFilter = currentNamedViewConfig?.filter || activeView?.filter || schema.table?.defaultFilters || [];
+        // Build filter. Each source becomes its OWN child of the `and`, never
+        // spread into it: `['and', ...baseFilter]` is only correct when the
+        // source happens to be an array of AST nodes, and `activeView.filter` is
+        // a spec `ViewFilterRule[]` — spreading put bare rule objects where the
+        // AST expects nodes, which `isFilterAST` rejects (a 400 since
+        // objectstack#4121) and `parseFilterAST` misreads as a Mongo condition
+        // on columns literally named `field` / `operator` / `value`.
+        //
+        // `mergeFilterNodes` also rescues an OBJECT source: `table.defaultFilters`
+        // is declared `Record<string, any>`, and the old `baseFilter.length > 0`
+        // test read false for it — so a view's default filter was dropped and
+        // every record came back. The grid path (ObjectGrid) always assigned it
+        // directly and was unaffected, so the same view filtered correctly as a
+        // grid and returned everything as a calendar/kanban/gallery.
         const userFilter = Object.entries(filterValues)
           .filter(([, v]) => v !== undefined && v !== '' && v !== null)
           .map(([field, value]) => [field, '=', value]);
-
-        let finalFilter: any = [];
-        if (baseFilter.length > 0 && userFilter.length > 0) {
-          finalFilter = ['and', ...baseFilter, ...userFilter];
-        } else if (userFilter.length === 1) {
-          finalFilter = userFilter[0];
-        } else if (userFilter.length > 1) {
-          finalFilter = ['and', ...userFilter];
-        } else {
-          finalFilter = baseFilter;
-        }
+        const finalFilter = mergeFilterNodes(
+          currentNamedViewConfig?.filter || activeView?.filter || schema.table?.defaultFilters,
+          ...userFilter,
+        );
 
         // Build sort
         const sort = sortConfig.length > 0
@@ -386,7 +391,9 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         // duplicate events in child views like the calendar.
         const expand = buildExpandFields((objectSchemaRef.current as any)?.fields);
         const results = await dataSource.find(schema.objectName, {
-          $filter: finalFilter.length > 0 ? finalFilter : undefined,
+          // `mergeFilterNodes` returns a node or `undefined`; the old
+          // `.length > 0` here was the second place an object filter was lost.
+          $filter: finalFilter,
           $orderby: sort,
           $top: 100,
           ...(expand.length > 0 ? { $expand: expand } : {}),

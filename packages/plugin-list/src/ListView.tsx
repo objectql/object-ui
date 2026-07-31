@@ -19,7 +19,7 @@ import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveCrudAffordances, normalizeListViewSchema, rowHeightToDensityMode } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveCrudAffordances, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes } from '@object-ui/core';
 import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 
@@ -232,26 +232,27 @@ export function normalizeFilters(filters: any[]): any[] {
  * Returns `undefined` when nothing is active, so callers can skip `$filter`
  * entirely rather than sending an empty array.
  *
- * Known gap, preserved deliberately: a MongoDB-style object `schema.filter` has
- * no `.length` and is dropped here, as it always has been. Nothing in this repo
- * produces one for a list view (they come from dashboard widgets, which query
- * directly), so this stays a pure extraction rather than a behaviour change.
+ * A MongoDB-style object `schema.filter` used to be dropped here (`.length` is
+ * `undefined` on an object, so the guard read false) and the list returned every
+ * record. An earlier version of this comment called that unreachable, on the
+ * grounds that nothing in the repo hands a list view an object filter. That was
+ * wrong: `ObjectView` passes `mergedFilters` straight into this schema's
+ * `filter`, and its last fallback is `table.defaultFilters`, declared
+ * `Record<string, any>`. `toFilterNode` now converts it instead.
  */
 export function buildEffectiveFilter(
   baseFilter: unknown,
   currentFilters: FilterGroup,
   userFilterConditions: any[],
-): any[] | undefined {
-  const base = Array.isArray(baseFilter) ? baseFilter : [];
+): any[] | Record<string, any> | undefined {
   const userFilter = convertFilterGroupToAST(currentFilters);
-  const allFilters = [
-    ...(base.length > 0 ? [base] : []),
-    ...(userFilter.length > 0 ? [userFilter] : []),
-    // Normalize the per-field conditions (expands `in` into an `or` of `=`).
+  return mergeFilterNodes(
+    baseFilter,
+    userFilter.length > 0 ? userFilter : undefined,
+    // Normalize the per-field conditions (expands `in` into an `or` of `=`),
+    // each of which is already its own node.
     ...normalizeFilters(userFilterConditions),
-  ].filter((f: any) => Array.isArray(f) && f.length > 0);
-  if (allFilters.length === 0) return undefined;
-  return allFilters.length === 1 ? allFilters[0] : ['and', ...allFilters];
+  );
 }
 
 export function convertFilterGroupToAST(group: FilterGroup): any[] {

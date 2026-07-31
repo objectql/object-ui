@@ -238,9 +238,29 @@ function translateFilterArray(filter: unknown[]): unknown[] {
   return filter;
 }
 
-/** A child of a logical node: another array node, or a value we leave alone. */
+/**
+ * A child of a logical node: another array node, a bare rule object, or a value
+ * we leave alone.
+ *
+ * The bare-rule case comes from producers that SPREAD a `ViewFilterRule[]` into
+ * an `and` (`['and', ...rules, ...tuples]`) instead of wrapping it. That puts
+ * rule objects where the AST expects nodes, and the server has no good answer:
+ * `isFilterAST` rejects it (a 400 since objectstack#4121), while
+ * `parseFilterAST` reads the rule as a MongoDB condition and filters on columns
+ * literally named `field` / `operator` / `value` — three columns that do not
+ * exist, so the honest-looking result is empty.
+ *
+ * Only rule-SHAPED objects are translated: a child with no `field` is a genuine
+ * MongoDB condition (`{ status: 'active' }`) and must pass through untouched.
+ * Same discriminator `isObjectFilterEntryForm` uses at the top level.
+ */
 function translateFilterChild(child: unknown): unknown {
-  return Array.isArray(child) && child.length > 0 ? translateFilterArray(child) : child;
+  if (Array.isArray(child)) return child.length > 0 ? translateFilterArray(child) : child;
+  if (child && typeof child === 'object' && (child as any).field !== undefined) {
+    const tuple = objectFilterEntryToAST(child);
+    if (tuple) return tuple;
+  }
+  return child;
 }
 
 /**

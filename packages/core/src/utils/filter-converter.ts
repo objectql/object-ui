@@ -152,3 +152,54 @@ export function convertFiltersToAST(filter: Record<string, any>): FilterNode | R
   // Multiple conditions: combine with 'and'
   return ['and', ...conditions];
 }
+
+/**
+ * Normalize ONE filter source into a single filter node.
+ *
+ * A "source" is whatever a view hands a renderer, and there are three shapes in
+ * circulation, all legitimate:
+ *
+ *   - `[{ field, operator, value }, ...]`  a spec `ViewFilterRule[]`
+ *   - `[['stage', '=', 'won'], ...]`       an AST node / legacy flat array
+ *   - `{ status: 'active' }`               a MongoDB-style object
+ *
+ * The third is the one that kept getting lost. Renderers tested `source.length
+ * > 0` before using it, which is `undefined > 0` for an object — so a
+ * `table.defaultFilters` (declared `Record<string, any>`) was DROPPED and the
+ * view returned every record. Silently: no error, just a wider answer.
+ *
+ * Returns `undefined` for an absent or empty source, so callers can skip
+ * `$filter` rather than sending an empty array.
+ */
+export function toFilterNode(source: unknown): FilterNode | Record<string, any> | undefined {
+  if (source === null || source === undefined) return undefined;
+  if (Array.isArray(source)) return source.length > 0 ? (source as FilterNode) : undefined;
+  if (typeof source !== 'object') return undefined;
+  const obj = source as Record<string, any>;
+  if (Object.keys(obj).length === 0) return undefined;
+  // MongoDB-style → AST, so it can sit beside the other shapes under one `and`.
+  return convertFiltersToAST(obj);
+}
+
+/**
+ * Combine filter sources under a single `and`, each as its OWN child.
+ *
+ * Wrapping rather than spreading, on purpose. `['and', ...rules]` looks
+ * equivalent and is not: spreading a `ViewFilterRule[]` puts bare rule OBJECTS
+ * where the AST expects nodes, and the server neither understands nor rejects
+ * that cleanly — `isFilterAST` says no (a 400 since objectstack#4121), while
+ * `parseFilterAST` reads the rule as a Mongo condition and filters on columns
+ * literally named `field` / `operator` / `value`. Spreading is only correct
+ * when the source happens to be an array of nodes, which is why it survived.
+ *
+ * Sources that normalize to nothing are skipped; one surviving source is
+ * returned as-is rather than wrapped in a pointless `and`.
+ */
+export function mergeFilterNodes(
+  ...sources: unknown[]
+): FilterNode | Record<string, any> | undefined {
+  const nodes = sources.map(toFilterNode).filter((n) => n !== undefined);
+  if (nodes.length === 0) return undefined;
+  if (nodes.length === 1) return nodes[0];
+  return ['and', ...nodes] as FilterNode;
+}

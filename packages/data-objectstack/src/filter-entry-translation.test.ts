@@ -257,6 +257,32 @@ describe('what this adapter emits passes the server’s own gate', () => {
   }
 });
 
+describe('a bare rule object directly under a logical node', () => {
+  beforeEach(() => clearSharedDiscoveryCache());
+
+  /**
+   * Produced by any caller that SPREADS a `ViewFilterRule[]` into an `and`
+   * rather than wrapping it — `['and', ...rules, ...tuples]`. The rules land as
+   * bare objects where the AST expects nodes, `isFilterAST` rejects the whole
+   * node (a 400 since objectstack#4121), and `parseFilterAST` reads the rule as
+   * a Mongo condition on columns literally named `field`/`operator`/`value`.
+   * objectui's own producer was fixed to wrap; this is the chokepoint defence.
+   */
+  bothRoutes(
+    'is translated in place',
+    ['and', { field: 'stage', operator: 'eq', value: 'won' }, ['owner', '=', 'me']],
+    (wire) => expect(wire).toEqual(['and', ['stage', '=', 'won'], ['owner', '=', 'me']]),
+  );
+
+  bothRoutes(
+    'leaves a genuine MongoDB condition child alone',
+    // No `field` key, so it is a condition on a column named `status` — not a
+    // rule. Translating it would invent a filter the caller never wrote.
+    ['and', { status: 'active' }, ['owner', '=', 'me']],
+    (wire) => expect(wire).toEqual(['and', { status: 'active' }, ['owner', '=', 'me']]),
+  );
+});
+
 describe('the two routes agree on shapes that are neither form', () => {
   beforeEach(() => clearSharedDiscoveryCache());
 
