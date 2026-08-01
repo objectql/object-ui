@@ -407,7 +407,12 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
   ],
   decision: [
     cfg('conditions', 'Branches', 'objectList', {
-      help: 'Each branch has a label, a CEL expression, and a target node. A branch whose expression is "true" is the default/else path. Picking a target wires the branch’s outgoing edge (creating or updating it); clearing it detaches that edge.',
+      // framework#4414: the default/else path is the out-edge marked
+      // `isDefault`, not the branch itself — a `true` branch is how you ask for
+      // one, and FlowEdgeInspector.applyBranch() writes the marker. Saying
+      // "a `true` branch IS the default path" conflated the two, which is the
+      // reading that let a decision ship with a guard that did not guard.
+      help: 'Each branch has a label, a CEL expression (no {braces}), and a target node. Branches are tried in order and the first match wins. A branch whose expression is "true" is the catch-all: picking its target marks that out-edge as the default path, taken only when no other branch matched. Picking a target wires the branch’s outgoing edge (creating or updating it); clearing it detaches that edge.',
       columns: [
         { key: 'label', label: 'Label', kind: 'text', placeholder: 'Has deals' },
         { key: 'expression', label: 'Expression', kind: 'expression', placeholder: 'expiring_deals.length > 0' },
@@ -416,9 +421,16 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
         { key: 'target', label: 'Target', kind: 'reference', placeholder: 'next node', ref: { kind: 'node' } },
       ],
     }),
+    // Render-only for a stored legacy value (`__legacy__` never matches, so it
+    // is not offered for new authoring). The old help said "Prefer Branches
+    // above", which reads as "this works, but the other is better" — it does
+    // not work at all: framework#4414 confirmed the decision executor never
+    // reads `config.condition`. The key is the trigger gate on a `start` node
+    // and inert on every other node type, and `os validate` now reports it as
+    // `flow-inert-node-condition`.
     cfg('condition', 'Condition (single)', 'expression', {
       placeholder: 'amount > 10000',
-      help: 'Legacy single-branch condition (CEL). Prefer Branches above; per-edge conditions also live on the outgoing edges.',
+      help: 'Inert — nothing reads this. The engine only honours `condition` on a Start node (the trigger gate); on a Decision it gates nothing. Shown so a stored value is not invisible. Move the predicate to a branch above, or to the outgoing edge’s own condition, then clear this.',
       showWhen: { field: '__legacy__', equals: [] },
     }),
   ],
