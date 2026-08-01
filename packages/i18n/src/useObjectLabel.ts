@@ -202,6 +202,24 @@ export function useObjectLabel() {
       : [`reports.${reportName}.${tail}`];
   };
 
+  /**
+   * Build suffix candidates for a list-view scoped key.
+   *
+   * The runtime uses qualified view ids (`<objectName>.<viewName>`) in URLs
+   * and metadata records, while translation bundles are keyed by the authored
+   * view name under `_views`. Resolve the unqualified name first so every
+   * surface can pass its canonical id without leaking the metadata fallback.
+   */
+  const viewSuffixes = (objectName: string, viewName: string, tail: string): string[] => {
+    const objectNames = [objectName, stripNamespace(objectName)];
+    const matchedPrefix = objectNames
+      .map((name) => `${name}.`)
+      .find((prefix) => viewName.startsWith(prefix));
+    const shortViewName = matchedPrefix ? viewName.slice(matchedPrefix.length) : viewName;
+    const viewNames = shortViewName === viewName ? [viewName] : [shortViewName, viewName];
+    return viewNames.flatMap((name) => objectSuffixes(objectName, `_views.${name}.${tail}`));
+  };
+
   return {
     /**
      * Resolve translated object label, falling back to objectDef.label.
@@ -341,7 +359,7 @@ export function useObjectLabel() {
      * Convention (per @objectstack/spec): `{ns}.objects.{objectName}._views.{viewName}.label`.
      */
     viewLabel: (objectName: string, viewName: string, fallback: string) =>
-      resolve(objectSuffixes(objectName, `_views.${viewName}.label`), fallback),
+      resolve(viewSuffixes(objectName, viewName, 'label'), fallback),
 
     /**
      * Resolve translated list-view description.
@@ -349,7 +367,7 @@ export function useObjectLabel() {
      */
     viewDescription: (objectName: string, viewName: string, fallback?: string) => {
       const fb = fallback ?? '';
-      const resolved = resolve(objectSuffixes(objectName, `_views.${viewName}.description`), fb);
+      const resolved = resolve(viewSuffixes(objectName, viewName, 'description'), fb);
       return resolved || undefined;
     },
 
@@ -366,10 +384,10 @@ export function useObjectLabel() {
     ) => {
       if (!fallback) return undefined;
       const title = fallback.title
-        ? resolve(objectSuffixes(objectName, `_views.${viewName}.emptyState.title`), fallback.title)
+        ? resolve(viewSuffixes(objectName, viewName, 'emptyState.title'), fallback.title)
         : fallback.title;
       const message = fallback.message
-        ? resolve(objectSuffixes(objectName, `_views.${viewName}.emptyState.message`), fallback.message)
+        ? resolve(viewSuffixes(objectName, viewName, 'emptyState.message'), fallback.message)
         : fallback.message;
       return { ...fallback, title, message };
     },
