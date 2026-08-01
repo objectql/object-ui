@@ -78,14 +78,20 @@ describe('useActionEngine', () => {
   });
 
   describe('getBulkActions', () => {
-    it('returns only bulk-enabled actions', () => {
+    // Deliberately INVERTED. `sampleActions` still carries the stale
+    // `bulkEnabled: true` — spec 17 retired the key as a `retiredKey()`
+    // tombstone, so metadata like this no longer parses at all, and harvesting
+    // it here made a dead registration option look load-bearing. Same posture
+    // as plugin-grid's "ignores a stale bulkEnabled flag on an object action".
+    // The engine's bulk mechanics keep their coverage in ActionEngine.test.ts,
+    // where a HOST passes `{ bulkEnabled: true }` to `registerAction`
+    // explicitly — which is still supported.
+    it('does not harvest the retired bulkEnabled key from metadata', () => {
       const { result } = renderHook(() =>
         useActionEngine({ actions: sampleActions }),
       );
 
-      const bulkActions = result.current.getBulkActions();
-      expect(bulkActions.length).toBe(1);
-      expect(bulkActions[0].name).toBe('mark_complete');
+      expect(result.current.getBulkActions()).toEqual([]);
     });
   });
 
@@ -119,7 +125,14 @@ describe('useActionEngine', () => {
   });
 
   describe('handleShortcut', () => {
-    it('handles registered keyboard shortcut', async () => {
+    // Deliberately INVERTED, for the same reason as getBulkActions above:
+    // `sampleActions` still declares the stale `shortcut: 'ctrl+k'`, which
+    // spec 17 retired. Its tombstone is explicit that nothing ever consumed it
+    // ("no keydown listener feeds ActionEngine.getShortcuts(), and objectui's
+    // keyboard stack is hand-registered and never consults action metadata"),
+    // so harvesting it only kept a dead path looking alive. A host that wants
+    // a shortcut still passes one to `registerAction` explicitly.
+    it('does not harvest the retired shortcut key from metadata', async () => {
       const { result } = renderHook(() =>
         useActionEngine({ actions: sampleActions }),
       );
@@ -129,8 +142,7 @@ describe('useActionEngine', () => {
         shortcutResult = await result.current.handleShortcut('ctrl+k');
       });
 
-      expect(shortcutResult).not.toBeNull();
-      expect(shortcutResult.success).toBe(true);
+      expect(shortcutResult).toBeNull();
     });
 
     it('returns null for unregistered shortcut', async () => {
