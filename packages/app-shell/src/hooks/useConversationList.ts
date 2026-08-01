@@ -10,7 +10,19 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-export interface ConversationSummary {
+/**
+ * One row of the conversation-history list.
+ *
+ * Named `ConversationListItem`, not `ConversationSummary`:
+ * `@objectstack/spec/ai` already exports a `ConversationSummary`, and it is a
+ * different artifact entirely — the AI context-compaction record
+ * (`summary`, `keyPoints`, `originalTokens`, `summaryTokens`, `tokensSaved`,
+ * `messageRange`, `generatedAt`, `modelId`). The two share no key at all. This
+ * is the list row `GET /api/v1/ai/conversations` returns.
+ * `__tests__/spec-symbol-parity.test.ts` pins that the spec does not own this
+ * name (objectstack#4115).
+ */
+export interface ConversationListItem {
   id: string;
   title?: string;
   agentId?: string;
@@ -29,7 +41,7 @@ export interface UseConversationListOptions {
 }
 
 export interface UseConversationListReturn {
-  conversations: ConversationSummary[];
+  conversations: ConversationListItem[];
   isLoading: boolean;
   error: Error | undefined;
   refetch: () => Promise<void>;
@@ -107,7 +119,7 @@ function stringifyContent(content: unknown): string | undefined {
   return undefined;
 }
 
-function normalize(row: ServerConversation): ConversationSummary {
+function normalize(row: ServerConversation): ConversationListItem {
   const title = row.title?.trim();
   const preview = extractPreview(row) ?? stringifyContent(row.preview);
   return {
@@ -123,7 +135,7 @@ function normalize(row: ServerConversation): ConversationSummary {
 async function fetchConversationDetail(
   apiBase: string,
   id: string,
-): Promise<ConversationSummary | undefined> {
+): Promise<ConversationListItem | undefined> {
   const res = await fetch(`${apiBase}/conversations/${encodeURIComponent(id)}`, {
     credentials: 'include',
   });
@@ -137,7 +149,7 @@ export function useConversationList(
   options: UseConversationListOptions,
 ): UseConversationListReturn {
   const { userId, apiBase, limit = 50, refreshKey } = options;
-  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [conversations, setConversations] = useState<ConversationListItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(Boolean(userId));
   const [error, setError] = useState<Error | undefined>(undefined);
   const [internalKey, setInternalKey] = useState(0);
@@ -220,7 +232,7 @@ export function useConversationList(
           if (cancelled) return;
           const byId = new Map(
             details
-              .filter((row): row is ConversationSummary => Boolean(row?.preview || row?.title))
+              .filter((row): row is ConversationListItem => Boolean(row?.preview || row?.title))
               .map((row) => [row.id, row]),
           );
           if (byId.size > 0) {

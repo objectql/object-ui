@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { groupConversationsByDate } from '../ConversationsSidebar';
-import type { ConversationSummary } from '../../../hooks/useConversationList';
+import type { ConversationListItem } from '../../../hooks/useConversationList';
 
 const DAY = 24 * 60 * 60 * 1000;
 // Fixed reference time. Offsets are chosen to land squarely in their bucket
 // regardless of the test runner's timezone (0 = today; exactly 24h = yesterday;
 // 4/15/60 days are unambiguous), so the calendar-midnight boundary can't flake.
 const now = Date.UTC(2026, 5, 13, 12, 0, 0);
-const conv = (id: string, offset: number): ConversationSummary =>
-  ({ id, updatedAt: new Date(now - offset).toISOString() }) as ConversationSummary;
+const conv = (id: string, offset: number): ConversationListItem =>
+  ({ id, updatedAt: new Date(now - offset).toISOString() }) as ConversationListItem;
 
 describe('groupConversationsByDate', () => {
   it('buckets into ordered recency sections', () => {
@@ -32,7 +32,7 @@ describe('groupConversationsByDate', () => {
       [
         conv('o2', 61 * DAY),
         conv('o1', 60 * DAY),
-        { id: 'bad', updatedAt: 'not-a-date' } as ConversationSummary,
+        { id: 'bad', updatedAt: 'not-a-date' } as ConversationListItem,
       ],
       now,
     );
@@ -42,7 +42,7 @@ describe('groupConversationsByDate', () => {
 
   it('falls back to createdAt when updatedAt is absent', () => {
     const groups = groupConversationsByDate(
-      [{ id: 'c', createdAt: new Date(now).toISOString() } as ConversationSummary],
+      [{ id: 'c', createdAt: new Date(now).toISOString() } as ConversationListItem],
       now,
     );
     expect(groups[0]?.key).toBe('today');

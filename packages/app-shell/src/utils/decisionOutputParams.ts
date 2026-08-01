@@ -34,19 +34,26 @@
  * belonged (objectui#2955). Emit `reference`, never `referenceTo`.
  */
 
-/** An approval node's declared decision output, as the server surfaces it. */
-export interface DecisionOutputDef {
-  key: string;
-  label?: string;
-  /** Record kind to pick (`user` / `department` / `position` / `team`); absent → free text. */
-  type?: string;
-  multiple?: boolean;
-  /**
-   * The approver must supply this one to APPROVE. The server enforces it
-   * (`decide()` rejects a blank required output before any write); the dialog
-   * mirrors it so the approver is stopped at the field rather than by a 400.
-   * Absent on a backend that predates the flag — then nothing is required.
-   */
+import type { DecisionOutputDef as SpecDecisionOutputDef } from '@objectstack/spec/automation';
+
+/**
+ * An approval node's declared decision output, as the server surfaces it.
+ *
+ * Derived from `@objectstack/spec/automation`'s `DecisionOutputDef` (structural
+ * `extends`, objectstack#4115) with ONE local addition. Deriving also narrows
+ * `type` from the bare `string` this file used to declare to the spec's closed
+ * `'user' | 'department' | 'position' | 'team' | 'text'` enum — a typo'd kind
+ * now fails to compile instead of silently degrading to a raw record-id text
+ * box, which is the objectui#2955 failure this module exists to prevent.
+ *
+ * `required` is the documented divergence: the server enforces it (`decide()`
+ * rejects a blank required output before any write) and the dialog mirrors it
+ * so the approver is stopped at the field rather than by a 400 — but the spec
+ * does not model it yet. It is optional here so a backend predating the flag
+ * still parses. When the spec adopts `required`, this interface collapses to a
+ * plain re-export; `__tests__/spec-symbol-parity.test.ts` fails on that day.
+ */
+export interface DecisionOutputDef extends SpecDecisionOutputDef {
   required?: boolean;
 }
 

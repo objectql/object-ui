@@ -17,7 +17,41 @@ export interface FlowNodeUI {
   y?: number;
 }
 
-export interface FlowNode {
+/**
+ * A flow node **as the designer canvas holds it mid-edit**.
+ *
+ * Renamed from `FlowNode`, which `@objectstack/spec/automation` owns
+ * (objectstack#4115). This is deliberately NOT that type, and the difference is
+ * not drift — it is a layer difference of the kind objectui#3090 named: the
+ * spec's `FlowNode` is a COMPLETE authored node (`label` required), while a
+ * canvas holds nodes the user has dropped but not finished. A freshly dropped
+ * node has no label yet; typing it as the spec's would make the editor's own
+ * intermediate state unrepresentable.
+ *
+ * Not to be confused with `@objectstack/spec/studio`'s `FlowCanvasNode` either
+ * — despite the name, that is the pure visual overlay
+ * (`{ nodeId, x, y, collapsed, width, fillColor, … }`), keyed BY node id rather
+ * than being the node.
+ *
+ * The `[k: string]: unknown` index signature is load-bearing: the canvas
+ * round-trips node properties it does not itself understand
+ * (`connectorConfig`, `inputSchema`, `waitEventConfig`, `boundaryConfig`, …),
+ * and dropping them on save would be data loss. It also means the compiler
+ * cannot compare this against the spec's node — an index signature absorbs
+ * every missing member (objectstack#4075) — which is precisely why the NAME had
+ * to stop claiming they are the same thing.
+ *
+ * KNOWN DIVERGENCE, left alone deliberately: this designer persists geometry as
+ * `ui: { x, y }` while the spec already models it twice
+ * (`FlowNode.position`, and `FlowCanvasNode`). Three spellings of one concept
+ * is a real defect, but reconciling it changes what gets written to metadata —
+ * a behaviour change that does not belong in a symbol burn-down. See the PR
+ * description; filed as a follow-up.
+ *
+ * `__tests__/spec-symbol-parity.test.ts` pins that the spec owns neither
+ * `FlowDesignerNode` nor `FlowDesignerEdge`.
+ */
+export interface FlowDesignerNode {
   id: string;
   type: string;
   label?: string;
@@ -27,7 +61,22 @@ export interface FlowNode {
   [k: string]: unknown;
 }
 
-export interface FlowEdge {
+/**
+ * A flow edge as the designer canvas holds it mid-edit — see
+ * {@link FlowDesignerNode} for why this is not `@objectstack/spec/automation`'s
+ * `FlowEdge`.
+ *
+ * Two concrete reasons it cannot simply BE the spec's edge: an edge being drawn
+ * has no `id` until it is committed (the spec requires one), and this
+ * `condition` shape (`string | { source?: string }`) omits the ADR-0089
+ * expression envelope's REQUIRED `dialect` discriminant.
+ *
+ * That second one is a genuine finding rather than a layering difference: the
+ * inspector can build a condition object the server's own `FlowEdgeSchema`
+ * would reject. Recorded as a follow-up rather than fixed here, because
+ * changing the emitted envelope is a behaviour change — see the PR description.
+ */
+export interface FlowDesignerEdge {
   id?: string;
   source: string;
   target: string;
@@ -56,7 +105,7 @@ function isFiniteNum(v: unknown): v is number {
 }
 
 /** A node carries a persisted manual position when both x and y are finite. */
-export function hasManualPosition(node: FlowNode): boolean {
+export function hasManualPosition(node: FlowDesignerNode): boolean {
   return isFiniteNum(node.ui?.x) && isFiniteNum(node.ui?.y);
 }
 
@@ -69,16 +118,16 @@ export interface LabeledRegion {
   key: string;
   /** Header shown above the region — `undefined` for a loop body (no header). */
   label?: string;
-  nodes: FlowNode[];
-  edges: FlowEdge[];
+  nodes: FlowDesignerNode[];
+  edges: FlowDesignerEdge[];
 }
 
 /** Coerce a config value to a region iff it is a non-empty `{ nodes, edges }`. */
-function asRegion(v: unknown): { nodes: FlowNode[]; edges: FlowEdge[] } | null {
+function asRegion(v: unknown): { nodes: FlowDesignerNode[]; edges: FlowDesignerEdge[] } | null {
   if (!v || typeof v !== 'object') return null;
   const r = v as { nodes?: unknown; edges?: unknown };
   if (!Array.isArray(r.nodes) || r.nodes.length === 0) return null;
-  return { nodes: r.nodes as FlowNode[], edges: Array.isArray(r.edges) ? (r.edges as FlowEdge[]) : [] };
+  return { nodes: r.nodes as FlowDesignerNode[], edges: Array.isArray(r.edges) ? (r.edges as FlowDesignerEdge[]) : [] };
 }
 
 /**
@@ -90,7 +139,7 @@ function asRegion(v: unknown): { nodes: FlowNode[]; edges: FlowEdge[] } | null {
  * cards. The designer renders the returned regions read-only, nested under the
  * container.
  */
-export function extractRegions(node: FlowNode): LabeledRegion[] {
+export function extractRegions(node: FlowDesignerNode): LabeledRegion[] {
   const cfg = (node.config ?? {}) as Record<string, unknown>;
   switch (node.type) {
     case 'loop': {
@@ -153,9 +202,9 @@ export interface FlowLayoutGeometry {
  * limitation: the author can drag it clear.
  */
 export function computeLayoutWithGeometry(
-  nodes: FlowNode[],
-  edges: FlowEdge[],
-  heightOf: (node: FlowNode) => number = () => NODE_H,
+  nodes: FlowDesignerNode[],
+  edges: FlowDesignerEdge[],
+  heightOf: (node: FlowDesignerNode) => number = () => NODE_H,
 ): FlowLayoutGeometry {
   const positions = new Map<string, Point>();
   const heights = new Map<string, number>(nodes.map((n) => [n.id, heightOf(n)]));
@@ -294,7 +343,7 @@ export function computeLayoutWithGeometry(
  * Back-compat positions-only view of {@link computeLayoutWithGeometry} with
  * every card at the constant {@link NODE_H} — exactly the historical layout.
  */
-export function computeLayout(nodes: FlowNode[], edges: FlowEdge[]): Map<string, Point> {
+export function computeLayout(nodes: FlowDesignerNode[], edges: FlowDesignerEdge[]): Map<string, Point> {
   return computeLayoutWithGeometry(nodes, edges).positions;
 }
 
@@ -341,7 +390,7 @@ export function edgeMidpoint(from: Point, to: Point): Point {
 }
 
 /** True for an ADR-0044 declared back-edge (a revise/rework loop's return). */
-export function isBackEdge(edge: Pick<FlowEdge, 'type'>): boolean {
+export function isBackEdge(edge: Pick<FlowDesignerEdge, 'type'>): boolean {
   return edge.type === 'back';
 }
 
@@ -384,12 +433,12 @@ export function backEdgeLabelAnchor(from: Point, to: Point): Point {
  * consistent across them. Editing label/condition/isDefault never changes the
  * key (source/target/index are untouched), so a selection survives edits.
  */
-export function edgeKey(edge: FlowEdge, index: number): string {
+export function edgeKey(edge: FlowDesignerEdge, index: number): string {
   return edge.id || `${edge.source}->${edge.target}#${index}`;
 }
 
 /** Human-readable condition text for an edge's optional guard. */
-export function conditionText(c: FlowEdge['condition']): string | undefined {
+export function conditionText(c: FlowDesignerEdge['condition']): string | undefined {
   if (!c) return undefined;
   if (typeof c === 'string') return c;
   if (typeof c === 'object' && typeof c.source === 'string') return c.source;

@@ -22,7 +22,25 @@
 import * as React from 'react';
 import { cn } from '@object-ui/components';
 
-export interface PageHeaderProps {
+/**
+ * Props of the app-shell `<PageHeader>` React component.
+ *
+ * Named `PageHeaderComponentProps`, not `PageHeaderProps`:
+ * `@objectstack/spec/ui` exports a `PageHeaderProps` **zod schema** describing
+ * the AUTHORED SDUI page-header node — `title: string`, `subtitle`, `icon`
+ * (an icon NAME), `breadcrumb`, `actions: string[]` (action ids), `aria`. This
+ * interface is the runtime React contract for the same visual element:
+ * `React.ReactNode` in place of every string, `actions` as rendered elements
+ * rather than ids, plus render-only knobs (`accentColor`, `sticky`,
+ * `className`, `data-testid`) the authored schema has no reason to model.
+ * Authored layer vs. rendered layer — two layers, one name, which is the
+ * objectstack#4115 defect. `__tests__/spec-symbol-parity.test.ts` pins that the spec
+ * does not own this name.
+ *
+ * `@object-ui/layout` carries the same collision (objectui#3161, batch 7); it
+ * should adopt this same name so the two packages do not invent two dialects.
+ */
+export interface PageHeaderComponentProps {
   /** Page title (required, becomes <h1>). */
   title: React.ReactNode;
   /** Optional secondary description shown beneath the title. */
@@ -79,7 +97,7 @@ export function PageHeader({
   sticky = false,
   className,
   'data-testid': testId,
-}: PageHeaderProps) {
+}: PageHeaderComponentProps) {
   // Resolve accent → CSS var. Falls back to the Shadcn primary token so the
   // header follows whatever brand the active app has injected.
   const accent = accentColor || 'hsl(var(--primary))';

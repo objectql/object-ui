@@ -41,8 +41,8 @@ import {
   edgeKey,
   conditionText,
   extractRegions,
-  type FlowNode,
-  type FlowEdge,
+  type FlowDesignerNode,
+  type FlowDesignerEdge,
   type Point,
   type LabeledRegion,
 } from './flow-canvas-layout';
@@ -73,8 +73,8 @@ interface PanState {
 }
 
 export interface FlowCanvasProps {
-  nodes: FlowNode[];
-  edges: FlowEdge[];
+  nodes: FlowDesignerNode[];
+  edges: FlowDesignerEdge[];
   editable: boolean;
   designMode: boolean;
   selectedId: string | null;
@@ -108,9 +108,9 @@ export interface FlowCanvasProps {
    * driven separately via `selectedId` / `selectedEdgeId`.
    */
   revealSignal?: { target: FlowProblem['target']; nonce: number } | null;
-  onSelect: (node: FlowNode | null) => void;
+  onSelect: (node: FlowDesignerNode | null) => void;
   /** Select an edge (its `edgeKey`), or clear selection with `null`. */
-  onSelectEdge?: (edge: FlowEdge | null, key: string) => void;
+  onSelectEdge?: (edge: FlowDesignerEdge | null, key: string) => void;
   /**
    * #2670 Phase 3: the selected NESTED node (inside an expanded container's
    * region), or null. Drives the selection ring on the matching container's
@@ -122,7 +122,7 @@ export interface FlowCanvasProps {
    * clear the nested selection with `null`. Absent → the region trays stay
    * read-only (Phase 2 behavior).
    */
-  onSelectNested?: (path: NestedNodePath | null, node?: FlowNode) => void;
+  onSelectNested?: (path: NestedNodePath | null, node?: FlowDesignerNode) => void;
   onPatch?: (partial: Record<string, unknown>) => void;
 }
 
@@ -243,7 +243,7 @@ export function FlowCanvas({
       const idx = nodes.findIndex((n) => n.id === id);
       if (idx < 0) return;
       const node = nodes[idx];
-      const nextNode: FlowNode = { ...node, ui: { ...(node.ui ?? {}), x, y } };
+      const nextNode: FlowDesignerNode = { ...node, ui: { ...(node.ui ?? {}), x, y } };
       onPatch({ nodes: spliceArray(nodes, idx, nextNode) });
     },
     [nodes, onPatch],
@@ -260,11 +260,11 @@ export function FlowCanvas({
       // spaces it horizontally among siblings — pinning it directly under the
       // parent (the old behavior) made every sibling stack on the same spot.
       const at = opts?.at;
-      const newNode: FlowNode = { id, type, label, ...defaultNodeExtras(type), ...(at ? { ui: { x: at.x, y: at.y } } : {}) };
+      const newNode: FlowDesignerNode = { id, type, label, ...defaultNodeExtras(type), ...(at ? { ui: { x: at.x, y: at.y } } : {}) };
       const nextNodes = appendArray(nodes, newNode);
       const patch: Record<string, unknown> = { nodes: nextNodes };
       if (opts?.from) {
-        const newEdge: FlowEdge = {
+        const newEdge: FlowDesignerEdge = {
           id: uniqueId('edge', edges.map((e) => e.id).filter(Boolean) as string[]),
           source: opts.from,
           target: id,
@@ -299,7 +299,7 @@ export function FlowCanvas({
 
   /** Split edge A→B by inserting a new node N: A→N (keeps guard) + N→B. */
   const insertOnEdge = React.useCallback(
-    (edge: FlowEdge, type = 'create_record') => {
+    (edge: FlowDesignerEdge, type = 'create_record') => {
       if (!onPatch) return;
       const edgeIdx = edges.findIndex((e) => e === edge);
       if (edgeIdx < 0) return;
@@ -308,7 +308,7 @@ export function FlowCanvas({
       const from = positionOf(edge.source);
       const to = positionOf(edge.target);
       const at = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
-      const newNode: FlowNode = {
+      const newNode: FlowDesignerNode = {
         id,
         type,
         label: defaultNodeLabel(type, locale),
@@ -316,8 +316,8 @@ export function FlowCanvas({
         ui: { x: at.x, y: at.y },
       };
       // A→N inherits the original edge's branch semantics; N→B is plain.
-      const firstSegment: FlowEdge = { ...edge, target: id };
-      const secondSegment: FlowEdge = {
+      const firstSegment: FlowDesignerEdge = { ...edge, target: id };
+      const secondSegment: FlowDesignerEdge = {
         id: uniqueId('edge', [...edges.map((e) => e.id).filter(Boolean) as string[], 'edge']),
         source: id,
         target: edge.target,
@@ -343,7 +343,7 @@ export function FlowCanvas({
       if (!onPatch) return;
       if (!nodes.some((n) => n.id === approvalId)) return;
       const waitId = uniqueId('node', nodes.map((n) => n.id).filter(Boolean) as string[]);
-      const waitNode: FlowNode = {
+      const waitNode: FlowDesignerNode = {
         id: waitId,
         type: 'wait',
         label: tr('engine.flowCanvas.awaitingRevision', locale),
@@ -353,8 +353,8 @@ export function FlowCanvas({
       const existingEdgeIds = edges.map((e) => e.id).filter(Boolean) as string[];
       const reviseId = uniqueId('edge', existingEdgeIds);
       const backId = uniqueId('edge', [...existingEdgeIds, reviseId]);
-      const reviseEdge: FlowEdge = { id: reviseId, source: approvalId, target: waitId, label: 'revise' };
-      const backEdge: FlowEdge = { id: backId, source: waitId, target: approvalId, label: 'resubmit', type: 'back' };
+      const reviseEdge: FlowDesignerEdge = { id: reviseId, source: approvalId, target: waitId, label: 'revise' };
+      const backEdge: FlowDesignerEdge = { id: backId, source: waitId, target: approvalId, label: 'resubmit', type: 'back' };
       onPatch({
         nodes: appendArray(nodes, waitNode),
         edges: appendArray(appendArray(edges, reviseEdge), backEdge),
@@ -912,7 +912,7 @@ export function FlowCanvas({
 }
 
 /** One-line config summary shown on the node card (best-effort, type-aware). */
-function nodeSummary(node: FlowNode): string | undefined {
+function nodeSummary(node: FlowDesignerNode): string | undefined {
   const c = node.config as Record<string, unknown> | undefined;
   const str = (v: unknown) => (typeof v === 'string' && v ? v : undefined);
   const block = (key: string, inner: string) => {

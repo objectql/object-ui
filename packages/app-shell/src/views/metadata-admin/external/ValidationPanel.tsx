@@ -28,6 +28,16 @@ export interface ValidationPanelProps {
 
 type RunState = 'idle' | 'running' | 'done' | 'error' | 'unavailable';
 
+/**
+ * Every diff kind the server can report, labelled.
+ *
+ * Total over `SchemaDiffEntry['kind']` on purpose — now that the kind union is
+ * imported from `@objectstack/spec/shared` rather than transcribed locally, a
+ * kind added upstream fails THIS map to compile instead of rendering a blank
+ * cell. `index_mismatch` and `unmapped_index` (framework#3728) were exactly
+ * that: already emitted by the validate route, absent from the local copy of
+ * the union, and therefore silently unlabelled here (objectstack#4115).
+ */
 const DIFF_LABEL: Record<SchemaDiffEntry['kind'], string> = {
   missing_table: 'Missing table',
   missing_column: 'Missing column',
@@ -35,6 +45,8 @@ const DIFF_LABEL: Record<SchemaDiffEntry['kind'], string> = {
   nullability_mismatch: 'Nullability mismatch',
   unmapped_column: 'Unmapped column',
   pk_mismatch: 'Primary-key mismatch',
+  index_mismatch: 'Index mismatch',
+  unmapped_index: 'Unmapped index',
 };
 
 export function ValidationPanel({ datasource }: ValidationPanelProps) {

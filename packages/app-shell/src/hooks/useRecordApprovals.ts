@@ -58,6 +58,42 @@ export interface ApprovalRequestLite {
    */
   decision_outputs?: string[] | null;
   decision_output_defs?: DecisionOutputDef[] | null;
+  /**
+   * Server-computed decision tally of THIS pending node (framework#3266),
+   * present only for behaviors that aggregate more than one decision:
+   * `unanimous` / `quorum` (`got` / `need` approvals) and `per_group` (satisfied
+   * groups, plus `groups[]` detail). `first_response` nodes carry none — one
+   * decision finalizes them, so there is nothing to count.
+   *
+   * The server derives it from the node's own `node_config_json` snapshot
+   * (`behavior`, `minApprovals`, the `__approverGroups` slate), so the count
+   * the record header shows is the one the engine will enforce. See
+   * {@link fetchProgressEnrichment} for why it takes a second request.
+   */
+  decision_progress?: ApprovalDecisionProgress;
+  /**
+   * Group membership of each still-pending approver on a `per_group` (会签)
+   * node — approver id → the named group(s) the slot fills. Lets a surface that
+   * lists pending approvers label each one; absent for other behaviors.
+   */
+  pending_approver_groups?: Record<string, string[]> | null;
+  /** Display names for the ids in `pending_approvers` (id → name). */
+  pending_approver_names?: Record<string, string> | null;
+}
+
+/**
+ * Decision aggregation progress of a pending approval node — the `2 of 3` the
+ * approver needs in order to know whether their own decision closes the step.
+ * Mirrors the framework's `decision_progress` enrichment verbatim.
+ */
+export interface ApprovalDecisionProgress {
+  behavior: 'unanimous' | 'quorum' | 'per_group';
+  /** Approvals recorded — satisfied GROUPS when `behavior` is `per_group`. */
+  got: number;
+  /** Approvals required — total GROUPS when `behavior` is `per_group`. */
+  need: number;
+  /** Per-group tally, `per_group` only. */
+  groups?: Array<{ group: string; got: number; need: number; satisfied: boolean }>;
 }
 
 /**
@@ -127,6 +163,38 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   return payload as T;
 }
 
+/**
+ * Pull the pending request's single-read enrichment and fold it onto the row.
+ *
+ * `decision_progress` (and the `pending_approver_groups` that ride with it) are
+ * attached by the framework's `getRequest` ONLY — `listRequests` deliberately
+ * skips them, because each one costs a `sys_approval_action` tally per row and
+ * a list read may return hundreds. So `GET /approvals/requests?object=…` — the
+ * call this hook makes — never carries the quorum data, and the record header
+ * had nothing to render even though the node's config had it all along
+ * (objectstack#4478: `minApprovals: 2` over a 3-approver slate showed no
+ * progress at all). One extra request for the ONE pending row is the shape the
+ * server contract asks for.
+ *
+ * Best-effort and non-fatal: a failure, or a payload that isn't the row we
+ * asked for, leaves the list row exactly as it came. Never invent a tally —
+ * a wrong "1 of 2" is worse than none.
+ */
+async function fetchProgressEnrichment(
+  request: ApprovalRequestLite,
+): Promise<ApprovalRequestLite> {
+  try {
+    // `getRequest` answers with the row itself, not `{ data: row }`.
+    const row = await fetchJson<ApprovalRequestLite>(
+      `/approvals/requests/${encodeURIComponent(request.id)}`,
+    );
+    if (!row || row.id !== request.id) return request;
+    return { ...request, ...row };
+  } catch {
+    return request;
+  }
+}
+
 export function useRecordApprovals(
   objectName: string | undefined,
   recordId: string | undefined,
@@ -145,7 +213,12 @@ export function useRecordApprovals(
       const reqResp = await fetchJson<{ data: ApprovalRequestLite[] }>(
         `/approvals/requests?object=${encodeURIComponent(objectName)}&recordId=${encodeURIComponent(recordId)}`,
       );
-      setRequests(reqResp?.data ?? []);
+      const rows = reqResp?.data ?? [];
+      // Only the pending row can have a live tally, and only it drives the
+      // header — so exactly one follow-up read, never one per row.
+      const pending = rows.find((r) => r.status === 'pending');
+      const full = pending ? await fetchProgressEnrichment(pending) : null;
+      setRequests(full ? rows.map((r) => (r === pending ? full : r)) : rows);
       setAvailable(true);
     } catch (err: any) {
       if (err?.status === 404 || err?.status === 501) {

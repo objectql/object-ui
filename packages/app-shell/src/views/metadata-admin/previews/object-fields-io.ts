@@ -137,29 +137,43 @@ export function toFieldNameLoose(raw: string): string {
 }
 
 /**
- * A declared field group (a.k.a. "section"). Lives at the object's
- * top level as `draft.fieldGroups`; individual fields opt into a group
- * via `Field.group === FieldGroup.key`.
+ * A declared field group (a.k.a. "section"). Lives at the object's top level as
+ * `draft.fieldGroups`; individual fields opt into a group via
+ * `Field.group === ObjectFieldGroup.key`.
+ *
+ * Named `ObjectFieldGroup`, which is the spec's own name for this shape
+ * (`@objectstack/spec/data`, the `ObjectFieldGroupSchema` family), and
+ * re-exported from there rather than re-declared.
+ *
+ * It used to be called `FieldGroup` — and `@objectstack/spec/studio` exports a
+ * DIFFERENT `FieldGroup`: the Studio field-editor's own group config
+ * (`{ key, label, icon?, defaultExpanded, order }`), which has no `collapse`
+ * and adds `order`. The local doc comment nonetheless claimed `description` and
+ * `collapse` were "spec-defined" — true of `ObjectFieldGroup`, false of the
+ * `FieldGroup` the name actually resolved to. That is objectstack#4115's
+ * planted-premise failure exactly: a correct sentence filed under a name that
+ * points somewhere else. Key-for-key this is `ObjectFieldGroup`, so the fix is
+ * to say so.
+ *
+ * Collapse semantics (unchanged, now single-sourced): `'none'` → not
+ * collapsible; `'expanded'` → collapsible, open by default; `'collapsed'` →
+ * collapsible, closed by default; `collapsible` / `collapsed` /
+ * `defaultExpanded` are the legacy boolean aliases the shared
+ * `deriveFieldGroupLayout` still normalizes.
+ *
+ * Derived from `z.input`, NOT the exported `ObjectFieldGroup` type (which is
+ * `z.infer`, i.e. the OUTPUT side). The distinction is load-bearing here and is
+ * the zod-specific trap the derivation guard's header warns about: `collapse`
+ * carries `.default('none')`, so it is OPTIONAL to author and REQUIRED after
+ * parsing. This designer is on the authoring side — `addGroup` creates
+ * `{ key, label }` and lets the default apply — so the output type would make
+ * the editor's own new-group shape unrepresentable. Using `z.infer` here
+ * type-checks against a value nobody in this module ever holds.
  */
-export interface FieldGroup {
-  key: string;
-  label: string;
-  /** Optional group icon (Lucide name). Spec-defined; preserved on round-trip. */
-  icon?: string;
-  /** Optional group description. Spec-defined; preserved on round-trip. */
-  description?: string;
-  /**
-   * Collapse behaviour — the spec-canonical control the form renderer consumes
-   * (via `@objectstack/spec`'s `deriveFieldGroupLayout`): `'none'` → not
-   * collapsible; `'expanded'` → collapsible, open by default; `'collapsed'` →
-   * collapsible, closed by default.
-   */
-  collapse?: 'none' | 'expanded' | 'collapsed';
-  /** Legacy boolean aliases (still normalized by the shared derivation). */
-  collapsible?: boolean;
-  collapsed?: boolean;
-  defaultExpanded?: boolean;
-}
+export type ObjectFieldGroup = z.input<typeof ObjectFieldGroupSchema>;
+
+import type { z } from 'zod';
+import type { ObjectFieldGroupSchema } from '@objectstack/spec/data';
 
 /**
  * Read `draft.fieldGroups` into a normalized, well-typed list. Unknown/extra
@@ -167,7 +181,7 @@ export interface FieldGroup {
  * read-modify-write round-trip (rename/reorder/inspector edit) never silently
  * drops a property the source set — only `key`/`label` are coerced to strings.
  */
-export function readGroups(fieldGroupsInput: unknown): FieldGroup[] {
+export function readGroups(fieldGroupsInput: unknown): ObjectFieldGroup[] {
   if (!Array.isArray(fieldGroupsInput)) return [];
   return fieldGroupsInput
     .filter((g): g is Record<string, unknown> => !!g && typeof g === 'object')
@@ -175,7 +189,7 @@ export function readGroups(fieldGroupsInput: unknown): FieldGroup[] {
       ...g,
       key: typeof g.key === 'string' ? g.key : '',
       label: typeof g.label === 'string' ? g.label : '',
-    }) as FieldGroup)
+    }) as ObjectFieldGroup)
     .filter((g) => g.key);
 }
 
@@ -194,14 +208,14 @@ export function genGroupKey(label: string, existing: string[]): string {
 }
 
 /** Append a new group with a unique key derived from `label`. */
-export function addGroup(groups: FieldGroup[], label: string): FieldGroup[] {
+export function addGroup(groups: ObjectFieldGroup[], label: string): ObjectFieldGroup[] {
   const clean = label.trim() || 'New section';
   const key = genGroupKey(clean, groups.map((g) => g.key));
   return [...groups, { key, label: clean }];
 }
 
 /** Rename a group's label in place (key is stable). */
-export function renameGroup(groups: FieldGroup[], key: string, label: string): FieldGroup[] {
+export function renameGroup(groups: ObjectFieldGroup[], key: string, label: string): ObjectFieldGroup[] {
   const clean = label.trim();
   if (!clean) return groups;
   return groups.map((g) => (g.key === key ? { ...g, label: clean } : g));
@@ -213,10 +227,10 @@ export function renameGroup(groups: FieldGroup[], key: string, label: string): F
  * leaves no stale key behind) rather than persisting an explicit `undefined`.
  */
 export function updateGroup(
-  groups: FieldGroup[],
+  groups: ObjectFieldGroup[],
   key: string,
-  patch: Partial<FieldGroup>,
-): FieldGroup[] {
+  patch: Partial<ObjectFieldGroup>,
+): ObjectFieldGroup[] {
   return groups.map((g) => {
     if (g.key !== key) return g;
     const next = { ...g } as Record<string, unknown>;
@@ -224,17 +238,17 @@ export function updateGroup(
       if (v === undefined) delete next[k];
       else next[k] = v;
     }
-    return next as unknown as FieldGroup;
+    return next as unknown as ObjectFieldGroup;
   });
 }
 
 /** Remove a group declaration (callers should also clear members' `group`). */
-export function removeGroup(groups: FieldGroup[], key: string): FieldGroup[] {
+export function removeGroup(groups: ObjectFieldGroup[], key: string): ObjectFieldGroup[] {
   return groups.filter((g) => g.key !== key);
 }
 
 /** Move a group one slot up (-1) or down (+1), clamped to bounds. */
-export function moveGroup(groups: FieldGroup[], key: string, dir: -1 | 1): FieldGroup[] {
+export function moveGroup(groups: ObjectFieldGroup[], key: string, dir: -1 | 1): ObjectFieldGroup[] {
   const idx = groups.findIndex((g) => g.key === key);
   if (idx < 0) return groups;
   const to = idx + dir;

@@ -100,7 +100,7 @@ import { CreateItemDialog } from './CreateItemDialog';
 import {
   CreatePackageDialog,
   PackageDetailSheet,
-  type InstalledPackage,
+  type InstalledPackageRow,
 } from '../metadata-admin/PackagesPage';
 import { ObjectFormDesigner } from './ObjectFormDesigner';
 import { ObjectGroupInspector } from './ObjectGroupInspector';
@@ -262,7 +262,7 @@ function PackageSwitcher({
   const [open, setOpen] = React.useState(false);
   const [pkgs, setPkgs] = React.useState<PkgEntry[] | null>(null);
   const [createOpen, setCreateOpen] = React.useState(false);
-  const [manage, setManage] = React.useState<InstalledPackage | null>(null);
+  const [manage, setManage] = React.useState<InstalledPackageRow | null>(null);
   const [manageOpen, setManageOpen] = React.useState(false);
   const [manageBusy, setManageBusy] = React.useState(false);
 
@@ -294,7 +294,7 @@ function PackageSwitcher({
   // Open the standard detail/management sheet for a package — fetch its full
   // installed record (manifest + status) first, since the switcher only holds
   // the trimmed {id,name,writable} view.
-  const fetchFullPackage = React.useCallback(async (id: string): Promise<InstalledPackage | null> => {
+  const fetchFullPackage = React.useCallback(async (id: string): Promise<InstalledPackageRow | null> => {
     const res = await fetch('/api/v1/packages', {
       credentials: 'include',
       headers: { Accept: 'application/json' },
@@ -303,7 +303,7 @@ function PackageSwitcher({
     const data = (await res.json()) as unknown;
     const root = (data as { data?: unknown })?.data ?? data;
     const list = (Array.isArray(root) ? root : ((root as { packages?: unknown[] })?.packages ?? [])) as Array<
-      InstalledPackage & { id?: string }
+      InstalledPackageRow & { id?: string }
     >;
     return list.find((p) => (p?.manifest?.id ?? p?.id) === id) ?? null;
   }, []);

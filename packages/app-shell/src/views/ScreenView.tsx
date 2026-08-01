@@ -30,47 +30,37 @@ import {
 import { ObjectForm } from '@object-ui/plugin-form';
 import { evalFieldPredicate } from '@object-ui/core';
 
-export interface ScreenFieldSpec {
-  name: string;
-  label?: string;
-  type?: string;
-  required?: boolean;
-  options?: Array<{ value: unknown; label: string }>;
-  defaultValue?: unknown;
-  placeholder?: string;
-  /**
-   * Conditional-visibility predicate — bare CEL over the screen's own field
-   * names (`createOpportunity == true`), re-evaluated against the values
-   * collected so far. Omit = always visible. Read it through
-   * {@link visibleScreenFields}, never field-by-field, so rendering and
-   * `required` enforcement can never disagree (#3528).
-   */
-  visibleWhen?: string;
-}
-export interface ScreenSpec {
-  nodeId: string;
-  title?: string;
-  description?: string;
-  /**
-   * Optional on the wire: an `object-form` step (or a message-only screen from
-   * a third-party node executor) can legitimately omit it, so every read goes
-   * through {@link screenFields} rather than touching the array directly — an
-   * absent `fields` used to throw the moment the dialog opened.
-   */
-  fields?: ScreenFieldSpec[];
-  /**
-   * `'object-form'` renders the named object's FULL create/edit form — incl.
-   * inline master-detail child grids — as a wizard step (vs. the flat `fields`
-   * list). The form persists the record (and its children, atomically) itself,
-   * then resumes the run with the saved id bound to `idVariable`.
-   */
-  kind?: 'fields' | 'object-form';
-  objectName?: string;
-  mode?: 'create' | 'edit';
-  recordId?: string;
-  defaults?: Record<string, unknown>;
-  idVariable?: string;
-}
+/**
+ * The screen-pause contract is OWNED by `@objectstack/spec/contracts`
+ * (objectstack#4115) — the server emits it, this dialog renders it.
+ *
+ * `ScreenFieldSpec` is re-exported verbatim: the local copy was byte-equivalent
+ * (including `visibleWhen`, ADR-0089's canonical spelling), so there was
+ * nothing to keep.
+ */
+export type { ScreenFieldSpec } from '@objectstack/spec/contracts';
+
+import type {
+  ScreenFieldSpec,
+  ScreenSpec as SpecScreenSpec,
+} from '@objectstack/spec/contracts';
+
+/**
+ * The spec's screen contract with ONE deliberate widening: `fields` is optional
+ * here and required there.
+ *
+ * Derived structurally from `SpecScreenSpec` so every other key — and any key
+ * the spec adds later — arrives automatically; only the documented divergence
+ * is spelled out. An `object-form` step, or a message-only screen emitted by a
+ * third-party node executor, legitimately carries no `fields` array, and an
+ * absent `fields` used to throw the moment the dialog opened. Every read goes
+ * through {@link screenFields} rather than touching the array directly, so the
+ * widening cannot leak into rendering or `required` enforcement (#3528).
+ *
+ * If the spec ever makes `fields` optional itself, this alias collapses to a
+ * plain re-export — `__tests__/spec-symbol-parity.test.ts` fails on that day and says so.
+ */
+export type ScreenSpec = Omit<SpecScreenSpec, 'fields'> & { fields?: ScreenFieldSpec[] };
 
 /** Whether a screen renders the object-form body rather than the flat fields. */
 export function isObjectFormScreen(screen: ScreenSpec): boolean {
@@ -224,14 +214,24 @@ export function ScreenView({ screen, values, onValueChange, dataSource, objects,
             {f.label || f.name}
             {f.required && <span className="text-destructive"> *</span>}
           </Label>
-          <FieldInput field={f} value={values[f.name]} onChange={(v) => onValueChange(f.name, v)} />
+          <ScreenFieldInput field={f} value={values[f.name]} onChange={(v) => onValueChange(f.name, v)} />
         </div>
       ))}
     </div>
   );
 }
 
-export function FieldInput({ field, value, onChange }: { field: ScreenFieldSpec; value: unknown; onChange: (v: unknown) => void }) {
+/**
+ * One screen field's edit control.
+ *
+ * Named `ScreenFieldInput`, not `FieldInput`: `@objectstack/spec/data` already
+ * exports a `FieldInput` type — the authoring shape of an object FIELD
+ * (`Omit<Partial<Field>, 'type'>`) — which has nothing to do with this React
+ * component. Two unrelated things under one name is the objectstack#4115
+ * defect; `__tests__/spec-symbol-parity.test.ts` pins that the spec does not own
+ * this name.
+ */
+export function ScreenFieldInput({ field, value, onChange }: { field: ScreenFieldSpec; value: unknown; onChange: (v: unknown) => void }) {
   const id = `ff-${field.name}`;
   const t = (field.type || 'text').toLowerCase();
 

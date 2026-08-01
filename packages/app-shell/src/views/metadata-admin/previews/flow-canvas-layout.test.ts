@@ -15,8 +15,8 @@ import {
   NODE_H,
   V_GAP,
   PADDING,
-  type FlowNode,
-  type FlowEdge,
+  type FlowDesignerNode,
+  type FlowDesignerEdge,
 } from './flow-canvas-layout';
 
 describe('isBackEdge', () => {
@@ -58,14 +58,14 @@ describe('back-edge geometry', () => {
 });
 
 describe('computeLayout — back-edges excluded from layering (ADR-0044)', () => {
-  const nodes: FlowNode[] = [
+  const nodes: FlowDesignerNode[] = [
     { id: 's', type: 'start' },
     { id: 'a', type: 'approval' },
     { id: 'w', type: 'wait' },
   ];
 
   it('keeps the back-edge target ABOVE the wait node it loops from', () => {
-    const edges: FlowEdge[] = [
+    const edges: FlowDesignerEdge[] = [
       { source: 's', target: 'a' },
       { source: 'a', target: 'w', label: 'revise' },
       { source: 'w', target: 'a', label: 'resubmit', type: 'back' },
@@ -83,7 +83,7 @@ describe('computeLayout — back-edges excluded from layering (ADR-0044)', () =>
     // Same graph, but the closing edge is a normal connection: the longest-path
     // relaxation now pushes `a` below `w` (demonstrates why excluding back-edges
     // matters for a readable loop).
-    const edges: FlowEdge[] = [
+    const edges: FlowDesignerEdge[] = [
       { source: 's', target: 'a' },
       { source: 'a', target: 'w', label: 'revise' },
       { source: 'w', target: 'a', label: 'resubmit' },
@@ -139,10 +139,10 @@ describe('extractRegions (#2670 structured containers)', () => {
 // ── #2670 Phase 2: geometry-aware layered layout ─────────────────────────────
 
 /** heightOf making exactly one node tall — the expanded-container shape. */
-const tallOnly = (id: string, h: number) => (n: FlowNode) => (n.id === id ? h : NODE_H);
+const tallOnly = (id: string, h: number) => (n: FlowDesignerNode) => (n.id === id ? h : NODE_H);
 
 describe('computeLayoutWithGeometry — constant-height invariance (the regression lock)', () => {
-  const GRAPHS: { name: string; nodes: FlowNode[]; edges: FlowEdge[] }[] = [
+  const GRAPHS: { name: string; nodes: FlowDesignerNode[]; edges: FlowDesignerEdge[] }[] = [
     {
       name: 'linear chain',
       nodes: [{ id: 's', type: 'start' }, { id: 'a', type: 'script' }, { id: 'e', type: 'end' }],
@@ -208,7 +208,7 @@ describe('computeLayoutWithGeometry — constant-height invariance (the regressi
 });
 
 describe('computeLayoutWithGeometry — cumulative variable-height offsets (#2670)', () => {
-  const chain: { nodes: FlowNode[]; edges: FlowEdge[] } = {
+  const chain: { nodes: FlowDesignerNode[]; edges: FlowDesignerEdge[] } = {
     nodes: [{ id: 's', type: 'start' }, { id: 'c', type: 'loop' }, { id: 'b', type: 'end' }],
     edges: [{ source: 's', target: 'c' }, { source: 'c', target: 'b' }],
   };
@@ -223,13 +223,13 @@ describe('computeLayoutWithGeometry — cumulative variable-height offsets (#267
   });
 
   it('same-layer siblings share y; the row is as tall as its tallest card', () => {
-    const nodes: FlowNode[] = [
+    const nodes: FlowDesignerNode[] = [
       { id: 's', type: 'start' },
       { id: 'l', type: 'loop' },
       { id: 'r', type: 'script' },
       { id: 'j', type: 'end' },
     ];
-    const edges: FlowEdge[] = [
+    const edges: FlowDesignerEdge[] = [
       { source: 's', target: 'l' },
       { source: 's', target: 'r' },
       { source: 'l', target: 'j' },
@@ -246,12 +246,12 @@ describe('computeLayoutWithGeometry — cumulative variable-height offsets (#267
   });
 
   it('a manually-pinned tall node does not push auto rows (accepted-overlap rule)', () => {
-    const nodes: FlowNode[] = [
+    const nodes: FlowDesignerNode[] = [
       { id: 's', type: 'start' },
       { id: 'pin', type: 'loop', ui: { x: 400, y: 10 } },
       { id: 'e', type: 'end' },
     ];
-    const edges: FlowEdge[] = [{ source: 's', target: 'pin' }, { source: 'pin', target: 'e' }];
+    const edges: FlowDesignerEdge[] = [{ source: 's', target: 'pin' }, { source: 'pin', target: 'e' }];
     const tall = computeLayoutWithGeometry(nodes, edges, tallOnly('pin', 300));
     const constant = computeLayoutWithGeometry(nodes, edges);
     expect(tall.positions.get('s')).toEqual(constant.positions.get('s'));

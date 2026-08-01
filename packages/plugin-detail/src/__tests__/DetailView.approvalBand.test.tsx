@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { DetailView } from '../DetailView';
-import { InlineEditProvider } from '@object-ui/react';
+import { InlineEditProvider, type ApprovalProgress } from '@object-ui/react';
 import type { DetailViewSchema } from '@object-ui/types';
 
 /**
@@ -35,7 +35,13 @@ const baseSchema: DetailViewSchema = {
 };
 
 function renderBand(
-  providerProps: { locked?: boolean; approvalPending?: boolean; lockedReason?: string; canEdit?: boolean },
+  providerProps: {
+    locked?: boolean;
+    approvalPending?: boolean;
+    lockedReason?: string;
+    canEdit?: boolean;
+    approvalProgress?: ApprovalProgress;
+  },
   data?: Record<string, unknown>,
 ) {
   return render(
@@ -128,5 +134,85 @@ describe('DetailView – approval band, editable vs locked (objectui#2902)', () 
     renderBand({ locked: false, approvalPending: true }, { approval_status: 'pending' });
     expect(screen.getByText('In approval · editable')).toBeInTheDocument();
     expect(screen.queryByText('Locked for approval')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Quorum / per-group progress in the band (objectstack#4478).
+ *
+ * `lockRecord` and the recall button told the approver what they may not do.
+ * Neither says how many approvals the node still needs — and on a `quorum` or
+ * `per_group` (会签) node that is the fact that decides whether their own click
+ * finalizes the step. The server publishes the tally it will enforce
+ * (`decision_progress`, computed from the node's `behavior` / `minApprovals` /
+ * approver slate); the band rendered none of it, so a "Committee Sign-off
+ * (2 of 3)" step looked exactly like a single-approver one.
+ *
+ * The payloads below are the ones the showcase's `showcase_committee_quorum`
+ * (quorum, `minApprovals: 2` over three approvers) and
+ * `showcase_expense_signoff` (per_group, manager + finance) nodes produce.
+ */
+describe('DetailView – quorum & per-group progress (objectstack#4478)', () => {
+  const QUORUM: ApprovalProgress = { behavior: 'quorum', got: 1, need: 2 };
+  const PER_GROUP: ApprovalProgress = {
+    behavior: 'per_group',
+    got: 1,
+    need: 2,
+    groups: [
+      { group: 'finance', got: 1, need: 1, satisfied: true },
+      { group: 'manager', got: 0, need: 1, satisfied: false },
+    ],
+  };
+
+  it('renders the quorum tally next to the lock badge', () => {
+    renderBand({ locked: true, approvalPending: true, approvalProgress: QUORUM });
+    expect(screen.getByText('Locked for approval')).toBeInTheDocument();
+    expect(screen.getByText('Approvals — 1 of 2')).toBeInTheDocument();
+  });
+
+  it('exposes the tally as a progressbar, not decoration', () => {
+    renderBand({ locked: true, approvalPending: true, approvalProgress: QUORUM });
+    const bar = screen.getByRole('progressbar');
+    expect(bar).toHaveAttribute('aria-valuenow', '1');
+    expect(bar).toHaveAttribute('aria-valuemax', '2');
+  });
+
+  it('renders the tally on an editable (lockRecord: false) node too', () => {
+    // Progress is about the DECISION, not the lock — an unlocked quorum node
+    // needs the same count.
+    renderBand({ locked: false, approvalPending: true, approvalProgress: QUORUM });
+    expect(screen.getByText('In approval · editable')).toBeInTheDocument();
+    expect(screen.getByText('Approvals — 1 of 2')).toBeInTheDocument();
+  });
+
+  it('renders one chip per group, marking which have signed (会签)', () => {
+    renderBand({ locked: true, approvalPending: true, approvalProgress: PER_GROUP });
+    expect(screen.getByText('Sign-off — 1 of 2 groups')).toBeInTheDocument();
+    expect(screen.getByText('finance 1/1')).toBeInTheDocument();
+    expect(screen.getByText('manager 0/1')).toBeInTheDocument();
+  });
+
+  it('counts GROUPS, not approvals, on a per_group node', () => {
+    renderBand({ locked: true, approvalPending: true, approvalProgress: PER_GROUP });
+    expect(screen.queryByText('Approvals — 1 of 2')).not.toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuemax', '2');
+  });
+
+  it('shows no progress when the node finalizes on the first response', () => {
+    // `first_response` carries no `decision_progress` — a "1 of 1" bar there
+    // would be noise, not information.
+    renderBand({ locked: true, approvalPending: true });
+    expect(screen.getByText('Locked for approval')).toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  });
+
+  it('shows no progress once the approval is over', () => {
+    // No band at all ⇒ nothing to hang a tally on, even if a stale progress
+    // object is still threaded.
+    renderBand(
+      { locked: false, approvalPending: false, approvalProgress: QUORUM },
+      { approval_status: 'approved' },
+    );
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
   });
 });

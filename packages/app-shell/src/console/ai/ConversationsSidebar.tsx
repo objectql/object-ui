@@ -20,7 +20,7 @@ import {
   cn,
 } from '@object-ui/components';
 import { agentAliasGroup, agentRouteName } from '@object-ui/plugin-chatbot';
-import { useConversationList, type ConversationSummary } from '../../hooks/useConversationList';
+import { useConversationList, type ConversationListItem } from '../../hooks/useConversationList';
 
 export interface ConversationsSidebarProps {
   userId: string | undefined;
@@ -73,7 +73,7 @@ export type ConversationGroupKey = 'today' | 'yesterday' | 'previous7Days' | 'pr
 
 export interface ConversationGroup {
   key: ConversationGroupKey;
-  items: ConversationSummary[];
+  items: ConversationListItem[];
 }
 
 const GROUP_ORDER: ConversationGroupKey[] = ['today', 'yesterday', 'previous7Days', 'previous30Days', 'older'];
@@ -95,18 +95,18 @@ export const CONVERSATION_GROUP_LABELS: Record<ConversationGroupKey, string> = {
  * component's render path). Empty sections are omitted.
  */
 export function groupConversationsByDate(
-  conversations: ConversationSummary[],
+  conversations: ConversationListItem[],
   nowMs: number = Date.now(),
 ): ConversationGroup[] {
   const startOfToday = new Date(nowMs);
   startOfToday.setHours(0, 0, 0, 0);
   const todayMs = startOfToday.getTime();
   const DAY = 24 * 60 * 60 * 1000;
-  const stamp = (c: ConversationSummary): number => {
+  const stamp = (c: ConversationListItem): number => {
     const v = new Date(c.updatedAt ?? c.createdAt ?? 0).getTime();
     return Number.isNaN(v) ? 0 : v;
   };
-  const buckets: Record<ConversationGroupKey, ConversationSummary[]> = {
+  const buckets: Record<ConversationGroupKey, ConversationListItem[]> = {
     today: [],
     yesterday: [],
     previous7Days: [],
@@ -185,7 +185,7 @@ export function ConversationsSidebar({
   // Navigate to a conversation on its OWN agent surface (so a lenient
   // cross-agent row still opens correctly); fall back to this surface.
   const conversationHref = useCallback(
-    (c: ConversationSummary) => {
+    (c: ConversationListItem) => {
       const seg = c.agentId ? agentRouteName(c.agentId) : agentRoute;
       return seg ? `/ai/${seg}/${c.id}` : `/ai/${c.id}`;
     },
@@ -305,7 +305,7 @@ export function ConversationsSidebar({
 }
 
 interface RowProps {
-  conversation: ConversationSummary;
+  conversation: ConversationListItem;
   /** Active search query — matched substrings are highlighted in title/preview. */
   query?: string;
   active: boolean;

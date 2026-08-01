@@ -24,6 +24,30 @@
 
 import React from 'react';
 
+/**
+ * Server-computed decision aggregation of the record's pending approval node
+ * (framework#3266, `decision_progress` on `GET /approvals/requests/:id`).
+ *
+ * A multi-approver node does NOT finalize on the first decision: `unanimous`
+ * needs everyone, `quorum` needs `minApprovals` of the slate, `per_group` (会签)
+ * needs each named group to sign. Without the tally, an approver looking at the
+ * record cannot tell whether their own click completes the step or is one of
+ * three — the fact the whole node is about (objectstack#4478). The server does
+ * the counting so every client renders the same "2 of 3" the engine enforces.
+ *
+ * Absent for `first_response` nodes (one decision finalizes, so there is no
+ * progress to show) and for a backend that predates the enrichment.
+ */
+export interface ApprovalProgress {
+  behavior: 'unanimous' | 'quorum' | 'per_group';
+  /** Approvals recorded so far — satisfied GROUPS when `behavior` is `per_group`. */
+  got: number;
+  /** Approvals required to finalize — total GROUPS when `behavior` is `per_group`. */
+  need: number;
+  /** Per-group tally, `per_group` only. */
+  groups?: Array<{ group: string; got: number; need: number; satisfied: boolean }>;
+}
+
 export interface InlineEditContextValue {
   /** True while the record is in inline-edit mode. */
   editing: boolean;
@@ -60,6 +84,15 @@ export interface InlineEditContextValue {
    * still get a coherent band. Defaults to `false`.
    */
   approvalPending: boolean;
+  /**
+   * Quorum / per-group tally of the pending approval node, when it aggregates
+   * more than one decision (objectstack#4478). Threaded verbatim from the
+   * host's approvals read so the band renders the server's count instead of
+   * re-deriving the engine's tally rules. Undefined when no approval is
+   * running, when the node finalizes on the first response, or when the host
+   * doesn't resolve approvals at all.
+   */
+  approvalProgress?: ApprovalProgress;
   /**
    * Human-readable reason for the approval lock, surfaced as the band's
    * tooltip. Optional — consumers fall back to their own localized default
@@ -114,6 +147,12 @@ export interface InlineEditProviderProps {
    * only know about the lock rendering exactly as before.
    */
   approvalPending?: boolean;
+  /**
+   * The pending node's server-computed decision tally (objectstack#4478).
+   * Surfaced verbatim so the band can show "2 of 3" / per-group ticks. Omitted
+   * for `first_response` nodes and for hosts that don't read approvals.
+   */
+  approvalProgress?: ApprovalProgress;
   /** Optional human-readable lock reason, surfaced as the band tooltip. */
   lockedReason?: string;
   children: React.ReactNode;
@@ -123,6 +162,7 @@ export const InlineEditProvider: React.FC<InlineEditProviderProps> = ({
   canEdit = true,
   locked = false,
   approvalPending,
+  approvalProgress,
   lockedReason,
   children,
 }) => {
@@ -170,6 +210,7 @@ export const InlineEditProvider: React.FC<InlineEditProviderProps> = ({
       canEdit,
       locked,
       approvalPending: pending,
+      approvalProgress,
       lockedReason,
       draft,
       autoFocusField,
@@ -182,7 +223,7 @@ export const InlineEditProvider: React.FC<InlineEditProviderProps> = ({
       setSaving,
       setError,
     }),
-    [editing, canEdit, locked, pending, lockedReason, draft, autoFocusField, saving, error, enter, setField, teardown],
+    [editing, canEdit, locked, pending, approvalProgress, lockedReason, draft, autoFocusField, saving, error, enter, setField, teardown],
   );
 
   return <InlineEditContext.Provider value={value}>{children}</InlineEditContext.Provider>;

@@ -53,79 +53,46 @@ import {
 import { t, tFormat, useMetadataLocale } from './i18n';
 import { useMetadataClient } from './useMetadata';
 
-/** Mirrors `ExplainOperationSchema` in `@objectstack/spec/security`. */
-const OPERATIONS = ['read', 'create', 'update', 'delete', 'transfer', 'restore', 'purge'] as const;
-type ExplainOperation = (typeof OPERATIONS)[number];
+/**
+ * The explain-report vocabulary is OWNED by `@objectstack/spec/security` and
+ * imported here, not re-described (objectstack#4115).
+ *
+ * The report this panel renders is produced by the framework's explain engine
+ * parsing with these very schemas, so a local copy can only ever be a lagging
+ * transcription of them. The copies that used to live here had already drifted
+ * in three places, each of which silently degraded the panel:
+ *
+ *   - `ExplainRecordAttribution.rules` was optional here but is REQUIRED in the
+ *     spec — the "which rule decided this row" list is always sent, so the
+ *     optional spelling pushed every reader through a needless nullish branch.
+ *   - `ExplainLayer.contributors[].state` (`'active' | 'expired'`) was missing
+ *     outright, so an EXPIRED position/permission-set contribution rendered
+ *     identically to a live one.
+ *   - `ExplainDecision.principal.positions` / `.permissionSets` were optional
+ *     here and required in the spec, and `principalKind` was a bare `string`
+ *     rather than the closed `'human' | 'agent' | 'service' | 'system' |
+ *     'guest'` enum.
+ */
+export type {
+  ExplainDecision,
+  ExplainLayer,
+  ExplainMatchedRule,
+  ExplainRecordAttribution,
+} from '@objectstack/spec/security';
 
-/** Pipeline layer ids — mirrors `ExplainLayerSchema.layer` (C2 adds `tenant_isolation`). */
-export type ExplainLayerId =
-  | 'tenant_isolation'
-  | 'principal'
-  | 'required_permissions'
-  | 'object_crud'
-  | 'fls'
-  | 'owd_baseline'
-  | 'depth'
-  | 'sharing'
-  | 'vama_bypass'
-  | 'rls';
+import type {
+  ExplainDecision,
+  ExplainLayer,
+  ExplainMatchedRule,
+  ExplainRecordAttribution,
+} from '@objectstack/spec/security';
 
-/** [C2 / ADR-0095] One concrete rule that governed a specific record at a layer. */
-export interface ExplainMatchedRule {
-  kind:
-    | 'tenant_filter'
-    | 'owd_baseline'
-    | 'ownership'
-    | 'record_share'
-    | 'sharing_rule'
-    | 'team'
-    | 'territory'
-    | 'rls_policy';
-  name: string;
-  grants?: 'read' | 'edit' | 'full';
-  via?: string;
-  predicate?: unknown;
-  effect: 'admits' | 'excludes' | 'neutral';
-}
+/** Operation vocabulary, derived from the spec's own report type. */
+type ExplainOperation = ExplainDecision['operation'];
+const OPERATIONS = ['read', 'create', 'update', 'delete', 'transfer', 'restore', 'purge'] as const satisfies readonly ExplainOperation[];
 
-/** [C2 / ADR-0095] A layer's row-level determination for one record. */
-export interface ExplainRecordAttribution {
-  outcome: 'admitted' | 'excluded' | 'not_evaluated';
-  rowFilter?: unknown;
-  matchesRecord?: boolean;
-  rules?: ExplainMatchedRule[];
-  detail?: string;
-}
-
-/** Mirrors `ExplainDecisionSchema` in `@objectstack/spec/security` (ADR-0090 D6 / C2 ADR-0095). */
-export interface ExplainLayer {
-  layer: ExplainLayerId;
-  verdict: 'grants' | 'denies' | 'narrows' | 'widens' | 'neutral' | 'not_applicable';
-  detail: string;
-  contributors?: Array<{ kind: 'permission_set' | 'position' | 'system'; name: string; via?: string }>;
-  /** [C2 / ADR-0095 D1] Kernel tier — the tenant wall (Layer 0) vs. business RLS (Layer 1). */
-  kernelTier?: 'layer_0_tenant' | 'layer_1_business';
-  /** [C2 / ADR-0095] Per-record row story; present only on record-grained reports. */
-  record?: ExplainRecordAttribution;
-}
-export interface ExplainDecision {
-  allowed: boolean;
-  object: string;
-  operation: ExplainOperation;
-  principal: {
-    userId: string | null;
-    positions?: string[];
-    permissionSets?: string[];
-    principalKind?: string;
-    onBehalfOf?: { userId: string };
-    /** [C2 / ADR-0095 D2] Posture rung, when resolved (record-grained reports). */
-    posture?: 'PLATFORM_ADMIN' | 'TENANT_ADMIN' | 'MEMBER' | 'EXTERNAL';
-  };
-  layers: ExplainLayer[];
-  readFilter?: unknown;
-  /** [C2 / ADR-0095] Row-level verdict for the specific record under explanation. */
-  record?: { recordId: string; visible: boolean; decidedBy?: ExplainLayerId };
-}
+/** Pipeline layer ids, derived from the spec's `ExplainLayer` (C2 adds `tenant_isolation`). */
+export type ExplainLayerId = ExplainLayer['layer'];
 
 const VERDICT_BADGE: Record<ExplainLayer['verdict'], string> = {
   grants: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',

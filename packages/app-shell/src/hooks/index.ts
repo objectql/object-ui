@@ -43,7 +43,7 @@ export {
 } from './useChatConversation';
 export {
   useConversationList,
-  type ConversationSummary,
+  type ConversationListItem,
   type UseConversationListOptions,
   type UseConversationListReturn,
 } from './useConversationList';

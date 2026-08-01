@@ -123,7 +123,7 @@ export {
   isRuntimeConfigInitialised,
   resetRuntimeConfigForTesting,
 } from './runtime-config';
-export type { RuntimeConfig, RuntimeFeatures, RuntimeBranding, PlatformStage } from './runtime-config';
+export type { AppShellRuntimeConfig, RuntimeFeatures, RuntimeBranding, PlatformStage } from './runtime-config';
 
 // Standard inner-SPA views
 export {

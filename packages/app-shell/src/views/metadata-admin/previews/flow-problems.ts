@@ -20,7 +20,7 @@
 
 import { validateFlowDraft } from './simulator/flow-sim-validate';
 import type { Diagnostic, DiagnosticLevel, SimEdge, SimNode } from './simulator/flow-sim-types';
-import { edgeKey, type FlowEdge, type FlowNode } from './flow-canvas-layout';
+import { edgeKey, type FlowDesignerEdge, type FlowDesignerNode } from './flow-canvas-layout';
 import { flowExpressionProblems } from './flow-expr-problems';
 
 /** What a problem points at on the canvas — drives badge placement + reveal. */
@@ -62,7 +62,7 @@ export function edgeProblemKey(source: string, target: string): string {
 }
 
 /** Resolve an edge's selection key (`edgeKey`) from its endpoints. */
-function resolveEdgeKey(edges: FlowEdge[], source: string, target: string): string {
+function resolveEdgeKey(edges: FlowDesignerEdge[], source: string, target: string): string {
   const idx = edges.findIndex((e) => e.source === source && e.target === target);
   return idx >= 0 ? edgeKey(edges[idx], idx) : `${source}->${target}#-1`;
 }
@@ -89,7 +89,7 @@ interface StructuralMapping {
  * the author marks as a back-edge to resolve it — but flags EVERY hop (nodes +
  * edges) for the red error highlight so the whole loop reads as the problem.
  */
-function structuralMapping(diag: Diagnostic, edges: FlowEdge[]): StructuralMapping {
+function structuralMapping(diag: Diagnostic, edges: FlowDesignerEdge[]): StructuralMapping {
   if (diag.edge) {
     const { source, target } = diag.edge;
     return { target: { kind: 'edge', source, target, edgeKey: resolveEdgeKey(edges, source, target) } };
@@ -114,7 +114,7 @@ function structuralMapping(diag: Diagnostic, edges: FlowEdge[]): StructuralMappi
 }
 
 /** Map a server diagnostic's JSON path onto a node/edge/flow target. */
-function serverTarget(path: ServerDiagnostic['path'], nodes: FlowNode[], edges: FlowEdge[]): FlowProblemTarget {
+function serverTarget(path: ServerDiagnostic['path'], nodes: FlowDesignerNode[], edges: FlowDesignerEdge[]): FlowProblemTarget {
   const segs = pathSegments(path);
   if (segs.length >= 2 && typeof segs[1] === 'number') {
     const idx = segs[1];
@@ -135,8 +135,8 @@ function targetKey(t: FlowProblemTarget): string {
 }
 
 export interface BuildFlowProblemsArgs {
-  nodes: FlowNode[];
-  edges: FlowEdge[];
+  nodes: FlowDesignerNode[];
+  edges: FlowDesignerEdge[];
   /** Server `_diagnostics`, flattened to a severity-tagged, path-keyed list. */
   serverDiagnostics?: ServerDiagnostic[];
   /** Declared flow variables — needed to resolve scope for the expression check. */

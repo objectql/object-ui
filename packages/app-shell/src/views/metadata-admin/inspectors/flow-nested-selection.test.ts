@@ -10,7 +10,7 @@ import {
   locateFlowNode,
   type NestedNodePath,
 } from './flow-nested-selection';
-import { extractRegions, type FlowNode } from '../previews/flow-canvas-layout';
+import { extractRegions, type FlowDesignerNode } from '../previews/flow-canvas-layout';
 
 describe('flow-nested-selection — id codec', () => {
   it('exports a stable, distinct selection kind', () => {
@@ -73,7 +73,7 @@ describe('flow-nested-selection — region config path + label', () => {
    * must never disagree on the set of region keys.
    */
   it('resolves every key extractRegions emits (loop / parallel / try_catch)', () => {
-    const containers: FlowNode[] = [
+    const containers: FlowDesignerNode[] = [
       { id: 'each', type: 'loop', config: { body: { nodes: [{ id: 'x', type: 'http' }], edges: [] } } },
       {
         id: 'fan',

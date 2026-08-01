@@ -46,30 +46,52 @@ export interface MetadataContextValue extends MetadataState {
 
 export const MetadataCtx = createContext<MetadataContextValue | null>(null);
 
+/** Shared frozen empty list for the fallback below — see {@link NO_METADATA_PROVIDER}. */
+const NO_ITEMS = Object.freeze([]) as unknown as any[];
+
+/**
+ * The no-provider fallback, as a MODULE-LEVEL SINGLETON.
+ *
+ * Identity matters here, not just shape. `useMetadata()` used to build this
+ * object inline on every call, so outside a `<MetadataProvider>` every render
+ * produced a new `getItem` — and `useMetadataItem` lists `getItem` in its
+ * effect deps and calls `setState({...})` with a fresh object on every run. New
+ * identity → effect re-runs → new state object → re-render → new identity: an
+ * unbreakable render loop, synchronous enough to hang inside `render()`.
+ *
+ * So the fallback documented as the graceful path for consumers mounted outside
+ * a provider was the one thing that made those consumers impossible to mount —
+ * `record:alert` and `record:quick_actions` both call `useMetadataItem`
+ * unconditionally, and both spin. Found by
+ * `apps/console/src/__tests__/record-block-record-reach.test.tsx`
+ * (objectui#3149), which could not mount them at all until this was frozen.
+ *
+ * Frozen so a consumer cannot mutate the shared fallback out from under every
+ * other consumer of it.
+ */
+const NO_METADATA_PROVIDER: MetadataContextValue = Object.freeze({
+  apps: NO_ITEMS,
+  objects: NO_ITEMS,
+  dashboards: NO_ITEMS,
+  reports: NO_ITEMS,
+  pages: NO_ITEMS,
+  loading: false,
+  error: null,
+  refresh: async () => {},
+  invalidate: () => {},
+  ensureType: async () => [],
+  getItem: async () => null,
+  getItemsByType: () => [],
+  getTypeStatus: () => 'ready' as const,
+});
+
 export function useMetadata(): MetadataContextValue {
   const ctx = useContext(MetadataCtx);
-  if (!ctx) {
-    // Graceful fallback: when a consumer is rendered outside a MetadataProvider
-    // (common in unit tests that only need to assert on rendering), return an
-    // empty no-op implementation rather than crash. Production code paths
-    // should always wrap in <MetadataProvider>.
-    return {
-      apps: [],
-      objects: [],
-      dashboards: [],
-      reports: [],
-      pages: [],
-      loading: false,
-      error: null,
-      refresh: async () => {},
-      invalidate: () => {},
-      ensureType: async () => [],
-      getItem: async () => null,
-      getItemsByType: () => [],
-      getTypeStatus: () => 'ready',
-    };
-  }
-  return ctx;
+  // Graceful fallback: a consumer rendered outside a MetadataProvider (unit
+  // tests that only assert on rendering, standalone previews) gets an empty
+  // no-op implementation rather than a crash. Production code paths should
+  // always wrap in <MetadataProvider>.
+  return ctx ?? NO_METADATA_PROVIDER;
 }
 
 export function useMetadataItem(
@@ -85,7 +107,15 @@ export function useMetadataItem(
 
   useEffect(() => {
     if (!name) {
-      setState({ item: null, loading: false, error: null });
+      // Bail out when already cleared instead of installing a fresh object.
+      // Belt-and-braces against the loop the frozen fallback above fixes at the
+      // source: `getItem` is an effect dep, so ANY caller whose context value
+      // is rebuilt per render — a hand-rolled one in a test, which this
+      // interface explicitly invites — would otherwise re-run this effect,
+      // re-set an equal-but-new state object, and re-render forever.
+      setState((s) => (s.item === null && !s.loading && s.error === null
+        ? s
+        : { item: null, loading: false, error: null }));
       return;
     }
     let cancelled = false;

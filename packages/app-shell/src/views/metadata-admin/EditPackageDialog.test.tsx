@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { EditPackageDialog, type InstalledPackage } from './PackagesPage';
+import { EditPackageDialog, type InstalledPackageRow } from './PackagesPage';
 
 // EditPackageDialog is now a thin wrapper over the spec-driven PackageFormDialog
 // (edit mode). It renders the manifest form via SchemaForm and PATCHes only the
@@ -11,7 +11,7 @@ import { EditPackageDialog, type InstalledPackage } from './PackagesPage';
 // PackageFormDialog's apiJson uses the raw global fetch (fetch → res.text() →
 // JSON.parse), so we stub global fetch and mirror the runtime's { success, data }
 // envelope — exactly what `PATCH /api/v1/packages/:id` returns.
-const PKG: InstalledPackage = {
+const PKG: InstalledPackageRow = {
   manifest: { id: 'com.acme.crm', name: 'Acme CRM', version: '1.0.0', description: 'old', type: 'app' },
   enabled: true,
   status: 'installed',
@@ -26,7 +26,7 @@ beforeEach(() => {
     vi.fn(async (url: string, init: RequestInit = {}) => {
       calls.push({ url, init });
       const body = init.body ? JSON.parse(init.body as string) : {};
-      const updated: InstalledPackage = { ...PKG, manifest: { ...PKG.manifest, ...body } };
+      const updated: InstalledPackageRow = { ...PKG, manifest: { ...PKG.manifest, ...body } };
       return {
         ok: true,
         status: 200,
