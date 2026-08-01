@@ -10,7 +10,7 @@
  *      and `label` so authors can see the visual weight before they
  *      ship it (primary buttons are highlighted, danger turns red,
  *      icon-only actions render a compact icon button).
- *   2. A metadata strip: type, target, locations, shortcut, bulk
+ *   2. A metadata strip: type, target, locations
  *      flag, AI exposure, refreshAfter, confirmText.
  *   3. A params table when the action prompts the user — this is the
  *      modal/drawer it would open on click. We render it as a static
@@ -30,14 +30,12 @@ import {
   Code2,
   Eye,
   Globe,
-  Keyboard,
   LayoutGrid,
   Link2,
   Lock,
   MoreHorizontal,
   Pencil,
   RefreshCw,
-  ScanLine,
   Sparkles,
   Square,
   Workflow,
@@ -158,8 +156,9 @@ export function ActionPreview({ name, draft }: MetadataPreviewProps) {
   const variant = (d.variant as string | undefined) || undefined;
   const component = String(d.component ?? '');
   const locations = Array.isArray(d.locations) ? (d.locations as string[]) : [];
-  const shortcut = (d.shortcut as string | undefined) || undefined;
-  const bulkEnabled = !!d.bulkEnabled;
+  // No `shortcut` / `bulkEnabled` here: both are spec-17 `retiredKey()`
+  // tombstones, so a preview of them could only ever render for metadata the
+  // platform now refuses to parse. See ActionDefaultInspector's RETIRED_FIELDS.
   const refreshAfter = !!d.refreshAfter;
   const aiExposed = d.aiExposed;
   const confirmText = localize(d.confirmText);
@@ -204,8 +203,6 @@ export function ActionPreview({ name, draft }: MetadataPreviewProps) {
               {objectName && <Pill icon={Square} label={`object: ${objectName}`} mono />}
               {variant && <Pill label={`variant: ${variant}`} />}
               {component && <Pill icon={MoreHorizontal} label={component} />}
-              {shortcut && <Pill icon={Keyboard} label={shortcut} mono />}
-              {bulkEnabled && <Pill icon={ScanLine} label="bulk" tone="green" />}
               {refreshAfter && <Pill icon={RefreshCw} label="refresh after" />}
               {aiExposed === false && <Pill icon={Bot} label="AI: opted out" tone="amber" />}
               {aiExposed === true && <Pill icon={Sparkles} label="AI: exposed" />}

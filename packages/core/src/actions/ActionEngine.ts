@@ -142,13 +142,21 @@ export class ActionEngine {
     }
   }
 
-  /** Register multiple actions from an ActionSchema array */
+  /**
+   * Register multiple actions from an ActionSchema array.
+   *
+   * Only `locations` is harvested from the metadata. `shortcut` and
+   * `bulkEnabled` used to be read here too, but spec 17 retired both as
+   * `retiredKey()` tombstones — a declaration carrying either one no longer
+   * parses, so harvesting them read a key that cannot exist and made two dead
+   * options look load-bearing. Both remain accepted on the single-action
+   * `registerAction(action, options)` overload, where a HOST passes them
+   * explicitly; they are simply no longer sourced from authored metadata.
+   */
   registerActions(actions: ActionDef[]): void {
     for (const action of actions) {
       this.registerAction(action, {
         locations: (action as any).locations,
-        shortcut: (action as any).shortcut,
-        bulkEnabled: (action as any).bulkEnabled,
       });
     }
   }

@@ -56,6 +56,19 @@ describe('ActionEngine', () => {
       expect(engine.getAction('save')).toBeDefined();
       expect(engine.getAction('delete')).toBeDefined();
     });
+
+    it('does not harvest the retired `shortcut` / `bulkEnabled` keys from metadata', () => {
+      // spec 17 retired both as `retiredKey()` tombstones — a declaration
+      // carrying either no longer parses, so reading them here made two dead
+      // options look load-bearing. A host may still pass them explicitly to
+      // `registerAction`; they are just not sourced from authored metadata.
+      engine.registerActions([
+        { name: 'stale', type: 'api', shortcut: 'ctrl+k', bulkEnabled: true } as never,
+      ]);
+      expect(engine.getAction('stale')).toBeDefined();
+      expect(engine.getShortcuts()).toHaveLength(0);
+      expect(engine.getBulkActions().map((a) => a.name)).not.toContain('stale');
+    });
   });
 
   describe('unregisterAction', () => {

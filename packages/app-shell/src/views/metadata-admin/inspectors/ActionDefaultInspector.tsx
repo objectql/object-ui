@@ -180,10 +180,28 @@ function ActionTargetField({ type, value, onCommit, cfg, readOnly }: {
 const CURATED_FIELDS = [
   'name', 'label', 'objectName', 'icon', 'variant', 'component',
   'type', 'target', 'execute', 'body', 'method',
-  'params', 'locations', 'bulkEnabled',
-  'confirmText', 'successMessage', 'errorMessage', 'refreshAfter', 'undoable', 'mode', 'shortcut',
+  'params', 'locations',
+  'confirmText', 'successMessage', 'errorMessage', 'refreshAfter', 'undoable', 'mode',
   'visible', 'disabled', 'aiExposed', 'aiDescription',
 ];
+
+/**
+ * Keys hidden from the fallback form for the OPPOSITE reason: not because this
+ * inspector edits them, but because `@objectstack/spec` 17 retired them as
+ * `retiredKey()` tombstones — authoring either one is a hard PARSE REJECTION,
+ * so a draft carrying it cannot be saved at all.
+ *
+ * They stay listed because the fallback renders from the server's live schema,
+ * which still advertises both; dropping them here would put the inputs back.
+ * This inspector used to offer its own controls for them (a "Bulk — apply to
+ * multiple selected rows" checkbox and a "Shortcut" text field), which is how
+ * the designer let an author build a draft the platform would then refuse.
+ *
+ * Do not add controls back. `bulkEnabled`'s replacement is the LIST VIEW's
+ * `bulkActions` / `bulkActionDefs`; `shortcut` has none — register the key in
+ * the Console keyboard stack and have its handler invoke the action by name.
+ */
+const RETIRED_FIELDS = ['bulkEnabled', 'shortcut'];
 
 /* ─────────────── small helpers ─────────────── */
 
@@ -420,7 +438,9 @@ export function ActionDefaultInspector({
         <div className="grid grid-cols-2 gap-2 pt-1">
           <InspectorSelectField label="Component" value={str('component') || undefined} options={COMPONENT_OPTS} onCommit={(v) => onPatch({ component: v })} disabled={readOnly} />
         </div>
-        <InspectorCheckboxField label="Bulk — apply to multiple selected rows" value={!!draft.bulkEnabled} onCommit={(v) => onPatch({ bulkEnabled: v })} disabled={readOnly} />
+        {/* No "Bulk" checkbox here: `action.bulkEnabled` is a spec-17
+            tombstone (see RETIRED_FIELDS). Selection placement is declared on
+            the LIST VIEW, in `bulkActions` / `bulkActionDefs`. */}
       </div>
 
       {/* 5 ─ Feedback */}
@@ -429,9 +449,11 @@ export function ActionDefaultInspector({
         <InspectorTextField label="Confirm prompt" value={localize(draft.confirmText)} onCommit={(v) => onPatch({ confirmText: v })} placeholder="Ask before running (leave blank to skip)" disabled={readOnly} />
         <InspectorTextField label="Success message" value={localize(draft.successMessage)} onCommit={(v) => onPatch({ successMessage: v })} disabled={readOnly} />
         <InspectorTextField label="Error message" value={localize(draft.errorMessage)} onCommit={(v) => onPatch({ errorMessage: v })} disabled={readOnly} />
+        {/* No "Shortcut" field beside Mode: `action.shortcut` is a spec-17
+            tombstone (see RETIRED_FIELDS) — nothing ever read it, and
+            authoring it now fails the parse. */}
         <div className="grid grid-cols-2 gap-2">
           <InspectorSelectField label="Mode" value={str('mode') || undefined} options={MODE_OPTS} onCommit={(v) => onPatch({ mode: v })} disabled={readOnly} />
-          <InspectorTextField label="Shortcut" value={str('shortcut')} onCommit={(v) => onPatch({ shortcut: v })} placeholder="e.g. Ctrl+S" disabled={readOnly} mono />
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-1">
           <InspectorCheckboxField label="Refresh view after" value={!!draft.refreshAfter} onCommit={(v) => onPatch({ refreshAfter: v })} disabled={readOnly} />
@@ -475,7 +497,7 @@ export function ActionDefaultInspector({
           <SchemaForm
             schema={fallbackSchema}
             value={draft}
-            hiddenFields={CURATED_FIELDS}
+            hiddenFields={[...CURATED_FIELDS, ...RETIRED_FIELDS]}
             readOnly={readOnly}
             onChange={(next) => onPatch(next)}
           />
