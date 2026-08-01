@@ -49,14 +49,74 @@ describe('entitlementDialogFromError', () => {
     expect(spec).not.toBeNull();
     expect(spec!.code).toBe('DEV_ENV_PLAN_LOCKED');
     expect(spec!.title).toBe('Development environments are a paid feature');
-    expect(spec!.message).toContain('paid feature'); // server message preserved
+    expect(spec!.message).toContain('Your free plan includes one production environment');
     expect(spec!.cta).toEqual({ label: 'Upgrade plan', url: '/settings/billing' });
+  });
+
+  it('names a paid plan in the plan-locked copy', () => {
+    const spec = entitlementDialogFromError({ code: 'DEV_ENV_PLAN_LOCKED', plan: 'team' });
+    expect(spec!.message).toContain('Your team plan includes');
   });
 
   it('maps DEV_ENV_LIMIT to an upgrade dialog (limit-reached title)', () => {
     const spec = entitlementDialogFromError({ code: 'DEV_ENV_LIMIT', upgrade_url: '/u' });
     expect(spec!.title).toBe('Development environment limit reached');
     expect(spec!.cta!.url).toBe('/u');
+    expect(spec!.message).toContain('Capacity scales with AI seats');
+  });
+
+  it('quotes the seat-pool usage when the server reports counts', () => {
+    const spec = entitlementDialogFromError({ code: 'DEV_ENV_LIMIT', current: 3, limit: 3 });
+    expect(spec!.message).toContain('using 3 of 3 development environments');
+  });
+
+  // cloud#948 nested every coded error under `error: { … }`. Reading `code` off
+  // the top level made this mapper return null against an up-to-date control
+  // plane, degrading the friendly dialog to a generic red toast.
+  it('reads the nested cloud#948 error envelope', () => {
+    const spec = entitlementDialogFromError({
+      success: false,
+      error: {
+        code: 'DEV_ENV_PLAN_LOCKED',
+        message: 'Development environments are a paid feature. …',
+        httpStatus: 403,
+        plan: 'free',
+        upgrade_url: '/settings/billing',
+      },
+    });
+    expect(spec).not.toBeNull();
+    expect(spec!.code).toBe('DEV_ENV_PLAN_LOCKED');
+    expect(spec!.cta).toEqual({ label: 'Upgrade plan', url: '/settings/billing' });
+  });
+
+  it('still reads the legacy flat body (older control planes)', () => {
+    const spec = entitlementDialogFromError({
+      success: false,
+      error: 'Development environments are a paid feature. …',
+      code: 'DEV_ENV_PLAN_LOCKED',
+      upgrade_url: '/legacy',
+    });
+    expect(spec!.cta!.url).toBe('/legacy');
+  });
+
+  // cloud#959 — the dialog is a paid-conversion surface, so its copy comes from
+  // the Console's own locale bundle rather than the (possibly older, possibly
+  // English-only) control plane.
+  it('renders localized copy when a translator is supplied, ignoring server prose', () => {
+    const zh = (key: string, o?: any) =>
+      ({
+        'environment.entitlement.planLockedTitle': '开发环境是付费功能',
+        'environment.entitlement.planLockedBody': `${o?.plan}包含一个生产环境。升级后即可添加开发环境。`,
+        'environment.entitlement.freePlan': '免费版',
+        'environment.entitlement.upgradeCta': '升级套餐',
+      })[key] ?? key;
+    const spec = entitlementDialogFromError(
+      { error: { code: 'DEV_ENV_PLAN_LOCKED', message: 'Development environments are a paid feature.' } },
+      zh,
+    );
+    expect(spec!.title).toBe('开发环境是付费功能');
+    expect(spec!.message).toBe('免费版包含一个生产环境。升级后即可添加开发环境。');
+    expect(spec!.cta!.label).toBe('升级套餐');
   });
 
   it('maps PRODUCTION_ENV_LIMIT to a contact-sales dialog (no upgrade CTA)', () => {
@@ -96,5 +156,33 @@ describe('upgradeDialogSpec', () => {
     expect(spec.code).toBe('DEV_ENV_PLAN_LOCKED');
     expect(spec.cta).toEqual({ label: 'Upgrade plan', url: '/settings/billing' });
     expect(spec.message).toContain('free plan');
+  });
+
+  // The lowercase-`your` sentence users reported (cloud#959) came from this
+  // builder, not from the control plane.
+  it('opens the sentence with a capital letter', () => {
+    const spec = upgradeDialogSpec(base({ plan: 'free' }));
+    expect(spec.message.startsWith('Your ')).toBe(true);
+  });
+
+  it('reads identically to the reactive DEV_ENV_PLAN_LOCKED dialog', () => {
+    const proactive = upgradeDialogSpec(base({ plan: 'free', upgradeUrl: '/settings/billing' }));
+    const reactive = entitlementDialogFromError({
+      error: { code: 'DEV_ENV_PLAN_LOCKED', plan: 'free', upgrade_url: '/settings/billing' },
+    });
+    expect(reactive).toEqual(proactive);
+  });
+
+  it('localizes through the supplied translator', () => {
+    const zh = (key: string, o?: any) =>
+      ({
+        'environment.entitlement.planLockedTitle': '开发环境是付费功能',
+        'environment.entitlement.planLockedBody': `${o?.plan}包含一个生产环境。`,
+        'environment.entitlement.freePlan': '免费版',
+        'environment.entitlement.upgradeCta': '升级套餐',
+      })[key] ?? key;
+    const spec = upgradeDialogSpec(base({ plan: 'free' }), zh);
+    expect(spec.title).toBe('开发环境是付费功能');
+    expect(spec.message).toBe('免费版包含一个生产环境。');
   });
 });

@@ -93,7 +93,7 @@ export function EnvironmentListToolbar({ actions, entitlements, onUpgrade }: Pro
   // onUpgrade sets parent state.
   useEffect(() => {
     if (autoRunCreate && ctaKind === 'upgrade_for_development' && entitlements) {
-      onUpgrade(upgradeDialogSpec(entitlements));
+      onUpgrade(upgradeDialogSpec(entitlements, t));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoRunCreate, ctaKind]);
@@ -114,7 +114,7 @@ export function EnvironmentListToolbar({ actions, entitlements, onUpgrade }: Pro
         )}
         <Button
           size="sm"
-          onClick={() => onUpgrade(upgradeDialogSpec(entitlements!))}
+          onClick={() => onUpgrade(upgradeDialogSpec(entitlements!, t))}
           className="shadow-none gap-1.5 sm:gap-2 h-8 sm:h-9"
           data-testid="environment-add-upgrade"
         >

@@ -2569,6 +2569,20 @@ const ko = {
     addEnvironment: "환경 추가",
     setUpProduction: "프로덕션 환경 설정",
     addDevelopment: "개발 환경 추가",
+    // Plan/capacity dialog (EnvironmentEntitlementDialog) — cloud#959.
+    entitlement: {
+      productionLimitTitle: "이미 프로덕션 환경이 있습니다",
+      productionLimitBody: "조직마다 프로덕션 환경은 하나만 포함됩니다. 하나 더 필요하면 별도의 조직을 만들거나 엔터프라이즈 계약에 대해 문의해 주세요.",
+      planLockedTitle: "개발 환경은 유료 기능입니다",
+      planLockedBody: "{{plan}}에는 프로덕션 환경 하나가 포함됩니다. 업그레이드하면 개발 환경을 추가할 수 있습니다 — 개발 환경에서 만들고 프로덕션에 게시하세요.",
+      limitTitle: "개발 환경 한도에 도달했습니다",
+      limitBody: "한도는 AI 좌석 수에 따라 늘어납니다. AI 좌석을 추가하거나 사용하지 않는 개발 환경을 보관하여 자리를 확보하세요.",
+      limitBodyWithCount: "개발 환경을 {{used}}/{{limit}}개 사용 중입니다. 한도는 AI 좌석 수에 따라 늘어납니다 — AI 좌석을 추가하거나 사용하지 않는 개발 환경을 보관하세요.",
+      freePlan: "무료 요금제",
+      namedPlan: "{{plan}} 요금제",
+      upgradeCta: "요금제 업그레이드",
+      contactSalesCta: "영업팀 문의",
+    },
   },
   cloudConnection: {
     checking: "연결을 확인하는 중…",

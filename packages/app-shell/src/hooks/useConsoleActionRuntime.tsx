@@ -25,7 +25,7 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
 import { usePermissions } from '@object-ui/permissions';
-import { useObjectLabel } from '@object-ui/i18n';
+import { useObjectLabel, useObjectTranslation } from '@object-ui/i18n';
 import { ActionProvider, useGlobalUndo } from '@object-ui/react';
 import { toast } from 'sonner';
 import type {
@@ -126,6 +126,9 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
   // when no PermissionProvider is mounted — usePermissions returns []).
   const { systemPermissions } = usePermissions();
   const { fieldLabel, fieldOptionLabel, actionParamText, actionParamOptionLabel, actionDescription, actionResultDialog } = useObjectLabel();
+  // Entitlement 403s render as a dialog, not a toast — its copy is localized
+  // here rather than taken from the server (objectui#2458 / cloud#959).
+  const { t } = useObjectTranslation();
 
   const objectDef = useMemo(
     () => (objectName ? objects?.find((o: any) => o.name === objectName) : undefined),
@@ -343,7 +346,7 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
           // Returning success:false WITHOUT an `error` suppresses the runner's
           // error toast (ActionRunner.handlePostExecution); the dialog owns the
           // messaging.
-          const entitlementSpec = entitlementDialogFromError(body);
+          const entitlementSpec = entitlementDialogFromError(body, t);
           if (entitlementSpec) {
             openEntitlementDialog(entitlementSpec);
             return { success: false };
@@ -432,7 +435,7 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
     } catch (error) {
       return { success: false, error: (error as Error).message };
     }
-  }, [dataSource, objApiName, authFetch, activeOrganization, refresh, openEntitlementDialog]);
+  }, [dataSource, objApiName, authFetch, activeOrganization, refresh, openEntitlementDialog, t]);
 
   // Flow action handler — POST to /api/v1/automation/{name}/trigger.
   // `context` is the shared ActionRunner context (registered handlers are

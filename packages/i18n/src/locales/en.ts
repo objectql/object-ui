@@ -2670,6 +2670,25 @@ const en = {
     addEnvironment: 'Add environment',
     setUpProduction: 'Set up your production environment',
     addDevelopment: 'Add development environment',
+    // Plan/capacity dialog (EnvironmentEntitlementDialog). Shown on a paid
+    // conversion path, so it must read in the user's language — cloud#959.
+    entitlement: {
+      productionLimitTitle: 'You already have your production environment',
+      productionLimitBody:
+        'Each organization includes exactly one production environment. Create a separate organization for another, or contact us about an Enterprise arrangement.',
+      planLockedTitle: 'Development environments are a paid feature',
+      planLockedBody:
+        'Your {{plan}} includes one production environment. Upgrade to add development environments — build in dev, then publish to production.',
+      limitTitle: 'Development environment limit reached',
+      limitBody:
+        'Capacity scales with AI seats. Add an AI seat, or archive an unused development environment to free one up.',
+      limitBodyWithCount:
+        'You are using {{used}} of {{limit}} development environments. Capacity scales with AI seats — add an AI seat, or archive an unused development environment to free one up.',
+      freePlan: 'free plan',
+      namedPlan: '{{plan}} plan',
+      upgradeCta: 'Upgrade plan',
+      contactSalesCta: 'Contact sales',
+    },
   },
   cloudConnection: {
     checking: 'Checking connection…',

@@ -35,6 +35,15 @@ vi.mock('@object-ui/i18n', () => ({
     actionParamOptionLabel: (_o: any, _a: any, _p: any, _v: any, fallback: any) => fallback,
     actionDescription: (_o: any, _a: any, fallback: any) => fallback,
   }),
+  // The entitlement dialog localizes its own copy — stand in with the English
+  // defaults (+ `{{token}}` interpolation) the real `t` would resolve to.
+  useObjectTranslation: () => ({
+    t: (key: string, options?: any) =>
+      String(options?.defaultValue ?? key).replace(
+        /\{\{(\w+)\}\}/g,
+        (_m: string, name: string) => String(options?.[name] ?? ''),
+      ),
+  }),
 }));
 
 // The client modal transport is stubbed for the same reason — importing it for

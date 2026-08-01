@@ -2569,6 +2569,20 @@ const ar = {
     addEnvironment: "إضافة بيئة",
     setUpProduction: "إعداد بيئة الإنتاج",
     addDevelopment: "إضافة بيئة تطوير",
+    // Plan/capacity dialog (EnvironmentEntitlementDialog) — cloud#959.
+    entitlement: {
+      productionLimitTitle: "لديك بالفعل بيئة الإنتاج الخاصة بك",
+      productionLimitBody: "تتضمّن كل مؤسسة بيئة إنتاج واحدة فقط. أنشئ مؤسسة منفصلة للحصول على بيئة أخرى، أو تواصل معنا بشأن ترتيبات الخطة المؤسسية.",
+      planLockedTitle: "بيئات التطوير ميزة مدفوعة",
+      planLockedBody: "تتضمّن {{plan}} بيئة إنتاج واحدة. قم بالترقية لإضافة بيئات تطوير — أنشئ في بيئة التطوير ثم انشر إلى الإنتاج.",
+      limitTitle: "تم بلوغ الحد الأقصى لبيئات التطوير",
+      limitBody: "تزداد السعة مع مقاعد الذكاء الاصطناعي. أضف مقعدًا، أو أرشف بيئة تطوير غير مستخدمة لتحرير مكان.",
+      limitBodyWithCount: "تستخدم {{used}} من أصل {{limit}} بيئة تطوير. تزداد السعة مع مقاعد الذكاء الاصطناعي — أضف مقعدًا، أو أرشف بيئة تطوير غير مستخدمة.",
+      freePlan: "الخطة المجانية",
+      namedPlan: "خطة {{plan}}",
+      upgradeCta: "ترقية الخطة",
+      contactSalesCta: "تواصل مع المبيعات",
+    },
   },
   cloudConnection: {
     checking: "جارٍ التحقق من الاتصال…",
