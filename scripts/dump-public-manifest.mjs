@@ -1,5 +1,13 @@
 // ADR-0080: generate the public-tier SDUI component manifest.
 //
+// The manifest records what each registration DECLARES (`config.inputs`, copied
+// verbatim by `manifestFromConfigs`), never what a renderer reads. The framework
+// diffs it against the spec schemas — a comparison of two declarations, so a
+// prop both sides declare and nothing consumes reads there as agreement
+// (objectstack#4413 shipped through exactly that; objectstack#4472 renamed the
+// check to `check:react-declaration-parity` to stop it reading as proof of
+// implementation).
+//
 // The registry is a browser app (plugin-map/charts pull browser-only deps), so
 // the reliable way to enumerate it is in a real browser: load the built
 // `manifest-dump.html` (which registers everything the console does and exposes

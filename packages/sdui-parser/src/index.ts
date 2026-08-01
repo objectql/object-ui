@@ -114,6 +114,23 @@ const INPUT_TYPES = new Set([
   'slot',
 ]);
 
+/**
+ * Project registry configs into the SDUI manifest.
+ *
+ * ⚠️ Every field here is copied from what the registration **declared**. In
+ * particular `inputs` is `config.inputs` verbatim — this function does not, and
+ * cannot, observe whether the renderer behind the block reads any of them.
+ *
+ * Worth stating because of what consumes the output. The framework's
+ * `check:react-blocks-declaration-parity` diffs this against the spec's zod
+ * schemas, and while that check was named `check:react-conformance` it was read
+ * — by its own file header — as confirming the components "ACTUALLY implement"
+ * the spec's props. It never could: both sides of that diff are declarations,
+ * and this is the side this file produces. Four blocks published an `objectName`
+ * no renderer read and sailed through it green (objectstack#4413; corrected in
+ * objectstack#4472). Evidence about the render path has to come from the render
+ * path — see `apps/console/src/__tests__/public-block-binding-reach.test.tsx`.
+ */
 export function manifestFromConfigs(
   configs: RegistryConfigLike[],
   opts: { only?: Set<string>; publicOnly?: boolean } = {},
