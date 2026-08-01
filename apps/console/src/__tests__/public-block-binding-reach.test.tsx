@@ -26,9 +26,17 @@
  * declared input consumed" (undecidable from outside without heuristics) but
  * one exact, observable question per block —
  *
- *   mount it through `SchemaRenderer` with nothing but its declared
- *   `objectName`, under a provider whose `dataSource` records every call:
- *   **did any call carry that object name?**
+ *   mount it through `SchemaRenderer` with a plausible value for every input it
+ *   declares, under a provider whose `dataSource` records every call:
+ *   **did any call carry the object name?**
+ *
+ * Every declared input, not just the required ones: a block's read path can be
+ * gated on an optional one (`embeddable-form` only builds the read-only source
+ * its inner `ObjectForm` fetches through when `config.fields` is non-empty), and
+ * omitting it would read here as "does not bind" when the truth is "was never
+ * asked to". Values are plausible rather than degenerate for the same reason —
+ * an early `[]` for `columns` makes a list render its empty state without ever
+ * asking for data.
  *
  * A block that declares `objectName` and asks the data layer for something else
  * — or for nothing at all — is not bound to the object it advertises. That is
@@ -45,7 +53,6 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import React from 'react';
 import { render, act } from '@testing-library/react';
 import { ComponentRegistry } from '@object-ui/core';
 import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
@@ -58,6 +65,29 @@ import '../register-plugins';
 
 /** The object name every probed block is bound to; must appear in a data call. */
 const PROBE_OBJECT = 'probe_object__c';
+
+/**
+ * `DataSource` methods the recording stub carries as real own properties, so a
+ * block that derives a source by spreading (`{...dataSource, …}`) still gets
+ * them. Not exhaustive and does not need to be — anything unlisted is served by
+ * the Proxy's `get` — it only needs to cover what survives a spread.
+ */
+const DATA_SOURCE_METHODS = [
+  'find',
+  'findOne',
+  'create',
+  'update',
+  'delete',
+  'aggregate',
+  'count',
+  'getObjectSchema',
+  'getObjects',
+  'getView',
+  'listViews',
+  'listViewOverrides',
+  'updateViewConfig',
+  'onMutation',
+] as const;
 
 /**
  * Blocks that declare an `objectName` input and do NOT reach the data layer
@@ -75,19 +105,27 @@ const NO_DATA_REACH: Readonly<Record<string, string>> = {
   'record:related_list':
     'needs the parent record id from RecordContext before it may fetch; declines to fetch without one (objectstack#4413 ledger)',
 
-  // Both of these are the SAME defect, and it is a real one: the registry entry
-  // has no wrapper bridging the schema-renderer context onto the component's
-  // `dataSource` PROP. `object-form`, `object-kanban` and `object-calendar` each
-  // register a small renderer that does exactly that bridge; `list-view` is
-  // registered as the bare `ListView` (which reads `props.dataSource`), and
-  // `embeddable-form`'s renderer is `({schema}) => <EmbeddableForm config={schema} />`
-  // (which drops it). `SchemaRenderer` never injects `dataSource` into props, so
-  // on the registry/SDUI path both blocks silently render an empty shell while
-  // declaring `objectName` **required**.
+  // Both of these are the SAME defect, and it is a real one — debt recorded
+  // here, not divergence accepted. Neither registration bridges the
+  // schema-renderer context onto the component's `dataSource` PROP:
+  // `object-form`, `object-kanban` and `object-calendar` each register a small
+  // renderer that does exactly that, `list-view` is registered as the bare
+  // `ListView` (which reads `props.dataSource`), and `embeddable-form`'s
+  // renderer is `({schema}) => <EmbeddableForm config={schema} />`, which drops
+  // it. `SchemaRenderer` never injects `dataSource` into props, so on the
+  // registry/SDUI path both render an empty shell while declaring `objectName`
+  // **required** — the objectstack#4413 shape, one layer up.
   //
-  // Filed rather than fixed here: giving these two a data source changes what
-  // they render everywhere they are mounted bare, which is a change that wants
-  // its own review — see objectui#3144.
+  // Verified to be the wiring and not this probe's reach: `embeddable-form`
+  // fetches the moment the bridge exists (its inner `ObjectForm` calls
+  // `getObjectSchema` through the read-only source it derives), and does not
+  // without it, on the identical mount.
+  //
+  // Filed rather than fixed alongside this suite: giving these two a data source
+  // changes what they render everywhere they are mounted bare, which wants its
+  // own review — objectui#3144. When it lands, the assertions below FORCE these
+  // two entries deleted; a ledger nobody must update is how an accepted baseline
+  // starts.
   'list-view':
     'registered bare; ListView reads props.dataSource and SchemaRenderer never injects it — objectui#3144',
   'embeddable-form':
@@ -98,7 +136,14 @@ const NO_DATA_REACH: Readonly<Record<string, string>> = {
 const declaresObjectName = (cfg: { inputs?: Array<{ name?: string }> }) =>
   (cfg.inputs ?? []).some((i) => i?.name === 'objectName');
 
-/** Plausible value for a required input, so nothing short-circuits on a missing one. */
+/**
+ * A plausible value for one declared input.
+ *
+ * "Plausible", not "present": arrays are non-empty because an empty `columns` is
+ * a config a block can legitimately short-circuit on, and a block that renders
+ * its empty state without asking for data would read here as an unbound
+ * binding.
+ */
 const sampleFor = (input: any): unknown => {
   if (input.name === 'objectName') return PROBE_OBJECT;
   if (input.defaultValue !== undefined) return input.defaultValue;
@@ -108,7 +153,7 @@ const sampleFor = (input: any): unknown => {
     case 'boolean':
       return true;
     case 'array':
-      return [];
+      return ['name'];
     case 'object':
       return {};
     case 'enum': {
@@ -129,23 +174,36 @@ const sampleFor = (input: any): unknown => {
  */
 async function dataCallsFor(cfg: any): Promise<string[]> {
   const calls: string[] = [];
-  const dataSource: any = new Proxy(
-    {},
-    {
-      get: (_t, key: string) =>
-        (...args: unknown[]) => {
-          calls.push(`${key}(${args.map((a) => JSON.stringify(a) ?? 'undefined').join(', ')})`);
-          return Promise.resolve([]);
-        },
-    },
-  );
+  const record = (key: string) =>
+    (...args: unknown[]) => {
+      calls.push(`${key}(${args.map((a) => JSON.stringify(a) ?? 'undefined').join(', ')})`);
+      // Subscription methods hand back an UNSUBSCRIBE function, which the block
+      // calls on unmount. Returning a promise for those crashes the teardown
+      // (`unsub is not a function`) — a failure that says nothing about the
+      // block.
+      return /^on[A-Z]/.test(key) || key === 'subscribe' ? () => {} : Promise.resolve([]);
+    };
+  // Seeded with real own properties, not a bare Proxy target: a block may hand
+  // its own children a DERIVED source (`{...dataSource, create: stub}` — that is
+  // exactly what `embeddable-form` does to neutralise writes on a public form),
+  // and spreading a Proxy over `{}` copies nothing, silently stripping every
+  // method. The Proxy still answers anything unseeded, so a block reaching for a
+  // method not listed here is recorded rather than crashing.
+  const seeded: Record<string, unknown> = {};
+  for (const m of DATA_SOURCE_METHODS) seeded[m] = record(m);
+  const dataSource: any = new Proxy(seeded, {
+    get: (target, key: string) => (key in target ? (target as any)[key] : record(key)),
+  });
 
   // Only `objectName` + the inputs the block declares REQUIRED. A bogus value
   // for an optional input is a degenerate config that can make a block bail out
   // before it ever asks for data — which would read here as a false finding.
+  // EVERY declared input, not just the required ones — see the file header: a
+  // read path can be gated on an optional input, and leaving it out would report
+  // a block as unbound when it was simply never asked to fetch.
   const schema: Record<string, unknown> = { type: cfg.type };
   for (const input of cfg.inputs ?? []) {
-    if (input?.name === 'objectName' || input?.required) schema[input.name] = sampleFor(input);
+    schema[input.name] = sampleFor(input);
   }
 
   const view = render(
