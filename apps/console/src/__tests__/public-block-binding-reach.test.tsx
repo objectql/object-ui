@@ -50,6 +50,12 @@
  * non-reaching block carries a written reason, and the ledger is asserted to
  * equal the observed set in BOTH directions, so a block that starts reaching
  * must be removed from it and a block that stops reaching fails here.
+ *
+ * The other half of "not over-read" is COVERAGE, and it has to be asserted
+ * rather than assumed — see {@link EXPECTED_CANDIDATES}. This suite's first
+ * release under-reported its own scope by 6 of 14 object-bound blocks and said
+ * nothing (objectui#3149), which is the same shape as the gate it was written to
+ * compensate for: a claim wider than the thing behind it.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -122,9 +128,100 @@ const NO_DATA_REACH: Readonly<Record<string, string>> = {
   // objectstack#4413 ship.
 };
 
+/**
+ * Every public block this suite must probe, exactly.
+ *
+ * An exact list rather than a floor, because the failure mode is a SHRINKING
+ * candidate set — and that is not hypothetical, it is what shipped
+ * (objectui#3149). The console registers most object blocks with
+ * `registerLazy`, and a pending stub carries no `inputs`: `Registry.getMeta`
+ * says in as many words that consumers must treat that as *"not yet known"*,
+ * not as *"declares no props"*. The first release of this file filtered on
+ * `inputs` directly and so silently dropped `object-chart`, `object-kanban`,
+ * `object-calendar`, `object-gantt`, `object-timeline` and `object-map` — six
+ * Tier-A object blocks, every one of them declaring `objectName` as
+ * **required** — while reporting eight green probes and no gap.
+ *
+ * That is objectui#2953's shape (a lazy registration falling out of the
+ * contract) recurring one layer up, in the consumer this time; and it is
+ * objectstack#4472's shape recurring in the very suite written to answer it — a
+ * gate whose stated scope was wider than its actual reach. The lesson both
+ * times is the same one `public-contract.test.ts` already carries: a `toContain`
+ * or a `length > 0` sails straight past a set that quietly got smaller. Only an
+ * exact list makes both directions a deliberate edit.
+ */
+const EXPECTED_CANDIDATES = [
+  'object-grid',
+  'list-view',
+  'object-form',
+  'embeddable-form',
+  'object-master-detail-form',
+  'object-metric',
+  'object-pivot',
+  'record:related_list',
+  // The six objectui#3149 restored. Lazily registered by the console, so they
+  // only surface here once their loaders have run (see resolveLazyPublicBlocks).
+  'object-chart',
+  'object-kanban',
+  'object-calendar',
+  'object-gantt',
+  'object-timeline',
+  'object-map',
+];
+
+/**
+ * Run every pending public lazy loader, so `getPublicConfigs()` reports each
+ * block's real `inputs` instead of a stub's absent ones.
+ *
+ * Driven off the registry's OWN recorded loaders rather than a hand-written list
+ * of plugin imports: a list here would drift out of step with
+ * `register-plugins.ts` and reintroduce the same silent shrinkage by a different
+ * route. It also keeps the registry mutation scoped to this file — loading via
+ * `loadLazy` is what the app itself does on first use, not a test-only override
+ * of what is registered.
+ */
+async function resolveLazyPublicBlocks(): Promise<void> {
+  const pending = ComponentRegistry.getPublicConfigs().filter((c) => c.lazy);
+  await Promise.all(
+    pending.map((c) => {
+      // A lazy entry is keyed under both its bare tag and `namespace:tag`;
+      // `getPublicConfigs` reports the canonical (namespaced) one.
+      const bare = c.type.includes(':') ? c.type.slice(c.type.indexOf(':') + 1) : c.type;
+      return (
+        ComponentRegistry.loadLazy(c.type) ??
+        ComponentRegistry.loadLazy(bare) ??
+        Promise.resolve()
+      );
+    }),
+  );
+}
+
+await resolveLazyPublicBlocks();
+
 /** Does this config declare an `objectName` input? */
 const declaresObjectName = (cfg: { inputs?: Array<{ name?: string }> }) =>
   (cfg.inputs ?? []).some((i) => i?.name === 'objectName');
+
+/**
+ * Inputs that SUPERSEDE the `objectName` binding — filling them is the author
+ * telling the block not to fetch, so the probe must leave them unset.
+ *
+ * Narrow and reasoned, not a convenience escape hatch. `data` is the documented
+ * alternative data source: @objectstack/spec's react overlay glosses it as
+ * *"static/precomputed data to chart directly **instead of** binding via
+ * objectName + aggregate"*, and `ObjectChart`'s fetch is guarded by
+ * `if ((schema.objectName || schema.dataset) && !boundData && !schema.data)`.
+ * Filling it and then reporting "objectName never reached the data layer" would
+ * be the probe manufacturing its own finding — the same mistake as seeding
+ * `columns: []` (which makes a list render its empty state without fetching) or
+ * spreading a bare Proxy (which strips a derived source of every method). Three
+ * instances of one lesson: a plausible value for EVERY input is not the same as
+ * a plausible CONFIGURATION.
+ *
+ * Add to this list only with the guard quoted, so the next reader can check the
+ * claim instead of trusting it.
+ */
+const SUPERSEDES_BINDING = new Set(['data']);
 
 /**
  * A plausible value for one declared input.
@@ -185,14 +282,12 @@ async function dataCallsFor(cfg: any): Promise<string[]> {
     get: (target, key: string) => (key in target ? (target as any)[key] : record(key)),
   });
 
-  // Only `objectName` + the inputs the block declares REQUIRED. A bogus value
-  // for an optional input is a degenerate config that can make a block bail out
-  // before it ever asks for data — which would read here as a false finding.
   // EVERY declared input, not just the required ones — see the file header: a
   // read path can be gated on an optional input, and leaving it out would report
   // a block as unbound when it was simply never asked to fetch.
   const schema: Record<string, unknown> = { type: cfg.type };
   for (const input of cfg.inputs ?? []) {
+    if (SUPERSEDES_BINDING.has(input.name)) continue;
     schema[input.name] = sampleFor(input);
   }
 
@@ -208,18 +303,33 @@ async function dataCallsFor(cfg: any): Promise<string[]> {
       await new Promise((resolve) => setTimeout(resolve, 50));
     });
   }
-  view.unmount();
+  // Teardown is not the subject. `object-map` mounts maplibre-gl, whose
+  // `map.remove()` throws in jsdom because there is no WebGL context to release
+  // — a fact about the DOM implementation, not about whether the block bound to
+  // its object. Every call it made is already recorded above, so swallow the
+  // unmount and let the assertion speak to the data reach. Deliberately scoped
+  // to unmount: an error thrown during RENDER still propagates and fails.
+  try {
+    view.unmount();
+  } catch {
+    /* see above */
+  }
   return calls;
 }
 
 const candidates = ComponentRegistry.getPublicConfigs().filter(declaresObjectName);
 
 describe('public blocks — a declared objectName reaches the data layer (objectstack#4472)', () => {
-  it('finds the object-bound blocks to probe (guards against probing nothing)', () => {
-    // If the registry ever stops exposing these, this suite would pass by
-    // probing an empty list — the failure mode a coverage gate must not have.
-    expect(candidates.length).toBeGreaterThan(0);
-    expect(candidates.map((c) => c.type)).toContain('object-form');
+  it('probes exactly the public blocks that declare an objectName (objectui#3149)', () => {
+    // The guard this replaces was `length > 0` + `toContain('object-form')`,
+    // which is precisely the shape that let six blocks fall out unnoticed: both
+    // assertions stayed true the whole time the candidate set was 8 instead of
+    // 14. A gate that cannot report its own coverage shrinking is not reporting
+    // coverage.
+    //
+    // A block appearing here is additive and cheap to accept; a block
+    // DISAPPEARING is the regression, and only the exact comparison catches it.
+    expect([...candidates.map((c) => c.type)].sort()).toEqual([...EXPECTED_CANDIDATES].sort());
   });
 
   for (const cfg of candidates) {
