@@ -99,6 +99,73 @@ describe('resolveDashboardFilterDefs', () => {
     expect(defs).toHaveLength(1);
     expect(defs[0].field).toBe('sales_region');
   });
+
+  // ---------------------------------------------------------------------
+  // framework#4475 — a `date` globalFilter's preset-name default.
+  //
+  // Setup → System Overview rendered EVERY KPI tile as 0 while its period
+  // selector read "All time". The dashboard declares
+  //   globalFilters: [{ field: 'created_at', type: 'date',
+  //                     defaultValue: 'last_7_days' }]
+  // and `GlobalFilterSchema.defaultValue` is `string | number | boolean`, so
+  // a bare preset name is the ONLY spelling an author can write — but only
+  // the built-in `dateRange` declaration was ever lifted to `{ preset }`.
+  // The raw string then flowed to `buildFilterCondition`, hit its
+  // "bare string date means equality" branch, and the backend compiled
+  //   SELECT COUNT(*) … FROM "sys_user" WHERE created_at = $1
+  // (verified against a live server) — 200 OK, zero rows, no error anywhere.
+  // The same missing lift is why the control showed "All time": DateRangeFilter
+  // reads `.preset`/`.from`/`.to`, all undefined on a string.
+  // ---------------------------------------------------------------------
+  it('[#4475] lifts a date filter\'s preset-name default to { preset }', () => {
+    const defs = resolveDashboardFilterDefs({
+      globalFilters: [
+        { field: 'created_at', type: 'date', label: 'Date Range', defaultValue: 'last_7_days' },
+      ] as any,
+    });
+    expect(defs[0].defaultValue).toEqual({ preset: 'last_7_days' });
+  });
+
+  it('[#4475] the lifted default produces a RANGE, never an equality', () => {
+    // The end-to-end assertion: what the dashboard declares must reach the
+    // query as bounds. Pre-fix this was the literal string 'last_7_days'.
+    const [def] = resolveDashboardFilterDefs({
+      globalFilters: [
+        { field: 'created_at', type: 'date', defaultValue: 'last_7_days' },
+      ] as any,
+    });
+    expect(buildFilterCondition(def, def.defaultValue)).toEqual({
+      $gte: '{7_days_ago}',
+      $lte: '{today}',
+    });
+    // And the widget-scoped shape a dataset widget forwards as runtimeFilter.
+    expect(buildWidgetScopedFilter({ id: 'w' }, [def], { created_at: def.defaultValue })).toEqual({
+      created_at: { $gte: '{7_days_ago}', $lte: '{today}' },
+    });
+  });
+
+  it('[#4475] leaves a genuine ISO date default as an equality', () => {
+    // The documented bare-string behaviour is unchanged — only names this
+    // module actually knows as presets are lifted.
+    const defs = resolveDashboardFilterDefs({
+      globalFilters: [
+        { field: 'created_at', type: 'date', defaultValue: '2026-01-15' },
+      ] as any,
+    });
+    expect(defs[0].defaultValue).toBe('2026-01-15');
+    expect(buildFilterCondition(defs[0], defs[0].defaultValue)).toBe('2026-01-15');
+  });
+
+  it('[#4475] does not touch non-date filters that share a preset-like default', () => {
+    const defs = resolveDashboardFilterDefs({
+      globalFilters: [
+        { field: 'bucket', type: 'select', defaultValue: 'last_7_days' },
+        { field: 'score', type: 'number', defaultValue: 7 },
+      ] as any,
+    });
+    expect(defs[0].defaultValue).toBe('last_7_days');
+    expect(defs[1].defaultValue).toBe(7);
+  });
 });
 
 describe('dashboardFilterVariableDefs', () => {

@@ -89,6 +89,36 @@ const PRESET_RANGES: Record<string, { from?: string; to?: string }> = {
 export const DATE_RANGE_PRESETS = Object.keys(PRESET_RANGES);
 
 /**
+ * Normalize a date filter's DECLARED default into the `DateRangeValue` shape
+ * every date consumer in this module reads (framework#4475).
+ *
+ * The built-in `dateRange` declaration has always been normalized this way —
+ * `schema.dateRange.defaultRange` is a preset NAME and
+ * `resolveDashboardFilterDefs` lifts it to `{ preset }`. A `globalFilters`
+ * entry of `type: 'date'` was passed through raw instead, and that asymmetry
+ * is the whole bug: `@objectstack/spec`'s `GlobalFilterSchema.defaultValue` is
+ * `string | number | boolean`, so a bare preset name is the ONLY spelling an
+ * author can write, yet nothing ever mapped it. Both symptoms of Setup's
+ * System Overview reading 0 across every KPI tile follow from that:
+ *
+ *  - `buildFilterCondition` fell through to its "a bare string date means
+ *    equality on that day" branch and emitted `created_at = 'last_7_days'`,
+ *    which matches no row — a query the backend answers `200 OK` with a 0;
+ *  - `DateRangeFilter` reads `value.preset` / `.from` / `.to`, all `undefined`
+ *    on a bare string, so the control displayed "All time" while sending that
+ *    equality — the tiles looked deliberately unfiltered and merely empty.
+ *
+ * Only a name this module actually knows is lifted. A genuine ISO date string
+ * still means equality on that day (the documented behaviour), and a number /
+ * boolean / unrecognised string is left exactly as declared.
+ */
+function normalizeDateDefault(type: DashboardFilterDef['type'], defaultValue: unknown): unknown {
+  if (type !== 'date' && type !== 'dateRange') return defaultValue;
+  if (typeof defaultValue !== 'string') return defaultValue;
+  return defaultValue in PRESET_RANGES ? { preset: defaultValue } : defaultValue;
+}
+
+/**
  * Normalize a filter's static `options` declaration to `{ value, label }`
  * pairs. The @objectstack/spec `GlobalFilterSchema.options` form is
  * `{ value, label }` objects (label possibly an i18n record); the bare-string
@@ -147,14 +177,18 @@ export function resolveDashboardFilterDefs(
     if (byName.has(name) && typeof console !== 'undefined') {
       console.warn(`[dashboard-filters] duplicate filter name "${name}" — the later definition wins`);
     }
+    const type = f.type ?? 'text';
     byName.set(name, {
       name,
       field: f.field,
       label: f.label,
-      type: f.type ?? 'text',
+      type,
       options: normalizeFilterOptions(f.options),
       optionsFrom: f.optionsFrom,
-      defaultValue: f.defaultValue,
+      // framework#4475 — same preset-name lifting the built-in `dateRange`
+      // above already does; see normalizeDateDefault for why a bare string is
+      // the only thing an author can declare here.
+      defaultValue: normalizeDateDefault(type, f.defaultValue),
       targetWidgets: f.targetWidgets,
     });
   }
