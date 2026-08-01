@@ -950,7 +950,10 @@ function nodeSummary(node: FlowNode): string | undefined {
     return pick('condition');
   }
   if (node.type === 'script') {
-    return pick('actionType') || pick('template') || (c && c.script ? 'code' : undefined);
+    // The function IS the step (framework#4343). The rest are retired keys a
+    // stored node may still carry — kept as fallbacks so its subtitle is never
+    // blank before someone migrates it.
+    return pick('function') || pick('actionType') || pick('template') || (c && c.script ? 'code' : undefined);
   }
   if (node.type === 'approval') {
     const approvers = c?.approvers;

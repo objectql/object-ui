@@ -41,8 +41,9 @@ const ScriptConfigSchema = spec.ScriptConfigSchema;
 const SubflowConfigSchema = spec.SubflowConfigSchema;
 const DecisionConfigSchema = spec.DecisionConfigSchema;
 const DecisionConditionSchema = spec.DecisionConditionSchema;
+// Also the #4343 discriminator: the spec that converges `script` removes this
+// constant along with the dispatch branches it described.
 const SCRIPT_BUILTIN_ACTION_TYPES = spec.SCRIPT_BUILTIN_ACTION_TYPES as readonly string[] | undefined;
-const SCRIPT_INVOKE_FUNCTION_ACTION_TYPE = spec.SCRIPT_INVOKE_FUNCTION_ACTION_TYPE as string | undefined;
 
 /**
  * Keys a Zod object schema accepts, read straight off `.shape`.
@@ -132,20 +133,55 @@ function reconcile(type: string, zod: unknown, renderOnly: Record<string, string
   }
 }
 
-describe.skipIf(!ScriptConfigSchema)('script form ↔ ScriptConfigSchema (framework#4278)', () => {
-  it('offers exactly the executor-read keys; inline `script` stays render-only (a recognized no-op)', () => {
-    reconcile('script', ScriptConfigSchema, {
-      script: 'recognized but NOT executed by the built-in runtime (no server-side JS sandbox) — renders for stored nodes, steers authors to `function`',
-    });
+/**
+ * The `script` panel spans a spec bump, so it asserts what is true on EITHER
+ * side of it (framework#4343).
+ *
+ * The form has converged to the one thing the node does — call a registered
+ * function — and the five dispatch keys it used to offer are legacy render-only
+ * here. On the spec that retires them those keys leave the contract too
+ * (`zodKeys` drops `[REMOVED]` tombstones), so the full bidirectional ledger
+ * applies. On the spec still installed today they are live contract keys the
+ * form no longer offers, and only the "offers nothing the executor ignores"
+ * direction is meaningful — asserting the other one would demand the form keep
+ * authoring branches that never delivered anything.
+ *
+ * `SCRIPT_BUILTIN_ACTION_TYPES` is the discriminator: framework#4343 removes it
+ * along with the branches it described, so this arms itself on the bump.
+ */
+const SPEC_PREDATES_SCRIPT_CONVERGENCE = SCRIPT_BUILTIN_ACTION_TYPES !== undefined;
+
+describe.skipIf(!ScriptConfigSchema)('script form ↔ ScriptConfigSchema (framework#4278, #4343)', () => {
+  it.skipIf(SPEC_PREDATES_SCRIPT_CONVERGENCE)('offers exactly the executor-read keys', () => {
+    reconcile('script', ScriptConfigSchema);
   });
 
-  it('offers exactly the published action types: invoke_function + the built-in set', () => {
-    const actionType = fieldsForNodeType('script').find((f) => f.id === 'actionType')!;
-    expect(actionType.options!.map((o) => o.value).sort()).toEqual(
-      [SCRIPT_INVOKE_FUNCTION_ACTION_TYPE!, ...SCRIPT_BUILTIN_ACTION_TYPES!].sort(),
-    );
-    // The default is the path that runs real logic, not the no-op.
-    expect(actionType.defaultValue).toBe(SCRIPT_INVOKE_FUNCTION_ACTION_TYPE);
+  it.skipIf(!SPEC_PREDATES_SCRIPT_CONVERGENCE)(
+    'offers nothing the executor ignores (pre-#4343 spec: the retired branches are still contract keys)',
+    () => {
+      const contract = zodKeys(ScriptConfigSchema);
+      expect(
+        offeredConfigKeys('script').filter((k) => !contract.includes(k)),
+        'script: offered by the designer form but never read by the executor',
+      ).toEqual([]);
+    },
+  );
+
+  it('offers the function path and nothing else', () => {
+    // The whole authorable surface, on either spec. `timeoutMs` is node-level,
+    // so `offeredConfigKeys` (config-rooted only) does not carry it.
+    expect(offeredConfigKeys('script')).toEqual(['function', 'inputs', 'outputVariable']);
+  });
+
+  it('keeps every retired key rendering for stored nodes, without offering it', () => {
+    // Stored metadata is never hidden — the same rule that kept the inline
+    // `script` body visible after #3099 dropped it from new authoring.
+    for (const key of ['actionType', 'template', 'recipients', 'variables', 'script']) {
+      const field = fieldsForNodeType('script').find((f) => f.path[0] === 'config' && f.path[1] === key);
+      expect(field, `script: retired key '${key}' must keep a field so stored values render`).toBeDefined();
+      expect(isLegacyGated(field!), `script: '${key}' must be legacy-gated, not offered`).toBe(true);
+      expect(field!.help, `script: '${key}' must name its replacement`).toMatch(/[Rr]etired in spec 17/);
+    }
   });
 });
 

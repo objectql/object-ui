@@ -480,70 +480,55 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
     cfg('outputVariable', 'Output variable', 'text', { placeholder: 'response' }),
     { id: 'timeoutMs', path: ['timeoutMs'], label: 'Timeout (ms)', kind: 'number', placeholder: '30000' },
   ],
-  // Script — a callable step (framework#1870): call a registered function
-  // (`function` + `inputs` + `outputVariable` — the only path that runs real
-  // logic), or one of the executor's built-in side effects (email / slack —
-  // `template` / `recipients` / `variables`). The offered options mirror the
-  // spec's `SCRIPT_BUILTIN_ACTION_TYPES` + the `invoke_function` marker, and
-  // the whole group is reconciled against the spec-published
-  // `ScriptConfigSchema` (framework#4278) — before that reconciliation this
-  // group offered `sms` / `notification` (fail every run: neither is built in,
-  // so they resolve as function names), defaulted to `code` (a recognized
-  // no-op: the built-in runtime has no server-side JS sandbox), declared an
-  // `outputVariables` list nothing reads (the executor binds the singular
-  // `outputVariable`), and could not author the function path at all.
+  // Script — one thing: call a registered function (framework#1870).
+  // `function` + `inputs` + `outputVariable` is the whole authorable surface,
+  // reconciled against the spec-published `ScriptConfigSchema` (framework#4278).
   //
-  // A stored legacy node still renders completely: unknown `actionType` values
-  // (`code` / `sms` / `notification`) show as "(deprecated)" select options,
-  // and the `script` body / builtin fields surface whenever they hold a value
-  // (stored values are never hidden).
+  // framework#4343 retired the other dispatch branches, and the form follows.
+  // None of them ran: `actionType: 'email' | 'slack'` were logger-backed stubs
+  // that reported success and delivered nothing (with `template` / `recipients`
+  // / `variables` addressing a message no channel sent), inline `script` was
+  // never executed (the built-in runtime has no server-side JS sandbox), and
+  // any other `actionType` was a second spelling of `function`. Real delivery
+  // is a `notify` node; Slack is a connector (or an `http` webhook).
+  //
+  // The five keys stay as legacy render-only fields (`__legacy__` never
+  // matches, so they are never OFFERED) because a stored node must still show
+  // everything it carries — the rule this group already followed for the
+  // `code` / `sms` / `notification` action types #3099 dropped. Each carries
+  // the replacement in its help text; `os migrate meta --from 16` rewrites the
+  // stored metadata.
   script: [
-    cfg('actionType', 'Action type', 'select', {
-      options: [
-        { value: 'invoke_function', label: 'Call function' },
-        { value: 'email', label: 'Email' },
-        { value: 'slack', label: 'Slack' },
-      ],
-      defaultValue: 'invoke_function',
-      help: 'How this step runs. "Call function" invokes a registered function — the path that runs real logic.',
-    }),
     cfg('function', 'Function', 'text', {
       placeholder: 'score_lead',
-      help: 'Registered function to call — declared via defineStack({ functions }). Always wins over Action type.',
-      showWhen: { field: 'actionType', equals: ['invoke_function'] },
+      help: 'Registered function to call — declared via defineStack({ functions }). Required: it is what this step runs.',
     }),
     cfg('inputs', 'Inputs', 'keyValue', {
       help: 'Values passed to the function; {var} references resolve against the live flow variables.',
-      showWhen: { field: 'actionType', equals: ['invoke_function'] },
     }),
     cfg('outputVariable', 'Output variable', 'text', {
       placeholder: 'aiResult',
       help: "Flow variable the function's return value is bound to, for later steps.",
-      showWhen: { field: 'actionType', equals: ['invoke_function'] },
     }),
-    cfg('template', 'Template', 'reference', {
-      // Polymorphic: an email step picks from the email-template catalog; slack
-      // has no flat catalog yet, so it degrades to free text.
-      ref: { kindFrom: 'actionType', map: { email: 'email-template' } },
-      placeholder: 'case_escalated',
-      help: 'Message template id.',
-      showWhen: { field: 'actionType', equals: ['email', 'slack'] },
+    cfg('actionType', 'Action type (retired)', 'text', {
+      help: 'Retired in spec 17 — "email"/"slack" never delivered anything, and any other value was just the function name. Use a notify node for messages, a Slack connector for Slack, or move the name into Function.',
+      showWhen: { field: '__legacy__', equals: [] },
     }),
-    cfg('recipients', 'Recipients', 'stringList', {
-      help: 'One recipient per row (user id, field ref, or address).',
-      showWhen: { field: 'actionType', equals: ['email', 'slack'] },
+    cfg('template', 'Template (retired)', 'text', {
+      help: 'Retired in spec 17 — it fed a side effect that never rendered or sent a message. A notify node carries its own title/message.',
+      showWhen: { field: '__legacy__', equals: [] },
     }),
-    cfg('variables', 'Template variables', 'keyValue', {
-      help: 'Values injected into the template.',
-      showWhen: { field: 'actionType', equals: ['email', 'slack'] },
+    cfg('recipients', 'Recipients (retired)', 'stringList', {
+      help: 'Retired in spec 17 — these addresses were logged, never messaged. Use a notify node, whose recipients reach the messaging service.',
+      showWhen: { field: '__legacy__', equals: [] },
     }),
-    // Legacy render-only (`__legacy__` never matches): the built-in runtime
-    // does NOT execute inline script bodies (no server-side JS sandbox — the
-    // executor warns and completes as a no-op), so the field is not offered
-    // for new authoring; a stored body still renders so nothing is hidden.
-    cfg('script', 'Code (not executed)', 'textarea', {
+    cfg('variables', 'Template variables (retired)', 'keyValue', {
+      help: 'Retired in spec 17 — injected into a template nothing rendered. A notify node carries structured data in payload.',
+      showWhen: { field: '__legacy__', equals: [] },
+    }),
+    cfg('script', 'Code (not executed, retired)', 'textarea', {
       placeholder: 'return { ok: true };',
-      help: 'Inline scripts are NOT executed by the built-in runtime — this node is a no-op. Move the logic into a registered function and use "Call function".',
+      help: 'Retired in spec 17 — inline scripts were NEVER executed by the built-in runtime (no server-side sandbox). Move the logic into a registered function and name it in Function.',
       refMode: 'expression',
       showWhen: { field: '__legacy__', equals: [] },
     }),

@@ -407,12 +407,16 @@ export class FlowSimulator {
 
   private mockNote(node: SimNode): string {
     if (node.type === 'script') {
+      // A script node calls a registered function and nothing else
+      // (framework#4343) — the branches below describe a stored node that has
+      // not been migrated yet, and say plainly that they never ran.
+      const fn = str(node.config?.function);
+      if (fn) return `Mocked call to '${fn}' (no function executed).`;
       const action = str(node.config?.actionType);
       if (action && action !== 'code') {
-        const recips = Array.isArray(node.config?.recipients) ? (node.config!.recipients as unknown[]).length : 0;
-        return `Mocked ${action} notification${recips ? ` to ${recips} recipient(s)` : ''}.`;
+        return `Retired '${action}' action — it never delivered anything; use a notify node (or a connector for Slack).`;
       }
-      return 'Mocked code script (no real code executed).';
+      return 'Retired inline script — the runtime never executed it; move the logic into a registered function.';
     }
     return `Mocked ${node.type.replace(/_/g, ' ')} (no backend call).`;
   }
