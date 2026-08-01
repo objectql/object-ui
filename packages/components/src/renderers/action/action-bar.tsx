@@ -34,7 +34,7 @@
 import React, { forwardRef, useMemo } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import type { ActionSchema, ActionLocation, ActionComponent } from '@object-ui/types';
-import { ACTION_LOCATIONS } from '@object-ui/types';
+import { ACTION_LOCATIONS, actionRendersAt } from '@object-ui/types';
 import { useCondition, toPredicateInput, useCapabilityGate } from '@object-ui/react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { cn } from '../../lib/utils';
@@ -131,11 +131,13 @@ const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; 
       // holds rendered as a live button. Same rule as the engine; unknown
       // capabilities fail OPEN (see `useCapabilityGate`).
       const permitted = actions.filter(a => mayInvoke((a as any)?.requiredPermissions));
-      const located = !schema.location
-        ? permitted
-        : permitted.filter(
-            a => !a.locations || a.locations.length === 0 || a.locations.includes(schema.location!),
-          );
+      // Placement is `actionRendersAt`'s call, not ours (objectui#3142): an
+      // action renders here only if it DECLARES this location. This bar used
+      // to show a locationless action at every location, which is how an
+      // aggregate-only bulk action — one with no single-record placement by
+      // construction — ended up as a list-toolbar button that could only fail.
+      // `schema.location` unset still means "no location filtering".
+      const located = permitted.filter(a => actionRendersAt(a, schema.location));
       // Deduplicate by action name — keep first occurrence
       const seen = new Set<string>();
       const deduped = located.filter(a => {

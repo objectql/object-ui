@@ -19,6 +19,7 @@
 import React, { forwardRef, useCallback, useState } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import type { ActionSchema, ActionGroup, ActionLocation } from '@object-ui/types';
+import { actionRendersAt } from '@object-ui/types';
 import { useAction } from '@object-ui/react';
 import { useCondition, toPredicateInput } from '@object-ui/react';
 import { Button } from '../../ui';
@@ -185,13 +186,10 @@ const ActionGroupRenderer = forwardRef<HTMLDivElement, { schema: ActionGroupSche
 
     const isVisible = useCondition(toPredicateInput(schema.visible));
 
-    // Filter actions by location if specified
-    let actions = schema.actions || [];
-    if (schema.location) {
-      actions = actions.filter(
-        a => !a.locations || a.locations.includes(schema.location!),
-      );
-    }
+    // Placement is `actionRendersAt`'s call (objectui#3142) — this used to
+    // show an action with `locations: undefined` while hiding one with
+    // `locations: []`, a third reading of the same key.
+    const actions = (schema.actions || []).filter(a => actionRendersAt(a, schema.location));
 
     const handleExecute = useCallback(
       async (action: ActionSchema) => {

@@ -115,11 +115,19 @@ export function ObjectActionsPanel({
     // the user types into the body (same dead-end class as a fresh validation
     // rule needing a placeholder condition). The user configures the rest
     // (behavior/placement/…) in the form on the right.
+    //
+    // `locations` is seeded for the same reason (objectui#3142): an action
+    // that declares no location renders in no located surface, so an unseeded
+    // skeleton would save clean and then be invisible everywhere — the author
+    // would have no button to click and nothing to tell them why. Placement
+    // stays fully editable in the Placement checkboxes; `record_header` is
+    // just the starting point.
     const fresh: ActionItem = {
       name,
       label: t('engine.studio.actions.newLabel', locale),
       type: 'script',
       objectName,
+      locations: ['record_header'],
       body: { language: 'js', source: 'return { ok: true };' },
     };
     onPatch({ actions: [...actions, fresh] });

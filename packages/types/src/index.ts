@@ -905,6 +905,7 @@ export {
   OBJECTUI_LOCAL_ACTION_TYPES,
   OBJECTUI_LOCAL_PARAM_FIELD_TYPES,
   ACTION_PARAM_FIELD_TYPES,
+  actionRendersAt,
 } from './ui-action';
 
 // ============================================================================

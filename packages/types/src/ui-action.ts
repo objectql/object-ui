@@ -53,6 +53,45 @@ export type { ActionLocation } from '@objectstack/spec/ui';
 export { ACTION_LOCATIONS, ActionLocationSchema } from '@objectstack/spec/ui';
 
 /**
+ * THE placement rule: does `action` render at `location`?
+ *
+ * `locations` is an action's placement declaration, and this predicate is the
+ * single owner of what it means (objectui#3142). An action renders at a
+ * location only if it **declares** that location — a missing or empty
+ * `locations` places the action NOWHERE, it does not place it everywhere.
+ *
+ * That reading is the platform's: ADR-0078 lists "an `action` with no
+ * `locations`" as a verified inert shape — metadata that parses, reports
+ * success and does nothing — which only holds if omitting the key means "no
+ * placement". The engine (`ActionEngine.getActionsForLocation`), the record
+ * header (`RecordDetailView`), related lists (`RelatedRecordActionsBridge`),
+ * the environment toolbar and `DeclaredActionsBar` all already read it that
+ * way. Four renderers disagreed, in three different directions — `action:bar`
+ * and metadata-admin showed an undeclared action EVERYWHERE, `page:header`
+ * showed it on the header, `action:group` showed it for `undefined` but hid it
+ * for `[]` — so the same action appeared or vanished depending on which
+ * component happened to render it. #3142 collapsed all four onto this
+ * function; add a fifth caller rather than a fifth dialect.
+ *
+ * A locationless action is still reachable where placement comes from
+ * somewhere other than `locations`: the selection bar driven by a view's
+ * `bulkActions` / `bulkActionDefs` (naming it there IS the declaration), and
+ * the `systemActions` chrome slot, which is placed by the host, not authored.
+ *
+ * `location: undefined` means the caller is not filtering by location at all
+ * (e.g. an `action:bar` rendering an explicitly-supplied list) — every action
+ * passes.
+ */
+export function actionRendersAt(
+  action: { locations?: readonly ActionLocation[] } | null | undefined,
+  location: ActionLocation | undefined,
+): boolean {
+  if (!location) return true;
+  const declared = action?.locations;
+  return Array.isArray(declared) && declared.includes(location);
+}
+
+/**
  * Visual component type for actions — derived from the spec's
  * `ActionSchema.component` enum (#4074; formerly a hand-written union).
  *
@@ -315,7 +354,12 @@ export interface ActionSchema {
   
   // === Placement ===
   
-  /** Where to show this action (defaults to ['record_header']) */
+  /**
+   * Where this action renders. There is NO default: an action that declares
+   * no location renders in no located surface (see {@link actionRendersAt}).
+   * Placement from a view's `bulkActions` / `bulkActionDefs`, or from a host's
+   * `systemActions` slot, is declared there instead and needs no entry here.
+   */
   locations?: ActionLocation[];
   
   /** Visual component type (defaults to 'action:button') */

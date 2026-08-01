@@ -406,6 +406,17 @@ export function ActionDefaultInspector({
             <InspectorCheckboxField key={loc.value} label={loc.label} value={locations.includes(loc.value)} onCommit={(v) => toggleLocation(loc.value, v)} disabled={readOnly} />
           ))}
         </div>
+        {/* [#3142] No placement = renders in no located surface. Saying so
+            here is the difference between an author seeing an empty list and
+            an author hunting for a button that was never going to appear.
+            Not an error: a selection-only action is placed by a view's
+            `bulkActions` / `bulkActionDefs` instead, which is legitimate. */}
+        {locations.length === 0 && (
+          <div className="text-[11px] text-destructive">
+            No placement selected — this action will not appear on any record or list surface. Tick a
+            placement above, or place it from a view’s bulk actions.
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-2 pt-1">
           <InspectorSelectField label="Component" value={str('component') || undefined} options={COMPONENT_OPTS} onCommit={(v) => onPatch({ component: v })} disabled={readOnly} />
         </div>

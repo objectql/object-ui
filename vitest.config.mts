@@ -83,6 +83,7 @@ const heavyDomTests = [
   'packages/app-shell/src/views/metadata-admin/previews/PagePreview.test.tsx',
   'packages/app-shell/src/views/metadata-admin/previews/ReportPreview.dataset.test.tsx',
   'packages/components/src/__tests__/action-bar.test.tsx',
+  'packages/components/src/__tests__/action-group.test.tsx',
   'packages/components/src/__tests__/page-card-i18n-title.test.tsx',
   'packages/components/src/__tests__/page-header-actions.test.tsx',
   'packages/components/src/__tests__/page-header-capability-gate.test.tsx',

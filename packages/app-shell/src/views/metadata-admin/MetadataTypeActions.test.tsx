@@ -43,6 +43,42 @@ beforeEach(() => {
 });
 
 describe('MetadataTypeActions', () => {
+  // [#3142] These actions come off the server's `/meta/types` feed, and this
+  // component used to carry a byte-identical copy of `action:bar`'s lenient
+  // rule — so a type shipping an action with no `locations` got a button on
+  // BOTH the list toolbar and the record header. Placement is declared now,
+  // like everywhere else. Nothing pinned the lenient branch before, which is
+  // how the two copies drifted from the rest of the repo unnoticed.
+  it('renders only actions that declare the requested location', () => {
+    const { container } = render(
+      <MetadataTypeActions
+        location="record_header"
+        recordId="ds1"
+        entry={{
+          actions: [
+            { name: 'here', label: 'Here', type: 'api', target: '/x', locations: ['record_header'] },
+            { name: 'elsewhere', label: 'Elsewhere', type: 'api', target: '/x', locations: ['list_toolbar'] },
+            { name: 'undeclared', label: 'Undeclared', type: 'api', target: '/x' },
+          ],
+        }}
+      />,
+    );
+    expect(screen.getByTitle('Here')).toBeTruthy();
+    expect(screen.queryByTitle('Elsewhere')).toBeNull();
+    expect(screen.queryByTitle('Undeclared')).toBeNull();
+    expect(container.textContent).not.toContain('Undeclared');
+  });
+
+  it('renders nothing when no action declares the requested location', () => {
+    const { container } = render(
+      <MetadataTypeActions
+        location="list_toolbar"
+        entry={{ actions: [{ name: 'undeclared', label: 'Undeclared', type: 'api', target: '/x' }] }}
+      />,
+    );
+    expect(container.firstChild).toBeNull();
+  });
+
   it('runs an api action without params directly (no dialog)', async () => {
     render(
       <MetadataTypeActions

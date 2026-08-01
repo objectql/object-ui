@@ -103,6 +103,35 @@ Delete) as a button row. Up to **`maxVisible`** actions render inline,
 side by side (default **3** on desktop, **`mobileMaxVisible`**, default
 **1**, on mobile); the rest collapse into a `⋯` "More actions" menu.
 
+### Declaring placement
+
+An authored action renders here only if its **`locations`** declares
+`record_header` (inline) or `record_more` (straight into the `⋯` menu).
+There is no default: an action that declares no location renders in **no**
+located surface — not here, not the list toolbar, not the row menu. That
+one rule is shared by every surface that places actions by location
+(`action:bar`, `action:group`, `record:quick_actions`, related lists, the
+metadata-admin toolbars and the action engine), so an action behaves the
+same wherever it is drawn.
+
+```ts
+actions: [
+  { name: 'convert_lead', label: 'Convert', locations: ['record_header'] },
+  { name: 'export_pdf',   label: 'Export',  locations: ['record_more'] },
+]
+```
+
+Two placements come from somewhere other than `locations`, and neither
+needs an entry here:
+
+- **Host chrome** — the Edit / Share / Delete set the host injects is
+  placed by the host, not authored, so it is never location-filtered.
+- **Selection actions** — an action named in a list view's `bulkActions`
+  or `bulkActionDefs` is placed by that declaration. An action that only
+  makes sense over a selection (an aggregate export, say) can therefore
+  declare no `locations` at all and still be reachable from the
+  selection bar.
+
 Which actions claim the inline slots is declared in metadata, using the
 same rules as `action:bar`:
 

@@ -19,6 +19,7 @@
 
 import React from 'react';
 import { ComponentRegistry, ExpressionEvaluator, getRecordDisplayName } from '@object-ui/core';
+import { actionRendersAt } from '@object-ui/types';
 import { useRecordContext, useAction, useCapabilityGate, usePredicateScope, usePageVariables, useInlineEdit } from '@object-ui/react';
 import { renderChildren, cn } from '../../lib/utils';
 import { LazyIcon } from '../../lib/lazy-icon';
@@ -976,16 +977,6 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       // ActionProvider user, no host predicate scope) — unknown is not denied,
       // and hiding on missing data is the worse regression.
       if (!mayInvoke(a?.requiredPermissions)) return false;
-      // Location filter — when `locations` is declared, require record_header
-      // or record_more (the latter renders in the header's ⋯ overflow menu —
-      // see renderHeaderActions; #2358 trap 2). Missing/empty `locations`
-      // defaults to "show here" since the action is inlined on the header
-      // itself.
-      if (Array.isArray(a?.locations) && a.locations.length > 0) {
-        if (!a.locations.includes('record_header') && !a.locations.includes('record_more')) {
-          return false;
-        }
-      }
       // Boolean / expression visibility — supports both `visible: false`,
       // `visible: 'record.status == "open"'` and the structured shape
       // `visible: { dialect: 'cel', source: '…' }` used by spec authors.
@@ -1030,9 +1021,26 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       }
       return true;
     };
+    // Placement, for AUTHORED actions only (objectui#3142). The header serves
+    // TWO locations — `record_header` (inline) and `record_more` (the ⋯
+    // overflow menu; see renderHeaderActions, #2358 trap 2) — so declaring
+    // either one places the action here. A missing or empty `locations` used
+    // to mean "show here", which made this header the one surface where an
+    // action nobody placed still appeared; `RecordDetailView` pre-filters the
+    // same actions strictly, and the synthesizer's own contract already says
+    // "must include `locations: ['record_header']` to render"
+    // (buildDefaultPageSchema.ts), so the leniency contradicted both.
+    const placedOnHeader = (a: any): boolean =>
+      actionRendersAt(a, 'record_header') || actionRendersAt(a, 'record_more');
     const authored = Array.isArray(rawHeaderActions)
-      ? rawHeaderActions.filter(filterAction)
+      ? rawHeaderActions.filter(a => placedOnHeader(a) && filterAction(a))
       : [];
+    // Host-injected chrome (Edit / Share / Delete / Open-in-new-tab) is placed
+    // by the HOST, not authored — so it is not location-filtered, matching
+    // `action:bar`'s `systemActions` carve-out. Before #3142 this slot WAS
+    // location-filtered here and not there, so the same `sys_delete` obeyed
+    // two different rules depending on which renderer drew the header.
+    // Capability and visibility gates still apply.
     const system = Array.isArray(hostSystemActions)
       ? hostSystemActions.filter(filterAction)
       : [];

@@ -70,18 +70,30 @@ describe('ActionBar (action:bar)', () => {
       expect(container.textContent).toContain('Both Action');
     });
 
-    it('shows actions without locations when filtering by location', () => {
+    // [#3142] Deliberately INVERTED from "shows actions without locations".
+    // An undeclared placement is not a wildcard: this bar used to show such an
+    // action at every location, while ActionEngine, RecordDetailView,
+    // DeclaredActionsBar and the related-list bridge all showed it at none —
+    // so the same action appeared or vanished with the renderer. `locations`
+    // is the declaration; no declaration, no located placement (ADR-0078 reads
+    // an action with no `locations` as inert for exactly this reason).
+    it('hides an action that declares no locations when filtering by location', () => {
       const { container } = renderComponent({
         type: 'action:bar',
         location: 'record_header',
         actions: [
           { name: 'no_loc', label: 'No Location', type: 'script' },
-          { name: 'has_loc', label: 'Has Location', type: 'script', locations: ['list_toolbar'] },
+          { name: 'empty_loc', label: 'Empty Location', type: 'script', locations: [] },
+          { name: 'other_loc', label: 'Other Location', type: 'script', locations: ['list_toolbar'] },
+          { name: 'here_loc', label: 'Here Location', type: 'script', locations: ['record_header'] },
         ],
       });
-      // Action without locations should show in any location
-      expect(container.textContent).toContain('No Location');
-      expect(container.textContent).not.toContain('Has Location');
+      expect(container.textContent).not.toContain('No Location');
+      // An empty array reads the same as an absent one — the third dialect
+      // (`action:group` hid `[]` but showed `undefined`) is gone too.
+      expect(container.textContent).not.toContain('Empty Location');
+      expect(container.textContent).not.toContain('Other Location');
+      expect(container.textContent).toContain('Here Location');
     });
 
     it('renders all actions when no location filter is set', () => {
@@ -400,8 +412,12 @@ describe('ActionBar (action:bar)', () => {
     const withUser = (user: unknown, props: { actions?: any[]; systemActions?: any[] }) =>
       render(<ActionProvider context={{ user } as any}><Bar {...props} /></ActionProvider>);
 
-    const gated = { name: 'gated', label: 'Bulk Reassign', type: 'api', requiredPermissions: ['manage_users'] };
-    const plain = { name: 'plain', label: 'Export', type: 'api' };
+    // Both fixtures declare the harness's location (#3142): without it the
+    // strict placement filter would drop them before the capability gate ever
+    // ran, and every `not.toContain` below would pass VACUOUSLY — the suite
+    // would keep reporting green while testing nothing.
+    const gated = { name: 'gated', label: 'Bulk Reassign', type: 'api', locations: ['list_toolbar'], requiredPermissions: ['manage_users'] };
+    const plain = { name: 'plain', label: 'Export', type: 'api', locations: ['list_toolbar'] };
 
     it('hides an action whose capability the caller lacks', () => {
       const { container } = withUser({ id: 'u1', systemPermissions: ['setup.access'] }, { actions: [gated, plain] });

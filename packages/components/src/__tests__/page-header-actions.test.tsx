@@ -57,7 +57,7 @@ describe('PageHeaderRenderer — actions slot', () => {
       type: 'page:header',
       title: 'Lead',
       actions: [
-        { name: 'convert', label: 'Convert Lead', type: 'flow' },
+        { name: 'convert', locations: ['record_header'], label: 'Convert Lead', type: 'flow' },
       ],
     });
     expect(screen.getByRole('button', { name: /Convert Lead/i })).toBeTruthy();
@@ -69,7 +69,7 @@ describe('PageHeaderRenderer — actions slot', () => {
       properties: {
         title: 'Lead',
         actions: [
-          { name: 'convert', label: 'Convert Lead', type: 'flow' },
+          { name: 'convert', locations: ['record_header'], label: 'Convert Lead', type: 'flow' },
         ],
       },
     });
@@ -88,6 +88,41 @@ describe('PageHeaderRenderer — actions slot', () => {
     expect(screen.queryByRole('button', { name: /List Only/i })).toBeNull();
   });
 
+  // [#3142] An AUTHORED action must declare its placement — the header used to
+  // render an undeclared one, alone among the surfaces that draw the same
+  // record's actions (RecordDetailView pre-filters strictly, and the
+  // synthesizer's own contract already said "must include
+  // `locations: ['record_header']` to render"). Host-injected chrome is
+  // exempt, which the next test pins.
+  it('skips an authored action that declares no placement', () => {
+    renderHeader({
+      type: 'page:header',
+      actions: [
+        { name: 'declared', label: 'Declared Action', locations: ['record_header'] },
+        { name: 'undeclared', label: 'Undeclared Action' },
+        { name: 'empty', label: 'Empty Placement', locations: [] },
+      ],
+    });
+    expect(screen.getByRole('button', { name: /Declared Action/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Undeclared Action/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Empty Placement/i })).toBeNull();
+  });
+
+  it('still renders host system actions that declare no placement — chrome is placed by the host', () => {
+    // The host injects Edit/Share/Delete; nobody authored a `locations` for
+    // them, and `action:bar` has always exempted its `systemActions` slot for
+    // exactly that reason. Before #3142 this renderer filtered them, so the
+    // same `sys_delete` obeyed two rules depending on which drew the header.
+    renderHeader(
+      { type: 'page:header', title: 'Lead' },
+      {
+        record: { id: '1' },
+        headerSystemActions: [{ name: 'sys_delete', label: 'Delete Record' }],
+      },
+    );
+    expect(screen.getByRole('button', { name: /Delete Record/i })).toBeTruthy();
+  });
+
   it('shows action when visible expression matches record', () => {
     renderHeader(
       {
@@ -95,6 +130,7 @@ describe('PageHeaderRenderer — actions slot', () => {
         actions: [
           {
             name: 'convert',
+            locations: ['record_header'],
             label: 'Convert Lead',
             visible: 'record.status == "qualified"',
           },
@@ -112,6 +148,7 @@ describe('PageHeaderRenderer — actions slot', () => {
         actions: [
           {
             name: 'convert',
+            locations: ['record_header'],
             label: 'Convert Lead',
             visible: 'record.status == "qualified"',
           },
@@ -129,6 +166,7 @@ describe('PageHeaderRenderer — actions slot', () => {
         actions: [
           {
             name: 'convert',
+            locations: ['record_header'],
             label: 'Convert Lead',
             visible: { dialect: 'cel', source: 'record.status == "qualified"' },
           },
@@ -143,8 +181,8 @@ describe('PageHeaderRenderer — actions slot', () => {
     renderHeader({
       type: 'page:header',
       actions: [
-        { name: 'shown', label: 'Shown' },
-        { name: 'gone', label: 'Hidden Action', hidden: true },
+        { name: 'shown', locations: ['record_header'], label: 'Shown' },
+        { name: 'gone', locations: ['record_header'], label: 'Hidden Action', hidden: true },
       ],
     });
     expect(screen.getByRole('button', { name: /Shown/i })).toBeTruthy();
@@ -154,7 +192,7 @@ describe('PageHeaderRenderer — actions slot', () => {
   it('emits a toolbar role with aria-label when actions render', () => {
     renderHeader({
       type: 'page:header',
-      actions: [{ name: 'a', label: 'A' }],
+      actions: [{ name: 'a', locations: ['record_header'], label: 'A' }],
     });
     const bar = screen.getByRole('toolbar', { name: /Page header actions/i });
     expect(bar).toBeTruthy();
@@ -173,7 +211,7 @@ describe('PageHeaderRenderer — actions slot', () => {
     const onClick = vi.fn();
     renderHeader({
       type: 'page:header',
-      actions: [{ name: 'a', label: 'Click Me', onClick }],
+      actions: [{ name: 'a', locations: ['record_header'], label: 'Click Me', onClick }],
     });
     fireEvent.click(screen.getByRole('button', { name: /Click Me/i }));
     expect(onClick).toHaveBeenCalledTimes(1);
@@ -183,7 +221,7 @@ describe('PageHeaderRenderer — actions slot', () => {
     renderHeader(
       {
         type: 'page:header',
-        actions: [{ name: 'biz', label: 'Convert Lead' }],
+        actions: [{ name: 'biz', locations: ['record_header'], label: 'Convert Lead' }],
       },
       {
         record: { id: '1' },
@@ -207,7 +245,7 @@ describe('PageHeaderRenderer — actions slot', () => {
     renderHeader(
       {
         type: 'page:header',
-        actions: [{ name: 'sys_edit', label: 'Authored Edit' }],
+        actions: [{ name: 'sys_edit', locations: ['record_header'], label: 'Authored Edit' }],
       },
       {
         record: { id: '1' },
@@ -261,7 +299,7 @@ describe('PageHeaderRenderer — inline-edit session gate (objectui#2572)', () =
     );
   }
 
-  const editCta = { name: 'sys_edit', label: 'Edit', disableDuringInlineEdit: true };
+  const editCta = { name: 'sys_edit', locations: ['record_header'], label: 'Edit', disableDuringInlineEdit: true };
 
   it('disables a `disableDuringInlineEdit` action while the session is active', () => {
     renderWithInlineEdit({ editing: true, actions: [editCta] });
@@ -276,7 +314,7 @@ describe('PageHeaderRenderer — inline-edit session gate (objectui#2572)', () =
   it('leaves unflagged actions alone during the session', () => {
     renderWithInlineEdit({
       editing: true,
-      actions: [editCta, { name: 'convert', label: 'Convert' }],
+      actions: [editCta, { name: 'convert', locations: ['record_header'], label: 'Convert' }],
     });
     expect(screen.getByRole('button', { name: /Edit/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /Convert/i })).toBeEnabled();
@@ -288,9 +326,9 @@ describe('PageHeaderRenderer — inline/overflow split (objectui#2361)', () => {
     renderHeader({
       type: 'page:header',
       actions: [
-        { name: 'convert', label: 'Convert Lead' },
-        { name: 'assign', label: 'Assign' },
-        { name: 'return', label: 'Return' },
+        { name: 'convert', locations: ['record_header'], label: 'Convert Lead' },
+        { name: 'assign', locations: ['record_header'], label: 'Assign' },
+        { name: 'return', locations: ['record_header'], label: 'Return' },
       ],
     });
     expect(screen.getByRole('button', { name: /Convert Lead/i })).toBeTruthy();
@@ -303,10 +341,10 @@ describe('PageHeaderRenderer — inline/overflow split (objectui#2361)', () => {
     renderHeader({
       type: 'page:header',
       actions: [
-        { name: 'a', label: 'Action A' },
-        { name: 'b', label: 'Action B' },
-        { name: 'c', label: 'Action C' },
-        { name: 'd', label: 'Action D' },
+        { name: 'a', locations: ['record_header'], label: 'Action A' },
+        { name: 'b', locations: ['record_header'], label: 'Action B' },
+        { name: 'c', locations: ['record_header'], label: 'Action C' },
+        { name: 'd', locations: ['record_header'], label: 'Action D' },
       ],
     });
     expect(screen.getByRole('button', { name: /Action C/i })).toBeTruthy();
@@ -319,8 +357,8 @@ describe('PageHeaderRenderer — inline/overflow split (objectui#2361)', () => {
       type: 'page:header',
       maxVisible: 1,
       actions: [
-        { name: 'a', label: 'Action A' },
-        { name: 'b', label: 'Action B' },
+        { name: 'a', locations: ['record_header'], label: 'Action A' },
+        { name: 'b', locations: ['record_header'], label: 'Action B' },
       ],
     });
     expect(screen.getByRole('button', { name: /Action A/i })).toBeTruthy();
@@ -334,10 +372,10 @@ describe('PageHeaderRenderer — inline/overflow split (objectui#2361)', () => {
       properties: {
         maxVisible: 4,
         actions: [
-          { name: 'a', label: 'Action A' },
-          { name: 'b', label: 'Action B' },
-          { name: 'c', label: 'Action C' },
-          { name: 'd', label: 'Action D' },
+          { name: 'a', locations: ['record_header'], label: 'Action A' },
+          { name: 'b', locations: ['record_header'], label: 'Action B' },
+          { name: 'c', locations: ['record_header'], label: 'Action C' },
+          { name: 'd', locations: ['record_header'], label: 'Action D' },
         ],
       },
     });
@@ -350,8 +388,8 @@ describe('PageHeaderRenderer — inline/overflow split (objectui#2361)', () => {
       type: 'page:header',
       maxVisible: 1,
       actions: [
-        { name: 'a', label: 'Action A' },
-        { name: 'b', label: 'Action B', order: -1 },
+        { name: 'a', locations: ['record_header'], label: 'Action A' },
+        { name: 'b', locations: ['record_header'], label: 'Action B', order: -1 },
       ],
     });
     expect(screen.getByRole('button', { name: /Action B/i })).toBeTruthy();
@@ -363,8 +401,8 @@ describe('PageHeaderRenderer — inline/overflow split (objectui#2361)', () => {
       type: 'page:header',
       maxVisible: 1,
       actions: [
-        { name: 'a', label: 'Action A' },
-        { name: 'b', label: 'Action B', variant: 'primary' },
+        { name: 'a', locations: ['record_header'], label: 'Action A' },
+        { name: 'b', locations: ['record_header'], label: 'Action B', variant: 'primary' },
       ],
     });
     expect(screen.getByRole('button', { name: /Action B/i })).toBeTruthy();
@@ -375,8 +413,8 @@ describe('PageHeaderRenderer — inline/overflow split (objectui#2361)', () => {
     renderHeader({
       type: 'page:header',
       actions: [
-        { name: 'convert', label: 'Convert Lead' },
-        { name: 'sys_delete', label: 'Delete', component: 'action:menu' },
+        { name: 'convert', locations: ['record_header'], label: 'Convert Lead' },
+        { name: 'sys_delete', locations: ['record_header'], label: 'Delete', component: 'action:menu' },
       ],
     });
     expect(screen.getByRole('button', { name: /Convert Lead/i })).toBeTruthy();
@@ -395,7 +433,7 @@ describe('PageHeaderRenderer — #2358 action visibility traps', () => {
         {
           type: 'page:header',
           actions: [
-            { name: 'convert2358', label: 'Convert Lead' },
+            { name: 'convert2358', locations: ['record_header'], label: 'Convert Lead' },
             { name: 'export_pdf_2358', label: 'Export PDF', locations: ['record_more'] },
           ],
         },
@@ -445,6 +483,7 @@ describe('PageHeaderRenderer — #2358 action visibility traps', () => {
           actions: [
             {
               name: 'admin_gate_2358',
+              locations: ['record_header'],
               label: 'Admin Gate',
               visible: 'os.user.role == "admin"',
             },
@@ -462,6 +501,7 @@ describe('PageHeaderRenderer — #2358 action visibility traps', () => {
           actions: [
             {
               name: 'admin_gate_no_match_2358',
+              locations: ['record_header'],
               label: 'Admin Gate',
               visible: 'os.user.role == "admin"',
             },
@@ -482,6 +522,7 @@ describe('PageHeaderRenderer — #2358 action visibility traps', () => {
           actions: [
             {
               name: 'bad_scope_2358',
+              locations: ['record_header'],
               label: 'Bad Scope',
               visible: 'undeclared_var_2358 == 1',
             },
@@ -512,6 +553,7 @@ describe('PageHeaderRenderer — #2358 action visibility traps', () => {
             actions: [
               {
                 name: 'hidden_field_gate_2358',
+                locations: ['record_header'],
                 label: 'Hidden Field Gate',
                 visible: 'record.secret_level_2358 == "high"',
               },
@@ -542,6 +584,7 @@ describe('PageHeaderRenderer — #2358 action visibility traps', () => {
             actions: [
               {
                 name: 'null_field_gate_2358',
+                locations: ['record_header'],
                 label: 'Null Field Gate',
                 visible: 'record.approver_2358 == "u1"',
               },
