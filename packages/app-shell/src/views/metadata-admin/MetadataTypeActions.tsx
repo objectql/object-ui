@@ -37,7 +37,7 @@ import { Loader2 } from 'lucide-react';
 import { Button } from '@object-ui/components';
 import { createAuthenticatedFetch } from '@object-ui/auth';
 import type { ActionParamDef } from '@object-ui/core';
-import { actionRendersAt } from '@object-ui/types';
+import { actionRendersAt, type ActionLocation } from '@object-ui/types';
 import { getIcon } from '../../utils/getIcon';
 import { ActionParamDialog, type ParamDialogState } from '../ActionParamDialog';
 import { ActionResultDialog, type ResultDialogState } from '../ActionResultDialog';
@@ -75,8 +75,12 @@ function interpolateTarget(
 export interface MetadataTypeActionsProps {
   /** The rich type entry whose `actions` to render. */
   entry?: Pick<RichMetadataTypeEntry, 'actions'> | undefined;
-  /** Which chrome slot is asking — actions are filtered by their `locations`. */
-  location: string;
+  /**
+   * Which chrome slot is asking — actions are filtered by their `locations`.
+   * Typed as the spec vocabulary rather than `string` so a typo cannot quietly
+   * match nothing: both call sites pass a literal, so this costs them nothing.
+   */
+  location: ActionLocation;
   /** Current item name, exposed to actions as `${ctx.recordId}`. */
   recordId?: string;
   /** Called after a successful action when `refreshAfter` is set. */

@@ -83,7 +83,13 @@ export { ACTION_LOCATIONS, ActionLocationSchema } from '@objectstack/spec/ui';
  * passes.
  */
 export function actionRendersAt(
-  action: { locations?: readonly ActionLocation[] } | null | undefined,
+  // `locations` is deliberately `readonly string[]`, not `ActionLocation[]`:
+  // several call sites hold actions straight off the wire (the metadata-admin
+  // `/meta/types` feed types them as plain strings), and a narrower parameter
+  // would push a cast onto every one of them — which is how a shared predicate
+  // grows per-caller variants and stops being shared. An unrecognized string
+  // simply matches no location.
+  action: { locations?: readonly string[] } | null | undefined,
   location: ActionLocation | undefined,
 ): boolean {
   if (!location) return true;
