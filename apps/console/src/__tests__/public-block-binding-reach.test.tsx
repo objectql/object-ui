@@ -105,31 +105,21 @@ const NO_DATA_REACH: Readonly<Record<string, string>> = {
   'record:related_list':
     'needs the parent record id from RecordContext before it may fetch; declines to fetch without one (objectstack#4413 ledger)',
 
-  // Both of these are the SAME defect, and it is a real one — debt recorded
-  // here, not divergence accepted. Neither registration bridges the
-  // schema-renderer context onto the component's `dataSource` PROP:
-  // `object-form`, `object-kanban` and `object-calendar` each register a small
-  // renderer that does exactly that, `list-view` is registered as the bare
-  // `ListView` (which reads `props.dataSource`), and `embeddable-form`'s
-  // renderer is `({schema}) => <EmbeddableForm config={schema} />`, which drops
-  // it. `SchemaRenderer` never injects `dataSource` into props, so on the
-  // registry/SDUI path both render an empty shell while declaring `objectName`
-  // **required** — the objectstack#4413 shape, one layer up.
+  // `list-view` and `embeddable-form` were the other two entries here for
+  // exactly one release of this file. Neither registration bridged the
+  // schema-renderer context onto the component's `dataSource` PROP — the bridge
+  // `object-form`, `object-kanban` and `object-calendar` always had — and
+  // `SchemaRenderer` never injects it, so on the registry/SDUI path both
+  // rendered an empty shell while declaring `objectName` **required**: the
+  // objectstack#4413 shape, one layer up.
   //
-  // Verified to be the wiring and not this probe's reach: `embeddable-form`
-  // fetches the moment the bridge exists (its inner `ObjectForm` calls
-  // `getObjectSchema` through the read-only source it derives), and does not
-  // without it, on the identical mount.
-  //
-  // Filed rather than fixed alongside this suite: giving these two a data source
-  // changes what they render everywhere they are mounted bare, which wants its
-  // own review — objectui#3144. When it lands, the assertions below FORCE these
-  // two entries deleted; a ledger nobody must update is how an accepted baseline
-  // starts.
-  'list-view':
-    'registered bare; ListView reads props.dataSource and SchemaRenderer never injects it — objectui#3144',
-  'embeddable-form':
-    'renderer drops the context dataSource (`<EmbeddableForm config={schema} />`) — objectui#3144',
+  // They are gone because #3144 fixed the wiring, and they are gone the only way
+  // an entry here can go: the assertions below stopped passing the moment those
+  // two blocks started reaching the data layer, and deleting the entries was the
+  // way to get green again. That is the whole point of the both-directions
+  // check — a ledger nobody is FORCED to update is how an accepted baseline
+  // starts, and an accepted baseline reporting zero divergence is what let
+  // objectstack#4413 ship.
 };
 
 /** Does this config declare an `objectName` input? */

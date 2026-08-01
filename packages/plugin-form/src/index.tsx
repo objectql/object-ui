@@ -118,7 +118,16 @@ ComponentRegistry.register('form', ObjectFormRenderer, {
 import { EmbeddableForm } from './EmbeddableForm';
 
 const EmbeddableFormRenderer: React.FC<{ schema: any }> = ({ schema }) => {
-  return <EmbeddableForm config={schema} />;
+  // Same bridge `object-form` above does, and for the same reason (#3144):
+  // `EmbeddableForm` needs a dataSource to fetch the object schema — its own
+  // comment says so — and `SchemaRenderer` only ever puts one on the context,
+  // never on props. Dropping it here meant an `embeddable-form` rendered
+  // through the registry declared `objectName` **required** and then had
+  // nothing to bind it to, rendering a field-less shell. That is the
+  // objectstack#4413 shape; `public-block-binding-reach.test.tsx` is what
+  // catches it now.
+  const ctx = useContext(SchemaRendererContext as React.Context<any>);
+  return <EmbeddableForm config={schema} dataSource={ctx?.dataSource} />;
 };
 
 ComponentRegistry.register('embeddable-form', EmbeddableFormRenderer, {
