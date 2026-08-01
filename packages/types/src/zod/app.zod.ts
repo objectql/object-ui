@@ -17,7 +17,10 @@
  */
 
 import { z } from 'zod';
-import { AppSchema as SpecAppSchema } from '@objectstack/spec/ui';
+import {
+  AppSchema as SpecAppSchema,
+  AppContextSelectorSchema as SpecAppContextSelectorSchema,
+} from '@objectstack/spec/ui';
 import { BaseSchema, specFieldsExcept } from './base.zod.js';
 
 // ============================================================================
@@ -164,28 +167,27 @@ export const AppActionSchema = z.object({
 // ============================================================================
 
 /**
- * App Context Selector Schema — sidebar/topbar scope dropdown whose
- * selected value is injected into nav items as a `{<id>}` template var.
- * Mirrors `@objectstack/spec` `AppContextSelectorSchema`.
+ * App Context Selector Schema — sidebar/topbar scope dropdown whose selected
+ * value is injected into nav items as a `{<id>}` template var.
+ *
+ * DERIVED from `@objectstack/spec/ui` (objectstack#4115): every spec key
+ * (`id`/`icon`/`optionsSource`/`includeAll`/`allValue`/`persist`/`placement`,
+ * including its defaults) flows in **by reference**, so a key the spec adds or
+ * retypes cannot silently diverge here. Before this derivation the local hand
+ * copy was a full restatement carrying the spec's own symbol name.
+ *
+ * One pinned divergence, kept deliberately:
+ *  - `label` is widened to accept objectui's i18n label envelope
+ *    (`{ default, translations }` / any record) as well as the spec's plain
+ *    string. `AppContextSelectors` (@object-ui/app-shell) renders it through
+ *    `resolveI18nLabel`, so narrowing to the spec's `z.string()` would reject
+ *    localized selectors the renderer already supports.
+ *
+ * Drift guard: `__tests__/report-chart-query-spec-parity.test.ts`.
  */
-export const AppContextSelectorSchema = z.object({
-  id: z.string().describe('Selector id; value exposed as nav template var {<id>}'),
-  label: z.union([z.string(), z.record(z.string(), z.any())]).describe('Dropdown label'),
-  icon: z.string().optional().describe('Icon name (Lucide)'),
-  optionsSource: z.object({
-    endpoint: z.string().describe('REST endpoint returning option rows'),
-    valueKey: z.string().optional().default('id'),
-    labelKey: z.string().optional().default('name'),
-    filter: z.array(z.object({
-      key: z.string(),
-      op: z.enum(['eq', 'ne', 'in', 'nin']).optional().default('eq'),
-      value: z.union([z.string(), z.array(z.string())]),
-    })).optional().describe('Predicates (AND) each option row must satisfy'),
-  }).describe('Option data source'),
-  includeAll: z.boolean().optional().default(true),
-  allValue: z.string().optional().default(''),
-  persist: z.enum(['query', 'session', 'none']).optional().default('query'),
-  placement: z.enum(['sidebar_header', 'topbar']).optional().default('sidebar_header'),
+export const AppContextSelectorSchema = SpecAppContextSelectorSchema.extend({
+  label: z.union([z.string(), z.record(z.string(), z.any())])
+    .describe('Dropdown label — plain string or objectui i18n label envelope'),
 });
 
 /**

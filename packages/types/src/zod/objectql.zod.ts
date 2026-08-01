@@ -32,7 +32,7 @@ import {
   UserActionsConfigSchema as SpecUserActionsConfigSchema,
   AriaPropsSchema as SpecAriaPropsSchema,
 } from '@objectstack/spec/ui';
-import { BaseSchema } from './base.zod.js';
+import { BaseSchema, specFieldsExcept } from './base.zod.js';
 
 /**
  * HTTP Method Schema — `@objectstack/spec/ui` schema re-exported by reference
@@ -269,7 +269,7 @@ const UserFiltersSchema = z.object({
 /**
  * ListView Schema — derived from `@objectstack/spec/ui` `ListViewSchema` (issue #2231).
  *
- * Spec-owned fields flow in **by reference** (see `SpecListViewFields`) so they auto-track
+ * Spec-owned fields flow in **by reference** (see the `.extend()` on the declaration) so they auto-track
  * the protocol instead of being re-typed here; the drift-guard test
  * (`__tests__/list-view-spec-parity.test.ts`) fails if the spec grows a field objectui
  * has not triaged. objectui-only / legacy fields are declared locally on top via
@@ -287,28 +287,26 @@ const UserFiltersSchema = z.object({
  * Migrating the remaining legacy vocabulary to the spec-canonical keys (`type`/`columns`/
  * `filter`/`userActions`) is deferred — see #2231.
  */
-// Spec view-config fields, minus: the component envelope (name/label/description →
-// BaseSchema), the discriminator/renamed/relaxed keys (type/columns), and the configs
-// kept as local overrides below. `.partial()` guarantees no *future* spec field can
-// become required and silently invalidate existing objectui payloads.
-const SpecListViewFields = SpecListViewSchema
-  .omit({
-    type: true,
-    columns: true,
-    name: true,
-    label: true,
-    description: true,
-    userFilters: true,
-    userActions: true,
-    aria: true,
-    conditionalFormatting: true,
-    exportOptions: true,
-    kanban: true,
-    calendar: true,
-    gallery: true,
-    timeline: true,
-  })
-  .partial();
+// Spec view-config keys objectui overrides locally: the component envelope
+// (name/label/description → BaseSchema), the discriminator/renamed/relaxed keys
+// (type/columns), and the configs redeclared below. EVERY other spec key flows
+// in by reference at the declaration — see `SPEC_FIELDS` there.
+const LIST_VIEW_LOCAL_OVERRIDES = [
+  'type',
+  'columns',
+  'name',
+  'label',
+  'description',
+  'userFilters',
+  'userActions',
+  'aria',
+  'conditionalFormatting',
+  'exportOptions',
+  'kanban',
+  'calendar',
+  'gallery',
+  'timeline',
+] as const;
 
 // ── Per-view-type configs, derived from spec (issue #2231) ────────────────────
 // Each is the spec config `.partial()`-ed: spec requires `columns`/`titleField`/
@@ -316,11 +314,11 @@ const SpecListViewFields = SpecListViewSchema
 // product's own CreateViewDialog emits `kanban: { groupByField }` alone), so
 // requiring them would reject views the app itself creates. `.partial()` keeps the
 // spec's field set and types by reference while staying permissive — the same
-// trade-off `SpecListViewFields` makes above.
+// trade-off the spec-field import on `ListViewSchema` makes.
 //
 // `gantt` needs no local schema at all: the spec config already covers every field
 // the renderer reads and is `.passthrough()` for renderer-ahead knobs, so it flows
-// in with the rest of `SpecListViewFields`.
+// in with the rest of the imported spec fields.
 //
 // The deprecated aliases below are the pre-#2231 objectui vocabulary. They stay
 // accepted so stored view metadata keeps validating, but the spec key is canonical
@@ -382,13 +380,21 @@ export const UserActionsSchema = SpecUserActionsConfigSchema.extend({
 });
 
 export const ListViewSchema = BaseSchema
-  // Import spec-owned fields by reference: data, filter, sort, searchableFields,
+  // Spec-owned fields by reference. `specFieldsExcept` reads the spec object's
+  // `.shape` rather than calling `.omit()`, which zod 4 refuses on a schema
+  // carrying a refinement (objectui#3063); `.partial()` inside it guarantees no
+  // *future* spec field can become required and silently invalidate stored
+  // objectui payloads. The spec binding sits in this initializer on purpose —
+  // that is what makes the derivation visible to
+  // `scripts/check-spec-symbol-derivation.mjs` instead of hidden one hop away.
+  //
+  // Imported here: data, filter, sort, searchableFields,
   // filterableFields, resizable, striped, bordered, compactToolbar, selection, navigation,
   // pagination, chart, tree, rowHeight, grouping, rowColor, hiddenFields, fieldOrder,
   // rowActions, bulkActions, bulkActionDefs, virtualScroll, inlineEdit, userActions,
   // appearance, tabs, addRecord, showRecordCount, allowPrinting, emptyState, responsive,
   // performance.
-  .extend(SpecListViewFields.shape)
+  .extend(specFieldsExcept(SpecListViewSchema.shape, LIST_VIEW_LOCAL_OVERRIDES).shape)
   .extend({
     // Component discriminator — load-bearing for the ObjectQLComponentSchema union.
     type: z.literal('list-view'),
@@ -482,7 +488,7 @@ export const ListViewSchema = BaseSchema
       }),
     ]).optional().describe('Export options'),
     // Per-view-type configs — spec-derived (see the definitions above #2231).
-    // `gantt` is NOT here: it flows in from `SpecListViewFields` unmodified.
+    // `gantt` is NOT here: it flows in from the spec fields unmodified.
     kanban: KanbanConfig.optional().describe('Kanban-specific configuration'),
     calendar: CalendarConfig.optional().describe('Calendar-specific configuration'),
     gallery: GalleryConfig.optional().describe('Gallery-specific configuration'),

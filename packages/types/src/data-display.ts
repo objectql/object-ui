@@ -755,9 +755,19 @@ export interface TreeViewSchema extends BaseSchema {
 export type ChartType = SpecChartType;
 
 /**
- * Chart data series
+ * One inline-data series of the objectui `ChartSchema` node — a display name
+ * plus the literal numbers to plot, positionally aligned with the chart's
+ * `categories`.
+ *
+ * Renamed off `ChartSeries` (objectstack#4115): `@objectstack/spec/ui` owns that
+ * name for a **dataset-bound series descriptor** — `{ name, label?, type?,
+ * stack?, yAxis, variant?, dashArray?, opacity? }`, where `name` identifies a
+ * MEASURE and the values come from the query, so it carries no `data` at all.
+ * The two are not mutually assignable in either direction. `@object-ui/plugin-charts`
+ * talks to the spec's shape (`ChartSeries.type` per-series family overrides,
+ * `ChartSeries.stack`); this one belongs to the static SDUI chart node.
  */
-export interface ChartSeries {
+export interface ChartDataSeries {
   /**
    * Series name
    */
@@ -796,7 +806,7 @@ export interface ChartSchema extends BaseSchema {
   /**
    * Data series
    */
-  series: ChartSeries[];
+  series: ChartDataSeries[];
   /**
    * Chart height
    */

@@ -1,12 +1,12 @@
 /**
  * ObjectUI - Query AST Builder
- * Phase 3.3: QuerySchema AST implementation
+ * Phase 3.3: DriverQueryConfig AST implementation
  * ObjectStack Spec v2.0.1: Window functions support
  */
 
 import type {
-  QueryAST,
-  QuerySchema,
+  SqlQueryAST,
+  DriverQueryConfig,
   SelectNode,
   FromNode,
   WhereNode,
@@ -32,11 +32,11 @@ import type {
 } from '@object-ui/types';
 
 /**
- * Query AST Builder - Converts QuerySchema to AST
+ * Query AST Builder - Converts DriverQueryConfig to AST
  */
 export class QueryASTBuilder {
-  build(query: QuerySchema): QueryAST {
-    const ast: QueryAST = {
+  build(query: DriverQueryConfig): SqlQueryAST {
+    const ast: SqlQueryAST = {
       select: this.buildSelect(query),
       from: this.buildFrom(query),
     };
@@ -68,7 +68,7 @@ export class QueryASTBuilder {
     return ast;
   }
 
-  private buildSelect(query: QuerySchema): SelectNode {
+  private buildSelect(query: DriverQueryConfig): SelectNode {
     const fields: (FieldNode | AggregateNode | WindowNode)[] = [];
 
     if (query.fields && query.fields.length > 0) {
@@ -94,7 +94,7 @@ export class QueryASTBuilder {
     };
   }
 
-  private buildFrom(query: QuerySchema): FromNode {
+  private buildFrom(query: DriverQueryConfig): FromNode {
     return {
       type: 'from',
       table: query.object,
@@ -329,13 +329,13 @@ export class QueryASTBuilder {
     return node;
   }
 
-  optimize(ast: QueryAST): QueryAST {
+  optimize(ast: SqlQueryAST): SqlQueryAST {
     return ast;
   }
 }
 
 export const defaultQueryASTBuilder = new QueryASTBuilder();
 
-export function buildQueryAST(query: QuerySchema): QueryAST {
+export function buildQueryAST(query: DriverQueryConfig): SqlQueryAST {
   return defaultQueryASTBuilder.build(query);
 }

@@ -4,14 +4,14 @@
 
 import { describe, it, expect } from 'vitest';
 import { QueryASTBuilder } from '../query-ast';
-import type { QuerySchema } from '@object-ui/types';
+import type { DriverQueryConfig } from '@object-ui/types';
 
 describe('QueryASTBuilder', () => {
   const builder = new QueryASTBuilder();
 
   describe('Basic Query Building', () => {
     it('should build simple SELECT query', () => {
-      const query: QuerySchema = {
+      const query: DriverQueryConfig = {
         object: 'users',
         fields: ['id', 'name', 'email'],
       };
@@ -24,7 +24,7 @@ describe('QueryASTBuilder', () => {
     });
 
     it('should build SELECT * when no fields specified', () => {
-      const query: QuerySchema = {
+      const query: DriverQueryConfig = {
         object: 'users',
       };
 
@@ -38,7 +38,7 @@ describe('QueryASTBuilder', () => {
     });
 
     it('should build query with WHERE clause', () => {
-      const query: QuerySchema = {
+      const query: DriverQueryConfig = {
         object: 'users',
         fields: ['id', 'name'],
         filter: {
@@ -60,7 +60,7 @@ describe('QueryASTBuilder', () => {
     });
 
     it('should build query with ORDER BY', () => {
-      const query: QuerySchema = {
+      const query: DriverQueryConfig = {
         object: 'users',
         fields: ['id', 'name'],
         sort: [
@@ -77,7 +77,7 @@ describe('QueryASTBuilder', () => {
     });
 
     it('should build query with LIMIT and OFFSET', () => {
-      const query: QuerySchema = {
+      const query: DriverQueryConfig = {
         object: 'users',
         fields: ['id', 'name'],
         limit: 10,
@@ -95,7 +95,7 @@ describe('QueryASTBuilder', () => {
 
   describe('Advanced Query Building', () => {
     it('should build query with JOIN', () => {
-      const query: QuerySchema = {
+      const query: DriverQueryConfig = {
         object: 'users',
         fields: ['id', 'name', 'orders.total'],
         joins: [
@@ -119,7 +119,7 @@ describe('QueryASTBuilder', () => {
     });
 
     it('should build query with aggregations', () => {
-      const query: QuerySchema = {
+      const query: DriverQueryConfig = {
         object: 'orders',
         aggregations: [
           {
@@ -145,7 +145,7 @@ describe('QueryASTBuilder', () => {
     });
 
     it('should build query with GROUP BY', () => {
-      const query: QuerySchema = {
+      const query: DriverQueryConfig = {
         object: 'orders',
         fields: ['user_id'],
         group_by: ['user_id'],
@@ -170,7 +170,7 @@ describe('QueryASTBuilder', () => {
 
   describe('Complex Filters', () => {
     it('should build query with nested AND/OR filters', () => {
-      const query: QuerySchema = {
+      const query: DriverQueryConfig = {
         object: 'users',
         filter: {
           operator: 'and',

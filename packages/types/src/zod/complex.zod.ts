@@ -17,7 +17,11 @@
  */
 
 import { z } from 'zod';
-import { DashboardSchema as SpecDashboardSchema } from '@objectstack/spec/ui';
+import {
+  DashboardSchema as SpecDashboardSchema,
+  DashboardWidgetSchema as SpecDashboardWidgetSchema,
+  GlobalFilterSchema as SpecGlobalFilterSchema,
+} from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema, specFieldsExcept } from './base.zod.js';
 import { DASHBOARD_COLOR_VARIANTS, DASHBOARD_WIDGET_TYPES } from '../designer.js';
 
@@ -272,36 +276,59 @@ export const DashboardWidgetLayoutSchema = z.object({
 });
 
 /**
- * Dashboard Widget Schema
+ * Dashboard Widget Schema — DERIVED from `@objectstack/spec/ui`
+ * (objectstack#4115): every spec key flows in **by reference** via
+ * {@link specFieldsExcept}, so a key the spec adds or retypes cannot silently
+ * diverge here.
  *
- * Supports two formats:
- * 1. Component format (legacy): `{ id, component: { type, ... }, layout }`
- * 2. Shorthand format (@objectstack/spec): `{ type: 'metric'|'bar'|…, options: {…}, layout }`
+ * The hand copy this replaces declared 10 of the spec's 22 keys, and because a
+ * `z.object()` strips unknown keys, the other 12 were dropped without a word by
+ * `objectui validate` — including `chartConfig`, `colorVariant`, `filter`,
+ * `responsive`, `aria`, `actionUrl`/`actionType`/`actionIcon`, `compareTo` and
+ * the `requiresObject`/`requiresService` capability gates. The TS interface in
+ * `complex.ts` declared most of them all along, so a widget could type-check in
+ * objectui and still lose half its configuration on validation.
+ *
+ * Two pinned divergences plus one objectui-only extension:
+ *  - `id` relaxed to optional — the spec requires it, but stored objectui
+ *    dashboards (and the legacy `component` format below) omit it.
+ *  - `type` widened to `z.string()` — objectui's `DASHBOARD_WIDGET_TYPES` also
+ *    carries `list` and `custom`, which the spec's 19-family visualization enum
+ *    does not model. Narrowing here would reject widgets the designer emits.
+ *  - `component` — the legacy `{ id, component: <SDUI node>, layout }` envelope,
+ *    which the spec has no room for. Migration to the shorthand form is deferred.
+ *
+ * Drift guard: `__tests__/report-chart-query-spec-parity.test.ts`.
  */
-export const DashboardWidgetSchema = z.object({
+export const DashboardWidgetSchema = specFieldsExcept(SpecDashboardWidgetSchema.shape, [
+  'id',
+  'type',
+] as const).extend({
   id: z.string().optional().describe('Widget ID'),
-  title: z.string().optional().describe('Widget Title'),
+  type: z.string().optional().describe('Widget visualization type (spec shorthand; widened for `list`/`custom`)'),
   component: SchemaNodeSchema.optional().describe('Widget Component (legacy format)'),
-  layout: DashboardWidgetLayoutSchema.optional().describe('Widget Layout'),
-  type: z.string().optional().describe('Widget visualization type (spec shorthand)'),
-  options: z.unknown().optional().describe('Widget specific configuration (spec shorthand)'),
-  // ADR-0021 semantic-layer binding — the single author-facing analytics shape.
-  dataset: z.string().optional().describe('Dataset name to bind (ADR-0021)'),
-  dimensions: z.array(z.string()).optional().describe('Dimension names — X/group/split'),
-  values: z.array(z.string()).optional().describe('Measure names — Y (≥1 when dataset-bound)'),
-  filterBindings: z.record(z.string(), z.union([z.string(), z.literal(false)])).optional()
-    .describe('Per-widget dashboard-filter bindings: filter name → this widget\'s field, or false to opt out'),
 });
 
 /**
- * Global Filter Schema — a dashboard-level filter definition.
- * Aligned with @objectstack/spec GlobalFilterSchema (framework#2501: `name`).
+ * Global Filter Schema — a dashboard-level filter definition, DERIVED from
+ * `@objectstack/spec/ui` (objectstack#4115): `name`, `field`, `label`, `type`,
+ * `scope` and `targetWidgets` flow in **by reference**.
+ *
+ * Three pinned divergences, each backed by a runtime normalizer in
+ * `@object-ui/core`'s `dashboard-filters.ts`:
+ *  - `options` also accepts the bare-string shorthand (`options: ['EMEA', …]`)
+ *    and an object without `label`; `normalizeFilterOptions` folds both into the
+ *    spec's `{ value, label }` form before anything renders them.
+ *  - `optionsFrom.labelField` stays optional (it falls back to `valueField`) and
+ *    `filter` stays `z.any()` — objectui passes an ObjectQL FilterNode array
+ *    here, not the spec's `FilterCondition` envelope.
+ *  - `defaultValue` stays `z.any()` — `normalizeDateDefault` (framework#4475)
+ *    lifts a date preset NAME into `{ preset }`, and stored dashboards carry
+ *    that object form, which the spec's `string | number | boolean` rejects.
+ *
+ * Drift guard: `__tests__/report-chart-query-spec-parity.test.ts`.
  */
-export const GlobalFilterSchema = z.object({
-  name: z.string().optional().describe('Stable filter name (variable key); defaults to field'),
-  field: z.string().describe('Default target field'),
-  label: z.string().optional().describe('Display label'),
-  type: z.enum(['text', 'select', 'date', 'number', 'lookup']).optional().describe('Filter control type'),
+export const GlobalFilterSchema = SpecGlobalFilterSchema.extend({
   options: z.array(z.union([
     z.string(),
     z.object({
@@ -315,9 +342,7 @@ export const GlobalFilterSchema = z.object({
     labelField: z.string().optional(),
     filter: z.any().optional(),
   }).optional().describe('Dynamic option source'),
-  defaultValue: z.any().optional().describe('Initial value'),
-  scope: z.string().optional().describe('Filter scope'),
-  targetWidgets: z.array(z.string()).optional().describe('Widget-id allow-list'),
+  defaultValue: z.any().optional().describe('Initial value (objectui also accepts the normalized date-preset object)'),
 });
 
 /**

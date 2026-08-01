@@ -217,9 +217,14 @@ export const TreeViewSchema = BaseSchema.extend({
 export const ChartTypeSchema = SpecChartTypeSchema;
 
 /**
- * Chart Series Schema
+ * Zod twin of {@link ChartDataSeries} — the objectui chart node's inline-data
+ * series. Renamed off `ChartSeriesSchema` (objectstack#4115) for the same reason
+ * the TS type was: `@objectstack/spec/ui`'s `ChartSeriesSchema` describes a
+ * dataset-bound series (no `data`, plus `type`/`stack`/`yAxis`/`variant`), so a
+ * consumer importing `ChartSeriesSchema` from `@object-ui/types` could not tell
+ * which contract they had.
  */
-export const ChartSeriesSchema = z.object({
+export const ChartDataSeriesSchema = z.object({
   name: z.string().describe('Series name'),
   data: z.array(z.number()).describe('Series data points'),
   color: z.string().optional().describe('Series color'),
@@ -234,7 +239,7 @@ export const ChartSchema = BaseSchema.extend({
   title: z.string().optional().describe('Chart title'),
   description: z.string().optional().describe('Chart description'),
   categories: z.array(z.string()).optional().describe('X-axis categories'),
-  series: z.array(ChartSeriesSchema).describe('Chart data series'),
+  series: z.array(ChartDataSeriesSchema).describe('Chart data series'),
   height: z.union([z.string(), z.number()]).optional().describe('Chart height'),
   width: z.union([z.string(), z.number()]).optional().describe('Chart width'),
   showLegend: z.boolean().optional().describe('Show legend'),

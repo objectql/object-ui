@@ -9,8 +9,8 @@
 /**
  * @object-ui/types - Data Protocol Advanced Types
  * 
- * Phase 3: Complete implementation of QuerySchema, FilterSchema, 
- * ValidationSchema, DriverInterface, and DatasourceSchema.
+ * Phase 3: Complete implementation of DriverQueryConfig, FilterSchema, 
+ * ValidationSchema, SqlDriverInterface, and DatasourceRegistration.
  * 
  * @module data-protocol
  * @packageDocumentation
@@ -38,7 +38,7 @@ import type {
 
 /**
  * =============================================================================
- * Phase 3.3: QuerySchema AST Implementation
+ * Phase 3.3: DriverQueryConfig AST Implementation
  * =============================================================================
  */
 
@@ -154,7 +154,7 @@ export interface OffsetNode extends QueryASTNode {
  */
 export interface SubqueryNode extends QueryASTNode {
   type: 'subquery';
-  query: QueryAST;
+  query: SqlQueryAST;
   alias?: string;
 }
 
@@ -286,9 +286,17 @@ export type ComparisonOperator =
 export type LogicalOperator = 'and' | 'or' | 'not';
 
 /**
- * Complete Query AST (Phase 3.3.1)
+ * Complete SQL query AST (Phase 3.3.1).
+ *
+ * Renamed off `QueryAST` (objectstack#4115): `@objectstack/spec/data` owns that
+ * name for the **ObjectQL query descriptor** (`{ object, fields, where, orderBy,
+ * expand, … }`) — a declarative request against an object. This is the compiled
+ * **SQL syntax tree** (`select`/`from`/`join`/`where`/`group_by`/…) that
+ * `@object-ui/core`'s `QueryASTBuilder` produces from {@link DriverQueryConfig};
+ * the two are not mutually assignable in either direction. Import the spec's
+ * `QueryAST` when you mean the request, this one when you mean the tree.
  */
-export interface QueryAST {
+export interface SqlQueryAST {
   select: SelectNode;
   from: FromNode;
   joins?: JoinNode[];
@@ -300,9 +308,16 @@ export interface QueryAST {
 }
 
 /**
- * Query Schema - High-level query configuration
+ * High-level query configuration — the input `QueryASTBuilder` compiles into a
+ * {@link SqlQueryAST}, and the shape drivers receive on `find()`.
+ *
+ * Renamed off `QuerySchema` (objectstack#4115): `@objectstack/spec/data` exports
+ * `QuerySchema` as the **zod schema value** for its ObjectQL `QueryAST`, so the
+ * name promised a spec artifact while delivering an objectui-local TS interface
+ * with a different key set (`filter`/`sort`/`joins`/`aggregations` vs the spec's
+ * `where`/`orderBy`/`expand`).
  */
-export interface QuerySchema {
+export interface DriverQueryConfig {
   /**
    * Target object/table
    */
@@ -1038,14 +1053,22 @@ export type ObjectValidationRule =
 
 /**
  * =============================================================================
- * Phase 3.6: DriverInterface - Database Driver Abstraction
+ * Phase 3.6: SqlDriverInterface - Database Driver Abstraction
  * =============================================================================
  */
 
 /**
- * Database Driver Interface (Phase 3.6)
+ * Database driver abstraction (Phase 3.6).
+ *
+ * Renamed off `DriverInterface` (objectstack#4115): `@objectstack/spec/data`
+ * owns that name for the platform's **runtime driver contract**
+ * (`supports`/`execute`/`findStream`/pool stats, and `find()` taking an ObjectQL
+ * `SqlQueryAST`). This is objectui's own SQL-oriented client abstraction —
+ * `query(sql, params)`, `executeAST()`, `batch()` — and the two interfaces are
+ * not mutually assignable. Import the spec's `DriverInterface` when you mean the
+ * platform contract.
  */
-export interface DriverInterface {
+export interface SqlDriverInterface {
   /**
    * Driver name
    */
@@ -1074,12 +1097,12 @@ export interface DriverInterface {
   /**
    * Execute query from AST
    */
-  executeAST<T = any>(ast: QueryAST): Promise<DriverQueryResult<T>>;
+  executeAST<T = any>(ast: SqlQueryAST): Promise<DriverQueryResult<T>>;
   
   /**
    * Find records
    */
-  find<T = any>(table: string, query: QuerySchema): Promise<DriverQueryResult<T>>;
+  find<T = any>(table: string, query: DriverQueryConfig): Promise<DriverQueryResult<T>>;
   
   /**
    * Find one record
@@ -1394,14 +1417,21 @@ export interface ConnectionPool {
 
 /**
  * =============================================================================
- * Phase 3.7: DatasourceSchema - Multi-Datasource Management
+ * Phase 3.7: DatasourceRegistration - Multi-Datasource Management
  * =============================================================================
  */
 
 /**
- * Datasource Schema (Phase 3.7)
+ * A datasource as registered with {@link DatasourceManager} at runtime (Phase 3.7).
+ *
+ * Renamed off `DatasourceSchema` (objectstack#4115): `@objectstack/spec/data`
+ * exports `DatasourceSchema` as the **authored datasource metadata document**
+ * (`driver` is a driver NAME, `config` a record, plus `pool`/`ssl`/`retryPolicy`/
+ * `capabilities`/`schemaMode`). This is the in-memory registration record — its
+ * `driver` is a live {@link SqlDriverInterface} instance and its connection lives
+ * under `connection`, so the two never describe the same value.
  */
-export interface DatasourceSchema {
+export interface DatasourceRegistration {
   /**
    * Datasource name
    */
@@ -1425,7 +1455,7 @@ export interface DatasourceSchema {
   /**
    * Driver interface
    */
-  driver?: DriverInterface;
+  driver?: SqlDriverInterface;
   
   /**
    * Whether datasource is default
@@ -1571,7 +1601,7 @@ export interface DatasourceManager {
   /**
    * Register a datasource
    */
-  register(datasource: DatasourceSchema): void;
+  register(datasource: DatasourceRegistration): void;
   
   /**
    * Unregister a datasource
@@ -1581,12 +1611,12 @@ export interface DatasourceManager {
   /**
    * Get datasource by name
    */
-  get(name: string): DatasourceSchema | undefined;
+  get(name: string): DatasourceRegistration | undefined;
   
   /**
    * Get default datasource
    */
-  getDefault(): DatasourceSchema | undefined;
+  getDefault(): DatasourceRegistration | undefined;
   
   /**
    * Switch active datasource (Phase 3.7.3)
@@ -1596,12 +1626,12 @@ export interface DatasourceManager {
   /**
    * Get active datasource
    */
-  getActive(): DatasourceSchema | undefined;
+  getActive(): DatasourceRegistration | undefined;
   
   /**
    * List all datasources
    */
-  list(): DatasourceSchema[];
+  list(): DatasourceRegistration[];
   
   /**
    * Check datasource health (Phase 3.7.4)

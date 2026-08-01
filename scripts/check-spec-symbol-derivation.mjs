@@ -111,6 +111,21 @@ const ALLOW = {
       "adds a key, retires one, claims an extension name, or widens `value` itself.",
     issue: 4115,
   },
+  "@object-ui/types:ListViewSchema": {
+    reason:
+      "TS twin of the spec-derived `ListViewSchema` zod node (objectql.zod.ts), which DOES " +
+      "import the spec's fields by reference at its declaration. This alias cannot carry that " +
+      "reference structurally: the spec's `ListViewSchema` is a zod VALUE, so there is no spec " +
+      "TYPE to alias or extend, and the objectui node additionally intersects " +
+      "`ListViewRuntimeProps` — callbacks and an imperative refresh trigger that are not " +
+      "serialisable view metadata and therefore cannot exist in any schema. Divergence from " +
+      "the spec is bounded by the zod derivation, not by this declaration; the drift guard is " +
+      "packages/types/src/__tests__/list-view-spec-parity.test.ts, which fails when the spec " +
+      "grows an untriaged field, retires one objectui aliases (`type`→`viewType`, relaxed " +
+      "`columns`, `filter` alongside legacy `filters`), or someone adds a local key outside " +
+      "the sanctioned set.",
+    issue: 4115,
+  },
   "@object-ui/types:SelectOption": {
     reason:
       "TS twin of the SelectOptionSchema dialect (objectui#3090): carries every spec key " +
@@ -159,7 +174,15 @@ const ALLOW = {
 //      cannot be burned down here at all; the fix belongs upstream in the spec,
 //      filed as objectstack#4171. `spec-derived-unions.test.ts` carries an
 //      inverted pin that fails the day the spec types one of them properly.
-//      Detect: the same `0 extends (1 & Spec)` probe.
+//      Detect: the same `0 extends (1 & Spec)` probe — but see the variant
+//      below, which that probe does NOT catch.
+//   2b. The SPEC export resolves to `unknown` (`JoinedReportBlock`, whose
+//      `JoinedReportBlockSchema` the spec declares as `z.ZodTypeAny`). Just as
+//      empty as case 2 and just as unburnable, but the `any` probe reports
+//      `false` for it, so a triage that only screens for `any` waves it through
+//      as "safely derivable". Detect: `[unknown] extends [Spec]`. Pinned in
+//      packages/types/src/__tests__/report-chart-query-spec-parity.test.ts
+//      (objectui#3155); also filed under objectstack#4171.
 //   3. The local declaration carries `[key: string]: any` (`FormField`,
 //      `AppSchema`, `PageSchema`, `ThemeSchema`, …) — the objectstack#4075
 //      mechanism. An index signature absorbs any extra member, so the two types
@@ -173,38 +196,6 @@ const ALLOW = {
 // Compare `_input` too before touching a schema const.
 const DEBT_ISSUE = 4115;
 const DEBT = {
-  "@object-ui/types": [
-    "ActionParam",
-    "AppContextSelectorSchema",
-    "ChartSeries",
-    "ChartSeriesSchema",
-    "CreateExportJobRequest",
-    "CreateExportJobResult",
-    "DashboardWidgetSchema",
-    "DatasourceSchema",
-    "DriverInterface",
-    "FileMetadata",
-    "GestureConfig",
-    "GestureType",
-    "GlobalFilterSchema",
-    "ImportRowResult",
-    "JoinNode",
-    "JoinedReportBlock",
-    "ListViewSchema",
-    "NavigationArea",
-    "NavigationAreaSchema",
-    "NavigationItem",
-    "NavigationItemSchema",
-    "OfflineConfig",
-    "PageRegion",
-    "PageRegionSchema",
-    "QueryAST",
-    "QuerySchema",
-    "ResponsiveConfig",
-    "Theme",
-    "WidgetManifest",
-    "WidgetSource",
-  ],
   "@object-ui/app-shell": [
     "ConversationSummary",
     "DecisionOutputDef",
@@ -234,6 +225,28 @@ const DEBT = {
     "ScreenFieldSpec",
     "ScreenSpec",
     "isAggregatedViewContainer",
+  ],
+  "@object-ui/types": [
+    "ActionParam",
+    "CreateExportJobRequest",
+    "CreateExportJobResult",
+    "FileMetadata",
+    "GestureConfig",
+    "GestureType",
+    "ImportRowResult",
+    "JoinNode",
+    "JoinedReportBlock",
+    "NavigationArea",
+    "NavigationAreaSchema",
+    "NavigationItem",
+    "NavigationItemSchema",
+    "OfflineConfig",
+    "PageRegion",
+    "PageRegionSchema",
+    "ResponsiveConfig",
+    "Theme",
+    "WidgetManifest",
+    "WidgetSource",
   ],
   "@object-ui/core": [
     "ActionHandler",

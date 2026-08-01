@@ -138,7 +138,7 @@ export {
   TreeNodeSchema,
   TreeViewSchema,
   ChartTypeSchema,
-  ChartSeriesSchema,
+  ChartDataSeriesSchema,
   ChartSchema,
   TimelineEventSchema,
   TimelineSchema,

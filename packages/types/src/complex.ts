@@ -15,6 +15,7 @@
  * @packageDocumentation
  */
 
+import type { DashboardWidget as SpecDashboardWidget } from '@objectstack/spec/ui';
 import type { BaseSchema, SchemaNode } from './base';
 
 /**
@@ -653,97 +654,63 @@ export interface DashboardWidgetLayout {
 }
 
 /**
- * Dashboard Widget
+ * Dashboard Widget — DERIVED from `@objectstack/spec/ui`'s `DashboardWidget`
+ * (objectstack#4115): every spec key it does not override flows in through the
+ * `extends` above, so the key set tracks the protocol instead of being restated.
  *
  * Supports two formats:
  * 1. **Component format** (legacy): `{ id, component: { type, ... }, layout }`
  * 2. **Shorthand format** (@objectstack/spec): `{ type: 'metric'|'bar'|…, options: {…}, layout }`
+ *
+ * `Partial<>` because the spec requires `id` while stored objectui dashboards
+ * (and every widget in the legacy component format) omit it. The `Omit` list is
+ * the set of keys objectui deliberately re-types, each explained at its
+ * declaration below; anything not listed there is the spec's.
+ *
+ * Zod twin: `zod/complex.zod.ts` `DashboardWidgetSchema`.
+ * Drift guard: `__tests__/report-chart-query-spec-parity.test.ts`.
  */
-export interface DashboardWidgetSchema {
-  id?: string;
-  title?: string;
-  /** Widget description */
-  description?: string;
-  /** Component schema (legacy format) */
+export interface DashboardWidgetSchema
+  extends Omit<Partial<SpecDashboardWidget>, 'type' | 'options' | 'chartConfig' | 'filter' | 'responsive'> {
+  // `id`, `title`, `description`, `colorVariant`, `actionUrl`, `actionType`,
+  // `actionIcon`, `dataset`, `dimensions`, `values`, `filterBindings`,
+  // `requiresObject`, `requiresService`, `compareTo`, `aria`, … all flow in from
+  // the spec through the `extends` above — do not restate them here.
+  /** Component schema (legacy format) — objectui-only, no spec counterpart. */
   component?: SchemaNode;
   layout?: DashboardWidgetLayout;
-  /** Widget visualization type (spec shorthand format) */
+  /**
+   * Widget visualization type (spec shorthand format).
+   * Widened off the spec's 19-family enum: objectui's `DASHBOARD_WIDGET_TYPES`
+   * also carries `list` and `custom`, which the spec does not model.
+   */
   type?: string;
-  /** Widget-specific configuration (spec shorthand format) */
+  /** Widget-specific configuration (spec shorthand format). Kept `unknown` — objectui
+   *  renderers pass widget-family-specific bags the spec's `options` object does not model. */
   options?: unknown;
   /** Chart configuration for chart-type widgets */
   chartConfig?: any;
   /**
-   * Widget color variant.
-   * Aligned with @objectstack/spec WidgetColorVariantSchema.
-   */
-  colorVariant?: 'default' | 'blue' | 'teal' | 'orange' | 'purple' | 'success' | 'warning' | 'danger';
-  /** Action URL for clickable widgets */
-  actionUrl?: string;
-  /** Action type for widget interactions */
-  actionType?: string;
-  /** Action icon name */
-  actionIcon?: string;
-  /**
-   * ADR-0021 — the semantic-layer `dataset` this widget binds to. The widget
-   * selects the dataset's dimensions/measures BY NAME; the dataset owns the
-   * base object, allowed joins, intrinsic filter, dimensions, and measures, so
-   * numbers stay consistent across every surface. This is the single
-   * author-facing analytics shape and the only one Studio emits.
-   * Aligned with @objectstack/spec DashboardWidgetSchema.dataset.
-   */
-  dataset?: string;
-  /**
-   * Dimension names (from the bound `dataset`) for X / group / split.
-   * Aligned with @objectstack/spec DashboardWidgetSchema.dimensions.
-   */
-  dimensions?: string[];
-  /**
-   * Measure names (from the bound `dataset`) for the value axis (≥1).
-   * Aligned with @objectstack/spec DashboardWidgetSchema.values.
-   */
-  values?: string[];
-  /**
-   * Data binding: Filter conditions.
-   * Aligned with @objectstack/spec DashboardWidgetSchema.filter.
+   * Data binding: filter conditions. Kept `any` — objectui passes an ObjectQL
+   * FilterNode array here, not the spec's `FilterCondition` envelope.
    */
   filter?: any;
   /**
-   * Responsive configuration per breakpoint.
-   * Aligned with @objectstack/spec DashboardWidgetSchema.responsive.
+   * Responsive configuration per breakpoint. Kept `any` — the renderer reads a
+   * per-breakpoint record, which the spec's single `responsive` object does not
+   * model; converging the two is deferred.
    */
   responsive?: any;
   /**
-   * Enable search input for table-type widgets.
+   * Enable search input for table-type widgets. objectui-only — no spec counterpart.
    * @default false
    */
   searchable?: boolean;
   /**
-   * Enable pagination for table-type widgets.
+   * Enable pagination for table-type widgets. objectui-only — no spec counterpart.
    * @default false
    */
   pagination?: boolean;
-  /**
-   * Per-widget bindings from a dashboard-level filter (referenced by its
-   * `name`, or the reserved name `"dateRange"` for the built-in date range)
-   * to one of THIS widget's fields:
-   * - string → apply the filter to that field (e.g. `{ dateRange: 'signed_at' }`)
-   * - false  → opt this widget out of that filter
-   * - absent → default binding: the filter's own `field`
-   *   (dateRange: `dateRange.field ?? 'created_at'`)
-   * Aligned with @objectstack/spec DashboardWidgetSchema.filterBindings
-   * (framework#2501).
-   */
-  filterBindings?: Record<string, string | false>;
-  /**
-   * ARIA accessibility attributes.
-   * Aligned with @objectstack/spec AriaPropsSchema.
-   */
-  aria?: {
-    ariaLabel?: string;
-    ariaDescribedBy?: string;
-    role?: string;
-  };
 }
 
 /**
