@@ -25,6 +25,7 @@ import {
   AlertDialogCancel,
   Button,
 } from '@object-ui/components';
+import { useObjectTranslation } from '@object-ui/i18n';
 import type { EntitlementCta, EntitlementDialogSpec } from './entitlements';
 
 export interface EntitlementDialogState {
@@ -78,6 +79,9 @@ interface Props {
 
 export function EnvironmentEntitlementDialog({ state, apiBase, onOpenChange }: Props) {
   const spec = state.spec;
+  // Title / body / CTA labels arrive already localized on the spec; the dismiss
+  // button is the dialog's own chrome, so it resolves its label here.
+  const { t } = useObjectTranslation();
   return (
     <AlertDialog open={state.open} onOpenChange={(open) => { if (!open) onOpenChange(false); }}>
       <AlertDialogContent data-testid="environment-entitlement-dialog">
@@ -86,7 +90,7 @@ export function EnvironmentEntitlementDialog({ state, apiBase, onOpenChange }: P
           <AlertDialogDescription>{spec?.message}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Close</AlertDialogCancel>
+          <AlertDialogCancel>{t('common.close', { defaultValue: 'Close' })}</AlertDialogCancel>
           {spec?.secondaryCta && (
             <CtaButton cta={spec.secondaryCta} apiBase={apiBase} primary={false} onNavigate={() => onOpenChange(false)} />
           )}
