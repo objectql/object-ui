@@ -13,6 +13,7 @@
  * is client-side form validation, not a mirror of a server rule.
  */
 
+export * from './required-presence.js';
 export * from './validation-engine.js';
 export * from './schema-validator.js';
 export * from './validators/index.js';

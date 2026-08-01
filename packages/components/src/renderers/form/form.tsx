@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ComponentRegistry, resolveFieldRuleState, evalFieldPredicate, resolveCascadingOptions, isValueStillOffered } from '@object-ui/core';
+import { ComponentRegistry, resolveFieldRuleState, evalFieldPredicate, resolveCascadingOptions, isValueStillOffered, isMissingForRequired } from '@object-ui/core';
 import type { FormSchema, FormField as FormFieldConfig, FormFieldTab, FormFieldPane, FieldValidationRules, FieldCondition, SelectOption } from '@object-ui/types';
 import { useForm } from 'react-hook-form';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from '../../ui/form';
@@ -168,6 +168,24 @@ const computeDirty = (
   }
   return false;
 };
+
+/**
+ * Widget types that render a two-state control, whose empty state IS `false`
+ * (see the `defaultValues` seeding below). Covers the bare builtin spellings
+ * and the registry ids `mapFieldTypeToFormType` produces for the object-schema
+ * `boolean` / `toggle` types (both → `field:boolean`).
+ */
+const BOOLEAN_WIDGET_TYPES = new Set([
+  'checkbox', 'switch', 'boolean', 'toggle',
+  'field:boolean', 'field:switch', 'field:checkbox',
+]);
+
+/**
+ * Which control a field row will render as — the same precedence
+ * `resolvedType` applies further down (explicit form-config `widget`, then the
+ * resolved field metadata's own widget hint, then the bare `type`).
+ */
+const resolveWidgetType = (f: any): string => f?.widget || f?.field?.widget || f?.type;
 
 const BUILTIN_FIELD_TYPES = new Set(['input', 'textarea', 'checkbox', 'switch', 'select']);
 const DATA_SOURCE_FIELD_TYPES = new Set([
@@ -345,7 +363,7 @@ ComponentRegistry.register('form',
   ({ schema, className, onAction, ...props }: { schema: FormSchema; className?: string; onAction?: (action: any) => void; [key: string]: any }) => {
     const { t } = useSafeFormTranslation();
     const {
-      defaultValues = {},
+      defaultValues: authoredDefaultValues = {},
       fields: rawFields = [],
       submitLabel = 'Submit',
       cancelLabel = 'Cancel',
@@ -405,6 +423,31 @@ ComponentRegistry.register('form',
         }
       }
     }, [rawFields, specVocabularyFields]);
+
+    // A two-state control has no third state, so a boolean field that nobody
+    // supplied a value for starts at `false` — not `undefined`. Without this
+    // the switch renders OFF while the form holds NOTHING: the create payload
+    // omits the column (it lands null, which reads as unchecked but isn't),
+    // and a `required` boolean is refused as empty while the user is looking
+    // at a perfectly valid answer — an AI-built tracker could not create an
+    // UNFINISHED task (cloud#972). It has to be folded into `defaultValues`
+    // itself, not seeded per-Controller, because this is also the baseline the
+    // dirty check and the defaults-reset window below compare against; a value
+    // that only lived in the field would be wiped by the first `form.reset`.
+    // Callers that DO supply a value (including `null` from a loaded record)
+    // are untouched.
+    const defaultValues = React.useMemo(() => {
+      const seeded: Record<string, unknown> = { ...(authoredDefaultValues as Record<string, unknown>) };
+      let added = false;
+      for (const f of fields as any[]) {
+        if (typeof f?.name !== 'string') continue;
+        if (hasOwn(seeded, f.name)) continue;
+        if (!BOOLEAN_WIDGET_TYPES.has(resolveWidgetType(f))) continue;
+        seeded[f.name] = false;
+        added = true;
+      }
+      return added ? seeded : authoredDefaultValues;
+    }, [authoredDefaultValues, fields]);
 
     // Initialize react-hook-form. `shouldFocusError: false` because RHF's
     // native focus-on-error only works for fields whose registered ref is a
@@ -1074,10 +1117,42 @@ ComponentRegistry.register('form',
         ...validation,
       };
 
+      // `required` is a PRESENCE contract, not a truthiness one — and the
+      // referee it has to agree with is the server. `@objectstack/spec`
+      // FieldSchema.required (ADR-0113) reads "an insert must provide a
+      // NON-NULL value", and objectql's record validator implements exactly
+      // that: `isMissing` = undefined | null | blank string. `false` and `0`
+      // are values.
+      //
+      // react-hook-form's own `required` rule breaks that contract in both
+      // directions: it fails whenever `isBoolean(value) && !value` (its
+      // accept-the-terms checkbox heritage), so a required boolean silently
+      // becomes "must be TRUE" and the only state the control shows by
+      // default is the one value that cannot be saved — an AI-built task
+      // tracker could not create an UNFINISHED task (cloud#972); and it lets
+      // a whitespace-only string through, which the server then rejects.
+      //
+      // So never hand RHF its `required` (`delete` also drops the copy that
+      // rode in on `validation` from buildValidationRules, which must not
+      // outlive a `requiredWhen` that resolved to FALSE) and express the
+      // check as a `validate` entry keyed `required` — RHF reports an
+      // object-form validate failure under its key, so the error still
+      // surfaces as `type: 'required'` for the conditional-required cleanup
+      // above.
+      delete rules.required;
       if (required) {
-        rules.required = typeof validation.required === 'string'
+        const requiredMessage = typeof validation.required === 'string'
           ? validation.required
           : t('validation.required', { field: label || name });
+        const authoredValidate = rules.validate;
+        rules.validate = {
+          // A field-authored `validate` keeps running, and keeps its own
+          // `type: 'validate'` error key.
+          ...(typeof authoredValidate === 'function'
+            ? { validate: authoredValidate }
+            : (authoredValidate ?? {})),
+          required: (value: unknown) => !isMissingForRequired(value) || requiredMessage,
+        };
       }
 
       // Localize the standard validation messages emitted by

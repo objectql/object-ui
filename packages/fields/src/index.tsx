@@ -2048,7 +2048,9 @@ function createFieldRenderer(FieldWidget: React.ComponentType<any>) {
       readonly: schema?.readonly || schema?.readOnly,
       help: schema?.help,
       description: schema?.description,
-      defaultValue: schema?.defaultValue || schema?.value,
+      // `??`, not `||` — an authored default of `false` / `0` / `''` is a value,
+      // and `||` silently threw it away (same falsy-as-empty class as cloud#972).
+      defaultValue: schema?.defaultValue ?? schema?.value,
       ...schema,
     };
 

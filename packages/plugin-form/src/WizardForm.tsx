@@ -17,7 +17,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import type { FormField, DataSource } from '@object-ui/types';
 import { Button, cn, toast } from '@object-ui/components';
 import { AlertCircle, Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
-import { resolveFieldRuleState, evalFieldPredicate } from '@object-ui/core';
+import { resolveFieldRuleState, evalFieldPredicate, isMissingForRequired } from '@object-ui/core';
 import { createSafeTranslation } from '@object-ui/i18n';
 import { FormSection } from './FormSection';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
@@ -35,9 +35,12 @@ const useWizardTranslation = createSafeTranslation(
   'wizard.missingRequired',
 );
 
-/** Empty for the purposes of a required check: '' / null / undefined / []. */
-const isEmptyValue = (v: unknown): boolean =>
-  v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
+/**
+ * Empty for the purposes of a required check. Shared with the form renderer —
+ * one predicate, mirroring the server's `isMissing`, so the wizard's
+ * cross-step gate can't drift from the per-field verdict (cloud#972).
+ */
+const isEmptyValue = isMissingForRequired;
 
 export interface WizardFormSchema {
   type: 'object-form';
