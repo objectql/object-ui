@@ -86,7 +86,7 @@ jobs:
       - name: Turbo Cache
         uses: actions/cache@v6
         with:
-          path: node_modules/.cache/turbo
+          path: .turbo/cache
           key: turbo-${{ runner.os }}-type-check-${{ github.sha }}
           restore-keys: |
             turbo-${{ runner.os }}-type-check-
@@ -324,7 +324,7 @@ jobs:
         if: steps.docs-changes.outputs.should_run == 'true'
         uses: actions/cache@v6
         with:
-          path: node_modules/.cache/turbo
+          path: .turbo/cache
           key: turbo-${{ runner.os }}-docs-${{ github.sha }}
           restore-keys: |
             turbo-${{ runner.os }}-docs-
