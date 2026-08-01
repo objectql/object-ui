@@ -15,7 +15,15 @@
  *     verbatim; nested objects render as their key count.
  *   • Pool, SSL, retry, health-check pills derived from optional
  *     sibling blocks.
- *   • Read-replica count and capabilities chip strip.
+ *   • Capabilities chip strip.
+ *
+ * A read-replica count pill used to sit in that strip. It is gone with
+ * `datasource.readReplicas` itself (objectstack#4468): nothing in the
+ * platform ever opened a replica connection, so the pill reported a
+ * configuration that did not exist — and, being the only surface that
+ * acknowledged the key at all, it was the strongest signal an author had
+ * that it worked. A preview echoes what was typed; it can never stand in
+ * for a runtime consumer (`packages/spec/liveness/README.md`).
  *
  * The preview never attempts a live "test connection" — it runs
  * inside the editor sandbox and must remain side-effect free.
@@ -24,7 +32,6 @@
 import * as React from 'react';
 import {
   Activity,
-  Copy,
   Database,
   HardDrive,
   Lock,
@@ -70,7 +77,6 @@ export function DatasourcePreview({ name, draft }: MetadataPreviewProps) {
   const ssl = d.ssl as Record<string, unknown> | boolean | undefined;
   const retryPolicy = d.retryPolicy as Record<string, unknown> | undefined;
   const healthCheck = d.healthCheck as Record<string, unknown> | undefined;
-  const readReplicas = Array.isArray(d.readReplicas) ? d.readReplicas : [];
   const capabilities = Array.isArray(d.capabilities) ? (d.capabilities as string[]) : [];
 
   // External Datasource Federation (ADR-0015): a non-'managed' schemaMode
@@ -113,9 +119,6 @@ export function DatasourcePreview({ name, draft }: MetadataPreviewProps) {
                   </span>
                   <Pill icon={Power} label={active ? 'Active' : 'Disabled'} tone={active ? 'green' : 'gray'} />
                   {isDefault && <Pill icon={Star} label="default" tone="amber" />}
-                  {readReplicas.length > 0 && (
-                    <Pill icon={Copy} label={`${readReplicas.length} read replica${readReplicas.length === 1 ? '' : 's'}`} />
-                  )}
                 </div>
               </div>
             </div>
