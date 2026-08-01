@@ -29,7 +29,20 @@ export interface DatasetResultField {
   label?: string;
   format?: string;
   currency?: string;
+  percentScale?: PercentScale;
 }
+
+/**
+ * How a percentage column's stored number relates to its displayed percentage —
+ * the server's answer to a question a `%` format string cannot express:
+ * `fraction` is a 0–1 ratio (`1` ⇒ "100%"), `whole` is already percentage
+ * points (`1` ⇒ "1%"). Resolved from metadata server-side (a `ratio` measure is
+ * a fraction by definition; a measure over a `percent` field inherits that
+ * field's scale) and carried on the result column, so display never has to
+ * infer it from the value's magnitude — the inference that printed a ratio of
+ * exactly 1 as "1.0%" (#3136).
+ */
+export type PercentScale = 'fraction' | 'whole';
 
 /**
  * Scale a stored `percent`-field value to its DISPLAY magnitude.
@@ -55,7 +68,7 @@ export function percentDisplayValue(value: number): number {
  * controls grouping / decimals / percent; it can't be baked into the row value
  * server-side (the same number feeds charts), so it is applied here.
  */
-export function formatMeasure(v: unknown, format?: string, currency?: string): string {
+export function formatMeasure(v: unknown, format?: string, currency?: string, percentScale?: PercentScale): string {
   if (v == null) return '—';
   if (typeof v !== 'number') return String(v);
 
@@ -86,7 +99,15 @@ export function formatMeasure(v: unknown, format?: string, currency?: string): s
   // (0.75 ⇒ 75%). Scale to display magnitude the SAME way the list-view cell
   // renderer does — otherwise an avg of 0.608 renders as "0.6%" instead of
   // "60.8%", disagreeing with the per-row "75%" the list already shows.
-  const display = isPercent ? percentDisplayValue(v) : v;
+  //
+  // A DECLARED `percentScale` from the server wins outright: the value-magnitude
+  // heuristic below cannot tell a 0–1 ratio of exactly 1 from 1 percentage point
+  // (both are the number 1) and resolves it as "1%", so an SLA rate of full
+  // compliance rendered as "1.0%" instead of "100.0%" (#3136). The heuristic
+  // stays as the fallback for columns that arrive without the annotation.
+  const display = isPercent
+    ? (percentScale ? (percentScale === 'fraction' ? v * 100 : v) : percentDisplayValue(v))
+    : v;
   const body = display.toLocaleString(undefined, { minimumFractionDigits: decimals ?? 0, maximumFractionDigits: decimals ?? 0 });
   return `${legacyDollar}${body}${isPercent ? '%' : ''}`;
 }

@@ -42,11 +42,31 @@ describe('formatMeasure', () => {
     // metric card shows "0.6%" for an avg of 0.608 instead of "60.8%" (the bug).
     expect(formatMeasure(0.75, '0%')).toBe('75%');
     expect(formatMeasure(0.608_333_333, '0.0%')).toBe('60.8%');
-    // Boundary: exactly 0 and exactly 1 (100% stored as 1.0) — 1.0 passes
-    // through, mirroring the list renderer's strict `< 1` heuristic so the two
-    // surfaces stay in lockstep (a known shared limitation, not a new one).
+    // Boundary: exactly 0 and exactly 1 (100% stored as 1.0) — with no declared
+    // scale, 1.0 passes through, mirroring the list renderer's strict `< 1`
+    // heuristic so the two unannotated surfaces stay in lockstep. This is the
+    // ambiguity `percentScale` exists to remove (see below).
     expect(formatMeasure(0, '0%')).toBe('0%');
     expect(formatMeasure(1, '0%')).toBe('1%');
+  });
+
+  it('honors a DECLARED percent scale over the value-magnitude heuristic (#3136)', () => {
+    // The bug: a ratio of exactly 1 (full compliance) is indistinguishable from
+    // 1 percentage point by magnitude alone, and the heuristic resolves it the
+    // wrong way — "everything met the SLA" reads as "1% met the SLA". The
+    // server now says which scale the column is on, and that wins.
+    expect(formatMeasure(1, '0.0%', undefined, 'fraction')).toBe('100.0%');
+    expect(formatMeasure(0.6667, '0.0%', undefined, 'fraction')).toBe('66.7%');
+    expect(formatMeasure(0, '0.0%', undefined, 'fraction')).toBe('0.0%');
+    // Whole-percent storage is the other half of the same ambiguity: a declared
+    // `whole` column renders 1 as "1%" and is NOT scaled up, even though the
+    // heuristic would have multiplied a sub-1 value by 100.
+    expect(formatMeasure(1, '0.0%', undefined, 'whole')).toBe('1.0%');
+    expect(formatMeasure(0.5, '0.0%', undefined, 'whole')).toBe('0.5%');
+    expect(formatMeasure(80, '0.0%', undefined, 'whole')).toBe('80.0%');
+    // Non-percent formats ignore the annotation entirely — it describes the
+    // percentage scale, not a general multiplier.
+    expect(formatMeasure(1, '0.0', undefined, 'fraction')).toBe('1.0');
   });
 
   it('falls back to plain formatting for an unknown currency code', () => {

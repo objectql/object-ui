@@ -465,7 +465,7 @@ function DatasetReportTable({
               {columns.map((c) => (
                 <td key={c} className="px-2 py-1 tabular-nums whitespace-nowrap">
                   {values.includes(c)
-                    ? formatMeasure(row[c], measureField(c)?.format, measureField(c)?.currency)
+                    ? formatMeasure(row[c], measureField(c)?.format, measureField(c)?.currency, measureField(c)?.percentScale)
                     : formatDimensionValue(row[c])}
                 </td>
               ))}
@@ -480,7 +480,7 @@ function DatasetReportTable({
               )}
               {values.map((measure) => (
                 <td key={measure} className="px-2 py-1 tabular-nums whitespace-nowrap">
-                  {formatMeasure(grandTotal[measure], measureField(measure)?.format, measureField(measure)?.currency)}
+                  {formatMeasure(grandTotal[measure], measureField(measure)?.format, measureField(measure)?.currency, measureField(measure)?.percentScale)}
                 </td>
               ))}
             </tr>
@@ -699,7 +699,7 @@ function DatasetReportChart({
         {title ? <h3 className="mb-2 text-sm font-semibold">{title}</h3> : null}
         <div className="flex flex-col gap-0.5 py-2">
           <span className="text-2xl font-semibold tabular-nums">
-            {formatMeasure(state.rows[0]?.[yAxis], mf?.format, mf?.currency)}
+            {formatMeasure(state.rows[0]?.[yAxis], mf?.format, mf?.currency, mf?.percentScale)}
           </span>
           <span className="text-xs text-muted-foreground">{headerLabel(yAxis)}</span>
         </div>
@@ -907,7 +907,7 @@ function DatasetMatrixTable({
                     data-testid={clickable ? 'dataset-drill-cell' : undefined}
                     onClick={clickable ? () => drillCell(rh.key, cc.col.key, entry!.index) : undefined}
                   >
-                    {formatMeasure(value, measureField(cc.measure)?.format, measureField(cc.measure)?.currency)}
+                    {formatMeasure(value, measureField(cc.measure)?.format, measureField(cc.measure)?.currency, measureField(cc.measure)?.percentScale)}
                   </td>
                 );
               })}
@@ -918,7 +918,7 @@ function DatasetMatrixTable({
                     className="px-2 py-1 text-right tabular-nums whitespace-nowrap font-medium"
                     data-testid="matrix-row-total"
                   >
-                    {formatMeasure(rowTotalById.get(rh.id)?.[measure], measureField(measure)?.format, measureField(measure)?.currency)}
+                    {formatMeasure(rowTotalById.get(rh.id)?.[measure], measureField(measure)?.format, measureField(measure)?.currency, measureField(measure)?.percentScale)}
                   </td>
                 ))}
             </tr>
@@ -932,7 +932,7 @@ function DatasetMatrixTable({
               )}
               {cellCols.map((cc) => (
                 <td key={`${cc.col.id}-${cc.measure}`} className="px-2 py-1 text-right tabular-nums whitespace-nowrap">
-                  {formatMeasure(colTotalById.get(cc.col.id)?.[cc.measure], measureField(cc.measure)?.format, measureField(cc.measure)?.currency)}
+                  {formatMeasure(colTotalById.get(cc.col.id)?.[cc.measure], measureField(cc.measure)?.format, measureField(cc.measure)?.currency, measureField(cc.measure)?.percentScale)}
                 </td>
               ))}
               {showTotalCol &&
@@ -942,7 +942,7 @@ function DatasetMatrixTable({
                     className="px-2 py-1 text-right tabular-nums whitespace-nowrap"
                     data-testid="matrix-grand-total"
                   >
-                    {formatMeasure(grandTotal?.[measure], measureField(measure)?.format, measureField(measure)?.currency)}
+                    {formatMeasure(grandTotal?.[measure], measureField(measure)?.format, measureField(measure)?.currency, measureField(measure)?.percentScale)}
                   </td>
                 ))}
             </tr>

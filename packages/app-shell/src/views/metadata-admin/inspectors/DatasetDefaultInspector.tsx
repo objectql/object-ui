@@ -176,7 +176,9 @@ function MeasureFormatField({ measure, onPatch, disabled }: { measure: Measure; 
   const { kind, decimals } = parseMeasureFormat(measure.format, measure.currency);
   const currency = measure.currency || 'USD';
   const apply = (k: string, d: number, c: string) => onPatch(buildMeasureFormat(k, d, c));
-  const sample = formatMeasure(kind === 'percent' ? 0.1234 : 1234.5, measure.format, measure.currency);
+  // The percent sample is a hand-picked 0–1 FRACTION, so it says so rather than
+  // leaving the formatter to infer a scale from the sample's magnitude.
+  const sample = formatMeasure(kind === 'percent' ? 0.1234 : 1234.5, measure.format, measure.currency, kind === 'percent' ? 'fraction' : undefined);
   return (
     <div className="space-y-1.5">
       <div className="grid grid-cols-2 gap-1.5">

@@ -225,7 +225,7 @@ export function DatasetPreview({ draft }: MetadataPreviewProps) {
                     {columns.map((c) => (
                       <td key={c} className="px-2 py-1 tabular-nums whitespace-nowrap">
                         {measureNames.includes(c)
-                          ? formatMeasure(row[c], measureField(c)?.format, measureField(c)?.currency)
+                          ? formatMeasure(row[c], measureField(c)?.format, measureField(c)?.currency, measureField(c)?.percentScale)
                           : formatDimensionValue(row[c])}
                       </td>
                     ))}

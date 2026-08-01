@@ -400,7 +400,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     const value = state.rows[0]?.[values[0]] ?? 0;
     return (
       <div className="flex h-full w-full flex-col items-start justify-center gap-1 p-2">
-        <span className="text-2xl font-semibold tabular-nums">{formatMeasure(value, f?.format, f?.currency)}</span>
+        <span className="text-2xl font-semibold tabular-nums">{formatMeasure(value, f?.format, f?.currency, f?.percentScale)}</span>
         <span className="text-xs text-muted-foreground">{headerLabel(values[0])}</span>
       </div>
     );
@@ -447,7 +447,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
       const cellCols = pivot.colHeaders.flatMap((col) =>
         values.map((m) => ({ col, measure: m, header: values.length === 1 ? col.label : `${col.label} · ${headerLabel(m)}` })),
       );
-      const fmtMeasure = (v: unknown, m: string) => formatMeasure(v, measureField(m)?.format, measureField(m)?.currency);
+      const fmtMeasure = (v: unknown, m: string) => formatMeasure(v, measureField(m)?.format, measureField(m)?.currency, measureField(m)?.percentScale);
       // Server-supplied marginal totals (ADR-0021): match each grouping by its
       // dimension array, then its rows to the pivot headers via the same bucket
       // ids. Absent (older server) → maps stay empty and no totals UI renders.
@@ -554,7 +554,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
               >
                 {columns.map((c) => (
                   <td key={c} className="px-2 py-1 whitespace-nowrap tabular-nums">
-                    {values.includes(c) ? formatMeasure(row[c], measureField(c)?.format, measureField(c)?.currency) : formatDimensionValue(row[c])}
+                    {values.includes(c) ? formatMeasure(row[c], measureField(c)?.format, measureField(c)?.currency, measureField(c)?.percentScale) : formatDimensionValue(row[c])}
                   </td>
                 ))}
               </tr>

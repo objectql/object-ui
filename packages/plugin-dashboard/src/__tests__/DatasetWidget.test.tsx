@@ -42,6 +42,32 @@ describe('DatasetWidget', () => {
     expect(screen.queryByText('0.6%')).not.toBeInTheDocument();
   });
 
+  it('renders a declared-fraction ratio of exactly 1 as "100.0%" on BOTH the metric card and the table (#3136)', async () => {
+    // A ratio of exactly 1 is the one value the magnitude heuristic cannot
+    // resolve — 1 is both "100%" (a full-compliance ratio) and "1%" (a single
+    // percentage point) — and it resolved it as "1.0%": "everything met the
+    // SLA" reported to management as "1% met the SLA". The server now declares
+    // the column's scale, and both dataset-bound surfaces honour it.
+    const fields = [
+      { name: 'status', type: 'string', label: 'Status' },
+      { name: 'sla_rate', type: 'number', label: 'SLA rate', format: '0.0%', percentScale: 'fraction' as const },
+    ];
+    const metricSrc = { queryDataset: vi.fn(async () => ({ rows: [{ sla_rate: 1 }], fields })) };
+    render(<DatasetWidget widget={{ type: 'metric', dataset: 'sla_ds', values: ['sla_rate'] }} dataSource={metricSrc} />);
+    expect(await screen.findByText('100.0%')).toBeInTheDocument();
+    expect(screen.queryByText('1.0%')).not.toBeInTheDocument();
+
+    // Same column in the grouped table: the "met" bucket is 100%, and a
+    // measured ZERO stays "0.0%" — a real 0% is not missing data.
+    const tableSrc = { queryDataset: vi.fn(async () => ({
+      rows: [{ status: 'met', sla_rate: 1 }, { status: 'breached', sla_rate: 0 }],
+      fields,
+    })) };
+    render(<DatasetWidget widget={{ type: 'table', dataset: 'sla_ds', dimensions: ['status'], values: ['sla_rate'] }} dataSource={tableSrc} />);
+    await waitFor(() => expect(screen.getAllByText('100.0%').length).toBe(2));
+    expect(screen.getByText('0.0%')).toBeInTheDocument();
+  });
+
   it('runs the dataset query for a dimensioned (chart) widget — rows→dimensions, values→measures', async () => {
     const src = makeSource(async () => ({ rows: [{ stage: 'won', revenue: 100 }, { stage: 'lost', revenue: 20 }] }));
     render(<DatasetWidget widget={{ type: 'bar', dataset: 'sales', dimensions: ['stage'], values: ['revenue'] }} dataSource={src} />);
