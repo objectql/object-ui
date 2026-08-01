@@ -401,12 +401,14 @@ function getPayloadConfigFromPayload(
 
   let configLabelKey: string = key
 
+  // The DATA ROW wins over the legend/tooltip item's own same-named prop.
+  // Recharts item entries carry `type` (the legend ICON shape, e.g. "rect"),
+  // `color`, `dataKey` and `value` of their own, so a pie whose category
+  // dimension is literally named `type` (`nameKey="type"`) used to resolve to
+  // "rect", miss the config, and render legend swatches with NO text at all —
+  // a pie of unlabelled colour dots (#3135). Reading the row first keys off the
+  // actual category ("设备"), which is what `nameKey` was pointing at.
   if (
-    key in payload &&
-    typeof payload[key as keyof typeof payload] === "string"
-  ) {
-    configLabelKey = payload[key as keyof typeof payload] as string
-  } else if (
     payloadPayload &&
     key in payloadPayload &&
     typeof payloadPayload[key as keyof typeof payloadPayload] === "string"
@@ -414,6 +416,11 @@ function getPayloadConfigFromPayload(
     configLabelKey = payloadPayload[
       key as keyof typeof payloadPayload
     ] as string
+  } else if (
+    key in payload &&
+    typeof payload[key as keyof typeof payload] === "string"
+  ) {
+    configLabelKey = payload[key as keyof typeof payload] as string
   }
 
   return configLabelKey in config

@@ -592,6 +592,18 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   });
   const effectiveCategoryOrder = explicitOrder?.length ? explicitOrder : categoryOrder;
 
+  // `chartConfig.showLegend` (#3135). The widget's chart config never reached
+  // the renderer — this component read `options` and nothing else — so an author
+  // who wrote `showLegend: false` still got a legend, and one who wrote `true`
+  // only got one because "on" happens to be the renderer's default. Lower the
+  // one flag the renderer already honors; the rest of `chartConfig` stays
+  // unforwarded (the renderer derives axes/series from the dataset selection).
+  const chartConfig: Record<string, unknown> =
+    widget?.chartConfig && typeof widget.chartConfig === 'object' && !Array.isArray(widget.chartConfig)
+      ? (widget.chartConfig as Record<string, unknown>)
+      : {};
+  const showLegend = typeof chartConfig.showLegend === 'boolean' ? chartConfig.showLegend : undefined;
+
   // Map a clicked chart segment back to its dataset row, then drill through to
   // the underlying records — same governed path the table/pivot rows use.
   const handleChartDrill = (ev: { category?: string; series?: string; value?: number }) => {
@@ -617,7 +629,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
         // measurement churn, can freeze there — bars never draw until an unrelated
         // re-render (#2756, follow-up to #2727's ineffective settle re-mount).
         // Turning the tween off makes the first paint deterministic.
-        schema={{ type: 'chart', chartType, data: chartData, xAxisKey, series, isAnimationActive: false, ...(categoryColors ? { categoryColors } : {}), ...(effectiveCategoryOrder ? { categoryOrder: effectiveCategoryOrder } : {}) } as any}
+        schema={{ type: 'chart', chartType, data: chartData, xAxisKey, series, isAnimationActive: false, ...(showLegend != null ? { showLegend } : {}), ...(categoryColors ? { categoryColors } : {}), ...(effectiveCategoryOrder ? { categoryOrder: effectiveCategoryOrder } : {}) } as any}
         onChartClick={chartDrill}
         onSegmentClick={chartDrill}
       />

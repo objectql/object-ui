@@ -689,11 +689,13 @@ function AdvancedChartImplInner({
                 return <Cell key={`cell-${index}`} fill={resolveColor(c)} />;
              })}
           </Pie>
-          <ChartLegend
-            verticalAlign="bottom"
-            wrapperStyle={{ fontSize: isMobile ? '11px' : '12px', paddingTop: '8px' }}
-            content={<ChartLegendContent nameKey={xAxisKey} className="flex-wrap" />}
-          />
+          {legendVisible ? (
+            <ChartLegend
+              verticalAlign="bottom"
+              wrapperStyle={{ fontSize: isMobile ? '11px' : '12px', paddingTop: '8px' }}
+              content={<ChartLegendContent nameKey={xAxisKey} className="flex-wrap" />}
+            />
+          ) : null}
         </PieChart>
       </ChartContainer>
     );
