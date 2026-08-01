@@ -44,7 +44,7 @@ import { Loader2 } from 'lucide-react';
 import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime';
 import { useAdapter } from '../providers/AdapterProvider';
 import { useMetadataItem } from '../providers/MetadataProvider';
-import { decisionOutputDefs, decisionOutputParams } from '../utils/decisionOutputParams';
+import { buildDeclaredActionDispatch } from '../utils/declaredActionDispatch';
 import { getIcon } from '../utils/getIcon';
 
 export interface DeclaredActionsBarProps {
@@ -105,11 +105,12 @@ const DeclaredActionButton: React.FC<{
   // labels localize downstream in useConsoleActionRuntime.
   const { actionLabel, actionConfirm, actionSuccess } = useObjectLabel();
   // Chrome strings the bar itself authors — as opposed to the declared metadata
-  // above — go through the normal locale bundle. The decision-output params are
-  // synthesized here from `decision_output_defs`, so their key path is dynamic
-  // and no `_actions.<action>.params.*` entry can ever exist for them; the
-  // literal IS what renders, which is how English help text survived in a zh-CN
-  // workspace (objectui#2762 P0-3).
+  // above — go through the normal locale bundle, and `t` is threaded into the
+  // dispatch builder for the same reason: the decision-output params are
+  // SYNTHESIZED from `decision_output_defs`, so their key path is dynamic and no
+  // `_actions.<action>.params.*` entry can ever exist for them; the literal IS
+  // what renders, which is how English help text survived in a zh-CN workspace
+  // (objectui#2762 P0-3).
   const { t } = useObjectTranslation();
 
   const recordData = record != null && typeof record === 'object' ? (record as Record<string, any>) : {};
@@ -131,57 +132,15 @@ const DeclaredActionButton: React.FC<{
     if (loading) return;
     setLoading(true);
     try {
-      // Same dispatch shape as ObjectGrid.onActionDef / RelatedRecordActionsBridge:
-      // forward the full def (type/target/recordIdParam/bodyShape/refreshAfter/…),
-      // surface a `params` ARRAY as `actionParams` (the runner's param-dialog
-      // input), and reserve `params` for the `_rowRecord` stash the api handler
-      // reads for `{id}` interpolation + record-id injection.
-      const { params: rawParams, ...rest } = action as ActionDef & { params?: unknown };
-      // #3447: an approval decision may carry author-declared structured
-      // outputs. The key set is PER-REQUEST (each approval node declares its
-      // own `decisionOutputs`, surfaced on the row as `decision_output_defs`),
-      // so it cannot be a static action param — synthesize one param per key
-      // for the decide actions. Params are named `outputs.<key>`; the api
-      // handler folds them into the nested `outputs` body the decide route
-      // expects. A free-text output accepts comma-separated values (the
-      // service accepts CSV for multi-id outputs).
-      // Which decision this action records — `required` outputs are enforced
-      // on approve only (server and dialog agree), so the reject dialog offers
-      // the same fields without blocking on them.
-      const decision = /\/approve$/.test(String((action as any).target ?? ''))
-        ? 'approve' as const
-        : /\/reject$/.test(String((action as any).target ?? ''))
-          ? 'reject' as const
-          : undefined;
-      // Widget mapping (typed picker vs free text) lives in the shared helper,
-      // so the record header's Approve/Reject renders the same controls
-      // (objectui#2955).
-      const outputParams = decision
-        ? decisionOutputParams(decisionOutputDefs(recordData), t, { decision })
-        : [];
-      const dispatch: any = {
-        ...rest,
-        // Localized copies ride the dispatch: the runner reads `label` for the
-        // param-dialog title, `confirmText` for the confirm prompt and
-        // `successMessage` for the toast. A nameless action has no translation
-        // key, so it keeps its literal strings.
-        ...(action.name && {
-          label: actionLabel(objectName, action.name, action.label || action.name),
-          ...(rest.confirmText !== undefined && {
-            confirmText: actionConfirm(objectName, action.name, (rest as any).confirmText),
-          }),
-          ...(rest.successMessage !== undefined && {
-            successMessage: actionSuccess(objectName, action.name, (rest as any).successMessage),
-          }),
-        }),
+      // Same dispatch shape as ObjectGrid.onActionDef / RelatedRecordActionsBridge
+      // and as the record page's mirrored approval header — one implementation,
+      // in `buildDeclaredActionDispatch` (objectui#3055).
+      const dispatch = buildDeclaredActionDispatch(action, {
         objectName,
-        params: { _rowRecord: record },
-      };
-      const staticParams = Array.isArray(rawParams) ? rawParams : [];
-      if (staticParams.length > 0 || outputParams.length > 0) {
-        dispatch.actionParams = [...staticParams, ...outputParams];
-      }
-      await execute(dispatch as ActionDef);
+        record,
+        i18n: { actionLabel, actionConfirm, actionSuccess, t },
+      });
+      await execute(dispatch);
     } finally {
       setLoading(false);
     }

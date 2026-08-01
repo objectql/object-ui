@@ -552,6 +552,40 @@ via the action runner, regardless of the object's `editMode`:
 See [`content/docs/guide/record-edit-modes.md`](../../content/docs/guide/record-edit-modes.md)
 for a longer walkthrough.
 
+## Approvals on a record page
+
+When a record has a live approval, `<RecordDetailView>` mirrors
+`sys_approval_request`'s **server-declared actions** onto its header. It writes
+no approval buttons of its own — the approvals plugin declares approve / reject /
+reassign / send back / request info / remind / recall / resubmit as object
+metadata, and the record page renders that same declaration the Approval Center
+renders (objectui#3055).
+
+Two rules make the mirror work; both live in `utils/approvalRecordActions.ts`:
+
+- **Location.** An action declared at `list_item` (the compact surface) becomes
+  an inline header button; one declared only at `record_section` goes into the
+  header's `⋯` overflow. In practice: Approve / Reject stay visible CTAs, the
+  other levers are one click away instead of unreachable.
+- **Predicates.** Each action's `visible` / `hidden` / `disabled` CEL is
+  evaluated **against the approval request**, whose server-computed `viewer`
+  block (`can_act` / `is_submitter` / `can_override`) is the authority on who may
+  act, and then stripped from the emitted action — the header evaluates
+  predicates against the *host* record, which carries no `viewer`. Evaluation
+  fails closed, so a backend too old to send `viewer` shows no decision rather
+  than one the server would reject.
+
+Because the gate is the server's own resolution, a **group approver** (position /
+team / department) sees the decision buttons. The retired implementation tested
+`pending_approvers.includes(currentUserId)` on the client, which can never match
+a group-routed slot — those approvers had no decision affordance at all on the
+business record.
+
+`useRecordApprovals` no longer decides. It reports state only: `pendingRequest`
+(the status band and the `lock_record` edit lock) and `liveRequest` — the
+`pending` **or** `returned` request the mirrored actions run against, so the
+ADR-0044 rework round can be resubmitted from the record the submitter is fixing.
+
 ## User-scoped state (favorites, recent items)
 
 `<ConsoleShell>` includes `FavoritesProvider` and `RecentItemsProvider` —

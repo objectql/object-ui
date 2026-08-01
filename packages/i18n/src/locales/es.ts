@@ -2751,14 +2751,6 @@ const es = {
       yearsAgo: "hace {{count}} años",
     },
   },
-  approvals: {
-    approve: 'Aprobar',
-    reject: 'Rechazar',
-    comment: 'Comentario (opcional)',
-    approveSuccess: 'Aprobado',
-    rejectSuccess: 'Rechazado',
-    rejectConfirm: '¿Rechazar esta solicitud de aprobación?',
-  },
   approvalsInbox: {
     loadMore: 'Cargar más',
     loadingMore: 'Cargando…',

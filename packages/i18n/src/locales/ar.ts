@@ -2751,14 +2751,6 @@ const ar = {
       yearsAgo: "منذ {{count}} سنة(سنوات)",
     },
   },
-  approvals: {
-    approve: 'الموافقة',
-    reject: 'رفض',
-    comment: 'تعليق (اختياري)',
-    approveSuccess: 'تمت الموافقة',
-    rejectSuccess: 'تم الرفض',
-    rejectConfirm: 'هل تريد رفض طلب الموافقة هذا؟',
-  },
   approvalsInbox: {
     loadMore: 'تحميل المزيد',
     loadingMore: 'جارٍ التحميل…',

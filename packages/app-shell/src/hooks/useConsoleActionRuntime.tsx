@@ -45,6 +45,7 @@ import { ActionParamDialog, type ParamDialogState } from '../views/ActionParamDi
 import { ActionResultDialog, type ResultDialogState } from '../views/ActionResultDialog';
 import { FlowRunner, type ScreenFlowState, type ScreenSpec } from '../views/FlowRunner';
 import { resolveActionParams } from '../utils/resolveActionParams';
+import { foldDecisionOutputs } from '../utils/decisionOutputParams';
 import { EnvironmentEntitlementDialog, type EntitlementDialogState } from '../environment/EnvironmentEntitlementDialog';
 import { entitlementDialogFromError, type EntitlementDialogSpec } from '../environment/entitlements';
 import { resolvePageVarTokens } from '../utils/resolvePageVarTokens';
@@ -295,22 +296,18 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
         const wrap = action.bodyShape && typeof action.bodyShape === 'object' && action.bodyShape.wrap
           ? action.bodyShape.wrap
           : undefined;
-        const body: Record<string, any> = wrap ? { [wrap]: resolvedParams } : { ...resolvedParams };
+        let body: Record<string, any> = wrap ? { [wrap]: resolvedParams } : { ...resolvedParams };
 
-        // #3447: decision outputs. DeclaredActionsBar synthesizes one param per
-        // author-declared output key, named `outputs.<key>` (the key set is
-        // per-request, so it can't be a static action param). Fold the dotted
-        // params into the nested `outputs` object the approvals decide route
-        // expects. Scoped to the `outputs.` prefix — a generic dotted-key fold
-        // could reinterpret existing actions' literal param names.
-        for (const k of Object.keys(body)) {
-          if (k.startsWith('outputs.') && k.length > 'outputs.'.length) {
-            const value = body[k];
-            delete body[k];
-            if (value === undefined || value === '') continue; // blank optional output → omit
-            (body.outputs ??= {})[k.slice('outputs.'.length)] = value;
-          }
-        }
+        // #3447: decision outputs. A declared decision action carries one
+        // synthesized param per author-declared output key, named
+        // `outputs.<key>` (the key set is per-request, so it can't be a static
+        // action param). Fold the dotted params into the nested `outputs`
+        // object the approvals decide route expects. Scoped to the `outputs.`
+        // prefix — a generic dotted-key fold could reinterpret existing
+        // actions' literal param names. `foldDecisionOutputs` is the one
+        // implementation, shared with the record page (objectui#3055).
+        const folded = foldDecisionOutputs(body);
+        body = folded.outputs ? { ...folded.rest, outputs: folded.outputs } : folded.rest;
 
         if (rowRecord && action.recordIdParam) {
           const rowField = action.recordIdField || 'id';

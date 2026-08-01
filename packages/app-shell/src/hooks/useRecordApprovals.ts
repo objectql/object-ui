@@ -1,16 +1,27 @@
 /**
  * useRecordApprovals
  *
- * Resolves the approval state for a single record so the detail-view header
- * can surface a status badge and — when the current user is a pending
- * approver — "Approve" / "Reject" actions.
+ * Resolves the approval state for a single record so the detail view can show
+ * its status band, honour the record lock, and mirror the request's declared
+ * decision actions onto the record header.
  *
  * Since ADR-0019 an approval is a **flow node** (`type: 'approval'`), not a
  * standalone process: the flow opens the request when it reaches the node,
- * and a decision resumes the run down its `approve` / `reject` edge. There is
- * therefore no manual "submit" or "recall" from the record header — those
- * endpoints were removed. This hook reads the record's requests and lets a
- * pending approver record a decision.
+ * and a decision resumes the run down its `approve` / `reject` edge.
+ *
+ * **This hook does not decide.** It used to expose `approve` / `reject` plus a
+ * client-side `canDecide` (`pending_approvers.includes(currentUserId)`) that the
+ * record header wired to two hand-written buttons. That was a second, poorer
+ * implementation of what `sys_approval_request` already declares as object
+ * metadata — five of its nine actions had no entry point, decisions carried no
+ * attachments, the copy drifted from the Approval Center's, and a group
+ * approver (position / team / department) saw no decision buttons at all,
+ * because a client-side membership test can never match the slots the server
+ * resolved. The header now renders those declared actions against
+ * {@link UseRecordApprovalsResult.liveRequest}, gated by the same
+ * server-computed `viewer` block the Approval Center uses (objectui#3055). What
+ * remains here is *state*: the badge, the lock, and the request those actions
+ * run against.
  *
  * Talks directly to the framework REST endpoints under
  * `/api/v1/approvals/*`. Fails open: if the approvals plugin is not installed
@@ -58,6 +69,25 @@ export interface ApprovalRequestLite {
    */
   decision_outputs?: string[] | null;
   decision_output_defs?: DecisionOutputDef[] | null;
+  /**
+   * Server-computed capability for the CURRENT viewer (framework#3310 /
+   * framework#3424), attached by the approvals service to every request it
+   * returns. This is the authority on who may act — the same resolution the
+   * service authorizes a decision with, so a position / team / department
+   * approver resolves correctly where a client-side `pending_approvers`
+   * membership test cannot (objectui#3055).
+   *
+   * The request's declared actions gate their `visible` CEL on it. Absent on a
+   * backend that predates the block, where those predicates then fail closed.
+   */
+  viewer?: {
+    /** The caller holds a pending approver slot on this request. */
+    can_act: boolean;
+    /** The caller submitted this request. */
+    is_submitter: boolean;
+    /** The caller is an admin who may override a stuck pending request. */
+    can_override?: boolean;
+  } | null;
 }
 
 /**
@@ -81,23 +111,22 @@ export function recordLockedByApproval(request: ApprovalRequestLite | null | und
 interface UseRecordApprovalsResult {
   loading: boolean;
   available: boolean;
+  /** The request that locks this record and drives the "in approval" band. */
   pendingRequest: ApprovalRequestLite | null;
+  /**
+   * The request the record header's declared actions run against: the open
+   * one, whether it is `pending` (an approver decides, the submitter recalls or
+   * nudges) or `returned` (ADR-0044 — the submitter reworks the record right
+   * here and resubmits, which is precisely why the record page must offer it
+   * and not only the Approval Center).
+   */
+  liveRequest: ApprovalRequestLite | null;
   latestRequest: ApprovalRequestLite | null;
-  /** The current user is among the pending approvers and may record a decision. */
-  canDecide: boolean;
-  approve: (input?: DecisionInput) => Promise<ApprovalRequestLite | undefined>;
-  reject: (input?: DecisionInput) => Promise<ApprovalRequestLite | undefined>;
   refresh: () => Promise<void>;
 }
 
-/**
- * What an approver submits with a decision: the free-text comment, plus the
- * node's declared decision outputs keyed by their declared `key` (objectui#2955).
- */
-export interface DecisionInput {
-  comment?: string;
-  outputs?: Record<string, any>;
-}
+/** Statuses on which a request still has actions to offer someone. */
+const LIVE_STATUSES = new Set(['pending', 'returned']);
 
 function apiBase() {
   const url = (import.meta as any).env?.VITE_SERVER_URL || '';
@@ -130,7 +159,6 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
 export function useRecordApprovals(
   objectName: string | undefined,
   recordId: string | undefined,
-  currentUserId?: string | null,
 ): UseRecordApprovalsResult {
   const [loading, setLoading] = useState(false);
   const [available, setAvailable] = useState(true);
@@ -171,6 +199,13 @@ export function useRecordApprovals(
     [requests],
   );
 
+  // Prefer the pending one when both exist (a record can carry a finished
+  // earlier round plus a live one); `returned` is the ADR-0044 rework window.
+  const liveRequest = useMemo(
+    () => pendingRequest ?? requests.find((r) => LIVE_STATUSES.has(r.status)) ?? null,
+    [pendingRequest, requests],
+  );
+
   const latestRequest = useMemo(() => {
     if (requests.length === 0) return null;
     const sorted = [...requests].sort((a, b) => {
@@ -181,45 +216,12 @@ export function useRecordApprovals(
     return sorted[0] ?? null;
   }, [requests]);
 
-  const canDecide = !!pendingRequest && !!currentUserId
-    && (pendingRequest.pending_approvers ?? []).includes(currentUserId);
-
-  const decide = useCallback(
-    async (decision: 'approve' | 'reject', input?: DecisionInput) => {
-      if (!pendingRequest) throw new Error('No pending request');
-      const outputs = input?.outputs && Object.keys(input.outputs).length > 0 ? input.outputs : undefined;
-      const out = await fetchJson<{ request?: ApprovalRequestLite }>(
-        `/approvals/requests/${encodeURIComponent(pendingRequest.id)}/${decision}`,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            ...(currentUserId ? { actorId: currentUserId } : {}),
-            ...(input?.comment ? { comment: input.comment } : {}),
-            // The node's declared decision outputs, under the same nested key
-            // the Approval Center's `type:'api'` decide actions post
-            // (objectui#2955). Omitted entirely when nothing was collected, so
-            // a node without `decisionOutputs` posts the body it always did.
-            ...(outputs ? { outputs } : {}),
-          }),
-        },
-      );
-      await refresh();
-      return out?.request;
-    },
-    [pendingRequest, currentUserId, refresh],
-  );
-
-  const approve = useCallback((input?: DecisionInput) => decide('approve', input), [decide]);
-  const reject = useCallback((input?: DecisionInput) => decide('reject', input), [decide]);
-
   return {
     loading,
     available,
     pendingRequest,
+    liveRequest,
     latestRequest,
-    canDecide,
-    approve,
-    reject,
     refresh,
   };
 }

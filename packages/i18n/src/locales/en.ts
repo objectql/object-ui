@@ -2860,14 +2860,6 @@ const en = {
         yearsAgo: '{{count}}y ago',
       },
     },
-  approvals: {
-    approve: 'Approve',
-    reject: 'Reject',
-    comment: 'Comment (optional)',
-    approveSuccess: 'Approved',
-    rejectSuccess: 'Rejected',
-    rejectConfirm: 'Reject this approval request?',
-  },
   approvalsInbox: {
     loadMore: 'Load more',
     loadingMore: 'Loading…',

@@ -130,6 +130,27 @@ slots: {
 },
 ```
 
+### Approval actions in the header
+
+While a record has a live approval request, the header additionally shows the
+actions `sys_approval_request` **declares** — approve, reject, reassign, send
+back, request info, remind, recall, resubmit. They are not authored on your
+object and not hand-written by the console: the record page mirrors the
+approvals plugin's own metadata, so a decision taken here is the same decision,
+with the same params and copy, as one taken in the Approval Center.
+
+They follow the ordering rules above like any other header action. The two
+primary decisions render inline — they carry strongly negative `order`, so they
+precede your business actions rather than being pushed into the menu — and the
+remaining levers are routed to the `⋯` menu. Each is gated by its own `visible`
+predicate, evaluated against the request's server-computed `viewer` capability
+block, so you are never offered a decision the server would refuse, and a group
+approver (position / team / department) sees exactly what an individually-named
+approver does.
+
+Nothing to configure: an object with no approval in flight renders no approval
+actions at all.
+
 ## Composing default + custom
 
 When you want "the default actions plus one custom button," you have
