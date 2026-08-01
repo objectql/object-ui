@@ -298,7 +298,9 @@ export interface BulkActionParam {
  * calls per batch. `custom` defers entirely to `onComplete` event handlers and
  * is intended for callouts (notify/export/...) that don't mutate records —
  * UNLESS the def carries {@link BulkActionDef.actionDef}, in which case the
- * executor dispatches that action through the action runner once per record.
+ * executor dispatches that action through the action runner: once per record by
+ * default, or once for the whole selection when the def opts into
+ * {@link BulkActionDef.execution} `'aggregate'` (objectui#3139).
  */
 export type BulkActionOperation = 'update' | 'delete' | 'custom';
 
@@ -357,15 +359,37 @@ export interface BulkActionDef {
   /** Batch size for the executor loop (default: 200). */
   batchSize?: number;
   /**
+   * How a `custom` def with {@link BulkActionDef.actionDef} dispatches over the
+   * selection (objectui#3139).
+   *
+   * - `'perRecord'` (default, and the only pre-17.1 semantics): one runner
+   *   dispatch per selected record, with the row attached as `_rowRecord`.
+   * - `'aggregate'`: ONE dispatch for the entire selection. The executor
+   *   injects `params._selectedIds: string[]` (every selected record id) and
+   *   publishes the full records as `context.selectedRecords`, so the server
+   *   can produce a single aggregate artifact (zip of QR codes, merged PDF,
+   *   batch print job…). Result semantics are all-or-nothing: the one call
+   *   covers the whole selection, so per-row retry is unavailable — a total
+   *   failure keeps the selection for a whole-run re-run.
+   *
+   * Ignored for `operation: 'update' | 'delete'` (their bulk fast-path already
+   * aggregates per batch) and for a `custom` def without `actionDef` (nothing
+   * to dispatch). In aggregate mode `batchSize` does not apply — the whole
+   * selection is one call; `maxRecords` still gates it.
+   */
+  execution?: 'perRecord' | 'aggregate';
+  /**
    * Source object `ActionDef` when this entry was PROMOTED from a
    * `bulkActions: ['<name>']` entry resolved against `objectDef.actions`
-   * (objectui#3002).
+   * (objectui#3002) — or attached by `resolveBulkActions` when an authored def
+   * with `execution: 'aggregate'` names a declared object action (#3139).
    *
    * Presence of this key changes what `operation: 'custom'` means: instead of
    * a per-row no-op, the executor dispatches THIS action through the action
    * runner once per selected record, with the row attached as `_rowRecord` so
    * `recordIdParam` injection works exactly as it does for a `list_item` row
-   * action. Params and confirmation are collected once by the BulkActionDialog
+   * action — or once for the whole selection under `execution: 'aggregate'`.
+   * Params and confirmation are collected once by the BulkActionDialog
    * and handed to the runner as values, so it never re-prompts per record.
    */
   actionDef?: Record<string, unknown>;

@@ -1162,9 +1162,15 @@ export class ActionRunner {
    * fragment.
    *
    * `ctx.origin`, `ctx.user.*`, `ctx.org.*`, `ctx.recordId` are surfaced
-   * implicitly from the runner's ActionContext + window. Consumers can
-   * extend by stuffing extra keys under `context.ctx = {...}` before
-   * calling `runner.execute()`.
+   * implicitly from the runner's ActionContext + window, and
+   * `ctx.selection.ids` / `ctx.selection.count` reflect the grid's current
+   * checkbox selection (`context.selectedRecords`) — `${ctx.selection.ids}`
+   * comma-joins the ids via the standard `String(array)` behaviour, so a
+   * list_toolbar url/api action can carry the selection without any bulk
+   * plumbing (objectui#3139). In an aggregate bulk dispatch,
+   * `${param._selectedIds}` interpolates the same ids from the injected
+   * param. Consumers can extend by stuffing extra keys under
+   * `context.ctx = {...}` before calling `runner.execute()`.
    */
   private interpolateTarget(target: string, action: ActionDef): string {
     if (typeof target !== 'string' || target.indexOf('${') === -1) return target;
@@ -1198,6 +1204,22 @@ export class ActionRunner {
       user: this.context.user ?? {},
       org: this.context.org ?? this.context.organization ?? {},
       recordId: this.context.record?.id ?? this.context.recordId,
+      // Current list selection (published by the grid as `selectedRecords`).
+      // `${ctx.selection.ids}` in a url/api target comma-joins the ids —
+      // String(array) — giving toolbar actions selection access without any
+      // bulk-executor involvement (objectui#3139). Empty when nothing is
+      // selected, so authors can treat "" as "no selection".
+      selection: {
+        ids: Array.isArray(this.context.selectedRecords)
+          ? this.context.selectedRecords
+              .map((r: Record<string, unknown> | null | undefined) => r?.id)
+              .filter((v: unknown) => v != null)
+              .map(String)
+          : [],
+        count: Array.isArray(this.context.selectedRecords)
+          ? this.context.selectedRecords.length
+          : 0,
+      },
     };
     if (this.context.ctx && typeof this.context.ctx === 'object') {
       Object.assign(ctx, this.context.ctx);

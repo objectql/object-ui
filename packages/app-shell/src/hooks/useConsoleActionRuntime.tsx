@@ -535,12 +535,18 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
     delete (params as any)._rowRecord;
     const recordIdField = (action as any).recordIdField || 'id';
     let resolvedRecordId = (params as any).recordId ?? _rowRecord?.[recordIdField];
+    // An AGGREGATE bulk dispatch (objectui#3139) carries the whole selection
+    // as `params._selectedIds` — the server reads that array, not `recordId`.
+    // The single-record fallback below must not touch it: resolving a
+    // recordId would mislabel the run as record-scoped, and the multi-select
+    // guard would block exactly the selection this dispatch exists to carry.
+    const isAggregateDispatch = Array.isArray((params as any)._selectedIds);
     // Same list_toolbar fallback as flowHandler: no `_rowRecord` means the
     // action came from the toolbar — resolve the recordId from the grid's
     // checkbox selection (published as `selectedRecords`). Multi-select is
     // ambiguous for a single-record action, so block with a message; so is
     // zero selection when the action is record-scoped (see isRecordScoped).
-    if (resolvedRecordId == null) {
+    if (resolvedRecordId == null && !isAggregateDispatch) {
       const selected = Array.isArray(context?.selectedRecords) ? context!.selectedRecords : [];
       if (selected.length === 1) {
         resolvedRecordId = selected[0]?.[recordIdField];

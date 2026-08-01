@@ -203,6 +203,52 @@ describe('ActionRunner - target interpolation', () => {
     expect(navHandler.mock.calls[0][0]).toBe('/u/u_42');
   });
 
+  it('exposes ctx.selection.ids / ctx.selection.count from selectedRecords (#3139)', async () => {
+    const navHandler = vi.fn();
+    const runner = new ActionRunner({
+      selectedRecords: [{ id: 'd1' }, { id: 'd2' }, { name: 'no-id' }],
+    });
+    runner.setNavigationHandler(navHandler);
+
+    await runner.execute({
+      type: 'url',
+      target: '/qr/zip?ids=${ctx.selection.ids}&n=${ctx.selection.count}',
+    });
+
+    // String(array) comma-joins; the comma arrives percent-encoded in query
+    // position (standard encodeURIComponent behaviour, servers decode it).
+    // Rows without an id are dropped from ids but still counted — count
+    // reflects the selection size, ids only the addressable rows.
+    expect(navHandler.mock.calls[0][0]).toBe('/qr/zip?ids=d1%2Cd2&n=3');
+  });
+
+  it('resolves ctx.selection to empty ids and zero count when nothing is selected', async () => {
+    const navHandler = vi.fn();
+    const runner = new ActionRunner({});
+    runner.setNavigationHandler(navHandler);
+
+    await runner.execute({
+      type: 'url',
+      target: '/qr/zip?ids=${ctx.selection.ids}&n=${ctx.selection.count}',
+    });
+
+    expect(navHandler.mock.calls[0][0]).toBe('/qr/zip?ids=&n=0');
+  });
+
+  it('interpolates ${param._selectedIds} injected by an aggregate bulk dispatch', async () => {
+    const navHandler = vi.fn();
+    const runner = new ActionRunner({});
+    runner.setNavigationHandler(navHandler);
+
+    await runner.execute({
+      type: 'url',
+      target: '/qr/zip?ids=${param._selectedIds}',
+      params: { _selectedIds: ['d1', 'd2'] },
+    });
+
+    expect(navHandler.mock.calls[0][0]).toBe('/qr/zip?ids=d1%2Cd2');
+  });
+
   it('substitutes ${param.X} into api endpoints (fetch URL)', async () => {
     const fetchSpy = vi
       .spyOn(globalThis as any, 'fetch')

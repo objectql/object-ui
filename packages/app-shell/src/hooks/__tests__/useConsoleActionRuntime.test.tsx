@@ -914,6 +914,37 @@ describe('serverActionHandler — list_toolbar selection fallback', () => {
     expect(res).toMatchObject({ success: true });
     expect(String(authFetchSpy.mock.calls[0][0])).toContain('/api/v1/actions/inv/export_all');
   });
+
+  it('an aggregate dispatch (_selectedIds) passes the multi-select guard and posts no recordId (#3139)', async () => {
+    authFetchSpy.mockResolvedValue({ ok: true, json: async () => ({ success: true, data: {} }) });
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [], objectName: 'inv' }),
+    );
+
+    let res: any;
+    await act(async () => {
+      res = await result.current.serverActionHandler(
+        {
+          type: 'script',
+          name: 'generate_qr_zip',
+          locations: ['list_item', 'list_toolbar'],
+          params: { _selectedIds: ['a', 'b'], format: 'png' },
+        } as any,
+        // Multi-select would block a single-record dispatch — the injected
+        // `_selectedIds` marks this as the aggregate shape instead.
+        { selectedRecords: [{ id: 'a' }, { id: 'b' }] } as any,
+      );
+    });
+
+    expect(res).toMatchObject({ success: true });
+    const [url, init] = authFetchSpy.mock.calls[0];
+    expect(String(url)).toContain('/api/v1/actions/inv/generate_qr_zip');
+    const body = JSON.parse(init.body);
+    // The server reads the id array, never a synthesized single recordId.
+    expect(body.recordId).toBeUndefined();
+    expect(body.params._selectedIds).toEqual(['a', 'b']);
+    expect(body.params.format).toBe('png');
+  });
 });
 
 describe('ConsoleActionRuntimeProvider — page-level action execution', () => {

@@ -340,4 +340,142 @@ describe('useBulkExecutor', () => {
       expect(update).toHaveBeenCalledWith('task', '2', { priority: 'medium' });
     });
   });
+
+  // [#3139] `execution: 'aggregate'` — ONE dispatch for the whole selection,
+  // pinned side by side with the per-record semantics above so neither can
+  // drift into the other.
+  describe('aggregate execution', () => {
+    const agg = (op: Partial<BulkActionDef> = {}): BulkActionDef => ({
+      name: 'generate_qr_zip',
+      operation: 'custom',
+      execution: 'aggregate',
+      actionDef: { name: 'generate_qr_zip', type: 'api', target: '/api/v1/qr/zip' },
+      ...op,
+    } as BulkActionDef);
+    const ds = () => ({ update: vi.fn(), delete: vi.fn() });
+
+    it('dispatches runAggregate exactly once with every row and the params', async () => {
+      const runAggregate = vi.fn(async () => undefined);
+      const runAction = vi.fn(async () => undefined);
+      const rows = [{ id: 'r1' }, { id: 'r2' }, { id: 'r3' }];
+      const { result } = renderHook(() =>
+        useBulkExecutor({ resource: 'device', dataSource: ds(), runAction, runAggregate }));
+
+      await act(async () => {
+        await result.current.run(agg(), rows, { format: 'png' });
+      });
+
+      expect(runAggregate).toHaveBeenCalledTimes(1);
+      const [defArg, rowsArg, paramsArg] = runAggregate.mock.calls[0] as unknown as [
+        BulkActionDef, Array<Record<string, unknown>>, Record<string, unknown>,
+      ];
+      expect(defArg.name).toBe('generate_qr_zip');
+      expect(rowsArg.map(r => r.id)).toEqual(['r1', 'r2', 'r3']);
+      expect(paramsArg).toEqual({ format: 'png' });
+      // The per-record dispatcher must never fire in aggregate mode.
+      expect(runAction).not.toHaveBeenCalled();
+      expect(result.current.result).toMatchObject({ total: 3, succeeded: 3, failed: 0 });
+    });
+
+    it('a single-row selection still goes through the ONE aggregate call, never per-record', async () => {
+      const runAggregate = vi.fn(async () => undefined);
+      const runAction = vi.fn(async () => undefined);
+      const { result } = renderHook(() =>
+        useBulkExecutor({ resource: 'device', dataSource: ds(), runAction, runAggregate }));
+
+      await act(async () => {
+        await result.current.run(agg(), [{ id: 'only' }], {});
+      });
+
+      expect(runAggregate).toHaveBeenCalledTimes(1);
+      expect(runAction).not.toHaveBeenCalled();
+      expect(result.current.result?.succeeded).toBe(1);
+    });
+
+    it('ignores batchSize — 5 rows with batchSize 2 is still one call', async () => {
+      const runAggregate = vi.fn(async () => undefined);
+      const rows = [{ id: '1' }, { id: '2' }, { id: '3' }, { id: '4' }, { id: '5' }];
+      const { result } = renderHook(() =>
+        useBulkExecutor({ resource: 'device', dataSource: ds(), runAggregate }));
+
+      await act(async () => {
+        await result.current.run(agg({ batchSize: 2 }), rows, {});
+      });
+
+      expect(runAggregate).toHaveBeenCalledTimes(1);
+      expect((runAggregate.mock.calls[0][1] as unknown[]).length).toBe(5);
+      expect(result.current.result?.succeeded).toBe(5);
+    });
+
+    it('attributes a failed aggregate call to every id with the real error — no per-record re-dispatch', async () => {
+      const runAggregate = vi.fn(async () => {
+        throw new Error('zip generation failed');
+      });
+      const runAction = vi.fn(async () => undefined);
+      const { result } = renderHook(() =>
+        useBulkExecutor({ resource: 'device', dataSource: ds(), runAction, runAggregate }));
+
+      await act(async () => {
+        await result.current.run(agg(), [{ id: 'a' }, { id: 'b' }], {});
+      });
+
+      expect(runAggregate).toHaveBeenCalledTimes(1);
+      expect(runAction).not.toHaveBeenCalled();
+      expect(result.current.result?.succeeded).toBe(0);
+      expect(result.current.result?.failed).toBe(2);
+      expect(result.current.result?.errors).toEqual([
+        { id: 'a', error: 'zip generation failed' },
+        { id: 'b', error: 'zip generation failed' },
+      ]);
+    });
+
+    it('fails loudly when no runAggregate is wired instead of degrading to per-record fan-out', async () => {
+      const runAction = vi.fn(async () => undefined);
+      const { result } = renderHook(() =>
+        useBulkExecutor({ resource: 'device', dataSource: ds(), runAction }));
+
+      await act(async () => {
+        await result.current.run(agg(), [{ id: 'a' }, { id: 'b' }], {});
+      });
+
+      expect(runAction).not.toHaveBeenCalled();
+      expect(result.current.result?.failed).toBe(2);
+      expect(result.current.result?.errors[0].error).toContain('no dispatcher wired');
+    });
+
+    it('retry() refuses aggregate rows — the whole-run re-run is the retry', async () => {
+      const runAggregate = vi.fn(async () => {
+        throw new Error('boom');
+      });
+      const { result } = renderHook(() =>
+        useBulkExecutor({ resource: 'device', dataSource: ds(), runAggregate }));
+
+      await act(async () => {
+        await result.current.run(agg(), [{ id: 'a' }], {});
+      });
+      let ok: boolean | undefined;
+      await act(async () => {
+        ok = await result.current.retry('a');
+      });
+      expect(ok).toBe(false);
+      expect(runAggregate).toHaveBeenCalledTimes(1);
+    });
+
+    it('a def WITHOUT execution: aggregate keeps per-record dispatch even when runAggregate is wired', async () => {
+      const runAggregate = vi.fn(async () => undefined);
+      const runAction = vi.fn(async () => undefined);
+      const rows = [{ id: '1' }, { id: '2' }];
+      const { result } = renderHook(() =>
+        useBulkExecutor({ resource: 'device', dataSource: ds(), runAction, runAggregate }));
+
+      await act(async () => {
+        await result.current.run(agg({ execution: undefined }), rows, {});
+      });
+
+      // Mode selection lives on the def, not on which capabilities are wired.
+      expect(runAggregate).not.toHaveBeenCalled();
+      expect(runAction).toHaveBeenCalledTimes(2);
+      expect(result.current.result?.succeeded).toBe(2);
+    });
+  });
 });

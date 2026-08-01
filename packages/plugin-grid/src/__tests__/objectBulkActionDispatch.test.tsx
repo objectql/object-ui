@@ -225,6 +225,85 @@ describe('view-declared bulk actions (objectui#3002)', () => {
 });
 
 /**
+ * `execution: 'aggregate'` (objectui#3139): the whole selection in ONE
+ * dispatch, pinned side by side with the per-record semantics above. The
+ * authored def names the object action; the dispatch carries every selected
+ * id under `params._selectedIds` so the server can produce a single
+ * aggregate artifact (zip of QR codes, merged PDF…).
+ */
+describe('aggregate bulk actions (objectui#3139)', () => {
+  const AGGREGATE_VIEW = {
+    bulkActionDefs: [{ name: 'push_down', operation: 'custom', execution: 'aggregate' }],
+  };
+
+  it('issues exactly ONE request carrying every selected id under _selectedIds', async () => {
+    await renderAndSelectAll({
+      objectActions: [PUSH_DOWN],
+      schema: AGGREGATE_VIEW,
+    });
+
+    const button = await screen.findByTestId('bulk-action-push_down');
+    // The authored def resolved the object action, so it carries its label.
+    expect(button).toHaveTextContent('下推');
+    fireEvent.click(button);
+    fireEvent.click(await screen.findByRole('button', { name: 'Run' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/plans/push');
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as any).body);
+    expect(body._selectedIds).toEqual(['r1', 'r2']);
+    // The per-record row-context key must NOT ride along — this is the
+    // aggregate shape, not a per-record dispatch that happens to be first.
+    expect(body._rowRecord).toBeUndefined();
+    await waitFor(() => expect(screen.getByText(/Succeeded 2 \/ 2/)).toBeInTheDocument());
+  });
+
+  it('attributes a failed aggregate call to every record, with no per-row Retry', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      headers: { get: () => 'application/json' },
+      json: async () => ({ error: 'zip generation failed' }),
+    });
+    await renderAndSelectAll({
+      objectActions: [PUSH_DOWN],
+      schema: AGGREGATE_VIEW,
+    });
+
+    fireEvent.click(await screen.findByTestId('bulk-action-push_down'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Run' }));
+
+    // ONE call — a failed aggregate run must not fan out per-record dispatches
+    // against an endpoint written for a single `_selectedIds` call.
+    await waitFor(() => expect(screen.getByText(/Succeeded 0 \/ 2/)).toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Each record shows the one real error (the builtin api executor
+    // formats a non-2xx response as `HTTP <status>`, same as the
+    // per-record pin above)…
+    expect(screen.getByTestId('bulk-error-row-r1')).toHaveTextContent('HTTP 500');
+    expect(screen.getByTestId('bulk-error-row-r2')).toHaveTextContent('HTTP 500');
+    // …but there is no per-row slice to re-attempt: the whole-run re-run is
+    // the retry (a total failure keeps the selection for exactly that).
+    expect(screen.queryByTestId('bulk-error-retry-r1')).not.toBeInTheDocument();
+  });
+
+  it('a per-record def with the same shape still fans out — mode lives on the def', async () => {
+    await renderAndSelectAll({
+      objectActions: [PUSH_DOWN],
+      schema: { bulkActions: ['push_down'] },
+    });
+
+    fireEvent.click(await screen.findByTestId('bulk-action-push_down'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Run' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const bodies = fetchMock.mock.calls.map(c => JSON.parse((c[1] as any).body));
+    expect(bodies.every(b => b._selectedIds === undefined)).toBe(true);
+  });
+});
+
+/**
  * `visible` is evaluated per selected record, with that record in scope
  * (objectui#3067). Before this the bar evaluated it with NO record bound, and
  * the lenient path returned `true` for every row-scoped predicate — so an

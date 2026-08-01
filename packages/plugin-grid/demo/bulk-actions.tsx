@@ -97,6 +97,19 @@ const RECALC = {
   ],
 };
 
+/**
+ * Aggregate counterpart (#3139): the view opts in with `execution:
+ * 'aggregate'` below, so the whole selection arrives in ONE dispatch carrying
+ * `params._selectedIds` — the "zip of QR codes for N devices" shape.
+ */
+const EXPORT_ZIP = {
+  name: 'bulk_export_zip',
+  label: 'Export Zip',
+  icon: 'archive',
+  type: 'api',
+  target: '/api/demo/export-zip',
+};
+
 /** Candidate directories for the picker-param defs (#3064). */
 const USERS = [
   { id: 'u1', name: '现场工人-测试', email: 'worker@demo.dev' },
@@ -158,7 +171,7 @@ const dataSource: any = {
         progress: { type: 'percent', label: 'Progress' },
       },
       // The single source the grid folds into the selection bar.
-      actions: [MARK_DONE, RECALC],
+      actions: [MARK_DONE, RECALC, EXPORT_ZIP],
     };
   },
 };
@@ -195,11 +208,14 @@ window.fetch = (async (input: any, init: any) => {
   const url = String(input);
   if (!url.startsWith('/api/demo/')) return realFetch(input, init);
   const body = init?.body ? JSON.parse(init.body) : {};
-  const recordId = body._rowRecord?.id ?? '(none)';
+  // An aggregate dispatch (#3139) carries the whole selection in one call.
+  const recordId = Array.isArray(body._selectedIds)
+    ? `[${body._selectedIds.join(',')}]`
+    : body._rowRecord?.id ?? '(none)';
   // t3 fails — proves the result panel attributes failures per record instead
   // of reporting a blanket success.
   const status = recordId === 't3' ? 422 : 200;
-  const { _rowRecord, ...rest } = body;
+  const { _rowRecord, _selectedIds, ...rest } = body;
   pushLog({ url, recordId, params: JSON.stringify(rest), status });
   return {
     ok: status === 200,
@@ -225,6 +241,10 @@ const schema: any = {
   bulkActions: ['bulk_mark_done', 'bulk_recalc_estimate', 'legacy_only_handler'],
   // Rich defs with picker params — the shared-field-widget surface (#3064).
   bulkActionDefs: [
+    // Aggregate mode (#3139): names the declared action, ONE dispatch for the
+    // whole selection with `params._selectedIds` — contrast with Mark Done's
+    // one-line-per-record log output.
+    { name: 'bulk_export_zip', operation: 'custom', execution: 'aggregate' },
     {
       name: 'set_manager',
       label: 'Set Manager',
@@ -264,7 +284,9 @@ function Demo() {
         <p style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', margin: '4px 0 0' }}>
           Select rows → the bar shows <b>Mark Done</b> and <b>Recalculate Estimate</b> (names
           from the view&apos;s <code>bulkActions</code>, promoted to their declared object
-          actions) and <b>Legacy Only Handler</b> (unresolvable, dispatched by name).
+          actions), <b>Export Zip</b> (an <code>execution: &apos;aggregate&apos;</code> def —
+          ONE dispatch carrying every selected id, #3139) and <b>Legacy Only
+          Handler</b> (unresolvable, dispatched by name).
         </p>
       </header>
 

@@ -186,4 +186,120 @@ describe('resolveBulkActions', () => {
 
     expect(defs[0].label).toBe('Push Down');
   });
+
+  // [#3139] `execution: 'aggregate'` authored defs — the ONE case where an
+  // authored def gets the object action resolved onto it.
+  describe('aggregate authored defs', () => {
+    it('attaches the named object action as actionDef, without the promoted batchSize', () => {
+      const authored: BulkActionDef = {
+        name: 'push_down',
+        operation: 'custom',
+        execution: 'aggregate',
+      };
+      const { defs, unresolved } = resolveBulkActions({
+        bulkActionDefs: [authored],
+        objectActions: [PUSH_DOWN],
+      });
+
+      expect(unresolved).toEqual([]);
+      expect(defs).toHaveLength(1);
+      expect(defs[0]).toMatchObject({
+        name: 'push_down',
+        operation: 'custom',
+        execution: 'aggregate',
+        label: '下推',
+        actionDef: PUSH_DOWN,
+      });
+      // One call by contract — never chunked, so the per-record fan-out
+      // concurrency cap must not ride along.
+      expect(defs[0].batchSize).toBeUndefined();
+    });
+
+    it('authored keys win over the resolved action', () => {
+      const authored: BulkActionDef = {
+        name: 'push_down',
+        label: 'Batch push',
+        variant: 'danger',
+        operation: 'custom',
+        execution: 'aggregate',
+        maxRecords: 100,
+      };
+      const { defs } = resolveBulkActions({
+        bulkActionDefs: [authored],
+        objectActions: [PUSH_DOWN],
+      });
+
+      expect(defs[0]).toMatchObject({
+        label: 'Batch push',
+        variant: 'danger',
+        maxRecords: 100,
+        actionDef: PUSH_DOWN,
+      });
+    });
+
+    it('leaves an aggregate def naming no declared action untouched', () => {
+      const authored: BulkActionDef = {
+        name: 'ghost_action',
+        operation: 'custom',
+        execution: 'aggregate',
+      };
+      const { defs } = resolveBulkActions({
+        bulkActionDefs: [authored],
+        objectActions: [PUSH_DOWN],
+      });
+
+      // No actionDef → the executor has nothing to dispatch (no-op), same as
+      // any other plain custom def.
+      expect(defs).toEqual([authored]);
+      expect(defs[0].actionDef).toBeUndefined();
+    });
+
+    it('does NOT touch a plain custom def that shares a declared action name', () => {
+      // Regression guard for the merge's scoping: without an explicit
+      // `execution: 'aggregate'`, an authored custom def keeps its historical
+      // no-op/callout meaning even when an object action shares its name.
+      const authored: BulkActionDef = { name: 'push_down', operation: 'custom' };
+      const { defs } = resolveBulkActions({
+        bulkActionDefs: [authored],
+        objectActions: [PUSH_DOWN],
+      });
+
+      expect(defs).toEqual([authored]);
+      expect(defs[0].actionDef).toBeUndefined();
+    });
+
+    it('an aggregate def with an inline actionDef is left as authored', () => {
+      const inline = { name: 'push_down', type: 'api', target: '/custom' };
+      const authored: BulkActionDef = {
+        name: 'push_down',
+        operation: 'custom',
+        execution: 'aggregate',
+        actionDef: inline,
+      };
+      const { defs } = resolveBulkActions({
+        bulkActionDefs: [authored],
+        objectActions: [PUSH_DOWN],
+      });
+
+      expect(defs).toEqual([authored]);
+      expect(defs[0].actionDef).toBe(inline);
+    });
+
+    it('still claims its name against bulkActions duplicates', () => {
+      const authored: BulkActionDef = {
+        name: 'push_down',
+        operation: 'custom',
+        execution: 'aggregate',
+      };
+      const { defs } = resolveBulkActions({
+        bulkActions: ['push_down'],
+        bulkActionDefs: [authored],
+        objectActions: [PUSH_DOWN],
+      });
+
+      // One button, the authored aggregate one — not a promoted twin.
+      expect(defs).toHaveLength(1);
+      expect(defs[0].execution).toBe('aggregate');
+    });
+  });
 });

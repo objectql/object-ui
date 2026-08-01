@@ -104,6 +104,31 @@ export interface BulkExecutorOptions {
     row: Record<string, unknown>,
     params: Record<string, unknown>,
   ) => Promise<unknown>;
+  /**
+   * Whole-selection dispatcher for a promoted def that opted into
+   * `execution: 'aggregate'` (objectui#3139) — the "take every id at once"
+   * variant the per-record contract above cannot express. Called EXACTLY ONCE
+   * per run with every eligible row; the grid's implementation injects
+   * `params._selectedIds` and dispatches the action a single time, so the
+   * server can produce one aggregate artifact (zip, merged PDF…) for the
+   * whole selection.
+   *
+   * MUST reject on failure, like `runAction`: the executor treats the one
+   * call as all-or-nothing and attributes the rejection reason to every
+   * selected id in the result, so resolving on a failed action would report
+   * the entire selection as succeeded.
+   *
+   * When absent, an `execution: 'aggregate'` def FAILS LOUDLY rather than
+   * quietly degrading to per-record fan-out — N dispatches against an
+   * endpoint written for one `_selectedIds` call would be N misfires, not a
+   * fallback. Wiring this without the def opting in changes nothing: the
+   * def's own `execution` key selects the mode, never the capability.
+   */
+  runAggregate?: (
+    def: BulkActionDef,
+    rows: Array<Record<string, unknown>>,
+    params: Record<string, unknown>,
+  ) => Promise<unknown>;
 }
 
 /**
@@ -125,8 +150,14 @@ export interface BulkExecutorOptions {
  *   throws, so users still get actionable error detail on hard failures.
  *   Soft (`succeeded < total`) shortfalls surface as a single aggregate
  *   error entry per batch — see comments inline.
+ *
+ * A `custom` def with `execution: 'aggregate'` (objectui#3139) rides the same
+ * bulk-first decision tree, but its "bulk call" is ONE `runAggregate` dispatch
+ * for the entire selection (never chunked, all-or-nothing) and its per-row
+ * "fallback" only re-throws the captured error for per-id attribution — it
+ * never fans out per-record dispatches against a single-call endpoint.
  */
-export function useBulkExecutor({ resource, dataSource, objectFields, runAction }: BulkExecutorOptions) {
+export function useBulkExecutor({ resource, dataSource, objectFields, runAction, runAggregate }: BulkExecutorOptions) {
   const [progress, setProgress] = useState<BulkProgress>({
     total: 0,
     done: 0,
@@ -158,7 +189,16 @@ export function useBulkExecutor({ resource, dataSource, objectFields, runAction 
       params: Record<string, unknown>,
     ): Promise<BulkResult> => {
       const total = rows.length;
-      const batchSize = Math.max(1, def.batchSize ?? 200);
+      // An aggregate custom def (objectui#3139) is ONE call for the whole
+      // selection by contract, so `batchSize` deliberately does not apply —
+      // chunking would turn "one zip for N devices" into ceil(N/batchSize)
+      // zips. `maxRecords` still gates the run (the dialog blocks over-limit
+      // selections before this executes).
+      const isAggregate =
+        def.operation === 'custom' && def.execution === 'aggregate' && !!def.actionDef;
+      const batchSize = isAggregate
+        ? Math.max(1, rows.length)
+        : Math.max(1, def.batchSize ?? 200);
       const errors: BulkRowError[] = [];
       let succeeded = 0;
       let failed = 0;
@@ -207,25 +247,46 @@ export function useBulkExecutor({ resource, dataSource, objectFields, runAction 
           continue;
         }
 
+        // Row lookup for the runner paths, which need the whole record (not
+        // just its id) to attach as `_rowRecord` / hand to the aggregate call.
+        const rowById = new Map<string, Record<string, unknown>>();
+        for (const row of batch) {
+          const id = row.id != null ? String(row.id) : '';
+          if (id) rowById.set(id, row);
+        }
+
         // Decide whether the adapter can collapse this whole batch into 1
-        // call. Single-row batches skip bulk (no win, just overhead).
-        const allowBulk = validIds.length >= 2;
+        // call. Single-row batches skip bulk (no win, just overhead) — EXCEPT
+        // in aggregate mode, where even one selected row must go through the
+        // single aggregate call: the target endpoint reads `_selectedIds`,
+        // which the per-record dispatch shape never carries.
+        const allowBulk = validIds.length >= 2 || isAggregate;
         let bulkCall: ((ids: string[]) => Promise<number>) | undefined;
         let label = 'bulk';
-        if (def.operation === 'update' && typeof dataSource.bulkUpdate === 'function') {
+        // The one real error from a failed aggregate call. The perRow
+        // "fallback" below re-throws it per id for attribution — it must
+        // never re-dispatch (see the `custom` case).
+        let aggregateError: unknown;
+        if (isAggregate && runAggregate) {
+          bulkCall = async (ids) => {
+            try {
+              await runAggregate(def, ids.map((id) => rowById.get(id) ?? { id }), { ...params });
+              // All-or-nothing: the single call resolving means it covered
+              // every id. Partial success has no envelope on this path — a
+              // server that cannot cover the whole selection must reject.
+              return ids.length;
+            } catch (e) {
+              aggregateError = e;
+              throw e;
+            }
+          };
+          label = 'aggregate action';
+        } else if (def.operation === 'update' && typeof dataSource.bulkUpdate === 'function') {
           bulkCall = (ids) => dataSource.bulkUpdate!(resource, ids, buildPatch());
           label = 'bulk update';
         } else if (def.operation === 'delete' && typeof dataSource.bulkDelete === 'function') {
           bulkCall = (ids) => dataSource.bulkDelete!(resource, ids);
           label = 'bulk delete';
-        }
-
-        // Row lookup for the runner path, which needs the whole record (not
-        // just its id) to attach as `_rowRecord`.
-        const rowById = new Map<string, Record<string, unknown>>();
-        for (const row of batch) {
-          const id = row.id != null ? String(row.id) : '';
-          if (id) rowById.set(id, row);
         }
 
         const perRow = (id: string): Promise<unknown> => {
@@ -235,6 +296,22 @@ export function useBulkExecutor({ resource, dataSource, objectFields, runAction 
             case 'update':
               return dataSource.update(resource, id, buildPatch());
             case 'custom':
+              // Aggregate mode never fans out: the ONE bulkCall above either
+              // covered every id or failed as a whole. Reaching here means it
+              // threw (or `runAggregate` was never wired) — attribute the real
+              // error to each id rather than re-dispatching N per-record calls
+              // against an endpoint written for one `_selectedIds` call.
+              if (isAggregate) {
+                return Promise.reject(
+                  aggregateError instanceof Error
+                    ? aggregateError
+                    : new Error(
+                        aggregateError !== undefined
+                          ? String(aggregateError)
+                          : `Aggregate action ${def.name} has no dispatcher wired`,
+                      ),
+                );
+              }
               // A PROMOTED def (`actionDef` present) runs its object action once
               // per record through the injected runner. Without one, this is
               // the historical callout shape — no mutation, caller wires
@@ -274,7 +351,7 @@ export function useBulkExecutor({ resource, dataSource, objectFields, runAction 
       }
       return finalResult;
     },
-    [resource, dataSource, objectFields, runAction],
+    [resource, dataSource, objectFields, runAction, runAggregate],
   );
 
   /**
@@ -340,6 +417,10 @@ export function useBulkExecutor({ resource, dataSource, objectFields, runAction 
             await dataSource.update(resource, rowId, patch);
             break;
           case 'custom':
+            // An aggregate run is a single all-or-nothing call — there is no
+            // per-row slice to re-attempt. Re-running the whole action is the
+            // retry (a total failure keeps the selection for exactly that).
+            if (last.def.execution === 'aggregate') return false;
             // A promoted def re-dispatches the action for real; a plain callout
             // def has nothing to retry, so it reports success unchanged.
             if (!last.def.actionDef || !runAction) return true;

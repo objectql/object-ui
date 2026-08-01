@@ -77,6 +77,13 @@ export interface BulkActionDialogProps {
    */
   runAction?: BulkExecutorOptions['runAction'];
   /**
+   * Whole-selection dispatcher for a def with `execution: 'aggregate'`
+   * (objectui#3139) — see {@link BulkExecutorOptions.runAggregate}. Same
+   * params/confirm collection as `runAction`, but the executor calls this
+   * exactly once with every eligible row instead of once per record.
+   */
+  runAggregate?: BulkExecutorOptions['runAggregate'];
+  /**
    * Selected records the def's `visible` predicate excluded (objectui#3067).
    * `rows` already has them removed; this is what lets the confirm step say
    * the run covers fewer records than the user picked, instead of quietly
@@ -107,6 +114,7 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
   labelKey = 'name',
   objectFields,
   runAction,
+  runAggregate,
   skippedCount = 0,
 }) => {
   const { t } = useObjectTranslation();
@@ -139,7 +147,7 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
   // confirm step — the params step needs no preloaded option list because the
   // picker widgets fetch their own candidates (#3064).
   const [lookupLabels, setLookupLabels] = useState<Record<string, Record<string, string>>>({});
-  const { run, undo, retry, progress, result, reset } = useBulkExecutor({ resource, dataSource, objectFields, runAction });
+  const { run, undo, retry, progress, result, reset } = useBulkExecutor({ resource, dataSource, objectFields, runAction, runAggregate });
   const [retrying, setRetrying] = useState<string | null>(null);
   const [undoing, setUndoing] = useState(false);
   const [undoneAt, setUndoneAt] = useState<number | null>(null);
@@ -466,8 +474,14 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
                         </div>
                         {/* A plain `custom` callout has nothing to re-run, but
                             a PROMOTED def (#3002) re-dispatches its object
-                            action for that one record — same as update/delete. */}
-                        {(def.operation !== 'custom' || !!def.actionDef) && (
+                            action for that one record — same as update/delete.
+                            An aggregate def (#3139) has no per-row slice to
+                            re-attempt: the whole-run re-run is the retry (a
+                            total failure keeps the selection for exactly that),
+                            so the button is hidden — the executor's retry()
+                            refuses it anyway. */}
+                        {(def.operation !== 'custom' || !!def.actionDef)
+                          && def.execution !== 'aggregate' && (
                           <Button
                             variant="ghost"
                             size="sm"

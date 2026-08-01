@@ -1871,6 +1871,22 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   // (Plain function for the same reason as `resolveBulkRows` above: this point
   // in the body is past render paths that short-circuit, so a hook here would
   // tripwire the rules-of-hooks balance.)
+  // Shared def-key strip for BOTH bulk dispatchers below. The dialog already
+  // collected params and took the confirmation, so the dispatch must remove
+  // them from the source action — leaving them on would make the runner
+  // re-prompt (once per record on the per-record path). Kept in one place so
+  // the two dispatchers cannot drift on what gets stripped.
+  const stripCollectedActionKeys = (source: Record<string, any>) => {
+    const {
+      params: _declaredParams,
+      actionParams: _actionParams,
+      confirmText: _confirmText,
+      confirm: _confirm,
+      ...rest
+    } = source;
+    return rest;
+  };
+
   const runBulkActionRecord = async (
     def: BulkActionDef,
     row: Record<string, unknown>,
@@ -1879,16 +1895,12 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     const source = def.actionDef as Record<string, any> | undefined;
     if (!source) return;
     const {
-      params: _declaredParams,
-      actionParams: _actionParams,
-      confirmText: _confirmText,
-      confirm: _confirm,
       // A one-shot reveal (2FA code, fresh OAuth secret) is a single-record
       // affordance by construction, and the runner AWAITS acknowledgement —
       // one modal per record would stall the run behind N dialogs.
       resultDialog: _resultDialog,
       ...rest
-    } = source;
+    } = stripCollectedActionKeys(source);
     const res = await executeAction({
       ...rest,
       // `_rowRecord` is the same row-context key the list_item path attaches,
@@ -1898,6 +1910,39 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     } as any);
     // Reject so the executor records this row under its own id in the result
     // (and the error CSV) instead of counting a failed action as succeeded.
+    if (!res?.success) {
+      throw new Error(res?.error || `Action ${def.name} failed`);
+    }
+  };
+
+  // Whole-selection dispatcher for a def that opted into
+  // `execution: 'aggregate'` (objectui#3139): ONE runner dispatch carrying
+  // every selected id as `params._selectedIds`, so the target endpoint can
+  // produce a single aggregate artifact (zip of QR codes, merged PDF…).
+  // Unlike the per-record path, `resultDialog` is NOT stripped — the
+  // per-record rationale (one modal per record stalls the run) does not
+  // apply to a single call, and a one-shot reveal of the aggregate result
+  // (download URL, generated codes) is exactly this mode's use case.
+  const runBulkActionAggregate = async (
+    def: BulkActionDef,
+    rows: Array<Record<string, unknown>>,
+    params: Record<string, unknown>,
+  ): Promise<void> => {
+    const source = def.actionDef as Record<string, any> | undefined;
+    if (!source) return;
+    const rest = stripCollectedActionKeys(source);
+    const ids = rows.map((r) => (r.id != null ? String(r.id) : '')).filter(Boolean);
+    // Publish the EXPANDED, eligibility-filtered rows the run actually covers
+    // — the standing selection effect only carries the current page's ticks,
+    // while "select all N matching" and the `visible` partition can both
+    // change the real set. Handlers and `${ctx.selection.*}` interpolation
+    // read this. The next selection change re-publishes, so no cleanup here.
+    updateActionContext({ selectedRecords: rows });
+    const res = await executeAction({
+      ...rest,
+      params: { ...params, _selectedIds: ids },
+      toast: { showOnSuccess: false, showOnError: false },
+    } as any);
     if (!res?.success) {
       throw new Error(res?.error || `Action ${def.name} failed`);
     }
@@ -2729,6 +2774,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       resource={schema.objectName ?? ''}
       objectFields={objectSchema?.fields}
       runAction={runBulkActionRecord}
+      runAggregate={runBulkActionAggregate}
     />
   );
 

@@ -37,12 +37,17 @@
  *
  * ## Two vocabularies reach the selection bar
  *
- *  1. `bulkActionDefs` — rich defs authored inline in the view JSON. Untouched
- *     here; they own their names and win every collision.
+ *  1. `bulkActionDefs` — rich defs authored inline in the view JSON. Left
+ *     as-authored, with ONE narrowly-scoped exception: a def carrying
+ *     `execution: 'aggregate'` and no inline `actionDef` resolves its `name`
+ *     against `objectDef.actions` and gets the matched action attached (see
+ *     below). They own their names and win every collision either way.
  *  2. `bulkActions: string[]` — bare action names, resolved against
  *     `objectDef.actions` and PROMOTED to that def, so they carry the action's
  *     label, icon, `visible` predicate, confirm text and params instead of a
- *     bare humanized name.
+ *     bare humanized name. The bare-string form always promotes to the
+ *     per-record dispatch — it has nowhere to carry an `execution` flag, so
+ *     aggregate mode (objectui#3139) requires the authored-def form above.
  *
  * A promoted def carries `operation: 'custom'` plus the source action under
  * {@link BulkActionDef.actionDef}: it is NOT a data-plane mass update, it is
@@ -169,9 +174,38 @@ export function resolveBulkActions(opts: {
   /** Names that matched no declared action; dispatched by name. */
   unresolved: string[];
 } {
-  const authored = Array.isArray(opts.bulkActionDefs) ? opts.bulkActionDefs : [];
+  const rawAuthored = Array.isArray(opts.bulkActionDefs) ? opts.bulkActionDefs : [];
   const names = Array.isArray(opts.bulkActions) ? opts.bulkActions : [];
   const objectActions = Array.isArray(opts.objectActions) ? opts.objectActions : [];
+
+  // [#3139] An authored def opting into the aggregate dispatch usually just
+  // NAMES a declared object action (`{ name, operation: 'custom', execution:
+  // 'aggregate' }`) instead of duplicating it inline. Resolve that name and
+  // attach the action as `actionDef` — merged so authored keys win — because
+  // `useBulkExecutor` dispatches nothing without one. Scoping the merge to an
+  // EXPLICIT `execution: 'aggregate'` (with no inline `actionDef`) is what
+  // keeps it safe: a plain authored `custom` def that happens to share a name
+  // with an object action keeps its historical no-op/callout meaning. The
+  // promoted `batchSize` is dropped — an aggregate run is one call by
+  // contract, never chunked.
+  const wantsAggregateResolve = (def: BulkActionDef | undefined | null): boolean =>
+    !!def
+    && def.execution === 'aggregate'
+    && def.operation === 'custom'
+    && !def.actionDef
+    && typeof def.name === 'string'
+    && def.name !== '';
+  // Mapped only when at least one def qualifies, so the common case keeps the
+  // authored array's referential identity (see the `defs` return doc).
+  const authored = rawAuthored.some(wantsAggregateResolve)
+    ? rawAuthored.map((def) => {
+        if (!wantsAggregateResolve(def)) return def;
+        const match = objectActions.find(a => a?.name === def.name);
+        if (!match) return def;
+        const { batchSize: _batchSize, ...promoted } = toBulkActionDef(match, opts.localizeLabel);
+        return { ...promoted, ...def };
+      })
+    : rawAuthored;
 
   const claimed = new Set(
     authored.map(d => d?.name).filter((n): n is string => typeof n === 'string' && n !== ''),
