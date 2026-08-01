@@ -29,6 +29,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Circle,
   Clock,
   Copy,
   Lock,
@@ -1106,6 +1107,23 @@ export const DetailView: React.FC<DetailViewProps> = ({
         // only `locked` (objectui#2618, before `approvalPending` existed) keeps
         // its band.
         const isPending = isLocked || hostPending || statusPending;
+        // How many decisions the pending node still needs (objectstack#4478).
+        // `lockRecord` told the approver they may not EDIT; this tells them
+        // whether their own approval finalizes the step. A `quorum` node with
+        // `minApprovals: 2` over three approvers, or a `per_group` (会签) node
+        // waiting on finance and legal, are indistinguishable from a plain
+        // one-approver step without it — the badge alone reads "someone must
+        // approve", and the approver clicks expecting the record to move on.
+        //
+        // Server-computed (`decision_progress`), threaded by the host from the
+        // approvals read; the renderer stays DataSource-agnostic and never
+        // re-derives the engine's tally rules. Absent on `first_response`
+        // nodes, where one decision IS the whole step and a "1 of 1" bar would
+        // be noise.
+        const progress = isPending ? inline?.approvalProgress : undefined;
+        // A bar of `need` ticks is legible up to about a dozen; past that the
+        // count in the label carries it alone rather than shrinking to hairlines.
+        const segmented = !!progress && progress.need > 0 && progress.need <= 12;
         // Nothing to surface (no approval, no approval-cancel error): no band.
         if (!isPending && !saveError) return null;
         return (
@@ -1161,6 +1179,62 @@ export const DetailView: React.FC<DetailViewProps> = ({
                       : t('detail.cancelApproval')}
                   </span>
                 </Button>
+              )}
+            </div>
+          )}
+          {progress && (
+            <div className="flex flex-col items-end gap-1 max-w-[16rem]">
+              <div
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={progress.need}
+                aria-valuenow={Math.min(progress.got, progress.need)}
+                aria-label={t('detail.approvalProgressLabel')}
+                className="flex items-center gap-2 w-full justify-end"
+              >
+                <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                  {progress.behavior === 'per_group'
+                    ? t('detail.approvalProgressGroups', { got: progress.got, need: progress.need })
+                    : t('detail.approvalProgress', { got: progress.got, need: progress.need })}
+                </span>
+                {segmented && (
+                  <span className="flex items-center gap-1 w-20 shrink-0">
+                    {Array.from({ length: progress.need }).map((_, i) => (
+                      <span
+                        key={i}
+                        aria-hidden="true"
+                        className={cn(
+                          'h-1.5 flex-1 rounded-full',
+                          i < progress.got ? 'bg-emerald-500' : 'bg-muted',
+                        )}
+                      />
+                    ))}
+                  </span>
+                )}
+              </div>
+              {/* Per-group ticks (会签): WHICH groups have signed, not just how
+                  many. Group keys come from the data — the flow author's own
+                  labels — so there are no locale strings to add for them. */}
+              {progress.groups && progress.groups.length > 0 && (
+                <div className="flex flex-wrap justify-end gap-1">
+                  {progress.groups.map((g) => (
+                    <span
+                      key={g.group}
+                      title={`${g.got}/${g.need}`}
+                      className={cn(
+                        'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px]',
+                        g.satisfied
+                          ? 'border-emerald-300 text-emerald-700'
+                          : 'border-border text-muted-foreground',
+                      )}
+                    >
+                      {g.satisfied
+                        ? <Check className="h-3 w-3" />
+                        : <Circle className="h-2.5 w-2.5" />}
+                      <span>{`${g.group} ${g.got}/${g.need}`}</span>
+                    </span>
+                  ))}
+                </div>
               )}
             </div>
           )}

@@ -996,6 +996,12 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   const approvalLocked = approvals.pendingRequest
     ? recordLockedByApproval(approvals.pendingRequest)
     : approvalStatusPending;
+  // How far the pending node's tally has got (objectstack#4478). Multi-approver
+  // nodes — `quorum`, `unanimous`, `per_group` — do not finalize on one
+  // decision, so an approver standing on the record needs the count to know
+  // whether their click closes the step. Server-computed; `first_response`
+  // nodes carry none and the band then shows nothing extra.
+  const approvalProgress = approvals.pendingRequest?.decision_progress;
 
   const approvalHandler = useCallback(async (action: ActionDef) => {
     const target = action.target || action.name;
@@ -2060,6 +2066,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           canEdit={resolveRecordHeaderActionGates(objectDef, effectiveApiOperations).edit && recordWriteAllowed && !approvalLocked}
           locked={approvalLocked}
           approvalPending={approvalPending}
+          approvalProgress={approvalProgress}
           lockedReason={t('detail.lockedTooltip', {
             defaultValue: 'This record has a pending approval request; editing is locked',
           })}

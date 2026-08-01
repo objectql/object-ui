@@ -176,6 +176,11 @@ export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
   // `lockRecord: false`, so the record stays editable while the request is open.
   'detail.approvalPendingEditable': 'In approval · editable',
   'detail.approvalPendingTooltip': 'This record has a pending approval request; this step still allows editing',
+  // Quorum / 会签 progress on the pending node (objectstack#4478). The group
+  // NAMES are data, not copy — they come from the flow author's config.
+  'detail.approvalProgress': 'Approvals — {{got}} of {{need}}',
+  'detail.approvalProgressGroups': 'Sign-off — {{got}} of {{need}} groups',
+  'detail.approvalProgressLabel': 'Approval progress',
   'detail.cancelApproval': 'Recall approval',
   'detail.cancelApprovalInFlight': 'Recalling…',
   'detail.cancelApprovalTooltip': 'Recall the pending approval request to unlock this record',
