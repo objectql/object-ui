@@ -123,13 +123,16 @@ export interface MarketplacePackageDetail extends MarketplacePackageSummary {
   readme?: string | null;
 }
 
-/** Structured permission grants a plugin requests (ADR-0025 §3.2). */
-export interface PluginPermissions {
-  services?: string[];
-  hooks?: string[];
-  network?: string[];
-  fs?: string[];
-}
+/**
+ * Structured permission grants a plugin requests (ADR-0025 §3.2).
+ *
+ * Owned by `@objectstack/spec/kernel` — the local copy was member-for-member
+ * identical, which is exactly the copy that silently rots the day the spec adds
+ * a grant kind (objectstack#4115).
+ */
+export type { PluginPermissions } from '@objectstack/spec/kernel';
+
+import type { PluginPermissions } from '@objectstack/spec/kernel';
 
 export interface MarketplacePackageVersion {
   id: string;

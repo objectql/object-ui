@@ -21,92 +21,55 @@
  */
 
 import { createAuthenticatedFetch } from '@object-ui/auth';
+import type {
+  GenerateDraftOpts,
+  ObjectDraft,
+  RemoteTable,
+  SchemaValidationResult,
+} from '@objectstack/spec/contracts';
+import type { ExternalCatalog } from '@objectstack/spec/data';
 
 // ---------------------------------------------------------------------------
-// Contract types — mirror `@objectstack/spec` (external-datasource-service.ts,
-// external-catalog.zod.ts, external-errors.ts). Kept local so app-shell does
-// not take a build dependency on the framework spec package.
+// Contract types — RE-EXPORTED from `@objectstack/spec`, not mirrored.
+//
+// These nine used to be hand-written copies under the spec's own names, with a
+// comment claiming they were "kept local so app-shell does not take a build
+// dependency on the framework spec package". That reason was already false:
+// `@objectstack/spec` is a direct dependency of this package (package.json),
+// and the copies had drifted (objectstack#4115) — `SchemaDiffEntryKind` was
+// missing `index_mismatch` and `unmapped_index`, so a validate run that
+// reported an index divergence hit a `kind` this UI could not name, and
+// `ExternalColumn.primaryKey` was optional here while the server always sends
+// it (the spec schema defaults it to `false`).
+//
+// The wire shapes are produced by the framework parsing with these very
+// schemas, so the spec's types are the accurate ones by construction. Import
+// them; do not re-describe them.
 // ---------------------------------------------------------------------------
 
-/** A remote table discovered via introspection (allowedSchemas-filtered). */
-export interface RemoteTable {
-  schema?: string;
-  name: string;
-  columnCount: number;
-  rowCountEstimate?: number;
-}
+/**
+ * Introspection + drafting contracts (ADR-0015 §6.2), owned by
+ * `@objectstack/spec/contracts`.
+ */
+export type {
+  RemoteTable,
+  GenerateDraftOpts,
+  ObjectDraft,
+  SchemaValidationResult,
+} from '@objectstack/spec/contracts';
 
-/** Options controlling how a remote table is drafted into an Object. */
-export interface GenerateDraftOpts {
-  remoteSchema?: string;
-  rename?: Record<string, string>;
-  primaryKey?: string[];
-  includeColumns?: string[];
-  excludeColumns?: string[];
-}
+/**
+ * Schema-divergence vocabulary, owned by `@objectstack/spec/shared` — shared
+ * with the framework's `external-errors` module so a diff `kind` this UI
+ * renders is exactly a `kind` the server can emit.
+ */
+export type { SchemaDiffEntry, SchemaDiffEntryKind } from '@objectstack/spec/shared';
 
-/** A generated Object draft: structured definition + `*.object.ts` source. */
-export interface ObjectDraft {
-  name: string;
-  datasource: string;
-  definition: Record<string, unknown>;
-  source: string;
-  review: Array<{ column: string; remoteType: string; note: string }>;
-}
-
-export type SchemaDiffEntryKind =
-  | 'missing_table'
-  | 'missing_column'
-  | 'type_mismatch'
-  | 'nullability_mismatch'
-  | 'unmapped_column'
-  | 'pk_mismatch';
-
-/** A single divergence between a federated Object and its remote table. */
-export interface SchemaDiffEntry {
-  kind: SchemaDiffEntryKind;
-  remoteSchema?: string;
-  remoteName?: string;
-  column?: string;
-  expected?: string;
-  actual?: string;
-  severity: 'error' | 'warning';
-}
-
-/** Per-object validation outcome. */
-export interface SchemaValidationResult {
-  ok: boolean;
-  datasource: string;
-  object: string;
-  diffs: SchemaDiffEntry[];
-}
-
-/** A single remote column captured in a catalog snapshot. */
-export interface ExternalColumn {
-  name: string;
-  sqlType: string;
-  nullable: boolean;
-  primaryKey?: boolean;
-  suggestedFieldType?: string;
-}
-
-/** A single remote table/view captured in a catalog snapshot. */
-export interface ExternalTable {
-  remoteSchema?: string;
-  remoteName: string;
-  columns: ExternalColumn[];
-  indexes?: Array<{ name: string; columns: string[]; unique: boolean }>;
-  rowCountEstimate?: number;
-}
-
-/** The persisted snapshot of a federated datasource's remote schema. */
-export interface ExternalCatalog {
-  name: string;
-  datasource: string;
-  snapshotAt: string;
-  dialect?: string;
-  tables: ExternalTable[];
-}
+/**
+ * Catalog-snapshot shapes, owned by `@objectstack/spec/data` (the
+ * `ExternalCatalogSchema` family the refresh-catalog route parses with).
+ */
+export type { ExternalCatalog, ExternalColumn, ExternalTable } from '@objectstack/spec/data';
 
 /**
  * Raised when the server replies `503 external_service_unavailable` — the

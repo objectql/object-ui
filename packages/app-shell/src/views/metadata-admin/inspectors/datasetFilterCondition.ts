@@ -28,7 +28,25 @@ const MONGO_TO_OP: Record<string, string> = {
 
 export interface BuilderCondition { id?: string; field: string; operator: string; value?: unknown }
 export interface BuilderGroup { id?: string; logic: 'and' | 'or'; conditions: BuilderCondition[] }
-export type FilterCondition = Record<string, any>;
+
+/**
+ * The ObjectQL filter AST, owned by `@objectstack/spec/data`.
+ *
+ * This was `Record<string, any>` — a local declaration under the spec's own
+ * name that carried none of its structure (objectstack#4115). Re-exporting the
+ * real recursive type restores `$and` / `$or` / `$not` and the per-field
+ * operator shape, so the bridge below is checked against what actually gets
+ * stored on `dataset.filter` / `measure.filter`.
+ *
+ * NOTE for the sibling batches: unlike `@object-ui/types` and
+ * `@object-ui/components`, app-shell's `FilterCondition` was NOT the
+ * FilterBuilder row — that concept lives here under its own name,
+ * `BuilderCondition` (above), and needed no rename. Do not fold this one into
+ * the `FilterBuilderCondition` rename.
+ */
+export type { FilterCondition } from '@objectstack/spec/data';
+
+import type { FilterCondition } from '@objectstack/spec/data';
 
 /** Serialize the visual group → a spec FilterCondition (flat `$and`). */
 export function groupToCondition(group: BuilderGroup | undefined): FilterCondition | undefined {

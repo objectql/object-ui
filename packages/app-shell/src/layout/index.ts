@@ -13,4 +13,4 @@ export { PreviewBadge } from './PreviewBadge';
 export type { PreviewBadgeProps } from './PreviewBadge';
 export { AuthPageLayout } from './AuthPageLayout';
 export { PageHeader } from './PageHeader';
-export type { PageHeaderProps } from './PageHeader';
+export type { PageHeaderComponentProps } from './PageHeader';

@@ -59,7 +59,7 @@ import {
   clearFieldGroup,
   diffFields,
   type FieldEntry,
-  type FieldGroup,
+  type ObjectFieldGroup,
   type FieldsDiff,
   type FieldDiffStatus,
 } from './object-fields-io';
@@ -129,7 +129,7 @@ export function ObjectFormCanvas({
     reviewing ? diff?.byName[name]?.status : undefined;
   const changedKeysOf = (name: string): string[] =>
     reviewing ? diff?.byName[name]?.changedKeys ?? [] : [];
-  const declaredGroups = React.useMemo<FieldGroup[]>(
+  const declaredGroups = React.useMemo<ObjectFieldGroup[]>(
     () => readGroups((draft as any).fieldGroups),
     [draft],
   );
@@ -679,7 +679,7 @@ function BulkActionBar({
   locale,
 }: {
   count: number;
-  groups: FieldGroup[];
+  groups: ObjectFieldGroup[];
   onMoveToGroup: (groupKey: string | null) => void;
   onDelete: () => void;
   onClear: () => void;

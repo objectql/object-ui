@@ -84,7 +84,18 @@ export interface RuntimeBranding {
   pwaThemeColor?: string;
 }
 
-export interface RuntimeConfig {
+/**
+ * The SPA's server-pushed runtime configuration — which cloud to talk to, which
+ * features are on, and how the product is branded.
+ *
+ * Named `AppShellRuntimeConfig`, not `RuntimeConfig`: `@objectstack/spec/kernel`
+ * exports a `RuntimeConfig` that configures the ObjectStack ENGINE
+ * (`engine`, `engineConfig`, `resourceLimits`). The two share not one key —
+ * they are unrelated things that happened to pick the same noun
+ * (objectstack#4115). `__tests__/spec-symbol-parity.test.ts` pins that the spec
+ * does not own this name.
+ */
+export interface AppShellRuntimeConfig {
   /**
    * Upstream cloud base URL — the SPA dispatches install + env listing
    * directly against this origin. Empty string ⇒ same-origin (i.e. the
@@ -99,7 +110,7 @@ export interface RuntimeConfig {
   branding: RuntimeBranding;
 }
 
-const defaults: RuntimeConfig = {
+const defaults: AppShellRuntimeConfig = {
   cloudUrl: '',
   singleEnvironment: false,
   defaultOrgId: null,
@@ -117,11 +128,11 @@ function isPlatformStage(value: unknown): value is PlatformStage {
   return typeof value === 'string' && (PLATFORM_STAGES as readonly string[]).includes(value);
 }
 
-let current: RuntimeConfig = { ...defaults };
+let current: AppShellRuntimeConfig = { ...defaults };
 let initialised = false;
 
 /** Apply a partial update over the singleton. */
-function applyUpdate(patch: Partial<RuntimeConfig>): void {
+function applyUpdate(patch: Partial<AppShellRuntimeConfig>): void {
   current = {
     ...current,
     ...patch,
@@ -154,7 +165,7 @@ export async function initRuntimeConfig(baseUrl: string = ''): Promise<void> {
       headers: { Accept: 'application/json' },
     });
     if (!res.ok) return;
-    const body = (await res.json()) as Partial<RuntimeConfig> | null;
+    const body = (await res.json()) as Partial<AppShellRuntimeConfig> | null;
     if (!body || typeof body !== 'object') return;
     applyUpdate({
       cloudUrl: typeof body.cloudUrl === 'string' ? body.cloudUrl.replace(/\/+$/, '') : current.cloudUrl,
@@ -214,7 +225,7 @@ export async function initRuntimeConfig(baseUrl: string = ''): Promise<void> {
 }
 
 /** Read-only accessor. Returns the current snapshot. */
-export function getRuntimeConfig(): RuntimeConfig {
+export function getRuntimeConfig(): AppShellRuntimeConfig {
   return current;
 }
 

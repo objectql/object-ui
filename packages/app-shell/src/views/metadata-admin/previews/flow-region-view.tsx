@@ -27,7 +27,7 @@ import {
   backEdgePath,
   NODE_W,
   NODE_H,
-  type FlowNode,
+  type FlowDesignerNode,
   type LabeledRegion,
 } from './flow-canvas-layout';
 import { NodeTypeIcon, nodeTone } from './flow-canvas-parts';
@@ -67,7 +67,7 @@ function RegionNode({
   selected,
   onSelect,
 }: {
-  node: FlowNode;
+  node: FlowDesignerNode;
   x: number;
   y: number;
   selected?: boolean;
@@ -130,7 +130,7 @@ function RegionCanvas({
   region: LabeledRegion;
   maxWidth: number;
   selectedNodeId?: string | null;
-  onSelectNode?: (node: FlowNode) => void;
+  onSelectNode?: (node: FlowDesignerNode) => void;
 }) {
   const layout = React.useMemo(() => computeLayout(region.nodes, region.edges), [region.nodes, region.edges]);
   const { width, height } = React.useMemo(() => diagramSize(layout), [layout]);
@@ -194,7 +194,7 @@ export function FlowRegionView({
   /** The selected nested node, scoped to its region — highlighted with a ring. */
   selected?: { regionKey: string; nodeId: string } | null;
   /** Selecting a nested node, tagged with its region key (for the container path). */
-  onSelectNode?: (regionKey: string, node: FlowNode) => void;
+  onSelectNode?: (regionKey: string, node: FlowDesignerNode) => void;
   /** UI locale for the region header labels. */
   locale?: string;
 }) {

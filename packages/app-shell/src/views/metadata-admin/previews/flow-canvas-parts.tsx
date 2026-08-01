@@ -50,7 +50,7 @@ import {
   CommandList,
 } from '@object-ui/components';
 import { t as tr, translateNodeLabel, translateNodeHint } from '../i18n';
-import { NODE_W, NODE_H, type Point, type LabeledRegion, type FlowNode } from './flow-canvas-layout';
+import { NODE_W, NODE_H, type Point, type LabeledRegion, type FlowDesignerNode } from './flow-canvas-layout';
 import { FlowRegionView } from './flow-region-view';
 import { EXPANDED_REGION_MAX_W, NODE_REGION_GAP, REGION_PANEL_PAD } from './flow-region-metrics';
 import { useFlowPaletteRecents } from '../../../context/FlowPaletteRecentsProvider';
@@ -457,7 +457,7 @@ export interface NodeCardProps {
    * #2670 Phase 3: select a nested node in the tray, tagged with its region
    * key. Absent → the tray stays read-only (Phase 2 behavior).
    */
-  onSelectNestedNode?: (regionKey: string, node: FlowNode) => void;
+  onSelectNestedNode?: (regionKey: string, node: FlowDesignerNode) => void;
   /**
    * #2670: the card's rendered height from the layout geometry — the SAME
    * number that positioned every card below this one, so the DOM can never

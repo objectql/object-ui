@@ -68,21 +68,48 @@ import { errorCodeIs } from '@object-ui/types';
 /* Types + API                                                                 */
 /* -------------------------------------------------------------------------- */
 
-export interface PackageManifest {
+/**
+ * The subset of a package manifest this admin LIST renders, kept open.
+ *
+ * Named `PackageManifestRow`, not `PackageManifest`, and deliberately NOT
+ * derived (objectstack#4115). `@objectstack/spec/cloud` owns `PackageManifest`
+ * — the full authored manifest, with `defaultDatasource`, `type`, `scope`,
+ * `dependencies`, `contributes`, `capabilities`, `sandboxing` and ~30 more keys
+ * required or modelled. This page reads whatever `/api/v1/packages` happens to
+ * return, from runtimes of different vintages, and renders six columns from it;
+ * every key is optional here because an older control plane really does omit
+ * them, and the index signature is load-bearing — it lets a row flow into the
+ * spec-driven `PackageFormDialog` (which types the manifest as a loose record)
+ * without a cast, and preserves keys this page does not render.
+ *
+ * So this is a lenient READ PROJECTION over the spec's manifest, not a second
+ * definition of it: it must stay assignable-from anything the wire sends, which
+ * is the opposite of what the spec type is for. `__tests__/spec-symbol-parity.test.ts`
+ * pins that the spec does not own the `…Row` name and that the projection's keys
+ * are a subset of the spec manifest's, so a key invented here fails loudly.
+ */
+export interface PackageManifestRow {
   id: string;
   name?: string;
   version?: string;
   type?: string;
   scope?: 'cloud' | 'system' | 'project';
   description?: string;
-  // The manifest carries many more spec fields (namespace, dependencies, …);
-  // the index signature lets it flow into the spec-driven PackageFormDialog
-  // (which types the manifest as a loose record) without a cast.
   [key: string]: unknown;
 }
 
-export interface InstalledPackage {
-  manifest: PackageManifest;
+/**
+ * One installed-package row, as `/api/v1/packages` returns it.
+ *
+ * Named `InstalledPackageRow` for the same reason: the spec's
+ * `InstalledPackage` (`@objectstack/spec/kernel`) requires `manifest`,
+ * `status` and `enabled`, types `manifest` as the full spec `PackageManifest`,
+ * and adds `installedAt`, `updatedAt`, `installedVersion`, `previousVersion`,
+ * `settings`, `upgradeHistory` and `registeredNamespaces`. This row is the
+ * lenient projection of it that the list actually consumes.
+ */
+export interface InstalledPackageRow {
+  manifest: PackageManifestRow;
   status?: string;
   enabled?: boolean;
   statusChangedAt?: string;
@@ -142,7 +169,7 @@ function ScopeBadge({ scope }: { scope?: string }) {
   return <Badge variant={variant as any}>{labelKey ? t(labelKey, locale) : scope}</Badge>;
 }
 
-function StatusBadge({ pkg }: { pkg: InstalledPackage }) {
+function StatusBadge({ pkg }: { pkg: InstalledPackageRow }) {
   const locale = useMetadataLocale();
   const enabled = pkg.enabled !== false && pkg.status !== 'disabled';
   return (
@@ -207,10 +234,10 @@ export function EditPackageDialog({
   onOpenChange,
   onSaved,
 }: {
-  pkg: InstalledPackage | null;
+  pkg: InstalledPackageRow | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  onSaved: (updated: InstalledPackage) => void;
+  onSaved: (updated: InstalledPackageRow) => void;
 }) {
   return (
     <PackageFormDialog
@@ -218,7 +245,7 @@ export function EditPackageDialog({
       open={open}
       onOpenChange={onOpenChange}
       manifest={pkg?.manifest ?? null}
-      onSaved={(r) => onSaved((r.package as unknown as InstalledPackage) ?? (pkg as InstalledPackage))}
+      onSaved={(r) => onSaved((r.package as unknown as InstalledPackageRow) ?? (pkg as InstalledPackageRow))}
     />
   );
 }
@@ -230,7 +257,7 @@ export function PackageDetailSheet({
   onOpenChange,
   onChanged,
 }: {
-  pkg: InstalledPackage | null;
+  pkg: InstalledPackageRow | null;
   /** Base for metadata-browse / draft-review links. Omit (e.g. in Studio, which
    *  has no console app context) to hide those links; every lifecycle action
    *  still works without it. */
@@ -699,13 +726,13 @@ export function PackagesPage() {
     return idx >= 0 ? pathname.slice(0, idx) : pathname;
   }, [pathname]);
 
-  const [packages, setPackages] = React.useState<InstalledPackage[]>([]);
+  const [packages, setPackages] = React.useState<InstalledPackageRow[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState('');
   const [showKernel, setShowKernel] = React.useState(false);
   const [createOpen, setCreateOpen] = React.useState(false);
-  const [selected, setSelected] = React.useState<InstalledPackage | null>(null);
+  const [selected, setSelected] = React.useState<InstalledPackageRow | null>(null);
   const [detailOpen, setDetailOpen] = React.useState(false);
   const fileRef = React.useRef<HTMLInputElement>(null);
   const [importing, setImporting] = React.useState(false);
@@ -717,7 +744,7 @@ export function PackagesPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiJson<{ packages: InstalledPackage[] }>(API);
+      const data = await apiJson<{ packages: InstalledPackageRow[] }>(API);
       const list = Array.isArray(data?.packages) ? data.packages : [];
       list.sort((a, b) => {
         // User (project) packages first, then by name.
@@ -758,7 +785,7 @@ export function PackagesPage() {
     });
   }, [packages, query, showKernel]);
 
-  const openDetail = (pkg: InstalledPackage) => {
+  const openDetail = (pkg: InstalledPackageRow) => {
     setSelected(pkg);
     setDetailOpen(true);
   };
