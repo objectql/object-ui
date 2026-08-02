@@ -27,7 +27,7 @@
     "build": "vite build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsc --noEmit && tsc -p tsconfig.typetests.json",
     "lint": "eslint ."
   },
   "dependencies": {
@@ -38,6 +38,7 @@
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
     "@radix-ui/react-slot": "^1.3.3",
+    "@objectstack/spec": "^17.0.0-rc.1",
     "@radix-ui/react-use-controllable-state": "^1.2.6",
     "ai": "^7.0.37",
     "class-variance-authority": "^0.7.1",

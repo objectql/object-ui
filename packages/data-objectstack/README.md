@@ -179,7 +179,12 @@ import {
   BulkOperationError,      // Bulk operation failures with partial results
   ConnectionError,         // Network/connection errors (503/504)
   AuthenticationError,     // Authentication failures (401/403)
-  ValidationError,         // Data validation errors (400)
+  DataApiValidationError,  // Data validation errors (400). Its runtime `name` is
+                           // still 'ValidationError' — that string is the wire
+                           // discriminator shared with @objectstack/client. The
+                           // SYMBOL is prefixed because @objectstack/spec/kernel
+                           // owns `ValidationError` for a { field, message, code? }
+                           // record (objectui#3160).
 } from '@object-ui/data-objectstack';
 ```
 

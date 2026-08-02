@@ -24,40 +24,38 @@
 
 import * as React from 'react';
 
-export type PendingActionStatus =
-  | 'pending'
-  | 'approved'
-  | 'executed'
-  | 'failed'
-  | 'rejected';
+import type {
+  PendingActionRow,
+  PendingActionStatus,
+} from '@objectstack/spec/contracts';
 
 /**
- * Wire-format row returned by
- * `GET /api/v1/ai/pending-actions` and friends. Mirrors the
- * `ai_pending_action` object schema declared in
- * `@objectstack/service-ai`.
+ * Lifecycle of a pending action proposal, and the row `GET
+ * /api/v1/ai/pending-actions` returns — THE spec types, re-exported
+ * (objectui#3160, objectstack#4115 ledger batch 6).
+ *
+ * `@objectstack/spec/contracts` declares both as the contract of
+ * `IAIService.proposePendingAction` / `.listPendingActions`, which is exactly
+ * what the REST route serialises; the copies that used to live here were a
+ * hand transcription of the same rows and had drifted in three ways, each of
+ * which silently disabled a compile-time check:
+ *
+ *  - `status: PendingActionStatus | string` — a union with `string` ABSORBS the
+ *    literals, so the type conveyed nothing at all and `statusesForTab` could
+ *    have returned a status the server has never heard of;
+ *  - `[k: string]: unknown` — the objectstack#4075 mechanism: an index
+ *    signature makes any structural comparison against the spec answer
+ *    "identical" no matter how far the copy drifts;
+ *  - `created_at` / `updated_at`, which the contract does not carry and no
+ *    consumer in this repo reads. If the inbox ever needs them, the fix is to
+ *    model them in the spec, not to re-widen the row here.
+ *
+ * `| null` was dropped with the copy for the same reason: it described what a
+ * nullable SQL column might serialise to, not what the contract promises, and
+ * every reader here (`formatRelative`, `safeParseJson`) already accepts
+ * `null | undefined` on its own parameter.
  */
-export interface PendingActionRow {
-  id: string;
-  conversation_id?: string | null;
-  message_id?: string | null;
-  object_name: string;
-  action_name: string;
-  tool_name: string;
-  /** JSON-encoded string. Consumers typically `JSON.parse` to render. */
-  tool_input: string;
-  status: PendingActionStatus | string;
-  result?: string | null;
-  error?: string | null;
-  rejection_reason?: string | null;
-  proposed_by?: string | null;
-  decided_by?: string | null;
-  proposed_at?: string;
-  decided_at?: string | null;
-  created_at?: string;
-  updated_at?: string;
-  [k: string]: unknown;
-}
+export type { PendingActionRow, PendingActionStatus };
 
 /**
  * Successful approval outcome returned by

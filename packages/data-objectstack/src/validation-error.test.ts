@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { normaliseClientError } from './index';
-import { ValidationError } from './errors';
+import { DataApiValidationError } from './errors';
 
 /**
  * The server has always sent per-field rejection detail; the adapter used to
@@ -35,13 +35,13 @@ describe('normaliseClientError — VALIDATION_FAILED', () => {
       },
     });
 
-  it('wraps it into a typed ValidationError', () => {
+  it('wraps it into a typed DataApiValidationError', () => {
     const normalised = normaliseClientError(upstream());
-    expect(normalised).toBeInstanceOf(ValidationError);
+    expect(normalised).toBeInstanceOf(DataApiValidationError);
   });
 
   it('carries every field entry through', () => {
-    const normalised = normaliseClientError(upstream()) as ValidationError;
+    const normalised = normaliseClientError(upstream()) as DataApiValidationError;
     expect(normalised.validationErrors).toEqual([
       { field: 'name', message: 'Name is required' },
       { field: 'stage', message: 'Stage is not a valid option' },
@@ -49,12 +49,12 @@ describe('normaliseClientError — VALIDATION_FAILED', () => {
   });
 
   it('keeps the server message verbatim — it names every field', () => {
-    const normalised = normaliseClientError(upstream()) as ValidationError;
+    const normalised = normaliseClientError(upstream()) as DataApiValidationError;
     expect(normalised.message).toBe('Name is required; Stage is not a valid option');
   });
 
   it('exposes the first offending field on `.field`', () => {
-    const normalised = normaliseClientError(upstream()) as ValidationError;
+    const normalised = normaliseClientError(upstream()) as DataApiValidationError;
     expect(normalised.field).toBe('name');
   });
 
@@ -63,7 +63,7 @@ describe('normaliseClientError — VALIDATION_FAILED', () => {
       code: 'VALIDATION_FAILED',
       details: { fields: [{ field: 'name', code: 'required' }] },
     });
-    const normalised = normaliseClientError(err) as ValidationError;
+    const normalised = normaliseClientError(err) as DataApiValidationError;
     expect(normalised.validationErrors).toEqual([{ field: 'name', message: 'required' }]);
   });
 
@@ -72,7 +72,7 @@ describe('normaliseClientError — VALIDATION_FAILED', () => {
       code: 'VALIDATION_FAILED',
       details: { fields: [{ message: 'something is wrong' }] },
     });
-    const normalised = normaliseClientError(err) as ValidationError;
+    const normalised = normaliseClientError(err) as DataApiValidationError;
     expect(normalised.validationErrors).toEqual([]);
   });
 
@@ -83,7 +83,7 @@ describe('normaliseClientError — VALIDATION_FAILED', () => {
       name: 'ValidationError',
       fields: [{ field: 'amount', message: 'Amount must be positive' }],
     });
-    const normalised = normaliseClientError(err) as ValidationError;
+    const normalised = normaliseClientError(err) as DataApiValidationError;
     expect(normalised.validationErrors).toEqual([{ field: 'amount', message: 'Amount must be positive' }]);
   });
 

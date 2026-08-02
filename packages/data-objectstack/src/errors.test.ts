@@ -13,7 +13,7 @@ import {
   BulkOperationError,
   ConnectionError,
   AuthenticationError,
-  ValidationError,
+  DataApiValidationError,
   createErrorFromResponse,
   isObjectStackError,
   isErrorType,
@@ -189,20 +189,20 @@ describe('Error Classes', () => {
     });
   });
 
-  describe('ValidationError', () => {
+  describe('DataApiValidationError', () => {
     it('should create validation error', () => {
-      const error = new ValidationError('Invalid input');
+      const error = new DataApiValidationError('Invalid input');
 
       expect(error.message).toBe('Invalid input');
       expect(error.code).toBe('VALIDATION_ERROR');
       expect(error.statusCode).toBe(400);
       expect(error.name).toBe('ValidationError');
       expect(error).toBeInstanceOf(ObjectStackError);
-      expect(error).toBeInstanceOf(ValidationError);
+      expect(error).toBeInstanceOf(DataApiValidationError);
     });
 
     it('should include field information', () => {
-      const error = new ValidationError('Email is invalid', 'email');
+      const error = new DataApiValidationError('Email is invalid', 'email');
 
       expect(error.field).toBe('email');
       expect(error.details).toHaveProperty('field', 'email');
@@ -214,7 +214,7 @@ describe('Error Classes', () => {
         { field: 'age', message: 'Must be a positive number' },
       ];
       
-      const error = new ValidationError(
+      const error = new DataApiValidationError(
         'Validation failed',
         undefined,
         validationErrors
@@ -225,7 +225,7 @@ describe('Error Classes', () => {
     });
 
     it('should return empty array when no validation errors', () => {
-      const error = new ValidationError('Validation failed');
+      const error = new DataApiValidationError('Validation failed');
 
       expect(error.getValidationErrors()).toEqual([]);
     });
@@ -286,7 +286,7 @@ describe('Error Helpers', () => {
       expect(error.code).toBe('NOT_FOUND');
     });
 
-    it('should create ValidationError for 400 status', () => {
+    it('should create DataApiValidationError for 400 status', () => {
       const response = {
         status: 400,
         message: 'Bad request',
@@ -299,9 +299,9 @@ describe('Error Helpers', () => {
 
       const error = createErrorFromResponse(response);
 
-      expect(error).toBeInstanceOf(ValidationError);
+      expect(error).toBeInstanceOf(DataApiValidationError);
       expect(error.statusCode).toBe(400);
-      expect((error as ValidationError).validationErrors).toEqual([
+      expect((error as DataApiValidationError).validationErrors).toEqual([
         { field: 'email', message: 'Invalid email' },
       ]);
     });
@@ -379,7 +379,7 @@ describe('Error Helpers', () => {
       const bulkError = new BulkOperationError('create', 0, 1, []);
       const connError = new ConnectionError('timeout');
       const authError = new AuthenticationError();
-      const validError = new ValidationError('invalid');
+      const validError = new DataApiValidationError('invalid');
 
       expect(isObjectStackError(metadataError)).toBe(true);
       expect(isObjectStackError(bulkError)).toBe(true);
@@ -409,7 +409,7 @@ describe('Error Helpers', () => {
 
     it('should return false for non-matching error type', () => {
       const error = new MetadataNotFoundError('users');
-      expect(isErrorType(error, ValidationError)).toBe(false);
+      expect(isErrorType(error, DataApiValidationError)).toBe(false);
     });
 
     it('should return true for base class check', () => {

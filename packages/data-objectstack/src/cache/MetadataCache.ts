@@ -17,9 +17,18 @@ interface CachedSchema {
 }
 
 /**
- * Cache statistics for monitoring
+ * Statistics reported by {@link MetadataCache.getStats} for monitoring.
+ *
+ * NOT the spec's `CacheStats` (`@objectstack/spec/contracts`), whose name this
+ * interface wore until objectui#3160 (objectstack#4115 ledger batch 6). That one
+ * describes the platform's `ICacheService` — a server-side KV cache measured by
+ * `keyCount` and `memoryUsage`. This one describes the browser-side LRU in front
+ * of `/api/v1/meta/*`: it is bounded (`size`/`maxSize`), it evicts, it coalesces
+ * concurrent fetches onto one in-flight promise, and it reports a `hitRate`.
+ * Neither type has a key the other has, so this is a name collision, not a
+ * dialect — deriving would have replaced every field.
  */
-export interface CacheStats {
+export interface MetadataCacheStats {
   size: number;
   maxSize: number;
   hits: number;
@@ -218,7 +227,7 @@ export class MetadataCache {
    * 
    * @returns Cache statistics including hit rate
    */
-  getStats(): CacheStats {
+  getStats(): MetadataCacheStats {
     const total = this.stats.hits + this.stats.misses;
     const hitRate = total > 0 ? this.stats.hits / total : 0;
 

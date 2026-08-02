@@ -75,7 +75,21 @@ export interface MetadataDraftHeader {
   updatedBy: string | null;
 }
 
-export interface MetadataSaveOptions {
+/**
+ * Options for {@link MetadataClient.save} — a WRITE OVER HTTP to
+ * `/api/v1/meta/:type/:name`.
+ *
+ * NOT the spec's `MetadataSaveOptions` (`@objectstack/spec/system` and
+ * `/kernel`), whose name this interface wore until objectui#3160
+ * (objectstack#4115 ledger batch 6). Both spec copies describe writing a
+ * metadata item to a FILE — `format: json|yaml|ts`, `path`, `indent`,
+ * `prettify`, `sortKeys`, `backup`, `atomic`, `loader`. Not one of those keys
+ * exists here, and not one of these exists there: this is the REST client's
+ * request envelope — optimistic concurrency (`ifMatch` → `If-Match`), actor
+ * attribution, the destructive-change override, the ADR-0033 draft/publish
+ * mode, and the owning package. Same words, different layer.
+ */
+export interface MetadataClientSaveOptions {
   /**
    * Optimistic concurrency token (the `checksum` returned by the last
    * read). When present, sent as the `If-Match` header so concurrent
@@ -122,7 +136,7 @@ export interface MetadataGetOptions {
   packageId?: string;
 }
 
-export interface MetadataDeleteOptions extends MetadataSaveOptions {
+export interface MetadataDeleteOptions extends MetadataClientSaveOptions {
   /**
    * Target state. `'draft'` discards the pending draft (keeps the
    * published overlay intact). Omit to reset the active overlay back
@@ -527,7 +541,7 @@ export class MetadataClient {
     type: string,
     name: string,
     item: unknown,
-    options: MetadataSaveOptions = {},
+    options: MetadataClientSaveOptions = {},
   ): Promise<T> {
     if (!name || !String(name).trim()) {
       // The `PUT /meta/:type/:name` route rejects a missing `:name` segment

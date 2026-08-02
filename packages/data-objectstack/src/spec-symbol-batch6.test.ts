@@ -1,0 +1,303 @@
+/**
+ * ObjectUI
+ * Copyright (c) 2024-present ObjectStack Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+/**
+ * `@object-ui/data-objectstack` ↔ `@objectstack/spec` symbol-collision guards
+ * (objectui#3160, objectstack#4115 ledger batch 6).
+ *
+ * Five symbols here wore names the spec already owns. One really WAS the spec's
+ * and now carries its binding (`DroppedFieldsEvent`); the other four model
+ * something the spec has never modelled under that name and were renamed:
+ *
+ *   CacheStats          → MetadataCacheStats
+ *   MetadataSaveOptions → MetadataClientSaveOptions
+ *   SecurityPolicy      → SecurityManagerPolicy
+ *   ValidationError     → DataApiValidationError
+ *
+ * The batch's own triage note said "data-objectstack is a direct client of the
+ * spec protocol, so `SecurityPolicy` / `DroppedFieldsEvent` are probably hand
+ * copies — derive them first". Half of that held: `DroppedFieldsEvent` was
+ * exactly a hand copy, and `SecurityPolicy` turned out to share not one key with
+ * the spec's. That asymmetry is why every assertion below is per SYMBOL and
+ * never per cluster.
+ *
+ * ## Why the spec's names are read through the compiler, not `import * as`
+ *
+ * A runtime namespace import sees VALUES only, and every name checked here is a
+ * TYPE; a tripwire built on `Object.keys(await import(…))` would pass while
+ * proving nothing. So this reads each subpath's `.d.ts` through the TypeScript
+ * checker, exactly as `scripts/check-spec-symbol-derivation.mjs` does.
+ *
+ * ## …and why through `ts.sys` rather than `node:fs`
+ *
+ * Unlike the sibling batches' parity tests, this package's `tsconfig.json`
+ * compiles its whole test tree (it is not in `check-type-check-coverage.mjs`'s
+ * TEST_DEBT), so the pins below are already checked by `tsc --noEmit` with no
+ * separate `tsconfig.typetests.json`. Keeping that property means NOT pulling
+ * `@types/node` into a browser-side adapter's type environment just to read a
+ * file — so the probe uses the TypeScript compiler's own host, which is typed
+ * by the `typescript` dependency this file already has, and resolves the spec
+ * through TS's module resolver instead of hard-coding its subpath list.
+ */
+
+import { describe, it, expect } from 'vitest';
+import ts from 'typescript';
+
+import { DataApiValidationError } from './errors';
+import type { MetadataCacheStats } from './cache/MetadataCache';
+import type { MetadataClientSaveOptions } from './metadata-client';
+import type { SecurityManagerPolicy } from './security';
+import type { DroppedFieldsEvent } from './index';
+
+import type { DroppedFieldsEvent as SpecDroppedFieldsEvent } from '@objectstack/spec/data';
+import type { CacheStats as SpecCacheStats } from '@objectstack/spec/contracts';
+import type {
+  MetadataSaveOptions as SpecMetadataSaveOptions,
+  SecurityPolicy as SpecSecurityPolicy,
+  ValidationError as SpecValidationError,
+} from '@objectstack/spec/kernel';
+
+const PROBE_OPTIONS: ts.CompilerOptions = {
+  noEmit: true,
+  skipLibCheck: true,
+  strict: false,
+  target: ts.ScriptTarget.ESNext,
+  module: ts.ModuleKind.ESNext,
+  moduleResolution: ts.ModuleResolutionKind.Bundler,
+  resolveJsonModule: true,
+};
+
+/** This file, as TypeScript's module resolver wants it: an absolute path. */
+const HERE = new URL(import.meta.url).pathname;
+
+/** Every name `@objectstack/spec` exports from any subpath — types AND values. */
+function specExportNames(): Set<string> {
+  const pkgPath = ts.resolveModuleName('@objectstack/spec/package.json', HERE, PROBE_OPTIONS, ts.sys)
+    .resolvedModule?.resolvedFileName;
+  if (!pkgPath) {
+    throw new Error('cannot resolve @objectstack/spec — run `pnpm install` first');
+  }
+  const pkgDir = pkgPath.slice(0, pkgPath.lastIndexOf('/'));
+  const raw = ts.sys.readFile(pkgPath);
+  if (!raw) throw new Error(`cannot read ${pkgPath}`);
+  const pkg = JSON.parse(raw) as {
+    exports?: Record<string, { import?: { types?: string }; require?: { types?: string } }>;
+  };
+
+  // Read the export map rather than a hand-written subpath list: a list is a
+  // copy, and a copy of the spec's shape is what this whole ledger is about.
+  const files: string[] = [];
+  for (const cond of Object.values(pkg.exports ?? {})) {
+    if (typeof cond !== 'object' || cond === null) continue;
+    const dts = cond.import?.types ?? cond.require?.types;
+    if (dts) files.push(ts.sys.resolvePath(`${pkgDir}/${dts.replace(/^\.\//, '')}`));
+  }
+
+  const program = ts.createProgram(files, PROBE_OPTIONS);
+  const checker = program.getTypeChecker();
+
+  const names = new Set<string>();
+  for (const file of files) {
+    const sf = program.getSourceFile(file);
+    if (!sf) continue;
+    const moduleSymbol = checker.getSymbolAtLocation(sf);
+    if (!moduleSymbol) continue;
+    for (const exported of checker.getExportsOfModule(moduleSymbol)) names.add(exported.getName());
+  }
+  return names;
+}
+
+const SPEC_NAMES = specExportNames();
+
+describe('the spec export-name probe itself works', () => {
+  it('reads a non-trivial number of names', () => {
+    expect(SPEC_NAMES.size).toBeGreaterThan(1000);
+  });
+
+  it('sees TYPE-only exports, not just runtime values', () => {
+    // `DroppedFieldsEvent` is a type alias — invisible to a runtime `import()`.
+    expect(SPEC_NAMES.has('DroppedFieldsEvent')).toBe(true);
+  });
+});
+
+const RENAMES: Array<[local: string, formerly: string, specMeaning: string]> = [
+  [
+    'MetadataCacheStats',
+    'CacheStats',
+    "the platform's ICacheService counters (keyCount / memoryUsage)",
+  ],
+  [
+    'MetadataClientSaveOptions',
+    'MetadataSaveOptions',
+    'options for writing a metadata item to a FILE (format / path / indent / atomic)',
+  ],
+  [
+    'SecurityManagerPolicy',
+    'SecurityPolicy',
+    'the package supply-chain policy (autoScan / licences / codeSigning / sandbox)',
+  ],
+  [
+    'DataApiValidationError',
+    'ValidationError',
+    'a plain { field, message, code? } entry in a validation report',
+  ],
+];
+
+describe('renamed local concepts do not collide with a spec export', () => {
+  it.each(RENAMES)('the spec does not own `%s`', (local) => {
+    expect(
+      SPEC_NAMES.has(local),
+      `@objectstack/spec now exports \`${local}\`. This package declares its own ` +
+        `\`${local}\`, so the rename that fixed objectstack#4115 has re-created the ` +
+        `collision under the new name. Rename again — and check the new name here ` +
+        `FIRST: objectui#3074 landed a rename straight onto another spec export, and ` +
+        `batch 4 burned two obvious candidates (SchemaValidationResult, ` +
+        `SchemaValidationReport) the same way.`,
+    ).toBe(false);
+  });
+
+  it.each(RENAMES)('the spec still owns `%s` (it means: %s)', (_local, formerly) => {
+    expect(
+      SPEC_NAMES.has(formerly),
+      `@objectstack/spec no longer exports \`${formerly}\`, which is the only reason ` +
+        `this package renamed it. Either the spec dropped the name (then the plain ` +
+        `name can be taken back) or it moved (then re-read what it means now). A ` +
+        `workaround must not outlive its reason.`,
+    ).toBe(true);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Compile-time pins. A violation is a `tsc` error, not a runtime failure.      */
+/* Compiled by this package's own `tsc --noEmit`: unlike its siblings, this      */
+/* package's tsconfig.json does NOT exclude test files, so no separate           */
+/* tsconfig.typetests.json is needed to make these pins load-bearing.            */
+/* -------------------------------------------------------------------------- */
+
+type Assert<T extends true> = T;
+type IsAny<T> = 0 extends 1 & T ? true : false;
+/** The `unknown` erasure the `any` probe reports `false` for (objectui#3155). */
+type IsUnknown<T> = [unknown] extends [T] ? ([T] extends [unknown] ? true : false) : false;
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
+  ? true
+  : false;
+type HasKey<T, K extends PropertyKey> = K extends keyof T ? true : false;
+
+describe('DroppedFieldsEvent IS the spec type, not a mirror of it', () => {
+  it('is pinned at compile time', () => {
+    type _SpecNotAny = Assert<Equal<IsAny<SpecDroppedFieldsEvent>, false>>;
+    type _SpecNotUnknown = Assert<Equal<IsUnknown<SpecDroppedFieldsEvent>, false>>;
+
+    type _IsTheSpecType = Assert<Equal<DroppedFieldsEvent, SpecDroppedFieldsEvent>>;
+
+    // The pin that matters. The deleted copy widened `reason` to bare `string`
+    // "for forward-compatibility with reasons added server-side" — which is the
+    // AGENTS.md #12 lenient fallback, and it deleted the only signal that would
+    // tell AdapterProvider's toast (it branches on `readonly_when`) that a third
+    // reason had appeared. `Equal` is used rather than `extends` because
+    // `'readonly' | 'readonly_when' extends string` is true in the drifted
+    // direction too.
+    type _ReasonIsTheEnum = Assert<Equal<DroppedFieldsEvent['reason'], 'readonly' | 'readonly_when'>>;
+    type _ReasonIsNotString = Assert<Equal<Equal<DroppedFieldsEvent['reason'], string>, false>>;
+
+    expect(true).toBe(true);
+  });
+});
+
+describe('MetadataCacheStats is not the spec ICacheService stats', () => {
+  it('is pinned at compile time', () => {
+    type _SpecNotAny = Assert<Equal<IsAny<SpecCacheStats>, false>>;
+
+    // The two agree only on the two counters every cache has. Everything that
+    // says what KIND of cache each describes is exclusive to one side: the
+    // spec's is a server KV store sized in keys and bytes; this one is a bounded
+    // browser LRU that evicts, coalesces in-flight fetches and reports a rate.
+    type _Shared = Assert<Equal<Extract<keyof MetadataCacheStats, keyof SpecCacheStats>, 'hits' | 'misses'>>;
+    type _SpecOnly = Assert<Equal<Exclude<keyof SpecCacheStats, keyof MetadataCacheStats>, 'keyCount' | 'memoryUsage'>>;
+    type _LocalOnly = Assert<
+      Equal<
+        Exclude<keyof MetadataCacheStats, keyof SpecCacheStats>,
+        'size' | 'maxSize' | 'evictions' | 'coalesced' | 'hitRate'
+      >
+    >;
+
+    expect(true).toBe(true);
+  });
+});
+
+describe('MetadataClientSaveOptions is not the spec file-save options', () => {
+  it('is pinned at compile time', () => {
+    type _SpecNotAny = Assert<Equal<IsAny<SpecMetadataSaveOptions>, false>>;
+
+    // Disjoint: the spec's describes serialising an item to disk, this one
+    // describes a PUT to /api/v1/meta/*. Not one key is shared, so there was
+    // never a subset relationship to derive from.
+    type _NoOverlap = Assert<Equal<Extract<keyof MetadataClientSaveOptions, keyof SpecMetadataSaveOptions>, never>>;
+
+    // The keys that make this the HTTP envelope.
+    type _HasIfMatch = Assert<HasKey<MetadataClientSaveOptions, 'ifMatch'>>;
+    type _HasDraftMode = Assert<Equal<MetadataClientSaveOptions['mode'], 'draft' | 'publish' | undefined>>;
+    // …and the ones that make the spec's the file writer.
+    type _SpecHasPath = Assert<HasKey<SpecMetadataSaveOptions, 'path'>>;
+    type _SpecHasFormat = Assert<HasKey<SpecMetadataSaveOptions, 'format'>>;
+
+    expect(true).toBe(true);
+  });
+});
+
+describe('SecurityManagerPolicy is not the spec package-security policy', () => {
+  it('is pinned at compile time', () => {
+    type _SpecNotAny = Assert<Equal<IsAny<SpecSecurityPolicy>, false>>;
+
+    // Also fully disjoint. The spec's governs installing a plugin (scan
+    // schedule, licence allowlists, code signing, sandbox limits); this one
+    // governs what the browser adapter emits and hides (CSP header, audit log,
+    // field masking).
+    type _NoOverlap = Assert<Equal<Extract<keyof SecurityManagerPolicy, keyof SpecSecurityPolicy>, never>>;
+    type _SpecIsIdentified = Assert<Equal<SpecSecurityPolicy['id'], string>>;
+    type _LocalIsAllOptional = Assert<
+      Equal<
+        undefined extends SecurityManagerPolicy['csp' | 'auditLog' | 'dataMasking'] ? true : false,
+        true
+      >
+    >;
+
+    expect(true).toBe(true);
+  });
+});
+
+describe('DataApiValidationError is an Error, the spec ValidationError is a record', () => {
+  it('is pinned at compile time', () => {
+    type _SpecNotAny = Assert<Equal<IsAny<SpecValidationError>, false>>;
+
+    // The spec's is one entry in a validation report. `@object-ui/types`
+    // re-exports it under that name, so the two were importable side by side.
+    type _SpecShape = Assert<Equal<Exclude<keyof SpecValidationError, 'field' | 'message' | 'code'>, never>>;
+
+    // This one is a thrown runtime object: it has a `stack`, which no data
+    // record does, and it carries the whole list the spec type is one item of.
+    type _WeAreAnError = Assert<HasKey<DataApiValidationError, 'stack'>>;
+    type _WeCarryTheList = Assert<
+      Equal<DataApiValidationError['validationErrors'], Array<{ field: string; message: string }> | undefined>
+    >;
+
+    expect(true).toBe(true);
+  });
+
+  it('keeps `name === "ValidationError"` — the RUNTIME name is a wire contract', () => {
+    // Deliberately NOT renamed with the class. `normaliseClientError` in
+    // ./index.ts sniffs `e.name === 'ValidationError'` on errors thrown by
+    // `@objectstack/client`, and `@object-ui/react`'s `error-message` does the
+    // same on the way out. Renaming the TypeScript symbol is a source change;
+    // renaming this string would be a silent behaviour change.
+    expect(new DataApiValidationError('nope').name).toBe('ValidationError');
+    expect(new DataApiValidationError('nope')).toBeInstanceOf(Error);
+    expect(new DataApiValidationError('nope').code).toBe('VALIDATION_ERROR');
+    expect(new DataApiValidationError('nope').statusCode).toBe(400);
+  });
+});

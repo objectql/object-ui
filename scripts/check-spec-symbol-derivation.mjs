@@ -173,6 +173,38 @@ const ALLOW = {
       "where a stored row can be null. A row is not a response.",
     issue: 4115,
   },
+  // Two RENDERERS in @object-ui/plugin-list, judged by the AuthProvider rule
+  // above and NOT by "components are exempt" — the sibling `ViewTab` in the same
+  // package was a hand copy under a spec name and was derived (objectui#3160).
+  "@object-ui/plugin-list:ListView": {
+    reason:
+      "The RENDERER of the spec type, not a second declaration of it. The spec's `ListView` " +
+      "is authored view METADATA (`z.infer<typeof ListViewSchema>`, type-only); this is the " +
+      "React component that draws it, and its own props bind that metadata at the declaration " +
+      "— `ListViewProps.schema` is `ListViewSchema` from `@object-ui/types`, itself the " +
+      "declared dialect two entries up. So the two layers are joined here, not confused: there " +
+      "is no shape to drift, and `<ListView schema={…}/>` cannot be read as canonical for a " +
+      "metadata SHAPE the way `AuthProviderConfig` could. The repo already disambiguates from " +
+      "the other side — `@object-ui/types` re-exports the spec's type as `SpecListView` — and " +
+      "renaming the package's headline export would rewrite every consumer's JSX for zero " +
+      "defect, the AuthProvider judgement exactly. Pinned by " +
+      "packages/plugin-list/src/__tests__/spec-symbol-batch6.test.tsx, which fails if the " +
+      "spec's `ListView` stops being authored metadata or if this export stops being a " +
+      "component that consumes it.",
+    issue: 4115,
+  },
+  "@object-ui/plugin-list:UserFilters": {
+    reason:
+      "Same judgement as `ListView` directly above, and the same package. The spec's " +
+      "`UserFilters` is the ADR-0047 quick-filter CONFIG (`{ element, fields, tabs, … }`, " +
+      "type-only); this is the filter bar that renders it, and it takes that config as a prop " +
+      "— `UserFiltersProps.config` is `NonNullable<ListViewSchema['userFilters']>`, so the " +
+      "spec's shape is what this component is typed against rather than something it restates. " +
+      "Nothing here declares a filter shape, so nothing here can drift from one. Pinned by the " +
+      "same test file, which asserts `UserFiltersProps['config']` still accepts the spec's " +
+      "authored `UserFilters`.",
+    issue: 4115,
+  },
 };
 
 // ── Untriaged collisions (the ledger) ────────────────────────────────────────
@@ -256,24 +288,6 @@ const ALLOW = {
 // Compare `_input` too before touching a schema const.
 const DEBT_ISSUE = 4115;
 const DEBT = {
-  "@object-ui/data-objectstack": [
-    "CacheStats",
-    "DroppedFieldsEvent",
-    "MetadataSaveOptions",
-    "SecurityPolicy",
-    "ValidationError",
-  ],
-  "@object-ui/plugin-chatbot": [
-    "MessageContent",
-    "PendingActionRow",
-    "PendingActionStatus",
-    "Tool",
-  ],
-  "@object-ui/plugin-list": [
-    "ListView",
-    "UserFilters",
-    "ViewTab",
-  ],
   "@object-ui/types": [
     "JoinedReportBlock",
     "NavigationItem",
@@ -318,7 +332,24 @@ const DEBT = {
 // Files under these paths are not objectui's own authored surface.
 //   - `ui/` is the Shadcn no-touch zone (AGENTS.md #7): upstream 3rd-party files
 //     overwritten by sync scripts, so a collision there is not ours to fix.
-const SKIP_PATH_SEGMENTS = ["components/src/ui/"];
+//   - `plugin-chatbot/src/elements/` is the same class one package over: Vercel
+//     AI Elements (https://elements.ai-sdk.dev, MIT) plus two Shadcn primitives
+//     `@object-ui/components` does not ship yet, vendored by the identical
+//     copy-into-source model and re-synced from upstream. Every file there
+//     carries the banner saying so. Two of its exports collide —
+//     `Tool` (a `<Collapsible>` shell for a tool call; the spec's is an agent
+//     TOOL DEFINITION) and `MessageContent` (a styled `<div>`; the spec's is an
+//     AI message payload) — and neither is renameable: the names ARE the
+//     upstream component API, so a rename is reverted by the next re-sync and
+//     breaks `<Tool><ToolHeader/></Tool>` for anyone following upstream docs.
+//     Skipping the directory rather than ALLOW-ing the two names is deliberate:
+//     a future re-sync must not fail an unrelated PR over a third vendored name
+//     nobody here is allowed to rename either. The hole that opens — an
+//     objectui-AUTHORED file hiding under the skip — is closed by
+//     packages/plugin-chatbot/src/__tests__/spec-symbol-batch6.test.ts, which
+//     fails if any file there stops carrying the vendored banner.
+//     (objectui#3160, objectstack#4115 ledger batch 6.)
+const SKIP_PATH_SEGMENTS = ["components/src/ui/", "plugin-chatbot/src/elements/"];
 
 const isSpecModule = (m) => m === "@objectstack/spec" || m.startsWith("@objectstack/spec/");
 

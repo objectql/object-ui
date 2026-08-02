@@ -16,18 +16,31 @@ import {
   DropdownMenuItem,
 } from '@object-ui/components';
 import { icons, ChevronDown, type LucideIcon } from 'lucide-react';
+import type { ViewTabSchema } from '@objectstack/spec/ui';
 
-export interface ViewTab {
-  name: string;
-  label: string;
-  icon?: string;
-  view?: string;
-  filter?: any;
-  order?: number;
-  pinned?: boolean;
-  isDefault?: boolean;
-  visible?: string | boolean;
-}
+/**
+ * One tab in a multi-tab list view — derived from the spec's `ViewTabSchema`
+ * (objectui#3160, objectstack#4115 ledger batch 6).
+ *
+ * Until then this was a hand copy wearing the spec's own name, drifted in three
+ * places: `label` was REQUIRED (the spec makes it optional — `name` is the
+ * identifier), `filter` was `any` (the spec models `ViewFilterRule[]`, so a
+ * mistyped operator was unreportable), and `visible` accepted `string | boolean`
+ * — a renderer-side tolerance for a shape the spec never emits, which is the
+ * lenient fallback AGENTS.md #12 bans. `@object-ui/types` has re-exported the
+ * spec's `ViewTab` under that name all along, so the fork and the real thing
+ * were already importable side by side.
+ *
+ * Bound to the AUTHORING (`input`) side, not `z.infer`: `pinned` / `isDefault` /
+ * `visible` all carry `.default()`s, so the PARSED type makes three keys
+ * required and a host handing this component stored view metadata
+ * (`{ name: 'open' }`) could not express it. The rule recorded on
+ * objectstack#4115 — writing this metadata → input, reading what has already
+ * been parsed → `z.infer`. Reached through the schema's own `_zod` carrier
+ * rather than `z.input` so this package takes no zod dependency; same technique
+ * and fuller rationale in `packages/react/src/spec-input.ts`.
+ */
+export type ViewTab = (typeof ViewTabSchema)['_zod']['input'];
 
 export interface TabBarProps {
   tabs: ViewTab[];
@@ -50,12 +63,18 @@ function resolveIcon(iconName?: string): LucideIcon | null {
 }
 
 /**
- * Filter visible tabs: exclude tabs where visible is 'false' or boolean false.
+ * Filter visible tabs: exclude tabs where `visible` is false.
  * Pinned tabs are always included regardless of other filtering.
+ *
+ * The `!== 'false'` half of this predicate went with the hand-copied `ViewTab`
+ * above (objectui#3160): the spec types `visible` as a boolean and nothing in
+ * the platform emits the STRING `'false'`, so the extra comparison was a
+ * renderer-side accommodation for a shape no producer writes — and with the
+ * derived type it is a compile error rather than dead code.
  */
 function getVisibleTabs(tabs: ViewTab[]): ViewTab[] {
   return tabs
-    .filter(tab => tab.pinned || (tab.visible !== 'false' && tab.visible !== false))
+    .filter(tab => tab.pinned || tab.visible !== false)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 

@@ -7,6 +7,7 @@
  */
 
 import { ObjectStackClient, type QueryOptions as ObjectStackQueryOptions } from '@objectstack/client';
+import type { DroppedFieldsEvent } from '@objectstack/spec/data';
 import type {
   DataSource,
   BatchTransactionOperation,
@@ -39,7 +40,7 @@ import {
   MetadataNotFoundError,
   BulkOperationError,
   ConnectionError,
-  ValidationError,
+  DataApiValidationError,
   createErrorFromResponse,
 } from './errors';
 
@@ -588,7 +589,7 @@ export function isConcurrentUpdateError(error: unknown): error is ConcurrentUpda
  *
  * Two shapes are recognised:
  *   - `409` + `CONCURRENT_UPDATE` → {@link ConcurrentUpdateError};
- *   - `400` + `VALIDATION_FAILED` → {@link ValidationError}, carrying the
+ *   - `400` + `VALIDATION_FAILED` → {@link DataApiValidationError}, carrying the
  *     server's per-field entries so a form can mark the offending inputs
  *     instead of showing one undirected toast.
  */
@@ -621,7 +622,7 @@ export function normaliseClientError(error: unknown): unknown {
       })
       .filter((x): x is { field: string; message: string } => x !== null);
 
-    return new ValidationError(
+    return new DataApiValidationError(
       typeof e.message === 'string' ? e.message : 'Validation failed',
       validationErrors[0]?.field,
       validationErrors,
@@ -721,16 +722,21 @@ export type BatchProgressListener = (event: BatchProgressEvent) => void;
 /**
  * One server-reported write-strip: caller-supplied fields the backend LEGALLY
  * removed from a write before persisting (a non-system caller cannot seed a
- * `readonly` field, a `readonlyWhen` predicate locked it, etc.). Mirrors the
- * framework `DroppedFieldsEvent` (spec `DroppedFieldsEventSchema`) structurally
- * so we don't pin a client type version — `reason` is kept as a widened string
- * for forward-compatibility with reasons added server-side.
+ * `readonly` field, a `readonlyWhen` predicate locked it, etc.).
+ *
+ * THE spec type, re-exported (objectui#3160, objectstack#4115 ledger batch 6).
+ * Until then this was a hand copy whose comment said it "mirrors the framework
+ * `DroppedFieldsEvent` (spec `DroppedFieldsEventSchema`) structurally so we
+ * don't pin a client type version", with `reason` widened from the spec's
+ * `'readonly' | 'readonly_when'` to bare `string` "for forward-compatibility
+ * with reasons added server-side". Both halves of that reasoning are the
+ * failure mode this ledger exists to remove: the spec IS the client type
+ * version, and a consumer-side widening of a producer's enum is precisely the
+ * lenient fallback AGENTS.md #12 bans — it deletes the only compile-time signal
+ * that would tell `AdapterProvider`'s toast wording (which branches on
+ * `readonly_when`) that a new reason had appeared.
  */
-export interface DroppedFieldsEvent {
-  object: string;
-  fields: string[];
-  reason: string;
-}
+export type { DroppedFieldsEvent };
 
 /**
  * Emitted after a create/update whose response carried `droppedFields`
@@ -3511,14 +3517,14 @@ export {
   BulkOperationError,
   ConnectionError,
   AuthenticationError,
-  ValidationError,
+  DataApiValidationError,
   createErrorFromResponse,
   isObjectStackError,
   isErrorType,
 } from './errors';
 
 // Export cache types
-export type { CacheStats } from './cache/MetadataCache';
+export type { MetadataCacheStats } from './cache/MetadataCache';
 
 // v3.0.0 Deep Integration modules
 export { CloudOperations } from './cloud';
@@ -3546,7 +3552,7 @@ export type {
   MetadataClientConfig,
   MetadataListOptions,
   MetadataDraftHeader,
-  MetadataSaveOptions,
+  MetadataClientSaveOptions,
   MetadataGetOptions,
   MetadataDeleteOptions,
   MetadataHistoryOptions,
@@ -3563,7 +3569,7 @@ export type {
 } from './metadata-client';
 
 export { SecurityManager } from './security';
-export type { SecurityPolicy, CSPConfig, AuditLogConfig, AuditEventType, DataMaskingConfig, DataMaskingRule, AuditLogEntry } from './security';
+export type { SecurityManagerPolicy, CSPConfig, AuditLogConfig, AuditEventType, DataMaskingConfig, DataMaskingRule, AuditLogEntry } from './security';
 
 export { createDefaultCanvasConfig, snapToGrid, calculateAutoLayout } from './studio';
 export type { StudioCanvasConfig, StudioPropertyEditor, StudioThemeBuilderConfig, StudioColorPalette, StudioTypographyPreset, StudioShadowPreset } from './studio';

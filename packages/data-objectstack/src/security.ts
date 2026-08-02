@@ -11,7 +11,20 @@
  * Provides advanced security policies: CSP config, audit logging, data masking.
  */
 
-export interface SecurityPolicy {
+/**
+ * Configuration for {@link SecurityManager} — this adapter's browser-side
+ * security posture: the CSP header it generates, the in-memory audit log it
+ * keeps, and the field-masking rules it applies before a record is rendered.
+ *
+ * NOT the spec's `SecurityPolicy` (`@objectstack/spec/kernel`), whose name this
+ * interface wore until objectui#3160 (objectstack#4115 ledger batch 6). That one
+ * is the PACKAGE SUPPLY-CHAIN policy — `{ id, name, autoScan, thresholds,
+ * allowedLicenses, prohibitedLicenses, codeSigning, sandbox }` — the rules a
+ * marketplace applies when scanning a plugin before install. It shares no key
+ * with this one, so there was nothing to derive; the collision is the word
+ * "security", not the concept.
+ */
+export interface SecurityManagerPolicy {
   /** Content Security Policy configuration */
   csp?: CSPConfig;
   /** Audit logging configuration */
@@ -100,10 +113,10 @@ export interface AuditLogEntry {
  * Handles CSP generation, audit logging, and data masking.
  */
 export class SecurityManager {
-  private policy: SecurityPolicy;
+  private policy: SecurityManagerPolicy;
   private auditLog: AuditLogEntry[] = [];
 
-  constructor(policy: SecurityPolicy = {}) {
+  constructor(policy: SecurityManagerPolicy = {}) {
     this.policy = policy;
   }
 
@@ -204,14 +217,14 @@ export class SecurityManager {
   /**
    * Update the security policy.
    */
-  updatePolicy(policy: Partial<SecurityPolicy>): void {
+  updatePolicy(policy: Partial<SecurityManagerPolicy>): void {
     this.policy = { ...this.policy, ...policy };
   }
 
   /**
    * Get current security policy.
    */
-  getPolicy(): SecurityPolicy {
+  getPolicy(): SecurityManagerPolicy {
     return { ...this.policy };
   }
 }

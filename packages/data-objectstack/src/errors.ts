@@ -159,12 +159,24 @@ export class AuthenticationError extends ObjectStackError {
 }
 
 /**
- * Error thrown when data validation fails
+ * Error thrown when the ObjectStack data API rejects a write as invalid.
+ *
+ * NOT the spec's `ValidationError` (`@objectstack/spec/kernel`), whose name this
+ * class wore until objectui#3160 (objectstack#4115 ledger batch 6). That one is
+ * a plain DATA SHAPE — `{ field, message, code? }`, one entry in a plugin
+ * manifest's validation report — and `@object-ui/types` re-exports it under that
+ * name. This is a runtime `Error` subclass carrying an HTTP status plus a list
+ * of such entries, so the two are not even the same KIND of thing.
+ *
+ * The name follows the convention registered on objectstack#4115 for this
+ * family — `<what was validated>Validation<Error|Result>`. `@object-ui/core`
+ * took `SchemaNodeValidationError` for its SDUI-tree walk; this one belongs to
+ * the data API.
  */
-export class ValidationError extends ObjectStackError {
+export class DataApiValidationError extends ObjectStackError {
   /**
-   * Create a new ValidationError
-   * 
+   * Create a new DataApiValidationError
+   *
    * @param message - Human-readable error message
    * @param field - The field that failed validation (optional)
    * @param validationErrors - Array of validation error details
@@ -186,6 +198,12 @@ export class ValidationError extends ObjectStackError {
         ...details,
       }
     );
+    // The RUNTIME name stays `'ValidationError'` on purpose — it is the wire
+    // discriminator this adapter shares with `@objectstack/client` and with
+    // consumers that sniff `err.name` rather than `instanceof`
+    // (`normaliseClientError` here, `@object-ui/react`'s `error-message`).
+    // Renaming the TypeScript symbol is a source-level rename; renaming this
+    // string would be a behaviour change nobody asked for.
     this.name = 'ValidationError';
   }
 
@@ -232,7 +250,7 @@ export function createErrorFromResponse(response: Record<string, unknown>, conte
       return new ObjectStackError(message, 'NOT_FOUND', 404, details);
     
     case 400:
-      return new ValidationError(message, undefined, (response?.data as Record<string, unknown>)?.errors as Array<{ field: string; message: string }>, details);
+      return new DataApiValidationError(message, undefined, (response?.data as Record<string, unknown>)?.errors as Array<{ field: string; message: string }>, details);
     
     case 503:
       return new ConnectionError(message, (response?.config as Record<string, unknown>)?.url as string, details, 503);
