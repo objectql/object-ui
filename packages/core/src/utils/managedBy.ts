@@ -183,14 +183,26 @@ export function isWriteOptedIn(v: UserActionOverride | undefined | null): boolea
 }
 
 /**
- * ADR-0103 — a `system`-bucket object that opened ANY write via `userActions`
- * is admin/user-writable DATA, not an engine-owned monitoring surface. Used to
- * pick the writable-system badge/empty-state copy.
+ * True for a platform-defined schema whose DATA is admin/user-writable — the
+ * `system-data` bucket. Used to pick the writable-system badge/empty-state copy
+ * instead of the engine-owned "read-only monitoring surface" copy.
+ *
+ * **Simplified in protocol 17 (objectstack#3355).** Under ADR-0103's v16 split
+ * this had to RECOVER the distinction from `userActions`: `system` doubled as
+ * both the engine-owned default and the writable set, so "did it open any
+ * write?" was the only way to tell a Notification Preferences grid from an
+ * automation-run log. v17 retired that overload — the writable half is now the
+ * `system-data` bucket (writable by DEFAULT) and the engine-owned half is
+ * `engine-owned` — so the bucket answers the question directly and the
+ * `userActions` probe would only re-derive what the value already states.
+ *
+ * The narrowing case is deliberately still `true`: a `system-data` grid that
+ * narrows to edit-only is still platform-schema/user-data and should read as
+ * such. The spec refuses `system-data` on an object that narrows away every
+ * write, so there is no "writable bucket with no writes" shape to worry about.
  */
 export function isSystemWritable(obj: SchemaLike | null | undefined): boolean {
-  if (obj?.managedBy !== 'system') return false;
-  const o = obj?.userActions ?? {};
-  return o.create === true || isWriteOptedIn(o.edit) || isWriteOptedIn(o.delete);
+  return obj?.managedBy === 'system-data';
 }
 
 /**

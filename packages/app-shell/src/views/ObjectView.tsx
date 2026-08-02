@@ -1682,7 +1682,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                  title={
                    <span className="inline-flex items-center gap-2">
                      <span className="truncate">{objectLabel(objectDef)}</span>
-                     <ManagedByBadge managedBy={(objectDef as any)?.managedBy} userActions={(objectDef as any)?.userActions} />
+                     <ManagedByBadge managedBy={(objectDef as any)?.managedBy} />
                    </span>
                  }
                  description={objectDef.description ? objectDesc(objectDef) : undefined}

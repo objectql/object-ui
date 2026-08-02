@@ -43,16 +43,17 @@ export function resolveManagedByEmptyState(
   userActions?: UserActionsOverride | null,
 ): ManagedByEmptyState | undefined {
   switch (managedBy) {
-    // ADR-0103 — the explicit engine-owned bucket reuses the `system` engine-owned
-    // empty state ("entries appear automatically"); it never opens creation, so the
-    // resolveEffectiveCrudAffordances guard below is a no-op for it.
+    // ADR-0103 — rows a platform service owns end to end: "entries appear
+    // automatically" is the whole story. It keeps the `system` i18n KEY (the copy
+    // is unchanged and every locale bundle carries it), not the retired bucket
+    // VALUE — objectstack#3355 renamed the writable half to `system-data`, which
+    // now falls through to `default` and gets the generic empty state with its
+    // New button, exactly as its full-CRUD bucket default implies.
     case 'engine-owned':
-    case 'system':
-      // ADR-0103 — a `system` object that opened creation is admin/user-writable
-      // data (e.g. Notification Preferences). The "entries appear automatically"
-      // copy would be wrong; fall back to the generic empty state (which surfaces
-      // the New button) by returning undefined. The resolved `create` affordance
-      // (shared @object-ui/core policy) is the one place that reads the override.
+      // An `engine-owned` object that nonetheless opens creation via `userActions`
+      // would make the "appear automatically" copy wrong; fall back to the generic
+      // empty state. The resolved `create` affordance (shared @object-ui/core
+      // policy) is the one place that reads the override.
       if (resolveEffectiveCrudAffordances({ managedBy, userActions }).create) return undefined;
       return {
         icon: 'Lock',

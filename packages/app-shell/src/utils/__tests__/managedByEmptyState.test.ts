@@ -15,28 +15,42 @@ describe('resolveManagedByEmptyState', () => {
     expect(resolveManagedByEmptyState('nope', t)).toBeUndefined();
   });
 
-  it('leaves the system / append-only buckets intact', () => {
-    expect(resolveManagedByEmptyState('system', t)?.title).toBe('Nothing here yet');
+  it('leaves the engine-owned / append-only buckets intact', () => {
+    expect(resolveManagedByEmptyState('engine-owned', t)?.title).toBe('Nothing here yet');
     expect(resolveManagedByEmptyState('append-only', t)?.title).toBe('No events recorded');
   });
 
-  // ADR-0103 — the explicit engine-owned bucket reuses the `system` engine-owned
-  // empty state; it never opens creation, so it always renders that copy.
-  it('gives the engine-owned bucket the same engine-owned empty state as locked system', () => {
+  // ADR-0103 — rows a platform service owns end to end; it never opens creation,
+  // so it always renders the "entries appear automatically" copy.
+  it('gives the engine-owned bucket the engine-owned empty state', () => {
     expect(resolveManagedByEmptyState('engine-owned', t)?.title).toBe('Nothing here yet');
     expect(resolveManagedByEmptyState('engine-owned', t, 'sys_automation_run', undefined)?.title).toBe('Nothing here yet');
   });
 
-  // ADR-0103 — a `system` object that opened creation (writable set: Notification
-  // Preferences, delegated RBAC assignments, …) is admin/user-writable data. The
-  // "entries appear automatically" copy would be wrong, so the helper returns
-  // undefined and the caller falls back to the generic empty state (New button).
-  it('returns undefined for a system object whose userActions opened creation', () => {
-    expect(resolveManagedByEmptyState('system', t, 'sys_notification_preference', { create: true })).toBeUndefined();
-    // A system object that did NOT open creation stays engine-owned.
-    expect(resolveManagedByEmptyState('system', t, 'sys_automation_run', {})?.title).toBe('Nothing here yet');
-    expect(resolveManagedByEmptyState('system', t, 'sys_automation_run', undefined)?.title).toBe('Nothing here yet');
-    // append-only is unaffected by userActions.create (audit logs stay locked).
+  /**
+   * objectstack#3355 — the writable half is its own bucket now.
+   *
+   * Under ADR-0103 this helper had to ASK `userActions` whether a `system` list
+   * should get the "entries appear automatically" copy or the generic
+   * New-button empty state. `system-data` answers it by name: it is
+   * admin/user-writable data, so it falls through to `default` and the caller
+   * renders the generic empty state — no probe, no derivation.
+   */
+  it('returns undefined for `system-data` — the generic New-button empty state', () => {
+    expect(resolveManagedByEmptyState('system-data', t, 'sys_notification_preference')).toBeUndefined();
+    // …and stays undefined however `userActions` narrows, since the bucket default is full CRUD.
+    expect(resolveManagedByEmptyState('system-data', t, 'sys_notification_preference', { create: true })).toBeUndefined();
+    expect(resolveManagedByEmptyState('system-data', t, 'sys_user_position', {})).toBeUndefined();
+  });
+
+  it('gives the retired `system` value no special-casing at all', () => {
+    // It falls through to `default` like any unknown bucket — the retired value
+    // must not keep steering UI copy after objectstack#3355.
+    expect(resolveManagedByEmptyState('system', t)).toBeUndefined();
+    expect(resolveManagedByEmptyState('system', t, 'sys_automation_run', {})).toBeUndefined();
+  });
+
+  it('append-only is unaffected by userActions.create (audit logs stay locked)', () => {
     expect(resolveManagedByEmptyState('append-only', t, 'sys_audit_log', { create: true })?.title).toBe('No events recorded');
   });
 

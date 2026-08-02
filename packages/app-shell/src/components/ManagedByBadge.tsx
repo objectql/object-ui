@@ -8,7 +8,7 @@ import {
   cn,
 } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { isSystemWritable, type ManagedByBucket } from '../utils/crudAffordances';
+import { type ManagedByBucket } from '../utils/crudAffordances';
 
 /**
  * ManagedByBadge — replaces the verbose, full-width `ManagedByBanner` with
@@ -28,12 +28,11 @@ import { isSystemWritable, type ManagedByBucket } from '../utils/crudAffordances
  * `@objectstack/spec/data/object.zod.ts` → `ObjectSchemaBase.managedBy`:
  *   - `platform`     — User-owned business data. **Renders nothing.**
  *   - `config`       — Admin-authored configuration.
- *   - `system`       — Engine-managed schema. A `system` object that opens writes
- *                      via `userActions` (ADR-0103) is platform-defined,
- *                      admin/user-writable DATA and gets the distinct
- *                      writable-system copy; a locked one reads engine-owned.
+ *   - `system-data`  — Platform-defined schema whose DATA is admin/user-writable
+ *                      (objectstack#3355; the writable half of the old `system`).
  *   - `engine-owned` — Runtime rows a platform service owns end to end (ADR-0103);
- *                      the explicit read-only monitoring surface.
+ *                      the explicit read-only monitoring surface, and the
+ *                      engine-owned half of the old `system`.
  *   - `append-only`  — Immutable audit log.
  *   - `better-auth`  — Identity tables owned by better-auth driver.
  *
@@ -42,32 +41,15 @@ import { isSystemWritable, type ManagedByBucket } from '../utils/crudAffordances
  * users understand at a glance why those affordances are missing — the
  * detailed explanation lives in the tooltip.
  *
- * Empty-state guidance for `system`-bucket lists is rendered separately by
+ * Empty-state guidance for the read-only buckets is rendered separately by
  * `ObjectView` via `resolveManagedByEmptyState()`.
  */
 
 type Bucket = ManagedByBucket;
 
-/**
- * Subset of `userActions` (ADR-0103) the badge needs to tell an engine-owned
- * `system` object apart from an admin/user-writable one. Mirrors the shared
- * `resolveEffectiveCrudAffordances` inputs; `edit`/`delete` accept the #2614 object form.
- */
-export interface ManagedByUserActions {
-  create?: boolean;
-  edit?: boolean | { enabled?: boolean };
-  delete?: boolean | { enabled?: boolean };
-}
-
 export interface ManagedByBadgeProps {
   /** The `managedBy` flag from the object schema. */
   managedBy?: string;
-  /**
-   * The object's `userActions` (ADR-0103). When a `system`-bucket object opens
-   * any write here, the badge switches from the engine-owned "read-only
-   * monitoring surface" copy to the admin/user-writable variant.
-   */
-  userActions?: ManagedByUserActions | null;
   /** Optional override for the human-readable system name shown in the tooltip. */
   label?: string;
   /** Optional extra classes. */
@@ -86,8 +68,13 @@ interface Variant {
   tone: string;
 }
 
-/** Variant keys: the non-platform buckets plus the ADR-0103 writable-system split. */
-type VariantKey = Exclude<Bucket, 'platform'> | 'system-writable';
+/**
+ * Variant keys: every non-platform bucket. The extra `'system-writable'` key
+ * ADR-0103 needed is gone — objectstack#3355 made the writable half a real
+ * bucket (`system-data`), so the variant map is once again 1:1 with the union
+ * and a new bucket is a compile error to miss.
+ */
+type VariantKey = Exclude<Bucket, 'platform'>;
 
 const VARIANTS: Record<VariantKey, Variant> = {
   config: {
@@ -99,22 +86,11 @@ const VARIANTS: Record<VariantKey, Variant> = {
       'These rows define how the platform behaves at runtime. Author them here; the runtime data they produce lives in a separate table.',
     tone: 'border-sky-300/60 bg-sky-50 text-sky-900 hover:bg-sky-100 dark:border-sky-500/40 dark:bg-sky-950/40 dark:text-sky-100',
   },
-  system: {
-    icon: Lock,
-    i18nKey: 'system',
-    short: 'System-managed',
-    title: 'Managed by the platform',
-    body: () =>
-      'Rows here are created automatically when actions run on the source record. The list below is a read-only monitoring surface — row-level actions (Approve, Recall, Resend, …) live on each row.',
-    tone: 'border-slate-300/60 bg-slate-50 text-slate-900 hover:bg-slate-100 dark:border-slate-500/40 dark:bg-slate-950/40 dark:text-slate-100',
-  },
   // ADR-0103 — the explicit engine-owned bucket: rows a platform service owns end
   // to end (jobs, automation runs, approval runtime rows, the metadata store, …).
-  // To a user this reads identically to a locked `system` object ("the platform
-  // manages this, read-only"), so it deliberately REUSES the `system` copy/i18n key
-  // — zero translation churn, consistent UX; the self-documentation is at the
-  // schema level. (Same object shape as `system`; the distinct bucket value is the
-  // point, not distinct user-facing copy.)
+  // Keeps the `system` i18n KEY (not the retired bucket value): the copy is
+  // unchanged and every locale bundle already carries it, so objectstack#3355
+  // costs zero translation churn. The vocabulary fix is at the schema level.
   'engine-owned': {
     icon: Lock,
     i18nKey: 'system',
@@ -124,12 +100,12 @@ const VARIANTS: Record<VariantKey, Variant> = {
       'Rows here are created automatically when actions run on the source record. The list below is a read-only monitoring surface — row-level actions (Approve, Recall, Resend, …) live on each row.',
     tone: 'border-slate-300/60 bg-slate-50 text-slate-900 hover:bg-slate-100 dark:border-slate-500/40 dark:bg-slate-950/40 dark:text-slate-100',
   },
-  // ADR-0103 — a `system`-bucket object that opened writes via `userActions`:
-  // platform-defined schema, but admin/user-writable DATA (e.g. Notification
-  // Preferences, delegated RBAC assignments). Resolved in the component when the
-  // bucket is `system` and any write is opted in, so the copy no longer claims a
-  // "read-only monitoring surface".
-  'system-writable': {
+  // objectstack#3355 — platform-defined schema, admin/user-writable DATA (e.g.
+  // Notification Preferences, delegated RBAC assignments). Under ADR-0103 this
+  // was a synthetic `'system-writable'` variant the component had to DERIVE from
+  // `userActions`; it is now the plain `system-data` bucket. The `systemWritable`
+  // i18n key is kept so no locale bundle has to change.
+  'system-data': {
     icon: Settings2,
     i18nKey: 'systemWritable',
     short: 'Platform schema',
@@ -158,13 +134,13 @@ const VARIANTS: Record<VariantKey, Variant> = {
   },
 };
 
-export function ManagedByBadge({ managedBy, userActions, label, className }: ManagedByBadgeProps) {
+export function ManagedByBadge({ managedBy, label, className }: ManagedByBadgeProps) {
   const { t } = useObjectTranslation();
   if (!managedBy || managedBy === 'platform') return null;
   // ADR-0103 — a `system` object that opened any write is admin/user-writable
   // data, not an engine-owned monitoring surface: pick the writable variant/copy.
-  const systemWritable = isSystemWritable({ managedBy, userActions });
-  const variantKey: VariantKey = systemWritable ? 'system-writable' : (managedBy as VariantKey);
+  // objectstack#3355 — the bucket IS the variant now; nothing to derive.
+  const variantKey = managedBy as VariantKey;
   const variant = VARIANTS[variantKey];
   if (!variant) return null;
   const Icon = variant.icon;

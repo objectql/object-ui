@@ -85,7 +85,7 @@ describe('resolveRecordHeaderActionGates — effective API operations (#3546)', 
     // server set must NOT re-open them — the server governs what it will
     // accept, the bucket governs what the product offers.
     expect(
-      resolveRecordHeaderActionGates({ name: 'sys_automation_run', managedBy: 'system' }, [
+      resolveRecordHeaderActionGates({ name: 'sys_automation_run', managedBy: 'engine-owned' }, [
         'get',
         'list',
         'create',

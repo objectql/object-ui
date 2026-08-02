@@ -894,9 +894,12 @@ export interface ObjectSchemaMetadata {
    *
    * - `'platform'` (default) — ObjectStack-owned business data; full CRUD.
    * - `'config'` — admin-authored configuration; New / Edit / Delete, no import.
-   * - `'system'` — platform-defined schema; engine-owned (read-only) by
-   *   default, unless it declares `userActions` opening writes (the
-   *   admin/user-writable set: RBAC links, prefs, messaging config).
+   * - `'system-data'` — platform-defined schema holding admin/user-writable
+   *   DATA (RBAC links, prefs, messaging config); full CRUD by default,
+   *   `userActions` NARROWS. Renamed from the residual `'system'` in protocol
+   *   17 (objectstack#3355).
+   * - `'engine-owned'` — runtime rows a platform service owns end to end; no
+   *   user writes.
    * - `'append-only'` — immutable audit trail; View + Export only.
    * - `'better-auth'` — identity tables owned by the auth driver; generic
    *   user-context writes are suppressed (they bypass password hashing,

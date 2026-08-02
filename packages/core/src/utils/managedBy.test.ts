@@ -24,7 +24,7 @@ describe('resolveEffectiveCrudAffordances — bucket half, delegated to the spec
   });
 
   it('system / engine-owned / append-only / better-auth: export-only by default', () => {
-    for (const managedBy of ['system', 'engine-owned', 'append-only', 'better-auth']) {
+    for (const managedBy of ['engine-owned', 'append-only', 'better-auth']) {
       expect(resolveEffectiveCrudAffordances({ managedBy })).toEqual({
         create: false, import: false, edit: false, delete: false, exportCsv: true,
       });
@@ -66,15 +66,22 @@ describe('isWriteOptedIn', () => {
   });
 });
 
-describe('isSystemWritable (ADR-0103)', () => {
-  it('true only for a system object that opened create, edit, or delete', () => {
-    expect(isSystemWritable({ managedBy: 'system', userActions: { create: true } })).toBe(true);
-    expect(isSystemWritable({ managedBy: 'system', userActions: { edit: { enabled: true } } })).toBe(true);
-    expect(isSystemWritable({ managedBy: 'system', userActions: { delete: true } })).toBe(true);
+describe('isSystemWritable (ADR-0103, simplified by objectstack#3355)', () => {
+  it('true for the `system-data` bucket, with or without userActions', () => {
+    // v17 pin: the BUCKET answers this now. Under ADR-0103 the writable half had
+    // to be recovered from `userActions` because `system` doubled as the
+    // engine-owned default; `system-data` states it outright, so a bare
+    // declaration — the shape all 8 platform objects now use — must be true.
+    expect(isSystemWritable({ managedBy: 'system-data' })).toBe(true);
+    expect(isSystemWritable({ managedBy: 'system-data', userActions: { create: true } })).toBe(true);
+    // …and a NARROW is still platform-schema/user-data, so still true.
+    expect(isSystemWritable({ managedBy: 'system-data', userActions: { create: false } })).toBe(true);
   });
-  it('false for engine-owned system and for other buckets even with userActions', () => {
-    expect(isSystemWritable({ managedBy: 'system' })).toBe(false);
-    expect(isSystemWritable({ managedBy: 'system', userActions: { edit: false } })).toBe(false);
+  it('false for the retired `system` value and for every other bucket', () => {
+    // The retired value must not keep working through this helper — it is exactly
+    // the silent-absorption path objectstack#3355 removed from the load path.
+    expect(isSystemWritable({ managedBy: 'system', userActions: { create: true } } as never)).toBe(false);
+    expect(isSystemWritable({ managedBy: 'engine-owned' })).toBe(false);
     // append-only / better-auth are never "system-writable" regardless of userActions
     expect(isSystemWritable({ managedBy: 'append-only', userActions: { create: true } })).toBe(false);
     expect(isSystemWritable({ managedBy: 'better-auth', userActions: { edit: true } })).toBe(false);
@@ -86,7 +93,7 @@ describe('isSystemWritable (ADR-0103)', () => {
 describe('isObjectInlineEditable', () => {
   it('mirrors the resolved edit affordance (replaces the old NON_EDITABLE_BUCKETS set)', () => {
     // Non-editable buckets by default...
-    for (const managedBy of ['system', 'engine-owned', 'append-only', 'better-auth']) {
+    for (const managedBy of ['engine-owned', 'append-only', 'better-auth']) {
       expect(isObjectInlineEditable({ managedBy })).toBe(false);
     }
     // ...editable buckets and opened-up system objects.
@@ -139,8 +146,12 @@ describe('userActionPredicates', () => {
 });
 
 describe('MANAGED_BY_BUCKETS', () => {
-  it('is the closed 6-bucket union in canonical order (ADR-0103 engine-owned split)', () => {
-    expect(MANAGED_BY_BUCKETS).toEqual(['platform', 'config', 'system', 'engine-owned', 'append-only', 'better-auth']);
+  it('is the closed 6-bucket union in canonical order (objectstack#3355 — `system` → `system-data`)', () => {
+    expect(MANAGED_BY_BUCKETS).toEqual(['platform', 'config', 'system-data', 'engine-owned', 'append-only', 'better-auth']);
+  });
+
+  it('no longer carries the retired `system` value', () => {
+    expect(MANAGED_BY_BUCKETS).not.toContain('system');
   });
 });
 

@@ -109,7 +109,7 @@ describe('record:details — inline-edit vs effective API operations (#3546)', (
   it('bucket-locked object stays locked even when the server allows `update`', () => {
     // Intersection, never union: an engine-owned object is not user-editable
     // regardless of what the caller's effective set permits.
-    stub.objectSchema = { managedBy: 'system' };
+    stub.objectSchema = { managedBy: 'engine-owned' };
     stub.effectiveOps = ['get', 'list', 'create', 'update', 'delete'];
     expect(inlineEditFor()).toBe(false);
   });
