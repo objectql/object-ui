@@ -63,7 +63,7 @@ export function useNavActionDispatch(): (item: NavigationItem) => void {
         return;
       }
 
-      let def: ActionDefLike | null = null;
+      let def: ActionDefLike | null;
       try {
         def = (await getItem('action', actionName)) as ActionDefLike | null;
       } catch (err) {
