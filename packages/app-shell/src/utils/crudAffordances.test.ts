@@ -7,35 +7,41 @@
  */
 
 /**
- * UI-side mirror of the framework's `resolveCrudAffordances`. Covers the
- * managedBy bucket defaults, the boolean overrides, and the objectui#2614
- * object form of `userActions.edit` / `delete` (per-record CEL predicates).
+ * app-shell's view of `resolveEffectiveCrudAffordances` (re-exported from
+ * `@object-ui/core` via `./crudAffordances`). Covers the managedBy bucket
+ * defaults, the boolean overrides, and the objectui#2614 object form of
+ * `userActions.edit` / `delete` (per-record CEL predicates).
+ *
+ * The bucket half is no longer objectui's to define — core delegates it to the
+ * spec's own `resolveCrudAffordances()` (objectstack#4115). These assertions
+ * therefore double as a parity gate: they fail if the spec ever re-buckets an
+ * object class, which is exactly what the old hand-mirrored copy could not do.
  */
 import { describe, it, expect } from 'vitest';
-import { resolveCrudAffordances } from './crudAffordances';
+import { resolveEffectiveCrudAffordances } from './crudAffordances';
 
-describe('resolveCrudAffordances (app-shell mirror)', () => {
+describe('resolveEffectiveCrudAffordances (app-shell re-export)', () => {
   it('defaults to the platform bucket when managedBy is unset', () => {
-    expect(resolveCrudAffordances({})).toEqual({
+    expect(resolveEffectiveCrudAffordances({})).toEqual({
       create: true, import: true, edit: true, delete: true, exportCsv: true,
     });
   });
 
   it('applies the bucket default matrix (append-only → export only)', () => {
-    expect(resolveCrudAffordances({ managedBy: 'append-only' })).toEqual({
+    expect(resolveEffectiveCrudAffordances({ managedBy: 'append-only' })).toEqual({
       create: false, import: false, edit: false, delete: false, exportCsv: true,
     });
   });
 
   it('boolean userActions override the bucket default per flag', () => {
-    const aff = resolveCrudAffordances({ managedBy: 'system', userActions: { edit: true } });
+    const aff = resolveEffectiveCrudAffordances({ managedBy: 'system', userActions: { edit: true } });
     expect(aff.edit).toBe(true);
     expect(aff.delete).toBe(false);
   });
 
   describe('#2614 object form (per-record CEL predicates)', () => {
     it('carries predicates through and resolves enabled from the bucket default', () => {
-      const aff = resolveCrudAffordances({
+      const aff = resolveEffectiveCrudAffordances({
         userActions: {
           edit: { disabledWhen: 'record.frozen == true' },
           delete: { visibleWhen: { dialect: 'cel', source: 'record.frozen != true' } },
@@ -48,7 +54,7 @@ describe('resolveCrudAffordances (app-shell mirror)', () => {
     });
 
     it('object form enabled:false opts out like the bare boolean', () => {
-      const aff = resolveCrudAffordances({
+      const aff = resolveEffectiveCrudAffordances({
         userActions: { edit: { enabled: false, disabledWhen: 'record.frozen == true' } },
       });
       expect(aff.edit).toBe(false);
@@ -58,7 +64,7 @@ describe('resolveCrudAffordances (app-shell mirror)', () => {
     });
 
     it('object form without predicates is byte-identical to the boolean path', () => {
-      const aff = resolveCrudAffordances({ userActions: { edit: { enabled: true }, delete: {} } });
+      const aff = resolveEffectiveCrudAffordances({ userActions: { edit: { enabled: true }, delete: {} } });
       expect(aff).toEqual({
         create: true, import: true, edit: true, delete: true, exportCsv: true,
       });

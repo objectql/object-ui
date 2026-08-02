@@ -145,7 +145,8 @@ export const SchemaRenderer = ({ schema }: { schema: UIComponent }) => {
 
 ### Housekeeping
 - 截图/trace 一律存 `/tmp/`,任务尾清理。禁止写入仓库根。
-- `.gitignore` 已锚定 `/*.png` 等防兜底,但仍要主动清。
+- `.gitignore` 已锚定 `/*.png` 等防兜底,并额外忽略根级 `/--*` —— 名字以 `--` 开头的根文件必然是把 CLI 参数当成了输出文件名(#3193:一张叫 `--full-page` 的 68KB 截图被提交进来,因为没有 `.png` 后缀,`/*.png` 兜不住)。兜底只是最后一道,仍要主动清。
+  - 删这类文件要用 `--` 断开参数解析:`rm -- ./--full-page`、`git rm -- './--full-page'`。
 - 任务结束:停**自己起的**后台服务(见下方"服务纪律";别按端口杀别人的)、清 `.playwright-mcp/`。
 - 改完代码提交时:功能改进(feature)需写 changeset(`pnpm changeset`);纯 bug 修复不需要。
 

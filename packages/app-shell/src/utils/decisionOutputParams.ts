@@ -39,23 +39,27 @@ import type { DecisionOutputDef as SpecDecisionOutputDef } from '@objectstack/sp
 /**
  * An approval node's declared decision output, as the server surfaces it.
  *
- * Derived from `@objectstack/spec/automation`'s `DecisionOutputDef` (structural
- * `extends`, objectstack#4115) with ONE local addition. Deriving also narrows
- * `type` from the bare `string` this file used to declare to the spec's closed
- * `'user' | 'department' | 'position' | 'team' | 'text'` enum — a typo'd kind
- * now fails to compile instead of silently degrading to a raw record-id text
- * box, which is the objectui#2955 failure this module exists to prevent.
+ * A plain re-export of `@objectstack/spec/automation`'s `DecisionOutputDef` —
+ * the spec models every key this module needs, so there is nothing left to
+ * derive (objectstack#4562). The re-export is kept rather than pointing call
+ * sites at the spec directly because this module is the ONE place decision
+ * outputs become action params, and its consumers read the type from here.
  *
- * `required` is the documented divergence: the server enforces it (`decide()`
+ * Two properties the re-export inherits are load-bearing here. `type` is the
+ * spec's closed `'user' | 'department' | 'position' | 'team' | 'text'` enum,
+ * so a typo'd kind fails to compile instead of silently degrading to a raw
+ * record-id text box — the objectui#2955 failure this module exists to
+ * prevent. `required` is now spec-modelled too (objectui#2955 shipped it
+ * locally while the spec lagged; the spec adopted it in cd6b9f202, pinned at
+ * the schema level by objectstack#4561): the server enforces it (`decide()`
  * rejects a blank required output before any write) and the dialog mirrors it
- * so the approver is stopped at the field rather than by a 400 — but the spec
- * does not model it yet. It is optional here so a backend predating the flag
- * still parses. When the spec adopts `required`, this interface collapses to a
- * plain re-export; `__tests__/spec-symbol-parity.test.ts` fails on that day.
+ * so the approver is stopped at the field rather than by a 400. It stays
+ * optional — a backend predating the flag still parses.
+ *
+ * `__tests__/spec-symbol-parity.test.ts` pins the exclusion set at empty, so
+ * a future local addition to this symbol cannot slip in undocumented.
  */
-export interface DecisionOutputDef extends SpecDecisionOutputDef {
-  required?: boolean;
-}
+export type DecisionOutputDef = SpecDecisionOutputDef;
 
 /** Param-name prefix the api handler folds back into the nested `outputs` body. */
 export const DECISION_OUTPUT_PARAM_PREFIX = 'outputs.';

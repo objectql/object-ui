@@ -126,6 +126,21 @@ const ALLOW = {
       "the sanctioned set.",
     issue: 4115,
   },
+  "@object-ui/auth:AuthProvider": {
+    reason:
+      "A REACT CONTEXT PROVIDER COMPONENT, not a type — `<AuthProvider authUrl=…>` is the " +
+      "documented entry point of this package and of every app that mounts it. The spec's " +
+      "`AuthProvider` is a `z.ZodEnum` of provider IDENTIFIERS (local | google | github | " +
+      "microsoft | ldap | saml); nothing about a JSX element could be mistaken for it, which " +
+      "is why this one collision is excused where its own config type was NOT — that config " +
+      "was renamed to `AuthProviderOptions` because `AuthProviderConfig` names the spec's " +
+      "OAuth registration shape `{ id, clientId, clientSecret, scope? }`, the same domain and " +
+      "the same words, and IS readable as canonical by the next session. Renaming the " +
+      "component would break the React `<XProvider>` convention and every consumer's JSX for " +
+      "no defect. Pinned by packages/auth/src/__tests__/auth-spec-parity.test.ts, which fails " +
+      "if the spec's `AuthProvider` ever stops being an enum of provider ids.",
+    issue: 4115,
+  },
   "@object-ui/types:SelectOption": {
     reason:
       "TS twin of the SelectOptionSchema dialect (objectui#3090): carries every spec key " +
@@ -133,6 +148,29 @@ const ALLOW = {
       "(`disabled`, `icon`). Kept an interface because the spec type is sound but the " +
       "objectui `value`/`visibleWhen` divergences are deliberate; the zod twin's parity " +
       "test pins the key set.",
+    issue: 4115,
+  },
+  // Two names the spec started exporting in 17.0.0-rc.1. Both were triaged when
+  // the bump landed (objectui#3178) and neither is a dialect of the spec's
+  // concept — they are unrelated things that happen to share a name.
+  "@object-ui/types:FieldNode": {
+    reason:
+      "Same name, unrelated concepts. The spec's `FieldNode` is a bare `string` — a field " +
+      "NAME — after objectstack#4196 narrowed `QueryAST.fields` to names (the old union's " +
+      "nested-select member was produced by nothing and consumed by nothing). This is a NODE " +
+      "in objectui's own query AST (`{ type: 'field', table?, name, alias? }`), a sibling of " +
+      "`LiteralNode` / `OperatorNode` / `JoinNode`. Deriving would replace a structured node " +
+      "with a string; there is nothing to import.",
+    issue: 4115,
+  },
+  "@object-ui/app-shell:InboxNotification": {
+    reason:
+      "Two LAYERS, like the FormField entry above. The spec's is the notification SERVICE " +
+      "contract (`INotificationService.listInbox`): camelCase, `body` and `read` required, " +
+      "`actionUrl`/`createdAt`. This is the materialized inbox ROW the popover groups — " +
+      "snake_case mirroring `sys_notification` (`action_url`), carrying the read-receipt keys " +
+      "the contract has no place for (`notification_id`, `receipt_id`, ADR-0030) and nullable " +
+      "where a stored row can be null. A row is not a response.",
     issue: 4115,
   },
 };
@@ -168,14 +206,36 @@ const ALLOW = {
 //      annotated `z.ZodType<any>` (`FilterConditionSchema`,
 //      `NavigationItemSchema`). `any` answers every assignability question
 //      affirmatively.  Detect: `0 extends (1 & Local) ? true : false`.
-//   2. The SPEC export resolves to `any` (`NavigationItem`, `JoinNode`,
-//      `FormField`). Re-exporting these REPLACES a precise local interface with
-//      `any` — a type-safety regression wearing a burn-down's clothes. These
-//      cannot be burned down here at all; the fix belongs upstream in the spec,
-//      filed as objectstack#4171. `spec-derived-unions.test.ts` carries an
-//      inverted pin that fails the day the spec types one of them properly.
-//      Detect: the same `0 extends (1 & Spec)` probe — but see the variant
-//      below, which that probe does NOT catch.
+//   2. The SPEC export resolves to `any`. Re-exporting such a symbol REPLACES a
+//      precise local interface with `any` — a type-safety regression wearing a
+//      burn-down's clothes. Detect: the same `0 extends (1 & Spec)` probe — but
+//      see 2b and 2c, which that probe does NOT catch.
+//
+//      History worth keeping, because it is the reason this whole list exists:
+//      `NavigationItem`, `JoinNode` and `FormField` were the instances, filed
+//      upstream as objectstack#4171. All three are resolved as premises now —
+//      `JoinNode` was retired with `query.joins` (framework#4286) and the other
+//      two were typed properly in spec 17.0.0-rc.1 — and NEITHER became
+//      derivable as a result (objectui#3177). Do not read "no longer `any`" as
+//      "safe to bind"; see 2c.
+//   2c. The SPEC export is typed but NOT PRECISE, which the `any` and `unknown`
+//      probes both report as clean. Two live instances, each pinned with a probe
+//      that asks its real blocker (objectui#3177):
+//        - `ConditionalValidation.then` / `.otherwise` are
+//          `BaseValidationRuleShape` — `type: string` plus `[key: string]:
+//          unknown`, i.e. case 3 on the SPEC side. Deriving swaps a
+//          discriminated union for a bag. Blocked on objectstack#4075.
+//          Detect: `string extends Spec['type']`, and the case-3 probe.
+//        - `NavigationItem` / `FormField` are precise but describe a DIFFERENT
+//          shape (a nine-variant union vs objectui's flat one) or a different
+//          LAYER (spec `field` = an object-field reference; objectui `name` =
+//          the form data path, with disjoint required keys). Precision is not
+//          equivalence. Detect: per-key, per-tier probes — a structural
+//          `extends` permits excess properties and so cannot see a key the spec
+//          does not declare.
+//      Both sets live in `spec-derived-unions.test.ts` /
+//      `validation-rule-spec-parity.test.ts`, written to fail the day the
+//      blocker they name lifts.
 //   2b. The SPEC export resolves to `unknown` (`JoinedReportBlock`, whose
 //      `JoinedReportBlockSchema` the spec declares as `z.ZodTypeAny`). Just as
 //      empty as case 2 and just as unburnable, but the `any` probe reports
@@ -204,7 +264,6 @@ const DEBT = {
     "GestureConfig",
     "GestureType",
     "ImportRowResult",
-    "JoinNode",
     "JoinedReportBlock",
     "NavigationArea",
     "NavigationAreaSchema",
@@ -217,45 +276,6 @@ const DEBT = {
     "Theme",
     "WidgetManifest",
     "WidgetSource",
-  ],
-  "@object-ui/core": [
-    "ActionHandler",
-    "CONTEXT_TOKENS",
-    "ChartSeries",
-    "CrudAffordances",
-    "PluginDefinition",
-    "ResponsiveStyles",
-    "RowCrudPredicates",
-    "RowHeight",
-    "StyleMap",
-    "ValidationError",
-    "ValidationResult",
-    "defineView",
-    "resolveCrudAffordances",
-  ],
-  "@object-ui/auth": [
-    "AuthProvider",
-    "AuthProviderConfig",
-    "AuthSession",
-    "AuthUser",
-    "DelegableScope",
-    "TenancyPosture",
-  ],
-  "@object-ui/components": [
-    "Field",
-    "FilterCondition",
-    "ShareLink",
-    "ShareLinkAudience",
-    "ShareLinkPermission",
-    "SortItem",
-  ],
-  "@object-ui/react": [
-    "ConflictResolutionStrategy",
-    "NavigationConfig",
-    "OfflineCacheConfig",
-    "OfflineConfig",
-    "OfflineStrategy",
-    "PerformanceConfig",
   ],
   "@object-ui/data-objectstack": [
     "CacheStats",

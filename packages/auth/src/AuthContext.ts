@@ -7,13 +7,13 @@
  */
 
 import { createContext } from 'react';
-import type { AuthUser, AuthSession, PreviewModeOptions, AuthOrganization, AuthOrganizationMember, AuthInvitation, AuthPublicConfig, SignInWithProviderOptions, DelegableScope } from './types';
+import type { AuthUser, AuthClientSession, PreviewModeOptions, AuthOrganization, AuthOrganizationMember, AuthInvitation, AuthPublicConfig, SignInWithProviderOptions, DelegableScope } from './types';
 
 export interface AuthContextValue {
   /** Current authenticated user */
   user: AuthUser | null;
   /** Current session information */
-  session: AuthSession | null;
+  session: AuthClientSession | null;
   /** Whether the user is authenticated */
   isAuthenticated: boolean;
   /**

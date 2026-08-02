@@ -47,6 +47,7 @@ import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
 import { useRecentItems } from '../hooks/useRecentItems';
 import { useFavorites } from '../hooks/useFavorites';
 import { useNavPins } from '../hooks/useNavPins';
+import { useNavActionDispatch } from '../hooks/useNavActionDispatch';
 import { resolveI18nLabel, matchAppBySegment, appRouteSegment } from '../utils';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 // useObjectLabel provides appLabel/appDescription for convention-based
@@ -152,6 +153,11 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
   const { context, currentAppName } = useNavigationContext();
   const { user, activeOrganization } = useAuth();
   const isWorkspaceAdmin = useIsWorkspaceAdmin();
+  // `type: 'action'` nav items dispatch through here (framework#4509). The
+  // sidebar renders inside ConsoleShell's GlobalActionRuntimeProvider, so this
+  // resolves to the fully-wired console runner — confirm/param/result dialogs
+  // included — with no provider of its own.
+  const dispatchNavAction = useNavActionDispatch();
 
   // Swipe-from-left-edge gesture to open sidebar on mobile
   React.useEffect(() => {
@@ -464,6 +470,7 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
                  : resolveNavGroupLabel(activeApp.name, itemId, fallback)
              ) : undefined}
              resolveViewLabel={(objectName, viewName, fallback) => resolveNavViewLabel(objectName, viewName, fallback)}
+             onAction={dispatchNavAction}
              t={t}
              templateContext={{ currentUserId: user?.id ?? null, currentOrgId: activeOrganization?.id ?? null, contextValues }}
            />

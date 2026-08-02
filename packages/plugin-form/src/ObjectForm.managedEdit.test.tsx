@@ -92,7 +92,7 @@ describe('ObjectForm — managed-object edit affordance (ADR-0092 D4)', () => {
   });
 
   // ADR-0103 alignment (objectui#2712 follow-up): the blanket lock now routes
-  // through the SAME shared `resolveCrudAffordances` policy detail/grid use, so
+  // through the SAME shared `resolveEffectiveCrudAffordances` policy detail/grid use, so
   // an admin-editable `config` bucket (sys_webhook, sys_permission_set, …) is
   // editable in the form too — it was previously over-locked as "non-platform".
   it('config object: editable (resolved config.edit === true, matches detail/grid)', async () => {

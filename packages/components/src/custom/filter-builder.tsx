@@ -20,7 +20,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Input } from "../ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover"
 
-export interface FilterCondition {
+/**
+ * One row of the FilterBuilder UI.
+ *
+ * Deliberately NOT `FilterCondition` (objectstack#4115): the spec owns that
+ * name for the RECURSIVE ObjectQL predicate AST — `{ [field]: FieldOperators }`
+ * with `$and` / `$or` / `$not` branches — which is a query, not a row. This is
+ * one flat `{ field, operator, value }` line plus the React key the list needs,
+ * and `operator` here is the builder's own dropdown vocabulary
+ * (`FILTER_BUILDER_OPERATORS`), not the spec's `$`-tokens.
+ *
+ * `@object-ui/types` already renamed its identical concept to
+ * `FilterBuilderCondition` (objectui#3068); this is the same thing, so it takes
+ * the same name rather than inventing a second dialect. Note the same name is
+ * NOT the right answer everywhere: `@object-ui/app-shell`'s `FilterCondition`
+ * really was the spec's ObjectQL AST and was re-exported (objectui#3169).
+ */
+export interface FilterBuilderCondition {
   id: string
   field: string
   operator: string
@@ -30,7 +46,7 @@ export interface FilterCondition {
 export interface FilterGroup {
   id: string
   logic: "and" | "or"
-  conditions: FilterCondition[]
+  conditions: FilterBuilderCondition[]
 }
 
 export interface FilterBuilderProps {
@@ -159,7 +175,7 @@ const selectLikeTypes = ["select", "status"]
 const lookupLikeTypes = ["lookup", "master_detail", "user", "owner"]
 
 /** Normalize a filter value into an array for multi-select scenarios */
-function normalizeToArray(value: FilterCondition["value"]): (string | number | boolean)[] {
+function normalizeToArray(value: FilterBuilderCondition["value"]): (string | number | boolean)[] {
   if (Array.isArray(value)) return value
   if (value !== undefined && value !== null && value !== "") return [value as string | number | boolean]
   return []
@@ -208,7 +224,7 @@ function FilterBuilder({
   }
 
   const addCondition = () => {
-    const newCondition: FilterCondition = {
+    const newCondition: FilterBuilderCondition = {
       id: crypto.randomUUID(),
       field: fields[0]?.value || "",
       operator: "equals",
@@ -234,7 +250,7 @@ function FilterBuilder({
     })
   }
 
-  const updateCondition = (conditionId: string, updates: Partial<FilterCondition>) => {
+  const updateCondition = (conditionId: string, updates: Partial<FilterBuilderCondition>) => {
     handleChange({
       ...filterGroup,
       conditions: filterGroup.conditions.map((c) =>
@@ -287,7 +303,7 @@ function FilterBuilder({
     return "text"
   }
 
-  const renderValueInput = (condition: FilterCondition) => {
+  const renderValueInput = (condition: FilterBuilderCondition) => {
     const field = fields.find((f) => f.value === condition.field)
     const isMultiOperator = ["in", "notIn"].includes(condition.operator)
     const isLookupLike = lookupLikeTypes.includes(field?.type || "")
@@ -552,9 +568,9 @@ interface LookupValuePickerProps {
     displayField?: string
     idField?: string
   }
-  value: FilterCondition["value"]
+  value: FilterBuilderCondition["value"]
   multiple: boolean
-  onChange: (value: FilterCondition["value"]) => void
+  onChange: (value: FilterBuilderCondition["value"]) => void
 }
 
 function LookupValuePicker({ field, value, multiple, onChange }: LookupValuePickerProps) {

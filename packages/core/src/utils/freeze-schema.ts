@@ -10,7 +10,7 @@
  * System View immutability layer.
  *
  * A "System View" is any UI schema authored in source code (imported `.ts`/`.json`,
- * `as const` literals, or returned from a `defineView()` call). Such schemas are
+ * `as const` literals, or returned from a `defineSystemView()` call). Such schemas are
  * part of the product contract and MUST NOT be mutated at runtime. Mutation
  * would cause behavior drift, break TypeScript inference, and bypass code review.
  *
@@ -45,7 +45,7 @@ export type DeepReadonly<T> = T extends (...args: any[]) => any
       : T;
 
 /**
- * A schema that has been frozen by `defineView()`. The marker symbol is
+ * A schema that has been frozen by `defineSystemView()`. The marker symbol is
  * non-enumerable and therefore invisible to consumers, but its presence
  * lets us discriminate at runtime.
  */
@@ -101,11 +101,19 @@ export function deepFreeze<T>(value: T, seen: WeakSet<object> = new WeakSet()): 
 /**
  * Mark and freeze a code-loaded schema as a System View.
  *
+ * Named `defineView` until objectstack#4115, which is a name `@objectstack/spec`
+ * owns for something else entirely: the spec's `defineView(config)` is the
+ * VIEW-DOCUMENT factory — it parses a `ViewSchema` (`{ list, form, listViews,
+ * formViews }`) and returns a validated `View`. This one takes an arbitrary
+ * object, stamps the System-View marker and deep-freezes it; it validates
+ * nothing. An app-shell comment already conflated the two, which is precisely
+ * the planted-premise failure the guard exists to stop.
+ *
  * @example
  * ```ts
- * import { defineView } from '@object-ui/core';
+ * import { defineSystemView } from '@object-ui/core';
  *
- * export const userListView = defineView({
+ * export const userListView = defineSystemView({
  *   type: 'list',
  *   data: { object: 'User' },
  *   columns: [{ name: 'email' }],
@@ -118,9 +126,9 @@ export function deepFreeze<T>(value: T, seen: WeakSet<object> = new WeakSet()): 
  * To produce a mutable derivative (Tenant or User View), call
  * `cloneAsOverride(userListView)`.
  */
-export function defineView<T extends object>(schema: T): SystemView<T> {
+export function defineSystemView<T extends object>(schema: T): SystemView<T> {
   if (schema == null || typeof schema !== 'object') {
-    throw new TypeError('[ObjectUI] defineView() expects a non-null object schema.');
+    throw new TypeError('[ObjectUI] defineSystemView() expects a non-null object schema.');
   }
   // Stamp the marker on the root only — nested nodes share origin via lineage.
   // Non-enumerable keeps it out of JSON, spreads, and Object.keys.
@@ -136,7 +144,7 @@ export function defineView<T extends object>(schema: T): SystemView<T> {
 }
 
 /**
- * Runtime check: was this object produced by `defineView()` (or loaded from a
+ * Runtime check: was this object produced by `defineSystemView()` (or loaded from a
  * source that forwards the marker)?
  */
 export function isSystemView(value: unknown): boolean {

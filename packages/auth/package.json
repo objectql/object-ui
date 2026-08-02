@@ -30,7 +30,7 @@
     "build": "tsc",
     "clean": "rm -rf dist",
     "test": "vitest run",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsc --noEmit && tsc -p tsconfig.typetests.json",
     "lint": "eslint ."
   },
   "peerDependencies": {
@@ -38,7 +38,7 @@
   },
   "dependencies": {
     "@object-ui/types": "workspace:*",
-    "@objectstack/spec": "^17.0.0-rc.0",
+    "@objectstack/spec": "^17.0.0-rc.1",
     "better-auth": "^1.6.25"
   },
   "devDependencies": {

@@ -122,7 +122,19 @@ export interface NavigationRendererProps {
   /** Optional runtime-capability checker for `requiresObject` / `requiresService` */
   checkCapability?: CapabilityChecker;
 
-  /** Called when an `action`-type item is clicked */
+  /**
+   * Called when an `action`-type item is clicked.
+   *
+   * A shell that renders `action` items MUST supply this: the renderer has no
+   * dispatcher of its own and never reads `item.actionDef` — unpacking
+   * `actionName` / `params` and invoking the action is the host's job (see
+   * `useNavActionDispatch` in `@objectstack/app-shell`). Omitting it does not
+   * degrade to an inert button; action items are **not rendered at all**,
+   * because a nav entry that looks clickable and silently does nothing is worse
+   * than an absent one (framework#4509 — every shipped sidebar omitted this
+   * prop, so `actionDef.actionName` reached no dispatcher and every such item
+   * dead-clicked).
+   */
   onAction?: (item: NavigationItem) => void;
 
   // --- P1.7 Navigation Enhancements ---
@@ -958,6 +970,13 @@ function NavigationItemRenderer({
 
   // --- Action ---
   if (item.type === 'action') {
+    // No dispatcher, no button (framework#4509). This mirrors the capability
+    // guards above: an item the host cannot actually serve is hidden, not
+    // rendered dead. It also makes the omission visible to whoever adds a new
+    // shell — a missing `onAction` shows up as "my action item vanished",
+    // which leads to the prop, instead of "clicking does nothing", which for
+    // three releases led nowhere.
+    if (!onAction) return null;
     const Icon = resolveIcon(item.icon);
     const actionLabel = resolveLabel(item.label, tProp);
     return (

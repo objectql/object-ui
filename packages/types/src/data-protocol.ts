@@ -27,8 +27,6 @@ import type { FilterBuilderOperator as BaseFilterOperator } from './complex';
 // derived on the `z.input` (authored/wire) side rather than `z.infer`.
 import type { z } from 'zod';
 import type {
-  JoinStrategy as SpecJoinStrategy,
-  WindowFunction as SpecWindowFunction,
   ScriptValidationSchema as SpecScriptValidationSchema,
   StateMachineValidationSchema as SpecStateMachineValidationSchema,
   CrossFieldValidationSchema as SpecCrossFieldValidationSchema,
@@ -97,9 +95,17 @@ export interface WhereNode extends QueryASTNode {
 }
 
 /**
- * Join execution strategy hint — derived from the spec's `JoinStrategy` zod enum.
+ * Join execution strategy hint — objectui query-AST vocabulary.
+ *
+ * Was bound to the spec's `JoinStrategy` zod enum until spec 17.0.0, which
+ * retired `query.joins` and the whole JoinNode cluster with it (framework#4286:
+ * no engine or driver ever read a join on the query path, so every join a
+ * caller declared was silently dropped — `expand` is the live spelling of
+ * related-record retrieval). The members below are that enum's, verbatim: this
+ * repo's query AST is unchanged, it simply no longer derives from a retired
+ * export.
  */
-export type JoinStrategy = z.infer<typeof SpecJoinStrategy>;
+export type JoinStrategy = 'auto' | 'database' | 'hash' | 'loop';
 
 /**
  * JOIN clause node (Phase 3.3.4)
@@ -171,9 +177,18 @@ export interface AggregateNode extends QueryASTNode {
 }
 
 /**
- * Window function type — derived from the spec's `WindowFunction` zod enum.
+ * Window function type — objectui query-AST vocabulary.
+ *
+ * Was bound to the spec's `WindowFunction` zod enum until spec 17.0.0, which
+ * retired `query.windowFunctions` and its cluster (framework#4286: OVER clauses
+ * only ever ran behind a driver-level door whose flat input shape the spec
+ * vocabulary never matched, so every window function declared on the query path
+ * was dropped). The members below are that enum's, verbatim.
  */
-export type WindowFunction = z.infer<typeof SpecWindowFunction>;
+export type WindowFunction =
+  | 'row_number' | 'rank' | 'dense_rank' | 'percent_rank'
+  | 'lag' | 'lead' | 'first_value' | 'last_value'
+  | 'sum' | 'avg' | 'count' | 'min' | 'max';
 
 /**
  * Window frame unit — objectui query-AST vocabulary (no spec counterpart).
@@ -931,15 +946,32 @@ export type FormatValidation = z.input<typeof SpecFormatValidationSchema>;
 /**
  * Conditional validation — evaluate `when`, then apply `then` or `otherwise`.
  *
- * PINNED DIVERGENCE (objectstack#4171): every key comes from the spec except
- * `then` / `otherwise`, which the spec's published types erase to `unknown`
- * (its `ValidationRuleSchema` is annotated `z.ZodType<BaseValidationRuleShape>`,
- * an index-signature bag). Re-exporting that would replace a discriminated
- * union with `unknown` — a type-safety regression wearing a burn-down's
- * clothes. They are re-typed to objectui's union here, and
- * `validation-rule-spec-parity.test.ts` carries an inverted pin that fails the
- * day the spec types them properly, so this divergence cannot outlive its
- * reason.
+ * PINNED DIVERGENCE (objectstack#4171, narrowed to objectstack#4075 by #3177):
+ * every key comes from the spec except `then` / `otherwise`.
+ *
+ * Those two used to erase to `unknown`. Spec 17.0.0-rc.1 typed them — as
+ * `BaseValidationRuleShape`, which is `{ type: string; name: string; message:
+ * string; …; [key: string]: unknown }`. That is better than `unknown` and still
+ * not enough to derive from: `type` is `string` rather than a literal union, so
+ * a branch cannot narrow by discriminant, `then.condition` reads back as
+ * `unknown`, and the index signature waves through any member at all — a typo'd
+ * `type: 'formatt'` included. The spec's own comment on `ValidationRuleSchema`
+ * says as much and names the remaining work: "it is not strictness … Removing
+ * the index signature is the #4075 family of work, not this change."
+ *
+ * So the branches stay re-typed to objectui's discriminated union here. What
+ * changed in #3177 is the tripwire, not the divergence:
+ * `validation-rule-spec-parity.test.ts` used to pin "the spec still says
+ * `unknown`" — too weak a question, which fired without the burn-down having
+ * become correct. It now pins the condition that actually governs (literal
+ * discriminant / no index signature), so this divergence still cannot outlive
+ * its reason, but the reason is stated accurately.
+ *
+ * Why this side of the trade matters more than it looks: renderers read plain
+ * objects and never parse, so the spec's parse-time union — the thing that DOES
+ * reject a malformed rule — is not on the client path at all. The compile-time
+ * discriminant here is the only gate an authored (or AI-generated) rule meets
+ * before it runs.
  */
 export type ConditionalValidation = Omit<
   z.input<typeof SpecConditionalValidationSchema>,

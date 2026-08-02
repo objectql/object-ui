@@ -60,21 +60,21 @@ import {
 } from '@objectstack/spec/ui';
 import {
   FieldType as SpecFieldType,
-  JoinStrategy as SpecJoinStrategy,
-  WindowFunction as SpecWindowFunction,
 } from '@objectstack/spec/data';
-import type { JoinNode as SpecJoinNode } from '@objectstack/spec/data';
-// The objectstack#4171 inverted pin must import the banned name to probe its
-// any-ness — this guard is a sanctioned importer (#3090 tripwire).
+// The objectstack#4171 / #3177 pins must import the banned name to probe it —
+// this guard is a sanctioned importer (#3090 tripwire).
 /* eslint-disable no-restricted-imports -- reported at the specifier line, out of -next-line reach */
 import type {
   NavigationItem as SpecNavigationItem,
+  NavigationItemInput as SpecNavigationItemInput,
   FormField as SpecFormField,
+  FormFieldInput as SpecFormFieldInput,
 } from '@objectstack/spec/ui';
 /* eslint-enable no-restricted-imports */
+import type { NavigationItem, NavigationItemType } from '../app';
+import type { FormField } from '../form';
 import type { BreakpointName } from '../mobile';
 import type { ExportJobStatus, ImportJobStatus, ImportWriteMode, ValidationError } from '../data';
-import type { JoinStrategy, WindowFunction } from '../data-protocol';
 import {
   OBJECTUI_LOCAL_ACTION_TYPES,
   OBJECTUI_LOCAL_PARAM_FIELD_TYPES,
@@ -139,47 +139,167 @@ const _importStatusCovers = null as unknown as
 const _exportStatusCovers = null as unknown as
   | 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'expired' satisfies ExportJobStatus;
 const _validationErrorShape: ValidationError = { field: 'name', message: 'required' };
-// The spec exports these two as zod enums, not types, so objectui derives them
-// with `z.infer`. Reading the members back off the schema keeps the check honest
-// if the spec widens either enum.
-type SpecJoin = typeof SpecJoinStrategy extends { options: readonly (infer T)[] } ? T : never;
-const _joinStrategyCovers = null as unknown as SpecJoin satisfies JoinStrategy;
-type SpecWindow = typeof SpecWindowFunction extends { options: readonly (infer T)[] } ? T : never;
-const _windowFunctionCovers = null as unknown as SpecWindow satisfies WindowFunction;
+// `JoinStrategy` / `WindowFunction` USED to be derived off the spec's zod enums
+// (objectstack#4115, "come off the spec enum, not a restatement"). Spec 17.0.0
+// retired both — `query.joins` and `query.windowFunctions` were tombstoned
+// because no engine or driver ever read them on the query path (framework#4286)
+// — so there is no enum left to derive from and the pins that enforced it are
+// gone with the imports. `packages/types/src/data-protocol.ts` now restates the
+// members locally, verbatim from the last spec that published them, as the
+// objectui query-AST vocabulary they have become.
 
 /**
- * Inverted pins — three collisions that are NOT burnable, and the tripwire that
- * says when they become burnable.
+ * Admission probes for `NavigationItem` and `FormField` (#3177).
  *
- * `NavigationItem`, `JoinNode` and `FormField` collide with a spec export whose
- * own declaration resolves to `any` (the spec annotates the recursive schemas
- * behind them as `z.ZodType<any>`, and `z.infer` of that is `any`). Binding
- * objectui's local interface to the spec would replace a precise, documented
- * shape with `any` — a type-safety regression wearing a burn-down's clothes. So
- * they stay in the ledger with their local declarations intact, which is the
- * right answer for as long as the spec cannot describe them.
+ * ## What these used to be, and why they were replaced
  *
- * Filed upstream as objectstack#4171 (4 of the spec's 2240 exported types).
+ * `NavigationItem`, `JoinNode` and `FormField` used to collide with a spec
+ * export whose own declaration resolved to `any` (the spec annotated the
+ * recursive schemas behind them as `z.ZodType<any>`, and `z.infer` of that is
+ * `any`). Binding objectui's local interface to that would have replaced a
+ * precise, documented shape with `any` — a type-safety regression wearing a
+ * burn-down's clothes — so they stayed local, and two `IsAny` pins asserted the
+ * premise held. Filed upstream as objectstack#4171.
  *
- * Mutual assignability CANNOT distinguish this case on its own: `any` answers
- * every `extends` question affirmatively, so a naive probe reports these three
- * as "identical to the spec" and recommends exactly the wrong edit.
+ * Spec 17.0.0-rc.1 typed both properly and the `IsAny` pins fired. The #3177
+ * triage then measured what the burn-down they demanded would actually cost —
+ * and found that **`any` was never the only blocker for either symbol**, so
+ * "no longer `any`" was never the right admission question. `IsAny` going
+ * `false` proves the spec type is no longer EMPTY; it says nothing about
+ * whether it is PRECISE enough to bind, which is what the burn-down needs.
  *
- * The day the spec types any of them properly, `IsAny<…>` flips to `false`,
- * `true satisfies false` stops compiling, and the failure is the instruction:
- * re-run the triage and burn that symbol down.
+ * So the probes below ask the real question instead, one blocker per line. Each
+ * asserts the CURRENT state (so this file is green today) and stops compiling
+ * the day that specific blocker lifts — at which point that line names exactly
+ * what became derivable. `JoinNode` needs none of this: spec 17.0.0 retired the
+ * symbol (framework#4286), so there is no collision left to reason about.
+ *
+ * ## Why not simply compare the two types
+ *
+ * Mutual assignability lies here, in three separate ways, all of them present
+ * in this repo (the list is `scripts/check-spec-symbol-derivation.mjs`'s):
+ * `any` answers every `extends` question affirmatively; so does `unknown` on
+ * one side; and objectui's `FormField` carries `[key: string]: any`, which
+ * absorbs any member the spec has and makes the two compare equal while they
+ * accept wildly different objects. A structural `extends` ALSO silently permits
+ * excess properties, so it cannot see that the spec declares no `pinned`. Hence
+ * per-key, per-tier probes rather than one verdict.
  */
 type IsAny<T> = 0 extends 1 & T ? true : false;
-const _specNavigationItemIsStillAny = true satisfies IsAny<SpecNavigationItem>;
-const _specJoinNodeIsStillAny = true satisfies IsAny<SpecJoinNode>;
-const _specFormFieldIsStillAny = true satisfies IsAny<SpecFormField>;
+
+/** Every key of every branch of a union (plain `keyof` on a union gives the intersection). */
+type KeysOfUnion<T> = T extends unknown ? keyof T : never;
+/** Does the spec declare this key on ANY nav branch, at EITHER tier? */
+type SpecNavDeclares<K extends string> =
+  K extends KeysOfUnion<SpecNavigationItem> | KeysOfUnion<SpecNavigationItemInput> ? true : false;
+
+// ── NavigationItem: the three blockers, none of which `any` ever caused ──────
+//
+// Umbrella verdict: still not bindable. The lines under it say why, and are the
+// ones to act on — this one stays `false` while ANY blocker remains.
+const _localNavIsNotYetTheSpecUnion = false satisfies [NavigationItem] extends [SpecNavigationItem]
+  ? true
+  : false;
+
+// 1. `visible: boolean`. The spec takes a CEL string (input) / Expression
+//    envelope (output); neither tier admits a boolean. `NavigationRenderer`
+//    evaluates one, and `menuItemToNavigationItem` MANUFACTURES one when it
+//    inverts legacy `MenuItem.hidden`. Measured: binding to the input tier
+//    fails with 3x TS2322 on exactly those lines.
+type SpecNavVisible =
+  | NonNullable<Extract<SpecNavigationItem, { type: 'url' }>['visible']>
+  | NonNullable<Extract<SpecNavigationItemInput, { type: 'url' }>['visible']>;
+const _specNavVisibleStillRejectsBoolean = false satisfies boolean extends SpecNavVisible
+  ? true
+  : false;
+
+// 2. Keys the spec has no counterpart for at either tier. `pinned` backs
+//    `useNavPins` + `FavoritesProvider`; `defaultOpen` is the legacy spelling
+//    `navigation-spec-parity.test.ts` keeps accepting for published metadata.
+//    If the spec ever claims either NAME, this fails and the two meanings must
+//    be reconciled rather than silently shadowed.
+const _specNavStillHasNoPinned = false satisfies SpecNavDeclares<'pinned'>;
+const _specNavStillHasNoDefaultOpen = false satisfies SpecNavDeclares<'defaultOpen'>;
+
+// 3. objectui's separator carries a `label`; the spec's separator branch
+//    declares only `type` / `id?` / `order?`. `menuItemToNavigationItem` emits
+//    one (measured: TS2353), so this is load-bearing, not decorative.
+const _specSeparatorStillHasNoLabel = false satisfies 'label' extends keyof Extract<
+  SpecNavigationItem,
+  { type: 'separator' }
+>
+  ? true
+  : false;
+
+// What IS derivable today is derived: `app.ts` now takes `NavigationItemType`
+// off the spec's discriminant, and `recordMode` / `filters` / `badge` /
+// `target` / `params` / `actionDef` / `badgeVariant` off the branch that owns
+// each. This asserts the membership list really is the spec's — a restatement
+// that drops a member (the objectstack#4115 failure class) fails here.
+const _navTypeCoversSpec = null as unknown as SpecNavigationItem['type'] satisfies NavigationItemType;
+
+// ── FormField: not one concept in two dialects, but two concepts on two layers ─
+//
+// `select-option-spec-parity.test.ts` states the distinction in its own header —
+// "Unlike the FormField pair — two genuinely different concepts on two layers —
+// a select option is ONE concept in two dialects" — and `index.ts` exports
+// `SpecFormField` SEPARATELY as the disambiguation the #3090 tripwire exists to
+// force. Binding would make `FormField === SpecFormField` and collapse that.
+//
+// The decisive, mechanical form of "two layers": the two types' REQUIRED keys
+// are disjoint. objectui requires `name` (the form data path); the spec requires
+// `field` (a reference to an object field) and has no `name` at either tier.
+const _specFormFieldIsNoLongerAny = false satisfies IsAny<SpecFormField>;
+const _specFormFieldStillHasNoName = false satisfies 'name' extends keyof SpecFormField
+  ? true
+  : false;
+const _specFormFieldInputStillHasNoName = false satisfies 'name' extends keyof SpecFormFieldInput
+  ? true
+  : false;
+
+// The same key on both sides, meaning different things — the pun `form.ts`
+// flags with a ⚠️. The spec's `field` is the referenced field's NAME; on a
+// runtime `FormField` the slot holds the RESOLVED metadata object, and
+// `normalizeSectionField` (@object-ui/plugin-form) is the only place the two
+// layers meet.
+const _specFieldSlotIsStillAName = true satisfies [SpecFormField['field']] extends [string]
+  ? true
+  : false;
+const _localFieldSlotIsStillAnObject = false satisfies [NonNullable<FormField['field']>] extends [
+  string,
+]
+  ? true
+  : false;
+
+// framework#4074 widened objectui's `dependsOn` to match its runtime reader
+// (`resolveCascadingOptions` has always accepted arrays and `{ field, param }`
+// entries). The spec still says `string`, so binding would revert that fix.
+const _specDependsOnStillTakesNoArray = false satisfies string[] extends NonNullable<
+  SpecFormFieldInput['dependsOn']
+>
+  ? true
+  : false;
+
+// ADR-0089 D2 folds `visibleOn` into `visibleWhen` at the spec's schema
+// boundary, so it is absent from the OUTPUT type by construction — while
+// objectui's #2212 wire contract keeps it. (The spec's input tier still
+// accepts it; this asks the output tier on purpose.)
+const _specOutputStillDropsVisibleOn = false satisfies 'visibleOn' extends keyof SpecFormField
+  ? true
+  : false;
 
 void _chartCovers; void _reportCovers; void _actionCovers; void _pageCovers; void _vizCovers;
 void _runnableCovers; void _componentCovers; void _paramFieldCovers; void _resolvableCovers;
 void _fieldBackedParam; void _minimalTypedParam;
 void _breakpointCovers; void _importModeCovers; void _importStatusCovers; void _exportStatusCovers;
-void _validationErrorShape; void _joinStrategyCovers; void _windowFunctionCovers;
-void _specNavigationItemIsStillAny; void _specJoinNodeIsStillAny; void _specFormFieldIsStillAny;
+void _validationErrorShape;
+void _localNavIsNotYetTheSpecUnion; void _specNavVisibleStillRejectsBoolean;
+void _specNavStillHasNoPinned; void _specNavStillHasNoDefaultOpen;
+void _specSeparatorStillHasNoLabel; void _navTypeCoversSpec;
+void _specFormFieldIsNoLongerAny; void _specFormFieldStillHasNoName;
+void _specFormFieldInputStillHasNoName; void _specFieldSlotIsStillAName;
+void _localFieldSlotIsStillAnObject; void _specDependsOnStillTakesNoArray;
+void _specOutputStillDropsVisibleOn;
 
 /** Read a spec enum's members, failing loudly if the shape ever changes. */
 const optionsOf = (schema: unknown, name: string): string[] => {
@@ -218,17 +338,26 @@ describe('unions derived from a spec vocabulary stay derived (#2944)', () => {
     expect([...OBJECTUI_LOCAL_ACTION_TYPES]).toEqual(['navigation']);
   });
 
-  it('`combo` is not a spec chart type — the spec models it per-series', () => {
+  it('`combo` IS a spec chart type since 17.0.0-rc.1 — the tripwire fired', () => {
     // `plugin-charts`'s `ChartFamily` carries `combo`, which #2945 listed as
-    // "promote or delete". Neither: `ChartSeries.type` already exists and its
-    // own field comment reads "Series type override (combo charts)", so the
-    // spec expresses a combo per-series, exactly as it expresses stacking with
-    // `ChartSeries.stack` rather than a `stacked-bar` family. `combo` stays a
-    // renderer-local marker that `effectiveChartFamily` DERIVES from the series.
+    // "promote or delete". For a long time the answer was neither: the spec
+    // expressed a combo PER-SERIES (`ChartSeries.type`, "Series type override
+    // (combo charts)"), exactly as it expresses stacking with `ChartSeries.stack`
+    // rather than a `stacked-bar` family — so `combo` stayed a renderer-local
+    // marker that `effectiveChartFamily` DERIVES from the series, and this test
+    // was the tripwire watching for the spec to adopt it.
     //
-    // Tripwire, same shape as `navigation` above: if the spec ever adopts
-    // `combo`, this fails and the derivation is what to retire.
-    expect(optionsOf(SpecChartTypeSchema, 'ChartTypeSchema')).not.toContain('combo');
+    // Spec 17.0.0-rc.1 adopted it (the sole addition to `ChartTypeSchema`, 19
+    // members → 20). The assertion is inverted to pin the new fact, and the two
+    // surfaces that classify a spec chart type were taught to route it —
+    // `widgetDispatch.SERIES_CHART_TYPES` and `planReportChart` — because until
+    // they were, a spec-valid `combo` fell through to a red error box on a
+    // dashboard and to the out-of-spec notice on a report.
+    //
+    // The renderer-local DERIVATION stays: `effectiveChartFamily` still infers a
+    // combo from mixed series types, which is what makes an authored
+    // `type: 'combo'` render rather than merely validate.
+    expect(optionsOf(SpecChartTypeSchema, 'ChartTypeSchema')).toContain('combo');
   });
 
   it('ReportType includes `joined` — the member the fork dropped', () => {
@@ -316,16 +445,8 @@ describe('unions derived from a spec vocabulary stay derived (#2944)', () => {
     expect(local.filter((v) => spec.includes(v))).toEqual([]);
   });
 
-  it('JoinStrategy / WindowFunction come off the spec enum, not a restatement (objectstack#4115)', () => {
-    // The type aliases erase, so the runtime witness is the schema they are
-    // `z.infer`-ed from. Both were hand-written unions carrying a "(ObjectStack
-    // Spec v2.0.1)" doc header — a version claim nothing checked.
-    const joins = optionsOf(SpecJoinStrategy, 'JoinStrategy');
-    expect(joins).toEqual(expect.arrayContaining(['auto', 'database', 'hash', 'loop']));
-
-    const windows = optionsOf(SpecWindowFunction, 'WindowFunction');
-    for (const member of ['row_number', 'rank', 'dense_rank', 'lag', 'lead', 'sum', 'count']) {
-      expect(windows).toContain(member);
-    }
-  });
+  // The `JoinStrategy` / `WindowFunction` runtime pin (objectstack#4115) was
+  // REMOVED with spec 17.0.0: both enums were retired there (framework#4286), so
+  // there is no spec schema left to read members off. See the note beside the
+  // type-level pins above.
 });

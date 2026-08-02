@@ -365,6 +365,9 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     sort: controlledSort,
     onSortChange,
     searchable = true,
+    manualSearch = false,
+    search: controlledSearch,
+    onSearchChange,
     selectable: selectableProp = false,
     showSelectionCount = true,
     selectionResetKey,
@@ -590,17 +593,27 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     setSelectedRowIds(new Set());
   }, [selectionResetKey]);
 
-  // Filtering
+  // Filtering — client-side, over the rows this table was handed.
+  //
+  // Under `manualSearch` there is nothing to do: `data` is already the server's
+  // answer to the term, computed over the whole collection rather than this
+  // window. Re-filtering it here would search the CURRENT PAGE — the defect
+  // objectui#3118 reports, where "2 results" is true of fifty rows and says
+  // nothing about the 3075 that never participated. Note this is the *only*
+  // filter path, so leaving both active would not even be redundant: the client
+  // pass would narrow the server's answer to whichever of its rows happen to
+  // contain the term as rendered text.
   const filteredData = useMemo(() => {
+    if (manualSearch) return data;
     if (!searchQuery) return data;
-    
+
     return data.filter((row) =>
       columns.some((col) => {
         const value = row[col.accessorKey];
         return value?.toString().toLowerCase().includes(searchQuery.toLowerCase());
       })
     );
-  }, [data, searchQuery, columns]);
+  }, [data, searchQuery, columns, manualSearch]);
 
   // Sorting — client-side, over the rows this table was handed.
   //
@@ -703,6 +716,40 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   // rather than clickable ones that do nothing — a dead affordance is the same
   // class of lie as a sort that only covers the current page.
   const sortingEnabled = sortable && (!manualSorting || !!onSortChange);
+
+  // The term the search box displays.
+  //
+  // Under `manualSearch` this is the caller's prop and nothing else — the
+  // `searchQuery` state is not read, not written, and not mirrored, for the
+  // same reason `activeSort` keeps no copy: a private term beside a controlled
+  // one is a term the layer that fetches the rows cannot see (objectui#3118).
+  const activeSearch = manualSearch ? (controlledSearch ?? '') : searchQuery;
+
+  // A manual-search table with nowhere to report the term renders NO search box
+  // rather than one that filters the page it can see. There is no honest local
+  // fallback here — the rows to search are on the server — so the box is
+  // withheld entirely, which is also the shape ListView already relies on when
+  // it passes `showSearch: false` and searches from its own toolbar.
+  const searchEnabled = searchable && (!manualSearch || !!onSearchChange);
+
+  /**
+   * Apply a new search term — the single write path, so the controlled and
+   * local modes cannot diverge about where the term lands.
+   *
+   * Page reset: in client mode the table owns its page and snaps it to 1, since
+   * a narrower result set makes the old page index meaningless. Under
+   * `manualSearch` the host owns both the page and the refetch, and resets there
+   * (the term and the page have to reach the server in the same request; a reset
+   * issued from here would be a second, racing one).
+   */
+  const applySearch = (value: string) => {
+    if (manualSearch) {
+      onSearchChange?.(value);
+      return;
+    }
+    setSearchQuery(value);
+    setCurrentPage(1);
+  };
 
   /**
    * Sort by one column in a given direction — the single write path, so the
@@ -1284,7 +1331,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   }) && !allPageRowsSelected;
 
   const hasPendingChanges = pendingChanges.size > 0;
-  const showToolbar = searchable || exportable || (showSelectionCount && selectable && selectedRowIds.size > 0) || hasPendingChanges;
+  const showToolbar = searchEnabled || exportable || (showSelectionCount && selectable && selectedRowIds.size > 0) || hasPendingChanges;
 
   return (
     <div className={`flex flex-col h-full gap-2 sm:gap-4 ${className || ''}`}>
@@ -1292,16 +1339,13 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
       {showToolbar && (
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-4 flex-none">
           <div className="flex items-center gap-2 flex-1">
-            {searchable && (
+            {searchEnabled && (
               <div className="relative w-full sm:max-w-sm flex-1">
                 <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder={t('table.search')}
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setCurrentPage(1);
-                  }}
+                  value={activeSearch}
+                  onChange={(e) => applySearch(e.target.value)}
                   className="pl-8"
                 />
               </div>

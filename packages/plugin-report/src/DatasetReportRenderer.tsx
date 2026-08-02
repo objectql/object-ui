@@ -545,6 +545,11 @@ export type ReportChartPlan =
  *   renders beneath the chart slot is exactly the tabular presentation;
  * - anything else is out-of-spec and gets a visible notice.
  *
+ * `combo` joined `ChartTypeSchema` in spec 17.0.0-rc.1 and routes as a series
+ * chart. It was renderer-local until then — the chart renderer derives the base
+ * family from the series — so nothing here classified it, and a spec-valid combo
+ * report hit the out-of-spec notice the moment the spec started accepting one.
+ *
  * Exported for the spec-parity test, which fails the moment `ChartTypeSchema`
  * and this classification drift in either direction.
  */
@@ -562,6 +567,7 @@ export function planReportChart(t: unknown): ReportChartPlan {
     case 'treemap':
     case 'sankey':
     case 'radar':
+    case 'combo':
       return { kind: 'series', chartType: t };
     case 'gauge':
     case 'solid-gauge':

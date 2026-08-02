@@ -83,7 +83,8 @@ Uses: Node 22, pnpm (via `corepack`), Turbo remote caching.
 | Console main entry | 60 KB |
 
 - Builds the console app and measures bundle sizes.
-- Posts a PR comment with the budget report and pass/fail status.
+- Posts a PR comment with the budget report and pass/fail status — but **only when the bundle was actually measured**. A run that was cancelled (a second push supersedes the first via `cancel-in-progress`) posts nothing, and a run whose build never produced a bundle posts a neutral "not measured" note instead of a verdict. A `FAIL` verdict therefore always carries the measured size that exceeded the budget.
+- The package size report is generated only from a complete package build, so it is never truncated into a report that looks complete.
 
 ## Size Check (`size-check.yml`)
 

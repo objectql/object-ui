@@ -11,7 +11,7 @@
  * operation set (#3720 — the fourth face of #3391).
  *
  * The main list's row kebab is a chain of its own: it never went through
- * `resolveCrudAffordances`, so the toolbar (objectui#2823), detail/form
+ * `resolveEffectiveCrudAffordances`, so the toolbar (objectui#2823), detail/form
  * (#3546) and related-list rounds all missed it. `ObjectView` wires
  * `onEdit`/`onDelete` unconditionally and view JSON rarely declares
  * `operations`, so the gate was effectively "always on" — the row Edit/Delete

@@ -15,6 +15,12 @@ import { Label } from "../ui/label"
 
 const fieldVariants = cva("space-y-2")
 
+/**
+ * Props for {@link FieldContainer}.
+ *
+ * Note this one keeps its natural name: the spec does not export `FieldProps`.
+ * Only the component itself had to move — see the note on `FieldContainer`.
+ */
 export interface FieldProps
   extends React.HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof fieldVariants> {
@@ -25,7 +31,19 @@ export interface FieldProps
   htmlFor?: string
 }
 
-const Field = React.forwardRef<HTMLDivElement, FieldProps>(
+/**
+ * A labelled form-control wrapper: label, slotted control, description, error.
+ *
+ * Named `FieldContainer`, not `Field` (objectstack#4115): `@objectstack/spec/data`
+ * exports `Field` — an object FIELD's metadata (type, reference_to, options,
+ * permissions, …) and its builder namespace — which has nothing to do with this
+ * `<div>`. Two unrelated things under one name is the defect that issue exists
+ * to remove; `@object-ui/app-shell` already renamed the same kind of collision
+ * (`FieldInput` → `ScreenFieldInput`, objectui#3169) for the same reason.
+ * `__tests__/share-filter-sort-spec-parity.test.ts` pins that the spec does not
+ * own the new name.
+ */
+const FieldContainer = React.forwardRef<HTMLDivElement, FieldProps>(
   ({ className, label, description, error, required, htmlFor, children, ...props }, ref) => {
     const id = React.useId()
     const fieldId = htmlFor || id
@@ -76,6 +94,6 @@ const Field = React.forwardRef<HTMLDivElement, FieldProps>(
     )
   }
 )
-Field.displayName = "Field"
+FieldContainer.displayName = "FieldContainer"
 
-export { Field }
+export { FieldContainer }

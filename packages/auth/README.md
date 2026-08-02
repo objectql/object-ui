@@ -87,7 +87,7 @@ const {
 | Property | Type | Description |
 | --- | --- | --- |
 | `user` | `AuthUser \| null` | Current authenticated user |
-| `session` | `AuthSession \| null` | Current session information |
+| `session` | `AuthClientSession \| null` | Current session information |
 | `isAuthenticated` | `boolean` | Whether the user is authenticated |
 | `isLoading` | `boolean` | Whether auth state is loading |
 | `isPreviewMode` | `boolean` | Whether the app is running in preview mode |

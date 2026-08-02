@@ -114,6 +114,20 @@ Add a `globalFilters` entry. Each entry renders one control in the filter bar:
 | `select` / `lookup` | dropdown | `{ field: value }` (or `$in` for arrays) |
 | `date` | preset/custom range | `{ field: { "$gte": from, "$lte": to } }` |
 
+A `date` filter's `defaultValue` is a **string**, and exactly three spellings
+are accepted:
+
+- a **preset name** from the `defaultRange` list above (`"last_7_days"`) — it
+  is lifted to that preset's range, the same as picking it in the control;
+- an **ISO date** (`"2026-01-15"`) — equality on that day;
+- a **date-macro token** (`"{today}"`, `"{7_days_ago}"`) — resolved at query
+  time like any other filter token.
+
+Anything else — a misspelled preset such as `"last_7_dayz"` — is **skipped**,
+and the runtime logs a `console.warn` naming the filter and the value. It is
+deliberately not compared as-is: `field = "last_7_dayz"` matches no row, and
+the widget would render a perfectly healthy-looking `0`.
+
 Static `options` accept the `@objectstack/spec` object form
 (`{ "value": "amer", "label": "AMER" }` — canonical, and what the spec
 validates) or a bare-string shorthand (`["EMEA", "APAC"]`); the runtime

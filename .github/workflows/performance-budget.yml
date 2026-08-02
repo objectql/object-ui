@@ -56,6 +56,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build packages
+        id: build_packages
         run: pnpm turbo run build --filter='./packages/*'
 
       - name: Build Console
@@ -72,6 +73,12 @@ jobs:
           DIST_DIR="apps/console/dist/assets"
           if [ ! -d "$DIST_DIR" ]; then
             echo "❌ Build output not found at $DIST_DIR"
+            # Declare the outcome instead of leaving every output empty. An
+            # empty `budget_status` used to render as a ❌ FAIL verdict
+            # downstream (objectui#3152); the comment renderer now needs each
+            # path to say what happened rather than infer it from silence.
+            echo "budget_status=error" >> "$GITHUB_OUTPUT"
+            echo "budget_message=Build output not found at $DIST_DIR" >> "$GITHUB_OUTPUT"
             exit 1
           fi
 
@@ -84,6 +91,8 @@ jobs:
 
           if [ -z "$ENTRY_FILE" ]; then
             echo "❌ No JS files found in $DIST_DIR"
+            echo "budget_status=error" >> "$GITHUB_OUTPUT"
+            echo "budget_message=No JS files found in $DIST_DIR" >> "$GITHUB_OUTPUT"
             exit 1
           fi
 
@@ -116,7 +125,12 @@ jobs:
 
       - name: Generate package size report
         id: size-report
-        if: always()
+        # NOT `always()`. `always()` also fires on a cancelled run, where
+        # `packages/*/dist` is only partly populated — the report was then
+        # emitted from that partial tree and looked complete while silently
+        # missing 7 packages (objectui#3152). The report is only meaningful
+        # once every package has finished building, so gate it on that.
+        if: ${{ !cancelled() && steps.build_packages.outcome == 'success' }}
         run: |
           echo "## 📦 Bundle Size Report" > size-report.md
           echo "" >> size-report.md
@@ -150,8 +164,31 @@ jobs:
           echo "- ✅ Component packages should be < 100KB gzipped" >> size-report.md
           echo "- ⚠️ Plugin packages should be < 150KB gzipped" >> size-report.md
 
+      # Rendering lives in `scripts/render-budget-comment.mjs` so it can be unit
+      # tested (`scripts/__tests__/render-budget-comment.test.ts`) — the bug this
+      # replaces was purely a rendering bug, and logic inlined in YAML is
+      # untestable. Step outputs are passed through `env` rather than
+      # interpolated into a JS string literal, so an absent output stays an
+      # empty *variable* instead of vanishing into source text.
+      - name: Render performance budget comment
+        id: render_comment
+        # `!cancelled()`, NOT `always()`: a cancelled run measured nothing, and
+        # the superseding run posts the real verdict moments later. Commenting
+        # on cancellation is what produced a ❌ FAIL on every PR that got a
+        # second push (objectui#3152).
+        if: ${{ github.event_name == 'pull_request' && !cancelled() }}
+        env:
+          BUDGET_STATUS: ${{ steps.budget.outputs.budget_status }}
+          BUDGET_MESSAGE: ${{ steps.budget.outputs.budget_message }}
+          BUDGET_GZIP_KB: ${{ steps.budget.outputs.gzip_kb }}
+          BUDGET_LIMIT_KB: ${{ steps.budget.outputs.budget_kb }}
+          BUDGET_ENTRY_FILE: ${{ steps.budget.outputs.entry_file }}
+          BUDGET_STEP_OUTCOME: ${{ steps.budget.outcome }}
+          BUILD_PACKAGES_OUTCOME: ${{ steps.build_packages.outcome }}
+        run: node scripts/render-budget-comment.mjs > budget-comment.md
+
       - name: Comment PR with results
-        if: github.event_name == 'pull_request' && always()
+        if: ${{ github.event_name == 'pull_request' && !cancelled() }}
         continue-on-error: true
         uses: actions/github-script@v9
         with:
@@ -161,29 +198,12 @@ jobs:
           retry-exempt-status-codes: 400,404,422
           script: |
             const fs = require('fs');
-            const status = '${{ steps.budget.outputs.budget_status }}';
-            const gzipKb = '${{ steps.budget.outputs.gzip_kb }}';
-            const budgetKb = '${{ steps.budget.outputs.budget_kb }}';
-            const entryFile = '${{ steps.budget.outputs.entry_file }}';
-            const icon = status === 'pass' ? '✅' : '❌';
 
-            let body = `## ${icon} Console Performance Budget
-
-            | Metric | Value | Budget |
-            |--------|-------|--------|
-            | Main entry (gzip) | **${gzipKb} KB** | ${budgetKb} KB |
-            | Entry file | \`${entryFile}\` | — |
-            | Status | **${status === 'pass' ? 'PASS' : 'FAIL'}** | — |
-
-            `;
-
-            // Append package size report if available
-            try {
-              const sizeReport = fs.readFileSync('size-report.md', 'utf8');
-              body += '\n---\n\n' + sizeReport;
-            } catch (e) {
-              // Size report not generated
+            if (!fs.existsSync('budget-comment.md')) {
+              core.warning('budget-comment.md was not rendered; skipping PR comment.');
+              return;
             }
+            const body = fs.readFileSync('budget-comment.md', 'utf8');
 
             try {
               await github.rest.issues.createComment({
