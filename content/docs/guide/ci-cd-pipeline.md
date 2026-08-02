@@ -14,12 +14,12 @@ ObjectUI uses **11 GitHub Actions workflows** to automate testing, quality check
 │                     Push / PR to main/develop                   │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  ┌──────────┐  ┌──────────────┐  ┌──────────────┐             │
-│  │  ci.yml   │  │ size-check   │  │ performance- │             │
-│  │ (test,    │  │   .yml       │  │ budget.yml   │             │
-│  │  lint,    │  │              │  │              │             │
-│  │  build)   │  │              │  │              │             │
-│  └──────────┘  └──────────────┘  └──────────────┘             │
+│  ┌──────────┐  ┌──────────────┐                                 │
+│  │  ci.yml  │  │ performance- │                                 │
+│  │ (test,   │  │ budget.yml   │                                 │
+│  │  lint,   │  │ (bundle size)│                                 │
+│  │  build)  │  │              │                                 │
+│  └──────────┘  └──────────────┘                                 │
 │                                                                 │
 │  ┌──────────────┐                                              │
 │  │  labeler.yml │                                              │
@@ -75,31 +75,50 @@ Uses: Node 22, pnpm (via `corepack`), Turbo remote caching.
 ## Performance Budget (`performance-budget.yml`)
 
 **Triggers:** Push and PR when changes touch `packages/`, `apps/console/`, or `pnpm-lock.yaml`.
+Its display name in the checks list is **Bundle Analysis**.
 
-**Enforced limits:**
+### Enforced limit
 
-| Bundle | Max gzip size |
-|--------|---------------|
-| Console main entry | 60 KB |
+Exactly one bundle-size number in this repository is enforced — this one:
+
+| Bundle | Max gzip size | Enforced |
+|--------|---------------|----------|
+| Console main entry (`apps/console/dist/assets/index-*.js`) | **350 KB** (`MAX_ENTRY_GZIP_KB`) | Yes — the step exits non-zero when the entry chunk exceeds it |
+
+> The 350 KB above is **pinned to the workflow**, not retyped from memory:
+> `scripts/__tests__/ci-cd-pipeline-doc.test.ts` reads `MAX_ENTRY_GZIP_KB` out of
+> `.github/workflows/performance-budget.yml` and fails `pnpm test` if this page
+> disagrees with it. Change one and you must change the other — the number cannot
+> drift silently again ([#3197](https://github.com/objectstack-ai/objectui/issues/3197)).
 
 - Builds the console app and measures bundle sizes.
 - Posts a PR comment with the budget report and pass/fail status — but **only when the bundle was actually measured**. A run that was cancelled (a second push supersedes the first via `cancel-in-progress`) posts nothing, and a run whose build never produced a bundle posts a neutral "not measured" note instead of a verdict. A `FAIL` verdict therefore always carries the measured size that exceeded the budget.
-- The package size report is generated only from a complete package build, so it is never truncated into a report that looks complete.
+- The comment is rendered by `scripts/render-budget-comment.mjs` (unit-tested), not by logic inlined in YAML.
 
-## Size Check (`size-check.yml`)
+### Package size report — advisory, not a gate
 
-**Triggers:** Push to `main`/`develop` with changes in `packages/`.
+The same workflow's `Generate package size report` step writes a markdown table of every
+`packages/*/dist/*.js` file with its raw and gzipped size, and that table is appended to the
+PR comment. The report is generated only from a **complete** package build, so it is never a
+truncated table that looks complete.
 
-**Enforced limits:**
+The step **never compares a measured size against a limit and never exits non-zero** — it
+`echo`s the three tiers below into the report as explanatory text. They are guidance for
+reviewers; exceeding any of them turns no check red and blocks no merge:
 
-| Package Category | Max Size |
-|------------------|----------|
-| Core (`@object-ui/core`) | 50 KB |
-| Components (`@object-ui/components`) | 100 KB |
-| Plugins (`@object-ui/plugin-*`) | 150 KB each |
+| Package category | Advisory target (gzip) | Enforced |
+|------------------|------------------------|----------|
+| Core packages | < 50 KB | **No** — advisory only |
+| Component packages | < 100 KB | **No** — advisory only |
+| Plugin packages | < 150 KB | **No** — advisory only |
 
-- Generates a markdown table with raw and gzipped sizes for each package.
-- Posts the size report as a PR comment.
+> **There is no separate size-check workflow**, and there never has been one in this
+> repository — the package size report has always been a step inside
+> `performance-budget.yml`. This page used to document one as its own workflow file,
+> enforcing the three tiers above; both claims were false, which is worse than no
+> documentation because it advertises a guardrail that does not exist. If you want
+> these tiers enforced, add the comparison to the workflow — do not describe it as
+> enforced here.
 
 ## Link Checking (`check-links.yml`)
 
