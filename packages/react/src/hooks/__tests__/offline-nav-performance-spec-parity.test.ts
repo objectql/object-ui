@@ -134,7 +134,7 @@ describe('the ConflictResolutionStrategy rename is load-bearing', () => {
 
 /* -------------------------------------------------------------------------- */
 /* Compile-time pins. A violation is a `tsc` error, not a runtime failure.      */
-/* Checked by `tsconfig.spec-parity.json` at the repo root.                    */
+/* Compiled by this package's `tsconfig.typetests.json` (objectui#3181).       */
 /* -------------------------------------------------------------------------- */
 
 type Assert<T extends true> = T;

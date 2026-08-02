@@ -97,16 +97,6 @@ jobs:
       - name: Run type-check
         run: pnpm type-check
 
-      # Every package tsconfig excludes `**/*.test.ts`, so `pnpm type-check`
-      # never compiles a test file. The spec-parity tests state their claims as
-      # TYPES (`Assert<Equal<Local, Spec>>`), which is a compile error or it is
-      # nothing — so without this step those pins would be the "declared but not
-      # enforced" landmine objectstack#4115 exists to remove, sitting inside the
-      # guard for it. Runs after `type-check` because it needs the same built
-      # workspace `.d.ts` files.
-      - name: Type-check the spec-parity pins
-        run: pnpm type-check:spec-parity
-
   # PRs run the suite split across 4 runners. The suite is dominated by fixed
   # per-file cost rather than by the assertions: a PR run reported 495s wall
   # clock of which only 178s was `tests` — the rest was `setup` (831s
