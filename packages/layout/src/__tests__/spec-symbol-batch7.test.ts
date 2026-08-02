@@ -10,16 +10,29 @@
  * `@object-ui/layout` ↔ `@objectstack/spec` symbol-collision guards
  * (objectui#3161, objectstack#4115 ledger batch 7).
  *
- * Both symbols here were the RENDERED layer wearing the AUTHORED layer's name:
+ * Both symbols batch 7 touched here were the RENDERED layer wearing the
+ * AUTHORED layer's name. They ended differently, and the difference is the
+ * point:
  *
  *  - `PageHeaderProps` → `PageHeaderComponentProps`, the name
  *    `@object-ui/app-shell` already settled on for its own header props
  *    (objectui#3169). Reused deliberately: one concept, one name, even across
- *    two packages that each draw their own header.
- *  - `Page` → `PageNodeRenderer`. The spec's `Page` is the authored page
- *    DOCUMENT; this renders `@object-ui/types`'s `PageNodeSchema`, the
- *    schema-renderer NODE that objectui#3074 had already renamed off
- *    `PageSchema` for exactly this reason.
+ *    two packages that each draw their own header. Still exported, still
+ *    guarded below.
+ *  - `Page` → `PageNodeRenderer` → **deleted** (objectui#3223, ADR-0049
+ *    enforce-or-remove). The rename was correct and did not go far enough: the
+ *    renderer was registered nowhere and called from nowhere — the `page` key
+ *    belongs to `@object-ui/components`'s `PageRenderer`, and `registerLayout`
+ *    actively discourages re-registering it — so all the export did was tell
+ *    the next reader that `@object-ui/layout` is where page rendering lives.
+ *
+ * What survives that deletion is the LAYER SPLIT it was renamed for, pinned
+ * below: the spec's `Page` is the authored page DOCUMENT, `@object-ui/types`'s
+ * `PageNodeSchema` is the SDUI NODE discriminated by `type: 'page'`, and the
+ * two are not interchangeable. Those pins are load-bearing beyond the deleted
+ * component — `type: 'page'` is the wire key `PageRenderer` is registered
+ * under, and this is the only place in the repo that pins it — so they are
+ * kept here rather than deleted along with their former subject.
  *
  * Each `import type` below is load-bearing: if the spec retires one of these
  * names, this file stops compiling, and the rename's justification is up for
@@ -37,13 +50,11 @@ import type { PageNodeSchema } from '@object-ui/types';
 
 import { PageHeader } from '../PageHeader';
 import type { PageHeaderComponentProps } from '../PageHeader';
-import { PageNodeRenderer } from '../Page';
 
-describe('the renamed exports are still the components they were', () => {
-  it('exports both renderers under their new names', () => {
+describe('the renamed export is still the component it was', () => {
+  it('exports the renderer under its new name', () => {
     expect(typeof PageHeader).toBe('function');
-    expect(typeof PageNodeRenderer).toBe('function');
-    expect(PageNodeRenderer.name).toBe('PageNodeRenderer');
+    expect(PageHeader.name).toBe('PageHeader');
   });
 });
 
@@ -75,8 +86,12 @@ describe('the spec names still mean the authored layer', () => {
     type _RenderedHasSchemaNode = Assert<HasKey<PageHeaderComponentProps, 'schema'>>;
 
     // `Page` in the spec is the page DOCUMENT (`name` + `label` identify it);
-    // what this package renders is the SDUI node (`type: 'page'`). Two layers,
-    // and now two names.
+    // the SDUI node is `PageNodeSchema`, tagged `type: 'page'`. Two layers, two
+    // names — pinned here even though objectui#3223 deleted this package's
+    // page-node renderer, because `type: 'page'` is the registry key
+    // `@object-ui/components`'s `PageRenderer` answers to, and nowhere else in
+    // the repo pins it. Collapse these two types back together and the next
+    // renderer named after the wrong layer compiles clean.
     type _DocumentIsNotNode = Assert<Equal<Equal<SpecPage, PageNodeSchema>, false>>;
     type _DocumentIsIdentified = Assert<HasKey<SpecPage, 'name'>>;
     type _NodeIsATaggedNode = Assert<Equal<PageNodeSchema['type'], 'page'>>;

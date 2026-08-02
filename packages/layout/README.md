@@ -38,18 +38,22 @@ import { AppShell } from '@object-ui/layout';
 </AppShell>
 ```
 
-### Page
+### PageHeader
 
-Standard page layout with optional header section.
+Page title block with an optional description, used at the top of a page's
+content area.
 
 ```typescript
-import { Page, PageHeader } from '@object-ui/layout';
+import { PageHeader } from '@object-ui/layout';
 
-<Page>
-  <PageHeader title="Dashboard" description="View your metrics" />
-  <div>Page Content</div>
-</Page>
+<PageHeader title="Dashboard" description="View your metrics" />
 ```
+
+> **Rendering a whole `page` node?** That belongs to `PageRenderer` in
+> `@object-ui/components`, which is what the `page` component key resolves to —
+> it handles page types (record/home/app/utility), named regions and page
+> variables. This package deliberately does not register or export a second
+> renderer for that key (objectui#3223).
 
 ### SidebarNav
 

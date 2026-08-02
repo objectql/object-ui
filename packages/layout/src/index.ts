@@ -6,10 +6,6 @@
 import { ComponentRegistry } from '@object-ui/core';
 import { PageHeader } from './PageHeader';
 import { AppShell } from './AppShell';
-// NOTE: `PageNodeRenderer` (./Page) is deliberately NOT imported here — it is
-// re-exported below but never registered; the `page` key belongs to
-// `@object-ui/components`'s `PageRenderer`. See the registration note at the
-// bottom of `registerLayout`.
 import { PageCard } from './PageCard';
 import { SidebarNav } from './SidebarNav';
 import { ResponsiveGrid } from './ResponsiveGrid';
@@ -18,7 +14,6 @@ import { AppSchemaRenderer } from './AppSchemaRenderer';
 
 export * from './PageHeader';
 export * from './AppShell';
-export * from './Page';
 export * from './PageCard';
 export * from './SidebarNav';
 export * from './ResponsiveGrid';
@@ -97,6 +92,14 @@ export function registerLayout() {
   // NOTE: 'page' registration is handled by @object-ui/components PageRenderer.
   // That renderer supports page types (record/home/app/utility), named regions,
   // and PageVariablesProvider. Do NOT re-register 'page' here to avoid conflicts.
+  //
+  // This package used to ALSO export a `page`-node renderer (`PageNodeRenderer`,
+  // `./Page`) that this note kept unregistered — so it had no call site and
+  // never ran, while still advertising itself from the public API as if
+  // `@object-ui/layout` were where page rendering lives. Deleted in
+  // objectui#3223 under ADR-0049 (enforce-or-remove): one key, one renderer. If
+  // the `page` node needs something layout owns, add it to the components
+  // renderer — do not reintroduce a second one here.
 }
 
 // Keep backward compatibility for now if called directly
