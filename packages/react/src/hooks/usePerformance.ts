@@ -8,30 +8,51 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { PerformanceConfigSchema } from '@objectstack/spec/ui';
-import type { SpecAuthoredInput } from '../spec-input';
-
 // ---------------------------------------------------------------------------
-// The performance vocabulary is the spec's `PerformanceConfigSchema`, so these
-// are its bindings rather than the hand copies that used to sit here under the
-// same name (objectstack#4115). The header claimed alignment with "spec v2.0.7";
-// the installed spec is 17.0.0-rc.0, and a claim that stale is exactly what an
-// import replaces.
+// This file's header used to read "Types aligned with @objectstack/spec v2.0.7
+// PerformanceConfigSchema", and `PerformanceConfig` was on the objectstack#4115
+// ledger because the spec exported that name.
+//
+// It no longer does. `PerformanceConfigSchema` / `PerformanceConfig` were
+// RETIRED from `@objectstack/spec/ui` in 17.0.0-rc.1, so there is nothing to
+// import and no collision left: the name is objectui's own now. The shape below
+// is what the spec's schema was, kept because `usePerformance` implements it.
+//
+// Worth a second look by someone who knows the spec's plans: the KEYS still
+// exist inside the spec (`virtualScroll`, `debounceMs`, … appear nested under
+// `@objectstack/spec/api`), so this may be a move rather than a retirement. If
+// it is a move, this should derive from wherever it landed.
 // ---------------------------------------------------------------------------
-
-/**
- * Performance configuration — the AUTHORING side of the spec's
- * `PerformanceConfigSchema` (`virtualScroll.enabled` carries a `.default()`, so
- * it is optional to write and present after a parse). See
- * {@link SpecAuthoredInput}.
- */
-export type PerformanceConfig = SpecAuthoredInput<typeof PerformanceConfigSchema>;
 
 /** Cache strategy for data fetching. */
-export type CacheStrategyType = NonNullable<PerformanceConfig['cacheStrategy']>;
+export type CacheStrategyType =
+  | 'none'
+  | 'cache-first'
+  | 'network-first'
+  | 'stale-while-revalidate';
 
 /** Virtual scroll configuration. */
-export type VirtualScrollConfig = NonNullable<PerformanceConfig['virtualScroll']>;
+export interface VirtualScrollConfig {
+  enabled?: boolean;
+  itemHeight?: number;
+  overscan?: number;
+}
+
+/** Performance configuration. */
+export interface PerformanceConfig {
+  /** Whether to lazy-load components/data. */
+  lazyLoad?: boolean;
+  /** Virtual scroll settings for large lists. */
+  virtualScroll?: VirtualScrollConfig;
+  /** Cache strategy for data fetching. */
+  cacheStrategy?: CacheStrategyType;
+  /** Whether to prefetch linked resources. */
+  prefetch?: boolean;
+  /** Default page size for paginated views. */
+  pageSize?: number;
+  /** Debounce interval in milliseconds for user input. */
+  debounceMs?: number;
+}
 
 /** Web Vitals metrics snapshot. */
 export interface PerformanceMetrics {
@@ -109,8 +130,8 @@ function getLCP(): number | null {
 // ---------------------------------------------------------------------------
 
 /**
- * Hook for performance monitoring and configuration aligned with
- * PerformanceConfigSchema from @objectstack/spec v2.0.7.
+ * Hook for performance monitoring and configuration. Its config type IS the
+ * spec's `PerformanceConfigSchema` (authoring side) — see {@link PerformanceConfig}.
  *
  * Provides resolved config values, Web Vitals metrics, and utility functions
  * (debounce, render marking) for performance-aware components.

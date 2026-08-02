@@ -104,16 +104,55 @@ const _conditionalNonBranchKeysAreSpec = true satisfies Equal<
 // …and the branches are precise here, not `unknown`.
 const _conditionalBranchIsTyped = false satisfies IsUnknown<ConditionalValidation['then']>;
 
-// INVERTED PIN (objectstack#4171). The divergence above is only justified while
-// the spec's own `then`/`otherwise` erase to `unknown`. The day the spec types
-// them, these fail — and the failure is the instruction: delete the divergence
-// and derive `ConditionalValidation` whole.
-const _specThenIsStillUnknown = true satisfies IsUnknown<
-  z.input<typeof ConditionalValidationSchema>['then']
->;
-const _specOtherwiseIsStillUnknown = true satisfies IsUnknown<
-  z.input<typeof ConditionalValidationSchema>['otherwise']
->;
+// ── The branch probes, retargeted (#3177) ───────────────────────────────────
+//
+// These used to ask `IsUnknown<…>`, on the reasoning that the divergence was
+// justified only while the spec's `then`/`otherwise` erased to `unknown`. Spec
+// 17.0.0-rc.1 made that `false` and the pins fired — but the #3177 triage found
+// the pins had asked too weak a question, and firing did NOT mean the branches
+// had become derivable.
+//
+// What they actually became is `BaseValidationRuleShape`:
+//
+//   interface BaseValidationRuleShape {
+//     type: string; name: string; message: string; …; [key: string]: unknown;
+//   }
+//
+// The spec says so itself, at that type's declaration: "it types the KNOWN keys
+// and accepts any others. That is a real improvement over `unknown` (which types
+// nothing) but **it is not strictness** — the discriminated union below is what
+// actually rejects a malformed rule, at parse time. Removing the index signature
+// is the #4075 family of work, not this change."
+//
+// So deriving wholesale today would trade a 9-member discriminated union for a
+// bag: `then.type` degrades from a literal union to `string`, `then.condition`
+// to `unknown`, and a typo'd `type: 'formatt'` starts compiling. That is the
+// same regression the original pin existed to prevent, one notch weaker — and
+// it lands where it costs most, because renderers read plain objects and never
+// parse, so the authoring-time discriminant is the ONLY gate on these rules.
+//
+// The probes below therefore ask the pin's TRUE trigger — "does the spec type
+// them PROPERLY", not "does it type them at all". Both assert today's state, so
+// this file is green now; both stop compiling when objectstack#4075 removes the
+// index signature and the branches become a real union, which is when the
+// wholesale derivation genuinely comes due.
+type SpecThen = z.input<typeof ConditionalValidationSchema>['then'];
+type SpecOtherwise = NonNullable<z.input<typeof ConditionalValidationSchema>['otherwise']>;
+
+/** A discriminated union has a LITERAL `type`; a bag widens it to `string`. */
+type HasLiteralDiscriminant<T extends { type: unknown }> = string extends T['type'] ? false : true;
+/** `[key: string]: unknown` absorbs any member, so nothing is rejected at authoring time. */
+type HasIndexSignature<T> = string extends keyof T ? true : false;
+
+const _specThenStillCannotNarrow = false satisfies HasLiteralDiscriminant<SpecThen>;
+const _specOtherwiseStillCannotNarrow = false satisfies HasLiteralDiscriminant<SpecOtherwise>;
+const _specThenStillCarriesAnIndexSignature = true satisfies HasIndexSignature<SpecThen>;
+const _specOtherwiseStillCarriesAnIndexSignature = true satisfies HasIndexSignature<SpecOtherwise>;
+
+// Kept as the record of WHY the predicate had to change: the branches are no
+// longer `unknown`, so the original pin's own stated condition really did lapse
+// — it was simply not the condition that governed the burn-down.
+const _specThenIsNoLongerUnknown = false satisfies IsUnknown<SpecThen>;
 
 /**
  * The spec ships these as `lazySchema()` thunks, so `.shape` is only reachable
@@ -329,13 +368,20 @@ describe('predicates are on the ExpressionInput wire shape, not `string`', () =>
   });
 });
 
-describe('pinned divergence: `then` / `otherwise` (objectstack#4171)', () => {
+describe('pinned divergence: `then` / `otherwise` (objectstack#4171, #4075)', () => {
   // The type half of this divergence is pinned at the top of this file
-  // (`_specThenIsStillUnknown` / `_conditionalBranchIsTyped`), because that is
-  // the half a runtime assertion cannot reach. What IS observable at runtime is
-  // that the spec's own parser still rejects a nonsense branch — so the erasure
-  // is purely a published-typing defect, not a loosened contract, and objectui
-  // re-typing the branch cannot admit anything the server would refuse.
+  // (`_specThenStillCannotNarrow` / `_specThenStillCarriesAnIndexSignature` /
+  // `_conditionalBranchIsTyped`), because that is the half a runtime assertion
+  // cannot reach. What IS observable at runtime is that the spec's own parser
+  // still rejects a nonsense branch — so the weak typing is purely a published-
+  // typing defect, not a loosened contract, and objectui re-typing the branch
+  // cannot admit anything the server would refuse.
+  //
+  // That asymmetry is the whole argument for keeping the divergence: the spec
+  // REJECTS this payload at parse time and DESCRIBES it as legal at compile
+  // time. objectui's renderers read plain objects and never parse, so only the
+  // compile-time half is ever consulted on the client — which is precisely why
+  // adopting the spec's weaker branch type would matter.
   it('is a typing gap only — the spec`s parser still rejects a nonsense branch', () => {
     expect(() =>
       ConditionalValidationSchema.parse({

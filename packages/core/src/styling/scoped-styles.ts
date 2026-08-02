@@ -20,15 +20,21 @@
  * overrides.
  */
 
-export type StyleMap = Record<string, string | number>;
+import type { StyleMap, ResponsiveStyles } from '@objectstack/spec/ui';
 
-export interface ResponsiveStyles {
-  /** Unconditional base (desktop-first). */
-  large?: StyleMap;
-  medium?: StyleMap;
-  small?: StyleMap;
-  xsmall?: StyleMap;
-}
+/**
+ * `StyleMap` / `ResponsiveStyles` are **owned by the spec** (ADR-0065,
+ * `@objectstack/spec/ui`) and re-exported here, not re-declared.
+ *
+ * They used to be hand-written copies under the spec's own names. Both were
+ * member-for-member identical to the spec's at the time of the burn-down
+ * (objectstack#4115), which is exactly what makes a copy dangerous: it passes
+ * every structural comparison right up until the spec adds a breakpoint or
+ * widens a value type, and the doc comment above claims spec canonicity the
+ * whole time. Binding the names to the spec at compile time is the only form
+ * that cannot drift.
+ */
+export type { StyleMap, ResponsiveStyles } from '@objectstack/spec/ui';
 
 /** max-width breakpoints (px), mirroring Builder.io's default device sizes. */
 export const STYLE_BREAKPOINTS: Record<'medium' | 'small' | 'xsmall', number> = {

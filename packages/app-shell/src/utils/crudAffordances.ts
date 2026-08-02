@@ -19,7 +19,7 @@ export type {
 } from '@object-ui/core';
 
 export {
-  resolveCrudAffordances,
+  resolveEffectiveCrudAffordances,
   isWriteOptedIn,
   isSystemWritable,
   isObjectInlineEditable,

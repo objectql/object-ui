@@ -89,6 +89,10 @@ const CHECKED_BY_OWN_BUILD = {
 //     type to silence it.
 const TEST_DEBT = {
   "@object-ui/core": { errors: 72, issue: 4118, note: "TS2741x32, TS2322x17 — mostly the input-vs-output fixture confusion" },
+  // Partially covered already: `tsconfig.typetests.json` compiles the test files
+  // whose whole value is compile-time type assertions (objectui#3181). The entry
+  // stays because the REST of the test tree is still unchecked — the number below
+  // is that remainder, not the whole package.
   "@object-ui/app-shell": { errors: 53, issue: 4118, note: "TS2339x24 — implementation wider than the type" },
   "@object-ui/components": { errors: 31, issue: 4118, note: "TS7006x12, TS7031x12 — untyped test callback params" },
   "@object-ui/react": { errors: 27, issue: 4118, note: "TS2769x9 — overload mismatch on render helpers" },
@@ -158,6 +162,12 @@ function collect() {
       } catch {
         /* no test config */
       }
+      let typeTestsConfig = null;
+      try {
+        typeTestsConfig = readFileSync(resolve(root, dir, "tsconfig.typetests.json"), "utf8");
+      } catch {
+        /* no type-tests config */
+      }
       const typeCheck = pkg.scripts?.["type-check"] ?? "";
       out.push({
         name: pkg.name,
@@ -176,6 +186,12 @@ function collect() {
         // The config existing is not the same as anything running it — that gap
         // IS objectui#3009. `type-check` has to chain it.
         chainsTestConfig: /-p\s+tsconfig\.test\.json/.test(typeCheck),
+        hasTypeTestsConfig: typeTestsConfig !== null,
+        typeTestsConfig,
+        // Same question, same answer, for the narrow type-assertion project
+        // (objectui#3181): `type-check` is what CI runs, so `type-check` — not
+        // some sibling script CI never invokes — has to be the thing that runs it.
+        chainsTypeTestsConfig: /-p\s+tsconfig\.typetests\.json/.test(typeCheck),
       });
     }
   }
@@ -324,6 +340,47 @@ for (const pkg of packages) {
   }
 }
 
+// ── 5½. The narrow type-assertion project, if a package has one ──────────────
+// Some test files exist ONLY for their COMPILE-TIME assertions (`Assert<Equal<A,
+// B>>`). Types are erased at runtime, so vitest proves nothing about those; only
+// `tsc` does. That is objectui#3181: app-shell's `spec-symbol-parity.test.ts`
+// carried a header calling its assertions a tripwire, while a provably-false
+// `Assert<Equal<1, 2>>` appended to it passed `pnpm type-check` at exit 0.
+//
+// A package whose test tree is still in TEST_DEBT can rescue those specific
+// files with a `tsconfig.typetests.json` that lists them explicitly, instead of
+// waiting for the whole backlog. This section keeps that project honest — it is
+// worth exactly as much as the gate that runs it, and nothing at all otherwise.
+for (const pkg of packages) {
+  if (!pkg.hasTypeTestsConfig) continue;
+
+  if (!pkg.chainsTypeTestsConfig) {
+    errors.push(
+      `${pkg.name} (${pkg.dir}) has a tsconfig.typetests.json that its "type-check" script never\n` +
+        `      runs, so its compile-time assertions are erased at runtime and compiled by nothing —\n` +
+        `      the exact state objectui#3181 fixed. CI runs \`pnpm type-check\` (turbo -> the package's\n` +
+        `      own "type-check"), so that is the script that has to chain it:\n` +
+        `      "type-check": "tsc --noEmit && tsc -p tsconfig.typetests.json"`
+    );
+    continue;
+  }
+
+  if (!/"noEmit"\s*:\s*true/.test(pkg.typeTestsConfig)) {
+    errors.push(
+      `${pkg.name} (${pkg.dir}): tsconfig.typetests.json must set "noEmit": true — it is a checking\n` +
+        `      project, and emitting would put test output in the published dist.`
+    );
+  }
+
+  if (!/\.test\.tsx?"/.test(pkg.typeTestsConfig)) {
+    errors.push(
+      `${pkg.name} (${pkg.dir}): tsconfig.typetests.json does not "include" any test file, so it\n` +
+        `      compiles nothing and passes vacuously. List the files whose type assertions it exists\n` +
+        `      to check, e.g. "include": ["src/__tests__/spec-symbol-parity.test.ts"]`
+    );
+  }
+}
+
 // 6. Ratchet — a declared test gap that has been closed must leave the list.
 for (const [name, spec] of Object.entries(TEST_DEBT)) {
   const pkg = byName.get(name);
@@ -363,6 +420,7 @@ const byBuild = Object.keys(CHECKED_BY_OWN_BUILD).length;
 const withTests = packages.filter((p) => p.hasScript && p.testFiles > 0);
 const testsChecked = withTests.filter(testsCovered).length;
 const testDebtErrors = Object.values(TEST_DEBT).reduce((sum, d) => sum + d.errors, 0);
+const typeTestProjects = packages.filter((p) => p.hasTypeTestsConfig && p.chainsTypeTestsConfig).length;
 
 if (errors.length === 0) {
   console.log(
@@ -373,7 +431,8 @@ if (errors.length === 0) {
   );
   console.log(
     `✅  test type-check coverage: ${testsChecked}/${withTests.length} packages compile their tests, ` +
-      `${Object.keys(TEST_DEBT).length} declared debt (${testDebtErrors} errors outstanding).`
+      `${Object.keys(TEST_DEBT).length} declared debt (${testDebtErrors} errors outstanding), ` +
+      `${typeTestProjects} with a narrow type-assertion project.`
   );
   process.exit(0);
 }

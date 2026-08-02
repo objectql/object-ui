@@ -33,7 +33,7 @@
  *   - 子对象 action → the child object's `list_item` actions, executed against
  *                 the clicked row through the page's shared ActionRunner
  *
- * Each affordance is gated by {@link resolveCrudAffordances} so system /
+ * Each affordance is gated by {@link resolveEffectiveCrudAffordances} so system /
  * append-only children never show New / Edit / Delete. When this bridge is
  * absent (e.g. the Studio designer) the related list stays read-only.
  */
@@ -50,7 +50,7 @@ import {
 } from '@object-ui/react';
 import type { ActionDef } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
-import { resolveCrudAffordances } from '../utils/crudAffordances';
+import { resolveEffectiveCrudAffordances } from '../utils/crudAffordances';
 import { RECORD_FORM_PARAM, RECORD_FORM_OBJECT_PARAM, RECORD_FORM_LINK_PARAM, RECORD_TRAIL_PARAM, appendRecordTrail } from '../urlParams';
 
 /**
@@ -184,7 +184,7 @@ export function RelatedRecordActionsBridge({
         // (`/me/permissions` `apiOperations`), so a related list never offers
         // Create/Edit/Delete on the child the server would 405. `undefined`
         // (unrestricted / old backend) leaves the affordances untouched.
-        const aff = resolveCrudAffordances(childDef, getObjectApiOperations(objectName));
+        const aff = resolveEffectiveCrudAffordances(childDef, getObjectApiOperations(objectName));
         const detailUrl = (id: string | number) => {
           const url = `${base}/${objectName}/record/${encodeURIComponent(String(id))}`;
           // Carry the parent record into the child's `?from=` trail so the

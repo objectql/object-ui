@@ -33,25 +33,42 @@
  * interface it mirrors would be the same "declared ≠ enforced" trap this whole
  * thread is about.
  *
- * ── What the inventory found, i.e. step 2's worklist ─────────────────────────
- * `ActionDef` declares 34 keys, the spec's `ActionSchema` declares 36, and they
- * overlap on 17. The two halves of the difference are different problems:
+ * ── What the inventory found, and what step 2 did with it ────────────────────
+ * Step 1 found `ActionDef` declaring 34 keys against the spec `ActionSchema`'s
+ * 36, overlapping on 17. The two halves of the difference were different
+ * problems, and step 2 (objectstack#4075) treated them differently:
  *
  * 18 keys the SPEC owns that `ActionDef` never declared — `ai`, `aria`,
  * `bodyExtra`, `bodyShape`, `bulkEnabled`, `component`, `icon`, `locations`,
  * `mode`, `objectName`, `order`, `recordIdField`, `recordIdParam`,
  * `requiredPermissions`, `requiresFeature`, `shortcut`, `variant`, `visible`.
- * These are authored today and reach readers through the index signature.
- * `ActionEngine` reads two of them (`visible` at the location filter, `locations`
- * at registration) through an `as any` cast — a cast that exists ONLY because the
- * field is undeclared, and that goes away when step 2 promotes them.
+ * These are authored today and used to reach readers through the index
+ * signature. **Step 2 promoted all 18 to explicit optional fields**, typed by
+ * DERIVATION from `@objectstack/spec`'s `ActionInput` rather than by hand-copied
+ * shapes. The `as any` casts `ActionEngine` needed to read `visible`,
+ * `locations` and `requiredPermissions` are gone with them — those casts existed
+ * only because the fields were undeclared.
+ *
+ * Two of the 18 landed as `undefined` rather than as usable types, which is the
+ * correct outcome: spec 17 retired `shortcut` and `bulkEnabled` as `retiredKey()`
+ * tombstones (`z.never()`), so deriving turns "authoring this is a parse
+ * rejection" into a compile error at no cost. Hand-copying would have quietly
+ * re-legitimized two dead keys — which is why the types are derived.
  *
  * 17 keys `ActionDef` declares that the spec does not own — `actionType`, `api`,
  * `chain`, `chainMode`, `close`, `condition`, `confirm`, `endpoint`, `modal`,
  * `navigate`, `onClick`, `onFailure`, `onSuccess`, `redirect`, `reload`, `toast`,
- * `actionParams`. Several are already marked legacy at their declaration. These
- * are objectui's own dialect and need the #4115 treatment: kept and documented as
- * deliberate, or retired — but not silently carried.
+ * `actionParams`. Step 2 marked `@deprecated`, with the spec spelling to use
+ * instead, ONLY the four the runner itself proves are aliases: `actionType` (→
+ * `type`), `api` and `endpoint` (→ `target`; `executeAPI` resolves
+ * `api || endpoint || target`), and `navigate` (→ flat `target`/`openIn`;
+ * `executeNavigation` already falls back to them). The rest are runner mechanics
+ * with no spec counterpart — chaining, toasts, post-execution reload/close — and
+ * deprecating them toward a spelling that does not exist would be worse than
+ * leaving them declared.
+ *
+ * Step 3 remains: remove the index signature, at which point `tsc` catches both
+ * typos and retired keys and the dev-mode warning below can retire with it.
  */
 
 /**
@@ -96,6 +113,29 @@ export const ACTION_DEF_KEYS = [
   'onFailure',
   'opensInNewTab',
   'newTabUrl',
+  // Promoted out of the index signature by objectstack#4075 step 2 — the 18 keys
+  // the spec owns that `ActionDef` had never declared. Their types are derived
+  // from `@objectstack/spec`'s `ActionInput`, so this list is the only
+  // hand-maintained half, and `actionKeys.pin.test.ts` re-derives it from the
+  // interface's AST.
+  'locations',
+  'visible',
+  'requiredPermissions',
+  'icon',
+  'variant',
+  'order',
+  'component',
+  'objectName',
+  'ai',
+  'aria',
+  'bodyExtra',
+  'bodyShape',
+  'mode',
+  'recordIdField',
+  'recordIdParam',
+  'requiresFeature',
+  'shortcut',
+  'bulkEnabled',
 ] as const;
 
 /**

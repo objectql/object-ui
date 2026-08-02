@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { PluginSystem, type PluginDefinition } from '../PluginSystem';
+import { PluginSystem, type RegistryPluginDefinition } from '../PluginSystem';
 import { Registry } from '../Registry';
 
 describe('PluginSystem', () => {
@@ -20,7 +20,7 @@ describe('PluginSystem', () => {
   });
 
   it('should load a simple plugin', async () => {
-    const plugin: PluginDefinition = {
+    const plugin: RegistryPluginDefinition = {
       name: 'test-plugin',
       version: '1.0.0',
       register: (reg) => {
@@ -38,7 +38,7 @@ describe('PluginSystem', () => {
 
   it('should execute onLoad lifecycle hook', async () => {
     const onLoad = vi.fn();
-    const plugin: PluginDefinition = {
+    const plugin: RegistryPluginDefinition = {
       name: 'test-plugin',
       version: '1.0.0',
       register: () => {},
@@ -52,7 +52,7 @@ describe('PluginSystem', () => {
 
   it('should execute async onLoad lifecycle hook', async () => {
     const onLoad = vi.fn().mockResolvedValue(undefined);
-    const plugin: PluginDefinition = {
+    const plugin: RegistryPluginDefinition = {
       name: 'test-plugin',
       version: '1.0.0',
       register: () => {},
@@ -66,7 +66,7 @@ describe('PluginSystem', () => {
 
   it('should not load plugin twice', async () => {
     const onLoad = vi.fn();
-    const plugin: PluginDefinition = {
+    const plugin: RegistryPluginDefinition = {
       name: 'test-plugin',
       version: '1.0.0',
       register: () => {},
@@ -80,7 +80,7 @@ describe('PluginSystem', () => {
   });
 
   it('should check dependencies before loading', async () => {
-    const plugin: PluginDefinition = {
+    const plugin: RegistryPluginDefinition = {
       name: 'dependent-plugin',
       version: '1.0.0',
       dependencies: ['base-plugin'],
@@ -93,13 +93,13 @@ describe('PluginSystem', () => {
   });
 
   it('should load plugins with dependencies in correct order', async () => {
-    const basePlugin: PluginDefinition = {
+    const basePlugin: RegistryPluginDefinition = {
       name: 'base-plugin',
       version: '1.0.0',
       register: () => {}
     };
 
-    const dependentPlugin: PluginDefinition = {
+    const dependentPlugin: RegistryPluginDefinition = {
       name: 'dependent-plugin',
       version: '1.0.0',
       dependencies: ['base-plugin'],
@@ -115,7 +115,7 @@ describe('PluginSystem', () => {
 
   it('should unload a plugin', async () => {
     const onUnload = vi.fn();
-    const plugin: PluginDefinition = {
+    const plugin: RegistryPluginDefinition = {
       name: 'test-plugin',
       version: '1.0.0',
       register: () => {},
@@ -132,13 +132,13 @@ describe('PluginSystem', () => {
   });
 
   it('should prevent unloading plugin with dependents', async () => {
-    const basePlugin: PluginDefinition = {
+    const basePlugin: RegistryPluginDefinition = {
       name: 'base-plugin',
       version: '1.0.0',
       register: () => {}
     };
 
-    const dependentPlugin: PluginDefinition = {
+    const dependentPlugin: RegistryPluginDefinition = {
       name: 'dependent-plugin',
       version: '1.0.0',
       dependencies: ['base-plugin'],
@@ -160,7 +160,7 @@ describe('PluginSystem', () => {
   });
 
   it('should get plugin definition', async () => {
-    const plugin: PluginDefinition = {
+    const plugin: RegistryPluginDefinition = {
       name: 'test-plugin',
       version: '1.0.0',
       register: () => {}
@@ -173,13 +173,13 @@ describe('PluginSystem', () => {
   });
 
   it('should get all plugins', async () => {
-    const plugin1: PluginDefinition = {
+    const plugin1: RegistryPluginDefinition = {
       name: 'plugin-1',
       version: '1.0.0',
       register: () => {}
     };
 
-    const plugin2: PluginDefinition = {
+    const plugin2: RegistryPluginDefinition = {
       name: 'plugin-2',
       version: '1.0.0',
       register: () => {}
@@ -196,7 +196,7 @@ describe('PluginSystem', () => {
 
   it('should call register function with registry', async () => {
     const registerFn = vi.fn();
-    const plugin: PluginDefinition = {
+    const plugin: RegistryPluginDefinition = {
       name: 'test-plugin',
       version: '1.0.0',
       register: registerFn
@@ -210,7 +210,7 @@ describe('PluginSystem', () => {
   });
 
   it('should cleanup on registration failure', async () => {
-    const plugin: PluginDefinition = {
+    const plugin: RegistryPluginDefinition = {
       name: 'failing-plugin',
       version: '1.0.0',
       register: () => {

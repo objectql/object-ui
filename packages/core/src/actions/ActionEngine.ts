@@ -156,7 +156,10 @@ export class ActionEngine {
   registerActions(actions: ActionDef[]): void {
     for (const action of actions) {
       this.registerAction(action, {
-        locations: (action as any).locations,
+        // No cast: `locations` is a declared `ActionDef` field as of
+        // objectstack#4075 step 2. The `as any` it replaces existed only
+        // because the key reached this reader through the index signature.
+        locations: action.locations,
       });
     }
   }
@@ -210,21 +213,21 @@ export class ActionEngine {
         // systemPermissions is unknown (undefined): the server still 403s, and
         // hiding on missing data is a worse regression than showing a button
         // that errors clearly. Mirrors the App/nav requiredPermissions gate.
-        const required = (ra.action as any).requiredPermissions as string[] | undefined;
+        const required = ra.action.requiredPermissions;
         if (!Array.isArray(required) || required.length === 0) return true;
         const held = (this.runner.getContext() as any)?.user?.systemPermissions as string[] | undefined;
         if (!Array.isArray(held)) return true;
         return required.every((p) => held.includes(p));
       })
       .filter(ra => {
-        const raw = (ra.action as any).visible;
+        const raw = ra.action.visible;
         if (raw == null || raw === '' || raw === true) return true;
         if (raw === false) return false;
         let expr: string | boolean;
         if (typeof raw === 'string') {
           expr = `\${${raw}}`;
-        } else if (typeof raw === 'object' && typeof (raw as any).source === 'string') {
-          const src = (raw as any).source as string;
+        } else if (typeof raw === 'object' && typeof raw.source === 'string') {
+          const src = raw.source;
           if (!src) return true;
           expr = `\${${src}}`;
         } else {
@@ -246,7 +249,7 @@ export class ActionEngine {
           // user }` eval scope. Silently hiding it makes that bug invisible
           // (the #2183 hunt). Warn once per predicate so it is diagnosable
           // without spamming re-renders.
-          warnHiddenPredicate((ra.action as any).name, raw, err);
+          warnHiddenPredicate(ra.action.name, raw, err);
           return false;
         }
       })

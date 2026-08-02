@@ -8,6 +8,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
+import { I18nProvider, createI18n } from '@object-ui/i18n';
 import { ObjectFormDesigner } from './ObjectFormDesigner';
 
 /** Build an array-shape `draft.fields` with `n` plain text fields. */
@@ -128,5 +129,114 @@ describe('ObjectFormDesigner — group selection', () => {
       />,
     );
     expect(screen.queryByLabelText('Group settings')).toBeNull();
+  });
+});
+
+/**
+ * Regression for objectui#3134.
+ *
+ * The layout canvas is a preview of the end-user form, so it has to resolve
+ * labels the way `ObjectForm` / `RecordDetailView` do — through the project's
+ * object translations. It used to read `entry.def.label` and `group.label`
+ * straight off the draft metadata, so a fully translated object still rendered
+ * its English source labels in the designer while every other surface in the
+ * same locale showed the translation.
+ *
+ * The runtime bundle shape below is what `transformSpecTranslations` produces
+ * from authored `objects.<obj>.fields.<f>.label` / `objects.<obj>._sections.
+ * <key>.label` entries: field labels are flattened to `fields.<obj>.<field>`,
+ * while `_sections` is preserved verbatim under the object scope.
+ */
+describe('ObjectFormDesigner — object translations (objectui#3134)', () => {
+  const draft = {
+    name: 'crm_opportunity',
+    fields: [
+      { name: 'name', type: 'text', label: 'Opportunity Name', group: 'basic' },
+      { name: 'amount', type: 'number', label: 'Amount', group: 'basic' },
+    ],
+    fieldGroups: [{ key: 'basic', label: 'Basic Information' }],
+  };
+
+  const renderTranslated = (props: Record<string, unknown> = {}) => {
+    const instance = createI18n({
+      defaultLanguage: 'zh',
+      detectBrowserLanguage: false,
+      resources: {
+        zh: {
+          app: {
+            objects: {
+              crm_opportunity: {
+                label: '商机',
+                _sections: { basic: { label: '基本信息' } },
+              },
+            },
+            fields: { crm_opportunity: { name: '商机名称' } },
+          },
+        },
+      },
+    });
+    return render(
+      <I18nProvider instance={instance}>
+        <ObjectFormDesigner
+          draft={draft}
+          systemFieldNames={new Set()}
+          onChange={noop}
+          onSelectField={noop}
+          {...props}
+        />
+      </I18nProvider>,
+    );
+  };
+
+  it('renders the translated field label instead of the raw metadata label', () => {
+    renderTranslated();
+    expect(screen.getByText('商机名称')).toBeTruthy();
+    expect(screen.queryByText('Opportunity Name')).toBeNull();
+  });
+
+  it('renders the translated section label instead of the raw group label', () => {
+    const { container } = renderTranslated();
+    const heading = container.querySelector<HTMLInputElement>('input[type="text"], input:not([type])');
+    expect(heading?.value ?? '').toBe('基本信息');
+    expect(screen.queryByText('Basic Information')).toBeNull();
+  });
+
+  it('falls back to the metadata label when the object has no translation for a field', () => {
+    // `amount` is untranslated — the designer must show the authored label, not
+    // a blank cell or the raw field name.
+    renderTranslated();
+    expect(screen.getByText('Amount')).toBeTruthy();
+  });
+
+  it('prefers the explicit objectName prop over draft.name as the lookup root', () => {
+    // A draft whose body has not been (re)named yet still resolves, because the
+    // Studio surface passes the object it is editing.
+    const { container } = render(
+      <I18nProvider
+        instance={createI18n({
+          defaultLanguage: 'zh',
+          detectBrowserLanguage: false,
+          resources: {
+            zh: {
+              app: {
+                objects: { crm_opportunity: { _sections: { basic: { label: '基本信息' } } } },
+                fields: { crm_opportunity: { name: '商机名称' } },
+              },
+            },
+          },
+        })}
+      >
+        <ObjectFormDesigner
+          draft={{ ...draft, name: undefined }}
+          objectName="crm_opportunity"
+          systemFieldNames={new Set()}
+          onChange={noop}
+          onSelectField={noop}
+        />
+      </I18nProvider>,
+    );
+    expect(screen.getByText('商机名称')).toBeTruthy();
+    const heading = container.querySelector<HTMLInputElement>('input[type="text"], input:not([type])');
+    expect(heading?.value ?? '').toBe('基本信息');
   });
 });

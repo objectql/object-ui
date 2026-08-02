@@ -2590,6 +2590,7 @@ export function DataPillar({
               {formMode === 'layout' ? (
                 <ObjectFormDesigner
                   draft={objDraft}
+                  objectName={current.name}
                   systemFieldNames={STUDIO_SYSTEM_FIELD_NAMES}
                   onChange={onPatch}
                   selectedField={fieldSel?.kind === 'field' ? fieldSel.id : null}

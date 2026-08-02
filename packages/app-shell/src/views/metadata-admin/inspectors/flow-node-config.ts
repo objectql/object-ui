@@ -763,15 +763,17 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
       showWhen: { field: 'waitEventConfig.eventType', equals: ['signal', 'webhook'] },
       fallbackPath: ['config', 'signalName'],
     }),
-    at('waitEventConfig', 'timeoutMs', 'Timeout (ms)', 'number', { placeholder: '3600000', fallbackPath: ['config', 'timeoutMs'] }),
-    at('waitEventConfig', 'onTimeout', 'On timeout', 'select', {
-      options: [
-        { value: 'fail', label: 'Fail' },
-        { value: 'continue', label: 'Continue' },
-      ],
-      defaultValue: 'fail',
-      fallbackPath: ['config', 'onTimeout'],
-    }),
+    // `waitEventConfig.timeoutMs` / `.onTimeout` were REMOVED here (#3101,
+    // framework#4158): `wait` never had a timeout. `onTimeout` had zero readers
+    // — neither 'fail' nor 'continue' ever happened — and `timeoutMs`'s only
+    // reader used it as the timer DURATION when `timerDuration` was absent, so
+    // it did something, just not what it said. Both are `retiredKey()`
+    // tombstones on `FlowNodeSchema` since spec 17.0.0-rc.1, so a value written
+    // here is now REJECTED at load: keeping the fields would let an author
+    // produce metadata their own runtime refuses. Use `Duration` above — it
+    // accepts a bare number as milliseconds, making the old `timeoutMs: 60000`
+    // and `timerDuration: '60000'` the same wait. Stored flows are converted by
+    // framework's D2 conversion; the designer just stops offering the entry.
   ],
   subflow: [
     cfg('flowName', 'Flow', 'reference', { ref: { kind: 'flow' }, placeholder: 'escalation_flow' }),

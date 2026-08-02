@@ -12,10 +12,15 @@
  *
  * `useOffline`, `useNavigationOverlay` and `usePerformance` each opened with a
  * comment claiming their types were "aligned with @objectstack/spec v2.0.7" —
- * against an installed spec of 17.0.0-rc.0. Five of the six colliding symbols
- * are now the spec's bindings; `ConflictResolutionStrategy` was renamed to the
- * spec's OWN name for that union (`ConflictResolution`), because the name it
- * had belongs to a different spec export.
+ * against an installed spec of 17.0.0-rc.1.
+ *
+ * Five of the six colliding symbols are now the spec's bindings.
+ * `ConflictResolutionStrategy` was renamed to the spec's OWN name for that union
+ * (`ConflictResolution`), because the name it had belongs to a DIFFERENT spec
+ * export. The sixth, `PerformanceConfig`, needed no fix at all: the spec retired
+ * that name in 17.0.0-rc.1, so the collision ended on its own — pinned at the
+ * bottom of this file, because "the spec dropped it" is a claim with an expiry
+ * date.
  *
  * ## Two traps this batch had to walk around, pinned below
  *
@@ -35,14 +40,15 @@ import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 
+import { useOffline } from '../useOffline';
 import type {
   OfflineStrategy,
   ConflictResolution,
   OfflineCacheConfig,
   OfflineConfig,
+  OfflineSyncConfig,
 } from '../useOffline';
 import type { NavigationConfig } from '../useNavigationOverlay';
-import type { PerformanceConfig, VirtualScrollConfig } from '../usePerformance';
 import type { SpecAuthoredInput } from '../../spec-input';
 import type {
   OfflineStrategy as SpecOfflineStrategy,
@@ -51,7 +57,7 @@ import type {
   OfflineCacheConfigSchema,
   OfflineConfigSchema,
   NavigationConfigSchema,
-  PerformanceConfigSchema,
+  SyncConfigSchema,
 } from '@objectstack/spec/ui';
 import type { ConflictResolutionStrategy as SpecMergeConflictStrategy } from '@objectstack/spec/api';
 
@@ -243,39 +249,67 @@ describe('NavigationConfig derives from the spec, requiring only `mode`', () => 
   });
 });
 
-describe('PerformanceConfig derives from the schema INPUT side', () => {
-  it('is pinned at compile time', () => {
-    type SpecPerformanceInput = SpecAuthoredInput<typeof PerformanceConfigSchema>;
-    type _SpecNotAny = Assert<Equal<IsAny<SpecPerformanceInput>, false>>;
-
-    type _IsTheSchemaInput = Assert<Equal<PerformanceConfig, SpecPerformanceInput>>;
-
-    // `virtualScroll.enabled` is `.default()`ed — the reason this is the input
-    // side and not `z.infer`. Authors write `{ virtualScroll: { itemHeight } }`.
-    type _EnabledStaysOptional = Assert<
-      Equal<undefined extends VirtualScrollConfig['enabled'] ? true : false, true>
-    >;
-
-    expect(true).toBe(true);
+/**
+ * `PerformanceConfig` was the sixth symbol in this batch and needed NO fix: the
+ * spec RETIRED `PerformanceConfigSchema` / `PerformanceConfig` from
+ * `@objectstack/spec/ui` in 17.0.0-rc.1, so the collision is gone and the name
+ * is objectui's own. Pinned because "the spec dropped it" is a claim with an
+ * expiry date — if the spec re-adds the name, this fails and the symbol needs
+ * triaging again rather than silently becoming a fork.
+ */
+describe('PerformanceConfig no longer collides — the spec retired the name', () => {
+  it('the spec exports neither the type nor its schema', () => {
+    for (const name of ['PerformanceConfig', 'PerformanceConfigSchema']) {
+      expect(
+        SPEC_NAMES.has(name),
+        `@objectstack/spec exports \`${name}\` again. \`usePerformance\` declares its own ` +
+          `\`PerformanceConfig\`, which is a fork the moment the spec owns the name. ` +
+          `Re-triage it (objectstack#4115) — derive, rename, or ALLOW with a reason.`,
+      ).toBe(false);
+    }
   });
 });
 
 /**
- * `OfflineConfig` is deliberately NOT burned down in this batch: `@object-ui/types`
- * declares its own, and that package is the repo's vocabulary root, so the name
- * is objectui#3156's call to make. It stays on the ledger until then. This pins
- * that the deferral is still real work — if the collision disappears on its own,
- * the ledger entry goes stale and the guard says so.
+ * `OfflineConfig` keeps the spec's name here, and that was a cross-package call:
+ * `@object-ui/types` had an `OfflineConfig` too, but it turned out to be a
+ * service-worker ROUTE cache and was renamed `PWAOfflineConfig` (objectui#3156).
+ * This hook's config IS the spec's concept, key for key, so it takes the spec's
+ * binding — a plain derivation, no dialect.
  */
-describe('OfflineConfig is deferred to the types-package decision', () => {
-  it('is still a local declaration under a spec name', () => {
-    expect(SPEC_NAMES.has('OfflineConfig')).toBe(true);
+describe('OfflineConfig and OfflineSyncConfig derive from the schema INPUT side', () => {
+  it('is pinned at compile time', () => {
+    type SpecOfflineInput = SpecAuthoredInput<typeof OfflineConfigSchema>;
+    type SpecSyncInput = SpecAuthoredInput<typeof SyncConfigSchema>;
+    type _SpecNotAny = Assert<Equal<IsAny<SpecOfflineInput>, false>>;
+    type _SpecNotUnknown = Assert<Equal<IsUnknown<SpecOfflineInput>, false>>;
+
+    type _IsTheSchemaInput = Assert<Equal<OfflineConfig, SpecOfflineInput>>;
+    type _SyncIsTheSchemaInput = Assert<Equal<OfflineSyncConfig, SpecSyncInput>>;
+
+    // Nothing invented, nothing dropped.
+    type _NoLocalOnlyKeys = Assert<Equal<Exclude<keyof OfflineConfig, keyof SpecOfflineInput>, never>>;
+    type _NoMissingKeys = Assert<Equal<Exclude<keyof SpecOfflineInput, keyof OfflineConfig>, never>>;
+
+    expect(true).toBe(true);
   });
 
-  it('its members are already spec bindings, so only the envelope is left', () => {
-    type SpecOfflineInput = SpecAuthoredInput<typeof OfflineConfigSchema>;
-    type _CacheIsSpec = Assert<Equal<OfflineConfig['cache'], SpecOfflineInput['cache']>>;
-    type _StrategyIsSpec = Assert<Equal<OfflineConfig['strategy'], SpecOfflineInput['strategy']>>;
-    expect(true).toBe(true);
+  /**
+   * The concrete reason this is the input side: the hook's own signature is
+   * `useOffline(config: OfflineConfig = {})`. `z.infer` would make `enabled`,
+   * `strategy` and `offlineIndicator` required — i.e. would reject the default
+   * the hook ships with. This is that check, written so it fails loudly rather
+   * than as a puzzle about variance.
+   */
+  it('accepts the empty config the hook itself defaults to', () => {
+    const empty: OfflineConfig = {};
+    const authored: OfflineConfig = {
+      enabled: true,
+      strategy: 'cache_first',
+      sync: { conflictResolution: 'last_write_wins' },
+      cache: { ttl: 60 },
+    };
+    expect(useOffline).toBeTypeOf('function');
+    expect([empty, authored]).toHaveLength(2);
   });
 });

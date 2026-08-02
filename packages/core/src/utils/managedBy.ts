@@ -1,56 +1,65 @@
 /**
- * managedBy — the single source of truth for interpreting an object's
- * lifecycle bucket (`ObjectSchema.managedBy`) into CRUD affordances.
+ * managedBy — the UI end of the platform's `managedBy` → CRUD affordance
+ * contract (ADR-0103).
  *
- * UI-side mirror of the framework's `resolveCrudAffordances()`
- * (`@objectstack/spec/data/object.zod.ts`, ADR-0103). Lives in `@object-ui/core`
- * — React-free and reachable by every UI package (app-shell, plugin-detail,
- * plugin-form, plugin-grid) — so the bucket logic is defined ONCE instead of
- * hand-mirrored in each. Components ask "should I show New / Import / Edit /
- * Delete / Export?" and get an answer that tracks the object's lifecycle without
- * special-casing `sys_*` names.
+ * ## What is spec-owned here, and what is not (objectstack#4115)
  *
- * The bucket UNION type lives in `@object-ui/types` (`ManagedByBucket`) so the
- * schema field can reference it; this module re-exports it for convenience.
- * Only the affordance BOOLEANS live here — all translated copy (badge variants,
- * empty-state messages) stays in `@object-ui/app-shell`.
+ * The bucket logic is **the spec's**, and this module now says so in code
+ * rather than in a comment. `CrudAffordances` / `RowCrudPredicates` are
+ * re-exported from `@objectstack/spec/data`, and the bucket resolution itself
+ * delegates to the spec's `resolveCrudAffordances()`.
+ *
+ * This module used to describe itself as a "UI-side mirror" of that function
+ * and carry its own `DEFAULTS` table — a line-for-line copy of the spec's
+ * `CRUD_AFFORDANCE_DEFAULTS`, plus a copy of its override parser. A faithful
+ * copy passes every value comparison and every behavioural test, so nothing
+ * would have caught the release in which the spec re-buckets an object class;
+ * reference identity is the only check that distinguishes a re-export from a
+ * fork (objectui#3003).
+ *
+ * What is genuinely objectui's and keeps a local name:
+ * {@link resolveEffectiveCrudAffordances} — the spec's object-level matrix
+ * INTERSECTED with the server-resolved effective API operation set (#3391), so
+ * the UI never offers a button the server would 405. The spec's function has
+ * no such notion; naming ours after it was the misdescription this burn-down
+ * removes.
+ *
+ * Lives in `@object-ui/core` — React-free and reachable by every UI package
+ * (app-shell, plugin-detail, plugin-form, plugin-grid) — so the intersection is
+ * defined ONCE instead of hand-mirrored in each. The bucket UNION type lives in
+ * `@object-ui/types` (`ManagedByBucket`) and is re-exported here for
+ * convenience. All translated copy (badge variants, empty-state messages) stays
+ * in `@object-ui/app-shell`.
  */
 
-import type { ManagedByBucket } from '@object-ui/types';
+import {
+  resolveCrudAffordances as resolveSpecCrudAffordances,
+  type CrudAffordances,
+  type RowCrudPredicates,
+} from '@objectstack/spec/data';
 
 export type { ManagedByBucket } from '@object-ui/types';
 
-export interface CrudAffordances {
-  /** Generic "New" button for single-record creation. */
-  create: boolean;
-  /** CSV bulk-import wizard. */
-  import: boolean;
-  /** Inline + form editing of existing rows. */
-  edit: boolean;
-  /** Row-level + bulk delete. */
-  delete: boolean;
-  /** CSV / clipboard export. */
-  exportCsv: boolean;
-  /**
-   * Per-record CEL predicates for the built-in row Edit/Delete actions,
-   * present only when `userActions.edit` / `delete` used the object form
-   * (objectui#2614). Carried through as authored for row renderers to evaluate;
-   * they never affect the object-level booleans above.
-   */
-  editPredicates?: RowCrudPredicates;
-  deletePredicates?: RowCrudPredicates;
-}
-
-/** Per-record predicates from the #2614 object form of a userActions flag. */
-export interface RowCrudPredicates {
-  visibleWhen?: unknown;
-  disabledWhen?: unknown;
-}
+/**
+ * The resolved CRUD affordance matrix and its per-record predicate envelope
+ * are **spec-owned** (`@objectstack/spec/data`, ADR-0103) and re-exported here,
+ * not re-declared.
+ *
+ * Note this also TIGHTENS the predicate types: the local copies typed
+ * `visibleWhen` / `disabledWhen` as `unknown`, while the spec types them as
+ * `Expression | ExpressionInput` — the authored CEL shorthand or its envelope.
+ * The local `unknown` was imprecision, not a deliberate dialect.
+ */
+export type { CrudAffordances, RowCrudPredicates };
 
 /** `edit`/`delete` accept a bare boolean or the #2614 object form. */
 export type UserActionOverride =
   | boolean
-  | { enabled?: boolean; visibleWhen?: unknown; disabledWhen?: unknown };
+  | {
+      enabled?: boolean;
+      visibleWhen?: RowCrudPredicates['visibleWhen'];
+      disabledWhen?: RowCrudPredicates['disabledWhen'];
+    };
 
 export interface UserActionsOverride {
   create?: boolean;
@@ -65,25 +74,19 @@ export interface SchemaLike {
   userActions?: UserActionsOverride | null;
 }
 
-const DEFAULTS: Record<ManagedByBucket, CrudAffordances> = {
-  platform:       { create: true,  import: true,  edit: true,  delete: true,  exportCsv: true },
-  config:         { create: true,  import: false, edit: true,  delete: true,  exportCsv: true },
-  system:         { create: false, import: false, edit: false, delete: false, exportCsv: true },
-  'engine-owned': { create: false, import: false, edit: false, delete: false, exportCsv: true },
-  'append-only':  { create: false, import: false, edit: false, delete: false, exportCsv: true },
-  'better-auth':  { create: false, import: false, edit: false, delete: false, exportCsv: true },
-};
-
 /**
  * Collapse an `edit`/`delete` override (boolean or #2614 object form) onto
  * the given bucket default, surfacing any per-record predicates alongside.
  *
  * THE single parser for the `userActions.{edit,delete}` override shape — every
- * UI package (grid row affordances, related-list row predicates, this module's
- * own `resolveCrudAffordances`) routes through here instead of re-implementing
- * the boolean/object-form parse locally. `base` is the bucket default an
- * omitted `enabled` falls back to (callers that only gate on an explicit
- * opt-out pass `true`; predicate extraction is independent of `base`).
+ * UI package (grid row affordances, related-list row predicates) routes through
+ * here instead of re-implementing the boolean/object-form parse locally. The
+ * spec keeps its equivalent (`normalizeRowCrudOverride`) module-private, so
+ * this stays a local declaration — under a name the spec does not own.
+ *
+ * `base` is the bucket default an omitted `enabled` falls back to (callers that
+ * only gate on an explicit opt-out pass `true`; predicate extraction is
+ * independent of `base`).
  */
 export function normalizeUserAction(
   v: UserActionOverride | undefined | null,
@@ -127,7 +130,15 @@ const AFFORDANCE_TO_API_OPERATION = {
 } as const;
 
 /**
- * Resolve the effective CRUD affordances for an object schema.
+ * Resolve the CRUD affordances a UI surface should expose for an object —
+ * the spec's object-level matrix, INTERSECTED with what the server will
+ * actually accept.
+ *
+ * The bucket/`userActions` half is **not computed here**: it is delegated to
+ * `resolveCrudAffordances()` from `@objectstack/spec/data` (ADR-0103), so the
+ * bucket table has exactly one definition on the platform. Only the
+ * intersection below is objectui's, which is why this function no longer
+ * carries the spec's name (objectstack#4115).
  *
  * @param obj The object schema (managedBy bucket + userActions overrides).
  * @param effectiveApiOperations OPTIONAL server-resolved effective API operation
@@ -138,24 +149,20 @@ const AFFORDANCE_TO_API_OPERATION = {
  *   (old backend / no effective set) leaves the affordances untouched —
  *   backward-compatible. An empty array means "expose nothing" → all bits off.
  */
-export function resolveCrudAffordances(
+export function resolveEffectiveCrudAffordances(
   obj: SchemaLike | null | undefined,
   effectiveApiOperations?: readonly string[] | null,
 ): CrudAffordances {
-  const bucket = (obj?.managedBy as ManagedByBucket | undefined) ?? 'platform';
-  const base = DEFAULTS[bucket] ?? DEFAULTS.platform;
-  const o = obj?.userActions ?? {};
-  const edit = normalizeUserAction(o.edit, base.edit);
-  const del = normalizeUserAction(o.delete, base.delete);
-  const out: CrudAffordances = {
-    create:    o.create    ?? base.create,
-    import:    o.import    ?? base.import,
-    edit:      edit.enabled,
-    delete:    del.enabled,
-    exportCsv: o.exportCsv ?? base.exportCsv,
-  };
-  if (edit.predicates) out.editPredicates = edit.predicates;
-  if (del.predicates) out.deletePredicates = del.predicates;
+  // The spec's resolver is the single definition of the bucket defaults and the
+  // `userActions` override parse (including the #2614 object form). Its input
+  // type does not model the `null`s objectui's loosely-typed schemas carry, so
+  // they are normalised away at this one seam rather than re-deriving anything.
+  const out = resolveSpecCrudAffordances({
+    managedBy: obj?.managedBy ?? undefined,
+    userActions: (obj?.userActions ?? undefined) as Parameters<
+      typeof resolveSpecCrudAffordances
+    >[0]['userActions'],
+  });
   // [#3391] Intersect with the server's effective API operations when present.
   // The frontend consumes the effective set the server hands down; it never
   // reads the raw `apiMethods` nor re-derives.
@@ -204,5 +211,5 @@ export function isObjectInlineEditable(
   obj: SchemaLike | null | undefined,
   effectiveApiOperations?: readonly string[] | null,
 ): boolean {
-  return resolveCrudAffordances(obj, effectiveApiOperations).edit;
+  return resolveEffectiveCrudAffordances(obj, effectiveApiOperations).edit;
 }
