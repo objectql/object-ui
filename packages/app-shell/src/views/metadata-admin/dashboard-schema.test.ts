@@ -44,7 +44,7 @@ describe('dashboard-schema — getDashboardForm', () => {
     expect(declared.has('name')).toBe(false);
   });
 
-  it('keeps non-owned spec fields (e.g. layout / filters / performance)', () => {
+  it('keeps non-owned spec fields (e.g. layout / filters), and carries a retirement through', () => {
     const form = getDashboardForm();
     const declared = new Set<string>();
     for (const s of form?.sections ?? []) {
@@ -52,10 +52,16 @@ describe('dashboard-schema — getDashboardForm', () => {
         declared.add(typeof f === 'string' ? f : (f as { field: string }).field);
       }
     }
-    // Layout, filter and advanced fields survive the prune.
+    // Layout and filter fields survive the prune.
     expect(declared.has('columns')).toBe(true);
     expect(declared.has('globalFilters')).toBe(true);
-    expect(declared.has('performance')).toBe(true);
+    // `performance` was RETIRED in spec 17.0.0 (framework#3896 audit close-out):
+    // no renderer or runtime ever read it. This form is derived from the spec's
+    // own `dashboardForm`, so the removal arrives here for free — which is the
+    // point of deriving instead of hand-listing, and worth pinning: were this
+    // file ever to hardcode a field list again, a retirement would silently
+    // keep offering an input the loader rejects.
+    expect(declared.has('performance')).toBe(false);
   });
 
   it('drops sections that become empty after pruning', () => {

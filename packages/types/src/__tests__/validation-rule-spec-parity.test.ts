@@ -104,14 +104,17 @@ const _conditionalNonBranchKeysAreSpec = true satisfies Equal<
 // …and the branches are precise here, not `unknown`.
 const _conditionalBranchIsTyped = false satisfies IsUnknown<ConditionalValidation['then']>;
 
-// INVERTED PIN (objectstack#4171). The divergence above is only justified while
-// the spec's own `then`/`otherwise` erase to `unknown`. The day the spec types
-// them, these fail — and the failure is the instruction: delete the divergence
-// and derive `ConditionalValidation` whole.
-const _specThenIsStillUnknown = true satisfies IsUnknown<
+// INVERTED PIN (objectstack#4171) — FIRED on spec 17.0.0-rc.1 (#3177).
+//
+// The divergence above was only justified while the spec's own
+// `then`/`otherwise` erased to `unknown`. They no longer do, so the assertions
+// are inverted to record that. **A record, not a resolution**: what the pin asks
+// for — deleting the divergence and deriving `ConditionalValidation` whole — is
+// deliberately not bundled into a version bump. Tracked in #3177.
+const _specThenIsStillUnknown = false satisfies IsUnknown<
   z.input<typeof ConditionalValidationSchema>['then']
 >;
-const _specOtherwiseIsStillUnknown = true satisfies IsUnknown<
+const _specOtherwiseIsStillUnknown = false satisfies IsUnknown<
   z.input<typeof ConditionalValidationSchema>['otherwise']
 >;
 
