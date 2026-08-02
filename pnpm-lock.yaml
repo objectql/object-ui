@@ -262,11 +262,11 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@objectstack/client':
-        specifier: ^17.0.0-rc.0
-        version: 17.0.0-rc.0(ai@7.0.37(zod@4.4.3))
+        specifier: ^17.0.0-rc.1
+        version: 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.0
-        version: 17.0.0-rc.0(ai@7.0.37(zod@4.4.3))
+        specifier: ^17.0.0-rc.1
+        version: 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
@@ -397,8 +397,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.0
-        version: 17.0.0-rc.0(ai@7.0.37(zod@4.4.3))
+        specifier: ^17.0.0-rc.1
+        version: 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
       fumadocs-core:
         specifier: 16.13.0
         version: 16.13.0(@mdx-js/mdx@3.1.1)(@tanstack/react-router@1.170.8(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.2.17)(lucide-react@1.25.0(react@19.2.8))(next@16.2.12(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react-router@7.18.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)(zod@4.4.3)
@@ -686,11 +686,11 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/formula':
-        specifier: ^17.0.0-rc.0
-        version: 17.0.0-rc.0(ai@7.0.37(zod@4.4.3))
+        specifier: ^17.0.0-rc.1
+        version: 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
       '@objectstack/lint':
-        specifier: ^17.0.0-rc.0
-        version: 17.0.0-rc.0(ai@7.0.37(zod@4.4.3))
+        specifier: ^17.0.0-rc.1
+        version: 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^17.0.0-rc.1
         version: 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
@@ -1081,8 +1081,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/formula':
-        specifier: ^17.0.0-rc.0
-        version: 17.0.0-rc.0(ai@7.0.37(zod@4.4.3))
+        specifier: ^17.0.0-rc.1
+        version: 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^17.0.0-rc.1
         version: 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
@@ -1143,8 +1143,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/client':
-        specifier: ^17.0.0-rc.0
-        version: 17.0.0-rc.0(ai@7.0.37(zod@4.4.3))
+        specifier: ^17.0.0-rc.1
+        version: 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
     devDependencies:
       '@objectstack/spec':
         specifier: ^17.0.0-rc.1
@@ -3991,32 +3991,23 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@objectstack/client@17.0.0-rc.0':
-    resolution: {integrity: sha512-urv/0nDuxUbW14WLUaHGqzHQZAPji5g1bMUgkNZSUuNVreCVbtZ/pZFleftfrr/hacWy76T9p5GuXd7w6cwmAA==}
+  '@objectstack/client@17.0.0-rc.1':
+    resolution: {integrity: sha512-3ZRNyx+lOx8C+LBBChhXZc22rWcMa5wufVRrGHc5Dfd42OZqn5AsbKjjhSZrHEfyoCvmeeENo9JGlej0R8RJ9Q==}
     engines: {node: '>=22.0.0'}
 
-  '@objectstack/core@17.0.0-rc.0':
-    resolution: {integrity: sha512-nki7tHUr6U1AzhkXximfcGDQmLVFyuJ6j0zqvB/NNzg5KHckMuemgfVnW/hL4dkG1fDi/B/Z8pDwafhqTaOa6w==}
+  '@objectstack/core@17.0.0-rc.1':
+    resolution: {integrity: sha512-3snd0dJhd+MPEDek+YRapZ02siBnbxYNNl8GoyfnlSeEuKXdcY6bDBf/zueAwoTqyV32zNG5epA85cZh1zLQPw==}
     engines: {node: '>=22.0.0'}
 
-  '@objectstack/formula@17.0.0-rc.0':
-    resolution: {integrity: sha512-TlqJ3NgLN6GP4dO9TtOHDavSd9hJ5dblkuD2RBRvSmx6oDolGd73iubOEQyDXRQ4gBC06HG7QYQQTR6d7Tn6bQ==}
+  '@objectstack/formula@17.0.0-rc.1':
+    resolution: {integrity: sha512-oAJENCl3QQcJA0484ScNdOU6EX5MEZ14pRF7sLITnoBkXGhgh/eMKboG+q6zLGJsZwS4ThPEu6sF72GVDlEmuw==}
 
-  '@objectstack/lint@17.0.0-rc.0':
-    resolution: {integrity: sha512-Mwm0EYhHU+EEX05FxCbgGnpriv9RQAZcx8DnuwoY468dvZkP666qdD+B3ZG0p8xnB9gD9a1M8zt5pqambaJTmA==}
+  '@objectstack/lint@17.0.0-rc.1':
+    resolution: {integrity: sha512-qIXylf5FsFhWAii0m+jQp49kZXlTnGXNz/cyZTrvqwJItI78k5afo3zKxZjmDreGRnAFIKXJLGLEDvZWjHgdFg==}
     engines: {node: '>=22.0.0'}
 
-  '@objectstack/sdui-parser@17.0.0-rc.0':
-    resolution: {integrity: sha512-VUjEznZZKO1xvkKpDkDtPsPjmkgRYnp9S09aR1TXdGLDOizaAFLLC02hRvNuD2mmmOp/gsnkwIWZtXcN9MO4Rg==}
-
-  '@objectstack/spec@17.0.0-rc.0':
-    resolution: {integrity: sha512-4RuGPjbw0T56BkyrT6qTrPd6yPBSGw/kCawszqFD44Gh+FyhoY1VewvSVLx/3kFbY41ogEqBe7hh4C2o+/n5yw==}
-    engines: {node: '>=22.0.0'}
-    peerDependencies:
-      ai: ^7.0.0
-    peerDependenciesMeta:
-      ai:
-        optional: true
+  '@objectstack/sdui-parser@17.0.0-rc.1':
+    resolution: {integrity: sha512-K96OHHU/HtBkumyKhNz+Sxnhvvy1wAtzQOjuTdwTDpUYLxJu3J3xqxoXPBQUh+FuYrTlxJq99CkhsSCjDrSLjA==}
 
   '@objectstack/spec@17.0.0-rc.1':
     resolution: {integrity: sha512-1SIDQHwxaV8GLD8YqLxCJ0fxTag6eYvvWntihil+lBIxNSjYLI3U384I4l03esBvkytrts3L5W0WCZJkquJiXw==}
@@ -12335,44 +12326,38 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@objectstack/client@17.0.0-rc.0(ai@7.0.37(zod@4.4.3))':
+  '@objectstack/client@17.0.0-rc.1(ai@7.0.37(zod@4.4.3))':
     dependencies:
-      '@objectstack/core': 17.0.0-rc.0(ai@7.0.37(zod@4.4.3))
-      '@objectstack/spec': 17.0.0-rc.0(ai@7.0.37(zod@4.4.3))
+      '@objectstack/core': 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
+      '@objectstack/spec': 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/core@17.0.0-rc.0(ai@7.0.37(zod@4.4.3))':
+  '@objectstack/core@17.0.0-rc.1(ai@7.0.37(zod@4.4.3))':
     dependencies:
-      '@objectstack/spec': 17.0.0-rc.0(ai@7.0.37(zod@4.4.3))
+      '@objectstack/spec': 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
       zod: 4.4.3
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/formula@17.0.0-rc.0(ai@7.0.37(zod@4.4.3))':
+  '@objectstack/formula@17.0.0-rc.1(ai@7.0.37(zod@4.4.3))':
     dependencies:
       '@marcbachmann/cel-js': 8.0.0
-      '@objectstack/spec': 17.0.0-rc.0(ai@7.0.37(zod@4.4.3))
+      '@objectstack/spec': 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/lint@17.0.0-rc.0(ai@7.0.37(zod@4.4.3))':
+  '@objectstack/lint@17.0.0-rc.1(ai@7.0.37(zod@4.4.3))':
     dependencies:
-      '@objectstack/formula': 17.0.0-rc.0(ai@7.0.37(zod@4.4.3))
-      '@objectstack/sdui-parser': 17.0.0-rc.0
-      '@objectstack/spec': 17.0.0-rc.0(ai@7.0.37(zod@4.4.3))
+      '@objectstack/formula': 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
+      '@objectstack/sdui-parser': 17.0.0-rc.1
+      '@objectstack/spec': 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
       sucrase: 3.35.1
       typescript: 6.0.3
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/sdui-parser@17.0.0-rc.0': {}
-
-  '@objectstack/spec@17.0.0-rc.0(ai@7.0.37(zod@4.4.3))':
-    dependencies:
-      zod: 4.4.3
-    optionalDependencies:
-      ai: 7.0.37(zod@4.4.3)
+  '@objectstack/sdui-parser@17.0.0-rc.1': {}
 
   '@objectstack/spec@17.0.0-rc.1(ai@7.0.37(zod@4.4.3))':
     dependencies:
