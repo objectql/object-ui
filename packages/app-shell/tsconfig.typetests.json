@@ -59,9 +59,19 @@
   // the required `dialect` — is a TYPE-level regression only. No runtime path
   // observes it (the inspector commits bare strings), so unchecked assertions
   // would leave that tightening declared and unenforced.
+  //
+  // `views/metadata-admin/previews/simulator/__tests__/flow-sim-edge.types.test.ts`
+  // is the same pin on the SIMULATOR's edge (objectui#3216) — the last copy of
+  // that restatement. Its RUNTIME consequence is covered next door in
+  // `flow-simulator.test.ts` (the simulator skipped envelope guards); what
+  // stays type-only here is the other half of the same mistake, the direction
+  // in which the hand-written shape was too NARROW — excess-property checking
+  // rejected the canonical `{ dialect, source }` literal outright. No test that
+  // vitest runs can observe that, so unlisted it would be commentary.
   "include": [
     "src/__tests__/spec-symbol-parity.test.ts",
     "src/utils/resolveActionParams.test.ts",
-    "src/views/metadata-admin/previews/flow-designer-edge.types.test.ts"
+    "src/views/metadata-admin/previews/flow-designer-edge.types.test.ts",
+    "src/views/metadata-admin/previews/simulator/__tests__/flow-sim-edge.types.test.ts"
   ]
 }

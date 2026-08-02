@@ -1,6 +1,7 @@
 // Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
 
 import { describe, it, expect } from 'vitest';
+import { FlowEdgeSchema } from '@objectstack/spec/automation';
 import { FlowSimulator } from '../flow-simulator';
 import { validateFlowDraft, findCycle } from '../flow-sim-validate';
 import type { SimEdge, SimNode } from '../flow-sim-types';
@@ -11,6 +12,18 @@ const run = (nodes: SimNode[], edges: SimEdge[], seed = {}, mocks = {}) => {
   sim.runToEnd();
   return sim;
 };
+
+/**
+ * An edge as the PLATFORM persists it, not as a test hand-writes it: authoring
+ * input goes through `FlowEdgeSchema`, whose `ExpressionInput` pipe rewrites a
+ * bare guard string into the `{ dialect: 'cel', source }` envelope. So the
+ * envelope is not an exotic spelling the simulator may decline to support — it
+ * is THE canonical persisted form, and a fixture that spells it by hand could
+ * drift from what the spec actually emits. The `SimEdge` return annotation is
+ * load-bearing too: it is a compile-time proof that a spec-parsed edge is a
+ * thing the simulator accepts (objectui#3216).
+ */
+const specEdge = (e: Record<string, unknown>): SimEdge => FlowEdgeSchema.parse(e);
 
 describe('validateFlowDraft', () => {
   it('flags a missing entry node', () => {
@@ -462,5 +475,113 @@ describe('FlowSimulator', () => {
     const jStep = sim.state.steps.find((s) => s.nodeId === 'j')!;
     expect(jStep.status).toBe('skipped');
     expect(jStep.note).toMatch(/not modelled/i);
+  });
+});
+
+/**
+ * objectui#3216 — the simulator reads an edge guard through `conditionText`,
+ * the one reader every consumer of that field goes through.
+ *
+ * Both readers here (`flow-simulator.ts`'s decision routing and
+ * `flow-sim-validate.ts`'s diagnostics) used to accept only a bare string and
+ * return `undefined` for anything else. That made the simulator report
+ * `Branch has no condition.` for — and skip — a branch the ENGINE evaluates
+ * normally, i.e. it silently simulated semantics that differ from the runtime,
+ * which is the one thing the simulator's own contract forbids. The spelling it
+ * could not read is the spelling the platform itself produces (see
+ * {@link specEdge}), so this was never "the simulator supports the shorthand
+ * only"; it was a missing branch in two hand-rolled copies of one read.
+ */
+describe('decision guards in the spec expression envelope (#3216)', () => {
+  const NODES: SimNode[] = [
+    { id: 's', type: 'start' },
+    { id: 'd', type: 'decision' },
+    { id: 'hi', type: 'end' },
+    { id: 'lo', type: 'end' },
+  ];
+  const START: SimEdge = { id: 'e_s', source: 's', target: 'd' };
+
+  /** The decision's recorded evaluation of its out-edge to `target`. */
+  const edgeEval = (sim: FlowSimulator, target: string) => {
+    const step = sim.state.steps.find((x) => x.nodeId === 'd');
+    const found = (step?.edges ?? []).find((x) => x.target === target);
+    if (!found) throw new Error(`decision "d" recorded no evaluation for its edge to "${target}"`);
+    return found;
+  };
+
+  it('the spec canonicalises a bare guard INTO the envelope (premise of this suite)', () => {
+    const edge = specEdge({ id: 'e_hi', source: 'd', target: 'hi', condition: 'amount > 10' });
+    expect(edge.condition).toEqual({ dialect: 'cel', source: 'amount > 10' });
+  });
+
+  it('selects the branch whose envelope guard is true (the issue repro)', () => {
+    const guarded = specEdge({ id: 'e_hi', source: 'd', target: 'hi', condition: 'amount > 10' });
+    const sim = run(NODES, [START, guarded, { id: 'e_lo', source: 'd', target: 'lo', isDefault: true }], { amount: 20 });
+
+    expect(sim.state.visitedNodeIds).toContain('hi');
+    expect(sim.state.visitedNodeIds).not.toContain('lo');
+    const dStep = sim.state.steps.find((x) => x.nodeId === 'd');
+    expect(dStep?.edges?.find((x) => x.selected)?.target).toBe('hi');
+    // The timeline shows the guard it evaluated, not "Branch has no condition."
+    const hiEval = edgeEval(sim, 'hi');
+    expect(hiEval.condition).toBe('amount > 10');
+    expect(hiEval.error).toBeUndefined();
+  });
+
+  it('EVALUATES an envelope guard rather than treating it as always-true', () => {
+    const guarded = specEdge({ id: 'e_hi', source: 'd', target: 'hi', condition: 'amount > 10' });
+    const sim = run(NODES, [START, guarded, { id: 'e_lo', source: 'd', target: 'lo', isDefault: true }], { amount: 5 });
+
+    expect(sim.state.visitedNodeIds).toContain('lo');
+    expect(sim.state.visitedNodeIds).not.toContain('hi');
+    const hiEval = edgeEval(sim, 'hi');
+    // False for the right REASON: the guard ran and was false…
+    expect(hiEval.result).toBe(false);
+    expect(hiEval.condition).toBe('amount > 10');
+    // …not because the reader could not see a condition at all.
+    expect(hiEval.error).toBeUndefined();
+  });
+
+  it('still says "no condition" for an envelope with nothing readable to evaluate', () => {
+    // Spec phase M9.2 will emit `ast`-only envelopes. There is no CEL source to
+    // run, and the simulator's rule is to say so rather than fake a result —
+    // the fix widened the reader, it did not make every object a condition.
+    const astOnly: SimEdge = { id: 'e_hi', source: 'd', target: 'hi', condition: { dialect: 'cel', ast: { op: 'gt' } } };
+    const sim = run(NODES, [START, astOnly, { id: 'e_lo', source: 'd', target: 'lo', isDefault: true }], { amount: 20 });
+
+    const hiEval = edgeEval(sim, 'hi');
+    expect(hiEval.error).toBe('Branch has no condition.');
+    expect(sim.state.visitedNodeIds).toContain('lo');
+  });
+
+  it('reports a dead-ending envelope guard as false, not as an absent condition', () => {
+    const guarded = specEdge({ id: 'e_hi', source: 'd', target: 'hi', condition: 'amount > 10' });
+    const sim = run(NODES, [START, guarded], { amount: 5 });
+
+    expect(sim.state.status).toBe('error');
+    const hiEval = edgeEval(sim, 'hi');
+    expect(hiEval.error).toBeUndefined();
+    expect(hiEval.condition).toBe('amount > 10');
+  });
+
+  // The same under-read, one layer up: `validateFlowDraft` warns when a decision
+  // guards EVERY out-edge and has no default (it may dead-end). Reading only the
+  // bare string made a decision whose guards are envelopes silently exempt.
+  it('warns about a missing default when every guard is an envelope', () => {
+    const v = validateFlowDraft(NODES, [
+      START,
+      specEdge({ id: 'e_hi', source: 'd', target: 'hi', condition: 'amount > 10' }),
+      specEdge({ id: 'e_lo', source: 'd', target: 'lo', condition: 'amount <= 10' }),
+    ]);
+    expect(v.warnings.some((w) => w.nodeId === 'd' && /no default branch/.test(w.message))).toBe(true);
+  });
+
+  it('does not warn when one branch is unguarded (that branch cannot dead-end)', () => {
+    const v = validateFlowDraft(NODES, [
+      START,
+      specEdge({ id: 'e_hi', source: 'd', target: 'hi', condition: 'amount > 10' }),
+      { id: 'e_lo', source: 'd', target: 'lo' },
+    ]);
+    expect(v.warnings.some((w) => w.nodeId === 'd' && /no default branch/.test(w.message))).toBe(false);
   });
 });

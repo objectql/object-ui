@@ -13,10 +13,8 @@
 
 import { ExpressionEvaluator } from '@object-ui/core';
 import type { Diagnostic, FlowValidation, SimEdge, SimNode } from './flow-sim-types';
+import { conditionText } from '../flow-canvas-layout';
 import { t as tr, tFormat } from '../../i18n';
-
-const edgeCondString = (c: SimEdge['condition']): string | undefined =>
-  typeof c === 'string' ? c : undefined;
 
 /** Evaluate a CEL condition, capturing (not swallowing) any failure. */
 export function evalCondition(
@@ -149,9 +147,14 @@ export function validateFlowDraft(nodes: SimNode[], edges: SimEdge[], locale?: s
     if (defaults.length > 1) {
       errors.push({ level: 'error', nodeId: n.id, message: tFormat('engine.flowValidate.decisionMultipleDefaults', locale, { id: n.id, count: defaults.length }) });
     }
+    // "Every branch is guarded" is read through `conditionText`, the same ONE
+    // reader the stepper routes on (objectui#3216) — a decision whose guards
+    // are stored as `{ dialect, source }` envelopes is exactly as capable of
+    // dead-ending as one written with bare strings, and used to be silently
+    // exempt from this warning.
     if (out.length === 0) {
       warnings.push({ level: 'warning', nodeId: n.id, message: tFormat('engine.flowValidate.decisionNoBranches', locale, { id: n.id }) });
-    } else if (defaults.length === 0 && out.every((e) => edgeCondString(e.condition))) {
+    } else if (defaults.length === 0 && out.every((e) => conditionText(e.condition))) {
       warnings.push({ level: 'warning', nodeId: n.id, message: tFormat('engine.flowValidate.decisionNoDefault', locale, { id: n.id }) });
     }
   }

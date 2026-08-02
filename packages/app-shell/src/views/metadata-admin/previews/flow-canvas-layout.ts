@@ -457,7 +457,26 @@ export function edgeKey(edge: FlowDesignerEdge, index: number): string {
   return edge.id || `${edge.source}->${edge.target}#${index}`;
 }
 
-/** Human-readable condition text for an edge's optional guard. */
+/**
+ * The CEL source of an edge's optional guard — **the** reader for that field.
+ *
+ * Both authoring spellings resolve here: the bare string, and the ADR-0089
+ * envelope that the spec's `ExpressionInputSchema` normalizes every authored
+ * string INTO at parse time (so the envelope is what a persisted flow carries).
+ * An envelope with only a compiled `ast` and no `source` (spec phase M9.2) has
+ * no readable source yet, and says so rather than inventing text.
+ *
+ * Every consumer of `condition` goes through this function — canvas labels and
+ * the inspector, the Branches↔edges reconciliation in
+ * `inspectors/flow-decision-edges.ts`, AND the simulator (both its decision
+ * routing and its preflight diagnostics). That is deliberate and load-bearing:
+ * "how an edge guard is read" had four hand-rolled answers, two of which
+ * (`simulator/flow-simulator.ts`, `simulator/flow-sim-validate.ts`) accepted
+ * only the bare string and so reported a spec-canonical envelope as "no
+ * condition" — the simulator skipped a branch the engine takes (objectui#3216).
+ * Add a fifth spelling and that class of bug comes straight back; call this
+ * instead.
+ */
 export function conditionText(c: FlowDesignerEdge['condition']): string | undefined {
   if (!c) return undefined;
   if (typeof c === 'string') return c;

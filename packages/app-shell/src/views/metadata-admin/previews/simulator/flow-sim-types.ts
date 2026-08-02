@@ -14,6 +14,8 @@
  * "success".
  */
 
+import type { ExpressionInput } from '@objectstack/spec/shared';
+
 export interface SimNode {
   id: string;
   type: string;
@@ -27,7 +29,24 @@ export interface SimEdge {
   id?: string;
   source: string;
   target: string;
-  condition?: string | { source?: string };
+  /**
+   * Optional guard, in the spec's authoring shape: a bare CEL string, or the
+   * ADR-0089 envelope (`{ dialect, source }`) that `ExpressionInputSchema`
+   * normalizes every authored string INTO at parse time — so the envelope is
+   * the form a persisted flow actually carries, not an exotic alternative.
+   *
+   * Imported from the spec rather than restated. The local spelling used to be
+   * `string | { source?: string }`, and a restatement gets it wrong in BOTH
+   * directions at once: too WIDE, because it describes a `dialect`-less
+   * envelope that `FlowEdgeSchema` rejects outright; too NARROW, because
+   * excess-property checking then refuses the canonical envelope written as a
+   * literal (`dialect` "does not exist" on `{ source?: string }`). Correcting
+   * it by hand only moves the drift — the next spelling omits `ast` or `meta`.
+   * objectui#3202 removed the same restatement from `FlowDesignerEdge`; this
+   * was its last copy, and the reason the simulator could not read a guard the
+   * platform itself produces (objectui#3216).
+   */
+  condition?: ExpressionInput;
   isDefault?: boolean;
   label?: string;
   /**

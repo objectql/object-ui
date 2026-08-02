@@ -26,6 +26,7 @@ import type {
   SimStepStatus,
 } from './flow-sim-types';
 import { evalCondition, validateFlowDraft } from './flow-sim-validate';
+import { conditionText } from '../flow-canvas-layout';
 
 const MAX_STEPS = 500;
 
@@ -43,7 +44,6 @@ const MOCKED_SIDE_EFFECT = new Set([
 const UNSUPPORTED = new Set(['join_gateway', 'subflow', 'boundary_event', 'parallel', 'try_catch']);
 
 const edgeId = (e: SimEdge, i: number): string => e.id || `${e.source}->${e.target}#${i}`;
-const condStr = (c: SimEdge['condition']): string | undefined => (typeof c === 'string' ? c : undefined);
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
 
 export class FlowSimulator {
@@ -276,9 +276,14 @@ export class FlowSimulator {
     let firstError: string | undefined;
 
     // Evaluate conditional edges in declared order; first truthy wins.
+    // The guard is read through `conditionText` — the ONE reader every consumer
+    // of an edge condition goes through — so both authoring spellings evaluate
+    // here exactly as the engine evaluates them (objectui#3216). Reading only
+    // the bare string used to report a spec-canonical `{ dialect, source }`
+    // envelope as "no condition" and skip a branch the runtime would take.
     for (const { e, i } of out) {
       if (e.isDefault) continue;
-      const cond = condStr(e.condition);
+      const cond = conditionText(e.condition);
       if (!cond) {
         evals.push({ edgeId: edgeId(e, i), target: e.target, result: false, selected: false, error: 'Branch has no condition.' });
         continue;
