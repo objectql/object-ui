@@ -55,7 +55,7 @@ import { useMobileViewSwitcherRegistration } from '../layout/MobileViewSwitcherC
 import type { MobileViewSwitcherItem } from '../layout/MobileViewSwitcherContext';
 import { ManagedByBadge } from '../components/ManagedByBadge';
 import { RecordDetailView } from './RecordDetailView';
-import { resolveCrudAffordances } from '../utils/crudAffordances';
+import { resolveEffectiveCrudAffordances } from '../utils/crudAffordances';
 import { createIdentityImportDataSource, IDENTITY_IMPORT_OBJECT, type IdentityPasswordPolicy } from './identityImport';
 import { IdentityImportOptions, IdentityImportResultExtra, identityImportFields } from './IdentityImportPanels';
 import { importTargetFields } from './importTargetFields';
@@ -425,7 +425,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     // `undefined` (unrestricted object / old backend) leaves affordances as-is.
     // The identity-import bypass below is independent of `affordances.import`.
     const affordances = useMemo(
-      () => resolveCrudAffordances(objectDef as any, getObjectApiOperations(objectDef.name)),
+      () => resolveEffectiveCrudAffordances(objectDef as any, getObjectApiOperations(objectDef.name)),
       [objectDef, getObjectApiOperations],
     );
 

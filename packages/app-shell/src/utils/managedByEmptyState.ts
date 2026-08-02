@@ -21,7 +21,7 @@
  * (in the header) and the empty state (in the body) tell a consistent
  * story without repeating themselves verbatim.
  */
-import { resolveCrudAffordances, type UserActionsOverride } from '@object-ui/core';
+import { resolveEffectiveCrudAffordances, type UserActionsOverride } from '@object-ui/core';
 
 export interface ManagedByEmptyState {
   title: string;
@@ -45,7 +45,7 @@ export function resolveManagedByEmptyState(
   switch (managedBy) {
     // ADR-0103 — the explicit engine-owned bucket reuses the `system` engine-owned
     // empty state ("entries appear automatically"); it never opens creation, so the
-    // resolveCrudAffordances guard below is a no-op for it.
+    // resolveEffectiveCrudAffordances guard below is a no-op for it.
     case 'engine-owned':
     case 'system':
       // ADR-0103 — a `system` object that opened creation is admin/user-writable
@@ -53,7 +53,7 @@ export function resolveManagedByEmptyState(
       // copy would be wrong; fall back to the generic empty state (which surfaces
       // the New button) by returning undefined. The resolved `create` affordance
       // (shared @object-ui/core policy) is the one place that reads the override.
-      if (resolveCrudAffordances({ managedBy, userActions }).create) return undefined;
+      if (resolveEffectiveCrudAffordances({ managedBy, userActions }).create) return undefined;
       return {
         icon: 'Lock',
         title: t('list.managedBy.system.title', { defaultValue: 'Nothing here yet' }),

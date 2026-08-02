@@ -19,9 +19,19 @@
 import type { BaseSchema } from '@object-ui/types';
 
 /**
- * Validation error details
+ * One issue found while walking an ObjectUI schema TREE — `path` locates the
+ * offending node (e.g. `children[0].type`), and `type` says whether it is fatal.
+ *
+ * NOT the spec's `ValidationError` (`@objectstack/spec/kernel`), whose name this
+ * interface carried until objectstack#4115. That one describes PLUGIN-manifest
+ * validation and is keyed by `field`, with no severity discriminant. The two
+ * share no key beyond `message`/`code`.
+ *
+ * Naming convention for this family, set here and followed by the rest of the
+ * burn-down: `<what-is-validated>Validation<Error|Result>`. (`SchemaValidationResult`
+ * and `SchemaValidationReport` are themselves spec exports — checked, not assumed.)
  */
-export interface ValidationError {
+export interface SchemaNodeValidationError {
   path: string;
   message: string;
   type: 'error' | 'warning';
@@ -29,12 +39,18 @@ export interface ValidationError {
 }
 
 /**
- * Validation result
+ * The outcome of validating an ObjectUI schema tree.
+ *
+ * NOT the spec's `ValidationResult` (`@objectstack/spec/kernel` and
+ * `@objectstack/spec/contracts`), whose name this interface carried until
+ * objectstack#4115: there `errors`/`warnings` are OPTIONAL arrays of
+ * `{ field, message, code? }` describing a plugin manifest. Here both arrays are
+ * required and carry node paths.
  */
-export interface ValidationResult {
+export interface SchemaNodeValidationResult {
   valid: boolean;
-  errors: ValidationError[];
-  warnings: ValidationError[];
+  errors: SchemaNodeValidationError[];
+  warnings: SchemaNodeValidationError[];
 }
 
 /**
@@ -71,8 +87,8 @@ const BASE_SCHEMA_RULES = {
 /**
  * Validate a schema against base rules
  */
-function validateBaseSchema(schema: any, path: string = 'schema'): ValidationError[] {
-  const errors: ValidationError[] = [];
+function validateBaseSchema(schema: any, path: string = 'schema'): SchemaNodeValidationError[] {
+  const errors: SchemaNodeValidationError[] = [];
 
   if (!schema || typeof schema !== 'object') {
     errors.push({
@@ -113,8 +129,8 @@ function validateBaseSchema(schema: any, path: string = 'schema'): ValidationErr
 /**
  * Validate CRUD schema specific properties
  */
-function validateCRUDSchema(schema: any, path: string = 'schema'): ValidationError[] {
-  const errors: ValidationError[] = [];
+function validateCRUDSchema(schema: any, path: string = 'schema'): SchemaNodeValidationError[] {
+  const errors: SchemaNodeValidationError[] = [];
 
   if (schema.type === 'crud') {
     // Check required properties for CRUD
@@ -171,8 +187,8 @@ function validateCRUDSchema(schema: any, path: string = 'schema'): ValidationErr
 /**
  * Validate form schema specific properties
  */
-function validateFormSchema(schema: any, path: string = 'schema'): ValidationError[] {
-  const errors: ValidationError[] = [];
+function validateFormSchema(schema: any, path: string = 'schema'): SchemaNodeValidationError[] {
+  const errors: SchemaNodeValidationError[] = [];
 
   if (schema.type === 'form') {
     if (schema.fields && Array.isArray(schema.fields)) {
@@ -206,8 +222,8 @@ function validateFormSchema(schema: any, path: string = 'schema'): ValidationErr
 /**
  * Validate child schemas recursively
  */
-function validateChildren(schema: any, path: string = 'schema'): ValidationError[] {
-  const errors: ValidationError[] = [];
+function validateChildren(schema: any, path: string = 'schema'): SchemaNodeValidationError[] {
+  const errors: SchemaNodeValidationError[] = [];
 
   const children = schema.children || schema.body;
   if (children) {
@@ -251,8 +267,8 @@ function validateChildren(schema: any, path: string = 'schema'): ValidationError
 export function validateSchema(
   schema: any,
   path: string = 'schema'
-): ValidationResult {
-  const allErrors: ValidationError[] = [];
+): SchemaNodeValidationResult {
+  const allErrors: SchemaNodeValidationError[] = [];
 
   // Validate base schema
   allErrors.push(...validateBaseSchema(schema, path));
@@ -323,7 +339,7 @@ export function isValidSchema(value: any): value is BaseSchema {
  * @param result - The validation result
  * @returns Formatted error summary
  */
-export function formatValidationErrors(result: ValidationResult): string {
+export function formatValidationErrors(result: SchemaNodeValidationResult): string {
   const parts: string[] = [];
 
   if (result.errors.length > 0) {

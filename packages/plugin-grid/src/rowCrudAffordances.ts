@@ -18,7 +18,7 @@
  *
  *  2. The OBJECT's resolved CRUD affordance — the SAME shared policy the
  *     toolbar, the record header, the form and the related lists run
- *     (`resolveCrudAffordances` in `@object-ui/core`). It folds three layers:
+ *     (`resolveEffectiveCrudAffordances` in `@object-ui/core`). It folds three layers:
  *
  *       a. the ADR-0103 lifecycle bucket (`managedBy`) — engine-owned
  *          `system` / `append-only` / `better-auth` objects default their
@@ -50,7 +50,7 @@
  * (they never affect the object-level `canEdit` / `canDelete` verdict).
  */
 
-import { resolveCrudAffordances, type RowCrudPredicates, type UserActionOverride } from '@object-ui/core';
+import { resolveEffectiveCrudAffordances, type RowCrudPredicates, type UserActionOverride } from '@object-ui/core';
 
 // The `userActions.{edit,delete}` override shape (bare boolean or #2614 object
 // form) and its per-record predicates are parsed in exactly one place —
@@ -95,7 +95,7 @@ export function resolveRowCrudAffordances(opts: {
   // The object-level verdict comes from the shared policy — bucket default,
   // `userActions` override, then the server's effective operation set. The row
   // gate is that verdict AND the consumer having actually wired the affordance.
-  const aff = resolveCrudAffordances(
+  const aff = resolveEffectiveCrudAffordances(
     { managedBy: opts.managedBy, userActions: opts.userActions },
     opts.effectiveApiOperations,
   );

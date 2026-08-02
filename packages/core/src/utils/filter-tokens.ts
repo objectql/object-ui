@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { CONTEXT_TOKENS } from '@objectstack/spec/data';
+
 import { resolveDateMacros } from './date-macros.js';
 
 /**
@@ -45,14 +47,20 @@ import { resolveDateMacros } from './date-macros.js';
  * ## Contract source
  *
  * The canonical vocabulary is published as part of the platform contract at
- * `@objectstack/spec` → `CONTEXT_TOKENS` / `classifyFilterToken`. It is
- * mirrored here — exactly as `date-macros.ts` mirrors `DATE_MACRO_TOKENS` —
- * because the installed `@objectstack/spec` predates that export. Keep the two
- * in sync; the duplication is temporary until the next coordinated release.
+ * `@objectstack/spec/data` → `CONTEXT_TOKENS`. This module used to carry a
+ * hand-written copy of that tuple under the spec's own name, with a comment
+ * saying the duplication was "temporary until the next coordinated release"
+ * — the installed spec (17.0.0-rc.0) has exported it for some time, so the
+ * copy was simply a fork wearing the spec's name (objectstack#4115).
+ *
+ * It is now a **re-export**, which is the only form that cannot drift: the
+ * copy was byte-identical, so every value comparison and every behavioural
+ * test passed while it sat here. Reference identity is the one check that
+ * distinguishes a re-export from a fork (objectui#3003).
  */
 
-/** The complete set of session-scoped filter tokens. */
-export const CONTEXT_TOKENS = ['current_user_id', 'current_org_id'] as const;
+/** The complete set of session-scoped filter tokens (spec-owned, re-exported). */
+export { CONTEXT_TOKENS };
 
 export type ContextTokenName = (typeof CONTEXT_TOKENS)[number];
 

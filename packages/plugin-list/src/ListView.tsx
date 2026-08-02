@@ -19,7 +19,7 @@ import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveCrudAffordances, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, EXPANDABLE_FIELD_TYPES } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, EXPANDABLE_FIELD_TYPES } from '@object-ui/core';
 import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 
@@ -819,7 +819,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   const permittedBulkActions = React.useMemo(() => {
     const declared = schema.bulkActions;
     if (!declared || declared.length === 0) return declared;
-    if (resolveCrudAffordances(objectDef as any, effectiveApiOps).delete) return declared;
+    if (resolveEffectiveCrudAffordances(objectDef as any, effectiveApiOps).delete) return declared;
     return declared.filter((a: unknown) => String(a).toLowerCase() !== 'delete');
   }, [schema.bulkActions, objectDef, effectiveApiOps]);
 

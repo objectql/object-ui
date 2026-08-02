@@ -29,7 +29,19 @@ export interface ChartResultField {
   format?: string;
 }
 
-export interface ChartSeries {
+/**
+ * One renderer-internal series binding produced by {@link buildChartSeries}:
+ * WHICH result-set column to draw and what to call it.
+ *
+ * NOT the spec's `ChartSeries` (`@objectstack/spec/ui`), which this type was
+ * named after until objectstack#4115. That one is the AUTHORED dataset-binding
+ * descriptor — `{ name, label?, type?, color?, stack?, yAxis, variant?,
+ * dashArray?, opacity? }`, where `name` is a measure and no `data` is carried.
+ * A third shape, `ChartDataSeries` in `@object-ui/types` (renamed in the same
+ * burn-down), is the inline static-data series of an SDUI `ChartSchema` node.
+ * Three different concepts; this is the one the chart renderers consume.
+ */
+export interface ChartSeriesBinding {
   dataKey: string;
   label: string;
 }
@@ -37,7 +49,7 @@ export interface ChartSeries {
 export interface ChartSeriesResult {
   data: Array<Record<string, unknown>>;
   xAxisKey: string | undefined;
-  series: ChartSeries[];
+  series: ChartSeriesBinding[];
 }
 
 export function buildChartSeries(

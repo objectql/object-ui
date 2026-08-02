@@ -38,7 +38,7 @@ import { isSystemWritable, type ManagedByBucket } from '../utils/crudAffordances
  *   - `better-auth`  — Identity tables owned by better-auth driver.
  *
  * Forms still disable inputs and the toolbar still hides New/Import/Delete
- * via `resolveCrudAffordances()`. This badge purely *labels* the bucket so
+ * via `resolveEffectiveCrudAffordances()`. This badge purely *labels* the bucket so
  * users understand at a glance why those affordances are missing — the
  * detailed explanation lives in the tooltip.
  *
@@ -51,7 +51,7 @@ type Bucket = ManagedByBucket;
 /**
  * Subset of `userActions` (ADR-0103) the badge needs to tell an engine-owned
  * `system` object apart from an admin/user-writable one. Mirrors the shared
- * `resolveCrudAffordances` inputs; `edit`/`delete` accept the #2614 object form.
+ * `resolveEffectiveCrudAffordances` inputs; `edit`/`delete` accept the #2614 object form.
  */
 export interface ManagedByUserActions {
   create?: boolean;

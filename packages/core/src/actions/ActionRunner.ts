@@ -194,7 +194,18 @@ export interface ActionDef {
   [key: string]: any;
 }
 
-export type ActionHandler = (
+/**
+ * A handler registered with {@link ActionRunner} — the client-side action
+ * dispatch seam: given an authored `ActionDef` and the invocation context,
+ * produce an `ActionResult`.
+ *
+ * NOT the spec's `ActionHandler` (`@objectstack/spec/ui`), whose name this type
+ * carried until objectstack#4115. That one is the SERVER-side objectql action
+ * handler — a different calling convention entirely (`(ctx) => unknown`, with
+ * validated params and a trusted engine facade on `ctx`) and a different
+ * execution site.
+ */
+export type ActionRunnerHandler = (
   action: ActionDef,
   context: ActionContext
 ) => Promise<ActionResult> | ActionResult;
@@ -357,8 +368,8 @@ function withIdentityAlias(context: ActionContext): ActionContext {
 }
 
 export class ActionRunner {
-  private handlers = new Map<string, ActionHandler>();
-  private scripts = new Map<string, ActionHandler>();
+  private handlers = new Map<string, ActionRunnerHandler>();
+  private scripts = new Map<string, ActionRunnerHandler>();
   private evaluator: ExpressionEvaluator;
   private context: ActionContext;
   private confirmHandler: ConfirmationHandler;
@@ -452,7 +463,7 @@ export class ActionRunner {
     this.resultDialogHandler = handler;
   }
 
-  registerHandler(actionName: string, handler: ActionHandler): void {
+  registerHandler(actionName: string, handler: ActionRunnerHandler): void {
     this.handlers.set(actionName, handler);
   }
 
@@ -466,7 +477,7 @@ export class ActionRunner {
    * instead of the expression evaluator. Lets dashboards/views wire
    * symbolic action names (e.g. 'export_dashboard_pdf') to JS callbacks.
    */
-  registerScript(scriptName: string, handler: ActionHandler): void {
+  registerScript(scriptName: string, handler: ActionRunnerHandler): void {
     this.scripts.set(scriptName, handler);
   }
 

@@ -22,7 +22,7 @@ import { Database, ChevronLeft } from 'lucide-react';
 import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { SkeletonDetail } from '../skeletons';
 import { ManagedByBadge } from '../components/ManagedByBadge';
-import { resolveCrudAffordances } from '../utils/crudAffordances';
+import { resolveEffectiveCrudAffordances } from '../utils/crudAffordances';
 import { deriveRelatedLists } from '../utils/deriveRelatedLists';
 import { hasExplicitDiscussion, hasExplicitAttachments } from '../utils/pageSchemaIntrospect';
 import { ActionConfirmDialog, type ConfirmDialogState } from './ActionConfirmDialog';
@@ -154,7 +154,7 @@ export function resolveRecordHeaderActionGates(
   objectDef: unknown,
   effectiveApiOperations?: readonly string[] | null,
 ): { edit: boolean; delete: boolean } {
-  const affordances = resolveCrudAffordances(objectDef as any, effectiveApiOperations);
+  const affordances = resolveEffectiveCrudAffordances(objectDef as any, effectiveApiOperations);
   return { edit: affordances.edit, delete: affordances.delete };
 }
 
