@@ -50,6 +50,7 @@ import { useObjectOptions } from '../previews/useObjectOptions';
 import { useObjectFields } from '../previews/useObjectFields';
 import { useMetaOptions } from '../previews/useMetaOptions';
 import { ConditionBuilder } from './ConditionBuilder';
+import { expressionSource, writeExpressionSource } from './expression-envelope';
 import { IconPickerWidget } from '../widgets';
 
 /* ─────────────── constants ─────────────── */
@@ -464,8 +465,11 @@ export function ActionDefaultInspector({
       {/* 6 ─ Conditions */}
       <div className="border-t pt-3 space-y-3">
         <SectionHeader title="Conditions" hint="No-code predicates over the record / user / ctx (compiled to CEL)." />
-        <ConditionBuilder label="Visible when" value={typeof draft.visible === 'string' ? (draft.visible as string) : ''} onCommit={(v) => onPatch({ visible: v || undefined })} objectName={objectName} disabled={readOnly} />
-        <ConditionBuilder label="Disabled when" value={typeof draft.disabled === 'string' ? (draft.disabled as string) : ''} onCommit={(v) => onPatch({ disabled: v || undefined })} objectName={objectName} disabled={readOnly} />
+        {/* Both are `ExpressionInputSchema` in the spec (`disabled` as
+            `boolean | ExpressionInput`), so a persisted action carries the
+            ADR-0089 envelope — same read/write pair as the hook guard (#3218). */}
+        <ConditionBuilder label="Visible when" value={expressionSource(draft.visible)} onCommit={(v) => onPatch({ visible: writeExpressionSource(draft.visible, v) })} objectName={objectName} disabled={readOnly} />
+        <ConditionBuilder label="Disabled when" value={expressionSource(draft.disabled)} onCommit={(v) => onPatch({ disabled: writeExpressionSource(draft.disabled, v) })} objectName={objectName} disabled={readOnly} />
       </div>
 
       {/* 7 ─ AI exposure */}

@@ -32,6 +32,7 @@ import { validateExpressionClient } from './expression-validate';
 import { useFlowScope } from './useFlowScope';
 import { VariableTextInput } from './VariableTextInput';
 import { findUnknownRefs, scopeRoots, describeUnknownRefs } from './flow-ref-check';
+import { writeExpressionSource } from './expression-envelope';
 import type { ExpressionInput } from '@objectstack/spec/shared';
 
 /**
@@ -232,11 +233,16 @@ export function FlowEdgeInspector({ selection, draft, onPatch, onClearSelection,
       />
       <div className="space-y-1">
         <Label className="text-xs text-muted-foreground">{t('engine.inspector.flowEdge.condition', locale)}</Label>
+        {/* #3216 converged the READ on `conditionText`; the write stayed a
+            bare string, which the spec's pipe would have re-stamped as
+            `dialect: 'cel'` — silently swapping the engine of a `cron` /
+            `template` guard and dropping its `ast` / `meta`. Same rule as the
+            hook guard now (#3218). */}
         <VariableTextInput
           mode="expression"
           mono
           value={conditionText(edge.condition) ?? ''}
-          onValueChange={(v) => patchEdge({ condition: v || undefined })}
+          onValueChange={(v) => patchEdge({ condition: writeExpressionSource(edge.condition, v) })}
           groups={scopeGroups}
           placeholder={t('engine.inspector.flowEdge.conditionHint', locale)}
           disabled={readOnly || isDefault}

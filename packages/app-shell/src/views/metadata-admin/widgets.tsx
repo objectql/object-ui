@@ -46,6 +46,7 @@ import { iconNames } from 'lucide-react/dynamic.mjs';
 import { useMetadataLocale, t, tFormat } from './i18n';
 import { ColorVariantPicker } from './color-variant-field';
 import { ConditionBuilder } from './inspectors/ConditionBuilder';
+import { expressionSource, writeExpressionSource } from './inspectors/expression-envelope';
 
 export interface WidgetContext {
   /** Names of all object metadata records (for `ref:object`). */
@@ -1810,11 +1811,21 @@ function ColorPickerWidget({ value, onChange, readOnly, schema, fieldSpec }: Wid
 /* condition — no-code CEL predicate builder (visible / hidden / disabled / …) */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * `SchemaForm` routes every predicate-named field here (`visible` / `hidden` /
+ * `disabled` / `condition` / `predicate` / `*When`), and most of those are
+ * `ExpressionInputSchema` in the spec — so the value arriving is usually the
+ * ADR-0089 envelope, not a string. `String(value)` put a literal
+ * `[object Object]` in the editor and the commit wrote a bare string back over
+ * the envelope; both go through the shared read/write pair now (#3218). The
+ * pair is shape-preserving, so the plain-`string` predicate fields this widget
+ * also serves keep round-tripping as strings.
+ */
 function ConditionWidget({ value, onChange, readOnly, context }: WidgetProps) {
   return (
     <ConditionBuilder
-      value={value == null ? '' : String(value)}
-      onCommit={(cel) => onChange(cel || undefined)}
+      value={expressionSource(value)}
+      onCommit={(cel) => onChange(writeExpressionSource(value, cel))}
       fields={context?.objectFields}
       disabled={readOnly}
     />

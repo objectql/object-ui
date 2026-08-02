@@ -36,8 +36,10 @@ import React from 'react';
 import { Plus, Trash2, ShieldAlert, ChevronDown } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from '@object-ui/components';
 import { ConditionBuilder } from '../metadata-admin/inspectors/ConditionBuilder';
+import { expressionSource, writeExpressionSource } from '../metadata-admin/inspectors/expression-envelope';
 import { readFields } from '../metadata-admin/previews/object-fields-io';
 import { t, useMetadataLocale } from '../metadata-admin/i18n';
+import type { ExpressionInput } from '@objectstack/spec/shared';
 
 type RuleType = 'script' | 'cross_field' | 'state_machine' | 'format' | 'json_schema' | 'conditional';
 
@@ -47,7 +49,14 @@ interface ValidationRuleDraft {
   label?: string;
   description?: string;
   message?: string;
-  condition?: string;
+  /**
+   * `ExpressionInput`, not `string`: the spec's validation-rule `condition` is
+   * `ExpressionInputSchema`, so a rule loaded off a saved object carries the
+   * ADR-0089 envelope. Typing it `string` was the same over-narrow local
+   * mirror #3202 / #3216 closed elsewhere, and it made the guard render empty
+   * here (#3218).
+   */
+  condition?: ExpressionInput;
   severity?: 'error' | 'warning' | 'info';
   active?: boolean;
   events?: string[];
@@ -299,8 +308,8 @@ function RuleTypeFields({
         {t('engine.studio.rules.celPost', locale)}
       </span>
       <ConditionBuilder
-        value={typeof rule.condition === 'string' ? rule.condition : ''}
-        onCommit={(cel) => patch({ condition: cel })}
+        value={expressionSource(rule.condition)}
+        onCommit={(cel) => patch({ condition: writeExpressionSource(rule.condition, cel) })}
         fields={fields}
         disabled={disabled}
       />
@@ -475,10 +484,13 @@ export function ObjectValidationsPanel({
     const cur = rules.find((r) => r.name === name);
     if (!cur) return;
     const next = makeSkeleton(nextType, name, firstField);
-    // carry a CEL condition across the types that share one
+    // Carry a CEL condition across the types that share one — envelope
+    // INCLUDED. A `typeof === 'string'` test here dropped a persisted guard on
+    // the floor and left the skeleton's never-firing `'false'` in its place
+    // (#3218). Carried verbatim: no `source` was edited, so `ast` stays valid.
     if (
       (nextType === 'script' || nextType === 'cross_field' || nextType === 'conditional') &&
-      typeof cur.condition === 'string'
+      expressionSource(cur.condition)
     ) {
       next.condition = cur.condition;
     }

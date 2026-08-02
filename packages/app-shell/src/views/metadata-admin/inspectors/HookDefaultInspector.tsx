@@ -37,6 +37,7 @@ import {
 } from './_shared';
 import { useObjectOptions } from '../previews/useObjectOptions';
 import { ConditionBuilder } from './ConditionBuilder';
+import { expressionSource, writeExpressionSource } from './expression-envelope';
 
 /* ─────────────── constants ─────────────── */
 
@@ -251,10 +252,14 @@ export function HookDefaultInspector({
             <InspectorCheckboxField label="Run asynchronously (after commit)" value={draft.async === true} onCommit={(v) => onPatch({ async: v })} disabled={readOnly} />
           </div>
         </div>
+        {/* `HookSchema.condition` is `ExpressionInputSchema`: a persisted hook
+            carries the ADR-0089 envelope, not the authored string. Read and
+            write it through the shared pair so the guard is visible and an
+            edit cannot rewrite its dialect or drop its `meta` (#3218). */}
         <ConditionBuilder
           label="Run only when (optional CEL)"
-          value={typeof draft.condition === 'string' ? (draft.condition as string) : ''}
-          onCommit={(v) => onPatch({ condition: v || undefined })}
+          value={expressionSource(draft.condition)}
+          onCommit={(v) => onPatch({ condition: writeExpressionSource(draft.condition, v) })}
           objectName={conditionObject}
           disabled={readOnly}
         />
