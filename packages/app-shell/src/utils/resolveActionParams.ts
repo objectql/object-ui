@@ -72,6 +72,36 @@ export interface RawActionParam {
 }
 
 /**
+ * The param's handle in the action payload — `name` wins, defaulting to the
+ * field it binds.
+ *
+ * One of the two identity reads this module makes, and the reason both are
+ * named functions rather than open-coded alternations: they are two LAYERS, not
+ * two spellings of one (objectui#3104's inventory says so for this exact file).
+ * Reading them through a single reader each is what keeps that distinction
+ * legible — and keeps a third, accidental precedence from appearing the next
+ * time someone needs a param's identity.
+ *
+ * NOT `columnIdentity()` from `@object-ui/core`: that reader is canonical-first
+ * (`field` beats `name`) because a list COLUMN's identity is the object field it
+ * shows. A param is the opposite — it is a slot in the payload that may bind a
+ * field — so borrowing the column reader here would silently invert the
+ * precedence and rename every field-backed param that also names itself.
+ */
+function paramName(param: RawActionParam): string | undefined {
+  return param.name ?? param.field;
+}
+
+/**
+ * The key a `defaultFromRow` param reads off the row record — `field` wins here,
+ * because row data is keyed by OBJECT FIELD. The mirror image of
+ * {@link paramName}, deliberately: same two keys, opposite question.
+ */
+function rowValueKey(param: RawActionParam): string | undefined {
+  return param.field ?? param.name;
+}
+
+/**
  * Keys of the RESOLVED `ActionParamDef` that are not authorable on a raw param,
  * mapped to the prescription an author needs (objectui#3174).
  *
@@ -125,7 +155,7 @@ function warnResolvedOnlyKeys(param: RawActionParam): void {
   for (const key of Object.keys(RESOLVED_ONLY_PARAM_KEYS)) {
     if (raw[key] === undefined) continue;
     console.warn(
-      `[resolveActionParams] Param "${param.name ?? param.field ?? '(unnamed)'}" declares \`${key}\`, `
+      `[resolveActionParams] Param "${paramName(param) ?? '(unnamed)'}" declares \`${key}\`, `
         + 'which is not an authorable action-param key: it belongs to the RESOLVED `ActionParamDef`, '
         + "`@objectstack/spec`'s `ActionParamSchema` rejects it at parse time, and this resolver ignores it. "
         + RESOLVED_ONLY_PARAM_KEYS[key],
@@ -234,8 +264,8 @@ export function resolveActionParam(
   warnResolvedOnlyKeys(param);
 
   /** Row-context default: when `defaultFromRow` and a row is present, the
-   *  param's defaultValue is the row's value at the field key (or `name`). */
-  const rowKey = param.field ?? param.name;
+   *  param's defaultValue is the row's value at {@link rowValueKey}. */
+  const rowKey = rowValueKey(param);
   const rowDefault =
     param.defaultFromRow && ctx.row && rowKey != null && Object.prototype.hasOwnProperty.call(ctx.row, rowKey)
       ? ctx.row[rowKey]
@@ -272,7 +302,7 @@ export function resolveActionParam(
     // action remains usable in environments where the metadata cache is
     // partial (e.g. tests).
     return {
-      name: param.name ?? param.field,
+      name: paramName(param) ?? param.field,
       label: param.label ?? ctx.fieldLabel(ownerName, param.field, param.field),
       type: param.type ?? 'text',
       required: param.required ?? false,
@@ -317,7 +347,7 @@ export function resolveActionParam(
     : {};
 
   return {
-    name: param.name ?? param.field,
+    name: paramName(param) ?? param.field,
     label: resolvedLabel,
     type: resolvedType,
     required: param.required ?? field.required ?? false,

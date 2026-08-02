@@ -35,12 +35,12 @@
  *
  * objectui#3104 PR3 asked for the eslint option to be evaluated on its
  * false-positive rate before adopting it. It was, and the answer is decisive:
- * with the family at zero, **all 12 remaining scanner hits are legitimate** —
+ * with the family at zero, **all 11 remaining scanner hits are legitimate** —
  * two-layer joins where both precedences are correct, the form cluster #3090
  * settled the other way, and display fallbacks that merely share the key names.
  * A syntactic rule matching `.field ?? .name` cannot tell any of those from a
  * real dual read, because the distinction is what the keys MEAN in that layer,
- * not how the expression is spelled. Adopting it would mean 12 inline disables
+ * not how the expression is spelled. Adopting it would mean 11 inline disables
  * on correct code — which trains the next author to reach for the disable, the
  * precise reflex that lets a real one through.
  *
@@ -122,11 +122,11 @@ interface Entry {
 const INVENTORY: Record<string, Entry> = {
   // ── the column-identity family: EMPTY (was 24 in PR1; 22 after re-triage) ──
 
-  // ── two layers, not two spellings (6) ────────────────────────────────────
+  // ── two layers, not two spellings (5) ────────────────────────────────────
   'app-shell/src/utils/resolveActionParams.ts': {
-    count: 3,
+    count: 2,
     verdict: 'two-layer',
-    why: 'BOTH orders appear here and both are right: `field ?? name` picks the key to read off the ROW (row data is keyed by object field), `name ?? field` names the PARAM in the action payload, defaulting to the field it binds. Two concepts, not two spellings.',
+    why: 'BOTH orders appear here and both are right: `field ?? name` picks the key to read off the ROW (row data is keyed by object field), `name ?? field` names the PARAM in the action payload, defaulting to the field it binds. Two concepts, not two spellings. Lowered 3 -> 2 in objectui#3174: each order is now exactly ONE named reader (`rowValueKey` / `paramName`) that every call site in the file goes through, so the count is the number of CONCEPTS here rather than the number of times they were open-coded. Deliberately NOT converged onto `columnIdentity()`: that reader is canonical-first because a column IS the object field it shows, whereas a param merely BINDS one, so borrowing it would invert the param-name precedence and rename every field-backed param that also names itself.',
   },
   'core/src/utils/dashboard-filters.ts': {
     count: 1,
@@ -259,7 +259,9 @@ describe('column identity dual-read ratchet (#3104)', () => {
     // settled decisions, and `unrelated` is scanner residue recorded so it
     // cannot hide a real one.
     expect(sum((e) => e.verdict === 'column-identity')).toBe(0);
-    expect(sum(() => true)).toBe(12);
+    // 12 at #3104 PR2; 11 since objectui#3174 routed `resolveActionParams`'
+    // two orders through one named reader each.
+    expect(sum(() => true)).toBe(11);
   });
 
   it('records a precedence for every read left in the family', () => {
