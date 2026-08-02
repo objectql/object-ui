@@ -115,6 +115,9 @@
       "shell-quote@<1.8.4": "^1.8.4",
       "tmp@<0.2.6": "^0.2.6",
       "uuid@<11.1.1": "^11.1.1"
+    },
+    "patchedDependencies": {
+      "@radix-ui/react-focus-scope": "patches/@radix-ui__react-focus-scope.patch"
     }
   },
   "dependencies": {
