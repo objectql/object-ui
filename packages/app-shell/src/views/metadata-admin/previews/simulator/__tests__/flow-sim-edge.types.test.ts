@@ -28,6 +28,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { FlowEdgeSchema } from '@objectstack/spec/automation';
+import type { z } from 'zod';
 import type { ExpressionInput } from '@objectstack/spec/shared';
 import type { SimEdge } from '../flow-sim-types';
 import type { FlowDesignerEdge } from '../../flow-canvas-layout';
@@ -40,6 +42,8 @@ type Equal< A, B > = (< T >() => T extends A ? 1 : 2) extends < T >() => T exten
   : false;
 
 type Condition = NonNullable< SimEdge['condition'] >;
+/** An edge as the server PERSISTS it — `FlowEdgeSchema`'s parsed output. */
+type PersistedEdge = z.infer< typeof FlowEdgeSchema >;
 
 describe('SimEdge.condition mirrors the spec ExpressionInput', () => {
   it('is pinned at compile time', () => {
@@ -70,6 +74,13 @@ describe('SimEdge.condition mirrors the spec ExpressionInput', () => {
     type _DialectlessRejected = Assert< Equal< Extends< { source: string }, Condition >, false > >;
     // And `dialect` is closed over the spec's three dialects.
     type _DialectIsClosed = Assert< Equal< Extends< { dialect: 'sql'; source: string }, Condition >, false > >;
+
+    // The whole point, stated end to end: an edge the SERVER hands back is a
+    // thing the simulator accepts, with no reconciliation and no cast. That is
+    // what objectui#3216 was not — the simulator's own input type described a
+    // guard shape the persisted edge never has.
+    type _PersistedEdgeNotAny = Assert< Equal< IsAny< PersistedEdge >, false > >;
+    type _PersistedEdgeIsASimEdge = Assert< Extends< PersistedEdge, SimEdge > >;
 
     expect(true).toBe(true);
   });

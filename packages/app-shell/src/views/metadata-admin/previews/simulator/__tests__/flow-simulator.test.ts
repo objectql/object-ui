@@ -19,9 +19,14 @@ const run = (nodes: SimNode[], edges: SimEdge[], seed = {}, mocks = {}) => {
  * bare guard string into the `{ dialect: 'cel', source }` envelope. So the
  * envelope is not an exotic spelling the simulator may decline to support — it
  * is THE canonical persisted form, and a fixture that spells it by hand could
- * drift from what the spec actually emits. The `SimEdge` return annotation is
- * load-bearing too: it is a compile-time proof that a spec-parsed edge is a
- * thing the simulator accepts (objectui#3216).
+ * drift from what the spec actually emits (objectui#3216).
+ *
+ * The `SimEdge` return annotation states the matching type-level claim, but do
+ * not read it as a proof: `tsc` never sees this file (the package tsconfig
+ * excludes `**\/*.test.ts`, and app-shell's test tree is still TEST_DEBT), and
+ * vitest erases types. The enforced version lives next door in
+ * `flow-sim-edge.types.test.ts`, which IS compiled — `PersistedEdge extends
+ * SimEdge`.
  */
 const specEdge = (e: Record<string, unknown>): SimEdge => FlowEdgeSchema.parse(e);
 
