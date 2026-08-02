@@ -256,19 +256,19 @@ const DEBT = {
     "ShareLinkPermission",
     "SortItem",
   ],
-  "@object-ui/react": [
-    "ConflictResolutionStrategy",
-    "NavigationConfig",
-    "OfflineCacheConfig",
-    "OfflineConfig",
-    "OfflineStrategy",
-  ],
   "@object-ui/data-objectstack": [
     "CacheStats",
     "DroppedFieldsEvent",
     "MetadataSaveOptions",
     "SecurityPolicy",
     "ValidationError",
+  ],
+  "@object-ui/react": [
+    "ConflictResolutionStrategy",
+    "NavigationConfig",
+    "OfflineCacheConfig",
+    "OfflineConfig",
+    "OfflineStrategy",
   ],
   "@object-ui/plugin-chatbot": [
     "MessageContent",
