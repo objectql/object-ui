@@ -69,6 +69,14 @@ playwright-report
 /*.webp
 /*.heapsnapshot
 /*.trace
+# The extension-less shape the patterns above cannot catch: a root entry whose
+# name starts with `--` is a CLI flag that got captured as an output filename
+# (`... --full-page` written as `... > --full-page`, or a misordered argument),
+# so it carries no extension to match on. Such a name is an argument-parsing
+# accident by construction — nothing legitimate lives at the repo root under a
+# flag name. See #3193, where a 68KB PNG literally named `--full-page` rode in
+# with #3085 and reached every new worktree.
+/--*
 
 # Vite timestamp files
 *.timestamp-*.mjs
