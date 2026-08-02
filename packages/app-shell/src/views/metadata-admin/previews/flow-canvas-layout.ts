@@ -10,7 +10,14 @@
  * Coordinate system: top-to-bottom flowchart (mirrors Power Automate /
  * Salesforce Flow Builder). Origin is the top-left of the diagram bounding
  * box after normalization, so every node sits at x >= PADDING, y >= PADDING.
+ *
+ * "Dependency-free" means no RUNTIME dependency: the one import below is a
+ * `import type`, erased at compile time, and it is here precisely so the
+ * designer's edge guard cannot drift from the spec's expression envelope
+ * (see {@link FlowDesignerEdge}).
  */
+
+import type { ExpressionInput } from '@objectstack/spec/shared';
 
 export interface FlowNodeUI {
   x?: number;
@@ -66,21 +73,34 @@ export interface FlowDesignerNode {
  * {@link FlowDesignerNode} for why this is not `@objectstack/spec/automation`'s
  * `FlowEdge`.
  *
- * Two concrete reasons it cannot simply BE the spec's edge: an edge being drawn
- * has no `id` until it is committed (the spec requires one), and this
- * `condition` shape (`string | { source?: string }`) omits the ADR-0089
- * expression envelope's REQUIRED `dialect` discriminant.
+ * The ONE remaining reason it cannot simply BE the spec's edge is `id`: an edge
+ * being DRAWN has no id until it is committed, while the spec requires one.
+ * That is a real mid-edit state (the same layer difference {@link
+ * FlowDesignerNode} describes), and it is the only member here that is wider
+ * than the spec's. It licenses nothing downstream: every edge that reaches a
+ * COMMIT carries an id — objectui#3202 closed the last producer that shipped
+ * one without (`applyDecisionBranches`, whose output goes straight to
+ * `onPatch` → draft → save).
  *
- * That second one is a genuine finding rather than a layering difference: the
- * inspector can build a condition object the server's own `FlowEdgeSchema`
- * would reject. Recorded as a follow-up rather than fixed here, because
- * changing the emitted envelope is a behaviour change — see the PR description.
+ * `condition` used to be spelled `string | { source?: string }`, which dropped
+ * the ADR-0089 expression envelope's REQUIRED `dialect` discriminant. That was
+ * never a layer difference — it was an over-wide READ type describing a shape
+ * the server's own `FlowEdgeSchema` rejects and that nothing in this repo has
+ * ever produced. Its cost was a wrong defect diagnosis (objectui#3171 was filed
+ * against that phantom envelope and does not reproduce). It now mirrors the
+ * spec by IMPORTING `ExpressionInput` rather than restating it, so the mirror
+ * cannot go stale: a type that can no longer describe a spec-rejected condition
+ * cannot mislead the next reader into filing against one either.
+ *
+ * `type` stays `string` deliberately (the spec's is a four-value enum): the
+ * canvas round-trips whatever an authored flow carries, and the inspector's
+ * type picker is what constrains the values an author can write.
  */
 export interface FlowDesignerEdge {
   id?: string;
   source: string;
   target: string;
-  condition?: string | { source?: string };
+  condition?: ExpressionInput;
   type?: string;
   label?: string;
   isDefault?: boolean;

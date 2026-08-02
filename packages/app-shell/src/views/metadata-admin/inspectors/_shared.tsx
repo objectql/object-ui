@@ -337,17 +337,9 @@ export function moveArray<T>(arr: T[] | undefined, from: number, to: number): T[
 }
 
 /**
- * Generate a snake_case id that doesn't collide with `existing`. Used
- * by Add helpers that need a stable identifier (Flow nodes, App nav,
- * Dashboard widgets) before the user fills in a meaningful name.
- *
- *   uniqueId('node', ['node_1', 'node_3']) -> 'node_2'
+ * The designer's id minter. Its body moved to `./unique-id` (a module with no
+ * React in it) so pure reconciliation modules can share this one minter without
+ * pulling the components barrel into their unit tests — see that file. Re-
+ * exported here because every existing call site imports it from `_shared`.
  */
-export function uniqueId(prefix: string, existing: ReadonlyArray<string | undefined | null>): string {
-  const taken = new Set(existing.filter((x): x is string => typeof x === 'string'));
-  for (let i = 1; i < 10_000; i++) {
-    const candidate = `${prefix}_${i}`;
-    if (!taken.has(candidate)) return candidate;
-  }
-  return `${prefix}_${Date.now()}`;
-}
+export { uniqueId } from './unique-id';

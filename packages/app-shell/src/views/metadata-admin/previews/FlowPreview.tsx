@@ -37,7 +37,7 @@ import { uniqueId, appendArray } from '../inspectors/_shared';
 import { t as tr, translateFlowMeta } from '../i18n';
 import { FlowCanvas } from './FlowCanvas';
 import { defaultNodeLabel } from './flow-canvas-parts';
-import { edgeKey } from './flow-canvas-layout';
+import { edgeKey, type FlowDesignerEdge } from './flow-canvas-layout';
 import { NESTED_NODE_KIND, parseNestedNodeId, encodeNestedNodeId } from '../inspectors/flow-nested-selection';
 import { FlowSimulatorPanel } from './FlowSimulatorPanel';
 import { FlowRunsPanel } from './FlowRunsPanel';
@@ -53,15 +53,15 @@ interface FlowNode {
   [k: string]: unknown;
 }
 
-interface FlowEdge {
-  id?: string;
-  source: string;
-  target: string;
-  condition?: string | { source?: string };
-  type?: string;
-  label?: string;
-  isDefault?: boolean;
-}
+/**
+ * This preview reads the draft's edges and hands them straight to
+ * {@link FlowCanvas}, so it reads them as the canvas's own type rather than
+ * restating the shape. It used to restate it — including a `condition` typed
+ * `string | { source?: string }`, an envelope the spec's `FlowEdgeSchema`
+ * rejects for want of `dialect`. Two copies of one shape is how the wrong one
+ * survives being fixed (objectui#3202).
+ */
+type FlowEdge = FlowDesignerEdge;
 
 interface FlowVariable {
   name: string;

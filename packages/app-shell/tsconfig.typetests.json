@@ -52,8 +52,16 @@
   // authors the resolver's OWN local `RawActionParam`, so the resolver only
   // ever agreed with itself — an `ActionParam` annotation that no `tsc` run
   // reads would reproduce exactly that blind spot.
+  //
+  // `views/metadata-admin/previews/flow-designer-edge.types.test.ts` earns its
+  // place through objectui#3202: it pins the flow designer's edge guard to the
+  // spec's `ExpressionInput`, and what it guards against — an envelope missing
+  // the required `dialect` — is a TYPE-level regression only. No runtime path
+  // observes it (the inspector commits bare strings), so unchecked assertions
+  // would leave that tightening declared and unenforced.
   "include": [
     "src/__tests__/spec-symbol-parity.test.ts",
-    "src/utils/resolveActionParams.test.ts"
+    "src/utils/resolveActionParams.test.ts",
+    "src/views/metadata-admin/previews/flow-designer-edge.types.test.ts"
   ]
 }

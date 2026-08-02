@@ -32,13 +32,14 @@
  * the `isDefault` edge; otherwise match by condition text, then by label.
  */
 
-import { conditionText } from '../previews/flow-canvas-layout';
+import { conditionText, type FlowDesignerEdge } from '../previews/flow-canvas-layout';
+import { uniqueId } from './unique-id';
 
 export interface DecisionEdge {
   id?: string;
   source: string;
   target: string;
-  /** CEL guard — a bare string or the spec's `{ dialect, source }` shape. */
+  /** CEL guard — a bare string or the spec's `{ dialect, source }` envelope. */
   condition?: unknown;
   label?: string;
   isDefault?: boolean;
@@ -48,7 +49,7 @@ export interface DecisionEdge {
 
 /** `conditionText` narrowed for the loose `unknown` condition this module carries. */
 const condText = (c: unknown): string | undefined =>
-  conditionText(c as string | { source?: string } | undefined);
+  conditionText(c as FlowDesignerEdge['condition']);
 
 /** A branch row as committed by the editor (freeform per the spec config). */
 export type DecisionBranch = Record<string, unknown>;
@@ -183,6 +184,17 @@ export function withBranchTargets(
  * AND binding, exact target, binding alone (a retarget keeps the edge's
  * identity and extra keys) — unmatched targeted branches create a fresh edge,
  * and a target-less branch detaches (removes) the edge still bound to it.
+ *
+ * Every created edge carries an `id` (objectui#3202). This output is a
+ * COMMITTED state — it goes straight to `onPatch` → draft → save — and the
+ * spec's `FlowEdgeSchema.id` is required, so an id-less edge here is one the
+ * designer draws, marks red in its own live draft validation, and then has the
+ * server reject with a 422, for an author who did nothing wrong. Ids come from
+ * `uniqueId('edge', …)`, the same helper every other edge-creating path in this
+ * designer uses (`FlowCanvas.addNode` / `insertOnEdge` / the revise loop), over
+ * the ids already in the flow PLUS the ones minted earlier in this same commit
+ * — a multi-branch apply creates several edges at once and must not mint the
+ * same id twice.
  */
 export function applyDecisionBranches(
   decisionId: string,
@@ -224,6 +236,9 @@ export function applyDecisionBranches(
   const updated = new Map<number, DecisionEdge>();
   const created: DecisionEdge[] = [];
   const removed = new Set<number>();
+  // Ids already spoken for: every edge in the flow (not just this decision's —
+  // an id is unique per flow), grown with each id minted below.
+  const takenEdgeIds: Array<string | undefined> = edges.map((e) => e.id);
   branches.forEach((b, bi) => {
     const target = branchTarget(b);
     if (target === '') {
@@ -237,8 +252,13 @@ export function applyDecisionBranches(
       return;
     }
     const ei = pairing.get(bi);
-    if (ei !== undefined) updated.set(ei, mirrorBranchOntoEdge({ ...edges[ei], target }, b));
-    else created.push(mirrorBranchOntoEdge({ source: decisionId, target }, b));
+    if (ei !== undefined) {
+      updated.set(ei, mirrorBranchOntoEdge({ ...edges[ei], target }, b));
+      return;
+    }
+    const id = uniqueId('edge', takenEdgeIds);
+    takenEdgeIds.push(id);
+    created.push(mirrorBranchOntoEdge({ id, source: decisionId, target }, b));
   });
 
   const nextEdges = edges

@@ -32,12 +32,24 @@ import { validateExpressionClient } from './expression-validate';
 import { useFlowScope } from './useFlowScope';
 import { VariableTextInput } from './VariableTextInput';
 import { findUnknownRefs, scopeRoots, describeUnknownRefs } from './flow-ref-check';
+import type { ExpressionInput } from '@objectstack/spec/shared';
 
+/**
+ * The selected edge as this panel reads it out of the draft.
+ *
+ * `condition` is the spec's `ExpressionInput`: a bare CEL string, or the
+ * ADR-0089 envelope whose `dialect` discriminant is REQUIRED. It used to be
+ * typed `string | { source?: string }` — an envelope the server's own
+ * `FlowEdgeSchema` rejects. Nothing here ever wrote that shape (this panel only
+ * ever commits the bare-string form, see `patchEdge` below), but the type said
+ * it could, which is how objectui#3171 came to be filed against a defect that
+ * does not reproduce. Mirroring the spec keeps the read side honest (#3202).
+ */
 interface FlowEdge {
   id?: string;
   source: string;
   target: string;
-  condition?: string | { source?: string };
+  condition?: ExpressionInput;
   type?: string;
   label?: string;
   isDefault?: boolean;
