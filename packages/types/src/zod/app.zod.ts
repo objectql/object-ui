@@ -20,6 +20,7 @@ import { z } from 'zod';
 import {
   AppSchema as SpecAppSchema,
   AppContextSelectorSchema as SpecAppContextSelectorSchema,
+  NavigationAreaSchema as SpecNavigationAreaSchema,
 } from '@objectstack/spec/ui';
 import { BaseSchema, specFieldsExcept } from './base.zod.js';
 
@@ -108,19 +109,36 @@ export const NavigationItemSchema: z.ZodType<any> = z.lazy(() => z.object({
 }));
 
 /**
- * Navigation Area Schema — business-domain partition of navigation.
+ * Navigation Area Schema — business-domain partition of navigation, DERIVED
+ * from `@objectstack/spec/ui` (objectstack#4115).
+ *
+ * `icon`, `order`, `description` and `requiredPermissions` flow in **by
+ * reference** through {@link specFieldsExcept}; `id` and `label` are taken from
+ * the spec's own shape too, re-stated only to keep them required (the helper
+ * `.partial()`s what it carries, deliberately, so a future spec field cannot
+ * become required and invalidate stored objectui apps). `objectui validate`
+ * silently dropped `order` and `description` until objectui#3088 — restating
+ * this shape by hand is what let that happen.
+ *
+ * Two keys are pinned locally, matching the TS twin in `app.ts`:
+ *  - `navigation` — objectui's `NavigationItemSchema`, because the spec's is
+ *    `z.ZodType<any>` (objectstack#4171 / objectui#3162) and would validate
+ *    nothing;
+ *  - `visible` — objectui's bare-predicate wire contract (`boolean | string`)
+ *    rather than the spec's `ExpressionInput` envelope pipe.
+ *
+ * Drift guard: `__tests__/page-nav-misc-spec-parity.test.ts`.
  */
-export const NavigationAreaSchema = z.object({
-  id: z.string().describe('Unique identifier'),
-  label: z.string().describe('Display label'),
-  icon: z.string().optional().describe('Icon name (Lucide)'),
-  // Spec fields this schema used to drop on the floor (objectstack#4115):
-  // an area authored with a sort weight or a description lost both.
-  order: z.number().optional().describe('Sort order weight among areas'),
-  description: z.string().optional().describe('Longer description of the area'),
+export const NavigationAreaSchema = specFieldsExcept(SpecNavigationAreaSchema.shape, [
+  'id',
+  'label',
+  'navigation',
+  'visible',
+] as const).extend({
+  id: SpecNavigationAreaSchema.shape.id.describe('Unique identifier'),
+  label: SpecNavigationAreaSchema.shape.label.describe('Display label'),
   navigation: z.array(NavigationItemSchema).describe('Navigation items within area'),
   visible: z.union([z.boolean(), z.string()]).optional().describe('Visibility expression'),
-  requiredPermissions: z.array(z.string()).optional().describe('Required permissions'),
 });
 
 // ============================================================================

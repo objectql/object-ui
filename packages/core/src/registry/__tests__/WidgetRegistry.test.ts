@@ -5,9 +5,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WidgetRegistry } from '../WidgetRegistry';
 import { Registry } from '../Registry';
-import type { WidgetManifest, WidgetRegistryEvent } from '@object-ui/types';
+import type { RuntimeWidgetManifest, WidgetRegistryEvent } from '@object-ui/types';
 
-function createManifest(overrides: Partial<WidgetManifest> = {}): WidgetManifest {
+function createManifest(overrides: Partial<RuntimeWidgetManifest> = {}): RuntimeWidgetManifest {
   return {
     name: 'test-widget',
     version: '1.0.0',

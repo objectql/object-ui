@@ -7,14 +7,14 @@
  */
 
 import React, { createContext, useContext, useMemo } from 'react';
-import type { PWAConfig, OfflineConfig } from '@object-ui/types';
+import type { PWAConfig, PWAOfflineConfig } from '@object-ui/types';
 import { useBreakpoint, type BreakpointState } from './useBreakpoint';
 
 export interface MobileContextValue extends BreakpointState {
   /** PWA configuration */
   pwa?: PWAConfig;
   /** Offline configuration */
-  offline?: OfflineConfig;
+  offline?: PWAOfflineConfig;
 }
 
 const MobileCtx = createContext<MobileContextValue | null>(null);
@@ -24,7 +24,7 @@ export interface MobileProviderProps {
   /** PWA configuration */
   pwa?: PWAConfig;
   /** Offline configuration */
-  offline?: OfflineConfig;
+  offline?: PWAOfflineConfig;
   /** Children */
   children: React.ReactNode;
 }

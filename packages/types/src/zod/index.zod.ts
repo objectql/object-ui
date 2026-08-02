@@ -82,7 +82,7 @@ export {
   ResizableSchema,
   AspectRatioSchema,
   PageRegionWidthSchema,
-  PageRegionSchema,
+  PageNodeRegionSchema,
   PageVariableSchema,
   PageTypeSchema,
   PageNodeSchema,

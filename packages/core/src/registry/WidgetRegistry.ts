@@ -10,14 +10,14 @@
  * WidgetRegistry - Runtime widget management with auto-discovery.
  *
  * Provides registration, loading, and lookup of runtime widgets
- * described by WidgetManifest objects. Widgets can be loaded from
+ * described by RuntimeWidgetManifest objects. Widgets can be loaded from
  * ES module URLs, provided inline, or resolved from the component registry.
  *
  * @module
  */
 
 import type {
-  WidgetManifest,
+  RuntimeWidgetManifest,
   ResolvedWidget,
   WidgetRegistryEvent,
   WidgetRegistryListener,
@@ -54,7 +54,7 @@ export interface WidgetRegistryOptions {
  * ```
  */
 export class WidgetRegistry {
-  private manifests = new Map<string, WidgetManifest>();
+  private manifests = new Map<string, RuntimeWidgetManifest>();
   private resolved = new Map<string, ResolvedWidget>();
   private listeners = new Set<WidgetRegistryListener>();
   private componentRegistry?: Registry;
@@ -67,7 +67,7 @@ export class WidgetRegistry {
    * Register a widget manifest.
    * Does not load the widget; call `load()` to resolve it.
    */
-  register(manifest: WidgetManifest): void {
+  register(manifest: RuntimeWidgetManifest): void {
     this.manifests.set(manifest.name, manifest);
     this.emit({ type: 'widget:registered', widget: manifest });
   }
@@ -75,7 +75,7 @@ export class WidgetRegistry {
   /**
    * Register multiple widget manifests at once.
    */
-  registerAll(manifests: WidgetManifest[]): void {
+  registerAll(manifests: RuntimeWidgetManifest[]): void {
     for (const manifest of manifests) {
       this.register(manifest);
     }
@@ -96,21 +96,21 @@ export class WidgetRegistry {
   /**
    * Get a widget manifest by name.
    */
-  getManifest(name: string): WidgetManifest | undefined {
+  getManifest(name: string): RuntimeWidgetManifest | undefined {
     return this.manifests.get(name);
   }
 
   /**
    * Get all registered widget manifests.
    */
-  getAllManifests(): WidgetManifest[] {
+  getAllManifests(): RuntimeWidgetManifest[] {
     return Array.from(this.manifests.values());
   }
 
   /**
    * Get manifests filtered by category.
    */
-  getByCategory(category: string): WidgetManifest[] {
+  getByCategory(category: string): RuntimeWidgetManifest[] {
     return this.getAllManifests().filter((m) => m.category === category);
   }
 
@@ -253,7 +253,7 @@ export class WidgetRegistry {
   // Private helpers
   // -------------------------------------------------------------------------
 
-  private async resolveComponent(manifest: WidgetManifest): Promise<unknown> {
+  private async resolveComponent(manifest: RuntimeWidgetManifest): Promise<unknown> {
     const { source } = manifest;
 
     switch (source.type) {
@@ -282,7 +282,7 @@ export class WidgetRegistry {
         // source.url is only known at runtime.
         //
         // Security: Widget URLs must be from trusted sources only. Never pass
-        // user-supplied URLs directly to WidgetManifest. URLs should be validated
+        // user-supplied URLs directly to RuntimeWidgetManifest. URLs should be validated
         // and controlled by the application developer.
         //
         // CSP Consideration: If your application uses strict Content Security Policy,

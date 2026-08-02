@@ -110,7 +110,7 @@ export type {
   PageNodeSchema,
   PageSlotMap,
   PageType,
-  PageRegion,
+  PageNodeRegion,
   PageRegionWidth,
   PageVariable,
 } from './layout';
@@ -403,7 +403,7 @@ export type {
   UrlFieldMetadata,
   PasswordFieldMetadata,
   FileFieldMetadata,
-  FileMetadata,
+  UploadedFileMetadata,
   ImageFieldMetadata,
   LocationFieldMetadata,
   LookupFieldMetadata,
@@ -555,15 +555,15 @@ export type {
 export type {
   BreakpointName,
   ResponsiveValue,
-  ResponsiveConfig,
+  MobileResponsiveConfig,
   MobileOverrides,
   PWAConfig,
   PWAIcon,
   FetchCacheStrategy,
-  OfflineConfig,
+  PWAOfflineConfig,
   OfflineRoute,
-  GestureType,
-  GestureConfig,
+  TouchGestureType,
+  TouchGestureConfig,
   GestureContext,
   MobileComponentConfig,
 } from './mobile';
@@ -1203,8 +1203,8 @@ export type {
  * plugin auto-discovery, and custom widget registry.
  */
 export type {
-  WidgetManifest,
-  WidgetSource,
+  RuntimeWidgetManifest,
+  RuntimeWidgetSource,
   WidgetSourceModule,
   WidgetSourceInline,
   WidgetSourceRegistry,

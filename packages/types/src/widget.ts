@@ -9,7 +9,7 @@
 /**
  * @object-ui/types - Widget Manifest & Registry Types
  *
- * Defines the WidgetManifest interface for runtime widget registration,
+ * Defines the RuntimeWidgetManifest interface for runtime widget registration,
  * plugin auto-discovery from server metadata, and custom widget registry
  * for user-defined components.
  *
@@ -18,14 +18,28 @@
  */
 
 /**
- * Widget manifest describing a runtime-loadable widget.
+ * Widget manifest describing a runtime-loadable widget — what
+ * `@object-ui/core`'s `WidgetRegistry` registers, and what the designer palette
+ * lists.
  *
  * A manifest provides all metadata needed to discover, load, and render
  * a widget without requiring an upfront import of its code.
  *
+ * Renamed off the spec's `WidgetManifest` name (objectstack#4115): the spec's
+ * is the **field-widget plugin** manifest that sits beside its
+ * `FieldWidgetProps` — `{ fieldTypes, category: input|display|picker|editor,
+ * lifecycle: { onMount, onValidate, … }, events, properties, implementation,
+ * screenshots, license, aria, performance }`. This one is the **SDUI component**
+ * manifest: `type` is a schema-renderer component key, and it carries `source`,
+ * `defaultProps`, `inputs`, `isContainer` and `capabilities`, none of which the
+ * spec's models. The only keys the two share are `name`/`label`/`version`/
+ * `icon`/`description`.
+ *
+ * Tripwire: `__tests__/page-nav-misc-spec-parity.test.ts`.
+ *
  * @example
  * ```ts
- * const manifest: WidgetManifest = {
+ * const manifest: RuntimeWidgetManifest = {
  *   name: 'custom-chart',
  *   version: '1.0.0',
  *   type: 'chart',
@@ -37,7 +51,7 @@
  * };
  * ```
  */
-export interface WidgetManifest {
+export interface RuntimeWidgetManifest {
   /** Unique widget identifier (e.g., 'custom-chart', 'org.acme.table') */
   name: string;
 
@@ -63,7 +77,7 @@ export interface WidgetManifest {
   thumbnail?: string;
 
   /** Widget loading source configuration */
-  source: WidgetSource;
+  source: RuntimeWidgetSource;
 
   /** Required peer dependencies (e.g., { 'react': '^18.0.0' }) */
   peerDependencies?: Record<string, string>;
@@ -89,8 +103,23 @@ export interface WidgetManifest {
 
 /**
  * Describes how to load the widget's code at runtime.
+ *
+ * Renamed off the spec's `WidgetSource` name (objectstack#4115). Both are
+ * discriminated unions on `type`, which is what makes the collision dangerous:
+ * they share the member name `inline` and mean opposite things by it. The
+ * spec's `inline` carries source **code** to evaluate (`{ type: 'inline', code:
+ * string }`), objectui's carries an **already-resolved component**
+ * ({@link WidgetSourceInline}). The other members do not overlap at all — the
+ * spec has `npm`/`remote`, objectui has `module`/`registry` — so a value of one
+ * union is never a valid value of the other.
+ *
+ * The variant interfaces keep their `WidgetSource…` names: the spec does not
+ * export those, and renaming them would churn the public surface without
+ * removing a collision.
+ *
+ * Tripwire: `__tests__/page-nav-misc-spec-parity.test.ts`.
  */
-export type WidgetSource =
+export type RuntimeWidgetSource =
   | WidgetSourceModule
   | WidgetSourceInline
   | WidgetSourceRegistry;
@@ -175,7 +204,7 @@ export interface WidgetCapabilities {
  */
 export interface ResolvedWidget {
   /** The original manifest */
-  manifest: WidgetManifest;
+  manifest: RuntimeWidgetManifest;
   /** The loaded React component */
   component: unknown;
   /** Timestamp when the widget was loaded */
@@ -186,7 +215,7 @@ export interface ResolvedWidget {
  * Widget registry event types.
  */
 export type WidgetRegistryEvent =
-  | { type: 'widget:registered'; widget: WidgetManifest }
+  | { type: 'widget:registered'; widget: RuntimeWidgetManifest }
   | { type: 'widget:unregistered'; name: string }
   | { type: 'widget:loaded'; widget: ResolvedWidget }
   | { type: 'widget:error'; name: string; error: Error };

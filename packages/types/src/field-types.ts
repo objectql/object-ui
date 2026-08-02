@@ -322,9 +322,20 @@ export interface PasswordFieldMetadata extends BaseFieldMetadata {
 }
 
 /**
- * File metadata
+ * Metadata of an uploaded file, as carried in a `file`/`image` field's VALUE.
+ *
+ * Renamed off the spec's `FileMetadata` name (objectstack#4115): the spec's
+ * (`@objectstack/spec/system`) is the storage layer's file record — `{ path,
+ * name, size, mimeType, lastModified, created, etag, fileId }`, all required
+ * but the last two — describing an object in a bucket. This one is the
+ * field-value payload the form renderer displays: snake_case keys, everything
+ * but `name` optional, and it carries `url` (what the field links to) and
+ * `original_name` (the upload's client-side filename), neither of which the
+ * spec's has. Re-exporting the spec's would delete `url` outright.
+ *
+ * Tripwire: `__tests__/page-nav-misc-spec-parity.test.ts`.
  */
-export interface FileMetadata {
+export interface UploadedFileMetadata {
   name: string;
   original_name?: string;
   size?: number;

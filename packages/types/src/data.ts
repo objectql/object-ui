@@ -20,7 +20,17 @@
 // these already carried a doc comment claiming it mirrored the spec; the import
 // is what makes the claim true, and what makes a spec change break the build
 // instead of drifting quietly.
-import type { ExportJobStatus, ImportJobStatus, ImportWriteMode } from '@objectstack/spec/api';
+import type {
+  ExportJobStatus,
+  ExportFormat as ExportJobFormat,
+  ImportJobStatus,
+  ImportRowResult,
+  ImportWriteMode,
+} from '@objectstack/spec/api';
+import type {
+  CreateExportJobInput as SpecCreateExportJobInput,
+  CreateExportJobResult,
+} from '@objectstack/spec/contracts';
 import type { ValidationError } from '@objectstack/spec/kernel';
 
 export type { ExportJobStatus, ImportJobStatus, ImportWriteMode, ValidationError };
@@ -846,24 +856,14 @@ export interface ImportRequestOptions {
 }
 
 /**
- * Outcome of one imported row. Mirrors the server's `ImportRowResult`.
+ * Outcome of one imported row — the server's own `ImportRowResult`, re-exported
+ * by reference (objectstack#4115) rather than mirrored.
+ *
+ * The mirror it replaces declared `action` optional while the route's schema
+ * makes it required, so the import report's outcome column was typed as
+ * possibly-absent for a value that is always sent.
  */
-export interface ImportRowResult {
-  /** 1-based row number in the source data. */
-  row: number;
-  /** Whether the row succeeded. */
-  ok: boolean;
-  /** What happened to the row. */
-  action?: 'created' | 'updated' | 'skipped' | 'failed';
-  /** Record id (created/updated rows). */
-  id?: string;
-  /** Field that caused a coercion/validation error (failed rows). */
-  field?: string;
-  /** Error code (failed rows). */
-  code?: string;
-  /** Human-readable error message (failed rows). */
-  error?: string;
-}
+export type { ImportRowResult } from '@objectstack/spec/api';
 
 /**
  * Aggregate summary + per-row results from {@link DataSource.importRecords}.
@@ -1044,50 +1044,45 @@ export interface ExportDownloadRequest {
  */
 
 /**
- * Output formats supported by async export jobs.
+ * Output formats supported by async export jobs — the spec's `ExportFormat`,
+ * re-exported by reference (objectstack#4115) instead of restated. The union it
+ * replaces listed the same five members, which is exactly the state a copy is in
+ * one spec release before it is wrong.
  */
-export type ExportJobFormat = 'json' | 'jsonl' | 'csv' | 'xlsx' | 'parquet';
+export type { ExportFormat as ExportJobFormat } from '@objectstack/spec/api';
 
 /**
- * Request payload for `DataSource.createExportJob`.
+ * Request payload for `DataSource.createExportJob`, DERIVED from the spec's
+ * `CreateExportJobInput` (objectstack#4115).
  *
- * Mirrors the spec v4 `CreateExportJobRequest` shape; ObjectUI does not import
- * the zod schema directly to keep `@object-ui/types` zero-dependency.
+ * The hand copy this replaces carried the note "ObjectUI does not import the
+ * zod schema directly to keep `@object-ui/types` zero-dependency". That reason
+ * had already expired: `@objectstack/spec` is a direct dependency of this
+ * package, and this very module imports `ExportJobStatus` / `ImportWriteMode`
+ * from `@objectstack/spec/api` at the top. A stale reason, still stated in the
+ * authoritative voice, is what keeps a fork in place long after its argument is
+ * gone (the `external/api.ts` case in objectui#3169).
+ *
+ * `CreateExportJobInput`, not the spec's `CreateExportJobRequest`: the latter is
+ * `z.infer` of the request schema, i.e. the shape AFTER `.default()` has run, so
+ * `format` / `includeHeaders` / `encoding` are required there. A caller builds
+ * this payload, so the authoring side is the true one (objectui#3169).
+ *
+ * `object` is omitted because it is the method's own `resource` argument —
+ * `createExportJob(resource, request)`; it must not be authored twice.
  */
-export interface CreateExportJobRequest {
-  /** Output file format. Defaults to 'csv'. */
-  format?: ExportJobFormat;
-  /** Subset of fields to include (defaults to all visible columns). */
-  fields?: string[];
-  /** Server-side filter (engine-specific shape, often the view filter). */
-  filter?: Record<string, unknown>;
-  /** Sort instructions; multiple keys allowed. */
-  sort?: Array<{ field: string; direction?: 'asc' | 'desc' }>;
-  /** Hard cap on records exported (server may enforce its own ceiling). */
-  limit?: number;
-  /** Whether to write a header row (CSV/XLSX). Default true. */
-  includeHeaders?: boolean;
-  /** Text encoding for textual formats. Default 'utf-8'. */
-  encoding?: string;
-  /** Optional named template (column ordering, formatting, locale). */
-  templateId?: string;
-}
+export type CreateExportJobRequest = Omit<SpecCreateExportJobInput, 'object'>;
 
 /**
- * Result of `DataSource.createExportJob`.
+ * Result of `DataSource.createExportJob` — the spec's contract type, re-exported
+ * by reference (objectstack#4115). UI consumers use `jobId` as the polling key.
  *
- * UI consumers use `jobId` as the polling key.
+ * The copy this replaces declared `createdAt` optional where the spec requires
+ * it, so every consumer carried a nullish branch for a field the server always
+ * sends — the same optional/required skew found across `app-shell` in
+ * objectui#3169.
  */
-export interface CreateExportJobResult {
-  /** Server-assigned job identifier. */
-  jobId: string;
-  /** Initial status. Usually 'pending' or 'processing'. */
-  status: ExportJobStatus;
-  /** Optional record-count estimate (used to render initial progress). */
-  estimatedRecords?: number;
-  /** ISO-8601 creation timestamp. */
-  createdAt?: string;
-}
+export type { CreateExportJobResult } from '@objectstack/spec/contracts';
 
 /**
  * Progress payload returned by `DataSource.getExportJobProgress`.

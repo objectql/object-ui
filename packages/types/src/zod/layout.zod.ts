@@ -238,9 +238,16 @@ export const AspectRatioSchema = BaseSchema.extend({
 export const PageRegionWidthSchema = z.enum(['small', 'medium', 'large', 'full']);
 
 /**
- * Page Region Schema
+ * Page Region Schema — zod twin of `layout.ts`'s `PageNodeRegion`, renamed off
+ * the spec's `PageRegionSchema` name (objectstack#4115) for the reason given
+ * there: this validates a region of the objectui page NODE (renderer
+ * components, plus a semantic `type` and `className`), the spec's validates a
+ * region of the authored page (`PageComponent`s). See {@link PageNodeSchema},
+ * whose `regions` note has pointed at this entry since objectui#3074.
+ *
+ * Tripwire: `__tests__/page-nav-misc-spec-parity.test.ts`.
  */
-export const PageRegionSchema = z.object({
+export const PageNodeRegionSchema = z.object({
   name: z.string().describe('Region name (e.g. "sidebar", "main", "header")'),
   type: z.enum(['header', 'sidebar', 'main', 'footer', 'aside']).optional().describe('Semantic region type'),
   width: z.union([PageRegionWidthSchema, z.string()]).optional().describe('Region width'),
@@ -289,7 +296,7 @@ export const PageTypeSchema = SpecPageTypeSchema;
  *    (`record|app|utility|list|home`), objectui's is the component
  *    discriminator (`'page'`) and the kind lives on `pageType` below.
  *    Reconciling the two is a rename decision tracked separately;
- *  - `regions` — objectui's `PageRegionSchema` adds `type`/`className` and
+ *  - `regions` — objectui's `PageNodeRegionSchema` adds `type`/`className` and
  *    widens `width`; migration deferred (it is its own ledger entry).
  *
  * `.partial()` guarantees no *future* spec field can become required and
@@ -317,7 +324,7 @@ export const PageNodeSchema = BaseSchema.extend(SpecPageFields.shape).extend({
   object: z.string().optional().describe('Bound object name (for record pages)'),
   template: z.string().optional().default('default').describe('Layout template name'),
   variables: z.array(PageVariableSchema).optional().describe('Local page state variables'),
-  regions: z.array(PageRegionSchema).optional().describe('Page layout regions'),
+  regions: z.array(PageNodeRegionSchema).optional().describe('Page layout regions'),
   body: z.array(SchemaNodeSchema).optional().describe('Main content array'),
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Alternative content prop'),
   isDefault: z.boolean().optional().default(false).describe('Whether this is the default page'),

@@ -7,7 +7,7 @@
  */
 
 import { useGesture } from './useGesture';
-import type { GestureType, SpecGestureConfig } from '@object-ui/types';
+import type { TouchGestureType, SpecGestureConfig } from '@object-ui/types';
 
 export interface UseSpecGestureOptions {
   /** Spec gesture configuration */
@@ -28,7 +28,7 @@ export interface UseSpecGestureOptions {
   onGesture?: (context: { type: string; direction?: string; scale?: number; rotation?: number }) => void;
 }
 
-const SWIPE_DIRECTION_MAP: Record<string, GestureType> = {
+const SWIPE_DIRECTION_MAP: Record<string, TouchGestureType> = {
   left: 'swipe-left',
   right: 'swipe-right',
   up: 'swipe-up',
@@ -47,7 +47,7 @@ const SWIPE_DIRECTION_MAP: Record<string, GestureType> = {
  * `pan` / `drag` / `rotate` / `double_tap` (types with no sub-object) all
  * fell through to the `'tap'` initializer and fired on a tap.
  */
-export const SPEC_GESTURE_TYPE_MAP: Record<string, GestureType> = {
+export const SPEC_GESTURE_TYPE_MAP: Record<string, TouchGestureType> = {
   swipe: 'swipe-left', // per-direction; resolved via SWIPE_DIRECTION_MAP
   pinch: 'pinch',
   long_press: 'long-press',
@@ -90,7 +90,7 @@ export function useSpecGesture<T extends HTMLElement = HTMLElement>(
             ? 'pinch'
             : undefined;
 
-  let gestureType: GestureType = 'tap';
+  let gestureType: TouchGestureType = 'tap';
   let threshold: number | undefined;
   let longPressDuration: number | undefined;
   let onGesture: (ctx: { direction?: string; scale?: number; rotation?: number }) => void = () => {};

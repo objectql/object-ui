@@ -7,11 +7,11 @@
  */
 
 import { useEffect, useRef, useCallback } from 'react';
-import type { GestureType, GestureContext } from '@object-ui/types';
+import type { TouchGestureType, GestureContext } from '@object-ui/types';
 
 export interface UseGestureOptions {
   /** Gesture type to detect */
-  type: GestureType;
+  type: TouchGestureType;
   /** Callback when gesture is detected */
   onGesture: (context: GestureContext) => void;
   /** Minimum distance for swipe detection (pixels) */

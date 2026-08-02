@@ -13,7 +13,7 @@
  */
 
 import React, { useMemo } from 'react';
-import type { PageNodeSchema, PageRegion, SchemaNode } from '@object-ui/types';
+import type { PageNodeSchema, PageNodeRegion, SchemaNode } from '@object-ui/types';
 import { SchemaRenderer, PageVariablesProvider, PageVariableActionBridge } from '@object-ui/react';
 import { ComponentRegistry } from '@object-ui/core';
 import { compile, manifestFromConfigs } from '@object-ui/sdui-parser';
@@ -72,12 +72,12 @@ function getPageMaxWidth(pageType?: string): string {
 }
 
 /** Find a named region (case-insensitive) */
-function findRegion(regions: PageRegion[] | undefined, name: string): PageRegion | undefined {
+function findRegion(regions: PageNodeRegion[] | undefined, name: string): PageNodeRegion | undefined {
   return regions?.find((r) => r.name?.toLowerCase() === name.toLowerCase());
 }
 
 /** Get all regions that are NOT in the named set */
-function getRemainingRegions(regions: PageRegion[] | undefined, exclude: string[]): PageRegion[] {
+function getRemainingRegions(regions: PageNodeRegion[] | undefined, exclude: string[]): PageNodeRegion[] {
   if (!regions) return [];
   const lowerSet = new Set(exclude.map((n) => n.toLowerCase()));
   return regions.filter((r) => !lowerSet.has(r.name?.toLowerCase() ?? ''));
@@ -88,7 +88,7 @@ function getRemainingRegions(regions: PageRegion[] | undefined, exclude: string[
 // ---------------------------------------------------------------------------
 
 const RegionContent: React.FC<{
-  region: PageRegion;
+  region: PageNodeRegion;
   className?: string;
 }> = ({ region, className }) => {
   const components = region.components || [];
@@ -111,7 +111,7 @@ const RegionContent: React.FC<{
 // ---------------------------------------------------------------------------
 
 const RegionLayout: React.FC<{
-  regions: PageRegion[];
+  regions: PageNodeRegion[];
   pageType?: string;
   className?: string;
 }> = ({ regions, pageType, className }) => {

@@ -476,10 +476,24 @@ export type { PageVariable };
 export type PageRegionWidth = 'small' | 'medium' | 'large' | 'full';
 
 /**
- * Page Region (Header, Sidebar, Main, etc)
- * Aligned with @objectstack/spec PageRegionSchema
+ * Page Region (Header, Sidebar, Main, etc) — a region of the objectui page
+ * NODE, holding renderer components.
+ *
+ * Renamed off the spec's `PageRegion` name (objectstack#4115), following the
+ * same layer split that gave {@link PageNodeSchema} its name (objectui#3074):
+ * the spec's `PageRegion` holds `PageComponent[]` — authored SDUI components
+ * (`{ type: PageComponentType, properties }`) — while this holds
+ * {@link SchemaNode}[], objectui's renderer node union. It also adds a semantic
+ * `type` (the spec expresses region roles as component types instead:
+ * `page:header`, `page:sidebar`) and a `className`, and widens `width` to any
+ * string. Two layers of one idea, so they get two names.
+ *
+ * The `PageRegionWidth` alias below keeps its name: it is not a spec export,
+ * and its members are exactly the spec's `width` enum.
+ *
+ * Tripwire: `__tests__/page-nav-misc-spec-parity.test.ts`.
  */
-export interface PageRegion {
+export interface PageNodeRegion {
   /**
    * Region name/id (e.g. "sidebar", "main", "header")
    */
@@ -545,7 +559,7 @@ export interface PageNodeSchema extends BaseSchema {
    * Page layout regions
    * (Aligned with @objectstack/spec Page.regions)
    */
-  regions?: PageRegion[];
+  regions?: PageNodeRegion[];
   // blankLayout removed — the `blank` page type has no renderer and was dropped
   // from @objectstack/spec PageTypeSchema (framework#2265, enforce-or-remove).
   /**

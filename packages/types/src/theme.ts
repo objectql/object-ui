@@ -72,51 +72,32 @@ export type { ThemeMode } from '@objectstack/spec/ui';
 
 // Import spec types for local use in interfaces below
 import type {
-  ColorPalette,
-  Typography,
-  BorderRadius,
-  Shadow,
-  Animation,
-  ZIndex,
   ThemeMode,
 } from '@objectstack/spec/ui';
 
 /**
- * Complete Theme Definition
- * Compatible with @objectstack/spec Theme (input shape).
+ * Complete Theme Definition — the spec's **authoring** theme shape, re-exported
+ * by reference (objectstack#4115) rather than restated.
  *
- * Note: The spec's z.infer<Theme> has `mode` required (via ZodDefault).
- * ObjectUI uses the input shape where `mode` is optional (defaults to 'auto').
+ * The interface this replaces was member-for-member identical to the spec's
+ * `ThemeInput` (verified by the mutual-assignability probe in
+ * `__tests__/page-nav-misc-spec-parity.test.ts`), so the only thing the copy
+ * added was a second place to drift from — under the spec's own symbol name,
+ * which is what makes such a copy read as canonical to the next reader.
  *
- * This is the canonical JSON shape for a theme.
- * It can be serialized, stored, and applied at runtime via ThemeProvider.
+ * `ThemeInput`, not `Theme`: the spec's `z.infer<typeof ThemeSchema>` is the
+ * PARSED shape, where `mode` is required because `.default('auto')` has already
+ * run. Everything in objectui that carries a `Theme` is on the authoring side —
+ * theme JSON as stored, edited and handed to `ThemeProvider` — so the input
+ * shape (`mode` optional) is the one that is true here. This is the
+ * `.default()`/`z.input` rule from objectui#3169: writing side → input type.
+ *
+ * This is the canonical JSON shape for a theme. It can be serialized, stored,
+ * and applied at runtime via ThemeProvider.
  */
-export interface Theme {
-  /** Theme identifier (required) */
-  name: string;
-  /** Display label (required) */
-  label: string;
-  /** Human-readable description */
-  description?: string;
-  /** Theme mode: light, dark, or auto (default: 'auto') */
-  mode?: ThemeMode;
-  /** Semantic color palette (primary is required) */
-  colors: ColorPalette;
-  /** Typography design tokens */
-  typography?: Typography;
-  /** Border radius scale */
-  borderRadius?: BorderRadius;
-  /** Shadow scale */
-  shadows?: Shadow;
-  /** Animation duration and timing */
-  animation?: Animation;
-  /** Z-index layering system */
-  zIndex?: ZIndex;
-  /** Arbitrary CSS custom properties */
-  customVars?: Record<string, string>;
-  /** Extend another theme by name */
-  extends?: string;
-}
+export type { ThemeInput as Theme } from '@objectstack/spec/ui';
+
+import type { ThemeInput as Theme } from '@objectstack/spec/ui';
 
 // ============================================================================
 // ObjectUI Component Schemas (UI rendering)

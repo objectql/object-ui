@@ -23,7 +23,10 @@
 // `z.ZodType<any>` to carry the recursive group variant), so objectui keeps a
 // real interface. Its per-variant types ARE properly typed, though, so the
 // fields below are derived from one of them rather than restated.
-import type { ObjectNavItem as SpecObjectNavItem } from '@objectstack/spec/ui';
+import type {
+  NavigationArea as SpecNavigationArea,
+  ObjectNavItem as SpecObjectNavItem,
+} from '@objectstack/spec/ui';
 import type { BaseSchema } from './base';
 
 // ============================================================================
@@ -213,38 +216,42 @@ export interface NavigationItem {
 
 /**
  * Navigation Area — a business-domain partition of navigation items.
- * 
+ *
  * Inspired by Salesforce Lightning App → Area → Tab model and
  * Microsoft Power Apps Area → Group → Subarea pattern.
- * 
+ *
  * Each area contains an independent navigation tree, allowing large
  * enterprise applications to organise navigation by domain (e.g.
  * Sales, Service, Marketing).
+ *
+ * DERIVED from `@objectstack/spec/ui` (objectstack#4115): `id`, `label`,
+ * `icon`, `order`, `description` and `requiredPermissions` flow in **by
+ * reference**, so a key the spec adds or retypes cannot silently diverge here.
+ * The hand copy this replaces had already lost `order` and `description` once
+ * (objectui#3088).
+ *
+ * Two keys are pinned locally, each for a reason that outlives a spec release:
+ *
+ *  - `navigation` — the spec's `NavigationArea.navigation` is `any[]`, because
+ *    its `NavigationItemSchema` is declared `z.ZodType<any>` to carry the
+ *    recursive group variant. Inheriting it would delete the navigation tree's
+ *    typing outright — the case-2 erasure the guard's header warns about
+ *    (objectstack#4171, tracked for objectui in objectui#3162). Keeping
+ *    `NavigationItem[]` is what preserves it.
+ *  - `visible` — objectui's wire contract is the bare predicate
+ *    (`boolean | string`), while the spec's parsed shape is the
+ *    `ExpressionInput` envelope (`{ dialect, source }`). Same divergence, and
+ *    the same reason, as `SelectOption.visibleWhen` (objectui#3090).
+ *
+ * Drift guard: `__tests__/page-nav-misc-spec-parity.test.ts`.
  */
-export interface NavigationArea {
-  /** Unique identifier */
-  id: string;
-
-  /** Display label (plain string per @objectstack/spec v4 protocol) */
-  label: string;
-
-  /** Icon name (Lucide) */
-  icon?: string;
-
-  /** Sort order weight among areas (lower first) — spec field (objectstack#4115). */
-  order?: number;
-
-  /** Longer description of the area — spec field (objectstack#4115). */
-  description?: string;
-
-  /** Navigation items within this area */
+export interface NavigationArea
+  extends Omit<SpecNavigationArea, 'navigation' | 'visible'> {
+  /** Navigation items within this area (see the `navigation` note above). */
   navigation: NavigationItem[];
 
-  /** Visibility expression */
+  /** Visibility expression (see the `visible` note above). */
   visible?: boolean | string;
-
-  /** Required permissions to see this area */
-  requiredPermissions?: string[];
 }
 
 // ============================================================================

@@ -34,8 +34,25 @@ export type { BreakpointName };
 /** Responsive value - different values for different breakpoints */
 export type ResponsiveValue<T> = T | Partial<Record<BreakpointName, T>>;
 
-/** Responsive layout configuration */
-export interface ResponsiveConfig {
+/**
+ * Responsive layout configuration for objectui's **mobile component overrides**.
+ *
+ * Renamed off the spec's `ResponsiveConfig` name (objectstack#4115): the two
+ * configure responsiveness through different vocabularies, and this package
+ * already re-exports the spec's own under `SpecResponsiveConfig`, so the bare
+ * name claimed an authority it did not have.
+ *
+ * The spec's `ResponsiveConfig` is the SDUI grid contract —
+ * `{ breakpoint, hiddenOn, columns: {xs..2xl}, order: {xs..2xl} }` — arranging a
+ * node within a grid. This one is the mobile renderer's box config: `columns`
+ * also accepts a bare number, plus `gap`, `padding`, `stackOnMobile` /
+ * `stackBreakpoint`, and `hidden`/`showOnly` in place of `hiddenOn`. It is
+ * consumed only by {@link MobileComponentConfig}.
+ *
+ * Tripwire: `__tests__/page-nav-misc-spec-parity.test.ts` fails if the spec ever
+ * claims this name, so the alias cannot outlive its reason.
+ */
+export interface MobileResponsiveConfig {
   /** Number of columns at each breakpoint */
   columns?: ResponsiveValue<number>;
   /** Whether to stack vertically on mobile */
@@ -113,8 +130,27 @@ export interface PWAIcon {
 /** Offline caching strategy */
 export type FetchCacheStrategy = 'cache-first' | 'network-first' | 'stale-while-revalidate' | 'network-only' | 'cache-only';
 
-/** Offline configuration */
-export interface OfflineConfig {
+/**
+ * Offline configuration for the **PWA service worker** — which routes are
+ * cached, with which fetch strategy.
+ *
+ * Renamed off the spec's `OfflineConfig` name (objectstack#4115): the spec's is
+ * the application-level offline DATA model — `{ enabled, strategy, cache: {
+ * persistStorage, evictionPolicy, ttl }, sync: { conflictResolution,
+ * retryInterval, batchSize }, offlineIndicator, queueMaxSize }` — i.e. the
+ * mutation queue and its storage backend. This one sits a layer below, next to
+ * {@link PWAConfig} and {@link PWAIcon}: a list of URL patterns
+ * ({@link OfflineRoute}) paired with {@link FetchCacheStrategy}, the
+ * service-worker fetch ordering. Its `defaultStrategy`/`syncStrategy` are
+ * kebab-case; the spec's are snake_case — two vocabularies, one name.
+ *
+ * The spec's shape is modelled in objectui by `@object-ui/react`'s
+ * `useOffline` config, which keeps the spec's name (and its ledger entry,
+ * objectui#3159) precisely because it IS that concept.
+ *
+ * Tripwire: `__tests__/page-nav-misc-spec-parity.test.ts`.
+ */
+export interface PWAOfflineConfig {
   /** Enable offline support */
   enabled: boolean;
   /** Default caching strategy */
@@ -149,13 +185,38 @@ export interface OfflineRoute {
 // Touch Gestures
 // ============================================================================
 
-/** Touch gesture types */
-export type GestureType = 'tap' | 'double-tap' | 'long-press' | 'swipe-left' | 'swipe-right' | 'swipe-up' | 'swipe-down' | 'pinch' | 'rotate' | 'pan';
+/**
+ * Touch gesture types — objectui's **direction-fused** gesture vocabulary.
+ *
+ * Renamed off the spec's `GestureType` name (objectstack#4115): the spec models
+ * a gesture and its direction separately (`swipe | pinch | long_press |
+ * double_tap | drag | rotate | pan`, with direction inside
+ * `GestureConfig.swipe.direction`), while objectui folds direction into the
+ * name (`swipe-left`, `swipe-up`, …). The two unions therefore agree on only
+ * three members, and neither is a subset of the other — objectui has `tap`, the
+ * spec has `drag`.
+ *
+ * Tripwire: `__tests__/page-nav-misc-spec-parity.test.ts`.
+ */
+export type TouchGestureType ='tap' | 'double-tap' | 'long-press' | 'swipe-left' | 'swipe-right' | 'swipe-up' | 'swipe-down' | 'pinch' | 'rotate' | 'pan';
 
-/** Gesture handler configuration */
-export interface GestureConfig {
+/**
+ * Gesture handler configuration — binds one {@link TouchGestureType} to an
+ * action name.
+ *
+ * Renamed off the spec's `GestureConfig` name (objectstack#4115) for the same
+ * reason as its `type` field: the spec's `GestureConfig` is a per-gesture
+ * TUNING record (`{ type, label, enabled, swipe: { direction, threshold,
+ * velocity }, pinch: { minScale, maxScale }, longPress: { duration,
+ * moveTolerance } }`) with no notion of what the gesture DOES. This one is a
+ * handler binding: flat, and its whole point is `action`, which the spec's has
+ * no room for.
+ *
+ * Tripwire: `__tests__/page-nav-misc-spec-parity.test.ts`.
+ */
+export interface TouchGestureConfig {
   /** Gesture type */
-  type: GestureType;
+  type: TouchGestureType;
   /** Action to execute */
   action: string;
   /** Minimum distance for swipe gestures (pixels) */
@@ -171,7 +232,7 @@ export interface GestureConfig {
 /** Touch gesture context */
 export interface GestureContext {
   /** Gesture type that was detected */
-  type: GestureType;
+  type: TouchGestureType;
   /** Start position */
   startPosition: { x: number; y: number };
   /** End position */
@@ -193,11 +254,11 @@ export interface GestureContext {
 /** Mobile component schema extension */
 export interface MobileComponentConfig {
   /** Responsive configuration */
-  responsive?: ResponsiveConfig;
+  responsive?: MobileResponsiveConfig;
   /** Mobile-specific overrides */
   mobileOverrides?: MobileOverrides;
   /** Touch gesture handlers */
-  gestures?: GestureConfig[];
+  gestures?: TouchGestureConfig[];
   /** Pull-to-refresh configuration */
   pullToRefresh?: {
     enabled: boolean;
