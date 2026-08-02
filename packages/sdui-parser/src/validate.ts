@@ -13,7 +13,7 @@ import type {
   ManifestInput,
   SchemaElement,
   SchemaNode,
-  ValidationResult,
+  ManifestValidationResult,
 } from './types.js';
 
 /** Base props every node may carry (mirrors BaseSchema) — never "unknown prop". */
@@ -32,10 +32,10 @@ const BASE_PROPS = new Set([
 const isExpr = (v: unknown): boolean =>
   typeof v === 'object' && v !== null && '$expr' in (v as Record<string, unknown>);
 
-export function validateTree(tree: SchemaElement | null, manifest: Manifest): ValidationResult {
+export function validateTree(tree: SchemaElement | null, manifest: Manifest): ManifestValidationResult {
   const diagnostics: Diagnostic[] = [];
   const requires = new Set<string>();
-  const bindings: ValidationResult['bindings'] = [];
+  const bindings: ManifestValidationResult['bindings'] = [];
 
   const visit = (node: SchemaNode): void => {
     if (typeof node === 'string') return;

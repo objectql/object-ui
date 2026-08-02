@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { DateField } from './widgets/DateField';
 import { DateTimeField } from './widgets/DateTimeField';
 import { TimeField } from './widgets/TimeField';
-import type { FieldWidgetProps } from './widgets/types';
+import type { FieldWidgetComponentProps } from './widgets/types';
 
 const mockField = {
   name: 'test_field',
@@ -11,7 +11,7 @@ const mockField = {
   type: 'date',
 } as any;
 
-const baseProps: FieldWidgetProps<string> = {
+const baseProps: FieldWidgetComponentProps<string> = {
   field: mockField,
   value: '',
   onChange: vi.fn(),

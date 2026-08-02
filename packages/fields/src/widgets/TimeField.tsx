@@ -1,13 +1,13 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 import { openNativePicker } from './openNativePicker';
 
 /**
  * TimeField - Time picker input widget
  * Uses native time input for hour and minute selection
  */
-export function TimeField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<string>) {
+export function TimeField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<string>) {
   if (readonly) {
     return <span className="text-sm">{value || <EmptyValue />}</span>;
   }

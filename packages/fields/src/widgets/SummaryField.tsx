@@ -1,12 +1,12 @@
 import React from 'react';
 import { EmptyValue } from '@object-ui/components';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 
 /**
  * SummaryField - Read-only aggregation field
  * Values are aggregated from related records and cannot be edited
  */
-export function SummaryField({ value, field, ...props }: FieldWidgetProps<any>) {
+export function SummaryField({ value, field, ...props }: FieldWidgetComponentProps<any>) {
   const summaryField = (field || (props as any).schema) as any;
   const summaryType = summaryField?.summary_type || 'count';
 

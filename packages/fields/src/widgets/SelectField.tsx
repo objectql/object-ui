@@ -10,7 +10,7 @@ import {
 import { isValueStillOffered } from '@object-ui/core';
 import { SelectFieldMetadata } from '@object-ui/types';
 import { useFieldTranslation } from './useFieldTranslation';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 import { MultiSelectField } from './MultiSelectField';
 import { useCascadingOptions } from './useCascadingOptions';
 
@@ -29,12 +29,12 @@ import { useCascadingOptions } from './useCascadingOptions';
  * the shared {@link useCascadingOptions} hook (#2715), so single and multi stay
  * in lockstep.
  */
-export function SelectField(props: FieldWidgetProps<any>) {
+export function SelectField(props: FieldWidgetComponentProps<any>) {
   const config = (props.field || (props as any).schema) as SelectFieldMetadata | undefined;
   if ((config as any)?.multiple) {
     return <MultiSelectField {...props} />;
   }
-  return <SingleSelectField {...(props as FieldWidgetProps<string>)} />;
+  return <SingleSelectField {...(props as FieldWidgetComponentProps<string>)} />;
 }
 
 /**
@@ -59,7 +59,7 @@ function SingleSelectField({
   emptyHint: _emptyHint,
   dataSource: _dataSource,
   ...props
-}: FieldWidgetProps<string>) {
+}: FieldWidgetComponentProps<string>) {
   const config = (field || schema) as SelectFieldMetadata;
   const rawOptions = config?.options || [];
   const { t } = useFieldTranslation();

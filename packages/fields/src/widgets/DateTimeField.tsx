@@ -1,13 +1,13 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 import { openNativePicker } from './openNativePicker';
 
 /**
  * DateTimeField - Combined date and time picker widget
  * Displays both date and time in locale format when readonly
  */
-export function DateTimeField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<string>) {
+export function DateTimeField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<string>) {
   if (readonly) {
     if (!value) return <EmptyValue />;
     const date = new Date(value);

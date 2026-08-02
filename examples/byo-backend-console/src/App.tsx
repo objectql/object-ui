@@ -179,7 +179,7 @@ function ObjectFormPage() {
 
 /**
  * Modal ObjectForm with explicit `sections` — exercises the Card-wrapped
- * `FormSection` path (formType: 'modal'/'split'/'tabbed'/'wizard' all share
+ * `FormSectionContainer` path (formType: 'modal'/'split'/'tabbed'/'wizard' all share
  * it), as opposed to `ObjectFormPage` above which renders the flat
  * divider-only path used by the default `formType: 'simple'` + `fieldGroups`.
  */

@@ -3,7 +3,7 @@ import { Button, EmptyValue } from '@object-ui/components';
 import { useUpload } from '@object-ui/providers';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { X, Image as ImageIcon, Crop as CropIcon, Loader2 } from 'lucide-react';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 import { ImageLightbox } from './ImageLightbox';
 import { useUploadingSignal } from './useUploadingSignal';
 import {
@@ -24,7 +24,7 @@ const ImageCropperDialog = lazy(() =>
  * ImageField - Image upload widget with preview thumbnails
  * Supports single and multiple image uploads with drag-and-drop and preview display
  */
-export function ImageField({ value, onChange, field, readonly, onUploadingChange, ...props }: FieldWidgetProps<any>) {
+export function ImageField({ value, onChange, field, readonly, onUploadingChange, ...props }: FieldWidgetComponentProps<any>) {
   const inputRef = useRef<HTMLInputElement>(null);
   const imageField = (field || (props as any).schema) as any;
   const multiple = imageField?.multiple || false;

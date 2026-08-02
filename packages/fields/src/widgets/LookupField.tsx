@@ -10,7 +10,7 @@ import { cn,
   PopoverTrigger,
   PopoverContent, EmptyValue } from '@object-ui/components';
 import { Search, X, Loader2, AlertCircle, Plus, TableProperties } from 'lucide-react';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 import type { DataSource, QueryParams, LookupColumnDef } from '@object-ui/types';
 import { RecordPickerDialog, lookupFiltersToRecord } from './RecordPickerDialog';
 import type { RecordPickerFilterColumn } from './RecordPickerDialog';
@@ -191,7 +191,7 @@ function mapFieldTypeToFilterType(
  * from the referenced object using `DataSource.find()`.
  * Falls back to static `options` when no DataSource is available.
  */
-export function LookupField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<any>) {
+export function LookupField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<any>) {
   const [isOpen, setIsOpen] = useState(false);
   const { t } = useFieldTranslation();
   const listboxId = React.useId();

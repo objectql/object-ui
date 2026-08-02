@@ -22,7 +22,7 @@ ObjectUI is a strict PNPM Workspace. Pick a package by **role + dependency weigh
 | `@object-ui/types` | The Protocol | Pure JSON Interfaces (ComponentSchema, ActionSchema). | ZERO dependencies. No React code. |
 | `@object-ui/core` | The Engine | Schema Registry, Validation, Expression Evaluation, Action Engine, Plugin System. | No UI library dependencies. Logic Only. |
 | `@object-ui/components` | The Atoms | Shadcn Primitives (Button, Badge, Card) & Icons. | Pure UI. No business logic. |
-| `@object-ui/fields` | The Inputs | Standard Field Renderers (Text, Number, Select). | Must implement FieldWidgetProps. |
+| `@object-ui/fields` | The Inputs | Standard Field Renderers (Text, Number, Select). | Must implement FieldWidgetComponentProps. |
 | `@object-ui/layout` | The Shell | Page Structure (Header, Sidebar, AppShell). | Routing-aware composition. |
 | `@object-ui/react` | The Runtime | `<SchemaRenderer>`, hooks, spec bridge, `LazyPluginLoader`. | Bridges Core and Components. |
 

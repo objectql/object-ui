@@ -1,7 +1,7 @@
 import React, { useId, useEffect } from 'react';
 import { RadioGroup, RadioGroupItem, Label, EmptyValue } from '@object-ui/components';
 import { isValueStillOffered, type OptionLike } from '@object-ui/core';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 import { useCascadingOptions } from './useCascadingOptions';
 
 type Option = OptionLike;
@@ -30,7 +30,7 @@ export function RadioField({
   emptyHint: _emptyHint,
   dataSource: _dataSource,
   ...props
-}: FieldWidgetProps<string>) {
+}: FieldWidgetComponentProps<string>) {
   const config = (field || schema) as any;
   const rawOptions: Option[] = config?.options || [];
   const groupId = useId();

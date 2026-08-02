@@ -1,13 +1,13 @@
 import React from 'react';
 import { Input, Button, EmptyValue } from '@object-ui/components';
 import { QrCode, Copy } from 'lucide-react';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 
 /**
  * QR Code field widget - generates QR codes from text
  * Uses a simple SVG-based QR code generator
  */
-export function QRCodeField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<string>) {
+export function QRCodeField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<string>) {
   const [showQR, setShowQR] = React.useState(false);
   const config = field || (props as any).schema;
 

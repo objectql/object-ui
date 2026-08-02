@@ -1,5 +1,5 @@
 import React, { useCallback, useRef } from 'react';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 import {
   cn,
   Button,
@@ -306,7 +306,7 @@ export function GridField({
   displayMode,
   onAdd,
   ...props
-}: FieldWidgetProps<Row[]> & {
+}: FieldWidgetComponentProps<Row[]> & {
   /** When provided, each row shows an "expand" button that opens the row in a
    *  full form (the host — e.g. MasterDetailForm — renders the drawer/modal and
    *  writes the edited values back). Lets a "fat" child be edited in a real form

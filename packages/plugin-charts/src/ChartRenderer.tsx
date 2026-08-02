@@ -1,7 +1,7 @@
 
 import React, { Suspense } from 'react';
 import { Skeleton } from '@object-ui/components';
-import type { ChartConfig } from './ChartContainerImpl';
+import type { ChartContainerConfig } from './ChartContainerImpl';
 import { normalizeChartSchema } from './normalizeChartSchema';
 
 // 🚀 Lazy load the implementation files
@@ -151,7 +151,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ schema, onChartCli
     // explicit author choice, so it wins over the positional palette.
     if (!config && series) {
        const colors = (schema as any).colors || ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))'];
-       const newConfig: ChartConfig = {};
+       const newConfig: ChartContainerConfig = {};
        series.forEach((s: any, idx: number) => {
          newConfig[s.dataKey] = { label: s.label || s.dataKey, color: s.color || colors[idx % colors.length] };
        });

@@ -8,8 +8,22 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 
-/** WebSocket connection configuration */
-export interface RealtimeConfig {
+/**
+ * WebSocket connection configuration for {@link useRealtimeSubscription}.
+ *
+ * Named `RealtimeSubscriptionConfig`, not `RealtimeConfig` (objectui#3161,
+ * objectstack#4115 ledger batch 7). The spec's `RealtimeConfig`
+ * (`@objectstack/spec/api`) is the app-level realtime DECLARATION — `enabled`,
+ * a `transport` of `websocket | sse | polling`, and a `subscriptions[]` array
+ * whose entries name the record events to deliver. This is one browser socket's
+ * dial settings: which URL, which channel, how to back off when it drops. The
+ * two share no declared key at all — measured against the spec's own schema
+ * shape in `__tests__/spec-symbol-batch7.test.ts` rather than assumed, because
+ * the spec declares that schema as a PASSTHROUGH object and a type-level key
+ * comparison against a bag answers nothing. So there was no dialect to
+ * reconcile here, only a name to hand back.
+ */
+export interface RealtimeSubscriptionConfig {
   /** WebSocket URL */
   url?: string;
   /** Room/channel to subscribe to */
@@ -62,7 +76,7 @@ export interface RealtimeResult<T = unknown> {
  * Provides automatic reconnection with exponential backoff,
  * message buffering, and typed message subscriptions.
  */
-export function useRealtimeSubscription<T = unknown>(config: RealtimeConfig): RealtimeResult<T> {
+export function useRealtimeSubscription<T = unknown>(config: RealtimeSubscriptionConfig): RealtimeResult<T> {
   const {
     url,
     channel,

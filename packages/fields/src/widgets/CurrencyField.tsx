@@ -1,6 +1,6 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 import { useLocalization } from '@object-ui/i18n';
 import { resolveFieldCurrency } from '../currency';
 
@@ -36,7 +36,7 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   USD: '$',
 };
 
-export function CurrencyField({ value, onChange, field, readonly, errorMessage, className, ...props }: FieldWidgetProps<number>) {
+export function CurrencyField({ value, onChange, field, readonly, errorMessage, className, ...props }: FieldWidgetComponentProps<number>) {
   const currencyField = (field || (props as any).schema) as any;
   // Shared precedence: field currency → currencyConfig → tenant default (ADR-0053).
   const { currency: tenantCurrency } = useLocalization();

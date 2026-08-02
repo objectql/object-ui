@@ -1,5 +1,5 @@
 import React from 'react';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 import { LookupField } from './LookupField';
 
 /**
@@ -29,7 +29,7 @@ function withBannedFilter(filters?: any[]): any[] {
     : [...base, { field: 'banned', operator: 'ne', value: true }];
 }
 
-export function UserField(props: FieldWidgetProps<any>) {
+export function UserField(props: FieldWidgetComponentProps<any>) {
   const raw = (props.field || (props as any).schema) as any;
 
   // The objectSchema field metadata may live directly on `field`, or nested at

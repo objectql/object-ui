@@ -1,13 +1,13 @@
 import React from 'react';
 import { Input, Slider, EmptyValue } from '@object-ui/components';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 
 /**
  * PercentField - Percentage input with configurable decimal precision
  * Stores values as decimals (0-1) and displays as percentages (0-100%)
  * Includes a slider for interactive control.
  */
-export function PercentField({ value, onChange, field, readonly, errorMessage, className, ...props }: FieldWidgetProps<number>) {
+export function PercentField({ value, onChange, field, readonly, errorMessage, className, ...props }: FieldWidgetComponentProps<number>) {
   const percentField = (field || (props as any).schema) as any;
   const precision = percentField?.precision ?? 2;
 

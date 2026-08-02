@@ -45,7 +45,7 @@ import {
   ChartTooltipContent,
   ChartLegend,
   ChartLegendContent,
-  ChartConfig
+  ChartContainerConfig
 } from './ChartContainerImpl';
 import { mapScatterClick, mapTreemapClick, mapSankeyClick } from './chartDrillEvents';
 import { formatterFor, domainFor, ticksFor, RENDERABLE, SINGLE_VALUE_CHART_TYPES, TABULAR_CHART_TYPES, effectiveChartFamily, comboBaseFamily, type NormalizedAxis, type NormalizedSeries } from './normalizeChartSchema';
@@ -104,7 +104,7 @@ export interface AdvancedChartImplProps {
    */
   chartType?: 'bar' | 'column' | 'horizontal-bar' | 'line' | 'area' | 'pie' | 'donut' | 'radar' | 'scatter' | 'funnel' | 'combo' | 'treemap' | 'sankey';
   data?: Array<Record<string, any>>;
-  config?: ChartConfig;
+  config?: ChartContainerConfig;
   xAxisKey?: string;
   /**
    * Plotted series, in the renderer's internal shape. Authors write the spec
@@ -655,7 +655,7 @@ function AdvancedChartImplInner({
     // can render the slice labels next to the color swatches. Without
     // this the legend showed colored dots with no text, because the
     // upstream config only contained entries for series dataKeys.
-    const pieConfig: ChartConfig = { ...(config as ChartConfig) };
+    const pieConfig: ChartContainerConfig = { ...(config as ChartContainerConfig) };
     data.forEach((entry, index) => {
       const rawKey = entry?.[xAxisKey];
       if (rawKey == null || rawKey === '') return;

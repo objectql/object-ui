@@ -1,13 +1,13 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 import { openNativePicker } from './openNativePicker';
 
 /**
  * DateField - Date picker input widget
  * Uses native date input and displays locale-formatted date in readonly mode
  */
-export function DateField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<string>) {
+export function DateField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<string>) {
   if (readonly) {
     return value ? <span className="text-sm">{new Date(value).toLocaleDateString()}</span> : <EmptyValue />;
   }

@@ -1,12 +1,12 @@
 import React from 'react';
 import { EmptyValue } from '@object-ui/components';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 
 /**
  * VectorField - Vector/embedding data display
  * Shows vector embeddings in a read-only format
  */
-export function VectorField({ value, field, ...props }: FieldWidgetProps<number[]>) {
+export function VectorField({ value, field, ...props }: FieldWidgetComponentProps<number[]>) {
   const vectorField = (field || (props as any).schema) as any;
   const dimensions = vectorField?.dimensions || (Array.isArray(value) ? value.length : 0);
 

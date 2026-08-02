@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import type { FieldWidgetProps } from './widgets/types';
+import type { FieldWidgetComponentProps } from './widgets/types';
 
 // The SAME dedicated widgets the form renders — reused for in-place editing
 // (e.g. the data grid's inline cell editor) so a select edits as a dropdown, a
@@ -54,7 +54,7 @@ import { mapFieldTypeToFormType } from './field-type-alias';
  * Rich/heavy types (file, image, lookup, richtext, …) are intentionally absent
  * so callers fall back to their own simpler editor.
  */
-const EDIT_WIDGETS: Record<string, React.ComponentType<FieldWidgetProps<any>>> = {
+const EDIT_WIDGETS: Record<string, React.ComponentType<FieldWidgetComponentProps<any>>> = {
   text: TextField,
   textarea: TextAreaField,
   number: NumberField,
@@ -180,7 +180,7 @@ export function FieldEditWidget({
   value,
   onChange,
   readonly,
-}: FieldWidgetProps<any>): React.ReactElement | null {
+}: FieldWidgetComponentProps<any>): React.ReactElement | null {
   const resolved = field?.type ? resolveInlineEditType(field.type) : undefined;
   const Widget = resolved ? EDIT_WIDGETS[resolved] : undefined;
   if (!Widget) return null;

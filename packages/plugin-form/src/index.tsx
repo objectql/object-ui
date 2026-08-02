@@ -13,8 +13,8 @@ import { ObjectForm } from './ObjectForm';
 
 export { ObjectForm };
 export type { ObjectFormProps } from './ObjectForm';
-export { FormSection } from './FormSection';
-export type { FormSectionProps } from './FormSection';
+export { FormSectionContainer } from './FormSection';
+export type { FormSectionContainerProps } from './FormSection';
 export {
   applyAutoLayout,
   inferColumns,

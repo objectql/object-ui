@@ -3,7 +3,7 @@ import { Button, EmptyValue } from '@object-ui/components';
 import { useUpload } from '@object-ui/providers';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Upload, X, File as FileIcon, ImageIcon, Camera, Loader2 } from 'lucide-react';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 import { useUploadingSignal } from './useUploadingSignal';
 import {
   fileValueForSubmit,
@@ -115,7 +115,7 @@ function useFileUploads(opts: {
  * Supports single and multiple file uploads with configurable accepted file types.
  * L2: File size validation, per-file progress indicators, error messages.
  */
-export function FileField({ value, onChange, field, readonly, onUploadingChange, ...props }: FieldWidgetProps<any>) {
+export function FileField({ value, onChange, field, readonly, onUploadingChange, ...props }: FieldWidgetComponentProps<any>) {
   const { t } = useObjectTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);

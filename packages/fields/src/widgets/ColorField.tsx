@@ -1,12 +1,12 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 
 /**
  * Color field widget - provides a color picker input
  * Supports hex color values (e.g., #ff0000)
  */
-export function ColorField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<string>) {
+export function ColorField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<string>) {
   const colorField = (field || (props as any).schema) as any;
 
   if (readonly) {

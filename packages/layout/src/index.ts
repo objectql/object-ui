@@ -6,7 +6,10 @@
 import { ComponentRegistry } from '@object-ui/core';
 import { PageHeader } from './PageHeader';
 import { AppShell } from './AppShell';
-import { Page } from './Page';
+// NOTE: `PageNodeRenderer` (./Page) is deliberately NOT imported here — it is
+// re-exported below but never registered; the `page` key belongs to
+// `@object-ui/components`'s `PageRenderer`. See the registration note at the
+// bottom of `registerLayout`.
 import { PageCard } from './PageCard';
 import { SidebarNav } from './SidebarNav';
 import { ResponsiveGrid } from './ResponsiveGrid';

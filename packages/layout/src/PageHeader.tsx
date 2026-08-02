@@ -3,7 +3,29 @@ import { cn, LazyIcon, Button } from '@object-ui/components';
 import { ArrowLeft } from 'lucide-react';
 import { useRecordContext, SchemaRenderer } from '@object-ui/react';
 
-export interface PageHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
+/**
+ * Props of this package's `<PageHeader>` React component.
+ *
+ * Named `PageHeaderComponentProps`, not `PageHeaderProps` (objectui#3161,
+ * objectstack#4115 ledger batch 7) — the same name `@object-ui/app-shell`
+ * settled on for its own header props in objectui#3169, deliberately reused
+ * rather than re-invented, so one concept does not end up with two dialect
+ * names one package apart.
+ *
+ * `@objectstack/spec/ui` owns `PageHeaderProps` for the AUTHORED `page:header`
+ * node: a zod object of `title: string`, `subtitle`, an icon NAME, `breadcrumb`
+ * and `actions: string[]` (action IDs). This interface is the rendered layer of
+ * that same element — `icon` accepts a React node as well as a name, `actions`
+ * is a list of action definitions the `record:quick_actions` widget renders,
+ * `schema` carries the raw node, and it extends `HTMLAttributes` so every DOM
+ * prop rides along. Authored layer vs rendered layer, which is exactly the
+ * one-name-two-layers failure objectstack#4115 exists to end.
+ *
+ * Pinned by `__tests__/spec-symbol-batch7.test.tsx`, which fails if the spec
+ * stops owning `PageHeaderProps` (then this can take the plain name back) or
+ * starts owning `PageHeaderComponentProps`.
+ */
+export interface PageHeaderComponentProps extends React.HTMLAttributes<HTMLDivElement> {
     title: string;
     /**
      * Optional secondary line under the title. Spec schemas use `subtitle`,
@@ -100,7 +122,7 @@ export function PageHeader({
     className,
     children,
     ...props
-}: PageHeaderProps) {
+}: PageHeaderComponentProps) {
     const ctx = useRecordContext();
     const titleHadPlaceholder =
         typeof title === 'string' && /\{[a-zA-Z0-9_.]+\}/.test(title);

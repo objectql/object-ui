@@ -1,13 +1,13 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
 import { NumberFieldMetadata } from '@object-ui/types';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 
 /**
  * NumberField - Numeric input with optional decimal precision
  * Supports min/max/step constraints and configurable decimal precision
  */
-export function NumberField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<number>) {
+export function NumberField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<number>) {
   if (readonly) {
     return value == null ? <EmptyValue /> : <span className="text-sm">{value}</span>;
   }

@@ -1,13 +1,13 @@
 import React from 'react';
 import { Badge, Input, EmptyValue, cn } from '@object-ui/components';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 
 /**
  * TagsField - free-form list of string tags. Type a value and press Enter (or
  * comma) to add it; click a tag's × to remove it. The stored value is a
  * string[]. Used for the `tags` field type.
  */
-export function TagsField({ value, onChange, field, readonly, className, ...props }: FieldWidgetProps<string[]>) {
+export function TagsField({ value, onChange, field, readonly, className, ...props }: FieldWidgetComponentProps<string[]>) {
   const tags: string[] = Array.isArray(value) ? value : value == null ? [] : [value as unknown as string];
   const [draft, setDraft] = React.useState('');
 

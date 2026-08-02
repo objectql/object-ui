@@ -8,34 +8,39 @@
 
 import { useMemo } from 'react';
 import type { ListColumn } from '@object-ui/types';
+import type { ColumnSummary } from '@objectstack/spec/ui';
 import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
 
 /**
- * Aggregation functions for the column footer — the full `ColumnSummarySchema`
- * vocabulary from `@objectstack/spec`. Every value here is computed; a name the
- * schema accepts but the renderer ignores would validate and then render a
- * blank footer cell, so this union is kept in lockstep with the spec enum
- * rather than being a renderer-local subset of it.
+ * Aggregation functions for the column footer — the spec's `ColumnSummary`
+ * vocabulary itself, not a copy of it (objectui#3161, objectstack#4115 ledger
+ * batch 7).
+ *
+ * The eleven members used to be spelled out here under a comment promising they
+ * were "kept in lockstep with the spec enum" — a promise nothing enforced. They
+ * are the enum now, which turns `TYPE_LABELS` below into the thing that reports
+ * a divergence: it is a total `Record<ColumnSummaryType, string>`, so a member
+ * the spec adds is a compile error naming the missing label instead of a footer
+ * cell that renders blank.
  */
-export type ColumnSummaryType =
-  | 'none'
-  | 'count'
-  | 'count_empty'
-  | 'count_filled'
-  | 'count_unique'
-  | 'percent_empty'
-  | 'percent_filled'
-  | 'sum'
-  | 'avg'
-  | 'min'
-  | 'max';
+export type ColumnSummaryType = ColumnSummary;
 
 /**
- * Summary configuration for a column.
- * Can be a string shorthand (e.g. 'sum') or a full config object carrying a
- * per-column `field` override.
+ * What a column's `summary` may be: the string shorthand (`summary: 'sum'`,
+ * aggregating the column's own field) or the object form carrying a per-column
+ * `field` override.
+ *
+ * Taken straight off `ListColumn['summary']` rather than restated. It was
+ * called `ColumnSummaryConfig`, which is a name the spec owns for only HALF of
+ * this union — `ColumnSummaryConfig` there is the OBJECT form alone
+ * (`{ type, field? }`), while the shorthand is `ColumnSummary`. So the local
+ * declaration wore the spec's name for a strictly wider type: code written
+ * against `ColumnSummaryConfig` here accepted `'sum'`, and the same name
+ * imported from the spec rejects it. Binding to `ListColumn['summary']` makes
+ * the spec's own union the definition, so a third accepted form would arrive
+ * here automatically.
  */
-export type ColumnSummaryConfig = ColumnSummaryType | { type: ColumnSummaryType; field?: string };
+export type ColumnSummarySetting = NonNullable<ListColumn['summary']>;
 
 export interface ColumnSummaryResult {
   field: string;
@@ -116,7 +121,7 @@ function uniqueKey(v: unknown): unknown {
 /**
  * Normalize summary config from string or object to a standard shape.
  */
-function normalizeSummary(summary: ColumnSummaryConfig): { type: string; field?: string } {
+function normalizeSummary(summary: ColumnSummarySetting): { type: string; field?: string } {
   if (typeof summary === 'string') {
     return { type: summary };
   }
@@ -292,7 +297,7 @@ export function useColumnSummary(
     for (const col of columns) {
       if (!col.summary) continue;
 
-      const config = normalizeSummary(col.summary as ColumnSummaryConfig);
+      const config = normalizeSummary(col.summary as ColumnSummarySetting);
 
       // `none` is the spec's explicit opt-out, and an unrecognized name has no
       // value to show. Both skip the entry entirely rather than registering a

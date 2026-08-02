@@ -33,7 +33,7 @@ import { inferDetailColumns } from '../autoLayout';
 export interface ObjectDefLike {
   name?: string;
   label?: string;
-  fields?: Record<string, ObjectFieldLike>;
+  fields?: Record<string, ObjectDefFieldLike>;
   /** Semantic role (ADR-0085): the linear-lifecycle field driving the
    *  `record:path` stepper. `false` = the status-shaped field is NOT a
    *  linear flow — suppress stage detection entirely (#2065). */
@@ -74,7 +74,22 @@ export interface ObjectDefLike {
   // customization goes through an assigned Page schema.
 }
 
-export interface ObjectFieldLike {
+/**
+ * The field keys this synthesizer reads off an {@link ObjectDefLike}.
+ *
+ * Renamed off the spec's `ObjectFieldLike` (objectui#3161, objectstack#4115
+ * ledger batch 7). Same two words, different subsystem: the spec's
+ * `ObjectFieldLike` (`@objectstack/spec/system`) is the duck type
+ * `translateObject` reads — `name`/`label`/`help`/`description`/`options`, i.e.
+ * exactly the TRANSLATABLE keys — and it ends in `[key: string]: any`, so
+ * deriving from it would trade this precise list for a bag that accepts
+ * anything (the objectstack#4075 mechanism, on the spec's side this time).
+ * This one is the LAYOUT input: `type` picks the widget, `group` matches a
+ * `fieldGroups[].key`, `hidden` drops the field — three keys the spec's
+ * declaration does not model and cannot report a typo in.
+ * Pinned by `__tests__/spec-symbol-batch7.test.ts`.
+ */
+export interface ObjectDefFieldLike {
   name?: string;
   label?: string;
   type?: string;

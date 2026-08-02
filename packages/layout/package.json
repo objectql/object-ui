@@ -38,10 +38,12 @@
     "react-router-dom": "^6.0.0 || ^7.0.0"
   },
   "devDependencies": {
+    "@objectstack/spec": "^17.0.0-rc.1",
     "@vitejs/plugin-react": "^6.0.4",
     "react-router-dom": "^7.18.1",
     "vite": "^8.1.5",
-    "vite-plugin-dts": "^5.0.3"
+    "vite-plugin-dts": "^5.0.3",
+    "vitest": "^4.1.10"
   },
   "description": "Layout components for Object UI — AppShell, Page, SidebarNav and responsive containers with React Router integration",
   "keywords": [

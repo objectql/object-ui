@@ -124,7 +124,7 @@ export {
 } from './synth/buildDefaultPageSchema';
 export type {
   ObjectDefLike,
-  ObjectFieldLike,
+  ObjectDefFieldLike,
   BuildPageOptions,
 } from './synth/buildDefaultPageSchema';
 

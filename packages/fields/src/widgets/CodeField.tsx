@@ -1,13 +1,13 @@
 import React from 'react';
 import { Textarea, cn, EmptyValue } from '@object-ui/components';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 
 /**
  * Code field widget - provides a code editor with syntax highlighting
  * Uses a simple textarea with monospace font
  * For advanced code editing, use the @object-ui/plugin-editor component
  */
-export function CodeField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<string>) {
+export function CodeField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<string>) {
   const config = field || (props as any).schema;
   // Get code-specific configuration from field metadata
   const language = (config as any)?.language ?? 'javascript';

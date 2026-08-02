@@ -1,9 +1,9 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import type { Theme, ThemeProviderProps } from './types';
+import type { ThemePreference, ThemeProviderProps } from './types';
 
 interface ThemeContextValue {
-  theme: Theme;
-  setTheme: (theme: Theme) => void;
+  theme: ThemePreference;
+  setTheme: (theme: ThemePreference) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -19,9 +19,9 @@ export function ThemeProvider({
   storageKey = 'ui-theme',
   children,
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(() => {
+  const [theme, setTheme] = useState<ThemePreference>(() => {
     if (typeof window !== 'undefined') {
-      return (localStorage.getItem(storageKey) as Theme) || defaultTheme;
+      return (localStorage.getItem(storageKey) as ThemePreference) || defaultTheme;
     }
     return defaultTheme;
   });
@@ -47,7 +47,7 @@ export function ThemeProvider({
 
   const value: ThemeContextValue = {
     theme,
-    setTheme: (newTheme: Theme) => {
+    setTheme: (newTheme: ThemePreference) => {
       localStorage.setItem(storageKey, newTheme);
       setTheme(newTheme);
     },

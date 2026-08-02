@@ -42,7 +42,7 @@ export type { BulkActionBarProps } from './components/BulkActionBar';
 export type { CellRange, UseCellClipboardOptions, UseCellClipboardResult } from './useCellClipboard';
 export type { GradientStop, UseGradientColorOptions } from './useGradientColor';
 export type { UseGroupReorderOptions, UseGroupReorderResult } from './useGroupReorder';
-export type { ColumnSummaryConfig, ColumnSummaryResult } from './useColumnSummary';
+export type { ColumnSummarySetting, ColumnSummaryType, ColumnSummaryResult } from './useColumnSummary';
 export type { FormulaBarProps } from './FormulaBar';
 export type { SplitPaneGridProps } from './SplitPaneGrid';
 

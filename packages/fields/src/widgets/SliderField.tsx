@@ -1,12 +1,12 @@
 import React from 'react';
 import { Slider } from '@object-ui/components';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 
 /**
  * Slider field widget - provides a range slider input
  * Supports numeric values with configurable min, max, and step
  */
-export function SliderField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<number>) {
+export function SliderField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<number>) {
   // Get slider-specific configuration from field metadata
   const sliderField = (field || (props as any).schema) as any;
   const min = sliderField?.min ?? 0;

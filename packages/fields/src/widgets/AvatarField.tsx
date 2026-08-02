@@ -1,13 +1,13 @@
 import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage, Button } from '@object-ui/components';
 import { Upload, X } from 'lucide-react';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 
 /**
  * Avatar field widget - provides an avatar/profile picture uploader
  * Supports image URLs or file uploads
  */
-export function AvatarField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<string>) {
+export function AvatarField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<string>) {
   const [isHovered, setIsHovered] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   

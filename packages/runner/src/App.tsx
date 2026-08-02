@@ -18,7 +18,22 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { LayoutRenderer } from './LayoutRenderer';
 import { LocalBundleLoader, NetworkLoader, MetadataLoader } from './lib/MetadataLoader';
 
-export default function App() {
+/**
+ * Root component of the standalone SDUI runner: loads an app config plus the
+ * page for the current path and hands both to `<SchemaRenderer>`.
+ *
+ * Named `RunnerApp`, not `App` (objectui#3161, objectstack#4115 ledger batch 7).
+ * `@objectstack/spec/ui` exports `App` twice over — the authored application
+ * METADATA type (`z.infer<typeof AppSchema>`: `name`, `label`, `branding`,
+ * `navigation`, `tabs`, …) and the `App.create()` builder namespace that
+ * produces one. This is the React root that RENDERS such a document, and it
+ * loads it into a variable already correctly named `appConfig`. A default
+ * export costs nothing to rename — `main.tsx` binds it under whatever local
+ * name it likes — so the name goes back to the metadata with no consumer churn
+ * at all, which is the whole reason this one was cheap and `<AuthProvider>`
+ * (batch 5) was not.
+ */
+export default function RunnerApp() {
   const [appConfig, setAppConfig] = useState<AppComponentSchema | null>(null);
   const [pageSchema, setPageSchema] = useState<PageNodeSchema | null>(null);
   const [currentPath, setCurrentPath] = useState(window.location.pathname);

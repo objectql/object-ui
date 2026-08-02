@@ -44,7 +44,7 @@ export function resolveParamWidgetType(paramType: string): string {
 const LOOKUP_WIDGET_TYPES = new Set(['lookup', 'master_detail']);
 
 /**
- * Map an `ActionParamDef` to the field-metadata shape `FieldWidgetProps.field`
+ * Map an `ActionParamDef` to the field-metadata shape `FieldWidgetComponentProps.field`
  * expects. Lossless for the widget-relevant config: options, `multiple`,
  * upload `accept`/`maxSize`, and the full lookup picker config that
  * `resolveActionParams()` copies from the underlying object field.

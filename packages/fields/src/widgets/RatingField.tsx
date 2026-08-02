@@ -1,13 +1,13 @@
 import React from 'react';
 import { Star } from 'lucide-react';
 import { cn } from '@object-ui/components';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 
 /**
  * Rating field widget - provides a star rating input
  * Supports numeric values from 0 to max (default 5)
  */
-export function RatingField({ value, onChange, field, readonly, className, ...props }: FieldWidgetProps<number>) {
+export function RatingField({ value, onChange, field, readonly, className, ...props }: FieldWidgetComponentProps<number>) {
   // Get rating-specific configuration from field metadata
   const ratingField = (field || (props as any).schema) as any;
   const max = ratingField?.max ?? 5;

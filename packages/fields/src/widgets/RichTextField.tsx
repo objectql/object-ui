@@ -1,14 +1,14 @@
 import React from 'react';
 import { Textarea, EmptyValue } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/react';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 
 /**
  * Rich text field with markdown/HTML support
  * For now, this is a simple textarea. A full implementation would use
  * a rich text editor like TipTap, Lexical, or Slate.
  */
-export function RichTextField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetProps<string>) {
+export function RichTextField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetComponentProps<string>) {
   const { t } = useObjectTranslation();
   if (readonly) {
     return (

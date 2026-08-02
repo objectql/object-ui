@@ -1,12 +1,12 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 
 /**
  * EmailField - Email address input with mailto link in readonly mode
  * Renders as a clickable mailto link when readonly, standard email input otherwise
  */
-export function EmailField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetProps<string>) {
+export function EmailField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetComponentProps<string>) {
   const config = field || (props as any).schema;
   if (readonly) {
     if (!value) return <EmptyValue />;

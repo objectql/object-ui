@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { Input } from '@object-ui/components';
 import { Button } from '@object-ui/components';
 import { Eye, EyeOff } from 'lucide-react';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 
 /**
  * PasswordField - Secure password input with visibility toggle
  * Includes show/hide toggle button and masks value in readonly mode
  */
-export function PasswordField({ value, onChange, field, readonly, className, ...props }: FieldWidgetProps<string>) {
+export function PasswordField({ value, onChange, field, readonly, className, ...props }: FieldWidgetComponentProps<string>) {
   const [showPassword, setShowPassword] = useState(false);
   const config = field || (props as any).schema;
 

@@ -1,12 +1,12 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 
 /**
  * UrlField - URL input with clickable link in readonly mode
  * Validates URLs to only render http/https links for security
  */
-export function UrlField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetProps<string>) {
+export function UrlField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetComponentProps<string>) {
   const config = field || (props as any).schema;
   if (readonly) {
     if (!value) return <EmptyValue />;

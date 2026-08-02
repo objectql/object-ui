@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button, Badge, cn } from '@object-ui/components';
 import { Plus, X, ExternalLink } from 'lucide-react';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 
 /**
  * Master-Detail relationship data structure
@@ -23,7 +23,7 @@ export function MasterDetailField({
   readonly,
   className,
   ...props 
-}: FieldWidgetProps<MasterDetailValue[]>) {
+}: FieldWidgetComponentProps<MasterDetailValue[]>) {
   const items = value || [];
   const config = field || (props as any).schema;
 

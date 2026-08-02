@@ -14,13 +14,13 @@ export type { CodegenOptions } from './codegen.js';
 
 import { parseJsx } from './parse.js';
 import { validateTree } from './validate.js';
-import type { Diagnostic, Manifest, SchemaElement, ValidationResult } from './types.js';
+import type { Diagnostic, Manifest, SchemaElement, ManifestValidationResult } from './types.js';
 
 export interface CompileResult {
   tree: SchemaElement | null;
   diagnostics: Diagnostic[];
   requires: string[];
-  bindings: ValidationResult['bindings'];
+  bindings: ManifestValidationResult['bindings'];
   /** true when there are no error-severity diagnostics — the save gate's pass/fail */
   ok: boolean;
 }

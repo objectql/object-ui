@@ -1,6 +1,6 @@
 import React from 'react';
 import { Input, Label, EmptyValue } from '@object-ui/components';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 
 /**
  * Address data structure
@@ -17,7 +17,7 @@ export interface AddressValue {
  * Address field widget - provides a structured address input
  * Supports street, city, state, zip code, and country
  */
-export function AddressField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<AddressValue>) {
+export function AddressField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<AddressValue>) {
   const address = value || {};
 
   const handleFieldChange = (fieldName: keyof AddressValue, fieldValue: string) => {

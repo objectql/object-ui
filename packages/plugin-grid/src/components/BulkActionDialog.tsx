@@ -24,7 +24,7 @@ import { useObjectTranslation } from '@object-ui/react';
 import { getLazyFieldWidget } from '@object-ui/fields';
 import type { BulkActionDef, BulkActionParam } from '@object-ui/types';
 import { useBulkExecutor, type BulkExecutorOptions, type BulkResult } from '../hooks/useBulkExecutor';
-import { isMultiValueField, type MultiValueFieldDef } from '../hooks/multiValueFields';
+import { hasMultiValueShape, type MultiValueFieldDef } from '../hooks/multiValueFields';
 import {
   bulkParamToField,
   fieldNeedsDataSource,
@@ -129,7 +129,7 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
   const isParamMultiple = useCallback((p: BulkActionParam): boolean => {
     if (typeof p.multiple === 'boolean') return p.multiple;
     if (def?.operation !== 'update') return false;
-    return isMultiValueField(objectFields?.[p.name]);
+    return hasMultiValueShape(objectFields?.[p.name]);
   }, [def?.operation, objectFields]);
   const initialParamValues = useMemo<Record<string, unknown>>(() => {
     const v: Record<string, unknown> = {};

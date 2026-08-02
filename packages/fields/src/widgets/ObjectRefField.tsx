@@ -1,7 +1,7 @@
 import React from 'react';
 import { Combobox, EmptyValue, cn } from '@object-ui/components';
 import { SchemaRendererContext } from '@object-ui/react';
-import type { FieldWidgetProps } from './types';
+import type { FieldWidgetComponentProps } from './types';
 import { useFieldTranslation } from './useFieldTranslation';
 
 /**
@@ -32,7 +32,7 @@ export function ObjectRefField({
   readonly,
   className,
   ...props
-}: FieldWidgetProps<string>) {
+}: FieldWidgetComponentProps<string>) {
   const ctx = React.useContext(SchemaRendererContext);
   const { t } = useFieldTranslation();
   const dataSource: any = (props as any).dataSource ?? (ctx as any)?.dataSource ?? null;

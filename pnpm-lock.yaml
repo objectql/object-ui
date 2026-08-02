@@ -871,6 +871,9 @@ importers:
         specifier: workspace:*
         version: link:../types
     devDependencies:
+      '@objectstack/spec':
+        specifier: ^17.0.0-rc.1
+        version: 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
       '@types/react':
         specifier: 19.2.17
         version: 19.2.17
@@ -1187,6 +1190,9 @@ importers:
       '@object-ui/types':
         specifier: workspace:*
         version: link:../types
+      '@objectstack/spec':
+        specifier: ^17.0.0-rc.1
+        version: 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -1212,9 +1218,6 @@ importers:
         specifier: ^3.6.0
         version: 3.6.0
     devDependencies:
-      '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
       '@types/react':
         specifier: 19.2.17
         version: 19.2.17
@@ -1295,6 +1298,9 @@ importers:
         specifier: ^3.6.0
         version: 3.6.0
     devDependencies:
+      '@objectstack/spec':
+        specifier: ^17.0.0-rc.1
+        version: 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
       '@vitejs/plugin-react':
         specifier: ^6.0.4
         version: 6.0.4(vite@8.1.5(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
@@ -1307,6 +1313,9 @@ importers:
       vite-plugin-dts:
         specifier: ^5.0.3
         version: 5.0.3(@microsoft/api-extractor@7.58.2(@types/node@26.1.1))(esbuild@0.28.1)(rolldown@1.1.5)(rollup@4.62.2)(typescript@6.0.3)(vite@8.1.5(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.1)(@vitest/coverage-v8@4.1.10)(@vitest/ui@4.1.10)(happy-dom@20.11.1)(jsdom@30.0.0(@noble/hashes@2.2.0))(msw@2.15.0(@types/node@26.1.1)(typescript@6.0.3))(vite@8.1.5(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
 
   packages/mobile:
     dependencies:
@@ -2516,6 +2525,9 @@ importers:
       '@object-ui/types':
         specifier: workspace:*
         version: link:../types
+      '@objectstack/spec':
+        specifier: ^17.0.0-rc.1
+        version: 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -2523,9 +2535,6 @@ importers:
         specifier: 19.2.8
         version: 19.2.8(react@19.2.8)
     devDependencies:
-      '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
       '@types/react':
         specifier: 19.2.17
         version: 19.2.17
@@ -2624,6 +2633,9 @@ importers:
         specifier: ^1.0.7
         version: 1.0.7(tailwindcss@4.3.3)
     devDependencies:
+      '@objectstack/spec':
+        specifier: ^17.0.0-rc.1
+        version: 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
@@ -2660,6 +2672,9 @@ importers:
       '@object-ui/react':
         specifier: workspace:*
         version: link:../react
+      '@objectstack/spec':
+        specifier: ^17.0.0-rc.1
+        version: 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
 
   packages/types:
     dependencies:

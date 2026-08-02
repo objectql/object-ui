@@ -10,7 +10,7 @@ import {
   Button,
 } from '@object-ui/components';
 import { Maximize2, Check, X } from 'lucide-react';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 
 /**
  * TextAreaField - Multi-line text input widget
@@ -21,7 +21,7 @@ import { FieldWidgetProps } from './types';
  * a fullscreen edit dialog — much easier on phones than tapping a 4-row
  * textarea trapped between other fields.
  */
-export function TextAreaField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetProps<string>) {
+export function TextAreaField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetComponentProps<string>) {
   // Hooks must run before any early return (readonly) to keep hook order stable.
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const [draft, setDraft] = useState(value ?? '');

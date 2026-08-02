@@ -17,7 +17,23 @@ const cn = (...classes: (string | undefined)[]) => classes.filter(Boolean).join(
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const
 
-export type ChartConfig = {
+/**
+ * Per-series presentation for `<ChartContainer>`: a map from series dataKey to
+ * the legend label, icon and colour (or per-theme colours) that key renders
+ * with. Shadcn's chart primitive, kept in this package's own copy of it.
+ *
+ * Named `ChartContainerConfig`, not `ChartConfig` (objectui#3161,
+ * objectstack#4115 ledger batch 7). `@objectstack/spec/ui` owns `ChartConfig`
+ * for the authored chart METADATA — `type: bar | line | pie | …`, `xAxis`,
+ * `yAxis`, `series`, `showLegend`, `annotations` — and the collision was not
+ * theoretical here: `AdvancedChartImpl.tsx` declares `config?: ChartConfig`
+ * meaning THIS map, three lines above doc comments that say "Spec
+ * `ChartConfig.yAxis`" and "Spec `ChartConfig.showLegend`" meaning the other
+ * one. One identifier, two concepts, one file. `normalizeChartSchema` is the
+ * seam between them: it reads the authored spec chart and produces the
+ * renderer's axes/series, of which this map is the styling half.
+ */
+export type ChartContainerConfig = {
   [k in string]: {
     label?: React.ReactNode
     icon?: React.ComponentType
@@ -28,7 +44,7 @@ export type ChartConfig = {
 }
 
 type ChartContextProps = {
-  config: ChartConfig
+  config: ChartContainerConfig
 }
 
 const ChartContext = React.createContext<ChartContextProps | null>(null)
@@ -51,7 +67,7 @@ function ChartContainer({
   disableSettleRemount,
   ...props
 }: React.ComponentProps<"div"> & {
-  config: ChartConfig
+  config: ChartContainerConfig
   children: React.ComponentProps<
     typeof ResponsiveContainer
   >["children"]
@@ -156,7 +172,7 @@ function ChartContainer({
   )
 }
 
-const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
+const ChartStyle = ({ id, config }: { id: string; config: ChartContainerConfig }) => {
   const colorConfig = Object.entries(config).filter(
     ([, config]) => config.theme || config.color
   )
@@ -384,7 +400,7 @@ function ChartLegendContent({
 
 // Helper to extract item config from a payload.
 function getPayloadConfigFromPayload(
-  config: ChartConfig,
+  config: ChartContainerConfig,
   payload: unknown,
   key: string
 ) {

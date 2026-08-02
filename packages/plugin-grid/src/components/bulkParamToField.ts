@@ -67,7 +67,7 @@ export function lookupTargetObject(param: BulkActionParam): string | undefined {
 }
 
 /**
- * Map a `BulkActionParam` to the field-metadata shape `FieldWidgetProps.field`
+ * Map a `BulkActionParam` to the field-metadata shape `FieldWidgetComponentProps.field`
  * expects. `multiple` is the EFFECTIVE multi-value semantics (explicit
  * `param.multiple` or the target field's schema, #2204) — passed in by the
  * dialog, not re-derived here.

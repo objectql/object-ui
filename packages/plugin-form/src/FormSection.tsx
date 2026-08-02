@@ -7,10 +7,37 @@
  */
 
 /**
- * FormSection Component
- * 
- * A form section component that groups fields together with optional
- * collapsibility and multi-column layout. Aligns with @objectstack/spec FormSection.
+ * FormSectionContainer
+ *
+ * The chrome a form section renders in: an optional collapsible header plus a
+ * multi-column grid around whatever fields are passed as children.
+ *
+ * Renamed off `FormSection` (objectui#3161, objectstack#4115 ledger batch 7).
+ * `@objectstack/spec/ui` owns `FormSection` for the authored section METADATA —
+ * `{ name?, label?, description?, collapsible, collapsed, columns, pane?,
+ * visibleWhen?, fields }` — and this repo already uses that word for that
+ * meaning in its own prose: `plugin-form/README.md` and the plugin docs both
+ * write "spec `FormSection.pane`", `@object-ui/types` re-exports the spec type
+ * as `SpecFormSection`, and its own authored dialect is `ObjectFormSection`. So
+ * the name was taken twice over, and the file header said this component
+ * "aligns with @objectstack/spec FormSection" — the canonical-claim comment the
+ * symbol guard's header describes as a planted premise for the next session.
+ *
+ * It is NOT the `ListView`-style exemption batch 6 granted, and the difference
+ * is worth stating: `ListViewProps.schema` takes the spec-derived metadata as
+ * ONE prop, so that renderer restates nothing. This one takes the metadata
+ * FLATTENED into individual props (`label`, `description`, `collapsible`,
+ * `collapsed`, `columns`) — a second vocabulary for the same keys, minus
+ * `fields` (children instead), minus `name`, minus `pane`, minus `visibleWhen`,
+ * plus render-only knobs. A declaration like that is exactly what the next
+ * session would read as the authoritative shape of a form section.
+ *
+ * `columns` deliberately stays `1 | 2 | 3 | 4` rather than binding the spec's
+ * key: the spec ACCEPTS `'1' | 1 | '2' | 2 | …` on the authoring side and
+ * normalises the strings away in its pipe, while `gridCols` here is indexed by
+ * number. Binding the authored type would hand this component a `'2'` it would
+ * silently render as one column. The normalisation belongs at the seam that
+ * parses authored metadata, not in the container's props.
  */
 
 import React, { useState } from 'react';
@@ -18,7 +45,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@object-ui/components';
 import { Card, CardContent, CardHeader } from '@object-ui/components';
 
-export interface FormSectionProps {
+export interface FormSectionContainerProps {
   /**
    * Section title/label
    */
@@ -75,19 +102,19 @@ export interface FormSectionProps {
 }
 
 /**
- * FormSection Component
+ * FormSectionContainer Component
  * 
  * Groups form fields with optional header, collapsibility, and multi-column layout.
  * 
  * @example
  * ```tsx
- * <FormSection label="Contact Details" columns={2} collapsible>
+ * <FormSectionContainer label="Contact Details" columns={2} collapsible>
  *   <FormField name="firstName" />
  *   <FormField name="lastName" />
- * </FormSection>
+ * </FormSectionContainer>
  * ```
  */
-export const FormSection: React.FC<FormSectionProps> = ({
+export const FormSectionContainer: React.FC<FormSectionContainerProps> = ({
   label,
   description,
   collapsible = false,
@@ -174,4 +201,4 @@ export const FormSection: React.FC<FormSectionProps> = ({
   );
 };
 
-export default FormSection;
+export default FormSectionContainer;

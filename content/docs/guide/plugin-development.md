@@ -176,11 +176,11 @@ Now any schema with `"type": "board"` will resolve to your component.
 
 ## Implementing a Custom Field Widget
 
-Field widgets follow the `FieldWidgetProps` interface from `@object-ui/fields`.
+Field widgets follow the `FieldWidgetComponentProps` interface from `@object-ui/fields`.
 
 ```typescript
-// FieldWidgetProps<T> shape (from packages/fields/src/widgets/types.ts)
-type FieldWidgetProps<T = any> = {
+// FieldWidgetComponentProps<T> shape (from packages/fields/src/widgets/types.ts)
+type FieldWidgetComponentProps<T = any> = {
   value: T;
   onChange: (val: T) => void;
   field: FieldMetadata;
@@ -197,7 +197,7 @@ type FieldWidgetProps<T = any> = {
 // src/ColorPickerField.tsx
 import React from 'react';
 import { Input } from '@object-ui/components';
-import type { FieldWidgetProps } from '@object-ui/fields';
+import type { FieldWidgetComponentProps } from '@object-ui/fields';
 
 export function ColorPickerField({
   value,
@@ -206,7 +206,7 @@ export function ColorPickerField({
   readonly,
   disabled,
   errorMessage,
-}: FieldWidgetProps<string>) {
+}: FieldWidgetComponentProps<string>) {
   if (readonly) {
     return (
       <div className="flex items-center gap-2">
@@ -435,4 +435,4 @@ import '@object-ui/plugin-board';
 - [Component Registry](./component-registry.md) — registry internals and advanced usage
 - [Plugins Overview](./plugins.md) — official plugin catalog
 - [Schema Rendering](./schema-rendering.md) — how schemas become UI
-- [Fields Guide](./fields.md) — built-in field widgets and `FieldWidgetProps`
+- [Fields Guide](./fields.md) — built-in field widgets and `FieldWidgetComponentProps`

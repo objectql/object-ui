@@ -85,8 +85,23 @@ export interface Manifest {
   components: Record<string, ManifestComponent>;
 }
 
-/** Result of validating a compiled tree against the manifest. */
-export interface ValidationResult {
+/**
+ * Result of validating a compiled tree against the MANIFEST.
+ *
+ * Named `ManifestValidationResult`, not `ValidationResult` (objectui#3161,
+ * objectstack#4115 ledger batch 7), following the convention registered on
+ * objectstack#4115 for this name: **`<what was validated>Validation<Error |
+ * Result>`**. `ValidationResult` is exported twice by the spec — `kernel` and
+ * `contracts`, both `{ valid, errors?: [{ field, message, code? }], warnings? }`
+ * for PLUGIN MANIFEST validation — and `@object-ui/core` took
+ * `SchemaNodeValidationResult` under the same convention in batch 4
+ * (objectui#3188). Three results, three subjects: a plugin, a schema node, and
+ * this one, which carries no `valid` flag at all — it returns `diagnostics`
+ * (severity lives per entry), the `requires` set the compiled page needs, and
+ * the binding sites the server must resolve. Nothing here is assignable to
+ * anything there in either direction.
+ */
+export interface ManifestValidationResult {
   diagnostics: Diagnostic[];
   /** unique plugin namespaces referenced — the page's `requires` */
   requires: string[];

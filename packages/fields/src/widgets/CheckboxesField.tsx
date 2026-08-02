@@ -1,7 +1,7 @@
 import React, { useId, useEffect } from 'react';
 import { Checkbox, Label, EmptyValue, Badge } from '@object-ui/components';
 import type { OptionLike } from '@object-ui/core';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 import { useCascadingOptions } from './useCascadingOptions';
 
 type Option = OptionLike;
@@ -30,7 +30,7 @@ export function CheckboxesField({
   emptyHint: _emptyHint,
   dataSource: _dataSource,
   ...props
-}: FieldWidgetProps<string[]>) {
+}: FieldWidgetComponentProps<string[]>) {
   const config = (field || schema) as any;
   const rawOptions: Option[] = config?.options || [];
   const selected: string[] = Array.isArray(value) ? value : value == null ? [] : [value as unknown as string];

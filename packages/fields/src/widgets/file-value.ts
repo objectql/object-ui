@@ -29,6 +29,8 @@
  * onto the same contract.
  */
 
+import { isFileIdToken } from '@objectstack/spec/data';
+
 /** A file value normalised for rendering, whatever form it arrived in. */
 export interface FileValueView {
   /** `sys_file` id, when the value carries one. */
@@ -45,12 +47,26 @@ export interface FileValueView {
 
 /**
  * A minted file id: uuid/nanoid-shaped, and crucially not a URL — a URL always
- * carries `:`, `/` or `.`, so it can never match. Mirrors the platform's
- * `isFileIdToken`, which is the arbiter on the server side of the same question.
+ * carries `:`, `/` or `.`, so it can never match.
+ *
+ * This IS the platform's arbiter now, not a mirror of it (objectui#3161,
+ * objectstack#4115 ledger batch 7). The declaration that stood here said it
+ * "mirrors the platform's `isFileIdToken`" while being a character-for-character
+ * copy of that function's body under that function's own name — the shape
+ * objectui#3003 argued about and objectui#3169 caught again in
+ * `isAggregatedViewContainer`: every value test and every behaviour test passes
+ * against a faithful copy, so reference identity is the only check that can tell
+ * a re-export from a fork. It is asserted in
+ * `__tests__/spec-symbol-batch7.test.ts`.
+ *
+ * Why it matters that this one is shared rather than duplicated: the regex is a
+ * WIRE decision. Widening it server-side (say, ids grow past 64 chars) while a
+ * copy here keeps the old bound turns every new id into "not a reference", and
+ * the widget then submits the legacy inline blob against a backend that expects
+ * a reference. That failure surfaces as a broken thumbnail, nowhere near a
+ * regex.
  */
-export function isFileIdToken(value: unknown): value is string {
-  return typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value);
-}
+export { isFileIdToken };
 
 /**
  * The `sys_file` id a value refers to, or `undefined`.

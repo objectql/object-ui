@@ -20,7 +20,7 @@ export type {
   DataSourceProviderProps,
   MetadataProviderProps,
   ThemeProviderProps,
-  Theme,
+  ThemePreference,
 } from './types';
 
 export type {

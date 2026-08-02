@@ -1,7 +1,7 @@
 import React from 'react';
 import { Input, Button, Label, EmptyValue } from '@object-ui/components';
 import { MapPin, Crosshair } from 'lucide-react';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 
 /**
  * Geolocation data structure
@@ -16,7 +16,7 @@ export interface GeolocationValue {
  * Geolocation field widget - provides a location picker with coordinates
  * Supports manual entry and browser geolocation API
  */
-export function GeolocationField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<GeolocationValue>) {
+export function GeolocationField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<GeolocationValue>) {
   const [isLoading, setIsLoading] = React.useState(false);
   const location = value || {};
 

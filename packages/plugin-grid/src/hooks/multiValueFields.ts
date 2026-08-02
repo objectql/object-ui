@@ -6,32 +6,38 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { MULTI_CAPABLE_TYPES, MULTI_OPTION_TYPES } from '@objectstack/spec/data';
+import { isMultiValueField, type ValueShapeFieldDef } from '@objectstack/spec/data';
 
 /**
  * Minimal object-schema field shape needed to decide single- vs multi-value
- * semantics. Matches the `fields` map served by the ObjectStack meta API
- * without importing the full schema type.
+ * semantics: the spec's own `ValueShapeFieldDef` with every key optional,
+ * because that is what an indexed lookup into the meta API's `fields` map
+ * yields — a miss produces `undefined`, not a def carrying a `type`.
  */
-export interface MultiValueFieldDef {
-  type?: string;
-  multiple?: boolean;
-}
+export type MultiValueFieldDef = Partial<ValueShapeFieldDef>;
 
 /**
  * Whether the given object-schema field stores an array of scalars.
  *
- * A null-tolerant wrapper over the spec's own classification (its
- * `isMultiValueField` requires a def): `MULTI_OPTION_TYPES` are always
- * array-shaped, `MULTI_CAPABLE_TYPES` become array-shaped when flagged
- * `multiple: true` — the same sets the server-side write pipeline derives
- * from (framework #2552), consumed instead of restated (objectui#3017).
+ * Renamed off the spec's `isMultiValueField` (objectui#3161, objectstack#4115
+ * ledger batch 7), and reduced to what it actually is: a lookup-tolerant
+ * wrapper. It answered a weaker question than the spec's function of the same
+ * name — the spec's takes a def whose `type` is REQUIRED, this one is called as
+ * `hasMultiValueShape(objectFields?.[p.name])`, routinely with `undefined` — so
+ * the two were never interchangeable while the shared name said they were. A
+ * same-name function with a different PRECONDITION is worse than a plain fork:
+ * an import swapped between the two modules keeps compiling and changes
+ * behaviour only on the missing-field path.
+ *
+ * The classification itself is no longer restated. It delegates to the spec's
+ * `isMultiValueField` — the same arbiter the server-side write pipeline uses
+ * (framework#2552) — instead of re-deriving it from `MULTI_OPTION_TYPES` /
+ * `MULTI_CAPABLE_TYPES`, which is how a helper documented as "consumed instead
+ * of restated" (objectui#3017) came to restate the two-line rule anyway.
  */
-export function isMultiValueField(def: MultiValueFieldDef | undefined | null): boolean {
-  const t = def?.type;
-  if (!t) return false;
-  if (MULTI_OPTION_TYPES.has(t)) return true;
-  return MULTI_CAPABLE_TYPES.has(t) && def?.multiple === true;
+export function hasMultiValueShape(def: MultiValueFieldDef | undefined | null): boolean {
+  if (typeof def?.type !== 'string') return false;
+  return isMultiValueField(def as ValueShapeFieldDef);
 }
 
 /**
@@ -52,7 +58,7 @@ export function normalizeMultiValuePatch(
   let out: Record<string, unknown> | null = null;
   for (const [key, value] of Object.entries(patch)) {
     if (value === null || value === undefined || Array.isArray(value)) continue;
-    if (!isMultiValueField(fields[key])) continue;
+    if (!hasMultiValueShape(fields[key])) continue;
     const t = typeof value;
     if (t === 'string' || t === 'number' || t === 'boolean') {
       if (!out) out = { ...patch };

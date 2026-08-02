@@ -19,7 +19,7 @@ import { Button, cn, toast } from '@object-ui/components';
 import { AlertCircle, Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { resolveFieldRuleState, evalFieldPredicate, isMissingForRequired } from '@object-ui/core';
 import { createSafeTranslation } from '@object-ui/i18n';
-import { FormSection } from './FormSection';
+import { FormSectionContainer } from './FormSection';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
 import { applyAutoColSpan, containerGridColsFor } from './autoLayout';
@@ -659,7 +659,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
       {/* Current Step Content */}
       <div className="min-h-[200px]">
         {currentSection && (
-          <FormSection
+          <FormSectionContainer
             label={currentSection.label}
             description={currentSection.description}
             columns={1}
@@ -717,7 +717,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
                 </div>
               </form>
             )}
-          </FormSection>
+          </FormSectionContainer>
         )}
       </div>
 

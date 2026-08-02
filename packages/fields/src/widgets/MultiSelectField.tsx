@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Badge, EmptyValue, cn } from '@object-ui/components';
 import type { OptionLike } from '@object-ui/core';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 import { useCascadingOptions } from './useCascadingOptions';
 
 interface Option extends OptionLike { color?: string }
@@ -32,7 +32,7 @@ export function MultiSelectField({
   emptyHint: _emptyHint,
   dataSource: _dataSource,
   ...props
-}: FieldWidgetProps<string[]>) {
+}: FieldWidgetComponentProps<string[]>) {
   const config = (field || schema) as any;
   const rawOptions: Option[] = config?.options || [];
   const selected: string[] = Array.isArray(value) ? value : value == null ? [] : [value as unknown as string];

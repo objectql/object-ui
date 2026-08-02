@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Textarea, cn, EmptyValue } from '@object-ui/components';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 
 /**
  * ObjectField - JSON object editor
  * Allows editing structured JSON data
  */
-export function ObjectField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<any>) {
+export function ObjectField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<any>) {
   const config = field || (props as any).schema;
   
   // Initialize string state based on value

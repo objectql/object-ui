@@ -1,6 +1,6 @@
 ---
 name: objectui-plugin-development
-description: Create, register, and publish custom Object UI plugins. Use this skill when the user wants to build a new plugin for Object UI, register custom components in ComponentRegistry, implement field widgets with FieldWidgetProps, scaffold a plugin package with create-plugin, or extend the Object UI renderer with custom component types. Also applies when the user asks about component registration, plugin architecture, namespace conflicts, or how to package heavy third-party dependencies (maps, charts, editors) as Object UI plugins.
+description: Create, register, and publish custom Object UI plugins. Use this skill when the user wants to build a new plugin for Object UI, register custom components in ComponentRegistry, implement field widgets with FieldWidgetComponentProps, scaffold a plugin package with create-plugin, or extend the Object UI renderer with custom component types. Also applies when the user asks about component registration, plugin architecture, namespace conflicts, or how to package heavy third-party dependencies (maps, charts, editors) as Object UI plugins.
 ---
 
 # ObjectUI Plugin Development
@@ -11,7 +11,7 @@ Use this skill to build custom plugins that extend Object UI's rendering capabil
 
 **Use `@object-ui/components` (atoms)** for lightweight Shadcn wrappers: Button, Badge, Card, Input. Zero heavy dependencies.
 
-**Use `@object-ui/fields`** for form input renderers that implement `FieldWidgetProps`.
+**Use `@object-ui/fields`** for form input renderers that implement `FieldWidgetComponentProps`.
 
 **Create a `@object-ui/plugin-*`** when:
 - The widget has heavy third-party deps (>50KB): DnD kit, chart libraries, map SDKs, rich editors
@@ -217,10 +217,10 @@ export interface MyWidgetProps {
 
 ## Implementing field widgets
 
-Field widgets are simpler plugins that render form inputs. They implement `FieldWidgetProps`:
+Field widgets are simpler plugins that render form inputs. They implement `FieldWidgetComponentProps`:
 
 ```typescript
-import { type FieldWidgetProps } from '@object-ui/fields';
+import { type FieldWidgetComponentProps } from '@object-ui/fields';
 import { Input } from '@object-ui/components';
 
 export function ColorField({
@@ -231,7 +231,7 @@ export function ColorField({
   disabled,
   className,
   errorMessage,
-}: FieldWidgetProps<string>) {
+}: FieldWidgetComponentProps<string>) {
   return (
     <div className={cn('space-y-1', className)}>
       <Input
@@ -248,10 +248,10 @@ export function ColorField({
 }
 ```
 
-### FieldWidgetProps interface
+### FieldWidgetComponentProps interface
 
 ```typescript
-type FieldWidgetProps<T = any> = {
+type FieldWidgetComponentProps<T = any> = {
   value: T;                     // Current field value
   onChange: (val: T) => void;   // Value change callback
   field: FieldMetadata;         // Field metadata (name, label, type, etc.)

@@ -1,7 +1,7 @@
 import React from 'react';
 import { FilterBuilder, cn } from '@object-ui/components';
 import { SchemaRendererContext } from '@object-ui/react';
-import type { FieldWidgetProps } from './types';
+import type { FieldWidgetComponentProps } from './types';
 import { useFieldTranslation } from './useFieldTranslation';
 
 /**
@@ -298,7 +298,7 @@ export function FilterConditionField({
   readonly,
   className,
   ...props
-}: FieldWidgetProps<string | object>) {
+}: FieldWidgetComponentProps<string | object>) {
   const ctx = React.useContext(SchemaRendererContext);
   const { t } = useFieldTranslation();
   const dataSource: any = (props as any).dataSource ?? (ctx as any)?.dataSource ?? null;

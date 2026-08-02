@@ -28,6 +28,7 @@ import {
   BadgeCheck,
 } from 'lucide-react';
 import type { FeedItem, FeedItemType, RecordActivityComponentProps, RecordSubscription } from '@object-ui/types';
+import type { FeedFilterMode } from '@objectstack/spec/data';
 import { FieldChangeItem } from './FieldChangeItem';
 import { ReactionPicker } from './ReactionPicker';
 import { ThreadedReplies } from './ThreadedReplies';
@@ -36,7 +37,21 @@ import { RichTextCommentInput } from './RichTextCommentInput';
 import { CommentAttachment, type Attachment } from './CommentAttachment';
 import { useDetailTranslation } from './useDetailTranslation';
 
-export type FeedFilterMode = 'all' | 'comments_only' | 'changes_only' | 'tasks_only';
+/**
+ * Which slice of the record feed the timeline shows.
+ *
+ * Re-exported from `@objectstack/spec/data`, not restated (objectui#3161,
+ * objectstack#4115 ledger batch 7). It was a hand copy of the spec's four
+ * members under the spec's own name — in a file that already imports
+ * `FeedItemType` from the spec vocabulary two lines up, so the correct pattern
+ * was sitting next to it. The copy happened to be in sync; the point is that
+ * nothing made it stay so. `getFilterOptions` below renders one `<SelectItem>`
+ * per member, so a member the spec adds is a filter the user cannot pick and a
+ * member it retires is a dead menu entry — neither is reportable while the
+ * union is written out here. (`normalizeFilterMode` already reads the spec enum
+ * at RUNTIME; the type was the half still on a copy.)
+ */
+export type { FeedFilterMode };
 
 export interface RecordActivityTimelineProps {
   /** Feed items to display */

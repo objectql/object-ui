@@ -26,7 +26,7 @@ import { renderHook, act } from '@testing-library/react';
 
 import { BulkActionDialog } from '../components/BulkActionDialog';
 import { useBulkExecutor } from '../hooks/useBulkExecutor';
-import { isMultiValueField, normalizeMultiValuePatch } from '../hooks/multiValueFields';
+import { hasMultiValueShape, normalizeMultiValuePatch } from '../hooks/multiValueFields';
 
 beforeAll(() => {
   if (!Element.prototype.scrollIntoView) {
@@ -46,25 +46,25 @@ function makeDataSource() {
   return { update, delete: del } as any;
 }
 
-describe('isMultiValueField', () => {
+describe('hasMultiValueShape', () => {
   it('recognizes inherently-multi types', () => {
-    expect(isMultiValueField({ type: 'multiselect' })).toBe(true);
-    expect(isMultiValueField({ type: 'checkboxes' })).toBe(true);
-    expect(isMultiValueField({ type: 'tags' })).toBe(true);
+    expect(hasMultiValueShape({ type: 'multiselect' })).toBe(true);
+    expect(hasMultiValueShape({ type: 'checkboxes' })).toBe(true);
+    expect(hasMultiValueShape({ type: 'tags' })).toBe(true);
   });
 
   it('recognizes multiple-flagged select/lookup/user/file/image', () => {
     for (const type of ['select', 'radio', 'lookup', 'user', 'file', 'image']) {
-      expect(isMultiValueField({ type, multiple: true })).toBe(true);
-      expect(isMultiValueField({ type })).toBe(false);
+      expect(hasMultiValueShape({ type, multiple: true })).toBe(true);
+      expect(hasMultiValueShape({ type })).toBe(false);
     }
   });
 
   it('is false for single-value and unknown shapes', () => {
-    expect(isMultiValueField({ type: 'text' })).toBe(false);
-    expect(isMultiValueField({ type: 'text', multiple: true })).toBe(false);
-    expect(isMultiValueField(undefined)).toBe(false);
-    expect(isMultiValueField({})).toBe(false);
+    expect(hasMultiValueShape({ type: 'text' })).toBe(false);
+    expect(hasMultiValueShape({ type: 'text', multiple: true })).toBe(false);
+    expect(hasMultiValueShape(undefined)).toBe(false);
+    expect(hasMultiValueShape({})).toBe(false);
   });
 });
 

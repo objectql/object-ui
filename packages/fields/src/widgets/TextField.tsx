@@ -1,13 +1,13 @@
 import React from 'react';
 import { Input, Textarea, EmptyValue } from '@object-ui/components';
 import { TextareaFieldMetadata } from '@object-ui/types';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 
 /**
  * TextField - Standard single-line or multi-line text input
  * Automatically renders as a textarea when rows are configured in field metadata
  */
-export function TextField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<string>) {
+export function TextField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<string>) {
   const fieldData = field || (props as any).schema;
 
   if (readonly) {

@@ -2,7 +2,7 @@ import React from 'react';
 import { Badge, EmptyValue, cn } from '@object-ui/components';
 import { SchemaRendererContext } from '@object-ui/react';
 import type { DataSource, QueryParams } from '@object-ui/types';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 import { useFieldTranslation } from './useFieldTranslation';
 
 /**
@@ -86,7 +86,7 @@ export function CapabilityMultiSelectField({
   readonly,
   className,
   ...props
-}: FieldWidgetProps<string | string[]>) {
+}: FieldWidgetComponentProps<string | string[]>) {
   const { t } = useFieldTranslation();
   const ctx = React.useContext(SchemaRendererContext);
   const dataSource: DataSource | null =

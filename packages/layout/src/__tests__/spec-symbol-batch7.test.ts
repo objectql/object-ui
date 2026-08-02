@@ -1,0 +1,86 @@
+/**
+ * ObjectUI
+ * Copyright (c) 2024-present ObjectStack Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+/**
+ * `@object-ui/layout` ↔ `@objectstack/spec` symbol-collision guards
+ * (objectui#3161, objectstack#4115 ledger batch 7).
+ *
+ * Both symbols here were the RENDERED layer wearing the AUTHORED layer's name:
+ *
+ *  - `PageHeaderProps` → `PageHeaderComponentProps`, the name
+ *    `@object-ui/app-shell` already settled on for its own header props
+ *    (objectui#3169). Reused deliberately: one concept, one name, even across
+ *    two packages that each draw their own header.
+ *  - `Page` → `PageNodeRenderer`. The spec's `Page` is the authored page
+ *    DOCUMENT; this renders `@object-ui/types`'s `PageNodeSchema`, the
+ *    schema-renderer NODE that objectui#3074 had already renamed off
+ *    `PageSchema` for exactly this reason.
+ *
+ * Each `import type` below is load-bearing: if the spec retires one of these
+ * names, this file stops compiling, and the rename's justification is up for
+ * re-triage rather than quietly outliving it. The opposite direction — the spec
+ * claiming one of the NEW names — is what
+ * `scripts/check-spec-symbol-derivation.mjs` reports on every CI run.
+ */
+
+import { describe, it, expect } from 'vitest';
+// `PageHeaderProps` is a zod SCHEMA in the spec, not a type — which is the
+// collision in one line: the spec's is a validator for authored JSON, this
+// package's was a React props interface.
+import type { Page as SpecPage, PageHeaderProps as SpecPageHeaderPropsSchema } from '@objectstack/spec/ui';
+import type { PageNodeSchema } from '@object-ui/types';
+
+import { PageHeader } from '../PageHeader';
+import type { PageHeaderComponentProps } from '../PageHeader';
+import { PageNodeRenderer } from '../Page';
+
+describe('the renamed exports are still the components they were', () => {
+  it('exports both renderers under their new names', () => {
+    expect(typeof PageHeader).toBe('function');
+    expect(typeof PageNodeRenderer).toBe('function');
+    expect(PageNodeRenderer.name).toBe('PageNodeRenderer');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Compile-time pins — compiled by tsconfig.test.json, chained off type-check. */
+/* -------------------------------------------------------------------------- */
+
+type Assert<T extends true> = T;
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
+type Extends<A, B> = [A] extends [B] ? true : false;
+type IsAny<T> = 0 extends 1 & T ? true : false;
+type HasKey<T, K extends string> = K extends keyof T ? true : false;
+
+/** What `PageHeaderProps.parse()` returns — the authored node, normalised. */
+type SpecParsedHeader = (typeof SpecPageHeaderPropsSchema)['_zod']['output'];
+
+describe('the spec names still mean the authored layer', () => {
+  it('is pinned at compile time', () => {
+    type _PageIsReal = Assert<Equal<IsAny<SpecPage>, false>>;
+    type _HeaderIsReal = Assert<Equal<IsAny<SpecParsedHeader>, false>>;
+
+    // The spec's is the AUTHORED node: `breadcrumb` is a required boolean once
+    // parsed, `actions` is a list of action IDs, `icon` an icon NAME. These
+    // props are what the DOM component takes. Not interchangeable in the
+    // direction that matters — a renderer's props cannot stand in for authored
+    // metadata, so nothing can accidentally serialise one as the other.
+    type _RenderedIsNotAuthored = Assert<Equal<Extends<PageHeaderComponentProps, SpecParsedHeader>, false>>;
+    type _AuthoredHasBreadcrumb = Assert<HasKey<SpecParsedHeader, 'breadcrumb'>>;
+    type _RenderedHasSchemaNode = Assert<HasKey<PageHeaderComponentProps, 'schema'>>;
+
+    // `Page` in the spec is the page DOCUMENT (`name` + `label` identify it);
+    // what this package renders is the SDUI node (`type: 'page'`). Two layers,
+    // and now two names.
+    type _DocumentIsNotNode = Assert<Equal<Equal<SpecPage, PageNodeSchema>, false>>;
+    type _DocumentIsIdentified = Assert<HasKey<SpecPage, 'name'>>;
+    type _NodeIsATaggedNode = Assert<Equal<PageNodeSchema['type'], 'page'>>;
+
+    expect(true).toBe(true);
+  });
+});

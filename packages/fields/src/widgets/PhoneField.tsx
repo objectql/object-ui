@@ -1,12 +1,12 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 
 /**
  * PhoneField - Telephone number input with tel link in readonly mode
  * Renders as a clickable tel link when readonly, standard phone input otherwise
  */
-export function PhoneField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetProps<string>) {
+export function PhoneField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetComponentProps<string>) {
   const config = field || (props as any).schema;
   if (readonly) {
     if (!value) return <EmptyValue />;

@@ -22,7 +22,7 @@
 
 export {
   useRealtimeSubscription,
-  type RealtimeConfig,
+  type RealtimeSubscriptionConfig,
   type ConnectionState,
   type RealtimeMessage,
   type RealtimeResult,

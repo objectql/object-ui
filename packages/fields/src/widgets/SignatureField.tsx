@@ -1,13 +1,13 @@
 import React, { useRef, useEffect } from 'react';
 import { Button } from '@object-ui/components';
 import { Eraser } from 'lucide-react';
-import { FieldWidgetProps } from './types';
+import { FieldWidgetComponentProps } from './types';
 
 /**
  * Signature field widget - provides a signature pad for capturing signatures
  * Outputs signature as a base64 PNG image
  */
-export function SignatureField({ value, onChange, readonly }: FieldWidgetProps<string>) {
+export function SignatureField({ value, onChange, readonly }: FieldWidgetComponentProps<string>) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = React.useState(false);
   const [isEmpty, setIsEmpty] = React.useState(!value);

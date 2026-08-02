@@ -6,7 +6,7 @@ import { FieldEditWidget } from './FieldEditWidget';
 import { MasterDetailField } from './widgets/MasterDetailField';
 import { GridField } from './widgets/GridField';
 import { FileField } from './widgets/FileField';
-import type { FieldWidgetProps } from './widgets/types';
+import type { FieldWidgetComponentProps } from './widgets/types';
 
 // ------------- Mocks & Setup -------------
 
@@ -15,7 +15,7 @@ const mockField = {
   label: 'Test Field',
 } as any;
 
-const baseProps: FieldWidgetProps<any> = {
+const baseProps: FieldWidgetComponentProps<any> = {
   field: mockField,
   value: undefined,
   onChange: vi.fn(),
@@ -78,7 +78,7 @@ describe('Complex & Relationship Widgets', () => {
             reference_field: 'name',
         } as any;
 
-        const dynamicProps: FieldWidgetProps<any> = {
+        const dynamicProps: FieldWidgetComponentProps<any> = {
             ...baseProps,
             field: dynamicField,
             dataSource: mockDataSource,

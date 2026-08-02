@@ -293,40 +293,6 @@ const DEBT = {
     "NavigationItem",
     "NavigationItemSchema",
   ],
-  "@object-ui/fields": [
-    "FieldWidgetProps",
-    "isFileIdToken",
-  ],
-  "@object-ui/layout": [
-    "Page",
-    "PageHeaderProps",
-  ],
-  "@object-ui/plugin-detail": [
-    "FeedFilterMode",
-    "ObjectFieldLike",
-  ],
-  "@object-ui/plugin-grid": [
-    "ColumnSummaryConfig",
-    "isMultiValueField",
-  ],
-  "@object-ui/collaboration": [
-    "RealtimeConfig",
-  ],
-  "@object-ui/plugin-charts": [
-    "ChartConfig",
-  ],
-  "@object-ui/plugin-form": [
-    "FormSection",
-  ],
-  "@object-ui/providers": [
-    "Theme",
-  ],
-  "@object-ui/runner": [
-    "App",
-  ],
-  "@object-ui/sdui-parser": [
-    "ValidationResult",
-  ],
 };
 
 // Files under these paths are not objectui's own authored surface.
