@@ -465,6 +465,43 @@ export interface DataTableSchema extends BaseSchema {
    */
   searchable?: boolean;
   /**
+   * Server-side ("manual") search. When true the table does NOT filter `data`
+   * locally — it is already the result the server produced for the whole
+   * collection — and typing in the search box reports the term through
+   * `onSearchChange` instead.
+   *
+   * Set this whenever `data` is one window of a larger collection. Filtering a
+   * window locally searches **that page**, which reads on screen as "2 results
+   * in this list" while every row outside the window never participated
+   * (objectui#3118). It is the filter-axis twin of `manualSorting`, and tied to
+   * the same question: is `data` a window, or the collection?
+   *
+   * The table keeps NO search state of its own in this mode — `search` is the
+   * only source of truth, and the box renders that. A private copy alongside a
+   * controlled prop is how the original defect arose.
+   * @default false
+   */
+  manualSearch?: boolean;
+  /**
+   * The active search term, when `manualSearch` is on. Drives the search box's
+   * value and is what the host turned into a server `$search` (ADR-0061: the
+   * client sends the term, the server resolves which fields it matches from the
+   * object's metadata). Ignored otherwise (the table owns its term in client
+   * mode).
+   */
+  search?: string;
+  /**
+   * Called with the term the user typed, when `manualSearch` is on. The host is
+   * expected to re-read the collection with it and return to page 1 — a new
+   * term makes the old page index a different set of rows.
+   *
+   * Without this callback the search box is not rendered at all under
+   * `manualSearch`. A box that filters nothing is the same class of lie as one
+   * that filters only the page you can see, and there is no honest local
+   * fallback: the rows to search are not in the browser.
+   */
+  onSearchChange?: (search: string) => void;
+  /**
    * Enable row selection
    * - boolean: Enable/disable selection (true = multiple selection)
    * - 'single': Single row selection

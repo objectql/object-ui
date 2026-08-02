@@ -18,6 +18,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Copy, Link2, Loader2, ShieldOff, Trash2 } from 'lucide-react';
+import type {
+  ShareLink as SpecShareLink,
+  ShareLinkAudience,
+  ShareLinkPermission,
+} from '@objectstack/spec/contracts';
 
 import { Button } from '../ui/button';
 import {
@@ -40,24 +45,36 @@ import {
 import { Badge } from '../ui/badge';
 import { cn } from '../lib/utils';
 
-export type ShareLinkPermission = 'view' | 'comment' | 'edit';
-export type ShareLinkAudience = 'public' | 'link_only' | 'signed_in' | 'email';
+/**
+ * The share-link vocabulary is the framework's, so this dialog uses the
+ * framework's bindings rather than the copies it used to declare
+ * (objectstack#4115). The two enums were member-for-member identical — the
+ * comment further down already said "audience values match the framework's
+ * `ShareLinkAudience` contract", which is a claim only an import can keep.
+ */
+export type { ShareLinkPermission, ShareLinkAudience };
 
-export interface ShareLink {
-  id: string;
-  token: string;
-  object_name: string;
-  record_id: string;
-  permission: ShareLinkPermission;
-  audience: ShareLinkAudience;
-  expires_at?: string | null;
+/**
+ * A share link as the BROWSER receives it.
+ *
+ * The spec's `ShareLink` is the stored row; this is the same row minus the one
+ * field that must never cross the wire. Deriving means a new spec field is
+ * typed here the day it ships, while the two deltas stay visible and bounded:
+ *
+ *  - `password_hash` is omitted, not optional. It is the credential itself;
+ *    typing it in a browser package is an invitation to render it.
+ *  - `password_protected` is the boolean projection the UI needs in its place.
+ *  - `created_at` is widened to `| null`, matching every other timestamp on the
+ *    spec's own row (`expires_at`, `revoked_at`, `last_used_at`).
+ *
+ * Pinned by `__tests__/share-filter-sort-spec-parity.test.ts`.
+ */
+export type ShareLink = Omit<SpecShareLink, 'password_hash' | 'created_at'> & {
+  /** Whether a password is set — the server's stand-in for `password_hash`. */
   password_protected?: boolean;
-  label?: string | null;
-  revoked_at?: string | null;
+  /** ISO timestamp; `null` when the row predates audit stamping. */
   created_at?: string | null;
-  last_used_at?: string | null;
-  use_count?: number;
-}
+};
 
 export interface ShareDialogProps {
   open: boolean;

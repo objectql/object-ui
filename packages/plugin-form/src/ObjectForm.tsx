@@ -18,7 +18,7 @@ import type { ObjectFormSchema, FormField, FormSchema, DataSource } from '@objec
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { mapFieldTypeToFormType, buildValidationRules, formatFileSize } from '@object-ui/fields';
 import { useIsMobile, toast } from '@object-ui/components';
-import { resolveCrudAffordances } from '@object-ui/core';
+import { resolveEffectiveCrudAffordances } from '@object-ui/core';
 import { resolveSuccessNavigate, isSameOriginUrl } from './successBehavior';
 import { usePermissions } from '@object-ui/permissions';
 import { TabbedForm } from './TabbedForm';
@@ -506,7 +506,7 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
     // Managed-object blanket lock (ADR-0092 D4 / ADR-0103). We disable every
     // field when the object's resolved CRUD affordance for the CURRENT mode is
     // closed — `edit` for edit mode, `create` for create mode. This routes
-    // through the SAME shared `resolveCrudAffordances` policy the detail
+    // through the SAME shared `resolveEffectiveCrudAffordances` policy the detail
     // (`isObjectInlineEditable`) and grid surfaces use, instead of re-deriving
     // the bucket lock here: `platform` and admin-editable `config` resolve open;
     // engine-owned `system` / `append-only` / `better-auth` resolve closed
@@ -521,7 +521,7 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
     // intersection the detail header and list/toolbar surfaces apply.
     // `undefined` (unrestricted object / no PermissionProvider) leaves the
     // resolved affordance untouched (backward-compatible).
-    const affordances = resolveCrudAffordances(
+    const affordances = resolveEffectiveCrudAffordances(
       objectSchema as any,
       perms?.getObjectApiOperations?.(schema.objectName),
     );

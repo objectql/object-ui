@@ -52,6 +52,7 @@ import {
   type FieldEntry,
   type FieldsView,
 } from '../metadata-admin/previews/object-fields-io';
+import { useSafeFieldLabel } from '@object-ui/i18n';
 import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n';
 
 const UNGROUPED = '__ungrouped__';
@@ -63,6 +64,13 @@ const unFid = (id: string) => id.slice(2);
 export interface ObjectFormDesignerProps {
   /** Object metadata draft (reads `fields` + `fieldGroups`). */
   draft: Record<string, unknown>;
+  /**
+   * API name of the object being designed — the lookup root for the field /
+   * section translations the canvas renders. Falls back to `draft.name`, which
+   * the object metadata body carries; pass it explicitly when the caller has a
+   * more reliable handle (a freshly created draft may not have been named yet).
+   */
+  objectName?: string;
   /** Field names to hide from the layout (system/audit) but preserve on write. */
   systemFieldNames: Set<string>;
   /** Persist a partial object-draft patch (fields / fieldGroups) + mark dirty. */
@@ -128,11 +136,14 @@ function FieldControlPreview({ type }: { type: string }): React.ReactElement {
 /** One draggable field card inside a section. */
 function SortableField({
   entry,
+  label,
   columns,
   selected,
   onSelect,
 }: {
   entry: FieldEntry;
+  /** Already resolved through the project's field translations. */
+  label: string;
   columns: number;
   selected: boolean;
   onSelect: () => void;
@@ -140,7 +151,6 @@ function SortableField({
   const locale = useMetadataLocale();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: fid(entry.name) });
   const type = String(entry.def.type ?? 'text');
-  const label = String(entry.def.label ?? entry.name);
   const required = !!entry.def.required;
   // Mirror the real form: wide widgets (textarea/markdown/html/…) take the whole
   // row. `col-span-full` (grid-column: 1/-1) spans every column at ANY container
@@ -188,6 +198,7 @@ function Section({
   canMoveUp,
   canMoveDown,
   entryByName,
+  fieldLabelOf,
   selectedField,
   onSelectField,
   selected = false,
@@ -205,6 +216,8 @@ function Section({
   canMoveUp: boolean;
   canMoveDown: boolean;
   entryByName: Map<string, FieldEntry>;
+  /** Resolves a field entry to its translated display label. */
+  fieldLabelOf: (entry: FieldEntry) => string;
   selectedField?: string | null;
   onSelectField: (name: string) => void;
   selected?: boolean;
@@ -306,6 +319,7 @@ function Section({
               <SortableField
                 key={id}
                 entry={entry}
+                label={fieldLabelOf(entry)}
                 columns={columns}
                 selected={selectedField === name}
                 onSelect={() => onSelectField(name)}
@@ -320,6 +334,7 @@ function Section({
 
 export function ObjectFormDesigner({
   draft,
+  objectName: objectNameProp,
   systemFieldNames,
   onChange,
   selectedField,
@@ -334,6 +349,26 @@ export function ObjectFormDesigner({
   const groups = React.useMemo(() => readGroups(draft.fieldGroups), [draft.fieldGroups]);
   const entryByName = React.useMemo(() => new Map(view.entries.map((e) => [e.name, e] as const)), [view]);
 
+  // The canvas is a preview of the END-USER form, so it must speak the same
+  // language that form does (objectui#3134). `ObjectForm` / `RecordDetailView`
+  // resolve every field and section through the project's object translations
+  // (`objects.<object>.fields.<field>.label` /
+  // `objects.<object>._sections.<key>.label`); the designer read the raw draft
+  // metadata instead, so a fully translated object still rendered its English
+  // source labels here while every other surface showed the translation.
+  // `useSafeFieldLabel` is the provider-safe wrapper — the designer is also
+  // mounted in tests/previews with no I18nProvider, where it degrades to the
+  // identity fallback.
+  const { fieldLabel, sectionLabel } = useSafeFieldLabel();
+  const objectName = objectNameProp || (typeof draft.name === 'string' ? draft.name : '');
+  const fieldLabelOf = React.useCallback(
+    (entry: FieldEntry) => {
+      const fallback = String(entry.def.label ?? entry.name);
+      return objectName ? fieldLabel(objectName, entry.name, fallback) : fallback;
+    },
+    [objectName, fieldLabel],
+  );
+
   // Column count mirrors the real form (objectui#2578): derived ONCE from the
   // object's editable field count and applied to every section, so the layout
   // designer reads at the same density end users see. Each section's container
@@ -347,10 +382,13 @@ export function ObjectFormDesigner({
   const containerOrder = React.useMemo(() => [...groups.map((g) => cid(g.key)), cid(UNGROUPED)], [groups]);
   const labelOf = React.useMemo(() => {
     const m = new Map<string, string>();
-    for (const g of groups) m.set(cid(g.key), g.label || g.key);
+    for (const g of groups) {
+      const fallback = g.label || g.key;
+      m.set(cid(g.key), objectName ? sectionLabel(objectName, g.key, fallback) : fallback);
+    }
     m.set(cid(UNGROUPED), t('engine.studio.designer.ungrouped', locale));
     return m;
-  }, [groups, locale]);
+  }, [groups, locale, objectName, sectionLabel]);
 
   // Derive container → ordered field ids from the draft (editable fields only;
   // system/audit fields are preserved on write but never shown in the layout).
@@ -533,6 +571,7 @@ export function ObjectFormDesigner({
                 canMoveUp={declaredIdx > 0}
                 canMoveDown={declaredIdx >= 0 && declaredIdx < groups.length - 1}
                 entryByName={entryByName}
+                fieldLabelOf={fieldLabelOf}
                 selectedField={selectedField}
                 onSelectField={onSelectField}
                 selected={!isUngrouped && selectedGroup === unCid(c)}
@@ -550,7 +589,7 @@ export function ObjectFormDesigner({
           {activeEntry ? (
             <div className="flex items-center gap-1.5 rounded-md border bg-background px-2 py-2 shadow-lg">
               <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs font-medium">{String(activeEntry.def.label ?? activeEntry.name)}</span>
+              <span className="text-xs font-medium">{fieldLabelOf(activeEntry)}</span>
             </div>
           ) : null}
         </DragOverlay>

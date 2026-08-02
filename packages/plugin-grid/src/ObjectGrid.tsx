@@ -452,6 +452,16 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   // edit) invalidates a header sort taken against the previous one.
   useEffect(() => { setHeaderSort(null); }, [JSON.stringify(schema.sort ?? null)]);
 
+  // Toolbar search term, when this grid fetches its own rows (objectui#3118).
+  // It goes out as `$search` on the refetch — the server decides which fields
+  // it matches from the object's metadata (ADR-0061), the same channel the
+  // ListView toolbar uses. Filtering the rows we hold instead would search the
+  // page on screen and call the answer "the results in this list".
+  const [searchTerm, setSearchTerm] = useState('');
+  // A term is asked of one collection. Pointing the grid at another object
+  // makes it a question about rows it was never typed for.
+  useEffect(() => { setSearchTerm(''); }, [objectName]);
+
   // --- Inline data effect (synchronous, no fetch needed) ---
   useEffect(() => {
     if (hasInlineData && dataConfig?.provider === 'value') {
@@ -595,6 +605,22 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
             params.$orderby = `${(schema.defaultSort as any).field} ${(schema.defaultSort as any).order}`;
           }
 
+          // Search (objectui#3118). The term the toolbar box holds is a question
+          // about the collection, so it goes to the server rather than to a
+          // `.filter()` over the window we happen to be holding. Per ADR-0061 the
+          // client sends only the term; the server resolves which fields it
+          // matches from the object's metadata. `$searchFields` goes along only
+          // when the view declared `searchableFields` — it can narrow that
+          // server-resolved set, never widen it — which is exactly what the
+          // ListView toolbar sends.
+          const trimmedSearch = searchTerm.trim();
+          if (trimmedSearch) {
+            params.$search = trimmedSearch;
+            if (schema.searchableFields && schema.searchableFields.length > 0) {
+              params.$searchFields = schema.searchableFields;
+            }
+          }
+
           // Auto-inject $expand for lookup/master_detail fields
           const expand = buildExpandFields(resolvedSchema?.fields, schemaColumns ?? schemaFields);
           if (expand.length > 0) {
@@ -629,15 +655,17 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [objectName, schemaFields, schemaColumns, schemaFilter, schemaSort, headerSort, schemaPagination, schemaPageSize, serverPage, serverPageSize, dataSource, hasInlineData, dataConfig, refreshKey]);
+  }, [objectName, schemaFields, schemaColumns, schemaFilter, schemaSort, headerSort, searchTerm, schemaPagination, schemaPageSize, serverPage, serverPageSize, dataSource, hasInlineData, dataConfig, refreshKey]);
 
-  // Reset to page 1 whenever the query itself changes (object / filter / sort),
-  // so we never request a page index that no longer exists for the new result
-  // set (e.g. applying a filter while sitting on page 5 of the old query).
+  // Reset to page 1 whenever the query itself changes (object / filter / sort /
+  // search), so we never request a page index that no longer exists for the new
+  // result set (e.g. applying a filter while sitting on page 5 of the old
+  // query). A new search term is the sharpest case of this: 3075 rows can
+  // become 2, and "page 5" of that is nothing at all.
   React.useEffect(() => {
     setServerPage(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [objectName, schemaFilter, schemaSort, headerSort]);
+  }, [objectName, schemaFilter, schemaSort, headerSort, searchTerm]);
 
   // --- NavigationConfig support ---
   // Must be called before any early returns to satisfy React hooks rules
@@ -1675,6 +1703,14 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   // keeps DataTable's own client-side sort.
   const manualSortingOn = manualPaginationOn;
 
+  // Server-side search, on exactly the same condition (objectui#3118). Same
+  // question, filter axis: when `data` is one window, a `.filter()` over it
+  // narrows the fifty rows on screen while the rest of the collection never
+  // participates — and unlike a mis-scoped sort, the count it produces reads as
+  // a statement about the whole list. Grouped/inline grids hold every row they
+  // display, so their box keeps filtering client-side, where it is honest.
+  const manualSearchOn = manualPaginationOn;
+
   /**
    * Withhold the sort affordance from a relational column when the sort is the
    * server's (objectui#3096 + #3106).
@@ -2058,6 +2094,19 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     ? (rest as any).onSortChange
     : setHeaderSort;
 
+  // The search term, in whichever server mode applies. When a parent owns the
+  // rows it owns the term too (ListView already does, from its own toolbar —
+  // which is why it passes `showSearch: false` and no box is rendered here);
+  // when we own the fetch, the box writes `searchTerm` and the effect above
+  // turns it into `$search`. A parent that drives the rows but offers no
+  // `onSearchChange` gets NO box rather than one scoped to its window.
+  const manualSearch = externalManualPagination
+    ? ((rest as any).search ?? '')
+    : searchTerm;
+  const manualOnSearchChange = externalManualPagination
+    ? (rest as any).onSearchChange
+    : setSearchTerm;
+
   const dataTableSchema: any = {
     type: 'data-table',
     caption: schema.label || schema.title,
@@ -2081,6 +2130,9 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     sort: manualSortingOn ? manualSort : undefined,
     onSortChange: manualSortingOn ? manualOnSortChange : undefined,
     searchable: searchEnabled,
+    manualSearch: manualSearchOn,
+    search: manualSearchOn ? manualSearch : undefined,
+    onSearchChange: manualSearchOn ? manualOnSearchChange : undefined,
     selectable: selectionMode,
     // ObjectGrid surfaces the selection via its own bottom BulkActionBar
     // (count + Clear + bulk actions). Suppress the data-table's built-in

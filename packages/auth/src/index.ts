@@ -74,12 +74,12 @@ export {
 // Re-export types for convenience
 export type {
   AuthUser,
-  AuthSession,
+  AuthClientSession,
   AuthState,
   AuthClient,
   AuthClientConfig,
   AuthLinkComponentProps,
-  AuthProviderConfig,
+  AuthProviderOptions,
   PreviewModeOptions,
   SignInCredentials,
   SignUpData,

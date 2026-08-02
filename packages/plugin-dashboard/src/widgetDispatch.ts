@@ -44,6 +44,12 @@ export const CHART_TYPE_ALIASES: Record<string, string> = {
 export const SERIES_CHART_TYPES: ReadonlySet<string> = new Set([
   'bar', 'horizontal-bar', 'line', 'area', 'pie', 'donut',
   'scatter', 'funnel', 'radar', 'treemap', 'sankey',
+  // `combo` joined `ChartTypeSchema` in spec 17.0.0-rc.1. The chart renderer
+  // has always drawn it (it derives the base family from the series), but it
+  // was renderer-local, so nothing routed it from a dashboard surface — a
+  // stored `combo` widget fell through to the red "Unknown component type"
+  // panel the moment the spec started accepting it.
+  'combo',
 ]);
 
 /**

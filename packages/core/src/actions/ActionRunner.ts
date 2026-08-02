@@ -22,6 +22,7 @@
  */
 
 import type { RunnableActionType } from '@object-ui/types';
+import type { ActionInput as SpecActionInput } from '@objectstack/spec/ui';
 import { ExpressionEvaluator } from '../evaluator/ExpressionEvaluator';
 import { globalUndoManager, type UndoableOperation } from './UndoManager';
 import { warnOnUnknownActionKeys } from './actionKeys';
@@ -87,7 +88,12 @@ export interface ActionDef {
   /** Action type identifier — a `RunnableActionType` (the spec's six plus the
    *  `navigation` alias of `url`) or a custom type with a registered handler. */
   type?: string;
-  /** Legacy action type field */
+  /**
+   * Legacy action type field.
+   *
+   * @deprecated objectui dialect — use the spec spelling `type`. Both are read,
+   * `type` first (objectstack#4075 step 2).
+   */
   actionType?: string;
   /** Action name (from UIActionSchema) */
   name?: string;
@@ -101,13 +107,36 @@ export interface ActionDef {
   condition?: string;
   /** Disabled expression — if truthy, skip action */
   disabled?: string | boolean;
-  /** API endpoint (string URL or complex config) */
+  /**
+   * API endpoint (string URL or complex config).
+   *
+   * @deprecated objectui dialect — the spec spells an `api` action's endpoint
+   * `target` (with the verb in `method`). `executeAPI` resolves
+   * `api || endpoint || target`, so `target` alone is sufficient. The
+   * `ApiConfig` object form has no spec counterpart and is objectui-only
+   * (objectstack#4075 step 2).
+   */
   api?: string | ApiConfig;
-  /** API endpoint URL (spec v2.0.1 alias) */
+  /**
+   * API endpoint URL.
+   *
+   * @deprecated objectui dialect — this was the "spec v2.0.1 alias", but spec 17
+   * spells it `target`. `executeAPI` resolves `api || endpoint || target`
+   * (objectstack#4075 step 2).
+   */
   endpoint?: string;
   /** HTTP method */
   method?: string;
-  /** Navigation target */
+  /**
+   * Navigation target — a nested envelope carrying the `navigation` alias's own
+   * spelling (`to` / `external` / `newTab` / `replace`).
+   *
+   * @deprecated objectui dialect — the spec has no nested navigation envelope;
+   * it spells a navigation action `{ type: 'url', target, openIn }`.
+   * `executeNavigation` reads `navigate.to || navigate.target || navigate.redirect`,
+   * falling back to the same keys on the action itself, so a flat `target` works
+   * today (objectstack#4075 step 2).
+   */
   navigate?: any;
   /** onClick callback (legacy) */
   onClick?: () => void | Promise<void>;
@@ -190,11 +219,113 @@ export interface ActionDef {
    *  must perform all auth/authz itself (e.g. the cloud `/sso-open` endpoint,
    *  which re-runs every check the POST half would have done). */
   newTabUrl?: string;
+
+  // ── Spec-owned keys, promoted from the index signature ─────────────────────
+  //
+  // objectstack#4075 step 2. Step 1's inventory found 18 keys that
+  // `@objectstack/spec`'s `ActionSchema` owns and that authored metadata
+  // carries today, but that `ActionDef` never declared — so they reached
+  // readers only through `[key: string]: any`, and the two `ActionEngine`
+  // actually reads (`visible`, `locations`) had to be read through an `as any`
+  // cast. Declaring them is what removes those casts.
+  //
+  // Every type below is DERIVED from the spec via `SpecActionInput[...]`, never
+  // hand-copied: a hand-written duplicate of a spec shape is a second contract
+  // that drifts silently, which is the failure this whole issue is about.
+  //
+  // Derived from `z.input` (`ActionInput`), not `z.infer` (`Action`), and the
+  // difference is load-bearing rather than stylistic. `ActionSchema` is a
+  // `ZodPipe` whose transforms narrow the authored shape — `visible` is authored
+  // as `string | { dialect, source }` but INFERS to the object form alone. This
+  // runner consumes authored/stored rows, which #3903 established are rehydrated
+  // UNPARSED, so it sees the input shape. Deriving from `Action` would have
+  // type-errored the raw-string predicate that `ActionEngine` explicitly
+  // supports and that `ActionEngine.visibility.test.ts` pins.
+  //
+  // `shortcut` and `bulkEnabled` land here as `undefined`, not as a usable type
+  // — that is correct and deliberate. Spec 17 retired both as `retiredKey()`
+  // tombstones (`z.never()`), so authoring either is a hard parse rejection.
+  // Deriving rather than hand-writing turns that rejection into a COMPILE error
+  // for free; hand-copying would have re-legitimized two dead keys.
+
+  /** Where this action renders (`record_header`, `list_toolbar`, …). Read by
+   *  `ActionEngine.registerActions` to seed the location filter. */
+  locations?: SpecActionInput['locations'];
+  /**
+   * Visibility predicate, evaluated against the runner's context.
+   *
+   * The `boolean` arm is objectui's own, deliberately wider than the spec:
+   * `ActionSchema.visible` admits only a CEL string or a `{ dialect, source }`
+   * envelope, while `ActionEngine.getActionsForLocation` also honours a literal
+   * `visible: true` / `false` (pinned by `ActionEngine.visibility.test.ts`).
+   * Declared rather than left to the index signature so the tolerance is
+   * auditable instead of invisible — but it IS a dialect, and objectstack#4075
+   * step 3 has to decide whether the spec adopts the boolean or objectui drops
+   * it. Do not widen this further.
+   */
+  visible?: SpecActionInput['visible'] | boolean;
+  /** System permissions the caller must ALL hold for the action to be offered
+   *  (ADR-0066 D4 UI half — the server enforces the source of truth). */
+  requiredPermissions?: SpecActionInput['requiredPermissions'];
+  /** Icon name for the rendered control. */
+  icon?: SpecActionInput['icon'];
+  /** Visual emphasis of the rendered control (`primary`, `danger`, …). */
+  variant?: SpecActionInput['variant'];
+  /** Sort weight among sibling actions. */
+  order?: SpecActionInput['order'];
+  /** Which renderer surfaces the action (`action:button`, `action:menu`, …). */
+  component?: SpecActionInput['component'];
+  /** Object this action is declared against. */
+  objectName?: SpecActionInput['objectName'];
+  /** AI affordance metadata (tool exposure, prompts). */
+  ai?: SpecActionInput['ai'];
+  /** Accessibility overrides for the rendered control. */
+  aria?: SpecActionInput['aria'];
+  /** Extra properties merged into the request body alongside the collected params. */
+  bodyExtra?: SpecActionInput['bodyExtra'];
+  /** How collected params are shaped into the request body (`flat` or nested). */
+  bodyShape?: SpecActionInput['bodyShape'];
+  /** Execution mode of the action. */
+  mode?: SpecActionInput['mode'];
+  /** Field on the record supplying the record id sent to the endpoint. */
+  recordIdField?: SpecActionInput['recordIdField'];
+  /** Request-parameter name carrying the record id. */
+  recordIdParam?: SpecActionInput['recordIdParam'];
+  /** Auth/tenancy feature the action requires before it is offered. */
+  requiresFeature?: SpecActionInput['requiresFeature'];
+  /**
+   * @deprecated Retired in `@objectstack/spec` 17 as a `retiredKey()` tombstone —
+   * authoring it is a hard parse rejection, so this resolves to `undefined` and
+   * assigning a value is a compile error. A HOST may still pass a shortcut
+   * explicitly via `ActionEngine.registerAction(action, { shortcut })`; it is
+   * only no longer sourced from authored metadata. No replacement key.
+   */
+  shortcut?: SpecActionInput['shortcut'];
+  /**
+   * @deprecated Retired in `@objectstack/spec` 17 as a `retiredKey()` tombstone —
+   * authoring it is a hard parse rejection, so this resolves to `undefined` and
+   * assigning a value is a compile error. Use the list view's `bulkActions` /
+   * `bulkActionDefs` instead; `ActionEngine.registerAction(action, { bulkEnabled })`
+   * remains available to a HOST passing it explicitly.
+   */
+  bulkEnabled?: SpecActionInput['bulkEnabled'];
+
   /** Any additional properties */
   [key: string]: any;
 }
 
-export type ActionHandler = (
+/**
+ * A handler registered with {@link ActionRunner} — the client-side action
+ * dispatch seam: given an authored `ActionDef` and the invocation context,
+ * produce an `ActionResult`.
+ *
+ * NOT the spec's `ActionHandler` (`@objectstack/spec/ui`), whose name this type
+ * carried until objectstack#4115. That one is the SERVER-side objectql action
+ * handler — a different calling convention entirely (`(ctx) => unknown`, with
+ * validated params and a trusted engine facade on `ctx`) and a different
+ * execution site.
+ */
+export type ActionRunnerHandler = (
   action: ActionDef,
   context: ActionContext
 ) => Promise<ActionResult> | ActionResult;
@@ -357,8 +488,8 @@ function withIdentityAlias(context: ActionContext): ActionContext {
 }
 
 export class ActionRunner {
-  private handlers = new Map<string, ActionHandler>();
-  private scripts = new Map<string, ActionHandler>();
+  private handlers = new Map<string, ActionRunnerHandler>();
+  private scripts = new Map<string, ActionRunnerHandler>();
   private evaluator: ExpressionEvaluator;
   private context: ActionContext;
   private confirmHandler: ConfirmationHandler;
@@ -452,7 +583,7 @@ export class ActionRunner {
     this.resultDialogHandler = handler;
   }
 
-  registerHandler(actionName: string, handler: ActionHandler): void {
+  registerHandler(actionName: string, handler: ActionRunnerHandler): void {
     this.handlers.set(actionName, handler);
   }
 
@@ -466,7 +597,7 @@ export class ActionRunner {
    * instead of the expression evaluator. Lets dashboards/views wire
    * symbolic action names (e.g. 'export_dashboard_pdf') to JS callbacks.
    */
-  registerScript(scriptName: string, handler: ActionHandler): void {
+  registerScript(scriptName: string, handler: ActionRunnerHandler): void {
     this.scripts.set(scriptName, handler);
   }
 

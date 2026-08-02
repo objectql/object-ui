@@ -10,7 +10,17 @@ import type { Registry } from './Registry.js';
 import type { PluginScope, PluginScopeConfig, AppMetadataPlugin, AppPluginContext } from '@object-ui/types';
 import { PluginScopeImpl } from './PluginScopeImpl.js';
 
-export interface PluginDefinition {
+/**
+ * A plugin for objectui's component REGISTRY: it declares its name/version and
+ * a `register(registry | scope)` callback that contributes renderers.
+ *
+ * NOT the spec's `PluginDefinition` (`@objectstack/spec/kernel`), whose name
+ * this interface carried until objectstack#4115. That one is the platform
+ * PACKAGE manifest — `{ id?, type?, slug?, staticPath?, version?, author?,
+ * homepage?, onInstall?, onEnable?, … }` — a marketplace/install-time document
+ * with no `register` seam, and it shares no required member with this type.
+ */
+export interface RegistryPluginDefinition {
   name: string;
   version: string;
   dependencies?: string[];  // Dependencies on other plugins
@@ -22,7 +32,7 @@ export interface PluginDefinition {
 }
 
 export class PluginSystem {
-  private plugins = new Map<string, PluginDefinition>();
+  private plugins = new Map<string, RegistryPluginDefinition>();
   private loaded = new Set<string>();
   private scopes = new Map<string, PluginScopeImpl>();
 
@@ -33,7 +43,7 @@ export class PluginSystem {
    * @param useScope Whether to use scoped loading (default: true for better isolation)
    * @throws Error if dependencies are missing
    */
-  async loadPlugin(plugin: PluginDefinition, registry: Registry, useScope: boolean = true): Promise<void> {
+  async loadPlugin(plugin: RegistryPluginDefinition, registry: Registry, useScope: boolean = true): Promise<void> {
     // Check if already loaded
     if (this.loaded.has(plugin.name)) {
       console.warn(`Plugin "${plugin.name}" is already loaded. Skipping.`);
@@ -139,7 +149,7 @@ export class PluginSystem {
    * @param name The name of the plugin
    * @returns The plugin definition or undefined
    */
-  getPlugin(name: string): PluginDefinition | undefined {
+  getPlugin(name: string): RegistryPluginDefinition | undefined {
     return this.plugins.get(name);
   }
 
@@ -155,14 +165,14 @@ export class PluginSystem {
    * Get all plugin definitions
    * @returns Array of all plugin definitions
    */
-  getAllPlugins(): PluginDefinition[] {
+  getAllPlugins(): RegistryPluginDefinition[] {
     return Array.from(this.plugins.values());
   }
 
   /**
    * Install an AppMetadataPlugin at runtime.
    *
-   * Wraps the plugin as a PluginDefinition, calls its `init()` and `start()`
+   * Wraps the plugin as a RegistryPluginDefinition, calls its `init()` and `start()`
    * lifecycle hooks, and loads it into the system.
    *
    * @param plugin - An AppMetadataPlugin instance
@@ -177,7 +187,7 @@ export class PluginSystem {
 
     await plugin.init();
 
-    const definition: PluginDefinition = {
+    const definition: RegistryPluginDefinition = {
       name: plugin.name,
       version: plugin.version,
       register: () => {},

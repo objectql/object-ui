@@ -6,13 +6,24 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import type { RowHeight } from '@objectstack/spec/ui';
+
 import { normalizeColumnIdentities } from './column-identity.js';
 
 /** ListView's toolbar density vocabulary — three steps, not the spec's five. */
 export type DensityMode = 'compact' | 'comfortable' | 'spacious';
 
-/** The spec's `RowHeightSchema` vocabulary. */
-export type RowHeight = 'compact' | 'short' | 'medium' | 'tall' | 'extra_tall';
+/**
+ * The spec's `RowHeightSchema` vocabulary — **re-exported, not re-declared**.
+ *
+ * The hand-written union that used to sit here already advertised itself as
+ * "the spec's `RowHeightSchema` vocabulary" in its doc comment, which is the
+ * failure class objectstack#4115 is about: the claim was true when written and
+ * nothing would have caught the day it stopped being true. The maps below are
+ * `Record<RowHeight, …>`, so a spec-side addition now fails the build here
+ * instead of silently leaving a row height with no density mapping.
+ */
+export type { RowHeight };
 
 /**
  * `densityMode` → `rowHeight`. The two vocabularies are not the same size: the

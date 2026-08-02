@@ -3516,8 +3516,8 @@ const FLOW_FIELD_ZH: Record<string, Record<string, FlowFieldZh>> = {
     },
     'waitEventConfig.timerDuration': { label: '时长', help: 'ISO 8601 时长(如 PT1H、P3D)。' },
     'waitEventConfig.signalName': { label: '信号名称' },
-    'waitEventConfig.timeoutMs': { label: '超时(毫秒)' },
-    'waitEventConfig.onTimeout': { label: '超时时', opts: { fail: '失败', continue: '继续' } },
+    // `waitEventConfig.timeoutMs` / `.onTimeout` 的覆盖随字段一并移除(#3101):
+    // 两个键在 spec 17.0.0-rc.1 已是墓碑,表单不再提供授权入口。
   },
   subflow: {
     flowName: { label: '流程' },

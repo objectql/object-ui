@@ -12,9 +12,10 @@
  *
  * Twenty-eight app-shell symbols used to be declared under names the spec
  * already owns. Twenty were burned down by importing or deriving the spec's own
- * type (eighteen plain re-exports, plus `ScreenSpec` and `DecisionOutputDef`
- * derived structurally with one documented divergence each); eight were renamed
- * because they model something the spec's same-named export does not.
+ * type (nineteen plain re-exports — `DecisionOutputDef` joined them once the
+ * spec adopted `required`, objectstack#4562 — plus `ScreenSpec`, still derived
+ * structurally with one documented divergence); eight were renamed because they
+ * model something the spec's same-named export does not.
  *
  * One symbol is in both camps: the object designer's `FieldGroup` was renamed to
  * `ObjectFieldGroup` AND derived — the spec owns that exact shape, just under
@@ -36,6 +37,24 @@
  * subpath's `.d.ts` through the TypeScript checker, exactly as
  * `scripts/check-spec-symbol-derivation.mjs` does, and gets types and values
  * alike.
+ *
+ * ## What compiles the `type _X = Assert<…>` lines below (objectui#3181)
+ *
+ * Nothing did, for the first stretch of this file's life. `tsconfig.json` here
+ * is the package BUILD config and excludes `**\/*.test.ts`; CI's only type gate
+ * drives that config (`pnpm type-check` -> turbo -> per-package `tsc --noEmit`),
+ * and types are erased before vitest ever runs. Appending a provably-false
+ * `Assert<Equal<1, 2>>` to this file therefore passed `pnpm type-check` at exit
+ * 0 — the type half of this "tripwire" was, literally, commentary. Which is the
+ * same landmine this file's own header cites objectui#3009 for.
+ *
+ * They are now compiled by `packages/app-shell/tsconfig.typetests.json`, chained
+ * from this package's `type-check` script, i.e. run by the CI `Type Check` job.
+ * That project lists its files EXPLICITLY (app-shell's wider test tree still has
+ * a pre-existing error backlog, tracked as TEST_DEBT), so **a new
+ * type-assertion test file is unchecked until it is added to that include
+ * list** — and `scripts/check-type-check-coverage.mjs` fails if the chaining is
+ * ever dropped, so the gate cannot go quiet again the way it did here.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -192,7 +211,11 @@ describe('re-exported values are the spec binding itself', () => {
 /* divergence cannot silently grow and cannot silently outlive its reason.      */
 /* -------------------------------------------------------------------------- */
 
-/** Compile-time assertions. A violation is a `tsc` error, not a runtime failure. */
+/**
+ * Compile-time assertions. A violation is a `tsc` error, not a runtime failure —
+ * so it surfaces only under `tsconfig.typetests.json` (see the file header), not
+ * under vitest.
+ */
 type Assert<T extends true> = T;
 type Extends<A, B> = [A] extends [B] ? true : false;
 type IsAny<T> = 0 extends 1 & T ? true : false;
@@ -232,19 +255,22 @@ describe('ScreenSpec derives from the spec, widening only `fields`', () => {
   });
 });
 
-describe('DecisionOutputDef derives from the spec, adding only `required`', () => {
+describe('DecisionOutputDef is the spec type, with no local divergence left', () => {
   it('is pinned at compile time', () => {
     type _NotAny = Assert<Equal<IsAny<SpecDecisionOutputDef>, false>>;
 
     // Every spec decision output is usable here.
     type _SpecIsUsableHere = Assert<Extends<SpecDecisionOutputDef, DecisionOutputDef>>;
 
-    // `required` is the ONLY local addition. When the spec adopts it, this
-    // becomes `never`, the assertion fails, and the interface should collapse
-    // to a plain re-export.
-    type _OnlyRequiredAdded = Assert<
-      Equal<Exclude<keyof DecisionOutputDef, keyof SpecDecisionOutputDef>, 'required'>
+    // …and the reverse, because this is now a plain re-export rather than a
+    // structural derivation. `required` used to be the ONE local addition; the
+    // spec adopted it (cd6b9f202, pinned by objectstack#4561), so the interface
+    // collapsed (objectstack#4562) and the exclusion set is empty. If a key ever
+    // reappears here, this fails and the divergence has to be documented again.
+    type _NoLocalAdditions = Assert<
+      Equal<Exclude<keyof DecisionOutputDef, keyof SpecDecisionOutputDef>, never>
     >;
+    type _IsExactlyTheSpecType = Assert<Equal<DecisionOutputDef, SpecDecisionOutputDef>>;
 
     // Deriving NARROWED `type` from the bare `string` this file used to declare
     // to the spec's closed enum — that narrowing is the point, so pin it.

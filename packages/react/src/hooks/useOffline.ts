@@ -8,30 +8,45 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
+import type {
+  OfflineStrategy,
+  ConflictResolution,
+  PersistStorage,
+  EvictionPolicy,
+  OfflineCacheConfigSchema,
+  OfflineConfigSchema,
+  SyncConfigSchema,
+} from '@objectstack/spec/ui';
+import type { SpecAuthoredInput } from '../spec-input';
+
 // ---------------------------------------------------------------------------
-// Types aligned with @objectstack/spec v2.0.7 OfflineConfigSchema
+// The offline vocabulary is the spec's (`OfflineConfigSchema` and friends in
+// `@objectstack/spec/ui`), so these are its bindings rather than the hand
+// copies that used to sit here under the same names (objectstack#4115). The
+// header comment claimed alignment with "spec v2.0.7"; the installed spec is
+// 17.0.0-rc.1, and a claim that stale is exactly what an import replaces.
 // ---------------------------------------------------------------------------
 
 /** Offline strategy determines how data is fetched when connectivity is limited. */
-export type OfflineStrategy =
-  | 'cache_first'
-  | 'network_first'
-  | 'stale_while_revalidate'
-  | 'network_only'
-  | 'cache_only';
+export type { OfflineStrategy };
 
-/** Conflict resolution strategy for sync operations. */
-export type ConflictResolutionStrategy =
-  | 'manual'
-  | 'client_wins'
-  | 'server_wins'
-  | 'last_write_wins';
+/**
+ * Conflict resolution strategy for sync operations.
+ *
+ * Renamed from `ConflictResolutionStrategy` — that name belongs to a DIFFERENT
+ * spec export (`@objectstack/spec/api`: `error | priority | first-wins |
+ * last-wins`, the metadata-merge policy). The spec's name for the union this
+ * hook actually uses is `ConflictResolution`, so the fix was to take the spec's
+ * own name and its binding at once, the same move `FieldGroup` →
+ * `ObjectFieldGroup` made in objectui#3169.
+ */
+export type { ConflictResolution };
 
 /** Persist storage backend. */
-export type PersistStorageType = 'indexeddb' | 'localstorage' | 'sqlite';
+export type PersistStorageType = PersistStorage;
 
 /** Eviction policy for cache management. */
-export type EvictionPolicyType = 'lru' | 'lfu' | 'fifo';
+export type EvictionPolicyType = EvictionPolicy;
 
 /** Sync state of the offline system. */
 export type SyncState = 'idle' | 'syncing' | 'error' | 'offline';
@@ -45,33 +60,40 @@ export interface QueuedMutation {
   data?: Record<string, unknown>;
 }
 
-/** Cache configuration aligned with OfflineCacheConfigSchema. */
-export interface OfflineCacheConfig {
-  maxSize?: number;
-  ttl?: number;
-  persistStorage?: PersistStorageType;
-  evictionPolicy?: EvictionPolicyType;
-}
+/**
+ * Cache configuration — the AUTHORING side of the spec's
+ * `OfflineCacheConfigSchema`.
+ *
+ * `persistStorage` and `evictionPolicy` carry `.default()`s, so they are
+ * optional to write and present after a parse. This hook is handed what an app
+ * author wrote, hence the input side; see {@link SpecAuthoredInput}.
+ */
+export type OfflineCacheConfig = SpecAuthoredInput<typeof OfflineCacheConfigSchema>;
 
-/** Sync configuration aligned with SyncConfigSchema. */
-export interface OfflineSyncConfig {
-  strategy?: OfflineStrategy;
-  conflictResolution?: ConflictResolutionStrategy;
-  retryInterval?: number;
-  maxRetries?: number;
-  batchSize?: number;
-}
+/**
+ * Sync configuration — the AUTHORING side of the spec's `SyncConfigSchema`.
+ *
+ * `strategy` and `conflictResolution` carry `.default()`s, so the output type
+ * makes them required; this hook is handed what an app author wrote.
+ */
+export type OfflineSyncConfig = SpecAuthoredInput<typeof SyncConfigSchema>;
 
-/** Top-level offline configuration aligned with OfflineConfigSchema. */
-export interface OfflineConfig {
-  enabled?: boolean;
-  strategy?: OfflineStrategy;
-  cache?: OfflineCacheConfig;
-  sync?: OfflineSyncConfig;
-  offlineIndicator?: boolean;
-  offlineMessage?: string;
-  queueMaxSize?: number;
-}
+/**
+ * Top-level offline configuration — the AUTHORING side of the spec's
+ * `OfflineConfigSchema`.
+ *
+ * This name stays with `@object-ui/react` (objectui#3156 / objectui#3159): the
+ * `OfflineConfig` that used to sit in `@object-ui/types` was a service-worker
+ * ROUTE cache and has been renamed `PWAOfflineConfig`, so there is no
+ * cross-package clash left — this hook's config is the spec's concept, key for
+ * key, and takes the spec's binding.
+ *
+ * Input side, not `z.infer`, and here the reason is visible in the signature:
+ * `useOffline(config: OfflineConfig = {})` defaults to the empty object, which
+ * the output type — where `enabled`, `strategy` and `offlineIndicator` are all
+ * required once their `.default()`s have run — would reject outright.
+ */
+export type OfflineConfig = SpecAuthoredInput<typeof OfflineConfigSchema>;
 
 /** Result returned by the useOffline hook. */
 export interface OfflineResult {
@@ -165,9 +187,9 @@ const DEFAULTS: Required<
 };
 
 /**
- * Hook for offline mode detection and sync queue management.
- * Implements OfflineConfigSchema, SyncConfigSchema, and ConflictResolutionSchema
- * from @objectstack/spec v2.0.7.
+ * Hook for offline mode detection and sync queue management. Its config types
+ * ARE the spec's `OfflineConfigSchema` / `SyncConfigSchema` / `ConflictResolution`
+ * (authoring side) — see {@link OfflineConfig}.
  *
  * @example
  * ```tsx

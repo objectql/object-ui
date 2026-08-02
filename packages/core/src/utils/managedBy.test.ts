@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { MANAGED_BY_BUCKETS } from '@object-ui/types';
 import {
-  resolveCrudAffordances,
+  resolveEffectiveCrudAffordances,
   isWriteOptedIn,
   isSystemWritable,
   isObjectInlineEditable,
@@ -9,48 +9,48 @@ import {
   userActionPredicates,
 } from './managedBy';
 
-describe('resolveCrudAffordances (shared source of truth)', () => {
+describe('resolveEffectiveCrudAffordances — bucket half, delegated to the spec', () => {
   it('defaults to the platform bucket (full CRUD) when managedBy is unset', () => {
-    expect(resolveCrudAffordances({})).toEqual({
+    expect(resolveEffectiveCrudAffordances({})).toEqual({
       create: true, import: true, edit: true, delete: true, exportCsv: true,
     });
-    expect(resolveCrudAffordances(null)).toEqual(resolveCrudAffordances({ managedBy: 'platform' }));
+    expect(resolveEffectiveCrudAffordances(null)).toEqual(resolveEffectiveCrudAffordances({ managedBy: 'platform' }));
   });
 
   it('config: New/Edit/Delete + export, no import', () => {
-    expect(resolveCrudAffordances({ managedBy: 'config' })).toEqual({
+    expect(resolveEffectiveCrudAffordances({ managedBy: 'config' })).toEqual({
       create: true, import: false, edit: true, delete: true, exportCsv: true,
     });
   });
 
   it('system / engine-owned / append-only / better-auth: export-only by default', () => {
     for (const managedBy of ['system', 'engine-owned', 'append-only', 'better-auth']) {
-      expect(resolveCrudAffordances({ managedBy })).toEqual({
+      expect(resolveEffectiveCrudAffordances({ managedBy })).toEqual({
         create: false, import: false, edit: false, delete: false, exportCsv: true,
       });
     }
   });
 
   it('userActions overrides the bucket default (ADR-0103 writable system)', () => {
-    const aff = resolveCrudAffordances({ managedBy: 'system', userActions: { create: true, edit: true, delete: true } });
+    const aff = resolveEffectiveCrudAffordances({ managedBy: 'system', userActions: { create: true, edit: true, delete: true } });
     expect(aff).toMatchObject({ create: true, edit: true, delete: true, import: false });
   });
 
   it('unknown bucket falls back to platform (defensive)', () => {
-    expect(resolveCrudAffordances({ managedBy: 'totally-unknown' }).edit).toBe(true);
+    expect(resolveEffectiveCrudAffordances({ managedBy: 'totally-unknown' }).edit).toBe(true);
   });
 
   it('#2614 object form: carries predicates, keys off enabled, boolean path unchanged', () => {
-    const withPreds = resolveCrudAffordances({
+    const withPreds = resolveEffectiveCrudAffordances({
       managedBy: 'platform',
       userActions: { edit: { enabled: true, disabledWhen: 'record.locked == true' } },
     });
     expect(withPreds.edit).toBe(true);
     expect(withPreds.editPredicates).toEqual({ disabledWhen: 'record.locked == true' });
     // enabled omitted → falls back to the bucket default (platform edit = true)
-    expect(resolveCrudAffordances({ managedBy: 'platform', userActions: { edit: { disabledWhen: 'x' } } }).edit).toBe(true);
+    expect(resolveEffectiveCrudAffordances({ managedBy: 'platform', userActions: { edit: { disabledWhen: 'x' } } }).edit).toBe(true);
     // boolean form leaves predicates absent
-    expect(resolveCrudAffordances({ managedBy: 'system', userActions: { edit: true } }).editPredicates).toBeUndefined();
+    expect(resolveEffectiveCrudAffordances({ managedBy: 'system', userActions: { edit: true } }).editPredicates).toBeUndefined();
   });
 });
 
@@ -144,18 +144,18 @@ describe('MANAGED_BY_BUCKETS', () => {
   });
 });
 
-describe('resolveCrudAffordances — effective API operations (#3391)', () => {
+describe('resolveEffectiveCrudAffordances — effective API operations (#3391)', () => {
   it('undefined effective set → affordances unchanged (backward-compatible)', () => {
     const platform = { managedBy: 'platform' };
-    expect(resolveCrudAffordances(platform)).toEqual(resolveCrudAffordances(platform, undefined));
-    expect(resolveCrudAffordances(platform, undefined)).toEqual({
+    expect(resolveEffectiveCrudAffordances(platform)).toEqual(resolveEffectiveCrudAffordances(platform, undefined));
+    expect(resolveEffectiveCrudAffordances(platform, undefined)).toEqual({
       create: true, import: true, edit: true, delete: true, exportCsv: true,
     });
   });
 
   it('ANDs each affordance bit with its API operation (create/import→create/import, edit→update, delete→delete, exportCsv→export)', () => {
     // A full-CRUD platform object whose server effective set is read-only + list-derived.
-    const aff = resolveCrudAffordances({ managedBy: 'platform' }, ['get', 'list', 'export']);
+    const aff = resolveEffectiveCrudAffordances({ managedBy: 'platform' }, ['get', 'list', 'export']);
     expect(aff).toMatchObject({
       create: false, import: false, edit: false, delete: false, exportCsv: true,
     });
@@ -163,7 +163,7 @@ describe('resolveCrudAffordances — effective API operations (#3391)', () => {
 
   it('keeps a bit only when BOTH the affordance and the effective op allow it', () => {
     // create+update present → create/import/edit survive; no delete/list → delete/export drop.
-    const aff = resolveCrudAffordances({ managedBy: 'platform' }, ['create', 'update', 'import']);
+    const aff = resolveEffectiveCrudAffordances({ managedBy: 'platform' }, ['create', 'update', 'import']);
     expect(aff.create).toBe(true);
     expect(aff.edit).toBe(true);
     expect(aff.import).toBe(true);
@@ -172,7 +172,7 @@ describe('resolveCrudAffordances — effective API operations (#3391)', () => {
   });
 
   it('empty effective set → all bits off (deny-all)', () => {
-    expect(resolveCrudAffordances({ managedBy: 'platform' }, [])).toMatchObject({
+    expect(resolveEffectiveCrudAffordances({ managedBy: 'platform' }, [])).toMatchObject({
       create: false, import: false, edit: false, delete: false, exportCsv: false,
     });
   });
@@ -180,7 +180,7 @@ describe('resolveCrudAffordances — effective API operations (#3391)', () => {
   it('never re-enables a bit the bucket/userActions already denied', () => {
     // config bucket has no import; even if the server would allow import, the
     // UI-intent axis keeps it off (intersection, never union).
-    const aff = resolveCrudAffordances({ managedBy: 'config' }, ['create', 'update', 'delete', 'import', 'export']);
+    const aff = resolveEffectiveCrudAffordances({ managedBy: 'config' }, ['create', 'update', 'delete', 'import', 'export']);
     expect(aff.import).toBe(false); // config never imports
     expect(aff.create).toBe(true);
     expect(aff.exportCsv).toBe(true);

@@ -151,6 +151,7 @@ export type {
 export {
   useFavorites,
   useMetadataService,
+  useNavActionDispatch,
   useNavPins,
   useNavigationSync,
   NavigationSyncEffect,

@@ -219,6 +219,119 @@ describe('buildFilterCondition', () => {
     expect(buildFilterCondition(dateDef, {})).toBeUndefined();
     expect(buildFilterCondition(dateDef, { preset: undefined })).toBeUndefined();
   });
+
+  // ---------------------------------------------------------------------
+  // #3151 — a date value that is neither a known preset nor an ISO date.
+  //
+  // The sister case of framework#4475, and the more deceptive direction of
+  // the same failure: a misspelled preset ('last_7_dayz') used to fall
+  // through to the "bare string means equality" branch and emit
+  //   SELECT COUNT(*) … WHERE created_at = 'last_7_dayz'
+  // — 200 OK, zero rows, no warning anywhere, indistinguishable from a range
+  // that genuinely has no data. It is now skipped and named out loud, the
+  // same strictness buildWidgetScopedFilter applies to unknown field names.
+  // ---------------------------------------------------------------------
+  describe('[#3151] unrecognised date values', () => {
+    const withWarn = (fn: (warn: ReturnType<typeof vi.spyOn>) => void) => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        fn(warn);
+      } finally {
+        warn.mockRestore();
+      }
+    };
+
+    it('skips a misspelled preset string and warns, naming the filter and the value', () => {
+      withWarn((warn) => {
+        expect(buildFilterCondition(dateDef, 'last_7_dayz')).toBeUndefined();
+        expect(warn).toHaveBeenCalledTimes(1);
+        const msg = String(warn.mock.calls[0][0]);
+        expect(msg).toContain('skipping filter "dateRange"');
+        expect(msg).toContain('last_7_dayz');
+        // The remedy travels with the rejection.
+        expect(msg).toContain('last_7_days');
+      });
+    });
+
+    it('keeps a valid ISO date string as an equality, with no warning', () => {
+      withWarn((warn) => {
+        expect(buildFilterCondition(dateDef, '2026-01-15')).toBe('2026-01-15');
+        expect(buildFilterCondition(dateDef, '2026-01-15T08:30:00Z')).toBe('2026-01-15T08:30:00Z');
+        expect(warn).not.toHaveBeenCalled();
+      });
+    });
+
+    it('keeps a date-macro token as an equality, with no warning', () => {
+      // Macro tokens stay symbolic in the condition and are resolved at query
+      // time by resolveDateMacros — the same vocabulary PRESET_RANGES emits.
+      withWarn((warn) => {
+        expect(buildFilterCondition(dateDef, '{today}')).toBe('{today}');
+        expect(buildFilterCondition(dateDef, '{7_days_ago}')).toBe('{7_days_ago}');
+        expect(warn).not.toHaveBeenCalled();
+      });
+    });
+
+    it('rejects a string that only looks like a date or a macro', () => {
+      withWarn((warn) => {
+        expect(buildFilterCondition(dateDef, '{last_7_dayz}')).toBeUndefined();
+        expect(buildFilterCondition(dateDef, '15/01/2026')).toBeUndefined();
+        expect(buildFilterCondition(dateDef, '2026-13-45')).toBeUndefined();
+        expect(warn).toHaveBeenCalledTimes(3);
+      });
+    });
+
+    it('[#4475 regression] a valid preset name still becomes a RANGE, with no warning', () => {
+      withWarn((warn) => {
+        const [def] = resolveDashboardFilterDefs({
+          globalFilters: [
+            { field: 'created_at', type: 'date', defaultValue: 'last_7_days' },
+          ] as any,
+        });
+        expect(buildFilterCondition(def, def.defaultValue)).toEqual({
+          $gte: '{7_days_ago}',
+          $lte: '{today}',
+        });
+        expect(warn).not.toHaveBeenCalled();
+      });
+    });
+
+    it('skips an unknown object preset and warns (was a silent drop)', () => {
+      withWarn((warn) => {
+        expect(buildFilterCondition(dateDef, { preset: 'last_7_dayz' })).toBeUndefined();
+        expect(warn).toHaveBeenCalledTimes(1);
+        const msg = String(warn.mock.calls[0][0]);
+        expect(msg).toContain('skipping filter "dateRange"');
+        expect(msg).toContain('unknown date range preset "last_7_dayz"');
+      });
+    });
+
+    it('keeps explicit bounds when an unknown preset rides along, and says so', () => {
+      withWarn((warn) => {
+        expect(
+          buildFilterCondition(dateDef, { preset: 'last_7_dayz', from: '2026-01-01' }),
+        ).toEqual({ $gte: '2026-01-01' });
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(String(warn.mock.calls[0][0])).toContain('ignoring unknown date range preset');
+      });
+    });
+
+    it('drops the filter end-to-end: no runtimeFilter reaches the widget query', () => {
+      withWarn((warn) => {
+        // What the dashboard actually forwards as `runtimeFilter`. Pre-fix
+        // this was { created_at: 'last_7_dayz' } — the zero-row query.
+        const [def] = resolveDashboardFilterDefs({
+          globalFilters: [
+            { field: 'created_at', type: 'date', defaultValue: 'last_7_dayz' },
+          ] as any,
+        });
+        expect(
+          buildWidgetScopedFilter({ id: 'kpi_users' }, [def], { created_at: def.defaultValue }),
+        ).toBeUndefined();
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(String(warn.mock.calls[0][0])).toContain('last_7_dayz');
+      });
+    });
+  });
 });
 
 describe('buildWidgetScopedFilter', () => {

@@ -8,12 +8,12 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { authGateEvents } from './auth-gate-events';
-import type { AuthUser, AuthClient, AuthProviderConfig, PreviewModeOptions, AuthOrganization, AuthOrganizationMember, AuthInvitation, AuthPublicConfig, SignInWithProviderOptions } from './types';
+import type { AuthUser, AuthClient, AuthProviderOptions, PreviewModeOptions, AuthOrganization, AuthOrganizationMember, AuthInvitation, AuthPublicConfig, SignInWithProviderOptions } from './types';
 import { AuthCtx, type AuthContextValue } from './AuthContext';
 import { createAuthClient } from './createAuthClient';
 import { ActiveOrganizationStorage } from './createAuthenticatedFetch';
 
-export interface AuthProviderProps extends AuthProviderConfig {
+export interface AuthProviderProps extends AuthProviderOptions {
   children: React.ReactNode;
   /**
    * Whether authentication is enabled.

@@ -163,18 +163,46 @@ describe('NavigationArea derives from the spec', () => {
     expect(area.order).toBe(1);
   });
 
-  it('keeps `navigation` precisely typed while the spec erases it', () => {
-    // INVERTED PIN. The spec's own `NavigationArea['navigation']` is `any[]`
-    // because `NavigationItemSchema` is declared `z.ZodType<any>`. The day the
-    // spec types it (objectstack#4171), this assertion stops compiling — and
-    // that failure is the signal to re-triage `NavigationItem` /
-    // `NavigationItemSchema` out of batch 8 (objectui#3162) and collapse the
-    // override below into a plain inheritance.
-    const specErased: IsAny<SpecNavigationArea['navigation'][number]> = true;
-    expect(specErased).toBe(true);
+  it('holds objectui navigation items, which the spec type cannot express', () => {
+    // INVERTED PIN, retargeted at its real blocker (the objectui#3177 lesson).
+    // This used to assert the spec's element was `any` — true under spec
+    // 17.0.0-rc.0, and it stopped compiling the moment rc.1 typed
+    // `NavigationItem`. But "no longer `any`" was never the same as "safe to
+    // bind": the element is now precise and describes a DIFFERENT shape (a
+    // nine-variant discriminated union vs objectui's flat one), which is case
+    // 2c in the guard's header.
+    //
+    // So the pin now asks the question that actually gates the override —
+    // whether an objectui area's items still carry semantics the spec's type
+    // rejects. `visible: boolean` is the sharpest of the three blockers
+    // (`menuItemToNavigationItem` MANUFACTURES one from legacy
+    // `MenuItem.hidden`), and it is the one that fails first if someone tries
+    // to inherit `navigation`. The umbrella verdict and the other two blockers
+    // are pinned per-key in `spec-derived-unions.test.ts`; when they lift,
+    // that file fails and sends the reader back here.
+    const spec: IsAny<SpecNavigationArea['navigation'][number]> = false;
+    expect(spec, 'the spec element is typed now — re-read the case-2c note').toBe(false);
 
-    const localTyped: IsAny<NavigationArea['navigation'][number]> = false;
-    expect(localTyped).toBe(false);
+    const booleanVisible: NavigationArea = {
+      id: 'area_sales',
+      label: 'Sales',
+      navigation: [{ id: 'nav_leads', type: 'object', label: 'Leads', visible: false }],
+    };
+    expect(booleanVisible.navigation[0]?.visible).toBe(false);
+
+    const rejected: SpecNavigationArea['navigation'] = [
+      {
+        id: 'nav_leads',
+        type: 'object',
+        label: 'Leads',
+        objectName: 'lead',
+        // @ts-expect-error the spec's item takes a CEL string / Expression
+        // envelope at every tier, never a boolean — binding `navigation`
+        // would delete the spelling `menuItemToNavigationItem` manufactures.
+        visible: false,
+      },
+    ];
+    expect(rejected).toBeTruthy();
 
     // …and the local element really is the navigation item, not a lookalike.
     const item: NavigationItem = { id: 'nav_leads', type: 'object', label: 'Leads' };
