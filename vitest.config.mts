@@ -144,7 +144,15 @@ export default defineConfig({
           // `eslint-rules/**` holds the local ESLint plugin's RuleTester specs.
           // They were previously matched by no project glob, so the ratchet
           // rules shipped with tests that never ran (objectui#2879).
-          include: ['packages/**/*.test.ts', 'examples/**/*.test.ts', 'eslint-rules/**/*.test.js'],
+          // `scripts/**` covers the repo-level CI helpers with no package of
+          // their own (e.g. the PR-comment renderer behind
+          // `.github/workflows/performance-budget.yml`).
+          include: [
+            'packages/**/*.test.ts',
+            'examples/**/*.test.ts',
+            'eslint-rules/**/*.test.js',
+            'scripts/**/*.test.ts',
+          ],
           exclude: [...sharedExclude, ...domTsTests],
         },
       },
