@@ -37,6 +37,13 @@ import type { SpecAuthoredInput } from '../spec-input';
  * optional; this hook dispatches on `mode` and its callers always supply one,
  * so it is required here. Every other key is the spec's, by reference. Pinned
  * by `__tests__/offline-nav-performance-spec-parity.test.ts`.
+ *
+ * Two per-key notes the hand copy carried, kept here because a derived alias
+ * has no members to hang them on:
+ *  - `size` is the coarse overlay bucket added by #2578; `resolveOverlayWidth`
+ *    below maps it through {@link OVERLAY_SIZE_WIDTHS}.
+ *  - `width` is DEPRECATED by #2578 in favour of `size`. It still wins when
+ *    present, because app-shell pre-resolves `size` into it.
  */
 export type NavigationConfig = Omit<
   SpecAuthoredInput<typeof NavigationConfigSchema>,
