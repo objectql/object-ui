@@ -327,7 +327,7 @@ export function GridField({
   const cfg = (field || (props as any).schema || {}) as any;
   const allColumns: GridColumn[] = cfg.columns || [];
   const rows: Row[] = Array.isArray(value) ? value : [];
-  const contextRecord = (props as any).contextRecord as Record<string, unknown> | undefined;
+  const contextRecord = props.contextRecord;
 
   // Per-cell CEL rule state (B2 in grids). A column with no readonlyWhen/
   // requiredWhen resolves to its static flags (cheap fast-path — no engine

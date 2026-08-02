@@ -22,8 +22,9 @@
  *  - `FieldWidgetProps` is now `FieldWidgetComponentProps`. The spec owns that
  *    name for the DECLARED widget-plugin props contract; this package's is the
  *    React interface its widgets implement. The pins record the divergence that
- *    made re-exporting impossible, and the index signature that made the
- *    divergence invisible.
+ *    made re-exporting impossible — and, since objectui#3221 closed the type,
+ *    that the divergence is now *visible* rather than swallowed by a
+ *    `[key: string]: any` index signature.
  *
  * The other direction — "the spec must not start owning the NEW names" — is not
  * asserted here because `scripts/check-spec-symbol-derivation.mjs` already
@@ -87,19 +88,24 @@ describe('FieldWidgetComponentProps is the RENDERED layer of the spec contract',
     type _SpecNamesItError = Assert<HasKey<SpecFieldWidgetProps, 'error'>>;
     type _LocalNamesItErrorMessage = Assert<HasKey<FieldWidgetComponentProps, 'errorMessage'>>;
 
-    // …and the reason nobody noticed. The index signature answers `any` for
-    // every key this type does not declare, so BOTH of the spec's keys already
-    // "exist" here — `props.required` and `props.error` are legal reads that
-    // give `any` and are always `undefined` at runtime. No compiler check and
-    // no structural comparison can report a key as missing from a type that
-    // claims to have every key (objectstack#4075). That is what makes a parity
-    // test useless for this symbol and the guard the only detector.
-    //
-    // These three assertions exist to be DELETED by objectui#3221, which
-    // removes the index signature; when that lands they go red on purpose.
-    type _IndexSignatureStillThere = Assert<Extends<string, keyof FieldWidgetComponentProps>>;
-    type _RequiredSilentlyReadsAsAny = Assert<IsAny<FieldWidgetComponentProps['required']>>;
-    type _ErrorSilentlyReadsAsAny = Assert<IsAny<FieldWidgetComponentProps['error']>>;
+    // …and the reason nobody noticed used to sit right here: three pins
+    // asserting that `[key: string]: any` was still present, and that
+    // `props.required` / `props.error` therefore read as `any`. objectui#3221
+    // removed that index signature, so those pins have gone red on purpose and
+    // are gone with it. What replaces them is the inverse claim — the type is
+    // now CLOSED, so the two keys the spec declares and this one does not can
+    // finally be reported as missing. That is what makes objectui#3222 (the
+    // `error` / `errorMessage` divergence) decidable by the compiler instead of
+    // by a symbol guard.
+    type _NoStringIndexSignature = Assert<Equal<Extends<string, keyof FieldWidgetComponentProps>, false>>;
+    type _RequiredIsAbsent = Assert<Equal<HasKey<FieldWidgetComponentProps, 'required'>, false>>;
+    type _ErrorIsAbsent = Assert<Equal<HasKey<FieldWidgetComponentProps, 'error'>, false>>;
+
+    // `data-*` stays open (it is open in HTML too), but as a template-literal
+    // key — the distinction that keeps `keyof` finite above. A pin, because
+    // widening it back to `[key: string]` would silently restore the defect
+    // while every assertion here still read as "closed".
+    type _DataAttributesStayOpen = Assert<Extends<'data-testid', keyof FieldWidgetComponentProps>>;
 
     expect(true).toBe(true);
   });

@@ -90,8 +90,8 @@ export function CapabilityMultiSelectField({
   const { t } = useFieldTranslation();
   const ctx = React.useContext(SchemaRendererContext);
   const dataSource: DataSource | null =
-    (props as any).dataSource ?? (ctx as any)?.dataSource ?? null;
-  const disabled = (props as any).disabled as boolean | undefined;
+    (props.dataSource as any) ?? (ctx as any)?.dataSource ?? null;
+  const disabled = props.disabled;
 
   const [caps, setCaps] = React.useState<Capability[] | null>(null);
 

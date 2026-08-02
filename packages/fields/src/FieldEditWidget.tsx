@@ -184,6 +184,8 @@ export function FieldEditWidget({
   const resolved = field?.type ? resolveInlineEditType(field.type) : undefined;
   const Widget = resolved ? EDIT_WIDGETS[resolved] : undefined;
   if (!Widget) return null;
+  // `compact` is a declared widget prop (objectui#3221 closed this type), so
+  // the spread no longer needs an `any` escape hatch to get past it.
   const compactProps = resolved && COMPACT_EDIT_TYPES.has(resolved) ? { compact: true } : {};
-  return <Widget field={field} value={value} onChange={onChange} readonly={readonly} {...(compactProps as any)} />;
+  return <Widget field={field} value={value} onChange={onChange} readonly={readonly} {...compactProps} />;
 }

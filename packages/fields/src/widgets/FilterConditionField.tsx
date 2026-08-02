@@ -301,7 +301,7 @@ export function FilterConditionField({
 }: FieldWidgetComponentProps<string | object>) {
   const ctx = React.useContext(SchemaRendererContext);
   const { t } = useFieldTranslation();
-  const dataSource: any = (props as any).dataSource ?? (ctx as any)?.dataSource ?? null;
+  const dataSource: any = props.dataSource ?? (ctx as any)?.dataSource ?? null;
   const dependentValues: Record<string, any> = (props as any).dependentValues ?? {};
   const objectName = String(dependentValues.object_name ?? '');
 

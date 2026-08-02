@@ -36,7 +36,7 @@ export function MultiSelectField({
   const config = (field || schema) as any;
   const rawOptions: Option[] = config?.options || [];
   const selected: string[] = Array.isArray(value) ? value : value == null ? [] : [value as unknown as string];
-  const fieldName = (props as any).name || config?.name || (props as any).id || '';
+  const fieldName = props.name || config?.name || props.id || '';
 
   const dependsOn = config?.dependsOn ?? dependsOnProp;
   const { options, gated, dependsOnFields } = useCascadingOptions<Option>(
@@ -107,7 +107,7 @@ export function MultiSelectField({
             type="button"
             key={value}
             onClick={() => toggle(value)}
-            disabled={(props as any).disabled}
+            disabled={props.disabled}
             aria-pressed={active}
             data-testid={`multiselect-option-${opt.value}`}
             className={cn(

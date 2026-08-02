@@ -67,7 +67,7 @@ function SingleSelectField({
   // driven by synthetic DOM events, so e2e must target the trigger/options by a
   // deterministic testid keyed on the field name. `props.name` is the
   // react-hook-form field name spread in by the form renderer (FormField).
-  const fieldName = (props as any).name || (config as any)?.name || props.id || '';
+  const fieldName = props.name || (config as any)?.name || props.id || '';
 
   const dependsOn = (config as any)?.dependsOn ?? dependsOnProp;
   const { options, gated, dependsOnFields } = useCascadingOptions(

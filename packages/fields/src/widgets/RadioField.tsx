@@ -34,7 +34,7 @@ export function RadioField({
   const config = (field || schema) as any;
   const rawOptions: Option[] = config?.options || [];
   const groupId = useId();
-  const fieldName = (props as any).name || config?.name || (props as any).id || '';
+  const fieldName = props.name || config?.name || props.id || '';
 
   const dependsOn = config?.dependsOn ?? dependsOnProp;
   const { options, gated, dependsOnFields } = useCascadingOptions<Option>(
@@ -81,7 +81,7 @@ export function RadioField({
     <RadioGroup
       value={value ?? ''}
       onValueChange={onChange}
-      disabled={(props as any).disabled}
+      disabled={props.disabled}
       className={className}
     >
       {options.map((opt) => {

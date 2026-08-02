@@ -280,13 +280,13 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   }, [fieldMeta?.depends_on, fieldMeta?.dependsOn]);
 
   // Resolve dependent field values from explicit prop or SchemaRendererContext.data
-  const dependentValuesProp = (props as any).dependentValues as Record<string, any> | undefined;
+  const dependentValuesProp = props.dependentValues;
 
   // Resolve DataSource: explicit prop > field-level > wrapper field > SchemaRendererContext > none
   const ctx = useContext(SchemaRendererContext);
   const contextDataSource = ctx?.dataSource ?? null;
   const dataSource: DataSource | null =
-    (props as any).dataSource ?? lookupField?.dataSource ?? fieldMeta?.dataSource ?? contextDataSource;
+    (props.dataSource as DataSource | null | undefined) ?? lookupField?.dataSource ?? fieldMeta?.dataSource ?? contextDataSource;
 
   /** Resolve dependent values from the explicit prop (preferred), the form-data
    *  context provided by @object-ui/react, or finally `ctx.data` (record scope). */
@@ -369,7 +369,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
 
   // Optional create-new callback
   const onCreateNew: ((searchQuery: string) => void) | undefined =
-    (props as any).onCreateNew ?? lookupField?.onCreateNew;
+    props.onCreateNew ?? lookupField?.onCreateNew;
 
   // State for the full Record Picker dialog (Level 2)
   const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -657,7 +657,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   // auto-fill sibling fields from it — e.g. a line-item grid copying a product's
   // unit_price/description when the item is chosen. When provided (single
   // select), it drives the update and the host owns the resulting value change.
-  const onSelectRecord = (props as any).onSelectRecord as ((record: LookupOption) => void) | undefined;
+  const onSelectRecord = props.onSelectRecord;
 
   const handleSelect = useCallback(
     (option: LookupOption) => {
@@ -906,7 +906,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   // Compact mode (e.g. inside a line-item grid cell): show the selected value
   // INSIDE a borderless trigger on a single line — no chip stacked above a
   // separate "Select…" button (which double-stacks and wastes the row height).
-  const compact = !!(props as any).compact;
+  const compact = !!props.compact;
   const singleSelectedLabel = selectedOptions[0]?.label || selectedOptions[0]?.[displayField];
 
   // Shared field trigger — the anchor for either the inline PeoplePicker
@@ -920,8 +920,8 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
         compact && 'h-8 rounded-none border-0 bg-transparent px-2 shadow-none focus-visible:ring-1 focus-visible:ring-ring/60',
       )}
       type="button"
-      disabled={dependenciesMissing || (props as any).disabled}
-      data-testid={dependenciesMissing ? 'lookup-trigger-gated' : (((props as any).name || lookupField?.name) ? `lookup-trigger-${(props as any).name || lookupField.name}` : 'lookup-trigger')}
+      disabled={dependenciesMissing || props.disabled}
+      data-testid={dependenciesMissing ? 'lookup-trigger-gated' : ((props.name || lookupField?.name) ? `lookup-trigger-${props.name || lookupField.name}` : 'lookup-trigger')}
       title={dependenciesMissing
         ? t('lookup.selectFirst', { fields: dependsOn.map(d => d.field).join(', ') })
         : undefined}
@@ -1214,7 +1214,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
           type="button"
           // Gated exactly like the main trigger (#2215) — pre-fix this button
           // opened the full unscoped table while the dependency was missing.
-          disabled={dependenciesMissing || (props as any).disabled}
+          disabled={dependenciesMissing || props.disabled}
           onClick={() => setIsPickerOpen(true)}
           aria-label={t('lookup.browseAll')}
           title={dependenciesMissing

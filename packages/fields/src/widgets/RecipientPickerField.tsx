@@ -57,8 +57,8 @@ export function RecipientPickerField({
 }: FieldWidgetComponentProps<string>) {
   const ctx = React.useContext(SchemaRendererContext);
   const { t } = useFieldTranslation();
-  const dataSource: any = (props as any).dataSource ?? (ctx as any)?.dataSource ?? null;
-  const disabled = (props as any).disabled as boolean | undefined;
+  const dataSource: any = props.dataSource ?? (ctx as any)?.dataSource ?? null;
+  const disabled = props.disabled;
   const dependentValues: Record<string, any> = (props as any).dependentValues ?? {};
   const recipientType = String(dependentValues.recipient_type ?? '');
   const mapping = TYPE_TO_OBJECT[recipientType];

@@ -35,7 +35,7 @@ export function CheckboxesField({
   const rawOptions: Option[] = config?.options || [];
   const selected: string[] = Array.isArray(value) ? value : value == null ? [] : [value as unknown as string];
   const groupId = useId();
-  const fieldName = (props as any).name || config?.name || (props as any).id || '';
+  const fieldName = props.name || config?.name || props.id || '';
 
   const dependsOn = config?.dependsOn ?? dependsOnProp;
   const { options, gated, dependsOnFields } = useCascadingOptions<Option>(
@@ -107,7 +107,7 @@ export function CheckboxesField({
               id={id}
               checked={selected.includes(value)}
               onCheckedChange={(checked) => toggle(value, !!checked)}
-              disabled={(props as any).disabled}
+              disabled={props.disabled}
               data-testid={`checkboxes-option-${value}`}
             />
             <Label htmlFor={id} className="font-normal">{opt.label}</Label>

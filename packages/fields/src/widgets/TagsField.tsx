@@ -58,7 +58,7 @@ export function TagsField({ value, onChange, field, readonly, className, ...prop
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={onKeyDown}
         onBlur={() => addTag(draft)}
-        disabled={(props as any).disabled}
+        disabled={props.disabled}
         placeholder={tags.length === 0 ? '输入后回车添加…' : ''}
         className="h-7 flex-1 border-0 bg-transparent p-0 px-1 shadow-none focus-visible:ring-0 min-w-[8ch]"
       />

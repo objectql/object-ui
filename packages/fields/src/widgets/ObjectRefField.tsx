@@ -35,8 +35,8 @@ export function ObjectRefField({
 }: FieldWidgetComponentProps<string>) {
   const ctx = React.useContext(SchemaRendererContext);
   const { t } = useFieldTranslation();
-  const dataSource: any = (props as any).dataSource ?? (ctx as any)?.dataSource ?? null;
-  const disabled = (props as any).disabled as boolean | undefined;
+  const dataSource: any = props.dataSource ?? (ctx as any)?.dataSource ?? null;
+  const disabled = props.disabled;
 
   const [objects, setObjects] = React.useState<ObjectHeader[] | null>(null);
 
