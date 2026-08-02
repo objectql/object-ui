@@ -27,8 +27,6 @@ import type { FilterBuilderOperator as BaseFilterOperator } from './complex';
 // derived on the `z.input` (authored/wire) side rather than `z.infer`.
 import type { z } from 'zod';
 import type {
-  JoinStrategy as SpecJoinStrategy,
-  WindowFunction as SpecWindowFunction,
   ScriptValidationSchema as SpecScriptValidationSchema,
   StateMachineValidationSchema as SpecStateMachineValidationSchema,
   CrossFieldValidationSchema as SpecCrossFieldValidationSchema,
@@ -97,9 +95,17 @@ export interface WhereNode extends QueryASTNode {
 }
 
 /**
- * Join execution strategy hint — derived from the spec's `JoinStrategy` zod enum.
+ * Join execution strategy hint — objectui query-AST vocabulary.
+ *
+ * Was bound to the spec's `JoinStrategy` zod enum until spec 17.0.0, which
+ * retired `query.joins` and the whole JoinNode cluster with it (framework#4286:
+ * no engine or driver ever read a join on the query path, so every join a
+ * caller declared was silently dropped — `expand` is the live spelling of
+ * related-record retrieval). The members below are that enum's, verbatim: this
+ * repo's query AST is unchanged, it simply no longer derives from a retired
+ * export.
  */
-export type JoinStrategy = z.infer<typeof SpecJoinStrategy>;
+export type JoinStrategy = 'auto' | 'database' | 'hash' | 'loop';
 
 /**
  * JOIN clause node (Phase 3.3.4)
@@ -171,9 +177,18 @@ export interface AggregateNode extends QueryASTNode {
 }
 
 /**
- * Window function type — derived from the spec's `WindowFunction` zod enum.
+ * Window function type — objectui query-AST vocabulary.
+ *
+ * Was bound to the spec's `WindowFunction` zod enum until spec 17.0.0, which
+ * retired `query.windowFunctions` and its cluster (framework#4286: OVER clauses
+ * only ever ran behind a driver-level door whose flat input shape the spec
+ * vocabulary never matched, so every window function declared on the query path
+ * was dropped). The members below are that enum's, verbatim.
  */
-export type WindowFunction = z.infer<typeof SpecWindowFunction>;
+export type WindowFunction =
+  | 'row_number' | 'rank' | 'dense_rank' | 'percent_rank'
+  | 'lag' | 'lead' | 'first_value' | 'last_value'
+  | 'sum' | 'avg' | 'count' | 'min' | 'max';
 
 /**
  * Window frame unit — objectui query-AST vocabulary (no spec counterpart).

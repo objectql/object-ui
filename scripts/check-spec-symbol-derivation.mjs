@@ -135,6 +135,29 @@ const ALLOW = {
       "test pins the key set.",
     issue: 4115,
   },
+  // Two names the spec started exporting in 17.0.0-rc.1. Both were triaged when
+  // the bump landed (objectui#3178) and neither is a dialect of the spec's
+  // concept — they are unrelated things that happen to share a name.
+  "@object-ui/types:FieldNode": {
+    reason:
+      "Same name, unrelated concepts. The spec's `FieldNode` is a bare `string` — a field " +
+      "NAME — after objectstack#4196 narrowed `QueryAST.fields` to names (the old union's " +
+      "nested-select member was produced by nothing and consumed by nothing). This is a NODE " +
+      "in objectui's own query AST (`{ type: 'field', table?, name, alias? }`), a sibling of " +
+      "`LiteralNode` / `OperatorNode` / `JoinNode`. Deriving would replace a structured node " +
+      "with a string; there is nothing to import.",
+    issue: 4115,
+  },
+  "@object-ui/app-shell:InboxNotification": {
+    reason:
+      "Two LAYERS, like the FormField entry above. The spec's is the notification SERVICE " +
+      "contract (`INotificationService.listInbox`): camelCase, `body` and `read` required, " +
+      "`actionUrl`/`createdAt`. This is the materialized inbox ROW the popover groups — " +
+      "snake_case mirroring `sys_notification` (`action_url`), carrying the read-receipt keys " +
+      "the contract has no place for (`notification_id`, `receipt_id`, ADR-0030) and nullable " +
+      "where a stored row can be null. A row is not a response.",
+    issue: 4115,
+  },
 };
 
 // ── Untriaged collisions (the ledger) ────────────────────────────────────────
@@ -204,7 +227,6 @@ const DEBT = {
     "GestureConfig",
     "GestureType",
     "ImportRowResult",
-    "JoinNode",
     "JoinedReportBlock",
     "NavigationArea",
     "NavigationAreaSchema",
@@ -240,7 +262,6 @@ const DEBT = {
     "OfflineCacheConfig",
     "OfflineConfig",
     "OfflineStrategy",
-    "PerformanceConfig",
   ],
   "@object-ui/data-objectstack": [
     "CacheStats",

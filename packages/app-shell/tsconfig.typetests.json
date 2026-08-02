@@ -1,0 +1,48 @@
+{
+  // Compiles the test files whose ENTIRE value is compile-time type assertions,
+  // so that those assertions are actually checked by CI (objectui#3181).
+  //
+  // Why this exists as a THIRD project rather than as `tsconfig.test.json`:
+  //
+  //  - `tsconfig.json` is the package BUILD (`tsc` -> dist, "rootDir": "src",
+  //    "composite", "declaration"). It excludes `**/*.test.ts` correctly — test
+  //    files would otherwise emit into the published dist.
+  //  - `tsconfig.test.json` is the repo's name for "this package compiles ALL of
+  //    its tests" (see packages/types). app-shell cannot claim that yet: its
+  //    test tree still has a large pre-existing error backlog, declared as
+  //    TEST_DEBT in scripts/check-type-check-coverage.mjs. Naming this file
+  //    `tsconfig.test.json` would tell that guard the debt is paid and make it
+  //    demand the entry be deleted — trading one false "checked" claim for
+  //    another.
+  //
+  // So: a narrow, explicitly-listed project that compiles only files which are
+  // ALREADY clean and whose assertions are load-bearing. It is chained from the
+  // package's `type-check` script, which is what the CI `Type Check` job runs
+  // (`pnpm type-check` -> `turbo run type-check`), and that chaining is enforced
+  // by scripts/check-type-check-coverage.mjs — a config nothing runs is exactly
+  // the objectui#3009 / objectui#3181 failure this file is fixing.
+  //
+  // Adding a file here is a one-line change; the bar is that it compiles clean
+  // today. Do NOT switch this to a glob: a glob would sweep in the backlog and
+  // the first agent to hit it would "fix" that by deleting the whole project.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    // A checking project, never an emitting one — and explicitly not part of
+    // the build graph, so it cannot leak test output into dist.
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "lib": ["ES2020", "DOM"],
+    // `spec-symbol-parity.test.ts` resolves `@objectstack/spec`'s own `.d.ts`
+    // files off disk (createRequire / readFileSync / node:path) to read the
+    // spec's export names through the TypeScript checker.
+    "types": ["node"],
+    // Same reason as tsconfig.json: drop the root tsconfig's source-tree `paths`
+    // so `@objectstack/spec` and the `@object-ui/*` workspace deps resolve
+    // through the real dependency graph rather than through sibling `src/`.
+    "paths": {}
+  },
+  // Explicit list, not a glob. Every entry is a file whose type assertions are
+  // the point of the file.
+  "include": ["src/__tests__/spec-symbol-parity.test.ts"]
+}

@@ -1159,8 +1159,12 @@ export type {
 // ============================================================================
 // v2.0.7 Spec UI Types — Performance & Page Transitions
 // ============================================================================
+// `PerformanceConfig` was RETIRED here with `dashboard.performance` in spec
+// 17.0.0 (framework#3896 audit close-out): no renderer or runtime ever read the
+// key, and its value schema had no other consumer, so it went with it. Nothing
+// in this repo bound to the spec type — `@object-ui/react`'s `usePerformance`
+// declares its own `PerformanceConfig` interface and is untouched.
 export type {
-  PerformanceConfig,
   PageTransition,
   PageComponentType,
 } from '@objectstack/spec/ui';

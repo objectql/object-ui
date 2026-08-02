@@ -1326,7 +1326,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     }
 
     // Check for Timeline capabilities (spec config takes precedence)
-    if (schema.timeline?.startDateField || schema.options?.timeline?.startDateField || schema.options?.timeline?.dateField || schema.options?.calendar?.startDateField) {
+    if (schema.timeline?.startDateField || (schema.timeline as any)?.dateField || schema.options?.timeline?.startDateField || schema.options?.timeline?.dateField || schema.options?.calendar?.startDateField) {
       resolvable.push('timeline');
     }
 
@@ -1584,7 +1584,11 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           // Nested timeline config (spec-compliant, used by ObjectTimeline)
           timeline: Object.keys(mergedTimeline).length > 0 ? mergedTimeline : undefined,
           // Deprecated top-level props for backward compat
-          startDateField: schema.timeline?.startDateField || schema.options?.timeline?.startDateField || schema.options?.timeline?.dateField || 'created_at',
+          // `dateField` is the deprecated alias for `startDateField`. It was read
+          // from `options.timeline` but not from the spec-canonical
+          // `schema.timeline`, so the spec nesting + legacy key silently fell
+          // through to `created_at` (objectui#3129).
+          startDateField: schema.timeline?.startDateField || (schema.timeline as any)?.dateField || schema.options?.timeline?.startDateField || schema.options?.timeline?.dateField || 'created_at',
           titleField: schema.timeline?.titleField || schema.options?.timeline?.titleField || 'name',
           ...(schema.timeline?.endDateField ? { endDateField: schema.timeline.endDateField } : {}),
           ...(schema.timeline?.groupByField ? { groupByField: schema.timeline.groupByField } : {}),

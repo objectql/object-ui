@@ -60,10 +60,7 @@ import {
 } from '@objectstack/spec/ui';
 import {
   FieldType as SpecFieldType,
-  JoinStrategy as SpecJoinStrategy,
-  WindowFunction as SpecWindowFunction,
 } from '@objectstack/spec/data';
-import type { JoinNode as SpecJoinNode } from '@objectstack/spec/data';
 // The objectstack#4171 inverted pin must import the banned name to probe its
 // any-ness — this guard is a sanctioned importer (#3090 tripwire).
 /* eslint-disable no-restricted-imports -- reported at the specifier line, out of -next-line reach */
@@ -74,7 +71,6 @@ import type {
 /* eslint-enable no-restricted-imports */
 import type { BreakpointName } from '../mobile';
 import type { ExportJobStatus, ImportJobStatus, ImportWriteMode, ValidationError } from '../data';
-import type { JoinStrategy, WindowFunction } from '../data-protocol';
 import {
   OBJECTUI_LOCAL_ACTION_TYPES,
   OBJECTUI_LOCAL_PARAM_FIELD_TYPES,
@@ -139,47 +135,50 @@ const _importStatusCovers = null as unknown as
 const _exportStatusCovers = null as unknown as
   | 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'expired' satisfies ExportJobStatus;
 const _validationErrorShape: ValidationError = { field: 'name', message: 'required' };
-// The spec exports these two as zod enums, not types, so objectui derives them
-// with `z.infer`. Reading the members back off the schema keeps the check honest
-// if the spec widens either enum.
-type SpecJoin = typeof SpecJoinStrategy extends { options: readonly (infer T)[] } ? T : never;
-const _joinStrategyCovers = null as unknown as SpecJoin satisfies JoinStrategy;
-type SpecWindow = typeof SpecWindowFunction extends { options: readonly (infer T)[] } ? T : never;
-const _windowFunctionCovers = null as unknown as SpecWindow satisfies WindowFunction;
+// `JoinStrategy` / `WindowFunction` USED to be derived off the spec's zod enums
+// (objectstack#4115, "come off the spec enum, not a restatement"). Spec 17.0.0
+// retired both — `query.joins` and `query.windowFunctions` were tombstoned
+// because no engine or driver ever read them on the query path (framework#4286)
+// — so there is no enum left to derive from and the pins that enforced it are
+// gone with the imports. `packages/types/src/data-protocol.ts` now restates the
+// members locally, verbatim from the last spec that published them, as the
+// objectui query-AST vocabulary they have become.
 
 /**
- * Inverted pins — three collisions that are NOT burnable, and the tripwire that
- * says when they become burnable.
+ * Inverted pins — the tripwire FIRED on spec 17.0.0-rc.1 (#3177).
  *
- * `NavigationItem`, `JoinNode` and `FormField` collide with a spec export whose
- * own declaration resolves to `any` (the spec annotates the recursive schemas
- * behind them as `z.ZodType<any>`, and `z.infer` of that is `any`). Binding
- * objectui's local interface to the spec would replace a precise, documented
- * shape with `any` — a type-safety regression wearing a burn-down's clothes. So
- * they stay in the ledger with their local declarations intact, which is the
- * right answer for as long as the spec cannot describe them.
+ * `NavigationItem`, `JoinNode` and `FormField` used to collide with a spec
+ * export whose own declaration resolved to `any` (the spec annotated the
+ * recursive schemas behind them as `z.ZodType<any>`, and `z.infer` of that is
+ * `any`). Binding objectui's local interface to that would have replaced a
+ * precise, documented shape with `any` — a type-safety regression wearing a
+ * burn-down's clothes — so they stayed local, and these pins asserted the
+ * premise held. Filed upstream as objectstack#4171.
  *
- * Filed upstream as objectstack#4171 (4 of the spec's 2240 exported types).
+ * Two of them are now typed properly upstream, so the assertions below are
+ * inverted to record that fact rather than the old one. **They are a record,
+ * not a resolution**: the burn-down each one asks for — deriving objectui's
+ * `NavigationItem` / `FormField` from the spec — touches widely-used public
+ * types and is deliberately NOT bundled into a version bump. Tracked in #3177.
  *
- * Mutual assignability CANNOT distinguish this case on its own: `any` answers
- * every `extends` question affirmatively, so a naive probe reports these three
- * as "identical to the spec" and recommends exactly the wrong edit.
+ * `JoinNode`'s pin is gone entirely: spec 17.0.0 retired the symbol
+ * (framework#4286), so there is no collision left to reason about.
  *
- * The day the spec types any of them properly, `IsAny<…>` flips to `false`,
- * `true satisfies false` stops compiling, and the failure is the instruction:
- * re-run the triage and burn that symbol down.
+ * Mutual assignability CANNOT distinguish the `any` case on its own: `any`
+ * answers every `extends` question affirmatively, so a naive probe reports such
+ * a symbol as "identical to the spec" and recommends exactly the wrong edit.
+ * That is why these are written as explicit `IsAny` probes.
  */
 type IsAny<T> = 0 extends 1 & T ? true : false;
-const _specNavigationItemIsStillAny = true satisfies IsAny<SpecNavigationItem>;
-const _specJoinNodeIsStillAny = true satisfies IsAny<SpecJoinNode>;
-const _specFormFieldIsStillAny = true satisfies IsAny<SpecFormField>;
+const _specNavigationItemIsStillAny = false satisfies IsAny<SpecNavigationItem>;
+const _specFormFieldIsStillAny = false satisfies IsAny<SpecFormField>;
 
 void _chartCovers; void _reportCovers; void _actionCovers; void _pageCovers; void _vizCovers;
 void _runnableCovers; void _componentCovers; void _paramFieldCovers; void _resolvableCovers;
 void _fieldBackedParam; void _minimalTypedParam;
 void _breakpointCovers; void _importModeCovers; void _importStatusCovers; void _exportStatusCovers;
-void _validationErrorShape; void _joinStrategyCovers; void _windowFunctionCovers;
-void _specNavigationItemIsStillAny; void _specJoinNodeIsStillAny; void _specFormFieldIsStillAny;
+void _validationErrorShape;
+void _specNavigationItemIsStillAny; void _specFormFieldIsStillAny;
 
 /** Read a spec enum's members, failing loudly if the shape ever changes. */
 const optionsOf = (schema: unknown, name: string): string[] => {
@@ -218,17 +217,26 @@ describe('unions derived from a spec vocabulary stay derived (#2944)', () => {
     expect([...OBJECTUI_LOCAL_ACTION_TYPES]).toEqual(['navigation']);
   });
 
-  it('`combo` is not a spec chart type — the spec models it per-series', () => {
+  it('`combo` IS a spec chart type since 17.0.0-rc.1 — the tripwire fired', () => {
     // `plugin-charts`'s `ChartFamily` carries `combo`, which #2945 listed as
-    // "promote or delete". Neither: `ChartSeries.type` already exists and its
-    // own field comment reads "Series type override (combo charts)", so the
-    // spec expresses a combo per-series, exactly as it expresses stacking with
-    // `ChartSeries.stack` rather than a `stacked-bar` family. `combo` stays a
-    // renderer-local marker that `effectiveChartFamily` DERIVES from the series.
+    // "promote or delete". For a long time the answer was neither: the spec
+    // expressed a combo PER-SERIES (`ChartSeries.type`, "Series type override
+    // (combo charts)"), exactly as it expresses stacking with `ChartSeries.stack`
+    // rather than a `stacked-bar` family — so `combo` stayed a renderer-local
+    // marker that `effectiveChartFamily` DERIVES from the series, and this test
+    // was the tripwire watching for the spec to adopt it.
     //
-    // Tripwire, same shape as `navigation` above: if the spec ever adopts
-    // `combo`, this fails and the derivation is what to retire.
-    expect(optionsOf(SpecChartTypeSchema, 'ChartTypeSchema')).not.toContain('combo');
+    // Spec 17.0.0-rc.1 adopted it (the sole addition to `ChartTypeSchema`, 19
+    // members → 20). The assertion is inverted to pin the new fact, and the two
+    // surfaces that classify a spec chart type were taught to route it —
+    // `widgetDispatch.SERIES_CHART_TYPES` and `planReportChart` — because until
+    // they were, a spec-valid `combo` fell through to a red error box on a
+    // dashboard and to the out-of-spec notice on a report.
+    //
+    // The renderer-local DERIVATION stays: `effectiveChartFamily` still infers a
+    // combo from mixed series types, which is what makes an authored
+    // `type: 'combo'` render rather than merely validate.
+    expect(optionsOf(SpecChartTypeSchema, 'ChartTypeSchema')).toContain('combo');
   });
 
   it('ReportType includes `joined` — the member the fork dropped', () => {
@@ -316,16 +324,8 @@ describe('unions derived from a spec vocabulary stay derived (#2944)', () => {
     expect(local.filter((v) => spec.includes(v))).toEqual([]);
   });
 
-  it('JoinStrategy / WindowFunction come off the spec enum, not a restatement (objectstack#4115)', () => {
-    // The type aliases erase, so the runtime witness is the schema they are
-    // `z.infer`-ed from. Both were hand-written unions carrying a "(ObjectStack
-    // Spec v2.0.1)" doc header — a version claim nothing checked.
-    const joins = optionsOf(SpecJoinStrategy, 'JoinStrategy');
-    expect(joins).toEqual(expect.arrayContaining(['auto', 'database', 'hash', 'loop']));
-
-    const windows = optionsOf(SpecWindowFunction, 'WindowFunction');
-    for (const member of ['row_number', 'rank', 'dense_rank', 'lag', 'lead', 'sum', 'count']) {
-      expect(windows).toContain(member);
-    }
-  });
+  // The `JoinStrategy` / `WindowFunction` runtime pin (objectstack#4115) was
+  // REMOVED with spec 17.0.0: both enums were retired there (framework#4286), so
+  // there is no spec schema left to read members off. See the note beside the
+  // type-level pins above.
 });

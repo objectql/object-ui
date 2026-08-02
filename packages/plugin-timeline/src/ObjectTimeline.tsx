@@ -7,7 +7,7 @@
  */
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import type { DataSource, TimelineSchema, TimelineConfig } from '@object-ui/types';
+import type { DataSource, TimelineSchema, ListViewTimelineConfig } from '@object-ui/types';
 import { useDataScope, useNavigationOverlay, useObjectLabel } from '@object-ui/react';
 import { NavigationOverlay } from '@object-ui/components';
 import { extractRecords, buildExpandFields } from '@object-ui/core';
@@ -61,8 +61,12 @@ const TimelineExtensionSchema = z.object({
 export interface ObjectTimelineProps {
   schema: TimelineSchema & {
     objectName?: string;
-    /** Spec-compliant nested timeline config */
-    timeline?: TimelineConfig;
+    /**
+     * Spec-compliant nested timeline config. Typed as `ListViewTimelineConfig`
+     * — the spec shape plus the legacy `dateField` alias that `@object-ui/types`
+     * has always declared on it, and that this renderer now actually reads.
+     */
+    timeline?: ListViewTimelineConfig;
     /** @deprecated Use timeline.titleField instead */
     titleField?: string;
     /** @deprecated Use timeline.startDateField instead */
@@ -182,7 +186,16 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
   // outside the items-derivation block so we can also use them for
   // grouping / color resolution).
   const titleField = timelineConfig?.titleField ?? schema.mapping?.title ?? schema.titleField ?? 'name';
-  const startDateField = timelineConfig?.startDateField ?? schema.mapping?.date ?? schema.startDateField ?? schema.dateField ?? 'date';
+  // `dateField` is the pre-#2231 alias for `startDateField`. It was honored on
+  // the FLAT prop (`schema.dateField`) but never on the nested config, even
+  // though `ListViewTimelineConfig` declares it there and both `ObjectView`
+  // read-sites resolve it. A view authored as `timeline: { dateField }` therefore
+  // fell all the way through to the caller's default (`created_at` / `due_date`),
+  // which is usually absent from the projection — so every record bucketed into
+  // "No date" while the data it needed was sitting in the row (objectui#3129).
+  const startDateField =
+    timelineConfig?.startDateField ?? timelineConfig?.dateField
+    ?? schema.mapping?.date ?? schema.startDateField ?? schema.dateField ?? 'date';
   const endDateField = timelineConfig?.endDateField ?? schema.endDateField ?? startDateField;
   const descField = schema.mapping?.description ?? schema.descriptionField ?? 'description';
   const variantField = schema.mapping?.variant ?? 'variant';
