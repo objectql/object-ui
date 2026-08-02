@@ -58,7 +58,11 @@ const bucketLabels = () =>
   );
 
 async function renderTimeline(schema: Record<string, unknown>) {
-  render(<ObjectTimeline schema={schema as never} data={rows} />);
+  // `data` is an undeclared passthrough prop on ObjectTimelineProps (the
+  // component reads it off the rest args, which is how ListView feeds it), so
+  // it has to be applied untyped here.
+  const props = { schema, data: rows } as unknown as React.ComponentProps<typeof ObjectTimeline>;
+  render(<ObjectTimeline {...props} />);
   await waitFor(() => expect(screen.getByText('Spring Launch')).toBeDefined());
 }
 
