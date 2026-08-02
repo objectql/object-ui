@@ -19,11 +19,37 @@
  * configurations should use `NavigationItem` and the `navigation` / `areas` fields.
  */
 
-// The spec's own `NavigationItem` erases to `any` (its schema is declared
-// `z.ZodType<any>` to carry the recursive group variant), so objectui keeps a
-// real interface. Its per-variant types ARE properly typed, though, so the
-// fields below are derived from one of them rather than restated.
-import type { ObjectNavItem as SpecObjectNavItem } from '@objectstack/spec/ui';
+// Spec 17.0.0-rc.1 gave the spec's own `NavigationItem` a real type — it is no
+// longer the `z.ZodType<any>` erasure objectstack#4171 was filed about. That
+// removed the ORIGINAL reason this stayed a local interface, but not the
+// remaining ones (#3177 triage), and they were never caused by `any`:
+//
+//   1. Shape. The spec models navigation as a discriminated union of nine
+//      `$strict` variants with a `superRefine` exclusivity rule; this is one
+//      flat, all-optional shape. Converging is a breaking change for every
+//      consumer that reads a target field without narrowing — the verdict
+//      already recorded in `__tests__/navigation-spec-parity.test.ts`.
+//   2. Three semantics the spec has at NEITHER tier: `visible: boolean` (the
+//      spec takes only a CEL string / Expression envelope, yet
+//      `menuItemToNavigationItem` below inverts legacy `MenuItem.hidden` into
+//      a boolean), `pinned` (backs `useNavPins` + `FavoritesProvider`), and the
+//      legacy `defaultOpen` spelling. Binding deletes all three from the type
+//      while their implementations keep running.
+//   3. A separator carrying a `label`; the spec's separator branch declares none.
+//
+// So the symbol stays local and the KEYS come off the spec one by one — the
+// `badgeVariant` precedent (objectstack#4115), widened here to every key with a
+// precise spec counterpart. That is the part of the burn-down that is safe
+// today: a restated enum or payload shape can drift, and now cannot.
+// `spec-derived-unions.test.ts` pins the three blockers above, each written so
+// it fails the day the spec closes it.
+import type {
+  NavigationItem as SpecNavigationItem,
+  ObjectNavItem as SpecObjectNavItem,
+  UrlNavItem as SpecUrlNavItem,
+  ActionNavItem as SpecActionNavItem,
+  ComponentNavItem as SpecComponentNavItem,
+} from '@objectstack/spec/ui';
 import type { BaseSchema } from './base';
 
 // ============================================================================
@@ -32,17 +58,19 @@ import type { BaseSchema } from './base';
 
 /**
  * Navigation item type — determines the target and required fields.
+ *
+ * The MEMBERSHIP list is the spec's, read off the discriminant of its nav-item
+ * union rather than restated (#3177). A hand-written copy of a spec vocabulary
+ * is the objectstack#4115 failure class — `ChartType` carried 7 of 19 members,
+ * `ActionType` was missing `form` — and this one had drifted into an identical
+ * nine-member copy that nothing checked.
+ *
+ * Deriving also makes a future spec addition LOUD instead of silent: exhaustive
+ * consumers (`NAV_TYPE_META` in `plugin-designer`'s `NavigationDesigner` is a
+ * `Record< NavigationItemType, … >`) stop compiling until the new variant is
+ * handled, which is where a renderer gap belongs — not in a dead `default:`.
  */
-export type NavigationItemType =
-  | 'object'
-  | 'dashboard'
-  | 'page'
-  | 'report'
-  | 'url'
-  | 'component'
-  | 'group'
-  | 'separator'
-  | 'action';
+export type NavigationItemType = SpecNavigationItem['type'];
 
 /**
  * Unified Navigation Item
@@ -93,8 +121,11 @@ export interface NavigationItem {
   /**
    * Record opening mode when `recordId` is set. Defaults to `'view'`.
    * Use `'edit'` to land directly on the edit form (e.g. "Edit my profile").
+   *
+   * Derived from the spec's own object-nav variant (#3177) — a restated
+   * two-member enum is one spec release away from drifting.
    */
-  recordMode?: 'view' | 'edit';
+  recordMode?: NonNullable<SpecObjectNavItem['recordMode']>;
 
   /**
    * URL filter conditions (for type: 'object') — the entry targets the
@@ -109,8 +140,10 @@ export interface NavigationItem {
    * be resolved are dropped from the URL.
    *
    * Precedence within `type: 'object'`: `recordId` → `filters` → `viewName`.
+   *
+   * Shape derived from the spec's object-nav variant (#3177).
    */
-  filters?: Record<string, string>;
+  filters?: SpecObjectNavItem['filters'];
 
   /** Target dashboard name (for type: 'dashboard') */
   dashboardName?: string;
@@ -124,8 +157,16 @@ export interface NavigationItem {
   /** Target URL (for type: 'url') */
   url?: string;
 
-  /** Link target (for type: 'url') */
-  target?: '_blank' | '_self';
+  /**
+   * Link target (for type: 'url').
+   *
+   * Derived from the spec's url-nav variant (#3177). The spec declares it
+   * `.default('_self')`, so it is REQUIRED in that schema's output and optional
+   * here — objectui reads a plain object and never parses, so the default is
+   * never applied and the key is genuinely absent. `NonNullable` takes the
+   * member list without importing that requiredness.
+   */
+  target?: NonNullable<SpecUrlNavItem['target']>;
 
   /**
    * Target component reference (for type: 'component') — a colon-joined
@@ -140,8 +181,11 @@ export interface NavigationItem {
    * querystring so the same component/page can be reused across nav entries
    * with different inputs (e.g. `params: { type: 'object' }`). String values
    * support the same template variables as `recordId`.
+   *
+   * Shape derived from the spec's component-nav variant (#3177); the page
+   * variant declares the identical shape.
    */
-  params?: Record<string, unknown>;
+  params?: SpecComponentNavItem['params'];
 
   // -- Grouping --
 
@@ -150,7 +194,16 @@ export interface NavigationItem {
 
   // -- Visibility & Permissions --
 
-  /** Visibility expression — boolean or expression string e.g. "${user.role === 'admin'}" */
+  /**
+   * Visibility expression — boolean or expression string e.g. "${user.role === 'admin'}".
+   *
+   * NOT derived (#3177): the spec takes a CEL string on input and an Expression
+   * envelope `{ dialect, source }` on output — `boolean` is absent at BOTH
+   * tiers. `NavigationRenderer`'s `evalVis(item.visible)` honours the boolean,
+   * and `menuItemToNavigationItem` produces one when mapping legacy
+   * `MenuItem.hidden`. Pinned in `spec-derived-unions.test.ts`, which fails the
+   * day the spec accepts a boolean and this can come off it.
+   */
   visible?: boolean | string;
 
   /** Required permissions to see/access this item */
@@ -173,8 +226,8 @@ export interface NavigationItem {
 
   // -- UX Enhancements --
 
-  /** Badge text or count */
-  badge?: string | number;
+  /** Badge text or count — derived from the spec's nav-item base (#3177). */
+  badge?: NonNullable<SpecObjectNavItem['badge']>;
 
   /**
    * Badge visual variant — derived from the spec's own nav-item variant
@@ -201,10 +254,21 @@ export interface NavigationItem {
    * Action payload for `type: 'action'` items. Without it the item names an
    * action it cannot invoke — and before this was declared, `objectui validate`
    * silently stripped it, so a broken action item validated clean.
+   *
+   * Derived from the spec's action-nav variant (#3177). This is a structured
+   * payload rather than a scalar, so a restatement is exactly the kind that
+   * goes stale unnoticed — which is how it came to be stripped in the first
+   * place (objectstack#4115).
    */
-  actionDef?: { actionName: string; params?: Record<string, unknown> };
+  actionDef?: NonNullable<SpecActionNavItem['actionDef']>;
 
-  /** Whether this item is pinned. objectui-only; the spec has no counterpart. */
+  /**
+   * Whether this item is pinned. objectui-only; the spec has no counterpart at
+   * either tier, so NOT derived (#3177). `useNavPins` and `FavoritesProvider`
+   * are built on it. Pinned in `spec-derived-unions.test.ts`, which fails the
+   * day the spec claims the name — at which point the two meanings have to be
+   * reconciled rather than silently shadowed.
+   */
   pinned?: boolean;
 
   /** Sort order weight (lower = higher) */

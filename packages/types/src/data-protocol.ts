@@ -946,15 +946,32 @@ export type FormatValidation = z.input<typeof SpecFormatValidationSchema>;
 /**
  * Conditional validation — evaluate `when`, then apply `then` or `otherwise`.
  *
- * PINNED DIVERGENCE (objectstack#4171): every key comes from the spec except
- * `then` / `otherwise`, which the spec's published types erase to `unknown`
- * (its `ValidationRuleSchema` is annotated `z.ZodType<BaseValidationRuleShape>`,
- * an index-signature bag). Re-exporting that would replace a discriminated
- * union with `unknown` — a type-safety regression wearing a burn-down's
- * clothes. They are re-typed to objectui's union here, and
- * `validation-rule-spec-parity.test.ts` carries an inverted pin that fails the
- * day the spec types them properly, so this divergence cannot outlive its
- * reason.
+ * PINNED DIVERGENCE (objectstack#4171, narrowed to objectstack#4075 by #3177):
+ * every key comes from the spec except `then` / `otherwise`.
+ *
+ * Those two used to erase to `unknown`. Spec 17.0.0-rc.1 typed them — as
+ * `BaseValidationRuleShape`, which is `{ type: string; name: string; message:
+ * string; …; [key: string]: unknown }`. That is better than `unknown` and still
+ * not enough to derive from: `type` is `string` rather than a literal union, so
+ * a branch cannot narrow by discriminant, `then.condition` reads back as
+ * `unknown`, and the index signature waves through any member at all — a typo'd
+ * `type: 'formatt'` included. The spec's own comment on `ValidationRuleSchema`
+ * says as much and names the remaining work: "it is not strictness … Removing
+ * the index signature is the #4075 family of work, not this change."
+ *
+ * So the branches stay re-typed to objectui's discriminated union here. What
+ * changed in #3177 is the tripwire, not the divergence:
+ * `validation-rule-spec-parity.test.ts` used to pin "the spec still says
+ * `unknown`" — too weak a question, which fired without the burn-down having
+ * become correct. It now pins the condition that actually governs (literal
+ * discriminant / no index signature), so this divergence still cannot outlive
+ * its reason, but the reason is stated accurately.
+ *
+ * Why this side of the trade matters more than it looks: renderers read plain
+ * objects and never parse, so the spec's parse-time union — the thing that DOES
+ * reject a malformed rule — is not on the client path at all. The compile-time
+ * discriminant here is the only gate an authored (or AI-generated) rule meets
+ * before it runs.
  */
 export type ConditionalValidation = Omit<
   z.input<typeof SpecConditionalValidationSchema>,

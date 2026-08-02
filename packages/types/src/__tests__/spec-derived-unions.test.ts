@@ -61,14 +61,18 @@ import {
 import {
   FieldType as SpecFieldType,
 } from '@objectstack/spec/data';
-// The objectstack#4171 inverted pin must import the banned name to probe its
-// any-ness — this guard is a sanctioned importer (#3090 tripwire).
+// The objectstack#4171 / #3177 pins must import the banned name to probe it —
+// this guard is a sanctioned importer (#3090 tripwire).
 /* eslint-disable no-restricted-imports -- reported at the specifier line, out of -next-line reach */
 import type {
   NavigationItem as SpecNavigationItem,
+  NavigationItemInput as SpecNavigationItemInput,
   FormField as SpecFormField,
+  FormFieldInput as SpecFormFieldInput,
 } from '@objectstack/spec/ui';
 /* eslint-enable no-restricted-imports */
+import type { NavigationItem, NavigationItemType } from '../app';
+import type { FormField } from '../form';
 import type { BreakpointName } from '../mobile';
 import type { ExportJobStatus, ImportJobStatus, ImportWriteMode, ValidationError } from '../data';
 import {
@@ -145,40 +149,157 @@ const _validationErrorShape: ValidationError = { field: 'name', message: 'requir
 // objectui query-AST vocabulary they have become.
 
 /**
- * Inverted pins — the tripwire FIRED on spec 17.0.0-rc.1 (#3177).
+ * Admission probes for `NavigationItem` and `FormField` (#3177).
+ *
+ * ## What these used to be, and why they were replaced
  *
  * `NavigationItem`, `JoinNode` and `FormField` used to collide with a spec
  * export whose own declaration resolved to `any` (the spec annotated the
  * recursive schemas behind them as `z.ZodType<any>`, and `z.infer` of that is
  * `any`). Binding objectui's local interface to that would have replaced a
  * precise, documented shape with `any` — a type-safety regression wearing a
- * burn-down's clothes — so they stayed local, and these pins asserted the
+ * burn-down's clothes — so they stayed local, and two `IsAny` pins asserted the
  * premise held. Filed upstream as objectstack#4171.
  *
- * Two of them are now typed properly upstream, so the assertions below are
- * inverted to record that fact rather than the old one. **They are a record,
- * not a resolution**: the burn-down each one asks for — deriving objectui's
- * `NavigationItem` / `FormField` from the spec — touches widely-used public
- * types and is deliberately NOT bundled into a version bump. Tracked in #3177.
+ * Spec 17.0.0-rc.1 typed both properly and the `IsAny` pins fired. The #3177
+ * triage then measured what the burn-down they demanded would actually cost —
+ * and found that **`any` was never the only blocker for either symbol**, so
+ * "no longer `any`" was never the right admission question. `IsAny` going
+ * `false` proves the spec type is no longer EMPTY; it says nothing about
+ * whether it is PRECISE enough to bind, which is what the burn-down needs.
  *
- * `JoinNode`'s pin is gone entirely: spec 17.0.0 retired the symbol
- * (framework#4286), so there is no collision left to reason about.
+ * So the probes below ask the real question instead, one blocker per line. Each
+ * asserts the CURRENT state (so this file is green today) and stops compiling
+ * the day that specific blocker lifts — at which point that line names exactly
+ * what became derivable. `JoinNode` needs none of this: spec 17.0.0 retired the
+ * symbol (framework#4286), so there is no collision left to reason about.
  *
- * Mutual assignability CANNOT distinguish the `any` case on its own: `any`
- * answers every `extends` question affirmatively, so a naive probe reports such
- * a symbol as "identical to the spec" and recommends exactly the wrong edit.
- * That is why these are written as explicit `IsAny` probes.
+ * ## Why not simply compare the two types
+ *
+ * Mutual assignability lies here, in three separate ways, all of them present
+ * in this repo (the list is `scripts/check-spec-symbol-derivation.mjs`'s):
+ * `any` answers every `extends` question affirmatively; so does `unknown` on
+ * one side; and objectui's `FormField` carries `[key: string]: any`, which
+ * absorbs any member the spec has and makes the two compare equal while they
+ * accept wildly different objects. A structural `extends` ALSO silently permits
+ * excess properties, so it cannot see that the spec declares no `pinned`. Hence
+ * per-key, per-tier probes rather than one verdict.
  */
 type IsAny<T> = 0 extends 1 & T ? true : false;
-const _specNavigationItemIsStillAny = false satisfies IsAny<SpecNavigationItem>;
-const _specFormFieldIsStillAny = false satisfies IsAny<SpecFormField>;
+
+/** Every key of every branch of a union (plain `keyof` on a union gives the intersection). */
+type KeysOfUnion<T> = T extends unknown ? keyof T : never;
+/** Does the spec declare this key on ANY nav branch, at EITHER tier? */
+type SpecNavDeclares<K extends string> =
+  K extends KeysOfUnion<SpecNavigationItem> | KeysOfUnion<SpecNavigationItemInput> ? true : false;
+
+// ── NavigationItem: the three blockers, none of which `any` ever caused ──────
+//
+// Umbrella verdict: still not bindable. The lines under it say why, and are the
+// ones to act on — this one stays `false` while ANY blocker remains.
+const _localNavIsNotYetTheSpecUnion = false satisfies [NavigationItem] extends [SpecNavigationItem]
+  ? true
+  : false;
+
+// 1. `visible: boolean`. The spec takes a CEL string (input) / Expression
+//    envelope (output); neither tier admits a boolean. `NavigationRenderer`
+//    evaluates one, and `menuItemToNavigationItem` MANUFACTURES one when it
+//    inverts legacy `MenuItem.hidden`. Measured: binding to the input tier
+//    fails with 3x TS2322 on exactly those lines.
+type SpecNavVisible =
+  | NonNullable<Extract<SpecNavigationItem, { type: 'url' }>['visible']>
+  | NonNullable<Extract<SpecNavigationItemInput, { type: 'url' }>['visible']>;
+const _specNavVisibleStillRejectsBoolean = false satisfies boolean extends SpecNavVisible
+  ? true
+  : false;
+
+// 2. Keys the spec has no counterpart for at either tier. `pinned` backs
+//    `useNavPins` + `FavoritesProvider`; `defaultOpen` is the legacy spelling
+//    `navigation-spec-parity.test.ts` keeps accepting for published metadata.
+//    If the spec ever claims either NAME, this fails and the two meanings must
+//    be reconciled rather than silently shadowed.
+const _specNavStillHasNoPinned = false satisfies SpecNavDeclares<'pinned'>;
+const _specNavStillHasNoDefaultOpen = false satisfies SpecNavDeclares<'defaultOpen'>;
+
+// 3. objectui's separator carries a `label`; the spec's separator branch
+//    declares only `type` / `id?` / `order?`. `menuItemToNavigationItem` emits
+//    one (measured: TS2353), so this is load-bearing, not decorative.
+const _specSeparatorStillHasNoLabel = false satisfies 'label' extends keyof Extract<
+  SpecNavigationItem,
+  { type: 'separator' }
+>
+  ? true
+  : false;
+
+// What IS derivable today is derived: `app.ts` now takes `NavigationItemType`
+// off the spec's discriminant, and `recordMode` / `filters` / `badge` /
+// `target` / `params` / `actionDef` / `badgeVariant` off the branch that owns
+// each. This asserts the membership list really is the spec's — a restatement
+// that drops a member (the objectstack#4115 failure class) fails here.
+const _navTypeCoversSpec = null as unknown as SpecNavigationItem['type'] satisfies NavigationItemType;
+
+// ── FormField: not one concept in two dialects, but two concepts on two layers ─
+//
+// `select-option-spec-parity.test.ts` states the distinction in its own header —
+// "Unlike the FormField pair — two genuinely different concepts on two layers —
+// a select option is ONE concept in two dialects" — and `index.ts` exports
+// `SpecFormField` SEPARATELY as the disambiguation the #3090 tripwire exists to
+// force. Binding would make `FormField === SpecFormField` and collapse that.
+//
+// The decisive, mechanical form of "two layers": the two types' REQUIRED keys
+// are disjoint. objectui requires `name` (the form data path); the spec requires
+// `field` (a reference to an object field) and has no `name` at either tier.
+const _specFormFieldIsNoLongerAny = false satisfies IsAny<SpecFormField>;
+const _specFormFieldStillHasNoName = false satisfies 'name' extends keyof SpecFormField
+  ? true
+  : false;
+const _specFormFieldInputStillHasNoName = false satisfies 'name' extends keyof SpecFormFieldInput
+  ? true
+  : false;
+
+// The same key on both sides, meaning different things — the pun `form.ts`
+// flags with a ⚠️. The spec's `field` is the referenced field's NAME; on a
+// runtime `FormField` the slot holds the RESOLVED metadata object, and
+// `normalizeSectionField` (@object-ui/plugin-form) is the only place the two
+// layers meet.
+const _specFieldSlotIsStillAName = true satisfies [SpecFormField['field']] extends [string]
+  ? true
+  : false;
+const _localFieldSlotIsStillAnObject = false satisfies [NonNullable<FormField['field']>] extends [
+  string,
+]
+  ? true
+  : false;
+
+// framework#4074 widened objectui's `dependsOn` to match its runtime reader
+// (`resolveCascadingOptions` has always accepted arrays and `{ field, param }`
+// entries). The spec still says `string`, so binding would revert that fix.
+const _specDependsOnStillTakesNoArray = false satisfies string[] extends NonNullable<
+  SpecFormFieldInput['dependsOn']
+>
+  ? true
+  : false;
+
+// ADR-0089 D2 folds `visibleOn` into `visibleWhen` at the spec's schema
+// boundary, so it is absent from the OUTPUT type by construction — while
+// objectui's #2212 wire contract keeps it. (The spec's input tier still
+// accepts it; this asks the output tier on purpose.)
+const _specOutputStillDropsVisibleOn = false satisfies 'visibleOn' extends keyof SpecFormField
+  ? true
+  : false;
 
 void _chartCovers; void _reportCovers; void _actionCovers; void _pageCovers; void _vizCovers;
 void _runnableCovers; void _componentCovers; void _paramFieldCovers; void _resolvableCovers;
 void _fieldBackedParam; void _minimalTypedParam;
 void _breakpointCovers; void _importModeCovers; void _importStatusCovers; void _exportStatusCovers;
 void _validationErrorShape;
-void _specNavigationItemIsStillAny; void _specFormFieldIsStillAny;
+void _localNavIsNotYetTheSpecUnion; void _specNavVisibleStillRejectsBoolean;
+void _specNavStillHasNoPinned; void _specNavStillHasNoDefaultOpen;
+void _specSeparatorStillHasNoLabel; void _navTypeCoversSpec;
+void _specFormFieldIsNoLongerAny; void _specFormFieldStillHasNoName;
+void _specFormFieldInputStillHasNoName; void _specFieldSlotIsStillAName;
+void _localFieldSlotIsStillAnObject; void _specDependsOnStillTakesNoArray;
+void _specOutputStillDropsVisibleOn;
 
 /** Read a spec enum's members, failing loudly if the shape ever changes. */
 const optionsOf = (schema: unknown, name: string): string[] => {
