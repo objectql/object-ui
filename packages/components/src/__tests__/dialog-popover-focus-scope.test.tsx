@@ -17,8 +17,8 @@
  * `add`s the scope back and THEN the stale timeout evicts it. The dialog's
  * trap listeners stay alive but its scope is gone from the stack, so a later
  * popover pauses nothing and every focus into the popover's search input is
- * yanked straight back into the dialog — "lookup 无法搜索" in the production
- * console (objectui#3183).
+ * yanked straight back into the dialog — an unsearchable lookup in the
+ * production console (objectui#3183).
  *
  * `patches/@radix-ui__react-focus-scope.patch` fixes the race by cancelling
  * the pending eviction when the effect re-runs for a live scope. The first

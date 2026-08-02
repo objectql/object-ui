@@ -8,7 +8,8 @@ Lookup search inside a create/edit modal is typeable again (objectui#3183).
 In every production console build, the search input of a lookup field's
 quick-select popover — and the nested Record Picker dialog — could not take
 focus while the form modal was open: every click/focus was synchronously
-yanked back to the field trigger, so "新建记录时 lookup 无法搜索".
+yanked back to the field trigger, so a lookup could not be searched while
+creating a record.
 
 Root cause is a race in stock `@radix-ui/react-focus-scope@1.1.16`: the
 focus-scopes stack effect's cleanup schedules `focusScopesStack.remove(scope)`
