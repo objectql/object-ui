@@ -160,6 +160,72 @@ const feedItems: FeedItem[] = comments.map(c => ({
 - **Positioning**: Panel can be placed at `bottom`, `right`, or `left` of the record view
 - **Collapsible**: Optional collapse/expand with configurable default state
 
+## The `record:activity` block
+
+`RecordActivityTimeline` is a presenter: you hand it `items`. The SDUI block
+`record:activity` is the schema-authored form of the same panel, and it finds
+its own feed. Drop it anywhere inside a record page:
+
+```json
+{
+  "type": "page:tabs",
+  "items": [
+    {
+      "label": "Activity",
+      "value": "activity",
+      "children": [
+        { "type": "record:activity", "limit": 20, "showCompleted": false }
+      ]
+    }
+  ]
+}
+```
+
+### Where the feed comes from
+
+Three sources, in precedence order:
+
+1. **`items` on the node** — a host that already owns the feed passes it in
+   (the same convention `record:history` uses for `entries`).
+2. **A mounted discussion context** — the console's record page wraps the
+   record body in one, carrying the merged `sys_comment` + `sys_activity` feed
+   *and* the comment / reply / reaction handlers. When it is present the block
+   presents that feed instead of fetching a second, poorer copy.
+3. **Self-fetch** — otherwise the block reads `sys_activity` scoped to the
+   record it is bound to (`object_name` + `record_id`), newest first, `limit`
+   rows per page. This is what makes it work on a hand-authored record page
+   with no host feeding it.
+
+`sys_activity` rows map to feed items the same way the console's record page
+maps them, so both surfaces agree about what a row is:
+`created` / `updated` / `deleted` / `assigned` / `shared` → `field_change`,
+`completed` → `task`, `system` → `system`. `commented` / `mentioned` are
+skipped (their content lives in `sys_comment`), and `login` / `logout` are
+account events, not record activity.
+
+### Which inputs do what
+
+| Input | Effect | Needs |
+|---|---|---|
+| `types` | Allow-list of feed item types. Unrecognised entries are ignored; a list of nothing but typos is treated as unset rather than emptying the feed. | — |
+| `filterMode` | Which slice the filter dropdown opens on (`all` / `comments_only` / `changes_only` / `tasks_only`). The user can still change it. An unrecognised value falls back to `all`. | — |
+| `showFilterToggle` | Shows/hides that dropdown. | — |
+| `limit` | Items per page; also caps the scoped `sys_activity` read. "Load more" grows the window by this much and re-reads. | — |
+| `showCompleted` | Include completed activities (`sys_activity.type = 'completed'`, which surfaces as a `task` item). Off by default, per spec. | — |
+| `unifiedTimeline` | Default `true` mixes field changes and comments in one timeline (Airtable style). `false` un-mixes them: the panel becomes a discussion stream and field changes stay in `record:history`. | — |
+| `showCommentInput` | Shows the composer. | A host discussion context to persist the comment. Without one the feed is read-only and no composer is rendered. |
+| `enableMentions` | Offers @-mention autocomplete in the composer. `false` withholds the suggestions. | The host context's user list. |
+| `enableReactions` | Shows emoji reactions on feed items. Existing reactions still render without a host; toggling one needs the host handler. | A host `onToggleReaction`. |
+| `enableThreading` | Groups replies under their parent comment. Posting a reply needs the host handler. | A host `onAddReply`. |
+| `showSubscriptionToggle` | **Not implemented.** | — |
+
+> **Known gap — `showSubscriptionToggle`.** It renders nothing, whatever you set
+> it to. The bell needs a `RecordSubscription` value and somewhere to persist
+> it, and the platform has no record-subscription object to read or write one
+> from. The input stays declared only because `@objectstack/spec` declares it —
+> it is recorded as a known gap here and in the block's registration rather than
+> left looking configurable (objectui#3165).
+
 ## Schema API
 
 ### RecordChatterPanel Config

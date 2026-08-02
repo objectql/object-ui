@@ -66,7 +66,10 @@
  * ledgered below with the host path NAMED and a file:line to check it against,
  * because "host-fed" is only a reason while a host actually feeds it — the day
  * no host does, "host-fed" is the same excuse objectstack#4413 shipped behind.
- * One entry in the ledger is exactly that case today.
+ * One entry in the ledger was exactly that case when this file landed:
+ * `record:activity`, whose feed no host fed and whose renderer hard-coded
+ * `items={[]}`. objectui#3165 gave it a scoped `sys_activity` read and the
+ * entry went with it — the ledger's two-way assertion is what forced that.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -436,43 +439,25 @@ const EXPECTED_CANDIDATES = [
  * reason and the place to check it. Entries are DEBT, not acceptance — an entry
  * whose block starts responding to the record fails this test until deleted.
  *
- * Two of these three are host-fed by design and the host really does feed them.
- * The third is the one this probe was written to find.
+ * Both entries are host-fed by design and the host really does feed them.
+ *
+ * A third entry — `record:activity`, the one this probe was written to find —
+ * was deleted by objectui#3165, which gave the block the scoped `sys_activity`
+ * read it had been declaring eleven filters over. It reaches now, so the ledger
+ * cannot carry it: the assertion below is two-way and goes red on a block that
+ * responds to the record while still listed here. That is the whole point of
+ * writing the ledger as an assertion rather than a skip.
  */
 const NO_RECORD_REACH: Readonly<Record<string, string>> = {
-  // ── objectstack#4413's shape, alive today ──────────────────────────────────
-  // `record:activity` renders an activity feed that structurally cannot have
-  // activities. `RecordActivityRenderer` calls `useRecordContext()` and
-  // DISCARDS the result, then renders `<RecordActivityTimeline items={[]}>`
-  // with the empty array hard-coded; `RecordActivityTimeline` takes `items` as
-  // a prop and never fetches. Its own file header says "Real data wiring
-  // (sys_activity / sys_comment polling) lives inside that component" — it does
-  // not, and that sentence is the whole defect in one line.
-  //
-  // Nor is a host feeding it: `buildDefaultPageSchema` emits the node with NO
-  // props at all (`{ type: 'record:activity' }`), and the `showActivity` option
-  // that would emit it is never set true anywhere outside that builder's own
-  // tests. Meanwhile the registration declares ELEVEN inputs — types,
-  // filterMode, limit, showCompleted, unifiedTimeline, enableReactions,
-  // enableThreading, … — every one of them a filter or affordance over a feed
-  // that is always empty. Declared, published to `sdui.manifest.json`, nothing
-  // behind it: objectstack#4413 exactly, three blocks over.
-  //
-  // Ledgered rather than fixed here because the fix is a feature (a scoped
-  // `sys_activity` read, mirroring the one `record:history` already has) rather
-  // than the missing-bridge one-liner objectui#3144 turned out to be. Tracked
-  // in objectui#3165.
-  'record:activity':
-    'renders `items={[]}` hard-coded and no host supplies items — the feed is always empty on every path (objectui#3165)',
-
   // ── Host-fed, and the host really does feed them ──────────────────────────
   // Feed items come from DiscussionContext, which the page host mounts
   // (app-shell RecordDetailView wraps the record body in
   // <DiscussionContextProvider>). The block is a presenter, not a fetcher, so
-  // mounted without that provider it correctly shows an empty feed. Unlike
-  // `record:activity` above, the provider and its data are real — which is the
-  // difference between a reason and an excuse, and why entries here have to
-  // name the path instead of just saying "host-fed".
+  // mounted without that provider it correctly shows an empty feed. The
+  // provider and its data are real — which is the difference between a reason
+  // and an excuse, and why entries here have to name the path instead of just
+  // saying "host-fed". (`record:activity` used to sit here on a claim of the
+  // same shape with no host behind it; #3165 is what that cost to establish.)
   'record:discussion':
     'feed items come from DiscussionContext, mounted by the page host (app-shell RecordDetailView); presenter, not fetcher',
 

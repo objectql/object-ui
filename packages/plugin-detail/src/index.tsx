@@ -299,18 +299,49 @@ ComponentRegistry.register('activity', RecordActivityRenderer, {
   icon: 'Activity',
   // Mirrors RecordActivityComponentProps (@object-ui/types), itself aligned
   // with @objectstack/spec RecordActivityProps.
+  //
+  // Every description below says what the input DOES and, where it depends on
+  // something the block does not own, what it needs — because this text is
+  // what ships to `sdui.manifest.json` and is therefore what an AI author
+  // reads before writing the block. objectui#3165: all eleven of these used to
+  // be filters and affordances over a feed the renderer hard-coded to `[]`, so
+  // they read as configurable and did nothing. The read-side six are live on
+  // every path now; the write-side four are live wherever a host mounts a
+  // DiscussionContext (record detail pages do); `showSubscriptionToggle` is a
+  // declared-but-inert GAP and says so here rather than looking configurable.
   inputs: [
-    { name: 'types', type: 'array', label: 'Activity Types', description: 'Activity types to display (e.g. task, event, call, comment)' },
-    { name: 'filterMode', type: 'string', label: 'Filter Mode', description: 'How the type filter combines with the feed query' },
-    { name: 'showFilterToggle', type: 'boolean', label: 'Show Filter Toggle', description: 'Expose the activity-type filter UI' },
-    { name: 'limit', type: 'number', label: 'Limit', description: 'Maximum activities to display' },
-    { name: 'showCompleted', type: 'boolean', label: 'Show Completed', description: 'Include completed/resolved activities' },
-    { name: 'unifiedTimeline', type: 'boolean', label: 'Unified Timeline', description: 'Merge all activity types into one timeline' },
-    { name: 'showCommentInput', type: 'boolean', label: 'Show Comment Input' },
-    { name: 'enableMentions', type: 'boolean', label: 'Enable @mentions' },
-    { name: 'enableReactions', type: 'boolean', label: 'Enable Reactions' },
-    { name: 'enableThreading', type: 'boolean', label: 'Enable Threaded Replies' },
-    { name: 'showSubscriptionToggle', type: 'boolean', label: 'Show Subscribe Toggle' },
+    { name: 'types', type: 'array', label: 'Activity Types', description: 'Allow-list of feed item types to show (comment, field_change, task, event, email, call, note, file, record_create, record_delete, approval, sharing, system). Omit for all; unrecognised entries are ignored.' },
+    {
+      name: 'filterMode',
+      type: 'enum',
+      label: 'Filter Mode',
+      enum: ['all', 'comments_only', 'changes_only', 'tasks_only'],
+      defaultValue: 'all',
+      description: 'Filter the timeline dropdown starts on. The user can still change it; an unrecognised value falls back to "all".',
+    },
+    { name: 'showFilterToggle', type: 'boolean', label: 'Show Filter Toggle', defaultValue: true, description: 'Expose the activity-type filter dropdown in the panel header' },
+    { name: 'limit', type: 'number', label: 'Limit', defaultValue: 20, description: 'Items per page. Also caps the scoped sys_activity read; "Load more" grows the window by this much.' },
+    { name: 'showCompleted', type: 'boolean', label: 'Show Completed', defaultValue: false, description: 'Include completed activities (sys_activity type "completed", which surfaces as a task item). Off by default.' },
+    { name: 'unifiedTimeline', type: 'boolean', label: 'Unified Timeline', defaultValue: true, description: 'Mix field changes and comments in one timeline (Airtable style). Off keeps the panel a discussion stream — field changes stay in record:history.' },
+    { name: 'showCommentInput', type: 'boolean', label: 'Show Comment Input', defaultValue: true, description: 'Show the composer. Requires a host discussion context to persist the comment (record detail pages provide one); without it the feed is read-only.' },
+    { name: 'enableMentions', type: 'boolean', label: 'Enable @mentions', defaultValue: true, description: 'Offer @-mention autocomplete in the composer, from the host discussion context\'s user list. Off withholds the suggestions.' },
+    { name: 'enableReactions', type: 'boolean', label: 'Enable Reactions', defaultValue: false, description: 'Show emoji reactions on feed items. Toggling one requires a host discussion context; without it existing reactions still render, read-only.' },
+    { name: 'enableThreading', type: 'boolean', label: 'Enable Threaded Replies', defaultValue: false, description: 'Group replies under their parent comment. Posting a reply requires a host discussion context.' },
+    {
+      name: 'showSubscriptionToggle',
+      type: 'boolean',
+      label: 'Show Subscribe Toggle',
+      // No `defaultValue`: the spec defaults it true and this renderer treats
+      // it as false, and pinning either number here would advertise a default
+      // for something that has no behaviour to default to.
+      // KNOWN GAP (objectui#3165). Declared because @objectstack/spec declares
+      // it, and left visible rather than quietly dropped so the two
+      // declarations stay in parity — but it renders nothing: the bell needs a
+      // RecordSubscription plus a persist handler, and the platform has no
+      // record-subscription object to read or write one. Saying so here is the
+      // difference between a documented gap and objectstack#4413's shape.
+      description: 'NOT IMPLEMENTED — no record-subscription backend exists yet, so this renders nothing whatever it is set to. Declared for spec parity only (objectui#3165).',
+    },
   ],
 });
 
