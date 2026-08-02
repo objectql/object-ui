@@ -51,7 +51,9 @@ export interface RecordActivityTimelineProps {
   hasMore?: boolean;
   /** Called when user wants to load more items */
   onLoadMore?: () => void | Promise<void>;
-  /** Loading state */
+  /** Whether the feed is still being fetched. While true and nothing is on
+   *  screen yet, the timeline shows a loading row instead of the empty state
+   *  — "still fetching" is not "no activity" (objectui#3205). */
   loading?: boolean;
   /** Called when a comment is submitted */
   onAddComment?: (text: string, attachments?: Attachment[]) => void | Promise<void>;
@@ -172,7 +174,7 @@ export const RecordActivityTimeline: React.FC<RecordActivityTimelineProps> = ({
   onFilterChange,
   hasMore = false,
   onLoadMore,
-  loading: _loading = false,
+  loading = false,
   onAddComment,
   onAddReply,
   onToggleReaction,
@@ -370,8 +372,30 @@ export const RecordActivityTimeline: React.FC<RecordActivityTimelineProps> = ({
           />
         )}
 
-        {/* Timeline */}
-        {filtered.length === 0 ? (
+        {/* Timeline.
+            The loading branch comes FIRST because "still fetching" and "no
+            activity" are different answers, and only one of them is true
+            while the feed is in flight (objectui#3205). Until this branch
+            existed the panel spent every fetch asserting the record had no
+            activity, then contradicted itself when the rows arrived.
+            `collapseWhenEmpty` does not suppress it: that flag is about the
+            EMPTY state ("collapse when there are no items"), and during a
+            fetch we do not yet know whether there are items.
+            Note the guard is `filtered.length === 0`, not `loading` alone —
+            a refresh or a "Load more" round-trip must not blank a feed that
+            is already on screen (that would lose the reader's position, and
+            "Load more" carries its own spinner). */}
+        {loading && filtered.length === 0 ? (
+          <div
+            role="status"
+            aria-live="polite"
+            data-testid="activity-loading"
+            className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground"
+          >
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>{t('detail.loading')}</span>
+          </div>
+        ) : filtered.length === 0 ? (
           collapseWhenEmpty ? null : (
             <DataEmptyState
               title={emptyLabel ?? t('detail.noActivity')}
