@@ -9,7 +9,7 @@
 import { createAuthClient as createBetterAuthClient } from 'better-auth/client';
 import { organizationClient, twoFactorClient } from 'better-auth/client/plugins';
 import type {
-  AuthClient, AuthClientConfig, AuthUser, AuthSession, SignInCredentials, SignUpData,
+  AuthClient, AuthClientConfig, AuthUser, AuthClientSession, SignInCredentials, SignUpData,
   AuthOrganization, AuthOrganizationMember, AuthInvitation, AuthPublicConfig, SignInWithProviderOptions,
 } from './types';
 
@@ -296,7 +296,7 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
       if (error) {
         throw toAuthError(error);
       }
-      const payload = data as unknown as { user: AuthUser; session: AuthSession };
+      const payload = data as unknown as { user: AuthUser; session: AuthClientSession };
       // Persist token for cross-origin session persistence
       if (payload.session?.token) {
         TokenStorage.set(payload.session.token);
@@ -324,7 +324,7 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
       const payload = data as unknown as {
         user: AuthUser;
         token?: string | null;
-        session?: AuthSession | null;
+        session?: AuthClientSession | null;
       };
       const token = payload.token ?? payload.session?.token ?? null;
       if (token) {
@@ -332,9 +332,9 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
       }
       // Synthesize a session object when the server returned a flat token so
       // existing callers that read `result.session` keep working.
-      let session: AuthSession | null = payload.session ?? null;
+      let session: AuthClientSession | null = payload.session ?? null;
       if (!session && token) {
-        session = { token } as AuthSession;
+        session = { token } as AuthClientSession;
       }
       return {
         user: payload.user,
@@ -372,7 +372,7 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
         if (!res.error) data = res.data;
       } catch { /* transport error — fall through to the retry/null path */ }
       if (data) {
-        const payload = data as unknown as { user: AuthUser; session: AuthSession };
+        const payload = data as unknown as { user: AuthUser; session: AuthClientSession };
         // Keep localStorage in sync if the server returns a fresh token
         if (payload.session?.token) {
           TokenStorage.set(payload.session.token);
@@ -398,7 +398,7 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
           });
           if (resp.ok) {
             const body = (await resp.json().catch(() => null)) as
-              | { user?: AuthUser; session?: AuthSession }
+              | { user?: AuthUser; session?: AuthClientSession }
               | null;
             if (body?.user && body?.session) {
               if (body.session.token) TokenStorage.set(body.session.token);
@@ -478,7 +478,7 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
         throw new Error('No account is registered for this phone number.');
       }
       TokenStorage.set(token);
-      return { user, session: { token } as AuthSession };
+      return { user, session: { token } as AuthClientSession };
     },
 
     async signInWithPhonePassword(phoneNumber: string, password: string) {
@@ -493,7 +493,7 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
         throw new Error('Invalid phone number or password.');
       }
       TokenStorage.set(token);
-      return { user, session: { token } as AuthSession };
+      return { user, session: { token } as AuthClientSession };
     },
 
     async requestPhonePasswordReset(phoneNumber: string) {

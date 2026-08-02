@@ -19,21 +19,31 @@
 
 import { useState, useCallback, useMemo } from 'react';
 
+import type { NavigationConfigSchema } from '@objectstack/spec/ui';
+import type { SpecAuthoredInput } from '../spec-input';
+
 /**
- * Inline ViewNavigationConfig to avoid importing from @object-ui/types
- * (which may not be a direct dependency of @object-ui/react).
- * Mirrors the canonical definition in @object-ui/types/objectql.ts.
+ * The spec's `NavigationConfigSchema`, authoring side, with `mode` required.
+ *
+ * This was a hand copy carrying the note "inline … to avoid importing from
+ * @object-ui/types (which may not be a direct dependency of @object-ui/react)".
+ * That reasoning is about the wrong package: the vocabulary belongs to
+ * `@objectstack/spec`, which IS a direct dependency of this one — the same
+ * expired "kept local to avoid a dependency" comment objectui#3169 found in
+ * `@object-ui/app-shell`, where the dependency had likewise been there all
+ * along. Check `package.json` before believing such a note (objectstack#4115).
+ *
+ * The ONE divergence: the spec defaults `mode`, so its authoring side makes it
+ * optional; this hook dispatches on `mode` and its callers always supply one,
+ * so it is required here. Every other key is the spec's, by reference. Pinned
+ * by `__tests__/offline-nav-performance-spec-parity.test.ts`.
  */
-export interface NavigationConfig {
-  mode: 'page' | 'drawer' | 'modal' | 'split' | 'popover' | 'new_window' | 'none';
-  view?: string;
-  preventNavigation?: boolean;
-  openNewTab?: boolean;
-  /** Spec `NavigationConfig.size` (#2578) — coarse overlay bucket. */
-  size?: 'auto' | 'sm' | 'md' | 'lg' | 'xl' | 'full';
-  /** @deprecated [#2578 → `size`] explicit pixel/percent width. */
-  width?: string | number;
-}
+export type NavigationConfig = Omit<
+  SpecAuthoredInput<typeof NavigationConfigSchema>,
+  'mode'
+> & {
+  mode: NonNullable<SpecAuthoredInput<typeof NavigationConfigSchema>['mode']>;
+};
 
 /**
  * Pixel cap per overlay `size` bucket, clamped to the viewport at render —

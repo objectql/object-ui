@@ -9,6 +9,7 @@
 import * as React from "react"
 import { X, Plus, Trash2 } from "lucide-react"
 import { createSafeTranslation } from "@object-ui/i18n"
+import type { SortItem as SpecSortItem } from "@objectstack/spec/shared"
 
 import { cn } from "../lib/utils"
 import { Button } from "../ui/button"
@@ -27,10 +28,20 @@ const useSafeSortTranslation = createSafeTranslation(
   'sortBuilder.sortBy',
 )
 
-export interface SortItem {
+/**
+ * One row of the SortBuilder UI: the spec's `SortItem` (`{ field, order }`)
+ * plus the React key this list needs.
+ *
+ * Derived rather than re-declared (objectstack#4115). The old hand copy agreed
+ * with the spec key-for-key, which is the state one spec release away from
+ * drifting — a new sort key (`nulls`, say) would have appeared in the spec and
+ * silently gone missing here. `id` is the ONE local addition and it is
+ * synthetic: `normalize()` mints it, and `SortBuilder`'s change comparison
+ * strips it before diffing precisely because it is not part of the contract.
+ */
+export interface SortItem extends SpecSortItem {
+  /** React key for the row. Synthetic — never part of the emitted sort. */
   id: string;
-  field: string;
-  order: 'asc' | 'desc';
 }
 
 export interface SortBuilderProps {

@@ -8,30 +8,43 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
+import type {
+  OfflineStrategy,
+  ConflictResolution,
+  PersistStorage,
+  EvictionPolicy,
+  OfflineCacheConfigSchema,
+} from '@objectstack/spec/ui';
+import type { SpecAuthoredInput } from '../spec-input';
+
 // ---------------------------------------------------------------------------
-// Types aligned with @objectstack/spec v2.0.7 OfflineConfigSchema
+// The offline vocabulary is the spec's (`OfflineConfigSchema` and friends in
+// `@objectstack/spec/ui`), so these are its bindings rather than the hand
+// copies that used to sit here under the same names (objectstack#4115). The
+// header comment claimed alignment with "spec v2.0.7"; the installed spec is
+// 17.0.0-rc.0, and a claim that stale is exactly what an import replaces.
 // ---------------------------------------------------------------------------
 
 /** Offline strategy determines how data is fetched when connectivity is limited. */
-export type OfflineStrategy =
-  | 'cache_first'
-  | 'network_first'
-  | 'stale_while_revalidate'
-  | 'network_only'
-  | 'cache_only';
+export type { OfflineStrategy };
 
-/** Conflict resolution strategy for sync operations. */
-export type ConflictResolutionStrategy =
-  | 'manual'
-  | 'client_wins'
-  | 'server_wins'
-  | 'last_write_wins';
+/**
+ * Conflict resolution strategy for sync operations.
+ *
+ * Renamed from `ConflictResolutionStrategy` — that name belongs to a DIFFERENT
+ * spec export (`@objectstack/spec/api`: `error | priority | first-wins |
+ * last-wins`, the metadata-merge policy). The spec's name for the union this
+ * hook actually uses is `ConflictResolution`, so the fix was to take the spec's
+ * own name and its binding at once, the same move `FieldGroup` →
+ * `ObjectFieldGroup` made in objectui#3169.
+ */
+export type { ConflictResolution };
 
 /** Persist storage backend. */
-export type PersistStorageType = 'indexeddb' | 'localstorage' | 'sqlite';
+export type PersistStorageType = PersistStorage;
 
 /** Eviction policy for cache management. */
-export type EvictionPolicyType = 'lru' | 'lfu' | 'fifo';
+export type EvictionPolicyType = EvictionPolicy;
 
 /** Sync state of the offline system. */
 export type SyncState = 'idle' | 'syncing' | 'error' | 'offline';
@@ -45,24 +58,40 @@ export interface QueuedMutation {
   data?: Record<string, unknown>;
 }
 
-/** Cache configuration aligned with OfflineCacheConfigSchema. */
-export interface OfflineCacheConfig {
-  maxSize?: number;
-  ttl?: number;
-  persistStorage?: PersistStorageType;
-  evictionPolicy?: EvictionPolicyType;
-}
+/**
+ * Cache configuration — the AUTHORING side of the spec's
+ * `OfflineCacheConfigSchema`.
+ *
+ * `persistStorage` and `evictionPolicy` carry `.default()`s, so they are
+ * optional to write and present after a parse. This hook is handed what an app
+ * author wrote, hence the input side; see {@link SpecAuthoredInput}.
+ */
+export type OfflineCacheConfig = SpecAuthoredInput<typeof OfflineCacheConfigSchema>;
 
 /** Sync configuration aligned with SyncConfigSchema. */
 export interface OfflineSyncConfig {
   strategy?: OfflineStrategy;
-  conflictResolution?: ConflictResolutionStrategy;
+  conflictResolution?: ConflictResolution;
   retryInterval?: number;
   maxRetries?: number;
   batchSize?: number;
 }
 
-/** Top-level offline configuration aligned with OfflineConfigSchema. */
+/**
+ * Top-level offline configuration aligned with OfflineConfigSchema.
+ *
+ * DELIBERATELY LEFT HAND-WRITTEN, and still on the ledger in
+ * `scripts/check-spec-symbol-derivation.mjs` (objectstack#4115 batch 5).
+ * `@object-ui/types` declares its own `OfflineConfig`, and that package is the
+ * repo's vocabulary root — whatever it settles on (derive, or rename to a local
+ * dialect) is the name this one must follow, or the two packages ship two
+ * different `OfflineConfig`s and the burn-down has produced the very thing it
+ * removes. objectui#3156 owns that call; this symbol burns down with it.
+ *
+ * Its members are already spec bindings, so the remaining delta is this
+ * declaration alone: `enabled`, `offlineIndicator`, `offlineMessage` and
+ * `queueMaxSize` against the spec's `OfflineConfigSchema` input side.
+ */
 export interface OfflineConfig {
   enabled?: boolean;
   strategy?: OfflineStrategy;

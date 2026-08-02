@@ -126,6 +126,21 @@ const ALLOW = {
       "the sanctioned set.",
     issue: 4115,
   },
+  "@object-ui/auth:AuthProvider": {
+    reason:
+      "A REACT CONTEXT PROVIDER COMPONENT, not a type — `<AuthProvider authUrl=…>` is the " +
+      "documented entry point of this package and of every app that mounts it. The spec's " +
+      "`AuthProvider` is a `z.ZodEnum` of provider IDENTIFIERS (local | google | github | " +
+      "microsoft | ldap | saml); nothing about a JSX element could be mistaken for it, which " +
+      "is why this one collision is excused where its own config type was NOT — that config " +
+      "was renamed to `AuthProviderOptions` because `AuthProviderConfig` names the spec's " +
+      "OAuth registration shape `{ id, clientId, clientSecret, scope? }`, the same domain and " +
+      "the same words, and IS readable as canonical by the next session. Renaming the " +
+      "component would break the React `<XProvider>` convention and every consumer's JSX for " +
+      "no defect. Pinned by packages/auth/src/__tests__/auth-spec-parity.test.ts, which fails " +
+      "if the spec's `AuthProvider` ever stops being an enum of provider ids.",
+    issue: 4115,
+  },
   "@object-ui/types:SelectOption": {
     reason:
       "TS twin of the SelectOptionSchema dialect (objectui#3090): carries every spec key " +
@@ -233,30 +248,6 @@ const DEBT = {
     "defineView",
     "resolveCrudAffordances",
   ],
-  "@object-ui/auth": [
-    "AuthProvider",
-    "AuthProviderConfig",
-    "AuthSession",
-    "AuthUser",
-    "DelegableScope",
-    "TenancyPosture",
-  ],
-  "@object-ui/components": [
-    "Field",
-    "FilterCondition",
-    "ShareLink",
-    "ShareLinkAudience",
-    "ShareLinkPermission",
-    "SortItem",
-  ],
-  "@object-ui/react": [
-    "ConflictResolutionStrategy",
-    "NavigationConfig",
-    "OfflineCacheConfig",
-    "OfflineConfig",
-    "OfflineStrategy",
-    "PerformanceConfig",
-  ],
   "@object-ui/data-objectstack": [
     "CacheStats",
     "DroppedFieldsEvent",
@@ -302,6 +293,9 @@ const DEBT = {
   ],
   "@object-ui/providers": [
     "Theme",
+  ],
+  "@object-ui/react": [
+    "OfflineConfig",
   ],
   "@object-ui/runner": [
     "App",

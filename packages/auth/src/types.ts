@@ -7,19 +7,59 @@
  */
 
 import type React from 'react';
+import type {
+  AuthUser as SpecAuthUser,
+  DelegableScope,
+  DelegableAdminScope,
+} from '@objectstack/spec/contracts';
+import type { TenancyPosture } from '@objectstack/spec/security';
 
 /**
  * Authentication types for @object-ui/auth
  */
 
-/** Authenticated user information */
-export interface AuthUser {
-  /** Unique user identifier */
-  id: string;
-  /** Display name */
-  name: string;
-  /** Email address */
-  email: string;
+/**
+ * The spec's tenancy posture vocabulary, verbatim (framework ADR-0105 D1).
+ *
+ * - `single` — one organization, no wall.
+ * - `group` — one shared database, organization as membership boundary:
+ *   reads span every organization the caller belongs to, writes land in the
+ *   ACTIVE organization.
+ * - `isolated` — hard per-organization walls (the pre-ADR-0105 `multi`).
+ *
+ * Was a hand-written union here until objectstack#4115 batch 5; it agreed with
+ * the spec member-for-member, which is exactly the state one spec release away
+ * from drifting.
+ */
+export type { TenancyPosture };
+
+/**
+ * [framework ADR-0090 D12 / ADR-0105 D8] What the caller may delegate, as
+ * returned by `GET /api/v1/security/my-delegable-scope`.
+ *
+ * A picker NARROWS with this; the server-side gate still decides. Empty lists
+ * mean "no delegated authority" — render no placement rather than a permissive
+ * form the server would refuse.
+ *
+ * The spec owns the wire contract, so this is its binding rather than a copy
+ * (objectstack#4115). `DelegableAdminScope` comes along for the ride — the
+ * local copy had spelled that element type out inline.
+ */
+export type { DelegableScope, DelegableAdminScope };
+
+/**
+ * Authenticated user information, as the BROWSER holds it.
+ *
+ * Derives from the spec's `AuthUser` (the `IAuthService` principal: `id`,
+ * `email`, `name`, plus the `positions` / `tenantId` an authorization decision
+ * needs) and adds the display-only fields better-auth returns to the client.
+ * Extending rather than re-declaring means a new spec field lands here the day
+ * the spec adds it, instead of silently going missing (objectstack#4115).
+ *
+ * The index signature is deliberate: better-auth projects an app's custom user
+ * columns onto this object and no local type can enumerate them.
+ */
+export interface AuthUser extends SpecAuthUser {
   /** Profile image URL */
   image?: string;
   /** Primary role */
@@ -49,8 +89,18 @@ export function getUserInitials(user: Pick<AuthUser, 'name' | 'email'> | null | 
   return user.email?.[0]?.toUpperCase() ?? '?';
 }
 
-/** Session information */
-export interface AuthSession {
+/**
+ * The credential bundle the BROWSER holds after a successful sign-in.
+ *
+ * Not the spec's `AuthSession` and deliberately not named after it
+ * (objectstack#4115): the spec models the SERVER's session record —
+ * `{ id, userId, expiresAt: ISO string, token? }`, keyed by a session id the
+ * client never sees — while this is the token set better-auth hands back:
+ * `token` is REQUIRED, `expiresAt` is a JS `Date`, and `refreshToken` has no
+ * spec counterpart at all. The two are mutually unassignable, so a re-export
+ * would have been a silent contract swap rather than a burn-down.
+ */
+export interface AuthClientSession {
   /** Access token */
   token: string;
   /** Token expiry timestamp */
@@ -64,7 +114,7 @@ export interface AuthState {
   /** Current authenticated user */
   user: AuthUser | null;
   /** Current session */
-  session: AuthSession | null;
+  session: AuthClientSession | null;
   /** Whether the user is authenticated */
   isAuthenticated: boolean;
   /** Whether auth state is loading */
@@ -104,45 +154,6 @@ export interface AuthSocialProvider {
   enabled: boolean;
   /** 'social' uses better-auth built-in providers, 'oidc' uses generic oauth2 */
   type?: 'social' | 'oidc';
-}
-
-/**
- * Deployment tenancy posture (framework ADR-0105 D1).
- *
- * - `single` — one organization, no wall.
- * - `group` — one shared database, organization as membership boundary:
- *   reads span every organization the caller belongs to, writes land in the
- *   ACTIVE organization.
- * - `isolated` — hard per-organization walls (the pre-ADR-0105 `multi`).
- */
-export type TenancyPosture = 'single' | 'group' | 'isolated';
-
-/**
- * [framework ADR-0090 D12 / ADR-0105 D8] What the caller may delegate, as
- * returned by `GET /api/v1/security/my-delegable-scope`.
- *
- * A picker NARROWS with this; the server-side gate still decides. Empty lists
- * mean "no delegated authority" — render no placement rather than a permissive
- * form the server would refuse.
- */
-export interface DelegableScope {
-  /** Unconstrained caller (tenant-level admin); the lists then enumerate everything. */
-  isTenantAdmin: boolean;
-  /** Business units the caller may place people into. */
-  placeableBusinessUnitIds: string[];
-  /** Positions the caller may assign — every set they distribute is allowlisted. */
-  assignablePositions: string[];
-  /** The `adminScope`s those derive from, for attribution. */
-  scopes: Array<{
-    setName: string;
-    businessUnit: string;
-    includeSubtree: boolean;
-    manageAssignments: boolean;
-    manageBindings: boolean;
-    authorEnvironmentSets: boolean;
-    assignablePermissionSets: string[];
-    businessUnitIds: string[];
-  }>;
 }
 
 /** Public auth configuration returned by the server */
@@ -238,13 +249,13 @@ export interface SignInWithProviderOptions {
 /** Auth client interface - abstracts the underlying auth library */
 export interface AuthClient {
   /** Sign in with email/password */
-  signIn: (credentials: SignInCredentials) => Promise<{ user: AuthUser; session: AuthSession }>;
+  signIn: (credentials: SignInCredentials) => Promise<{ user: AuthUser; session: AuthClientSession }>;
   /** Sign up with email/password. `session` is null when email verification is required. */
-  signUp: (data: SignUpData) => Promise<{ user: AuthUser; session: AuthSession | null; requiresVerification: boolean }>;
+  signUp: (data: SignUpData) => Promise<{ user: AuthUser; session: AuthClientSession | null; requiresVerification: boolean }>;
   /** Sign out */
   signOut: () => Promise<void>;
   /** Get current session */
-  getSession: () => Promise<{ user: AuthUser; session: AuthSession } | null>;
+  getSession: () => Promise<{ user: AuthUser; session: AuthClientSession } | null>;
   /** Reset password request */
   forgotPassword: (email: string) => Promise<void>;
   /** Send (or resend) the email-verification link to the given address. */
@@ -254,9 +265,9 @@ export interface AuthClient {
   /** framework#2780 — request a sign-in/verification OTP SMS for the phone number. */
   sendPhoneOtp: (phoneNumber: string) => Promise<void>;
   /** framework#2780 — verify a phone OTP; signs in the number's user. */
-  signInWithPhoneOtp: (phoneNumber: string, code: string) => Promise<{ user: AuthUser; session: AuthSession }>;
+  signInWithPhoneOtp: (phoneNumber: string, code: string) => Promise<{ user: AuthUser; session: AuthClientSession }>;
   /** framework#2780 — sign in with phone number + password (no SMS; gated by `features.phoneNumber`). */
-  signInWithPhonePassword: (phoneNumber: string, password: string) => Promise<{ user: AuthUser; session: AuthSession }>;
+  signInWithPhonePassword: (phoneNumber: string, password: string) => Promise<{ user: AuthUser; session: AuthClientSession }>;
   /** framework#2780 — request a password-reset OTP SMS for the phone number. */
   requestPhonePasswordReset: (phoneNumber: string) => Promise<void>;
   /** framework#2780 — reset the password using a phone OTP. */
@@ -432,8 +443,17 @@ export interface AuthOrganizationMember {
   createdAt?: string;
 }
 
-/** Auth provider configuration */
-export interface AuthProviderConfig {
+/**
+ * Configuration for the React `<AuthProvider>` component.
+ *
+ * Deliberately NOT `AuthProviderConfig` (objectstack#4115): the spec owns that
+ * name for the OAuth/OIDC provider registration `{ id, clientId, clientSecret,
+ * scope? }` — same domain, same word "auth provider", completely different
+ * object. That is the collision most likely to be read as canonical by the next
+ * session, so this one carries a local name and a tripwire
+ * (`__tests__/auth-spec-parity.test.ts`).
+ */
+export interface AuthProviderOptions {
   /** Authentication server URL */
   authUrl: string;
   /** Auth client instance (if already created) */

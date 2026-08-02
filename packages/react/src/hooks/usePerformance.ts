@@ -8,39 +8,30 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import type { PerformanceConfigSchema } from '@objectstack/spec/ui';
+import type { SpecAuthoredInput } from '../spec-input';
+
 // ---------------------------------------------------------------------------
-// Types aligned with @objectstack/spec v2.0.7 PerformanceConfigSchema
+// The performance vocabulary is the spec's `PerformanceConfigSchema`, so these
+// are its bindings rather than the hand copies that used to sit here under the
+// same name (objectstack#4115). The header claimed alignment with "spec v2.0.7";
+// the installed spec is 17.0.0-rc.0, and a claim that stale is exactly what an
+// import replaces.
 // ---------------------------------------------------------------------------
+
+/**
+ * Performance configuration — the AUTHORING side of the spec's
+ * `PerformanceConfigSchema` (`virtualScroll.enabled` carries a `.default()`, so
+ * it is optional to write and present after a parse). See
+ * {@link SpecAuthoredInput}.
+ */
+export type PerformanceConfig = SpecAuthoredInput<typeof PerformanceConfigSchema>;
 
 /** Cache strategy for data fetching. */
-export type CacheStrategyType =
-  | 'none'
-  | 'cache-first'
-  | 'network-first'
-  | 'stale-while-revalidate';
+export type CacheStrategyType = NonNullable<PerformanceConfig['cacheStrategy']>;
 
 /** Virtual scroll configuration. */
-export interface VirtualScrollConfig {
-  enabled?: boolean;
-  itemHeight?: number;
-  overscan?: number;
-}
-
-/** Performance configuration aligned with PerformanceConfigSchema. */
-export interface PerformanceConfig {
-  /** Whether to lazy-load components/data. */
-  lazyLoad?: boolean;
-  /** Virtual scroll settings for large lists. */
-  virtualScroll?: VirtualScrollConfig;
-  /** Cache strategy for data fetching. */
-  cacheStrategy?: CacheStrategyType;
-  /** Whether to prefetch linked resources. */
-  prefetch?: boolean;
-  /** Default page size for paginated views. */
-  pageSize?: number;
-  /** Debounce interval in milliseconds for user input. */
-  debounceMs?: number;
-}
+export type VirtualScrollConfig = NonNullable<PerformanceConfig['virtualScroll']>;
 
 /** Web Vitals metrics snapshot. */
 export interface PerformanceMetrics {
