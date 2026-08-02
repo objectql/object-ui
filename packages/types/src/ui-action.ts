@@ -236,8 +236,7 @@ export type ResolvableParamFieldType = ActionParamFieldType | ObjectUiLocalParam
  *
  * This is the AUTHORING shape, aligned with the spec's `ActionParamSchema`
  * input (#4074 steps 2–3): `name` / `label` / `type` are optional because the
- * `field` reference form supplies them from an existing object field, and
- * labels take the spec's `I18nLabel` (a string or a per-locale record). The
+ * `field` reference form supplies them from an existing object field. The
  * RESOLVED shape the dialog consumes — after `resolveActionParams()` in
  * `@object-ui/app-shell` inlines the field reference — is `@object-ui/core`'s
  * `ActionParamDef`, which keeps `name`/`label`/`type` required. Authoring and
@@ -264,20 +263,24 @@ export type ResolvableParamFieldType = ActionParamFieldType | ObjectUiLocalParam
  * and `requiresFeature`; and it narrowed `visible` to a bare string even though
  * the resolver has always accepted the envelope form too.
  *
- * Three keys are pinned locally, each a deliberate widening:
- *  - `label` and `options[].label` take `I18nLabel` (string OR per-locale
- *    record) where the spec takes a plain string — objectui renders localized
- *    labels;
- *  - `type` takes {@link ResolvableParamFieldType}: the spec vocabulary plus
- *    objectui's declared legacy spellings, which the dialog resolves.
+ * ONE key is pinned locally: `type` takes {@link ResolvableParamFieldType} —
+ * the spec vocabulary plus objectui's declared legacy spellings
+ * (`checkbox` / `reference` / `datetime-local`), which the dialog resolves.
+ *
+ * `label` and `options[].label` are NOT pinned, though the comment above used
+ * to justify them as a widening: "labels take the spec's `I18nLabel` (a string
+ * or a per-locale record)". In spec 17 `I18nLabelSchema` is `z.ZodString` —
+ * inline per-locale objects were dropped in favour of translation files — so
+ * the local override had become an exact restatement of the spec's own type
+ * while still claiming to be wider than it. Both keys are now inherited.
+ * (`__tests__/page-nav-misc-spec-parity.test.ts` pins that reading, so the day
+ * the spec re-widens `I18nLabel` this decision gets re-made rather than
+ * inherited.)
  *
  * Drift guard: `__tests__/page-nav-misc-spec-parity.test.ts`.
  */
 export interface ActionParam
-  extends Omit<z.input<typeof SpecActionParamSchema>, 'label' | 'type' | 'options'> {
-  /** Display label. Overrides the resolved field label for field-backed params. */
-  label?: I18nLabel;
-
+  extends Omit<z.input<typeof SpecActionParamSchema>, 'type'> {
   /**
    * Field type for input. Optional: field-backed params inherit the referenced
    * field's type.
@@ -287,9 +290,6 @@ export interface ActionParam
    * {@link ActionParamFieldType} in new metadata.
    */
   type?: ResolvableParamFieldType;
-
-  /** Options for select/picklist types */
-  options?: Array<{ label: I18nLabel; value: string }>;
 
   /** Validation expression */
   validation?: string;

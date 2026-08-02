@@ -53,16 +53,14 @@ interface IdentityImportResponse {
       errors: number;
       dryRun: boolean;
     };
-    rows: Array<{
-      row: number;
-      ok: boolean;
-      action?: 'created' | 'updated' | 'skipped' | 'failed';
-      id?: string;
-      field?: string;
-      code?: string;
-      error?: string;
-      temporaryPassword?: string;
-    }>;
+    /**
+     * Per-row outcomes. Typed by the shared `ImportRowResult` contract rather
+     * than re-listed here (objectstack#4115): the hand copy this replaces had
+     * drifted on `action`, declaring it optional where the import route's own
+     * schema requires it — so every consumer carried a branch for a value the
+     * route always sends. The identity endpoint adds one field of its own.
+     */
+    rows: Array<ImportRowResult & { temporaryPassword?: string }>;
   };
 }
 

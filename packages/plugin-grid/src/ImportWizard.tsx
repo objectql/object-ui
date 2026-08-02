@@ -2085,7 +2085,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
         setDryRunResult({
           object: objectName, dryRun: true, writeMode, total: rows.length,
           ok: 0, errors: rows.length, created: 0, updated: 0, skipped: 0,
-          results: [{ row: 0, ok: false, error: t('grid.import.notAllowed') }],
+          results: [{ row: 0, ok: false, action: 'failed', error: t('grid.import.notAllowed') }],
         });
         return;
       }
@@ -2096,7 +2096,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
         setDryRunResult({
           object: objectName, dryRun: true, writeMode, total: rows.length,
           ok: 0, errors: rows.length, created: 0, updated: 0, skipped: 0,
-          results: [{ row: 0, ok: false, error: msg }],
+          results: [{ row: 0, ok: false, action: 'failed', error: msg }],
         });
       }
     } finally {
