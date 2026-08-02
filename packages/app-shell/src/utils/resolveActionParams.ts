@@ -12,6 +12,16 @@
  * The resolver flattens each param to the runtime `ActionParamDef` shape
  * expected by `ActionParamDialog`, so the dialog itself stays agnostic to
  * field references.
+ *
+ * AUTHORING vs RESOLVED is the load-bearing distinction here, and the two
+ * vocabularies are not interchangeable (objectui#3174). What an author may
+ * write is exactly the spec's `ActionParamSchema` key set — mirrored by
+ * `@object-ui/types`' `ActionParam` and by {@link RawActionParam} below. What
+ * this function EMITS is `@object-ui/core`'s `ActionParamDef`, whose picker
+ * group (`referenceTo`, `displayField`, …) exists only after resolution.
+ * Authoring a resolved-side key is a mistake in every direction — `tsc`
+ * rejects it, the server's `.strict()` parse rejects it, and this resolver
+ * names it via {@link RESOLVED_ONLY_PARAM_KEYS} rather than reading it.
  */
 import type { ActionParamDef } from '@object-ui/core';
 
@@ -59,6 +69,68 @@ export interface RawActionParam {
    * Absent = always visible.
    */
   visible?: string | { dialect?: string; source?: string };
+}
+
+/**
+ * Keys of the RESOLVED `ActionParamDef` that are not authorable on a raw param,
+ * mapped to the prescription an author needs (objectui#3174).
+ *
+ * They are deliberately ABSENT from `RawActionParam` above rather than declared
+ * and ignored: the whole defect this table exists for is that
+ * `@object-ui/types`' public `ActionParam` declared them "for parity with the
+ * resolved shape", so `{ name: 'account_id', type: 'lookup', referenceTo:
+ * 'account' }` type-checked, lost its picker target here, and rendered as a
+ * plain record-id text box. `ActionParamSchema` in `@objectstack/spec` is
+ * `.strict()` and rejects every one of them at parse time — `referenceTo` by
+ * name, with `reference` as the suggestion — so resolving them here would make
+ * objectui accept metadata the platform itself refuses to store. That is a
+ * second de-facto contract, not a kindness (AGENTS.md "contract-first"): such a
+ * param would work in a locally-authored TS action and fail at publish.
+ *
+ * So the disposition is: recognise, name, and refuse — never silently drop, and
+ * never quietly honour.
+ */
+export const RESOLVED_ONLY_PARAM_KEYS: Readonly<Record<string, string>> = (() => {
+  const fromField =
+    'It is inherited from the referenced field — make the param field-backed '
+    + "(`{ field: '<lookup_field>' }`) to pick it up.";
+  return {
+    referenceTo:
+      "Use `reference` instead — `reference: '<object>'` is the spec's spelling for an inline "
+      + 'picker target, and the only one this resolver reads.',
+    displayField: fromField,
+    idField: fromField,
+    descriptionField: fromField,
+    titleFormat: fromField,
+    lookupColumns: fromField,
+    lookupFilters: fromField,
+    lookupPageSize: fromField,
+    dependsOn: fromField,
+  };
+})();
+
+/**
+ * Dev-mode guard: name any resolved-only key an author put on a raw param.
+ *
+ * `tsc` already rejects these against `@object-ui/types`' `ActionParam`, and the
+ * server rejects them at parse. This covers the gap between the two — params
+ * authored in plain JS, loaded from JSON, or synthesised at runtime — so the
+ * mistake is loud wherever it enters, instead of surfacing downstream as
+ * `paramToField()`'s "no reference target" warning naming a key the author never
+ * wrote (which is how objectui#3174 read from the author's seat).
+ */
+function warnResolvedOnlyKeys(param: RawActionParam): void {
+  if (process.env.NODE_ENV === 'production') return;
+  const raw = param as unknown as Record<string, unknown>;
+  for (const key of Object.keys(RESOLVED_ONLY_PARAM_KEYS)) {
+    if (raw[key] === undefined) continue;
+    console.warn(
+      `[resolveActionParams] Param "${param.name ?? param.field ?? '(unnamed)'}" declares \`${key}\`, `
+        + 'which is not an authorable action-param key: it belongs to the RESOLVED `ActionParamDef`, '
+        + "`@objectstack/spec`'s `ActionParamSchema` rejects it at parse time, and this resolver ignores it. "
+        + RESOLVED_ONLY_PARAM_KEYS[key],
+    );
+  }
 }
 
 /** Field metadata as exposed by `useMetadata().objects[].fields`. */
@@ -156,6 +228,11 @@ export function resolveActionParam(
   param: RawActionParam,
   ctx: ResolveActionParamsContext,
 ): ActionParamDef {
+  // Off-spec resolved-side keys are named here, at the authoring boundary,
+  // before anything downstream can mistake the resulting gap for partial
+  // metadata (objectui#3174).
+  warnResolvedOnlyKeys(param);
+
   /** Row-context default: when `defaultFromRow` and a row is present, the
    *  param's defaultValue is the row's value at the field key (or `name`). */
   const rowKey = param.field ?? param.name;

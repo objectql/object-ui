@@ -226,19 +226,17 @@ export type ResolvableParamFieldType = ActionParamFieldType | ObjectUiLocalParam
 /**
  * Action parameter definition (ObjectStack Spec v2.0.1)
  *
- * Mirrors `@object-ui/core`'s `ActionParamDef` — the shape `ActionParamDialog`
- * actually consumes — so a host app authoring against this package can express
- * every param capability objectui renders. Before #4074 it declared 9 of the 22
- * fields `ActionParamDef` carries, so the widget config below (`multiple`,
- * upload `accept`/`maxSize`, and the whole lookup-picker group that
- * `paramToField.ts` maps into the shared field renderer, ADR-0059) was
- * unrepresentable in the public type while being fully implemented.
+ * The AUTHORING shape of an action param: what a host app WRITES. It is not a
+ * mirror of `@object-ui/core`'s `ActionParamDef`, which is what the dialog
+ * READS after `resolveActionParams()` has inlined the field reference — see the
+ * "authoring ≠ resolved" note below, and objectui#3174 for what conflating them
+ * cost.
  *
- * This is the AUTHORING shape, aligned with the spec's `ActionParamSchema`
- * input (#4074 steps 2–3): `name` / `label` / `type` are optional because the
- * `field` reference form supplies them from an existing object field. The
- * RESOLVED shape the dialog consumes — after `resolveActionParams()` in
- * `@object-ui/app-shell` inlines the field reference — is `@object-ui/core`'s
+ * It is aligned with the spec's `ActionParamSchema` input (#4074 steps 2–3):
+ * `name` / `label` / `type` are optional because the `field` reference form
+ * supplies them from an existing object field. The RESOLVED shape the dialog
+ * consumes — after `resolveActionParams()` in `@object-ui/app-shell` inlines
+ * the field reference — is `@object-ui/core`'s
  * `ActionParamDef`, which keeps `name`/`label`/`type` required. Authoring and
  * resolved are different types on purpose; conflating them is what made a
  * spec-valid `{ field: 'status' }` param a type error here for as long as this
@@ -267,6 +265,37 @@ export type ResolvableParamFieldType = ActionParamFieldType | ObjectUiLocalParam
  * the spec vocabulary plus objectui's declared legacy spellings
  * (`checkbox` / `reference` / `datetime-local`), which the dialog resolves.
  *
+ * **Authoring ≠ resolved — the resolved-side keys are NOT declared here**
+ * (objectui#3174). This interface used to add the whole picker group on top of
+ * the spec's keys — `referenceTo`, `displayField`, `idField`,
+ * `descriptionField`, `titleFormat`, `lookupColumns`, `lookupFilters`,
+ * `lookupPageSize`, `dependsOn` — "for parity with the resolved shape". None of
+ * them is authorable:
+ *
+ *  - `ActionParamSchema` is `.strict()`, so every one of them is a hard PARSE
+ *    REJECTION on the server; `referenceTo` is even listed by name in the
+ *    schema's alias map, which answers it with "use `reference`".
+ *  - `resolveActionParams()` never read any of them. It reads the spec's
+ *    `reference` for an inline picker target and inherits the rest from the
+ *    referenced object field.
+ *
+ * So `{ name: 'account_id', type: 'lookup', referenceTo: 'account' }` type-
+ * checked, lost its picker target on the way through the resolver, and rendered
+ * as a plain record-id text box — while the dev warning that fired told the
+ * author to declare `reference`, a key this type did not have. Declaring the
+ * resolved spelling here is what made that a *silent* authoring error instead
+ * of a compile error, so it is gone: `reference` is the one authorable
+ * spelling, and the eight remaining picker keys come from the field a
+ * field-backed param names (`{ field: 'account_id' }`). An authored
+ * `referenceTo` now fails `tsc` here, and — for the JS/JSON authoring paths
+ * `tsc` does not gate — `resolveActionParams()` names it in a dev warning
+ * rather than dropping it silently.
+ *
+ * The rule this leaves behind, pinned by the drift guard: **this interface
+ * declares exactly the spec's authorable keys.** A capability the resolved
+ * shape has and the authoring shape lacks is either a spec change or a
+ * field-backed param — never a key added here.
+ *
  * `label` and `options[].label` are NOT pinned, though the comment above used
  * to justify them as a widening: "labels take the spec's `I18nLabel` (a string
  * or a per-locale record)". In spec 17 `I18nLabelSchema` is `z.ZodString` —
@@ -291,50 +320,25 @@ export interface ActionParam
    */
   type?: ResolvableParamFieldType;
 
-  /** Validation expression */
-  validation?: string;
-
-  // ── Resolved-side picker config (shared form field-widget renderer,
-  // ADR-0059) ───────────────────────────────────────────────────────────
-  // `ActionParamDialog` renders every param through the same field widgets the
-  // object form uses. These keys are the picker config `paramToField.ts` reads
-  // off `@object-ui/core`'s RESOLVED `ActionParamDef`; `resolveActionParams()`
-  // fills them from the referenced object field (or, for `referenceTo`, from
-  // the spec's inline `reference` above). They are declared here for parity
-  // with the resolved shape — an authored param that sets them directly is not
-  // read today, which is objectui#3174.
-
   /**
-   * Reference target object for `lookup`/`master_detail` params.
+   * Validation expression.
    *
-   * Authoring an inline picker target uses the spec's `reference` (above);
-   * this is the resolved spelling `ActionParamDef` carries (objectui#3174).
+   * NOT a spec key — `ActionParamSchema` is `.strict()`, so the server rejects
+   * it — and nothing reads it: `resolveActionParams()` never copies it onto the
+   * resolved param, and `paramToField()` never maps it into the field the
+   * widgets consume (form validation is built from `required` / `minLength` /
+   * `maxLength` / `pattern` field metadata instead). It is the same
+   * declared-but-inert shape objectui#3174 removed the picker group for, minus
+   * the second spelling, and is left standing only because retiring it is its
+   * own decision with its own blast radius — tracked as objectui#3201.
+   *
+   * The drift guard names it as the ONE key this interface adds to the spec's
+   * set, so it cannot be joined by a second without that being a decision.
+   *
+   * @deprecated Inert — declared, never read, and rejected by the server's
+   * param parser. Do not author it.
    */
-  referenceTo?: string;
-
-  /** Field on the referenced object to display in the picker. */
-  displayField?: string;
-
-  /** Field on the referenced object holding its id. */
-  idField?: string;
-
-  /** Field on the referenced object to show as secondary text. */
-  descriptionField?: string;
-
-  /** Template composing the picker's row title. */
-  titleFormat?: string;
-
-  /** Columns shown in the lookup picker's table. */
-  lookupColumns?: unknown[];
-
-  /** Filters constraining the lookup picker's query. */
-  lookupFilters?: unknown[];
-
-  /** Page size for the lookup picker's query. */
-  lookupPageSize?: number;
-
-  /** Params this one's options depend on (cascading selects). */
-  dependsOn?: unknown[];
+  validation?: string;
 }
 
 /**

@@ -44,5 +44,16 @@
   },
   // Explicit list, not a glob. Every entry is a file whose type assertions are
   // the point of the file.
-  "include": ["src/__tests__/spec-symbol-parity.test.ts"]
+  //
+  // `utils/resolveActionParams.test.ts` earns its place through objectui#3174:
+  // its last block authors params through `@object-ui/types`' PUBLIC
+  // `ActionParam` and follows one to the field the widgets consume. The reason
+  // that defect went unseen for so long is that every other test in the file
+  // authors the resolver's OWN local `RawActionParam`, so the resolver only
+  // ever agreed with itself — an `ActionParam` annotation that no `tsc` run
+  // reads would reproduce exactly that blind spot.
+  "include": [
+    "src/__tests__/spec-symbol-parity.test.ts",
+    "src/utils/resolveActionParams.test.ts"
+  ]
 }

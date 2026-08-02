@@ -16,8 +16,15 @@
  * in both the raw-string and the spec-normalised `{ dialect, source }` envelope
  * forms, and across inline / field-backed / missing-field branches.
  */
-import { describe, it, expect } from 'vitest';
-import { resolveActionParams, type ResolveActionParamsContext, type RawActionParam } from './resolveActionParams';
+import { describe, it, expect, vi } from 'vitest';
+import type { ActionParam } from '@object-ui/types';
+import {
+  RESOLVED_ONLY_PARAM_KEYS,
+  resolveActionParams,
+  type ResolveActionParamsContext,
+  type RawActionParam,
+} from './resolveActionParams';
+import { paramToField } from './paramToField';
 
 const ctx = (over: Partial<ResolveActionParamsContext> = {}): ResolveActionParamsContext => ({
   objectName: 'sys_user',
@@ -191,5 +198,163 @@ describe('resolveActionParams — inline lookup reference target (#3405)', () =>
 
   it('leaves referenceTo undefined for a non-picker inline param', () => {
     expect(resolveActionParams([{ name: 'note', type: 'textarea' }], lookupCtx())[0].referenceTo).toBeUndefined();
+  });
+});
+
+/**
+ * objectui#3174 — the gate the previous suite could not be.
+ *
+ * Every test above authors a `RawActionParam`, this file's own local input
+ * interface. That is exactly why the defect survived: the resolver agreed with
+ * itself, while `@object-ui/types`' public `ActionParam` — the type a host app
+ * actually writes against — declared `referenceTo` and (before objectui#3156)
+ * not `reference`. An author who followed the published type got a param whose
+ * picker target was dropped here and a dev warning downstream naming a key the
+ * type did not have.
+ *
+ * So these tests author through the PUBLIC type and follow one param all the
+ * way to the field the widgets consume: `ActionParam` → `resolveActionParams()`
+ * → `ActionParamDef` → `paramToField()` → `reference_to`. The internal pipeline
+ * keeps its two spellings (authoring `reference`, resolved `referenceTo`) — the
+ * point is not that they match, it is that the public entry and the public exit
+ * do.
+ */
+describe('resolveActionParams — authored through the public ActionParam type (objectui#3174)', () => {
+  const authoringCtx = () =>
+    ctx({
+      objectName: 'quality_dispatch',
+      objects: [
+        {
+          name: 'quality_dispatch',
+          fields: {
+            inspector: {
+              type: 'lookup',
+              label: 'Inspector',
+              reference_to: 'sys_user',
+              display_field: 'name',
+              id_field: 'id',
+            },
+          },
+        },
+      ],
+    });
+
+  /** Public authoring shape → the field object `ActionParamDialog` renders. */
+  const authorToField = (authored: ActionParam) =>
+    paramToField(resolveActionParams([authored], authoringCtx())[0]);
+
+  it('an inline `reference` reaches the picker as `reference_to`', () => {
+    const authored: ActionParam = {
+      name: 'account_id',
+      label: 'Account',
+      type: 'lookup',
+      reference: 'account',
+    };
+    expect(authorToField(authored)).toMatchObject({
+      name: 'account_id',
+      type: 'lookup',
+      reference_to: 'account',
+    });
+  });
+
+  it('a field-backed param inherits the whole picker group', () => {
+    const authored: ActionParam = { field: 'inspector' };
+    expect(authorToField(authored)).toMatchObject({
+      type: 'lookup',
+      reference_to: 'sys_user',
+      display_field: 'name',
+      id_field: 'id',
+    });
+  });
+
+  it('`master_detail` reaches the picker too — both LOOKUP_WIDGET_TYPES', () => {
+    const authored: ActionParam = { name: 'parent_id', type: 'master_detail', reference: 'account' };
+    expect(authorToField(authored)).toMatchObject({
+      type: 'master_detail',
+      reference_to: 'account',
+    });
+  });
+
+  it('never silently degrades: no dev warning on the authorable spelling', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const authored: ActionParam = { name: 'account_id', type: 'lookup', reference: 'account' };
+      authorToField(authored);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('names `referenceTo` at the resolver instead of dropping it silently', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      // The exact shape objectui#3174 reported. `tsc` rejects it against the
+      // public type now (pinned in @object-ui/types'
+      // `page-nav-misc-spec-parity.test.ts`); this covers the JS / JSON /
+      // synthesised paths `tsc` does not gate. It stays REFUSED, not resolved:
+      // `ActionParamSchema` is `.strict()`, so honouring it here would render a
+      // picker for metadata the server will not store.
+      const offSpec = { name: 'account_id', type: 'lookup', referenceTo: 'account' };
+      const field = authorToField(offSpec as unknown as ActionParam);
+
+      const messages = warn.mock.calls.map((c) => String(c[0]));
+      const named = messages.filter((m) => m.includes('`referenceTo`'));
+      expect(named).toHaveLength(1);
+      expect(named[0]).toContain('account_id');
+      expect(named[0]).toContain('Use `reference` instead');
+
+      // Still degrades — the metadata is genuinely unusable — but loudly, and
+      // the downstream warning now prescribes a key the author can write.
+      expect(field.reference_to).toBeUndefined();
+      expect(field.type).toBe('text');
+      expect(messages.some((m) => m.includes('degrades to a plain record-id text input'))).toBe(true);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('names every resolved-only key an author may reach for', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      for (const key of Object.keys(RESOLVED_ONLY_PARAM_KEYS)) {
+        warn.mockClear();
+        resolveActionParams([{ name: 'p', [key]: 'x' } as RawActionParam], authoringCtx());
+        const named = warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes(`\`${key}\``));
+        expect(named, `expected a dev warning naming \`${key}\``).toHaveLength(1);
+      }
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('says nothing for a param that only uses authorable keys', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const authored: ActionParam = {
+        name: 'comment',
+        label: 'Comment',
+        type: 'textarea',
+        required: true,
+        placeholder: 'Why?',
+        helpText: 'Shown to the approver',
+        defaultFromRow: true,
+        visible: 'features.phoneNumber',
+      };
+      resolveActionParams([authored], authoringCtx());
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('the public authoring type is accepted by this resolver (type-level)', () => {
+    // The structural half of the fix: whatever `@object-ui/types` says an
+    // author may write has to be readable here. `RawActionParam` is a local
+    // restatement, and the two drifting apart is objectui#3174's mechanism —
+    // this assignment is what fails when they do.
+    const authored: ActionParam = { name: 'account_id', type: 'lookup', reference: 'account' };
+    const raw: RawActionParam = authored;
+    expect(raw.reference).toBe('account');
   });
 });

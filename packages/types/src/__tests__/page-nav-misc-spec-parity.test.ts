@@ -37,8 +37,10 @@ import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import ts from 'typescript';
+import type { z } from 'zod';
 import { NavigationAreaSchema as SpecNavigationAreaSchema } from '@objectstack/spec/ui';
 import type {
+  ActionParamSchema as SpecActionParamSchema,
   I18nLabel as SpecI18nLabel,
   NavigationArea as SpecNavigationArea,
   Theme as SpecTheme,
@@ -300,6 +302,86 @@ describe('ActionParam derives from the spec ActionParamSchema input', () => {
   it('still expresses the field-backed form (framework#4074)', () => {
     const fieldBacked: ActionParam = { field: 'status' };
     expect(fieldBacked.field).toBe('status');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ActionParam — authoring keys ONLY (objectui#3174)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The keys an author may write on a param, straight off the spec. `z.input`
+ * because `ActionParamSchema` ends in a `.transform()` and this is the
+ * pre-parse, as-written side (objectui#3169).
+ */
+type SpecAuthorableParamKey = keyof z.input<typeof SpecActionParamSchema>;
+
+/** Every key `ActionParam` adds on top of the spec's set. */
+type LocalOnlyParamKey = Exclude<keyof ActionParam, SpecAuthorableParamKey>;
+
+describe('ActionParam declares ONLY authorable keys (objectui#3174)', () => {
+  it('does not declare the resolved-side picker group', () => {
+    // These nine live on `@object-ui/core`'s RESOLVED `ActionParamDef`, which
+    // `resolveActionParams()` EMITS. Declaring them on the authoring type made
+    // `{ type: 'lookup', referenceTo: 'account' }` compile, lose its picker
+    // target in the resolver, and render as a record-id text box — while the
+    // dialog's own warning told the author to use `reference`, a key this type
+    // did not have. `ActionParamSchema` is `.strict()`, so the server rejects
+    // every one of them at parse time too; the type was the half that lied.
+    const authored: ActionParam = {
+      name: 'account_id',
+      type: 'lookup',
+      // @ts-expect-error `referenceTo` is resolved-side; author `reference`
+      referenceTo: 'account',
+    };
+    expect(authored.name).toBe('account_id');
+
+    // @ts-expect-error inherited from the referenced field, not authored
+    const withDisplayField: ActionParam = { name: 'p', displayField: 'name' };
+    // @ts-expect-error inherited from the referenced field, not authored
+    const withIdField: ActionParam = { name: 'p', idField: 'id' };
+    // @ts-expect-error inherited from the referenced field, not authored
+    const withDescriptionField: ActionParam = { name: 'p', descriptionField: 'email' };
+    // @ts-expect-error inherited from the referenced field, not authored
+    const withTitleFormat: ActionParam = { name: 'p', titleFormat: '{name}' };
+    // @ts-expect-error inherited from the referenced field, not authored
+    const withLookupColumns: ActionParam = { name: 'p', lookupColumns: [] };
+    // @ts-expect-error inherited from the referenced field, not authored
+    const withLookupFilters: ActionParam = { name: 'p', lookupFilters: [] };
+    // @ts-expect-error inherited from the referenced field, not authored
+    const withLookupPageSize: ActionParam = { name: 'p', lookupPageSize: 20 };
+    // @ts-expect-error inherited from the referenced field, not authored
+    const withDependsOn: ActionParam = { name: 'p', dependsOn: [] };
+
+    expect([
+      withDisplayField, withIdField, withDescriptionField, withTitleFormat,
+      withLookupColumns, withLookupFilters, withLookupPageSize, withDependsOn,
+    ]).toHaveLength(8);
+  });
+
+  it('keeps `reference` as the one authorable picker spelling', () => {
+    // The positive half of the pin above: what the resolver reads must stay
+    // writable, or the removal would have closed the capability instead of
+    // pointing at it.
+    const authored: ActionParam = { name: 'account_id', type: 'lookup', reference: 'account' };
+    expect(authored.reference).toBe('account');
+  });
+
+  it('adds exactly ONE key to the spec set — `validation` (objectui#3201)', () => {
+    // INVERTED PIN, both directions. Forward: no key may join `validation`
+    // without this failing, which is the rule objectui#3174 leaves behind —
+    // the authoring type declares exactly the spec's authorable keys, so a
+    // capability the resolved shape has and this one lacks is a spec change or
+    // a field-backed param, never a key added here. Reverse: `validation` is
+    // itself inert and rejected by the spec's `.strict()` parse (objectui#3201),
+    // so the day it is retired this line stops compiling and the exception is
+    // deleted rather than inherited.
+    const theOneException: LocalOnlyParamKey = 'validation';
+    type NothingElseIsLocal = Exclude<LocalOnlyParamKey, 'validation'> extends never ? true : false;
+    const nothingElse: NothingElseIsLocal = true;
+
+    expect(theOneException).toBe('validation');
+    expect(nothingElse).toBe(true);
   });
 });
 
