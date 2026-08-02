@@ -77,6 +77,24 @@ describe('NavigationAreaSchema derives from the spec', () => {
     expect(localKeys.filter((k) => !specKeys.includes(k))).toEqual([]);
   });
 
+  it('holds the spec sub-schemas BY REFERENCE, not by copy', () => {
+    // The load-bearing assertion of this block, and the one a value comparison
+    // cannot make (objectui#3003, re-proved on `isAggregatedViewContainer` in
+    // objectui#3169): a faithful hand copy satisfies every key-set and parse
+    // check above while being a fork. Only identity distinguishes them — so
+    // re-forking this schema fails HERE as well as in the derivation guard.
+    // One `.unwrap()` deep: `specFieldsExcept` ends in `.partial()`, which wraps
+    // each carried field in a fresh `ZodOptional` around the spec's own object.
+    // That wrapper is the only new allocation — what it holds must be identical.
+    for (const key of ['icon', 'order', 'description', 'requiredPermissions'] as const) {
+      const local = shapeOf(NavigationAreaSchema)[key] as { unwrap(): unknown };
+      expect(
+        local.unwrap(),
+        `'${key}' is a copy of the spec's sub-schema, not the spec's own`,
+      ).toBe(shapeOf(SpecNavigationAreaSchema)[key]);
+    }
+  });
+
   it('keeps `order` and `description`, the two keys the hand copy dropped', () => {
     // objectui#3088: an area authored with a sort weight or a description lost
     // both — `objectui validate` is strip-mode, so the loss was silent.
