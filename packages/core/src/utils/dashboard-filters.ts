@@ -21,6 +21,7 @@
  */
 
 import type { DashboardComponentSchema, DashboardWidgetSchema, PageVariable } from '@object-ui/types';
+import { resolveDateMacros } from './date-macros.js';
 
 /** Reserved filter name for the dashboard's built-in date range. */
 export const DATE_RANGE_FILTER_NAME = 'dateRange';
@@ -89,6 +90,41 @@ const PRESET_RANGES: Record<string, { from?: string; to?: string }> = {
 export const DATE_RANGE_PRESETS = Object.keys(PRESET_RANGES);
 
 /**
+ * ISO calendar date, optionally carrying a time part — `2026-01-15`,
+ * `2026-01-15T08:30:00Z`. Deliberately narrower than `Date.parse`, which
+ * also accepts locale prose (`March 5, 2026`) and bare years (`2026`);
+ * neither is a value the backend compares a date column against usefully.
+ */
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(?:[T ][\d:.]+(?:Z|[+-]\d{2}:?\d{2})?)?$/;
+
+/**
+ * True when a bare string value can legitimately reach a query as a date
+ * (#3151). Two spellings qualify:
+ *
+ *  - a **date-macro token** (`{today}`, `${current_month_start}`,
+ *    `{7_days_ago}`) — it stays symbolic in the generated condition and is
+ *    resolved at query time by `resolveDateMacros`, exactly like the bounds
+ *    `PRESET_RANGES` emits. The check asks that resolver itself instead of
+ *    restating its grammar here: one token vocabulary, no second dialect to
+ *    drift — and a token it does not know is precisely the typo this guard
+ *    exists to catch;
+ *  - an **ISO date**, which means equality on that day (documented behaviour).
+ */
+function isUsableDateString(value: string): boolean {
+  if (resolveDateMacros(value) !== value) return true;
+  return ISO_DATE_RE.test(value) && !Number.isNaN(Date.parse(value));
+}
+
+/** `today, yesterday, …` — quoted in every rejection so the fix is in reach. */
+function presetList(): string {
+  return DATE_RANGE_PRESETS.join(', ');
+}
+
+function warnDateFilter(message: string): void {
+  if (typeof console !== 'undefined') console.warn(`[dashboard-filters] ${message}`);
+}
+
+/**
  * Normalize a date filter's DECLARED default into the `DateRangeValue` shape
  * every date consumer in this module reads (framework#4475).
  *
@@ -110,7 +146,9 @@ export const DATE_RANGE_PRESETS = Object.keys(PRESET_RANGES);
  *
  * Only a name this module actually knows is lifted. A genuine ISO date string
  * still means equality on that day (the documented behaviour), and a number /
- * boolean / unrecognised string is left exactly as declared.
+ * boolean / unrecognised string is left exactly as declared — an unrecognised
+ * string then never reaches a query at all: `buildFilterCondition` skips it
+ * with a warning rather than comparing a column against it (#3151).
  */
 function normalizeDateDefault(type: DashboardFilterDef['type'], defaultValue: unknown): unknown {
   if (type !== 'date' && type !== 'dateRange') return defaultValue;
@@ -227,6 +265,15 @@ function isEmptyValue(def: DashboardFilterDef, value: unknown): boolean {
  * Build the operator shape (the value side of a `FilterCondition` entry) for
  * one filter's current value. Returns `undefined` when the value imposes no
  * constraint. The caller keys the result by the bound field name.
+ *
+ * A `date`/`dateRange` value is held to three spellings (#3151): a known
+ * preset name → range bounds; a date-macro token or ISO date → equality on
+ * that day; **anything else → skipped with a console warning**, never
+ * silently downgraded to an equality nothing can match. That last branch is
+ * the same strictness `buildWidgetScopedFilter` applies to a default binding
+ * on an unknown field name, for the same reason: a query the backend answers
+ * `200 OK` with zero rows is indistinguishable from "this range has no data",
+ * so the typo has to be said out loud somewhere.
  */
 export function buildFilterCondition(
   def: DashboardFilterDef,
@@ -237,16 +284,35 @@ export function buildFilterCondition(
   if (def.type === 'dateRange' || def.type === 'date') {
     const v = value as DateRangeValue;
     if (typeof v === 'object') {
-      const range = v.preset ? PRESET_RANGES[v.preset] : undefined;
+      const preset = typeof v.preset === 'string' && v.preset ? v.preset : undefined;
+      const range = preset ? PRESET_RANGES[preset] : undefined;
       const from = range?.from ?? v.from;
       const to = range?.to ?? v.to;
+      if (preset && !range) {
+        // Was already dropped here — but silently, which reads as "no data".
+        warnDateFilter(
+          from || to
+            ? `filter "${def.name}": ignoring unknown date range preset "${preset}" — ` +
+                `using the explicit from/to bounds instead; known presets: ${presetList()}`
+            : `skipping filter "${def.name}": unknown date range preset "${preset}" — ` +
+                `expected one of: ${presetList()}`,
+        );
+      }
       if (!from && !to) return undefined;
       return {
         ...(from ? { $gte: from } : {}),
         ...(to ? { $lte: to } : {}),
       };
     }
-    // A bare string date means equality on that day.
+    if (typeof v === 'string' && !isUsableDateString(v)) {
+      warnDateFilter(
+        `skipping filter "${def.name}": value "${v}" is neither a known date range preset ` +
+          `nor an ISO date — expected one of: ${presetList()}, an ISO date (YYYY-MM-DD), ` +
+          `or a date macro such as {today}`,
+      );
+      return undefined;
+    }
+    // A bare string date (or date macro) means equality on that day.
     return value;
   }
 
