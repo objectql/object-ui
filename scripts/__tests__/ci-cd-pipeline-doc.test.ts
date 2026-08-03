@@ -162,8 +162,10 @@ describe('ci-cd-pipeline.md — workflow inventory', () => {
   });
 
   it('never names a workflow file that does not exist', () => {
-    // Fenced blocks are excluded: the ASCII overview box wraps filenames across
-    // lines (`performance-` / `budget.yml`), which no filename scan can read.
+    // Fenced blocks are excluded: they hold YAML samples for workflows that do
+    // not exist yet ("Adding a New Workflow") and, until #3212, an ASCII overview
+    // box that wrapped filenames across lines (`performance-` / `budget.yml`),
+    // which no filename scan can read.
     const prose = doc.replace(/```[\s\S]*?```/g, '');
     // Skip path-qualified mentions (`.github/labeler.yml` is the labeler *config*,
     // not the workflow of the same name).
