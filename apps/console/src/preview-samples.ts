@@ -231,11 +231,8 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
   tool: {
     name: 'query_orders',
     label: 'Query Orders',
-    category: 'data',
     description: 'Run a parameterized ObjectQL query against sales orders.',
-    active: true,
     objectName: 'sales_order',
-    requiresConfirmation: false,
     parameters: {
       type: 'object',
       required: ['status'],
