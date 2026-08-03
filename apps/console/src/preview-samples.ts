@@ -276,7 +276,10 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
   skill: {
     name: 'draft_email',
     label: 'Draft Email',
-    type: 'prompt',
+    // No `type`: `SkillSchema` has no such key, so `type: 'prompt'` parsed and was
+    // then silently dropped. The key that classifies a skill is `surface`
+    // (`ask` | `build` | `both`, default `ask`, ADR-0063 §3) — it gates which agents
+    // may bind the skill, and there is no 'prompt' among its values.
     description: 'Draft a follow-up email from a record context.',
     active: true,
     instructions: 'Write a concise, friendly follow-up email referencing the order.',
@@ -327,16 +330,30 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
     healthCheck: { enabled: true, intervalMs: 60000 },
   },
 
+  // `condition` is the FAILURE predicate, not the invariant: `ScriptValidationSchema`
+  // documents it as "Predicate (CEL). If TRUE, validation fails." So the rule that
+  // enforces "amount must be positive" reads `amount <= 0` — the illegal case, the
+  // same direction as the spec's own examples (`record.amount < 0`,
+  // `discount_percent > 0.40`). The pre-#3276 sample said `amount > 0`, which parses
+  // fine and means the exact opposite of its name and message: it would have rejected
+  // every valid order and passed every invalid one. Nothing catches this — a spec
+  // guard can only ask whether a draft parses, never whether it means what it says —
+  // so the direction has to be right here, in the example people copy.
   validation: {
     name: 'amount_positive',
     label: 'Amount Must Be Positive',
-    object: 'sales_order',
     active: true,
     severity: 'error',
+    // A script rule carries ONLY `condition`. `expression` is not a key on any
+    // validation branch; `object` isn't either (a rule lives in its host object's
+    // `validations[]`, which IS its scope); and `field` exists on the
+    // state_machine / format / json_schema branches, not this one. All three parsed
+    // (the branch is not `.strict()`) and were then silently dropped. To point the
+    // error at a specific field instead of the whole record, the spec's construct is
+    // `type: 'cross_field'` with `fields: ['amount']` — same evaluation path, and
+    // `fields[0]` labels which field the violation attaches to.
     type: 'script',
-    field: 'amount',
-    condition: 'amount > 0',
-    expression: 'amount > 0',
+    condition: 'amount <= 0',
     message: 'Order amount must be greater than zero.',
     // The enum is the WRITE CONTEXT (`insert` / `update`), not a lifecycle-hook
     // name: the rule evaluator only runs on the insert/update write path, so
