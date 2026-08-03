@@ -187,9 +187,29 @@ type FieldWidgetComponentProps<T = any> = {
   readonly?: boolean;
   disabled?: boolean;
   className?: string;
-  errorMessage?: string;
+  error?: string;
 };
 ```
+
+The validation slot is named `error`, matching `FieldWidgetPropsSchema` in
+`@objectstack/spec/ui` — the published contract a widget is written against.
+The form renderer supplies it from the active validation message.
+
+### Who renders what
+
+The widget and the form renderer split validation display, and the split is
+not optional:
+
+| Concern | Owner |
+|---|---|
+| `aria-invalid` on the input | **the widget** — only it renders the input element |
+| the required marker (`*`) | **the form renderer** (`<FormLabel>`) |
+| the message TEXT | **the form renderer** (`<FormMessage/>`) |
+
+So consume `error` as a **boolean signal** — `aria-invalid={!!error}` — and do
+not render the message yourself. The form already prints it below the control;
+a widget that prints it too shows the user the same sentence twice. For the
+same reason `required` is not in the props: the marker has one author.
 
 ### Example: Color Picker Field
 
@@ -205,7 +225,7 @@ export function ColorPickerField({
   field,
   readonly,
   disabled,
-  errorMessage,
+  error,
 }: FieldWidgetComponentProps<string>) {
   if (readonly) {
     return (
@@ -220,26 +240,24 @@ export function ColorPickerField({
   }
 
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-2">
-        <input
-          type="color"
-          value={value || '#000000'}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={disabled}
-          className="h-8 w-8 cursor-pointer rounded border-0 p-0"
-        />
-        <Input
-          value={value || ''}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={field?.placeholder || '#000000'}
-          disabled={disabled}
-          className="font-mono text-sm"
-        />
-      </div>
-      {errorMessage && (
-        <span className="text-xs text-destructive">{errorMessage}</span>
-      )}
+    <div className="flex items-center gap-2">
+      <input
+        type="color"
+        value={value || '#000000'}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className="h-8 w-8 cursor-pointer rounded border-0 p-0"
+      />
+      <Input
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={field?.placeholder || '#000000'}
+        disabled={disabled}
+        className="font-mono text-sm"
+        // The whole job of `error` here: tell assistive tech the field failed.
+        // The message text is rendered by the form, not by this widget.
+        aria-invalid={!!error}
+      />
     </div>
   );
 }

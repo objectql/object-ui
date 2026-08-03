@@ -230,20 +230,20 @@ export function ColorField({
   readonly,
   disabled,
   className,
-  errorMessage,
+  error,
 }: FieldWidgetComponentProps<string>) {
   return (
-    <div className={cn('space-y-1', className)}>
-      <Input
-        type="color"
-        value={value || '#000000'}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={readonly || disabled}
-      />
-      {errorMessage && (
-        <p className="text-sm text-destructive">{errorMessage}</p>
-      )}
-    </div>
+    <Input
+      type="color"
+      className={className}
+      value={value || '#000000'}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={readonly || disabled}
+      // `error` drives the a11y state ONLY. The form renderer already prints
+      // the message below the control via `<FormMessage/>`; printing it here
+      // too shows the user the same sentence twice.
+      aria-invalid={!!error}
+    />
   );
 }
 ```
@@ -258,10 +258,24 @@ type FieldWidgetComponentProps<T = any> = {
   readonly?: boolean;           // Read-only mode
   disabled?: boolean;           // HTML disabled state
   className?: string;           // Tailwind CSS classes
-  errorMessage?: string;        // Validation error
-  [key: string]: any;           // Additional forwarded props
+  error?: string;               // Active validation message — drive `aria-invalid` with it
 };
 ```
+
+The slot is named `error` because that is what `FieldWidgetPropsSchema` in
+`@objectstack/spec/ui` — the published widget contract — calls it.
+
+The type is **closed**: it also declares the host plumbing and DOM/ARIA
+pass-through keys the renderer forwards (`schema`, `dataSource`,
+`dependentValues`, `dependsOn`, `emptyHint`, `compact`, `id`, `name`,
+`aria-*`, `data-*`), and nothing else. A key it does not declare is a compile
+error rather than a silent `any`, so a typo like `readOnly` for `readonly` is
+caught at build time instead of being quietly `undefined` at runtime.
+
+Two things are deliberately **not** props, because each has exactly one author
+in the form renderer: the validation message TEXT (`<FormMessage/>`) and the
+required marker (`<FormLabel>`). Rendering either inside a widget
+double-displays it.
 
 ## Package configuration
 

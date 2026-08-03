@@ -6,7 +6,7 @@ import { FieldWidgetComponentProps } from './types';
  * EmailField - Email address input with mailto link in readonly mode
  * Renders as a clickable mailto link when readonly, standard email input otherwise
  */
-export function EmailField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetComponentProps<string>) {
+export function EmailField({ value, onChange, field, readonly, error, ...props }: FieldWidgetComponentProps<string>) {
   const config = field || (props as any).schema;
   if (readonly) {
     if (!value) return <EmptyValue />;
@@ -31,7 +31,7 @@ export function EmailField({ value, onChange, field, readonly, errorMessage, ...
       onChange={(e) => onChange(e.target.value)}
       placeholder={config?.placeholder || 'email@example.com'}
       disabled={readonly || domProps.disabled}
-      aria-invalid={!!errorMessage}
+      aria-invalid={!!error}
     />
   );
 }

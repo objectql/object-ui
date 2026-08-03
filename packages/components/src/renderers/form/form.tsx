@@ -227,6 +227,13 @@ function stripRendererOnlyProps<T extends Record<string, any>>(props: T): T {
     dependentValues: _dependentValues,
     dependsOn: _dependsOn,
     emptyHint: _emptyHint,
+    // The validation message (objectui#3222) is for REGISTERED widgets, which
+    // need it to put `aria-invalid` on the control they render. The builtin
+    // branch below renders its control directly inside `<FormControl>`, whose
+    // Slot already injects `aria-invalid` / `aria-describedby` — so here the
+    // prop has no reader and would only reach the DOM as a stray `error="…"`
+    // attribute.
+    error: _error,
     ...domProps
   } = props;
 
@@ -1334,7 +1341,7 @@ ComponentRegistry.register('form',
           control={form.control}
           name={name}
           rules={rules}
-          render={({ field: formField }) => (
+          render={({ field: formField, fieldState }) => (
             <FormItem
               className={colSpanClass || undefined}
               data-testid={fieldTestId}
@@ -1381,6 +1388,24 @@ ComponentRegistry.register('form',
                   // form, not read a stale record snapshot. Forwarded to
                   // data-source widgets only (see stripRegisteredFieldProps).
                   dependentValues: ruleRecord,
+                  // The validation slot the widget props contract has declared
+                  // all along and nobody produced (objectui#3222). Spelled
+                  // `error` because that is what `@objectstack/spec/ui`'s
+                  // `FieldWidgetPropsSchema` calls it — the published contract
+                  // third-party / AI-authored widgets are written against.
+                  //
+                  // A widget consumes it for `aria-invalid` ONLY; the message
+                  // TEXT belongs to `<FormMessage/>` below. Both halves matter:
+                  // `aria-invalid` has to sit on the input element, which only
+                  // the widget renders, and `<FormControl>`'s Slot does hand a
+                  // correct `aria-invalid` down — but a widget that computes
+                  // its own from a prop nobody passed OVERRIDES that Slot value
+                  // with `false`. That is how seven widgets ended up never once
+                  // announcing an invalid field.
+                  //
+                  // Undefined when the field is valid, so the key is simply
+                  // absent from the DOM rather than rendering `error=""`.
+                  error: fieldState.error?.message,
                 })}
               </FormControl>
               {description && (
@@ -1714,6 +1739,11 @@ interface RenderFieldProps {
   onChange?: (value: any) => void;
   disabled?: boolean;
   readonly?: boolean;
+  /**
+   * Active validation message, forwarded to registered widgets under the name
+   * `@objectstack/spec/ui`'s `FieldWidgetPropsSchema` gives it (objectui#3222).
+   */
+  error?: string;
   [key: string]: any;
 }
 

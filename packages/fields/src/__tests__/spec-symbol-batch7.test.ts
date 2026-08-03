@@ -21,10 +21,10 @@
  *
  *  - `FieldWidgetProps` is now `FieldWidgetComponentProps`. The spec owns that
  *    name for the DECLARED widget-plugin props contract; this package's is the
- *    React interface its widgets implement. The pins record the divergence that
- *    made re-exporting impossible — and, since objectui#3221 closed the type,
- *    that the divergence is now *visible* rather than swallowed by a
- *    `[key: string]: any` index signature.
+ *    React interface its widgets implement. The pins record what still makes
+ *    re-exporting impossible (`field` is the far richer `FieldMetadata` here)
+ *    and, since objectui#3222, what no longer does: the validation slot is the
+ *    spec's `error` on both sides.
  *
  * The other direction — "the spec must not start owning the NEW names" — is not
  * asserted here because `scripts/check-spec-symbol-derivation.mjs` already
@@ -80,26 +80,40 @@ describe('FieldWidgetComponentProps is the RENDERED layer of the spec contract',
     // reason is up for re-triage (the plain name could come back).
     type _SpecIsReal = Assert<Equal<IsAny<SpecFieldWidgetProps>, false>>;
 
-    // The divergence that makes a re-export impossible AND is a live defect
-    // worth naming: the declared contract calls the validation-message slot
-    // `error`; every widget in this package reads `errorMessage`. A widget
-    // written against the spec's declared props renders no message here, and
-    // nothing reports it. Recorded, not fixed, by the rename — objectui#3222.
+    // The validation-message slot no longer diverges. objectui#3161 could only
+    // RECORD that the declared contract called it `error` while every widget
+    // here read `errorMessage`; objectui#3222 resolved it in the direction the
+    // contract points — this package adopted `error`, and the form renderer
+    // started producing it, so the name and the delivery landed together.
+    // Both sides are pinned: the spec still owns the name, and this package
+    // still spells it the same way.
     type _SpecNamesItError = Assert<HasKey<SpecFieldWidgetProps, 'error'>>;
-    type _LocalNamesItErrorMessage = Assert<HasKey<FieldWidgetComponentProps, 'errorMessage'>>;
+    type _LocalNamesItErrorToo = Assert<HasKey<FieldWidgetComponentProps, 'error'>>;
+    type _SameOptionalStringSlot = Assert<
+      Equal<FieldWidgetComponentProps['error'], SpecFieldWidgetProps['error']>
+    >;
+    // The old name is gone, not kept as an alias. An alias would be exactly the
+    // lenient second dialect AGENTS.md #0.1 forbids — and the reason a missed
+    // call site would have gone quiet again.
+    type _OldNameRetired = Assert<Equal<HasKey<FieldWidgetComponentProps, 'errorMessage'>, false>>;
 
     // …and the reason nobody noticed used to sit right here: three pins
     // asserting that `[key: string]: any` was still present, and that
     // `props.required` / `props.error` therefore read as `any`. objectui#3221
     // removed that index signature, so those pins have gone red on purpose and
     // are gone with it. What replaces them is the inverse claim — the type is
-    // now CLOSED, so the two keys the spec declares and this one does not can
-    // finally be reported as missing. That is what makes objectui#3222 (the
-    // `error` / `errorMessage` divergence) decidable by the compiler instead of
-    // by a symbol guard.
+    // now CLOSED, so a key the spec declares and this one does not can finally
+    // be reported as missing. That is what made objectui#3222's rename
+    // decidable by the compiler instead of by a symbol guard.
     type _NoStringIndexSignature = Assert<Equal<Extends<string, keyof FieldWidgetComponentProps>, false>>;
+    // `required` is the one key that stayed behind, and deliberately so
+    // (objectui#3222): the required marker has a single author — the form
+    // renderer's `<FormLabel>` — and lowering the flag into widget props gives
+    // it a second, i.e. the double-display failure that also keeps the
+    // validation TEXT out of the widget. The a11y state a widget could
+    // legitimately carry is `aria-required`, and `AriaAttributes` already
+    // supplies that key with no contract change at all.
     type _RequiredIsAbsent = Assert<Equal<HasKey<FieldWidgetComponentProps, 'required'>, false>>;
-    type _ErrorIsAbsent = Assert<Equal<HasKey<FieldWidgetComponentProps, 'error'>, false>>;
 
     // `data-*` stays open (it is open in HTML too), but as a template-literal
     // key — the distinction that keeps `keyof` finite above. A pin, because

@@ -10,7 +10,16 @@
  * P3.2 Field Widget Polish - Validation Feedback
  *
  * Tests that field widgets consistently handle validation feedback:
- * errorMessage prop, aria-invalid attribute, and disabled states.
+ * `error` prop, aria-invalid attribute, and disabled states.
+ *
+ * The slot is `error` — the name `@objectstack/spec/ui`'s
+ * `FieldWidgetPropsSchema` gives it — since objectui#3222. These are the
+ * CONSUMER half only: they prove a widget handed a message marks its control
+ * invalid. That was true before #3222 too, under the name `errorMessage`, and
+ * it did not help anyone, because no host ever passed the prop. The PRODUCER
+ * half is `form-error-delivery.test.tsx` in `@object-ui/components` plus
+ * `widget-aria-invalid-e2e.test.tsx` next to this file; a rename alone would
+ * have swapped one dead key for another.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -32,23 +41,23 @@ const noop = vi.fn();
 
 describe('P3.2 Validation Feedback', () => {
   // ---------------------------------------------------------------
-  // aria-invalid on errorMessage
+  // aria-invalid on `error`
   // ---------------------------------------------------------------
   describe('aria-invalid attribute', () => {
-    it('EmailField sets aria-invalid when errorMessage provided', () => {
+    it('EmailField sets aria-invalid when `error` provided', () => {
       render(
         <EmailField
           value=""
           onChange={noop}
           field={{ type: 'email' } as any}
-          errorMessage="Invalid email"
+          error="Invalid email"
         />
       );
       const input = screen.getByRole('textbox');
       expect(input).toHaveAttribute('aria-invalid', 'true');
     });
 
-    it('EmailField does not set aria-invalid without errorMessage', () => {
+    it('EmailField does not set aria-invalid without `error`', () => {
       render(
         <EmailField
           value=""
@@ -60,52 +69,52 @@ describe('P3.2 Validation Feedback', () => {
       expect(input).not.toHaveAttribute('aria-invalid', 'true');
     });
 
-    it('UrlField sets aria-invalid when errorMessage provided', () => {
+    it('UrlField sets aria-invalid when `error` provided', () => {
       render(
         <UrlField
           value=""
           onChange={noop}
           field={{ type: 'url' } as any}
-          errorMessage="Invalid URL"
+          error="Invalid URL"
         />
       );
       const input = screen.getByDisplayValue('');
       expect(input).toHaveAttribute('aria-invalid', 'true');
     });
 
-    it('PhoneField sets aria-invalid when errorMessage provided', () => {
+    it('PhoneField sets aria-invalid when `error` provided', () => {
       render(
         <PhoneField
           value=""
           onChange={noop}
           field={{ type: 'phone' } as any}
-          errorMessage="Invalid phone"
+          error="Invalid phone"
         />
       );
       const input = screen.getByRole('textbox');
       expect(input).toHaveAttribute('aria-invalid', 'true');
     });
 
-    it('TextAreaField sets aria-invalid when errorMessage provided', () => {
+    it('TextAreaField sets aria-invalid when `error` provided', () => {
       render(
         <TextAreaField
           value=""
           onChange={noop}
           field={{ type: 'textarea' } as any}
-          errorMessage="Required"
+          error="Required"
         />
       );
       const textarea = screen.getByRole('textbox');
       expect(textarea).toHaveAttribute('aria-invalid', 'true');
     });
 
-    it('CurrencyField sets aria-invalid when errorMessage provided', () => {
+    it('CurrencyField sets aria-invalid when `error` provided', () => {
       render(
         <CurrencyField
           value={0}
           onChange={noop}
           field={{ type: 'currency' } as any}
-          errorMessage="Must be positive"
+          error="Must be positive"
         />
       );
       const input = screen.getByRole('spinbutton');

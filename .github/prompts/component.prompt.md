@@ -16,7 +16,7 @@
 
 2.  **Fields (@object-ui/fields):**
     *   Standard Input/Display widgets (Text, Number, Date, Select).
-    *   Must implement `FieldWidgetProps`.
+    *   Must implement `FieldWidgetComponentProps` (the package's own generic React interface — not the spec's non-generic `FieldWidgetProps` alias; see §2.A).
 
 3.  **Layouts & Patterns (@object-ui/layout):**
     *   Page structures (Sidebar, Header, AppLauncher).
@@ -35,15 +35,22 @@ You will be asked to build components in these 3 standard slots. Refer to `packa
 
 ### A. Field Widgets (`field:*`)
 Responsible for **Input** (Edit Mode) and **Display** (Read Mode) of a specific data type.
-*   **Contract:** Must implement `FieldWidgetProps` (Ref: `src/ui/widget.zod.ts`).
+*   **Contract:** Two layers with the same shape and DIFFERENT names — do not mix them up.
+    *   `FieldWidgetProps` (`@objectstack/spec/ui`, Ref: `src/ui/widget.zod.ts`) is the **declared** contract: a `z.infer` of `FieldWidgetPropsSchema`, so it is a plain **non-generic** type alias. Read it to learn what a widget receives.
+    *   `FieldWidgetComponentProps<T>` (`@object-ui/fields`) is the **implemented** React interface, and the one you actually import and parameterize when writing a widget in this repo.
     ```typescript
-    type FieldWidgetProps<T = any> = {
+    import type { FieldWidgetComponentProps } from '@object-ui/fields';
+
+    type FieldWidgetComponentProps<T = any> = {
       value: T;
       onChange: (val: T) => void;
-      field: FieldSchema; // Config
+      field: FieldMetadata; // Config
       readonly?: boolean;
+      disabled?: boolean;
+      error?: string;       // active validation message — see below
     }
     ```
+    The type is **closed**: a key it does not declare is a compile error, not a silent `any`.
 *   **Required Types (Ref: `src/data/field.zod.ts`):**
     *   **Textual:** `text` (Input), `textarea` (Multi-line), `password`, `email`, `url`, `phone`.
     *   **Rich Content:** `markdown` (Editor), `html` (WYSIWYG), `code` (Monaco/Ace).
@@ -168,24 +175,35 @@ Conversational and Generative UI components.
 ## 2. API Reference & Contracts
 
 ### A. Field Widget Implementation
-**Reference:** `@objectstack/spec` -> `dist/ui/widget.zod.d.ts`
+**Reference:** `packages/fields/src/widgets/types.ts` (implemented props), `@objectstack/spec` -> `dist/ui/widget.zod.d.ts` (declared contract)
+
+Import the **generic** `FieldWidgetComponentProps<T>` from `@object-ui/fields`.
+The spec's `FieldWidgetProps` is a non-generic alias — writing
+`FieldWidgetProps< number >` does not compile. There is no `mode` prop on
+either type; read-mode is `readonly`.
 
 ```typescript
-import { FieldWidgetProps } from '@objectstack/spec/ui';
+import type { FieldWidgetComponentProps } from '@object-ui/fields';
 
-export function RatingField({ 
-  value, 
-  onChange, 
-  field, 
-  mode 
-}: FieldWidgetProps<number>) {
-  
-  if (mode === 'read') {
+export function RatingField({
+  value,
+  onChange,
+  field,
+  readonly,
+  error,
+}: FieldWidgetComponentProps<number>) {
+
+  if (readonly) {
     return <span>{'★'.repeat(value || 0)}</span>;
   }
 
   return (
-    <div className="flex gap-1">
+    // `error` is the ACTIVE VALIDATION MESSAGE, supplied by the form renderer.
+    // Consume it as a boolean signal for a11y and nothing more: the message
+    // text is rendered by `<FormMessage/>` and the required marker by
+    // `<FormLabel>`, both in the form renderer. A widget that also prints the
+    // text double-displays it.
+    <div className="flex gap-1" role="radiogroup" aria-invalid={!!error}>
       {[1, 2, 3, 4, 5].map((star) => (
         <button 
           key={star}
@@ -240,7 +258,7 @@ export const widgetRegistry = {
 
 *   **Statelessness:** Widgets should rely on `props.value` and `props.onChange`. Avoid internal state unless necessary for transient UI interactions (like hover).
 *   **Schema Awareness:** The widget must respect schema options (e.g., `field.required`, `field.readonly`, `field.options`).
-*   **Validation:** Rendering logic should handle `props.errorMessage` gracefully.
+*   **Validation:** `props.error` is the active validation message. Use it for the a11y state (`aria-invalid={!!error}`) and nothing else — the host renders the message text and the required marker, so a widget that renders either shows it twice.
 *   **Accessibility:** Use standard ARIA roles and keyboard navigation (Shadcn UI/Radix primitives recommended).
 
 ---

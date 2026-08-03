@@ -14,13 +14,27 @@ import type { DependsOnInput, FieldMetadata } from '@object-ui/types';
  * the widgets in this directory actually implement, against
  * `@object-ui/types`'s much richer `FieldMetadata`.
  *
- * The two are NOT interchangeable, and the divergence is not cosmetic: the
- * spec's contract names the error slot `error`, this one names it
- * `errorMessage`, so a widget written to the spec's declared props renders no
- * validation message here. That divergence is tracked in objectui#3222 and is
- * deliberately NOT resolved here — but it is now *visible*: reading
- * `props.error` or `props.required` off this type is a compile error rather
- * than a silent `any`.
+ * The two are NOT interchangeable, but they no longer disagree on the
+ * validation slot: this type used to call it `errorMessage` while the spec
+ * calls it `error`, so a widget written to the published contract read
+ * `undefined` forever. objectui#3222 resolved that in the direction the
+ * contract points — the slot below IS the spec's `error`, and the form
+ * renderer now produces it (see `error`'s own doc comment). Reading
+ * `props.required` off this type is still a compile error rather than a
+ * silent `any`; that key is deliberately NOT lowered here (see below).
+ *
+ * ## Why `required` is still absent, though the spec declares it
+ *
+ * The required MARKER is drawn exactly once, by the form renderer's
+ * `<FormLabel>` (the `*` with `aria-label="required"`, which the label
+ * association folds into the control's accessible name). Handing `required`
+ * to widgets would give that marker a second possible author, and the very
+ * next AI-written widget draws its own asterisk — the same double-display
+ * failure that keeps the validation TEXT out of the widget below. The a11y
+ * state a widget genuinely could carry is `aria-required` on the input, and
+ * that needs no new key at all: `AriaAttributes` is already part of this type
+ * and every widget already forwards it to its control. Tracked separately;
+ * do not add `required` here to "align" without that decision.
  *
  * ## Why there is no `[key: string]: any` (objectui#3221)
  *
@@ -55,7 +69,22 @@ export type FieldWidgetComponentProps<T = any> = {
   readonly?: boolean;
   disabled?: boolean;
   className?: string;
-  errorMessage?: string;
+  /**
+   * The active validation message for this field, named as
+   * `@objectstack/spec/ui`'s `FieldWidgetPropsSchema` names it (objectui#3222).
+   *
+   * **Producer**: the form renderer, from react-hook-form's
+   * `fieldState.error?.message` (`packages/components/src/renderers/form/
+   * form.tsx`). Before #3222 nothing in the repo produced it under EITHER
+   * spelling, so the seven widgets computing `aria-invalid={!!errorMessage}`
+   * were computing it from a permanent `undefined` — `aria-invalid` was never
+   * once set and a screen reader was never told the field had failed.
+   *
+   * **Consumer**: a widget reads this ONLY to drive `aria-invalid` on the
+   * control it renders. The message TEXT stays with the form renderer's
+   * `<FormMessage/>`; a widget that also renders it double-displays it.
+   */
+  error?: string;
   /**
    * Upload widgets (`file`/`image`) fire this when their in-progress state
    * flips, so a host can block submit until a presigned upload settles. Other

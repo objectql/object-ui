@@ -14,8 +14,9 @@
  * one (objectstack#4075). Three consequences, one test each below:
  *
  *  1. a key the type does not declare is a compile error, not a silent `any`
- *     — which is what makes the `error` / `errorMessage` divergence
- *     (objectui#3222) decidable by the compiler at all;
+ *     — which is what let objectui#3222 rename the validation slot to the
+ *     spec's `error` with the compiler, not grep, proving no call site was
+ *     missed;
  *  2. a MISSPELLED prop (`readOnly` for `readonly`) is rejected;
  *  3. the pass-through keys hosts genuinely forward still type-check, and
  *     still reach the rendered control at runtime — closing the type must not
@@ -52,13 +53,15 @@ describe('FieldWidgetComponentProps is closed (objectui#3221)', () => {
   it('rejects keys it does not declare', () => {
     const props = {} as FieldWidgetComponentProps<string>;
 
-    // The spec's `FieldWidgetPropsSchema` declares both; this type declares
-    // neither. Reading them used to give `any` and `undefined` forever.
-    // Whether to ADD them is objectui#3222 — deliberately not decided here.
+    // `required` stays out on purpose (objectui#3222): the required marker has
+    // exactly one author, the form renderer's `<FormLabel>`, and handing the
+    // flag to widgets invites a second one. Its sibling `error` went the other
+    // way — the spec declares it, so the slot below adopted the spec's name and
+    // the form renderer now produces it.
     // @ts-expect-error `required` is not part of this contract
     void props.required;
-    // @ts-expect-error `error` is not part of this contract — this type's slot is `errorMessage`
-    void props.error;
+    const message: string | undefined = props.error;
+    void message;
 
     // …and the class of bug the index signature hid best: a typo.
     // @ts-expect-error the prop is `readonly`, not React's DOM `readOnly`

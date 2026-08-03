@@ -37,7 +37,7 @@ import { FieldWidgetComponentProps } from './types';
  * override is ever genuinely needed, declare ONE key on
  * `FieldWidgetComponentProps`, stop stripping it, and have a host pass it.
  */
-export function TextAreaField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetComponentProps<string>) {
+export function TextAreaField({ value, onChange, field, readonly, error, ...props }: FieldWidgetComponentProps<string>) {
   // Hooks must run before any early return (readonly) to keep hook order stable.
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const [draft, setDraft] = useState(value ?? '');
@@ -78,7 +78,7 @@ export function TextAreaField({ value, onChange, field, readonly, errorMessage, 
         disabled={readonly || domProps.disabled}
         rows={rows}
         maxLength={maxLength}
-        aria-invalid={!!errorMessage}
+        aria-invalid={!!error}
         className={domProps.className}
       />
       {showFullscreenButton && (

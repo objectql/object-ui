@@ -8,7 +8,7 @@ import { FieldWidgetComponentProps } from './types';
  * For now, this is a simple textarea. A full implementation would use
  * a rich text editor like TipTap, Lexical, or Slate.
  */
-export function RichTextField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetComponentProps<string>) {
+export function RichTextField({ value, onChange, field, readonly, error, ...props }: FieldWidgetComponentProps<string>) {
   const { t } = useObjectTranslation();
   if (readonly) {
     return (
@@ -42,7 +42,7 @@ export function RichTextField({ value, onChange, field, readonly, errorMessage, 
         disabled={readonly || props.disabled}
         rows={rows}
         className={`font-mono text-sm ${props.className || ''}`}
-        aria-invalid={!!errorMessage}
+        aria-invalid={!!error}
       />
     </div>
   );

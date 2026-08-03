@@ -7,7 +7,7 @@ import { FieldWidgetComponentProps } from './types';
  * Stores values as decimals (0-1) and displays as percentages (0-100%)
  * Includes a slider for interactive control.
  */
-export function PercentField({ value, onChange, field, readonly, errorMessage, className, ...props }: FieldWidgetComponentProps<number>) {
+export function PercentField({ value, onChange, field, readonly, error, className, ...props }: FieldWidgetComponentProps<number>) {
   const percentField = (field || (props as any).schema) as any;
   const precision = percentField?.precision ?? 2;
 
@@ -72,7 +72,7 @@ export function PercentField({ value, onChange, field, readonly, errorMessage, c
           disabled={readonly || props.disabled}
           className={`pr-8 ${className || ''}`}
           step={Math.pow(10, -precision).toFixed(precision)}
-          aria-invalid={!!errorMessage}
+          aria-invalid={!!error}
         />
         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
           %
