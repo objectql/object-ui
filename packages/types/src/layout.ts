@@ -520,6 +520,15 @@ export interface PageNodeRegion {
  * Page layout component
  * Top-level container for a page route.
  * Aligned with @objectstack/spec PageSchema
+ *
+ * This is the SDUI NODE, not the authored page DOCUMENT — the spec's `Page`
+ * is that, and the two are deliberately different types (same layer split as
+ * {@link PageNodeRegion}).
+ *
+ * Tripwire: `__tests__/page-node-type-contract.test.ts`, which pins
+ * `type` to exactly `'page'` — the `ComponentRegistry` key
+ * `@object-ui/components` registers `PageRenderer` under, i.e. the wire key
+ * authored metadata carries. Nothing else in the repo pins it.
  */
 export interface PageNodeSchema extends BaseSchema {
   type: 'page';
