@@ -1,5 +1,195 @@
 # @object-ui/plugin-detail
 
+## 17.2.0
+
+### Minor Changes
+
+- a889e31: A record's approval band now shows the quorum / per-group tally the server already computes.
+
+  The showcase's `showcase_committee_quorum` node declares `behavior: 'quorum'` with
+  `minApprovals: 2` over three approvers, and even ships a pre-rendered
+  `"Committee Sign-off (2 of 3)"` label; `showcase_expense_signoff` declares
+  `per_group` (会签) with named manager / finance groups. On the business record
+  the approval band rendered none of it — the lock badge, the recall button and
+  the approve/reject actions were all correct, but a two-of-three committee step
+  looked exactly like a one-approver step. An approver could not see whether their
+  own click finalized the node or was one of three, which is the single fact a
+  quorum node exists to express (objectstack#4478).
+
+  Nothing was wrong on the wire, and nothing here papers over the server. The
+  framework computes `decision_progress` — `{ behavior, got, need, groups? }`,
+  derived from the node's own `node_config_json` snapshot, so the count a client
+  shows is the count the engine will enforce. **It attaches that block in
+  `getRequest` only**: `listRequests` deliberately skips it, because the
+  `sys_approval_action` tally it costs is per row and a list read may return
+  hundreds. The record header's `useRecordApprovals` reads
+  `GET /approvals/requests?object=…&recordId=…` — the list route — so the
+  enrichment was never in the payload it had. The hook now follows up with one
+  single read for the ONE pending row and folds the result onto it; a failed or
+  mismatched follow-up leaves the row exactly as the list sent it, so a display-only
+  enrichment can never take the approval panel down and no tally is ever invented.
+
+  `InlineEditProvider` carries the block through as `approvalProgress`, and the
+  DetailView approval band renders it beside the existing badge: a labelled
+  `role="progressbar"` with one tick per required approval for `quorum` /
+  `unanimous`, and for `per_group` a chip per group marking which have signed
+  (`finance 1/1` ✓, `manager 0/1`). Group names come from the flow author's own
+  config, so they need no locale strings; the three new label keys are added to all
+  ten packs. `first_response` nodes carry no `decision_progress` and are unchanged —
+  one decision is the whole step there, and a "1 of 1" bar would be noise.
+
+  Scored `minor` rather than `patch`: this is new observable rendering plus a new
+  public `approvalProgress` prop / `ApprovalProgress` type on `@object-ui/react`,
+  not a behavior correction inside an existing surface.
+
+- 4a51e77: Stop declaring 14 symbols across ten packages under names `@objectstack/spec`
+  owns (objectui#3161, objectstack#4115 batch 7 — the long tail, one or two
+  entries per package). All ten packages leave the ledger, which drops from 17
+  collisions across 11 packages to 3 across 1.
+
+  **Renamed exports** — in every case the spec exports the same name for a
+  _different_ thing, so the old name was a mis-description rather than a dialect:
+
+  | package                    | was                                | now                                                  | what the spec's same-named export is                                                                                                       |
+  | :------------------------- | :--------------------------------- | :--------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------- |
+  | `@object-ui/fields`        | `FieldWidgetProps`                 | `FieldWidgetComponentProps`                          | the DECLARED field-widget plugin props contract (a zod object; `field.type` is the `FieldType` enum, `readonly`/`required` carry defaults) |
+  | `@object-ui/layout`        | `PageHeaderProps`                  | `PageHeaderComponentProps`                           | the authored `page:header` node — a zod schema of `title`, `subtitle`, an icon NAME, `breadcrumb`, `actions: string[]`                     |
+  | `@object-ui/layout`        | `Page`                             | `PageNodeRenderer`                                   | the authored page metadata DOCUMENT (`name`, `label`, `type`, `regions`)                                                                   |
+  | `@object-ui/plugin-detail` | `ObjectFieldLike`                  | `ObjectDefFieldLike`                                 | the i18n duck type `translateObject` walks (`help`/`description`, plus `[key: string]: any`)                                               |
+  | `@object-ui/plugin-grid`   | `ColumnSummaryConfig`              | `ColumnSummarySetting`                               | the OBJECT form of `ListColumn.summary` **only** — the local one was the whole union, shorthand included                                   |
+  | `@object-ui/plugin-grid`   | `isMultiValueField`                | `hasMultiValueShape`                                 | the spec's classifier, which requires a def with a `type`; the local one is called with `undefined`                                        |
+  | `@object-ui/collaboration` | `RealtimeConfig`                   | `RealtimeSubscriptionConfig`                         | the app's realtime DECLARATION (`enabled`, `transport`, `subscriptions[]`)                                                                 |
+  | `@object-ui/plugin-charts` | `ChartConfig`                      | `ChartContainerConfig`                               | the authored chart document (`type`, `xAxis`, `series`, `showLegend`, …)                                                                   |
+  | `@object-ui/plugin-form`   | `FormSection` / `FormSectionProps` | `FormSectionContainer` / `FormSectionContainerProps` | the authored form-section metadata (`name`, `pane`, `visibleWhen`, `fields`)                                                               |
+  | `@object-ui/providers`     | `Theme`                            | `ThemePreference`                                    | a whole theme DOCUMENT (`name`, `label`, `colors`, `typography`)                                                                           |
+  | `@object-ui/runner`        | `App` (default export)             | `RunnerApp`                                          | the authored application metadata type **and** the `App.create()` builder                                                                  |
+  | `@object-ui/sdui-parser`   | `ValidationResult`                 | `ManifestValidationResult`                           | plugin-manifest validation (`{ valid, errors?, warnings? }`), exported from both `kernel` and `contracts`                                  |
+
+  `ManifestValidationResult` follows the `<what was validated>Validation<Error|Result>`
+  convention registered on objectstack#4115 (`@object-ui/core` took
+  `SchemaNodeValidationResult` in batch 4). `PageHeaderComponentProps` deliberately
+  reuses the name `@object-ui/app-shell` already chose for its own header props in
+  batch 3, so one concept does not acquire two dialect names one package apart.
+
+  **Now derived from the spec instead of hand-written:**
+
+  - `@object-ui/fields` — `isFileIdToken` is re-exported from
+    `@objectstack/spec/data`. The local copy was character-for-character identical
+    to the spec's function while its comment said it "mirrors" it, so every
+    behaviour test passed and only reference identity could tell the two apart.
+    The regex is a wire decision: widening it server-side while a copy here kept
+    the old bound would make every new id read as "not a reference", and the
+    widget would submit the legacy inline blob to a backend expecting a reference.
+  - `@object-ui/plugin-detail` — `FeedFilterMode` is re-exported from
+    `@objectstack/spec/data`, in a file that already imported the sibling
+    `FeedItemType` from the spec.
+  - `@object-ui/plugin-grid` — the eleven-member aggregation union is now the
+    spec's `ColumnSummary` enum, so the total `Record<ColumnSummaryType, string>`
+    label map turns a member the spec adds into a compile error instead of a
+    blank footer cell. `ColumnSummarySetting` is `NonNullable<ListColumn['summary']>`,
+    i.e. whatever forms the spec itself accepts. `hasMultiValueShape` delegates to
+    the spec's `isMultiValueField` rather than re-deriving it from
+    `MULTI_OPTION_TYPES` / `MULTI_CAPABLE_TYPES`.
+  - `@object-ui/providers` — `ThemePreference` is the spec's `ThemeMode` union
+    plus the one legacy `'system'` spelling this provider still honours for stored
+    preferences, read off the schema's own `_zod` carrier so the package takes no
+    zod dependency.
+
+  `@objectstack/spec` moves from `devDependencies` to `dependencies` in
+  `@object-ui/fields` (it re-exports a runtime function) and `@object-ui/providers`
+  (its public `.d.ts` now references the spec).
+
+  Scored `minor`, not `major`, per this repo's fixed-group rule — objectui's major
+  tracks `@objectstack`, so breaking changes of our own ship as minor with the
+  semantics spelled out above (see AGENTS.md §版本号策略). A `major` here would carry
+  all 39 packages of the fixed group to `18.0.0` and off objectstack's 17.x line.
+
+- dd06bcd: `record:activity` fetches a feed instead of rendering a permanently empty one (objectui#3165).
+
+  The block published eleven inputs — `types`, `filterMode`, `showFilterToggle`,
+  `limit`, `showCompleted`, `unifiedTimeline`, `showCommentInput`,
+  `enableMentions`, `enableReactions`, `enableThreading`,
+  `showSubscriptionToggle` — every one of them a filter or an affordance over a
+  feed that could not have content on any path. `RecordActivityRenderer` called
+  `useRecordContext()`, discarded the result and rendered
+  `<RecordActivityTimeline items={[]}>` with the empty array hard-coded; the
+  timeline takes `items` as a prop and never fetched; no host supplied any
+  (`buildDefaultPageSchema` emits `{ type: 'record:activity' }` with no props at
+  all). Declared, published to `sdui.manifest.json`, inert at runtime —
+  objectstack#4413's shape, three blocks over.
+
+  **The feed now has three sources, in precedence order.** `items` on the node
+  (the convention `record:history` uses for `entries`); a mounted
+  `DiscussionContext`, which the console's record page fills with the merged
+  `sys_comment` + `sys_activity` feed and the write handlers; otherwise a
+  **self-fetch** of `sys_activity` scoped to the bound record
+  (`{ object_name, record_id }`, newest first, `limit` rows per page, "Load more"
+  re-reading a wider window). The third path is what makes the block
+  drop-anywhere — hand-authored inside a `page:tabs`, with no host feeding it —
+  and it mirrors the read `record:history` already had. Rows map to feed items
+  exactly as the console's record page maps them, so both surfaces agree about
+  what a row is.
+
+  **The read-side inputs now filter.** `types` is an allow-list over feed item
+  types (unrecognised entries ignored; an all-typo list is treated as unset
+  rather than emptying the feed). `limit` is a page size and caps the scoped
+  read. `showCompleted` (spec default `false`) hides completed activities.
+  `unifiedTimeline: false` un-mixes field changes from the comment stream — the
+  panel becomes a discussion feed and field changes stay in `record:history`.
+  `filterMode` seeds which slice the dropdown opens on and falls back to `all`
+  on an unrecognised value instead of leaving a `<Select>` matching nothing.
+
+  **The write-side switches are wired to the host's handlers.**
+  `showCommentInput`, `enableThreading`, `enableReactions` and `enableMentions`
+  read `onAddComment` / `onAddReply` / `onToggleReaction` /
+  `mentionSuggestions` off `DiscussionContext` — the same standing
+  `record:discussion` has. With no host mounted the feed stays read-only and no
+  composer is rendered, rather than showing one that silently drops what you
+  type.
+
+  **`showSubscriptionToggle` is recorded as a known gap, not quietly left
+  looking configurable.** The bell needs a `RecordSubscription` value and
+  somewhere to persist it, and the platform has no record-subscription object to
+  read or write one from. Its input description now says `NOT IMPLEMENTED` (that
+  text ships to `sdui.manifest.json`, so an author meets it before writing the
+  prop), the docs repeat it, and a test pins it inert so the note has to be
+  deleted the day a backend for it lands.
+
+  `apps/console`'s record-reach probe (objectui#3149 layer 3a) asserted the old
+  behaviour from its `NO_RECORD_REACH` ledger in both directions; that entry is
+  deleted, and the probe now reports `record:activity` as responding to the bound
+  record.
+
+### Patch Changes
+
+- 6be575c: A fetching activity feed says "loading", not "No activity recorded" (objectui#3205).
+
+  `RecordActivityTimeline` declared a `loading` prop and destructured it straight
+  into `_loading`, so nothing in the component ever read it. For the whole
+  duration of a feed fetch the panel therefore rendered the empty state — "No
+  activity recorded" — and then contradicted itself when the rows landed. The
+  empty copy is a factual claim about the record; it may only be made once the
+  fetch that would fill the feed has settled.
+
+  The timeline now branches on `loading` **before** the empty branch and renders a
+  spinner row (`role="status"`, `aria-live="polite"`) while the feed is in flight.
+  `collapseWhenEmpty` does not suppress it: that flag is about the empty state
+  ("collapse when there are no items"), and mid-fetch it is not yet known whether
+  there are items.
+
+  The guard is `loading && filtered.length === 0`, not `loading` alone — a refresh
+  or a "Load more" round-trip keeps the rows already on screen instead of blanking
+  them (that button carries its own spinner).
+
+  No prop or signature changed: the fix is that the declared prop is now read.
+  `record:activity` has computed a live `loading` since objectui#3165 (true during
+  its self-fetch) and `RecordChatterPanel` already forwarded it in both positions,
+  so the whole chain now shows a loading state end to end.
+
+- Updated dependencies [a889e31]
+- Updated dependencies [4b470b9]
+  - @object-ui/i18n@17.2.0
+
 ## 17.1.0
 
 ### Minor Changes

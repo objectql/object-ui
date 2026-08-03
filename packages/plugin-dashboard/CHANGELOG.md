@@ -1,5 +1,124 @@
 # @object-ui/plugin-dashboard
 
+## 17.2.0
+
+### Patch Changes
+
+- d9668a7: Honor the server's declared percent scale, so a ratio of exactly 1 renders as 100.0% (#3136)
+
+  A dataset measure declared `format: '0.0%'` rendered every ratio below 1
+  correctly and got the single most consequential one wrong: a rate of exactly
+  `1` printed as **`1.0%`**. On an SLA / pass-rate dashboard that turns
+  "everything met the SLA" into "1% met the SLA", on both surfaces the issue
+  names — the KPI card and the dataset-bound table (they share `formatMeasure`).
+
+  The cause was never a bad multiplier; it was a missing fact. `formatMeasure`
+  scaled by magnitude — `percentDisplayValue` multiplies by 100 only strictly
+  inside `(-1, 1)` — because the column arrived with a `%` format string and
+  nothing saying what scale its numbers were on. That guess is undecidable at
+  exactly 1, which is both a full-compliance ratio ("100%") and one percentage
+  point ("1%"), and it resolved to the reading almost nobody means.
+
+  The server now answers the question instead (framework: `percentScaleOf` +
+  `AnalyticsResult.fields[].percentScale`, the sibling of the ADR-0053 currency
+  chain): a `derived: { op: 'ratio' }` measure is a `fraction` by definition, and
+  a measure over a `percent` field inherits that field's scale. `formatMeasure`
+  takes the declared scale as a fourth argument and, when present, scales by it —
+  `fraction` ×100, `whole` verbatim — instead of inspecting the value. Every
+  dataset-bound call site passes the column's `percentScale`: the dashboard
+  metric/table/pivot cells, the report renderer's cells, totals and KPI, and the
+  dataset preview.
+
+  `percentDisplayValue` is untouched and still the fallback for a column that
+  arrives without the annotation (an older server, or a non-dataset percent cell
+  in a list view), so nothing that renders correctly today changes.
+
+- 022e4c3: Upgrade to `@objectstack/spec@17.0.0-rc.1`, stop offering the retired `wait` timeout fields (#3101), and route the newly-adopted `combo` chart type.
+
+  **Breaking for authoring, and the reason to do it now**: the `wait` panel no longer offers
+  `waitEventConfig.timeoutMs` or `.onTimeout`. Both are `retiredKey()` tombstones as of spec
+  17.0.0-rc.1 (framework#4158), which means a value written there is **rejected at load** —
+  so until this lands, Studio can produce flow metadata the author's own runtime refuses.
+  That hazard opened the moment rc.1 published, independent of when this repo bumps.
+
+  `wait` never had a timeout: `onTimeout` had zero readers, so neither `'fail'` nor
+  `'continue'` ever happened, and `timeoutMs`'s only reader used it as the timer **duration**
+  when `timerDuration` was absent. Use **Duration** — it accepts a bare number as
+  milliseconds, making the old `timeoutMs: 60000` and `timerDuration: '60000'` the same wait.
+  Stored flows are converted by framework's D2 conversion; the designer simply stops offering
+  the entry. The two `zh` label overrides go with the fields.
+
+  #3101 asked for this to ride along with the bump rather than land alone, and that is
+  load-bearing: the sibling-block assertion is **bidirectional**, so deleting the fields
+  against a spec that still declares them fails in the other direction.
+
+  **`combo` is now a spec chart type** — the sole addition to `ChartTypeSchema` in rc.1 (19
+  members → 20). It had been a renderer-local family the chart renderer derived from the
+  series, so nothing classified it on the two surfaces that route a _spec_ chart type: a
+  spec-valid `combo` fell through to the red "Unknown component type" panel on a dashboard
+  and to the out-of-spec notice on a report. Both now route it
+  (`widgetDispatch.SERIES_CHART_TYPES`, `planReportChart`). The renderer-local derivation
+  stays — it is what makes an authored `type: 'combo'` render rather than merely validate.
+
+  **Retired spec exports this repo bound to**, all removed upstream in spec 17.0.0:
+
+  - `JoinStrategy` / `WindowFunction` (framework#4286 tombstoned `query.joins` and
+    `query.windowFunctions`: no engine or driver ever read either on the query path). They
+    were derived off the spec enums under objectstack#4115's "come off the spec enum, not a
+    restatement" rule; with no enum left, `data-protocol.ts` now restates the members locally
+    — verbatim from the last spec that published them — as the objectui query-AST vocabulary
+    they have become. The AST itself is unchanged.
+  - `PerformanceConfig`, retired with `dashboard.performance` (framework#3896). Nothing bound
+    to it — `@object-ui/react`'s `usePerformance` declares its own interface and is untouched.
+    The dashboard form is derived from the spec's own `dashboardForm`, so the field
+    disappears from the inspector for free; its test now pins the absence.
+
+  **Three inverted pins fired, and are recorded rather than resolved.** objectstack#4171's
+  tripwires asserted that `NavigationItem`, `FormField` and `ConditionalValidation`'s branches
+  still erased to `any`/`unknown` upstream — the premise that justified objectui keeping local
+  declarations. rc.1 types them properly, so the assertions are inverted to state the new
+  fact. The burn-down each one asks for — deriving those types from the spec — touches
+  widely-used public types and is deliberately **not** bundled into a version bump; it is
+  tracked in #3177. `JoinNode`'s pin is gone outright: the symbol no longer exists.
+
+  **What the bump arms.** The reconciliation ledger's `subflow` and `decision` panels
+  feature-detect their spec exports and had never actually run — rc.0 predates the exports
+  (framework#4278). They now execute and pass. The `script` panel's full bidirectional check
+  stays deliberately skipped: rc.1 predates framework#4343, so the retired dispatch branches
+  are still contract keys there, and only the "offers nothing the executor ignores" direction
+  is meaningful. It arms itself on the next rc.
+
+- Updated dependencies [4ae0ac4]
+- Updated dependencies [696e3c1]
+- Updated dependencies [bca45cc]
+- Updated dependencies [a889e31]
+- Updated dependencies [09d30a4]
+- Updated dependencies [4bf612c]
+- Updated dependencies [335041c]
+- Updated dependencies [b414983]
+- Updated dependencies [256f8cc]
+- Updated dependencies [d9668a7]
+- Updated dependencies [4b470b9]
+- Updated dependencies [785b8a5]
+- Updated dependencies [cb82705]
+- Updated dependencies [f572849]
+- Updated dependencies [4a51e77]
+- Updated dependencies [f6e8d78]
+- Updated dependencies [ea96284]
+- Updated dependencies [d3584c6]
+- Updated dependencies [a8ad6c0]
+- Updated dependencies [444457c]
+- Updated dependencies [850033c]
+- Updated dependencies [022e4c3]
+- Updated dependencies [009e25d]
+- Updated dependencies [726b89c]
+  - @object-ui/types@17.2.0
+  - @object-ui/components@17.2.0
+  - @object-ui/core@17.2.0
+  - @object-ui/react@17.2.0
+  - @object-ui/i18n@17.2.0
+  - @object-ui/fields@17.2.0
+
 ## 17.1.0
 
 ### Patch Changes

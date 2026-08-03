@@ -1,5 +1,41 @@
 # @object-ui/plugin-view
 
+## 17.2.0
+
+### Patch Changes
+
+- Updated dependencies [4ae0ac4]
+- Updated dependencies [696e3c1]
+- Updated dependencies [bca45cc]
+- Updated dependencies [a889e31]
+- Updated dependencies [09d30a4]
+- Updated dependencies [4bf612c]
+- Updated dependencies [335041c]
+- Updated dependencies [b414983]
+- Updated dependencies [256f8cc]
+- Updated dependencies [d9668a7]
+- Updated dependencies [4b470b9]
+- Updated dependencies [cb82705]
+- Updated dependencies [f572849]
+- Updated dependencies [5eaa861]
+- Updated dependencies [4a51e77]
+- Updated dependencies [f6e8d78]
+- Updated dependencies [ea96284]
+- Updated dependencies [d3584c6]
+- Updated dependencies [a8ad6c0]
+- Updated dependencies [444457c]
+- Updated dependencies [850033c]
+- Updated dependencies [022e4c3]
+- Updated dependencies [009e25d]
+- Updated dependencies [726b89c]
+  - @object-ui/types@17.2.0
+  - @object-ui/components@17.2.0
+  - @object-ui/core@17.2.0
+  - @object-ui/react@17.2.0
+  - @object-ui/i18n@17.2.0
+  - @object-ui/plugin-grid@17.2.0
+  - @object-ui/plugin-form@17.2.0
+
 ## 17.1.0
 
 ### Minor Changes

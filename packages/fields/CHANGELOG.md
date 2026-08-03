@@ -1,5 +1,199 @@
 # @object-ui/fields
 
+## 17.2.0
+
+### Minor Changes
+
+- 785b8a5: `FieldWidgetComponentProps` stops claiming to have every key (objectui#3221).
+
+  **Breaking for widget authors**: the exported `FieldWidgetComponentProps` no
+  longer ends in `[key: string]: any`. FROM: any prop name at all type-checked and
+  read as `any`. TO: the type declares a closed set — the controlled-input
+  contract (`value` / `onChange` / `field` / `readonly` / `disabled` /
+  `className` / `errorMessage` / `onUploadingChange`), the host plumbing a
+  renderer forwards (`schema`, `dataSource`, `dependentValues`, `dependsOn`,
+  `emptyHint`, `compact`, `onSelectRecord`, `onCreateNew`), and DOM pass-through
+  (`id`, `name`, `autoFocus`, `tabIndex`, `onBlur`/`onFocus`/`onClick`, every
+  `aria-*`, and `data-*` via a template-literal key). A custom widget reading
+  anything else now fails `tsc`; the fix is to read it off `field` (the metadata)
+  or to add the key here with its producer named.
+
+  Scored `minor`, not `major`, per this repo's fixed-group rule — objectui's major
+  tracks `@objectstack`, so breaking changes of our own ship as minor with the
+  semantics spelled out (see AGENTS.md §版本号策略). The practical blast radius is
+  small: every call site in this monorepo — `plugin-detail`'s inline editor,
+  `plugin-grid`'s cell editor, `app-shell`'s metadata inspectors, the form
+  renderer — compiles unchanged, because the closed set was derived from them.
+
+  Why it mattered: an index signature is the objectstack#4075 mechanism — **a type
+  that claims to have every key can never be reported as missing one**. Three
+  things followed, and all three are now fixed:
+
+  - `props.required` and `props.error`, both declared by the spec's
+    `FieldWidgetPropsSchema` and both absent here, were legal reads typed `any`
+    and `undefined` at runtime forever. They are compile errors now, which is what
+    makes the `error` / `errorMessage` divergence (objectui#3222) decidable by the
+    compiler instead of by a symbol guard. This change deliberately does **not**
+    resolve that divergence — only make it visible.
+  - A misspelled prop (`readOnly` for `readonly`, `onchange` for `onChange`)
+    compiled and silently did nothing.
+  - Any structural / parity comparison against the type was useless _in
+    principle_, which is why objectui#3161's batch-7 symbol guard was the only
+    detector that could see the collision at all.
+
+  Also cleaned up inside the package: ~20 `(props as any).x` reads of keys the
+  type now declares (`compact`, `dataSource`, `disabled`, `name`, `id`,
+  `onCreateNew`, `onSelectRecord`, `contextRecord`, `dependentValues`) read
+  through the type instead — leaving them would have kept the "a typo compiles"
+  half of the defect alive at exactly the sites that matter. The three batch-7
+  tripwires that existed to go red on this change
+  (`_IndexSignatureStillThere` / `_RequiredSilentlyReadsAsAny` /
+  `_ErrorSilentlyReadsAsAny`) are replaced by their inverse, so re-widening the
+  type fails a test rather than passing one.
+
+- 4a51e77: Stop declaring 14 symbols across ten packages under names `@objectstack/spec`
+  owns (objectui#3161, objectstack#4115 batch 7 — the long tail, one or two
+  entries per package). All ten packages leave the ledger, which drops from 17
+  collisions across 11 packages to 3 across 1.
+
+  **Renamed exports** — in every case the spec exports the same name for a
+  _different_ thing, so the old name was a mis-description rather than a dialect:
+
+  | package                    | was                                | now                                                  | what the spec's same-named export is                                                                                                       |
+  | :------------------------- | :--------------------------------- | :--------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------- |
+  | `@object-ui/fields`        | `FieldWidgetProps`                 | `FieldWidgetComponentProps`                          | the DECLARED field-widget plugin props contract (a zod object; `field.type` is the `FieldType` enum, `readonly`/`required` carry defaults) |
+  | `@object-ui/layout`        | `PageHeaderProps`                  | `PageHeaderComponentProps`                           | the authored `page:header` node — a zod schema of `title`, `subtitle`, an icon NAME, `breadcrumb`, `actions: string[]`                     |
+  | `@object-ui/layout`        | `Page`                             | `PageNodeRenderer`                                   | the authored page metadata DOCUMENT (`name`, `label`, `type`, `regions`)                                                                   |
+  | `@object-ui/plugin-detail` | `ObjectFieldLike`                  | `ObjectDefFieldLike`                                 | the i18n duck type `translateObject` walks (`help`/`description`, plus `[key: string]: any`)                                               |
+  | `@object-ui/plugin-grid`   | `ColumnSummaryConfig`              | `ColumnSummarySetting`                               | the OBJECT form of `ListColumn.summary` **only** — the local one was the whole union, shorthand included                                   |
+  | `@object-ui/plugin-grid`   | `isMultiValueField`                | `hasMultiValueShape`                                 | the spec's classifier, which requires a def with a `type`; the local one is called with `undefined`                                        |
+  | `@object-ui/collaboration` | `RealtimeConfig`                   | `RealtimeSubscriptionConfig`                         | the app's realtime DECLARATION (`enabled`, `transport`, `subscriptions[]`)                                                                 |
+  | `@object-ui/plugin-charts` | `ChartConfig`                      | `ChartContainerConfig`                               | the authored chart document (`type`, `xAxis`, `series`, `showLegend`, …)                                                                   |
+  | `@object-ui/plugin-form`   | `FormSection` / `FormSectionProps` | `FormSectionContainer` / `FormSectionContainerProps` | the authored form-section metadata (`name`, `pane`, `visibleWhen`, `fields`)                                                               |
+  | `@object-ui/providers`     | `Theme`                            | `ThemePreference`                                    | a whole theme DOCUMENT (`name`, `label`, `colors`, `typography`)                                                                           |
+  | `@object-ui/runner`        | `App` (default export)             | `RunnerApp`                                          | the authored application metadata type **and** the `App.create()` builder                                                                  |
+  | `@object-ui/sdui-parser`   | `ValidationResult`                 | `ManifestValidationResult`                           | plugin-manifest validation (`{ valid, errors?, warnings? }`), exported from both `kernel` and `contracts`                                  |
+
+  `ManifestValidationResult` follows the `<what was validated>Validation<Error|Result>`
+  convention registered on objectstack#4115 (`@object-ui/core` took
+  `SchemaNodeValidationResult` in batch 4). `PageHeaderComponentProps` deliberately
+  reuses the name `@object-ui/app-shell` already chose for its own header props in
+  batch 3, so one concept does not acquire two dialect names one package apart.
+
+  **Now derived from the spec instead of hand-written:**
+
+  - `@object-ui/fields` — `isFileIdToken` is re-exported from
+    `@objectstack/spec/data`. The local copy was character-for-character identical
+    to the spec's function while its comment said it "mirrors" it, so every
+    behaviour test passed and only reference identity could tell the two apart.
+    The regex is a wire decision: widening it server-side while a copy here kept
+    the old bound would make every new id read as "not a reference", and the
+    widget would submit the legacy inline blob to a backend expecting a reference.
+  - `@object-ui/plugin-detail` — `FeedFilterMode` is re-exported from
+    `@objectstack/spec/data`, in a file that already imported the sibling
+    `FeedItemType` from the spec.
+  - `@object-ui/plugin-grid` — the eleven-member aggregation union is now the
+    spec's `ColumnSummary` enum, so the total `Record<ColumnSummaryType, string>`
+    label map turns a member the spec adds into a compile error instead of a
+    blank footer cell. `ColumnSummarySetting` is `NonNullable<ListColumn['summary']>`,
+    i.e. whatever forms the spec itself accepts. `hasMultiValueShape` delegates to
+    the spec's `isMultiValueField` rather than re-deriving it from
+    `MULTI_OPTION_TYPES` / `MULTI_CAPABLE_TYPES`.
+  - `@object-ui/providers` — `ThemePreference` is the spec's `ThemeMode` union
+    plus the one legacy `'system'` spelling this provider still honours for stored
+    preferences, read off the schema's own `_zod` carrier so the package takes no
+    zod dependency.
+
+  `@objectstack/spec` moves from `devDependencies` to `dependencies` in
+  `@object-ui/fields` (it re-exports a runtime function) and `@object-ui/providers`
+  (its public `.d.ts` now references the spec).
+
+  Scored `minor`, not `major`, per this repo's fixed-group rule — objectui's major
+  tracks `@objectstack`, so breaking changes of our own ship as minor with the
+  semantics spelled out above (see AGENTS.md §版本号策略). A `major` here would carry
+  all 39 packages of the fixed group to `18.0.0` and off objectstack's 17.x line.
+
+### Patch Changes
+
+- a8ad6c0: A required boolean must be savable in its UNCHECKED state — `false` and `0` are values.
+
+  Reported against an AI-built task tracker whose 任务 object has a required
+  `是否完成` boolean: the create form showed the switch OFF, answered "是否完成不能
+  为空", and saved instantly once the switch was turned ON. The app could only ever
+  create ALREADY-DONE tasks — the one state the control shows by default was the
+  one value it refused to save (cloud#972).
+
+  Two defects stacked, and either alone is enough to break it:
+
+  **The `required` verdict read truthiness, not presence.** `@objectstack/spec`
+  FieldSchema.required (ADR-0113) is "an insert must provide a NON-NULL value",
+  and objectql's record validator implements exactly that. react-hook-form's
+  built-in rule instead fails whenever `isBoolean(value) && !value` — its
+  accept-the-terms checkbox heritage — silently redefining every required boolean
+  as "must be TRUE", including a select whose chosen option value is `false`. It
+  also disagreed the other way, letting a whitespace-only string through for the
+  server to reject with a 400. The form renderer no longer hands RHF its own
+  `required`: the check is now a `validate` entry keyed `required` (so the error
+  still surfaces as `type: 'required'`, which the conditional-required cleanup
+  keys on) backed by a new shared `isMissingForRequired` in `@object-ui/core`, a
+  deliberate mirror of objectql `record-validator.isMissing` — `undefined`,
+  `null`, blank-after-trim string, empty array. Deleting the inherited rule also
+  stops a `required` that rode in on `validation` from outliving a `requiredWhen`
+  that resolved to FALSE.
+
+  **A boolean field held `undefined` while displaying "off".** A two-state control
+  has no third state, but a field with no entry in `defaultValues` rendered an OFF
+  switch backed by nothing: the create payload omitted the column (it lands null,
+  which reads as unchecked but isn't) and the presence check above would still
+  refuse it. The form renderer now folds `false` into `defaultValues` for every
+  boolean-widget field the caller left unset — in `defaultValues` itself, not
+  per-Controller, because that object is also the dirty-check baseline and what
+  the defaults-reset window replays. Every surface gets it, including the
+  modal/drawer create dialogs that start from a bare `{}`. An authored default
+  (or a loaded record, `null` included) still wins.
+
+  `WizardForm`'s cross-step gate had its own copy of the empty-value predicate; it
+  now imports the shared one so it cannot drift from the per-field verdict. And
+  the field-demo renderer read `schema.defaultValue || schema.value`, throwing
+  away an authored default of `false` / `0` / `''` — same falsy-as-empty class,
+  now `??`.
+
+  Verified end to end on a local stack against the exact metadata shape
+  `apply_blueprint` materializes (`{ type: 'boolean', required: true }`, no
+  default): a 是否完成 = 否 task with 工时 = 0 now creates and persists as
+  `{ hours: 0, is_done: false }`, turning the switch on still stores `true`, and a
+  blank required text is still refused.
+
+- Updated dependencies [4ae0ac4]
+- Updated dependencies [696e3c1]
+- Updated dependencies [bca45cc]
+- Updated dependencies [a889e31]
+- Updated dependencies [09d30a4]
+- Updated dependencies [4bf612c]
+- Updated dependencies [335041c]
+- Updated dependencies [b414983]
+- Updated dependencies [256f8cc]
+- Updated dependencies [d9668a7]
+- Updated dependencies [4b470b9]
+- Updated dependencies [cb82705]
+- Updated dependencies [f572849]
+- Updated dependencies [4a51e77]
+- Updated dependencies [f6e8d78]
+- Updated dependencies [ea96284]
+- Updated dependencies [d3584c6]
+- Updated dependencies [a8ad6c0]
+- Updated dependencies [444457c]
+- Updated dependencies [850033c]
+- Updated dependencies [022e4c3]
+- Updated dependencies [009e25d]
+- Updated dependencies [726b89c]
+  - @object-ui/types@17.2.0
+  - @object-ui/components@17.2.0
+  - @object-ui/core@17.2.0
+  - @object-ui/react@17.2.0
+  - @object-ui/i18n@17.2.0
+  - @object-ui/providers@17.2.0
+
 ## 17.1.0
 
 ### Minor Changes

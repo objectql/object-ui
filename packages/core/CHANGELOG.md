@@ -1,5 +1,531 @@
 # @object-ui/core
 
+## 17.2.0
+
+### Minor Changes
+
+- bca45cc: Declare the 18 spec-owned action keys `ActionDef` had been absorbing silently.
+
+  `ActionDef` ends with `[key: string]: any`, so it accepted any key of any type —
+  a typo (`targt`) and a retired spec key (`execute`) both type-checked, then the
+  runner silently bound no handler (the #2169 "Mark Done does nothing" shape).
+  Step 1 (objectstack#4075) made that audible with a dev-mode warning. This is
+  step 2: the keys the warning identified as legitimate are now real fields.
+
+  - **18 keys promoted to explicit optional fields** — `ai`, `aria`, `bodyExtra`,
+    `bodyShape`, `bulkEnabled`, `component`, `icon`, `locations`, `mode`,
+    `objectName`, `order`, `recordIdField`, `recordIdParam`, `requiredPermissions`,
+    `requiresFeature`, `shortcut`, `variant`, `visible`. Every type is **derived**
+    from `@objectstack/spec`'s `ActionInput` (`SpecActionInput['locations']`, …),
+    never hand-copied: a hand-written duplicate of a spec shape is a second
+    contract that drifts, which is the failure this issue is about. Wrong-typed
+    values are now compile errors — `order: 'first'`, `variant: 'chartreuse'`,
+    `locations: ['nope']` — where before they were absorbed silently.
+  - **Derived from `z.input`, not `z.infer`.** `ActionSchema` is a `ZodPipe` whose
+    transform narrows `visible` from `string | { dialect, source }` to the
+    envelope alone. This runner consumes authored/stored rows, which are
+    rehydrated unparsed, so it sees the input shape; deriving from the inferred
+    `Action` would have rejected the raw-string predicate `ActionEngine`
+    explicitly supports.
+  - **Three `as any` casts deleted** in `ActionEngine` — `visible` and
+    `requiredPermissions` at the location filter, `locations` at registration.
+    They existed only because the fields were undeclared.
+  - **Four objectui-dialect keys marked `@deprecated`** with the spec spelling to
+    use instead — `actionType` (→ `type`), `api` and `endpoint` (→ `target`;
+    `executeAPI` already resolves `api || endpoint || target`), and `navigate`
+    (→ flat `target` / `openIn`). Only these four: the remaining dialect keys are
+    runner mechanics (chaining, toasts, post-execution reload/close) with no spec
+    counterpart, and pointing them at a spelling that does not exist would be
+    worse than leaving them declared.
+
+  **Breaking edge, deliberate.** `shortcut` and `bulkEnabled` were retired by
+  `@objectstack/spec` 17 as `retiredKey()` tombstones (`z.never()`), so authoring
+  either is already a hard parse rejection. Deriving their types rather than
+  hand-writing them turns that runtime rejection into a **compile error**: code
+  that assigned `shortcut: 'ctrl+k'` to an `ActionDef` compiled before and does
+  not now. Such metadata was already refused by the platform — this only moves the
+  failure to where it can be fixed. A host may still pass either explicitly via
+  `ActionEngine.registerAction(action, { shortcut, bulkEnabled })`; only authored
+  metadata stopped carrying them. `bulkEnabled`'s replacement is the list view's
+  `bulkActions` / `bulkActionDefs`; `shortcut` has none.
+
+  The index signature **stays** — removing it is step 3, and the inverted pin
+  asserting it is still present remains the issue's own completion check.
+
+- 4bf612c: Aggregate single-call mode for bulk actions: `execution: 'aggregate'` (objectui#3139).
+
+  A `bulkActionDefs` entry with `operation: 'custom'` used to have exactly one
+  dispatch shape: one action-runner call per selected record (`_rowRecord`
+  attached). "Select N rows → ONE call that receives every selected id" — the
+  zip-of-QR-codes / merged-PDF / batch-print shape — could not be expressed, so
+  downstream projects fell back to per-row `window.open` storms or gave up.
+
+  `BulkActionDef` now carries `execution?: 'perRecord' | 'aggregate'` (default
+  `'perRecord'`, existing views untouched). An aggregate def dispatches its
+  action exactly once for the whole selection with `params._selectedIds:
+string[]` injected and the full records published as
+  `context.selectedRecords`. The authored form usually just names a declared
+  object action — `{ name, operation: 'custom', execution: 'aggregate' }` —
+  and `resolveBulkActions` attaches the declaration. Results are
+  all-or-nothing: a failure is attributed to every id with the real error and
+  per-row Retry is hidden (re-running the action is the retry; a total failure
+  keeps the selection). `batchSize` does not apply; `maxRecords` still gates.
+
+  The executor rides the existing `executeBulkBatch` bulk-first decision tree —
+  the aggregate call is its `bulkCall`, and the per-row "fallback" only
+  re-throws the captured error for attribution, never fans out N dispatches
+  against an endpoint written for one `_selectedIds` call.
+
+  Also: url/api target interpolation now exposes `${ctx.selection.ids}` (comma
+  -joined) and `${ctx.selection.count}` from the grid's checkbox selection, so
+  a plain `list_toolbar` action can carry the selection without bulk plumbing;
+  the console's server-action handler recognizes `_selectedIds` and skips the
+  single-record multi-select guard for aggregate dispatches.
+
+- 335041c: Stop declaring 13 `@object-ui/core` symbols under names `@objectstack/spec` owns
+  (objectui#3158, objectstack#4115 batch 4).
+
+  **Breaking for importers of `@object-ui/core`** — seven exported names changed,
+  because the spec exports the same name for a _different_ thing:
+
+  | was                      | now                               | what the spec's same-named export actually is                                |
+  | :----------------------- | :-------------------------------- | :--------------------------------------------------------------------------- |
+  | `ChartSeries`            | `ChartSeriesBinding`              | the authored dataset-binding descriptor (a measure `name`, no `data`)        |
+  | `ActionHandler`          | `ActionRunnerHandler`             | the SERVER-side objectql handler, `(ctx) => unknown`                         |
+  | `PluginDefinition`       | `RegistryPluginDefinition`        | the platform PACKAGE manifest (`id`/`slug`/`staticPath`/install hooks)       |
+  | `ValidationError`        | `SchemaNodeValidationError`       | plugin-manifest validation, keyed by `field`, no severity                    |
+  | `ValidationResult`       | `SchemaNodeValidationResult`      | ditto, with both arrays optional                                             |
+  | `defineView`             | `defineSystemView`                | the VIEW-DOCUMENT factory: parses a `ViewSchema`, returns a validated `View` |
+  | `resolveCrudAffordances` | `resolveEffectiveCrudAffordances` | the object-level affordance matrix, with no notion of server API operations  |
+
+  The other six keep their names and are now **imported from the spec** instead of
+  re-declared: `StyleMap`, `ResponsiveStyles` (ADR-0065), `RowHeight`,
+  `CONTEXT_TOKENS`, `CrudAffordances`, `RowCrudPredicates`.
+
+  **The copies were live misdescriptions, not just duplicates.** Three said so in
+  their own comments:
+
+  - `CONTEXT_TOKENS` carried a note that the duplication was "temporary until the
+    next coordinated release… because the installed `@objectstack/spec` predates
+    that export". The installed spec (17.0.0-rc.0) exports it, and the copy was
+    byte-identical — so it passed every value comparison and every behavioural
+    test for the whole interval in which its stated reason was false.
+  - `RowHeight` advertised itself as "the spec's `RowHeightSchema` vocabulary"
+    while being a hand-written union. It happened to be correct; nothing would
+    have caught the day it stopped being.
+  - `managedBy.ts` described itself as a "UI-side mirror of the framework's
+    `resolveCrudAffordances()`" and carried its own `DEFAULTS` table — a
+    line-for-line copy of the spec's `CRUD_AFFORDANCE_DEFAULTS`, plus a copy of
+    its override parser.
+
+  `resolveEffectiveCrudAffordances` now **delegates** the bucket/`userActions` half
+  to the spec's `resolveCrudAffordances()`, so the bucket table has exactly one
+  definition on the platform. What stays objectui's is the part the spec has no
+  notion of: intersecting that matrix with the server-resolved effective API
+  operation set (#3391), so the UI never offers a button the server would 405 —
+  and the name now says that instead of claiming to be the spec's function.
+
+  Deriving `RowCrudPredicates` also **tightens** it: the local copy typed
+  `visibleWhen`/`disabledWhen` as `unknown`, where the spec types them as
+  `Expression | ExpressionInput`. That was imprecision, not a deliberate dialect.
+
+- b414983: fix(dashboard): a date globalFilter's preset-name default becomes a range, not an equality
+
+  Setup → System Overview rendered EVERY KPI tile as 0 while its period selector
+  read "All time" (objectstack#4475). Every request was `200 OK`, the widgets
+  rendered normally, and nothing in the UI signalled a failure — zeros read as
+  "nothing has happened yet" rather than as an error, which is why this survived
+  to an RC.
+
+  Both symptoms are one missing normalization. `resolveDashboardFilterDefs` lifts
+  the built-in `dateRange` declaration's preset NAME to `{ preset }`, but passed a
+  `globalFilters` entry's `defaultValue` through raw. `@objectstack/spec`'s
+  `GlobalFilterSchema.defaultValue` is `string | number | boolean`, so a bare
+  preset name is the ONLY spelling an author can write — and nothing ever mapped
+  it. System Overview declares
+  `{ field: 'created_at', type: 'date', defaultValue: 'last_7_days' }`, so:
+
+  - `buildFilterCondition` fell through to its "a bare string date means equality
+    on that day" branch and the widget sent
+    `runtimeFilter: { created_at: 'last_7_days' }`. The backend compiled
+    `SELECT COUNT(*) AS "user_count" FROM "sys_user" WHERE created_at = $1`
+    — verified against a live server, byte-for-byte the SQL in the issue. The
+    actual `sys_user` count is 4; that equality matches no row.
+  - `DateRangeFilter` derives its selected item from `value.preset` / `.from` /
+    `.to`, all `undefined` on a bare string, so the control fell through to its
+    ALL sentinel and displayed "All time" while sending that equality. The tiles
+    therefore looked deliberately unfiltered and merely empty.
+
+  `normalizeDateDefault` now applies the same lift the sibling `dateRange`
+  declaration already receives, for `date`/`dateRange` filters whose default names
+  a preset this module actually knows. This is not consumer-side leniency: it is
+  one normalization function completing the same conversion for the sibling
+  declaration, and the spec admits no other spelling for an author to fix at the
+  producer. A genuine ISO date string still means equality on that day (the
+  documented behaviour), and numbers, booleans and unrecognised strings are left
+  exactly as declared.
+
+  No backend change is needed: given a real range the dataset path already lowers
+  it correctly (`WHERE (created_at >= $1 AND created_at < $2)` → 4). The
+  framework's dashboard metadata needs none either — it is spec-compliant as
+  written, and editing it would only hide the defect.
+
+  Levelled `minor` rather than `patch` because the change is visible in rendered
+  dashboards rather than internal: any dashboard declaring a date-typed
+  `globalFilters` default now emits a different query shape, its numbers change
+  (from 0 to real values), and its filter control's displayed label changes with
+  them. Anything asserting on the previously-emitted condition will see it move.
+
+  Known residual, filed separately rather than widened into here: a `date` filter
+  whose value is neither a known preset nor a parseable ISO date still degrades
+  silently to an equality that matches nothing, producing the same
+  healthy-looking zero. Preset names are covered by this change; a misspelled
+  custom value is not.
+
+- 256f8cc: fix(dashboard): an unrecognised date filter value is skipped and named, not compared
+
+  The residual the preset-name fix (objectui#3150 / objectstack#4475) left behind,
+  and the more deceptive half of it: a `date`/`dateRange` filter value that is
+  neither a known preset name nor a parseable date used to fall through to the
+  "a bare string date means equality on that day" branch. A misspelled default —
+  `defaultValue: 'last_7_dayz'` — therefore reached the widget query as
+  `runtimeFilter: { created_at: 'last_7_dayz' }`, which the backend faithfully
+  compiled to `WHERE created_at = $1`. `200 OK`, widget renders, count is 0 —
+  indistinguishable from "this range genuinely has no data". No 4xx, no console
+  warning, no UI signal. objectstack#4475 took a full RC cycle to catch for
+  exactly this reason: **0 looks like a legitimate answer**.
+
+  `buildFilterCondition` now holds a date value to three spellings, and only
+  three:
+
+  1. a known preset name → range bounds (unchanged, objectui#3150);
+  2. an ISO date (`2026-01-15`, `2026-01-15T08:30:00Z`) or a date-macro token
+     (`{today}`, `{7_days_ago}`) → equality on that day (the documented
+     behaviour, unchanged);
+  3. **anything else → the filter is skipped and `console.warn` names the filter,
+     the offending value, and the accepted spellings.**
+
+  The `{ preset: '<unknown>' }` object form gets the same voice. It already
+  dropped the filter — silently — because the preset lookup missed and no
+  `from`/`to` remained; that drop is now announced. When explicit bounds ride
+  along with an unknown preset the bounds are still honoured, and the warning says
+  which of the two won.
+
+  Rule 3 is deliberately the same strictness `buildWidgetScopedFilter` already
+  applies to a _default binding on a field the object does not have_ — skip and
+  warn, with the same rationale spelled out there: never emit a query the backend
+  can only empty-match. Field _names_ had that guard; field _values_ did not.
+
+  The macro-token check asks `resolveDateMacros` itself whether it recognises the
+  string, rather than restating its token grammar in a second place. One
+  vocabulary, no dialect to drift — and a token that resolver does not know
+  (`{last_7_dayz}`) is precisely the typo this guard exists to catch.
+
+  Levelled `minor`, matching objectui#3150, because the emitted query shape
+  changes: a dashboard carrying a misspelled date value stops sending a
+  never-matching equality and instead sends no constraint for that filter (its
+  numbers go from 0 to unfiltered) while the console says why. Anything asserting
+  on the previously-emitted equality will see it disappear.
+
+  Note the direction of the relaxation is chosen, not incidental: skipping widens
+  the result set, so the number visibly changes and the warning explains it —
+  whereas the old behaviour narrowed it to zero, which is the one outcome an
+  author cannot tell from a correct answer. Author-time rejection (validating
+  `GlobalFilterSchema.defaultValue` at publish, in `@objectstack/spec`) is the
+  stricter complement and belongs on the platform side; it is filed separately.
+
+- d3584c6: Bring the whole `@objectstack` family to `17.0.0-rc.1`, so the dependency graph resolves a
+  single copy of `@objectstack/spec`.
+
+  #3178 bumped **only** `@objectstack/spec` to `17.0.0-rc.1`. The rest of the family —
+  `client`, `core`, `formula`, `lint` (and `sdui-parser`, reached through `lint`) — stayed on
+  `17.0.0-rc.0`, and each of them depends on spec at an **exact** version rather than a
+  caret:
+
+  ```
+  @objectstack/client@17.0.0-rc.0  -> spec "17.0.0-rc.0"
+  @objectstack/core@17.0.0-rc.0    -> spec "17.0.0-rc.0"
+  @objectstack/formula@17.0.0-rc.0 -> spec "17.0.0-rc.0"
+  @objectstack/lint@17.0.0-rc.0    -> spec "17.0.0-rc.0"
+  ```
+
+  So `main` carried **two** spec copies: objectui's own code read `17.0.0-rc.1` while every
+  `@objectstack/*` package read `17.0.0-rc.0` from its own nested `node_modules`. That breaks
+  the single-contract invariant this repo's guards are built on, and it breaks them
+  _silently_ — the affected checks depend on identity, not on version strings:
+
+  - `spec-subschema-parity.test.ts` distinguishes a genuine re-export from a fork by
+    **reference identity** of the zod schema object. Two spec copies make every schema a
+    distinct object, so a real re-export starts reading as a fork (or a fork slips through,
+    depending on which copy each side resolved).
+  - `scripts/check-spec-symbol-derivation.mjs` and `spec-symbol-parity.test.ts` use
+    `createRequire` to resolve spec's `.d.ts` and run it through the TS checker. With two
+    copies installed, _which_ declaration file the checker sees is a function of resolution
+    order rather than of intent.
+
+  The declared ranges were already `^17.0.0-rc.0`, which technically admits rc.1 — the pin
+  lived in the lockfile. Raising the remaining ranges to `^17.0.0-rc.1` makes the floor
+  explicit and forbids a future install from silently sliding back onto a family member that
+  drags rc.0 along with it. The rc.1 family members pin spec at `17.0.0-rc.1` exactly, so the
+  graph now converges on one copy by construction, not by luck.
+
+  No product behaviour changes here. `check:spec-symbols` reconciliation was already
+  completed by #3178 and stays green under the unified graph; this changeset is `minor`
+  per the repo's fixed-group version policy.
+
+- 444457c: feat!: follow the framework's `managedBy: 'system'` → `'system-data'` retirement (objectstack#3355)
+
+  **FROM → TO: `managedBy: 'system'` → `managedBy: 'system-data'`.** The framework
+  retired the residual `system` bucket in protocol 17; this is the UI half of that
+  change, landing with it so the closed `ManagedByBucket` union stays a mirror
+  rather than a fork.
+
+  ADR-0103 split the overloaded `system` bucket additively in v16 — the
+  engine-owned objects moved to the explicit `engine-owned`, the admin/user-writable
+  ones stayed on `system` — which left that value named after the half that had
+  already moved out. `system-data` names what it actually holds: the SCHEMA is the
+  platform's, the DATA is the admin's or the user's.
+
+  **The derivation this deletes is the point.** Because v16's `system` doubled as
+  both the engine-owned default and the writable set, three UI surfaces had to
+  RECOVER the distinction from `userActions` at render time:
+
+  - `isSystemWritable()` probed `userActions` for any opted-in write. It is now
+    `managedBy === 'system-data'` — the bucket answers directly.
+  - `ManagedByBadge` derived a synthetic `'system-writable'` variant key. The
+    variant map is now 1:1 with the bucket union, so a new bucket is a compile
+    error to miss instead of a silent fallthrough. The `systemWritable` /
+    `system` i18n keys are **unchanged**, so no locale bundle moves.
+  - `resolveManagedByEmptyState()` asked the resolved `create` affordance whether a
+    `system` list should read "entries appear automatically" or show the New
+    button. `system-data` now falls through to the generic empty state by
+    definition; `engine-owned` keeps the automatic-entries copy.
+
+  **Breaking (UI API):** `ManagedByBadge`'s `userActions` prop and the exported
+  `ManagedByUserActions` interface are **removed**. The bucket alone selects the
+  variant now, so the prop had become metadata nothing read — the exact defect the
+  framework change exists to remove; shipping it as an accepted-but-ignored prop
+  would have reproduced it one layer up. Drop the prop from call sites; no other
+  change is needed.
+
+  `MANAGED_BY_BUCKETS` and `ManagedByBucket` no longer contain `'system'`.
+
+- 850033c: Stop offering the retired `action.shortcut` / `action.bulkEnabled` keys.
+
+  `@objectstack/spec` 17 retired both as `retiredKey()` tombstones: authoring
+  either one is a hard PARSE REJECTION, so a draft carrying it cannot be saved
+  at all. The designer still offered controls for both — a "Bulk — apply to
+  multiple selected rows" checkbox and a "Shortcut" text field — which meant the
+  Studio action inspector let an author build a draft the platform would then
+  refuse, with the rejection arriving later and nowhere near the checkbox.
+
+  - **Action inspector**: both controls removed. The keys stay hidden from the
+    fallback form (the server's live schema still advertises them, so dropping
+    them from the hidden list would put the inputs straight back) — now under a
+    `RETIRED_FIELDS` list that says why, so nobody "restores the missing
+    control". `bulkEnabled`'s replacement is the list view's `bulkActions` /
+    `bulkActionDefs`; `shortcut` has none.
+  - **Action preview**: the `shortcut` and `bulk` pills are gone — they could
+    only ever render for metadata the platform now refuses.
+  - **`ActionEngine.registerActions`**: no longer harvests the two retired keys
+    from authored metadata, which made two dead registration options look
+    load-bearing. Both are still accepted on the single-action
+    `registerAction(action, options)` overload, where a HOST passes them
+    explicitly.
+
+- 009e25d: Report / chart / query symbols stop wearing `@objectstack/spec`'s names
+  (objectui#3155, objectstack#4115).
+
+  **Breaking for TypeScript imports** — six exported names change. Each was a
+  different concept than the spec export it collided with, so an author reading
+  the objectui declaration as "the spec's" was reading a false claim:
+
+  | was                 | now                      | why they were never the same thing                                                                                                                               |
+  | :------------------ | :----------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `ChartSeries`       | `ChartDataSeries`        | ours is a display name plus literal `data: number[]`; the spec's is a dataset-bound series descriptor (`type`/`stack`/`yAxis`/`variant`) with no data at all     |
+  | `ChartSeriesSchema` | `ChartDataSeriesSchema`  | zod twin of the above                                                                                                                                            |
+  | `QueryAST`          | `SqlQueryAST`            | ours is a compiled SQL syntax tree (`select`/`from`/`join`/`group_by`); the spec's is the ObjectQL request descriptor (`object`/`fields`/`where`/`expand`)       |
+  | `QuerySchema`       | `DriverQueryConfig`      | ours is the high-level config `QueryASTBuilder` compiles; the spec exports that name as a zod schema value                                                       |
+  | `DriverInterface`   | `SqlDriverInterface`     | ours is objectui's SQL-oriented client abstraction (`query(sql, params)`); the spec's is the platform runtime driver contract                                    |
+  | `DatasourceSchema`  | `DatasourceRegistration` | ours is the in-memory record `DatasourceManager` holds — its `driver` is a live instance; the spec's is the authored metadata document, where `driver` is a name |
+
+  Three more are now DERIVED from the spec instead of hand-restated, which fixes
+  live silent-stripping defects, since a `z.object()` drops unknown keys:
+
+  - **`DashboardWidgetSchema`** declared 10 of the spec's 22 keys, so
+    `objectui validate` deleted the other 12 without a word — `chartConfig`,
+    `colorVariant`, `filter`, `responsive`, `aria`,
+    `actionUrl`/`actionType`/`actionIcon`, `compareTo`, `suppressWarnings` and the
+    `requiresObject` / `requiresService` capability gates the dashboard renderer
+    honours at runtime. The TS interface had declared most of them all along, so a
+    widget could type-check and still lose half its configuration on validation.
+    Pinned divergences kept: `id` stays optional, `type` stays widened for the
+    objectui-only `list` / `custom` families, and the legacy `component` envelope
+    stays.
+  - **`GlobalFilterSchema`** took `scope` as a free-form string (any typo
+    validated); it now uses the spec's `widget | dashboard` vocabulary. The three
+    objectui widenings that back a real runtime normalizer are kept and pinned:
+    the bare-string `options` shorthand, the normalized `{ preset }` date default,
+    and an optional `optionsFrom.labelField`.
+  - **`AppContextSelectorSchema`** was a full restatement; spec keys and their
+    defaults now flow in by reference, with `label` widened for objectui's i18n
+    label envelope — which `AppContextSelectors` already renders.
+
+  `ListViewSchema`'s zod node now names the spec in its own initializer rather
+  than one hop away through a local const, so its long-standing derivation is
+  visible where it is declared.
+
+  Drift guard: `packages/types/src/__tests__/report-chart-query-spec-parity.test.ts`.
+
+- 726b89c: `@object-ui/types` stops declaring sixteen symbols under names `@objectstack/spec` owns (objectui#3156, objectstack#4115).
+
+  Seven are now **derived** from the spec, nine are **renamed** to the local
+  dialect they always were. Both halves remove the same hazard: a local
+  declaration under a spec export's name reads as the spec's own definition to
+  the next reader, so a copy that is merely _correct today_ is a planted premise
+  tomorrow.
+
+  **Derived** — the spec now supplies the keys, by reference:
+
+  | symbol                   | derivation                                                                        |
+  | :----------------------- | :-------------------------------------------------------------------------------- |
+  | `ActionParam`            | `z.input<typeof ActionParamSchema>`, `type` widened to the local legacy spellings |
+  | `CreateExportJobRequest` | `Omit<CreateExportJobInput, 'object'>` (`object` is the method argument)          |
+  | `CreateExportJobResult`  | re-export from `@objectstack/spec/contracts`                                      |
+  | `ImportRowResult`        | re-export from `@objectstack/spec/api`                                            |
+  | `NavigationArea`         | spec keys, with `navigation` / `visible` pinned locally                           |
+  | `NavigationAreaSchema`   | `specFieldsExcept(NavigationAreaSchema.shape, …)`                                 |
+  | `Theme`                  | re-export of the spec's `ThemeInput` (the authoring shape)                        |
+  | `ExportJobFormat`        | re-export of the spec's `ExportFormat`                                            |
+
+  Four of these close real gaps rather than tidy names. `ActionParam` never
+  declared `reference` — the key `resolveActionParams()` actually reads for an
+  inline lookup target — nor `defaultFromRow`, which the metadata designer's own
+  inspector writes; it also narrowed `visible` to a bare string although the
+  resolver has always accepted the `{ dialect, source }` envelope too.
+  `CreateExportJobResult.createdAt` and `ImportRowResult.action` were optional
+  here and required by the server, leaving every consumer a branch that could
+  never run. And `NavigationArea`'s `id` now carries the spec's own length rule
+  instead of accepting any string.
+
+  **Renamed** — same word, different concept:
+
+  | was                | now                      | why                                                                                                                            |
+  | :----------------- | :----------------------- | :----------------------------------------------------------------------------------------------------------------------------- |
+  | `FileMetadata`     | `UploadedFileMetadata`   | field-VALUE payload (`url`, `original_name`), not the storage file record                                                      |
+  | `GestureType`      | `TouchGestureType`       | direction-fused (`swipe-left`), not the spec's type+direction pair                                                             |
+  | `GestureConfig`    | `TouchGestureConfig`     | gesture→`action` binding, not per-gesture tuning                                                                               |
+  | `OfflineConfig`    | `PWAOfflineConfig`       | service-worker route caching, not the offline data/sync model                                                                  |
+  | `PageRegion`       | `PageNodeRegion`         | region of the renderer page NODE, holding `SchemaNode`s                                                                        |
+  | `PageRegionSchema` | `PageNodeRegionSchema`   | zod twin of the above                                                                                                          |
+  | `ResponsiveConfig` | `MobileResponsiveConfig` | mobile box config, not the spec's SDUI grid contract                                                                           |
+  | `WidgetManifest`   | `RuntimeWidgetManifest`  | SDUI component manifest, not the field-widget plugin manifest                                                                  |
+  | `WidgetSource`     | `RuntimeWidgetSource`    | `module`/`inline`/`registry` loader union — and its `inline` carries a resolved component where the spec's carries source code |
+
+  **Migration**: the old names are gone, not deprecated — an alias would preserve
+  exactly the ambiguity being removed. Import the new name; nothing about the
+  shapes changed. `@object-ui/types` already re-exports the spec's own
+  `SpecResponsiveConfig`, and `@object-ui/react`'s `useOffline` config remains the
+  spec-shaped `OfflineConfig`, so both concepts stay reachable under
+  distinguishable names.
+
+  Each rename carries a bidirectional tripwire
+  (`packages/types/src/__tests__/page-nav-misc-spec-parity.test.ts`): it fails if
+  the spec ever claims the new name, and also if the spec retires the old one —
+  at which point the natural name can be taken back rather than the workaround
+  outliving its reason.
+
+### Patch Changes
+
+- d9668a7: Honor the server's declared percent scale, so a ratio of exactly 1 renders as 100.0% (#3136)
+
+  A dataset measure declared `format: '0.0%'` rendered every ratio below 1
+  correctly and got the single most consequential one wrong: a rate of exactly
+  `1` printed as **`1.0%`**. On an SLA / pass-rate dashboard that turns
+  "everything met the SLA" into "1% met the SLA", on both surfaces the issue
+  names — the KPI card and the dataset-bound table (they share `formatMeasure`).
+
+  The cause was never a bad multiplier; it was a missing fact. `formatMeasure`
+  scaled by magnitude — `percentDisplayValue` multiplies by 100 only strictly
+  inside `(-1, 1)` — because the column arrived with a `%` format string and
+  nothing saying what scale its numbers were on. That guess is undecidable at
+  exactly 1, which is both a full-compliance ratio ("100%") and one percentage
+  point ("1%"), and it resolved to the reading almost nobody means.
+
+  The server now answers the question instead (framework: `percentScaleOf` +
+  `AnalyticsResult.fields[].percentScale`, the sibling of the ADR-0053 currency
+  chain): a `derived: { op: 'ratio' }` measure is a `fraction` by definition, and
+  a measure over a `percent` field inherits that field's scale. `formatMeasure`
+  takes the declared scale as a fourth argument and, when present, scales by it —
+  `fraction` ×100, `whole` verbatim — instead of inspecting the value. Every
+  dataset-bound call site passes the column's `percentScale`: the dashboard
+  metric/table/pivot cells, the report renderer's cells, totals and KPI, and the
+  dataset preview.
+
+  `percentDisplayValue` is untouched and still the fallback for a column that
+  arrives without the annotation (an older server, or a non-dataset percent cell
+  in a list view), so nothing that renders correctly today changes.
+
+- a8ad6c0: A required boolean must be savable in its UNCHECKED state — `false` and `0` are values.
+
+  Reported against an AI-built task tracker whose 任务 object has a required
+  `是否完成` boolean: the create form showed the switch OFF, answered "是否完成不能
+  为空", and saved instantly once the switch was turned ON. The app could only ever
+  create ALREADY-DONE tasks — the one state the control shows by default was the
+  one value it refused to save (cloud#972).
+
+  Two defects stacked, and either alone is enough to break it:
+
+  **The `required` verdict read truthiness, not presence.** `@objectstack/spec`
+  FieldSchema.required (ADR-0113) is "an insert must provide a NON-NULL value",
+  and objectql's record validator implements exactly that. react-hook-form's
+  built-in rule instead fails whenever `isBoolean(value) && !value` — its
+  accept-the-terms checkbox heritage — silently redefining every required boolean
+  as "must be TRUE", including a select whose chosen option value is `false`. It
+  also disagreed the other way, letting a whitespace-only string through for the
+  server to reject with a 400. The form renderer no longer hands RHF its own
+  `required`: the check is now a `validate` entry keyed `required` (so the error
+  still surfaces as `type: 'required'`, which the conditional-required cleanup
+  keys on) backed by a new shared `isMissingForRequired` in `@object-ui/core`, a
+  deliberate mirror of objectql `record-validator.isMissing` — `undefined`,
+  `null`, blank-after-trim string, empty array. Deleting the inherited rule also
+  stops a `required` that rode in on `validation` from outliving a `requiredWhen`
+  that resolved to FALSE.
+
+  **A boolean field held `undefined` while displaying "off".** A two-state control
+  has no third state, but a field with no entry in `defaultValues` rendered an OFF
+  switch backed by nothing: the create payload omitted the column (it lands null,
+  which reads as unchecked but isn't) and the presence check above would still
+  refuse it. The form renderer now folds `false` into `defaultValues` for every
+  boolean-widget field the caller left unset — in `defaultValues` itself, not
+  per-Controller, because that object is also the dirty-check baseline and what
+  the defaults-reset window replays. Every surface gets it, including the
+  modal/drawer create dialogs that start from a bare `{}`. An authored default
+  (or a loaded record, `null` included) still wins.
+
+  `WizardForm`'s cross-step gate had its own copy of the empty-value predicate; it
+  now imports the shared one so it cannot drift from the per-field verdict. And
+  the field-demo renderer read `schema.defaultValue || schema.value`, throwing
+  away an authored default of `false` / `0` / `''` — same falsy-as-empty class,
+  now `??`.
+
+  Verified end to end on a local stack against the exact metadata shape
+  `apply_blueprint` materializes (`{ type: 'boolean', required: true }`, no
+  default): a 是否完成 = 否 task with 工时 = 0 now creates and persists as
+  `{ hours: 0, is_done: false }`, turning the switch on still stores `true`, and a
+  blank required text is still refused.
+
+- Updated dependencies [4ae0ac4]
+- Updated dependencies [696e3c1]
+- Updated dependencies [4bf612c]
+- Updated dependencies [cb82705]
+- Updated dependencies [f572849]
+- Updated dependencies [444457c]
+- Updated dependencies [022e4c3]
+- Updated dependencies [009e25d]
+- Updated dependencies [726b89c]
+  - @object-ui/types@17.2.0
+
 ## 17.1.0
 
 ### Minor Changes

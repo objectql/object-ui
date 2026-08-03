@@ -1,5 +1,156 @@
 # @object-ui/react
 
+## 17.2.0
+
+### Minor Changes
+
+- a889e31: A record's approval band now shows the quorum / per-group tally the server already computes.
+
+  The showcase's `showcase_committee_quorum` node declares `behavior: 'quorum'` with
+  `minApprovals: 2` over three approvers, and even ships a pre-rendered
+  `"Committee Sign-off (2 of 3)"` label; `showcase_expense_signoff` declares
+  `per_group` (会签) with named manager / finance groups. On the business record
+  the approval band rendered none of it — the lock badge, the recall button and
+  the approve/reject actions were all correct, but a two-of-three committee step
+  looked exactly like a one-approver step. An approver could not see whether their
+  own click finalized the node or was one of three, which is the single fact a
+  quorum node exists to express (objectstack#4478).
+
+  Nothing was wrong on the wire, and nothing here papers over the server. The
+  framework computes `decision_progress` — `{ behavior, got, need, groups? }`,
+  derived from the node's own `node_config_json` snapshot, so the count a client
+  shows is the count the engine will enforce. **It attaches that block in
+  `getRequest` only**: `listRequests` deliberately skips it, because the
+  `sys_approval_action` tally it costs is per row and a list read may return
+  hundreds. The record header's `useRecordApprovals` reads
+  `GET /approvals/requests?object=…&recordId=…` — the list route — so the
+  enrichment was never in the payload it had. The hook now follows up with one
+  single read for the ONE pending row and folds the result onto it; a failed or
+  mismatched follow-up leaves the row exactly as the list sent it, so a display-only
+  enrichment can never take the approval panel down and no tally is ever invented.
+
+  `InlineEditProvider` carries the block through as `approvalProgress`, and the
+  DetailView approval band renders it beside the existing badge: a labelled
+  `role="progressbar"` with one tick per required approval for `quorum` /
+  `unanimous`, and for `per_group` a chip per group marking which have signed
+  (`finance 1/1` ✓, `manager 0/1`). Group names come from the flow author's own
+  config, so they need no locale strings; the three new label keys are added to all
+  ten packs. `first_response` nodes carry no `decision_progress` and are unchanged —
+  one decision is the whole step there, and a "1 of 1" bar would be noise.
+
+  Scored `minor` rather than `patch`: this is new observable rendering plus a new
+  public `approvalProgress` prop / `ApprovalProgress` type on `@object-ui/react`,
+  not a behavior correction inside an existing surface.
+
+- 09d30a4: Stop declaring 18 `@object-ui/auth` / `@object-ui/components` / `@object-ui/react`
+  symbols under names `@objectstack/spec` owns (objectui#3159, objectstack#4115
+  batch 5).
+
+  **Breaking for importers of all three packages** — six exported names changed,
+  because the spec exports the same name for a _different_ thing:
+
+  | package      | was                          | now                      | what the spec's same-named export actually is                                  |
+  | :----------- | :--------------------------- | :----------------------- | :----------------------------------------------------------------------------- |
+  | `auth`       | `AuthSession`                | `AuthClientSession`      | the SERVER's session record (`{ id, userId, expiresAt: ISO string, token? }`)  |
+  | `auth`       | `AuthProviderConfig`         | `AuthProviderOptions`    | an OAuth/OIDC provider registration (`{ id, clientId, clientSecret, scope? }`) |
+  | `components` | `FilterCondition`            | `FilterBuilderCondition` | the recursive ObjectQL predicate AST (`$and`/`$or`/`$not`)                     |
+  | `components` | `Field`                      | `FieldContainer`         | an object FIELD's metadata and its builder namespace                           |
+  | `react`      | `ConflictResolutionStrategy` | `ConflictResolution`     | the metadata-MERGE policy (`error \| priority \| first-wins \| last-wins`)     |
+
+  The `react` rename is the odd one out: the new name is the **spec's own** name
+  for the union that hook always used, so it is a re-export rather than a dialect.
+
+  Eleven more keep their names and are now **imported or derived from the spec**
+  instead of re-declared: `TenancyPosture`, `DelegableScope` (+`DelegableAdminScope`),
+  `AuthUser`, `ShareLinkPermission`, `ShareLinkAudience`, `ShareLink`, `SortItem`,
+  `OfflineStrategy`, `OfflineCacheConfig`, `OfflineSyncConfig`, `OfflineConfig`,
+  `NavigationConfig`.
+
+  **Three of the copies were losing information, not just duplicating it.**
+
+  - `AuthUser` never declared the spec's `positions` or `tenantId` — the
+    authorization inputs. Its `[key: string]: unknown` index signature meant the
+    omission was invisible at every call site _and_ to any structural comparison
+    (the objectstack#4075 mechanism). It now `extends` the spec principal, so the
+    display-only fields (`image`, `role`, `roles`, `emailVerified`) are the delta
+    and the spec's keys arrive on their own.
+  - `useNavigationOverlay`'s copy carried the note _"inline … to avoid importing
+    from `@object-ui/types` (which may not be a direct dependency of
+    `@object-ui/react`)"_. The vocabulary belongs to `@objectstack/spec`, which
+    **is** a direct dependency — the same expired "kept local to avoid a
+    dependency" comment objectui#3169 found in `@object-ui/app-shell`.
+  - `useOffline` and `usePerformance` both opened with _"Types aligned with
+    `@objectstack/spec` v2.0.7"_. The installed spec is 17.0.0-rc.1.
+
+  `ShareLink` derives from the spec row **minus `password_hash`** — omitted rather
+  than optional, because it is the credential itself and typing it in a browser
+  package is an invitation to render it. `password_protected` (the boolean the UI
+  needs in its place) is the one local addition.
+
+  The config types derive from each schema's **input** side, not `z.infer`.
+  `useOffline(config: OfflineConfig = {})` defaults to the empty object, which the
+  output type — every `.default()`ed key required — would reject outright.
+
+  `@objectstack/spec` moves from `devDependencies` to `dependencies` in
+  `@object-ui/components`: its public type surface now references the spec.
+
+  Scored `minor`, not `major`, per this repo's fixed-group rule — objectui's major
+  tracks `@objectstack`, so breaking changes of our own ship as minor with the
+  semantics spelled out above (see AGENTS.md §版本号策略). A `major` here would carry
+  all 39 packages of the fixed group to `18.0.0` and off objectstack's 17.x line.
+
+### Patch Changes
+
+- ea96284: `useMetadataItem` no longer spins forever outside a `<MetadataProvider>` — the "graceful fallback" was the thing that made those consumers impossible to mount.
+
+  `useMetadata()` built its no-provider fallback **inline on every call**, so outside a provider
+  every render produced a new `getItem`. `useMetadataItem` lists `getItem` in its effect deps and,
+  on the no-name path, called `setState({ item: null, loading: false, error: null })` with a fresh
+  object each run. New identity → effect re-runs → new state object → re-render → new identity:
+  an unbreakable loop, synchronous enough to hang inside `render()` rather than fail.
+
+  So the fallback documented as the graceful path for consumers mounted outside a provider —
+  "common in unit tests that only need to assert on rendering" — was precisely what made them
+  unmountable. `record:alert` and `record:quick_actions` both call `useMetadataItem`
+  unconditionally; each pinned a core and grew unbounded (8.6 GB before the first kill) on a
+  `render()` that never returned.
+
+  Two changes, at the cause and one layer in:
+
+  - The fallback is a frozen module-level singleton, so its identity is stable across renders.
+  - The clear-state path bails out when the state is already cleared, instead of installing an
+    equal-but-new object. That covers the same loop arriving by another route — any caller whose
+    context value is rebuilt per render, which this interface explicitly invites ("hand-rolled
+    context values in tests keep working").
+
+  Found by `apps/console/src/__tests__/record-block-record-reach.test.tsx` (objectui#3149), which
+  could not mount either block until this was fixed.
+
+- Updated dependencies [4ae0ac4]
+- Updated dependencies [696e3c1]
+- Updated dependencies [bca45cc]
+- Updated dependencies [a889e31]
+- Updated dependencies [4bf612c]
+- Updated dependencies [335041c]
+- Updated dependencies [b414983]
+- Updated dependencies [256f8cc]
+- Updated dependencies [c5ccbd5]
+- Updated dependencies [d9668a7]
+- Updated dependencies [4b470b9]
+- Updated dependencies [cb82705]
+- Updated dependencies [f572849]
+- Updated dependencies [d3584c6]
+- Updated dependencies [a8ad6c0]
+- Updated dependencies [444457c]
+- Updated dependencies [850033c]
+- Updated dependencies [022e4c3]
+- Updated dependencies [009e25d]
+- Updated dependencies [726b89c]
+  - @object-ui/types@17.2.0
+  - @object-ui/core@17.2.0
+  - @object-ui/i18n@17.2.0
+  - @object-ui/data-objectstack@17.2.0
+
 ## 17.1.0
 
 ### Minor Changes

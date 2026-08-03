@@ -1,5 +1,278 @@
 # @object-ui/plugin-grid
 
+## 17.2.0
+
+### Minor Changes
+
+- 4bf612c: Aggregate single-call mode for bulk actions: `execution: 'aggregate'` (objectui#3139).
+
+  A `bulkActionDefs` entry with `operation: 'custom'` used to have exactly one
+  dispatch shape: one action-runner call per selected record (`_rowRecord`
+  attached). "Select N rows → ONE call that receives every selected id" — the
+  zip-of-QR-codes / merged-PDF / batch-print shape — could not be expressed, so
+  downstream projects fell back to per-row `window.open` storms or gave up.
+
+  `BulkActionDef` now carries `execution?: 'perRecord' | 'aggregate'` (default
+  `'perRecord'`, existing views untouched). An aggregate def dispatches its
+  action exactly once for the whole selection with `params._selectedIds:
+string[]` injected and the full records published as
+  `context.selectedRecords`. The authored form usually just names a declared
+  object action — `{ name, operation: 'custom', execution: 'aggregate' }` —
+  and `resolveBulkActions` attaches the declaration. Results are
+  all-or-nothing: a failure is attributed to every id with the real error and
+  per-row Retry is hidden (re-running the action is the retry; a total failure
+  keeps the selection). `batchSize` does not apply; `maxRecords` still gates.
+
+  The executor rides the existing `executeBulkBatch` bulk-first decision tree —
+  the aggregate call is its `bulkCall`, and the per-row "fallback" only
+  re-throws the captured error for attribution, never fans out N dispatches
+  against an endpoint written for one `_selectedIds` call.
+
+  Also: url/api target interpolation now exposes `${ctx.selection.ids}` (comma
+  -joined) and `${ctx.selection.count}` from the grid's checkbox selection, so
+  a plain `list_toolbar` action can carry the selection without bulk plumbing;
+  the console's server-action handler recognizes `_selectedIds` and skips the
+  single-record multi-select guard for aggregate dispatches.
+
+- 4a51e77: Stop declaring 14 symbols across ten packages under names `@objectstack/spec`
+  owns (objectui#3161, objectstack#4115 batch 7 — the long tail, one or two
+  entries per package). All ten packages leave the ledger, which drops from 17
+  collisions across 11 packages to 3 across 1.
+
+  **Renamed exports** — in every case the spec exports the same name for a
+  _different_ thing, so the old name was a mis-description rather than a dialect:
+
+  | package                    | was                                | now                                                  | what the spec's same-named export is                                                                                                       |
+  | :------------------------- | :--------------------------------- | :--------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------- |
+  | `@object-ui/fields`        | `FieldWidgetProps`                 | `FieldWidgetComponentProps`                          | the DECLARED field-widget plugin props contract (a zod object; `field.type` is the `FieldType` enum, `readonly`/`required` carry defaults) |
+  | `@object-ui/layout`        | `PageHeaderProps`                  | `PageHeaderComponentProps`                           | the authored `page:header` node — a zod schema of `title`, `subtitle`, an icon NAME, `breadcrumb`, `actions: string[]`                     |
+  | `@object-ui/layout`        | `Page`                             | `PageNodeRenderer`                                   | the authored page metadata DOCUMENT (`name`, `label`, `type`, `regions`)                                                                   |
+  | `@object-ui/plugin-detail` | `ObjectFieldLike`                  | `ObjectDefFieldLike`                                 | the i18n duck type `translateObject` walks (`help`/`description`, plus `[key: string]: any`)                                               |
+  | `@object-ui/plugin-grid`   | `ColumnSummaryConfig`              | `ColumnSummarySetting`                               | the OBJECT form of `ListColumn.summary` **only** — the local one was the whole union, shorthand included                                   |
+  | `@object-ui/plugin-grid`   | `isMultiValueField`                | `hasMultiValueShape`                                 | the spec's classifier, which requires a def with a `type`; the local one is called with `undefined`                                        |
+  | `@object-ui/collaboration` | `RealtimeConfig`                   | `RealtimeSubscriptionConfig`                         | the app's realtime DECLARATION (`enabled`, `transport`, `subscriptions[]`)                                                                 |
+  | `@object-ui/plugin-charts` | `ChartConfig`                      | `ChartContainerConfig`                               | the authored chart document (`type`, `xAxis`, `series`, `showLegend`, …)                                                                   |
+  | `@object-ui/plugin-form`   | `FormSection` / `FormSectionProps` | `FormSectionContainer` / `FormSectionContainerProps` | the authored form-section metadata (`name`, `pane`, `visibleWhen`, `fields`)                                                               |
+  | `@object-ui/providers`     | `Theme`                            | `ThemePreference`                                    | a whole theme DOCUMENT (`name`, `label`, `colors`, `typography`)                                                                           |
+  | `@object-ui/runner`        | `App` (default export)             | `RunnerApp`                                          | the authored application metadata type **and** the `App.create()` builder                                                                  |
+  | `@object-ui/sdui-parser`   | `ValidationResult`                 | `ManifestValidationResult`                           | plugin-manifest validation (`{ valid, errors?, warnings? }`), exported from both `kernel` and `contracts`                                  |
+
+  `ManifestValidationResult` follows the `<what was validated>Validation<Error|Result>`
+  convention registered on objectstack#4115 (`@object-ui/core` took
+  `SchemaNodeValidationResult` in batch 4). `PageHeaderComponentProps` deliberately
+  reuses the name `@object-ui/app-shell` already chose for its own header props in
+  batch 3, so one concept does not acquire two dialect names one package apart.
+
+  **Now derived from the spec instead of hand-written:**
+
+  - `@object-ui/fields` — `isFileIdToken` is re-exported from
+    `@objectstack/spec/data`. The local copy was character-for-character identical
+    to the spec's function while its comment said it "mirrors" it, so every
+    behaviour test passed and only reference identity could tell the two apart.
+    The regex is a wire decision: widening it server-side while a copy here kept
+    the old bound would make every new id read as "not a reference", and the
+    widget would submit the legacy inline blob to a backend expecting a reference.
+  - `@object-ui/plugin-detail` — `FeedFilterMode` is re-exported from
+    `@objectstack/spec/data`, in a file that already imported the sibling
+    `FeedItemType` from the spec.
+  - `@object-ui/plugin-grid` — the eleven-member aggregation union is now the
+    spec's `ColumnSummary` enum, so the total `Record<ColumnSummaryType, string>`
+    label map turns a member the spec adds into a compile error instead of a
+    blank footer cell. `ColumnSummarySetting` is `NonNullable<ListColumn['summary']>`,
+    i.e. whatever forms the spec itself accepts. `hasMultiValueShape` delegates to
+    the spec's `isMultiValueField` rather than re-deriving it from
+    `MULTI_OPTION_TYPES` / `MULTI_CAPABLE_TYPES`.
+  - `@object-ui/providers` — `ThemePreference` is the spec's `ThemeMode` union
+    plus the one legacy `'system'` spelling this provider still honours for stored
+    preferences, read off the schema's own `_zod` carrier so the package takes no
+    zod dependency.
+
+  `@objectstack/spec` moves from `devDependencies` to `dependencies` in
+  `@object-ui/fields` (it re-exports a runtime function) and `@object-ui/providers`
+  (its public `.d.ts` now references the spec).
+
+  Scored `minor`, not `major`, per this repo's fixed-group rule — objectui's major
+  tracks `@objectstack`, so breaking changes of our own ship as minor with the
+  semantics spelled out above (see AGENTS.md §版本号策略). A `major` here would carry
+  all 39 packages of the fixed group to `18.0.0` and off objectstack's 17.x line.
+
+- 726b89c: `@object-ui/types` stops declaring sixteen symbols under names `@objectstack/spec` owns (objectui#3156, objectstack#4115).
+
+  Seven are now **derived** from the spec, nine are **renamed** to the local
+  dialect they always were. Both halves remove the same hazard: a local
+  declaration under a spec export's name reads as the spec's own definition to
+  the next reader, so a copy that is merely _correct today_ is a planted premise
+  tomorrow.
+
+  **Derived** — the spec now supplies the keys, by reference:
+
+  | symbol                   | derivation                                                                        |
+  | :----------------------- | :-------------------------------------------------------------------------------- |
+  | `ActionParam`            | `z.input<typeof ActionParamSchema>`, `type` widened to the local legacy spellings |
+  | `CreateExportJobRequest` | `Omit<CreateExportJobInput, 'object'>` (`object` is the method argument)          |
+  | `CreateExportJobResult`  | re-export from `@objectstack/spec/contracts`                                      |
+  | `ImportRowResult`        | re-export from `@objectstack/spec/api`                                            |
+  | `NavigationArea`         | spec keys, with `navigation` / `visible` pinned locally                           |
+  | `NavigationAreaSchema`   | `specFieldsExcept(NavigationAreaSchema.shape, …)`                                 |
+  | `Theme`                  | re-export of the spec's `ThemeInput` (the authoring shape)                        |
+  | `ExportJobFormat`        | re-export of the spec's `ExportFormat`                                            |
+
+  Four of these close real gaps rather than tidy names. `ActionParam` never
+  declared `reference` — the key `resolveActionParams()` actually reads for an
+  inline lookup target — nor `defaultFromRow`, which the metadata designer's own
+  inspector writes; it also narrowed `visible` to a bare string although the
+  resolver has always accepted the `{ dialect, source }` envelope too.
+  `CreateExportJobResult.createdAt` and `ImportRowResult.action` were optional
+  here and required by the server, leaving every consumer a branch that could
+  never run. And `NavigationArea`'s `id` now carries the spec's own length rule
+  instead of accepting any string.
+
+  **Renamed** — same word, different concept:
+
+  | was                | now                      | why                                                                                                                            |
+  | :----------------- | :----------------------- | :----------------------------------------------------------------------------------------------------------------------------- |
+  | `FileMetadata`     | `UploadedFileMetadata`   | field-VALUE payload (`url`, `original_name`), not the storage file record                                                      |
+  | `GestureType`      | `TouchGestureType`       | direction-fused (`swipe-left`), not the spec's type+direction pair                                                             |
+  | `GestureConfig`    | `TouchGestureConfig`     | gesture→`action` binding, not per-gesture tuning                                                                               |
+  | `OfflineConfig`    | `PWAOfflineConfig`       | service-worker route caching, not the offline data/sync model                                                                  |
+  | `PageRegion`       | `PageNodeRegion`         | region of the renderer page NODE, holding `SchemaNode`s                                                                        |
+  | `PageRegionSchema` | `PageNodeRegionSchema`   | zod twin of the above                                                                                                          |
+  | `ResponsiveConfig` | `MobileResponsiveConfig` | mobile box config, not the spec's SDUI grid contract                                                                           |
+  | `WidgetManifest`   | `RuntimeWidgetManifest`  | SDUI component manifest, not the field-widget plugin manifest                                                                  |
+  | `WidgetSource`     | `RuntimeWidgetSource`    | `module`/`inline`/`registry` loader union — and its `inline` carries a resolved component where the spec's carries source code |
+
+  **Migration**: the old names are gone, not deprecated — an alias would preserve
+  exactly the ambiguity being removed. Import the new name; nothing about the
+  shapes changed. `@object-ui/types` already re-exports the spec's own
+  `SpecResponsiveConfig`, and `@object-ui/react`'s `useOffline` config remains the
+  spec-shaped `OfflineConfig`, so both concepts stay reachable under
+  distinguishable names.
+
+  Each rename carries a bidirectional tripwire
+  (`packages/types/src/__tests__/page-nav-misc-spec-parity.test.ts`): it fails if
+  the spec ever claims the new name, and also if the spec retires the old one —
+  at which point the natural name can be taken back rather than the workaround
+  outliving its reason.
+
+### Patch Changes
+
+- 335041c: Stop declaring 13 `@object-ui/core` symbols under names `@objectstack/spec` owns
+  (objectui#3158, objectstack#4115 batch 4).
+
+  **Breaking for importers of `@object-ui/core`** — seven exported names changed,
+  because the spec exports the same name for a _different_ thing:
+
+  | was                      | now                               | what the spec's same-named export actually is                                |
+  | :----------------------- | :-------------------------------- | :--------------------------------------------------------------------------- |
+  | `ChartSeries`            | `ChartSeriesBinding`              | the authored dataset-binding descriptor (a measure `name`, no `data`)        |
+  | `ActionHandler`          | `ActionRunnerHandler`             | the SERVER-side objectql handler, `(ctx) => unknown`                         |
+  | `PluginDefinition`       | `RegistryPluginDefinition`        | the platform PACKAGE manifest (`id`/`slug`/`staticPath`/install hooks)       |
+  | `ValidationError`        | `SchemaNodeValidationError`       | plugin-manifest validation, keyed by `field`, no severity                    |
+  | `ValidationResult`       | `SchemaNodeValidationResult`      | ditto, with both arrays optional                                             |
+  | `defineView`             | `defineSystemView`                | the VIEW-DOCUMENT factory: parses a `ViewSchema`, returns a validated `View` |
+  | `resolveCrudAffordances` | `resolveEffectiveCrudAffordances` | the object-level affordance matrix, with no notion of server API operations  |
+
+  The other six keep their names and are now **imported from the spec** instead of
+  re-declared: `StyleMap`, `ResponsiveStyles` (ADR-0065), `RowHeight`,
+  `CONTEXT_TOKENS`, `CrudAffordances`, `RowCrudPredicates`.
+
+  **The copies were live misdescriptions, not just duplicates.** Three said so in
+  their own comments:
+
+  - `CONTEXT_TOKENS` carried a note that the duplication was "temporary until the
+    next coordinated release… because the installed `@objectstack/spec` predates
+    that export". The installed spec (17.0.0-rc.0) exports it, and the copy was
+    byte-identical — so it passed every value comparison and every behavioural
+    test for the whole interval in which its stated reason was false.
+  - `RowHeight` advertised itself as "the spec's `RowHeightSchema` vocabulary"
+    while being a hand-written union. It happened to be correct; nothing would
+    have caught the day it stopped being.
+  - `managedBy.ts` described itself as a "UI-side mirror of the framework's
+    `resolveCrudAffordances()`" and carried its own `DEFAULTS` table — a
+    line-for-line copy of the spec's `CRUD_AFFORDANCE_DEFAULTS`, plus a copy of
+    its override parser.
+
+  `resolveEffectiveCrudAffordances` now **delegates** the bucket/`userActions` half
+  to the spec's `resolveCrudAffordances()`, so the bucket table has exactly one
+  definition on the platform. What stays objectui's is the part the spec has no
+  notion of: intersecting that matrix with the server-resolved effective API
+  operation set (#3391), so the UI never offers a button the server would 405 —
+  and the name now says that instead of claiming to be the spec's function.
+
+  Deriving `RowCrudPredicates` also **tightens** it: the local copy typed
+  `visibleWhen`/`disabledWhen` as `unknown`, where the spec types them as
+  `Expression | ExpressionInput`. That was imprecision, not a deliberate dialect.
+
+- cb82705: A standalone grid's search box searches the list, not the page you can see (objectui#3118).
+
+  Under server-side pagination a standalone `ObjectGrid` rendered `data-table`'s
+  built-in search box, and that box filtered the rows the table was holding —
+  which is one page. The user read "2 results for X in this list" while 3075 rows
+  never participated, with the pager beside it still reading `1 / 63`. Every piece
+  was individually correct: `searchable` defaults to true, `manualPagination` is
+  true, and the two are declared next to each other in the same object literal.
+
+  This is objectui#3106 one axis over — sort there, filter here — and it takes the
+  same shape. `DataTable` gains `manualSearch` + a controlled `search` +
+  `onSearchChange`. In that mode it filters nothing, reports the typed term, and
+  renders `search` as the box's value, holding **no** term of its own: a private
+  copy beside a controlled prop is the shape the defect had. `ObjectGrid` turns
+  that term into a `$search` on the refetch — the server picks the matching fields
+  from the object's metadata (ADR-0061), the same channel the ListView toolbar has
+  always used — and returns to page 1, since a new term makes the old page index a
+  different set of rows (usually no rows at all). `$searchFields` rides along only
+  when the view declared `searchableFields`, which can narrow the server-resolved
+  set and never widen it.
+
+  Two things worth naming:
+
+  - Both paths are never live at once. The server's answer is the answer; a client
+    pass left running underneath would silently re-narrow it to whichever returned
+    rows happen to contain the term as _rendered text_, overruling the server's
+    own notion of which fields are searchable.
+  - Under `manualSearch` a table with no `onSearchChange` renders **no** search
+    box. The sort axis could degrade to inert headers; here there is no honest
+    local behaviour to fall back to, because the rows to search are not in the
+    browser.
+
+  Client-paginated grids are untouched: inline, bound and grouped grids hold every
+  row they display, so their box keeps filtering in memory, where the count it
+  produces is true. The ListView path was never affected — it passes
+  `showSearch: false` and searches from its own toolbar.
+
+- Updated dependencies [4ae0ac4]
+- Updated dependencies [696e3c1]
+- Updated dependencies [bca45cc]
+- Updated dependencies [a889e31]
+- Updated dependencies [09d30a4]
+- Updated dependencies [4bf612c]
+- Updated dependencies [335041c]
+- Updated dependencies [b414983]
+- Updated dependencies [256f8cc]
+- Updated dependencies [d9668a7]
+- Updated dependencies [4b470b9]
+- Updated dependencies [785b8a5]
+- Updated dependencies [cb82705]
+- Updated dependencies [f572849]
+- Updated dependencies [4a51e77]
+- Updated dependencies [f6e8d78]
+- Updated dependencies [ea96284]
+- Updated dependencies [d3584c6]
+- Updated dependencies [a8ad6c0]
+- Updated dependencies [444457c]
+- Updated dependencies [850033c]
+- Updated dependencies [022e4c3]
+- Updated dependencies [009e25d]
+- Updated dependencies [726b89c]
+  - @object-ui/types@17.2.0
+  - @object-ui/components@17.2.0
+  - @object-ui/core@17.2.0
+  - @object-ui/react@17.2.0
+  - @object-ui/i18n@17.2.0
+  - @object-ui/fields@17.2.0
+  - @object-ui/mobile@17.2.0
+  - @object-ui/permissions@17.2.0
+
 ## 17.1.0
 
 ### Minor Changes

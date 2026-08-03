@@ -1,5 +1,175 @@
 # @object-ui/plugin-list
 
+## 17.2.0
+
+### Minor Changes
+
+- c5ccbd5: Stop declaring 12 `@object-ui/data-objectstack` / `@object-ui/plugin-chatbot` /
+  `@object-ui/plugin-list` symbols under names `@objectstack/spec` owns
+  (objectui#3160, objectstack#4115 batch 6). All three packages leave the ledger.
+
+  **Breaking for importers of `@object-ui/data-objectstack`** — four exported
+  names changed, because the spec exports the same name for a _different_ thing:
+
+  | was                   | now                         | what the spec's same-named export actually is                                            |
+  | :-------------------- | :-------------------------- | :--------------------------------------------------------------------------------------- |
+  | `CacheStats`          | `MetadataCacheStats`        | the platform `ICacheService` counters (`keyCount`, `memoryUsage`)                        |
+  | `MetadataSaveOptions` | `MetadataClientSaveOptions` | options for writing a metadata item to a **file** (`format`, `path`, `indent`, `atomic`) |
+  | `SecurityPolicy`      | `SecurityManagerPolicy`     | the package supply-chain policy (`autoScan`, licences, code signing, sandbox)            |
+  | `ValidationError`     | `DataApiValidationError`    | a plain `{ field, message, code? }` entry in a validation report                         |
+
+  Each pair is disjoint or nearly so — `MetadataSaveOptions` and `SecurityPolicy`
+  share not one key with the spec type whose name they wore — so none of them was
+  a dialect to reconcile; they were four unrelated concepts squatting on spec
+  names. `DataApiValidationError` follows the `<what was validated>Validation<Error|Result>`
+  convention registered on objectstack#4115 (`@object-ui/core` took
+  `SchemaNodeValidationError` in batch 4). Its **runtime** `name` deliberately
+  stays `'ValidationError'`: `normaliseClientError` and `@object-ui/react`'s
+  error-message helper both sniff `err.name`, so that string is a wire contract,
+  not a symbol.
+
+  **Breaking for importers of `@object-ui/plugin-chatbot`** — `PendingActionRow`
+  and `PendingActionStatus` are now re-exported from `@objectstack/spec/contracts`
+  instead of hand-transcribed, which narrows them. The copies had drifted three
+  ways, and each drift had **disabled a compile-time check** rather than merely
+  differed from one:
+
+  - `status: PendingActionStatus | string` — a union with `string` absorbs the
+    literals, so that annotation carried no information at all;
+  - `[key: string]: unknown` — the objectstack#4075 mechanism: an index signature
+    makes every structural comparison against the spec answer "identical", however
+    far the copy has drifted;
+  - `created_at` / `updated_at`, which the service contract does not carry and no
+    consumer in this repo reads.
+
+  **Breaking for importers of `@object-ui/plugin-list`** — `ViewTab` is derived from the spec's `ViewTabSchema`
+  — from its **input** side, because `pinned` / `isDefault` / `visible` carry
+  `.default()`s and this component is handed authored metadata, not parsed output.
+  That removes a renderer-side tolerance the copy carried: `visible` accepted
+  `string | boolean` and the tab bar compared it against the literal `'false'`, a
+  spelling no producer emits. `label` also stops being required (the spec makes it
+  optional; `name` is the identifier) and `filter` stops being `any`.
+
+  `ListView` and `UserFilters` keep their names as declared dialects: both are the
+  React **renderers** of the spec types whose names they share, and each takes that
+  spec type as a prop (`ListViewProps.schema`, `UserFiltersProps.config`) rather
+  than restating its shape. `Tool` and `MessageContent` in `plugin-chatbot` are
+  vendored Vercel AI Elements / Shadcn primitives — upstream's component API, not
+  objectui's authored surface — so the guard now skips that directory the same way
+  it already skips `components/src/ui/`, with a test that fails if any file there
+  stops carrying its vendor banner.
+
+  Scored `minor`, not `major`, per this repo's fixed-group rule — objectui's major
+  tracks `@objectstack`, so breaking changes of our own ship as minor with the
+  semantics spelled out above (see AGENTS.md §版本号策略). A `major` here would carry
+  all 39 packages of the fixed group to `18.0.0` and off objectstack's 17.x line.
+
+- 5cb75b3: fix(timeline,list): the timeline honours `timeline.dateField`, not just `timeline.startDateField` (#3129)
+
+  `dateField` is the pre-#2231 alias for `startDateField`. `@object-ui/types`
+  declares it on the nested config (`ListViewTimelineConfig`), and both
+  `ObjectView` read-sites (app-shell and plugin-view) resolve it — but the two
+  read-sites that actually drive the axis did not:
+
+  - `ObjectTimeline` consulted the alias only on the FLAT prop (`schema.dateField`),
+    never on the nested `schema.timeline`.
+  - `ListView` resolved it out of `options.timeline` but not out of the
+    spec-canonical `schema.timeline` — including in the capability gate, so such a
+    view could fail to offer the Timeline option at all.
+
+  So a view authored as `timeline: { dateField: 'start_date' }` — the spec nesting
+  with the legacy key — fell through to the caller's default (`created_at` /
+  `due_date`). That field is normally absent from the `$select` projection, so
+  every record came back without it and the timeline rendered all of them under
+  **No date** — while the configured date was sitting in the row untouched. That
+  also explains why widening the view's projection changed nothing: the projection
+  already carried the right field; the renderer was reading a different one.
+
+  Both read-sites now resolve the alias in the same precedence position they
+  already use for `options.timeline.dateField`. The spec key still wins wherever
+  both appear. Observable rendering change (records move out of "No date" into
+  real date buckets), hence `minor`.
+
+### Patch Changes
+
+- 335041c: Stop declaring 13 `@object-ui/core` symbols under names `@objectstack/spec` owns
+  (objectui#3158, objectstack#4115 batch 4).
+
+  **Breaking for importers of `@object-ui/core`** — seven exported names changed,
+  because the spec exports the same name for a _different_ thing:
+
+  | was                      | now                               | what the spec's same-named export actually is                                |
+  | :----------------------- | :-------------------------------- | :--------------------------------------------------------------------------- |
+  | `ChartSeries`            | `ChartSeriesBinding`              | the authored dataset-binding descriptor (a measure `name`, no `data`)        |
+  | `ActionHandler`          | `ActionRunnerHandler`             | the SERVER-side objectql handler, `(ctx) => unknown`                         |
+  | `PluginDefinition`       | `RegistryPluginDefinition`        | the platform PACKAGE manifest (`id`/`slug`/`staticPath`/install hooks)       |
+  | `ValidationError`        | `SchemaNodeValidationError`       | plugin-manifest validation, keyed by `field`, no severity                    |
+  | `ValidationResult`       | `SchemaNodeValidationResult`      | ditto, with both arrays optional                                             |
+  | `defineView`             | `defineSystemView`                | the VIEW-DOCUMENT factory: parses a `ViewSchema`, returns a validated `View` |
+  | `resolveCrudAffordances` | `resolveEffectiveCrudAffordances` | the object-level affordance matrix, with no notion of server API operations  |
+
+  The other six keep their names and are now **imported from the spec** instead of
+  re-declared: `StyleMap`, `ResponsiveStyles` (ADR-0065), `RowHeight`,
+  `CONTEXT_TOKENS`, `CrudAffordances`, `RowCrudPredicates`.
+
+  **The copies were live misdescriptions, not just duplicates.** Three said so in
+  their own comments:
+
+  - `CONTEXT_TOKENS` carried a note that the duplication was "temporary until the
+    next coordinated release… because the installed `@objectstack/spec` predates
+    that export". The installed spec (17.0.0-rc.0) exports it, and the copy was
+    byte-identical — so it passed every value comparison and every behavioural
+    test for the whole interval in which its stated reason was false.
+  - `RowHeight` advertised itself as "the spec's `RowHeightSchema` vocabulary"
+    while being a hand-written union. It happened to be correct; nothing would
+    have caught the day it stopped being.
+  - `managedBy.ts` described itself as a "UI-side mirror of the framework's
+    `resolveCrudAffordances()`" and carried its own `DEFAULTS` table — a
+    line-for-line copy of the spec's `CRUD_AFFORDANCE_DEFAULTS`, plus a copy of
+    its override parser.
+
+  `resolveEffectiveCrudAffordances` now **delegates** the bucket/`userActions` half
+  to the spec's `resolveCrudAffordances()`, so the bucket table has exactly one
+  definition on the platform. What stays objectui's is the part the spec has no
+  notion of: intersecting that matrix with the server-resolved effective API
+  operation set (#3391), so the UI never offers a button the server would 405 —
+  and the name now says that instead of claiming to be the spec's function.
+
+  Deriving `RowCrudPredicates` also **tightens** it: the local copy typed
+  `visibleWhen`/`disabledWhen` as `unknown`, where the spec types them as
+  `Expression | ExpressionInput`. That was imprecision, not a deliberate dialect.
+
+- 5eaa861: `list-view` and `embeddable-form` get a data source on the registry path — their required `objectName` was binding to nothing (#3144).
+
+  `SchemaRenderer` puts the data source on `SchemaRendererContext` and **never** injects it into
+  component props. A component that reads `props.dataSource` therefore needs its registration to
+  bridge the two. `object-form`, `object-kanban` and `object-calendar` each register a small
+  renderer that does exactly that. These two did not:
+
+  - `list-view` (and its `view:list` alias) registered the bare `ListView`, which reads
+    `props.dataSource` — so its `getObjectSchema` effect returned immediately, nothing was ever
+    fetched, and it rendered the `empty-state` "Nothing here".
+  - `embeddable-form`'s renderer was `({ schema }) => <EmbeddableForm config={schema} />`, dropping
+    the context entirely — so the read-only source it derives for its inner `ObjectForm` was never
+    built, and its submit path (`if (dataSource) await dataSource.create(...)`) had nothing to call.
+
+  Both declare `objectName` **required** in their registry `inputs`. A binding the protocol obliges
+  an author to supply, that nothing on that path can consume, is objectstack#4413's shape one layer
+  up — and the reason it went unnoticed is that the console never takes this path: it reaches
+  ListView through `ObjectView`'s `renderListView` render-prop, which passes a data source itself.
+  Broken on the registry/SDUI path, which is the path `sdui.manifest.json` describes and a
+  `kind:'react'` page walks.
+
+  Found by `apps/console/src/__tests__/public-block-binding-reach.test.tsx` (objectstack#4472), not
+  by hand — that suite mounts every public block declaring an `objectName` under a recording
+  `dataSource` and asserts the binding arrives. Its ledger carried these two as named debt; with the
+  bridge in place the ledger's both-directions assertion **failed until the entries were deleted**,
+  which is the mechanism working as designed. Only `record:related_list` remains, and legitimately
+  (it needs a parent record id from `RecordContext` before it may fetch).
+
+  An explicit `dataSource` prop still wins, so hosts passing their own are unaffected, and
+  `ListViewRenderer` forwards refs so `ListViewHandle` still works through the registry.
+
 ## 17.1.0
 
 ### Minor Changes

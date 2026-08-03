@@ -1,5 +1,232 @@
 # @object-ui/plugin-form
 
+## 17.2.0
+
+### Minor Changes
+
+- 4a51e77: Stop declaring 14 symbols across ten packages under names `@objectstack/spec`
+  owns (objectui#3161, objectstack#4115 batch 7 — the long tail, one or two
+  entries per package). All ten packages leave the ledger, which drops from 17
+  collisions across 11 packages to 3 across 1.
+
+  **Renamed exports** — in every case the spec exports the same name for a
+  _different_ thing, so the old name was a mis-description rather than a dialect:
+
+  | package                    | was                                | now                                                  | what the spec's same-named export is                                                                                                       |
+  | :------------------------- | :--------------------------------- | :--------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------- |
+  | `@object-ui/fields`        | `FieldWidgetProps`                 | `FieldWidgetComponentProps`                          | the DECLARED field-widget plugin props contract (a zod object; `field.type` is the `FieldType` enum, `readonly`/`required` carry defaults) |
+  | `@object-ui/layout`        | `PageHeaderProps`                  | `PageHeaderComponentProps`                           | the authored `page:header` node — a zod schema of `title`, `subtitle`, an icon NAME, `breadcrumb`, `actions: string[]`                     |
+  | `@object-ui/layout`        | `Page`                             | `PageNodeRenderer`                                   | the authored page metadata DOCUMENT (`name`, `label`, `type`, `regions`)                                                                   |
+  | `@object-ui/plugin-detail` | `ObjectFieldLike`                  | `ObjectDefFieldLike`                                 | the i18n duck type `translateObject` walks (`help`/`description`, plus `[key: string]: any`)                                               |
+  | `@object-ui/plugin-grid`   | `ColumnSummaryConfig`              | `ColumnSummarySetting`                               | the OBJECT form of `ListColumn.summary` **only** — the local one was the whole union, shorthand included                                   |
+  | `@object-ui/plugin-grid`   | `isMultiValueField`                | `hasMultiValueShape`                                 | the spec's classifier, which requires a def with a `type`; the local one is called with `undefined`                                        |
+  | `@object-ui/collaboration` | `RealtimeConfig`                   | `RealtimeSubscriptionConfig`                         | the app's realtime DECLARATION (`enabled`, `transport`, `subscriptions[]`)                                                                 |
+  | `@object-ui/plugin-charts` | `ChartConfig`                      | `ChartContainerConfig`                               | the authored chart document (`type`, `xAxis`, `series`, `showLegend`, …)                                                                   |
+  | `@object-ui/plugin-form`   | `FormSection` / `FormSectionProps` | `FormSectionContainer` / `FormSectionContainerProps` | the authored form-section metadata (`name`, `pane`, `visibleWhen`, `fields`)                                                               |
+  | `@object-ui/providers`     | `Theme`                            | `ThemePreference`                                    | a whole theme DOCUMENT (`name`, `label`, `colors`, `typography`)                                                                           |
+  | `@object-ui/runner`        | `App` (default export)             | `RunnerApp`                                          | the authored application metadata type **and** the `App.create()` builder                                                                  |
+  | `@object-ui/sdui-parser`   | `ValidationResult`                 | `ManifestValidationResult`                           | plugin-manifest validation (`{ valid, errors?, warnings? }`), exported from both `kernel` and `contracts`                                  |
+
+  `ManifestValidationResult` follows the `<what was validated>Validation<Error|Result>`
+  convention registered on objectstack#4115 (`@object-ui/core` took
+  `SchemaNodeValidationResult` in batch 4). `PageHeaderComponentProps` deliberately
+  reuses the name `@object-ui/app-shell` already chose for its own header props in
+  batch 3, so one concept does not acquire two dialect names one package apart.
+
+  **Now derived from the spec instead of hand-written:**
+
+  - `@object-ui/fields` — `isFileIdToken` is re-exported from
+    `@objectstack/spec/data`. The local copy was character-for-character identical
+    to the spec's function while its comment said it "mirrors" it, so every
+    behaviour test passed and only reference identity could tell the two apart.
+    The regex is a wire decision: widening it server-side while a copy here kept
+    the old bound would make every new id read as "not a reference", and the
+    widget would submit the legacy inline blob to a backend expecting a reference.
+  - `@object-ui/plugin-detail` — `FeedFilterMode` is re-exported from
+    `@objectstack/spec/data`, in a file that already imported the sibling
+    `FeedItemType` from the spec.
+  - `@object-ui/plugin-grid` — the eleven-member aggregation union is now the
+    spec's `ColumnSummary` enum, so the total `Record<ColumnSummaryType, string>`
+    label map turns a member the spec adds into a compile error instead of a
+    blank footer cell. `ColumnSummarySetting` is `NonNullable<ListColumn['summary']>`,
+    i.e. whatever forms the spec itself accepts. `hasMultiValueShape` delegates to
+    the spec's `isMultiValueField` rather than re-deriving it from
+    `MULTI_OPTION_TYPES` / `MULTI_CAPABLE_TYPES`.
+  - `@object-ui/providers` — `ThemePreference` is the spec's `ThemeMode` union
+    plus the one legacy `'system'` spelling this provider still honours for stored
+    preferences, read off the schema's own `_zod` carrier so the package takes no
+    zod dependency.
+
+  `@objectstack/spec` moves from `devDependencies` to `dependencies` in
+  `@object-ui/fields` (it re-exports a runtime function) and `@object-ui/providers`
+  (its public `.d.ts` now references the spec).
+
+  Scored `minor`, not `major`, per this repo's fixed-group rule — objectui's major
+  tracks `@objectstack`, so breaking changes of our own ship as minor with the
+  semantics spelled out above (see AGENTS.md §版本号策略). A `major` here would carry
+  all 39 packages of the fixed group to `18.0.0` and off objectstack's 17.x line.
+
+### Patch Changes
+
+- 335041c: Stop declaring 13 `@object-ui/core` symbols under names `@objectstack/spec` owns
+  (objectui#3158, objectstack#4115 batch 4).
+
+  **Breaking for importers of `@object-ui/core`** — seven exported names changed,
+  because the spec exports the same name for a _different_ thing:
+
+  | was                      | now                               | what the spec's same-named export actually is                                |
+  | :----------------------- | :-------------------------------- | :--------------------------------------------------------------------------- |
+  | `ChartSeries`            | `ChartSeriesBinding`              | the authored dataset-binding descriptor (a measure `name`, no `data`)        |
+  | `ActionHandler`          | `ActionRunnerHandler`             | the SERVER-side objectql handler, `(ctx) => unknown`                         |
+  | `PluginDefinition`       | `RegistryPluginDefinition`        | the platform PACKAGE manifest (`id`/`slug`/`staticPath`/install hooks)       |
+  | `ValidationError`        | `SchemaNodeValidationError`       | plugin-manifest validation, keyed by `field`, no severity                    |
+  | `ValidationResult`       | `SchemaNodeValidationResult`      | ditto, with both arrays optional                                             |
+  | `defineView`             | `defineSystemView`                | the VIEW-DOCUMENT factory: parses a `ViewSchema`, returns a validated `View` |
+  | `resolveCrudAffordances` | `resolveEffectiveCrudAffordances` | the object-level affordance matrix, with no notion of server API operations  |
+
+  The other six keep their names and are now **imported from the spec** instead of
+  re-declared: `StyleMap`, `ResponsiveStyles` (ADR-0065), `RowHeight`,
+  `CONTEXT_TOKENS`, `CrudAffordances`, `RowCrudPredicates`.
+
+  **The copies were live misdescriptions, not just duplicates.** Three said so in
+  their own comments:
+
+  - `CONTEXT_TOKENS` carried a note that the duplication was "temporary until the
+    next coordinated release… because the installed `@objectstack/spec` predates
+    that export". The installed spec (17.0.0-rc.0) exports it, and the copy was
+    byte-identical — so it passed every value comparison and every behavioural
+    test for the whole interval in which its stated reason was false.
+  - `RowHeight` advertised itself as "the spec's `RowHeightSchema` vocabulary"
+    while being a hand-written union. It happened to be correct; nothing would
+    have caught the day it stopped being.
+  - `managedBy.ts` described itself as a "UI-side mirror of the framework's
+    `resolveCrudAffordances()`" and carried its own `DEFAULTS` table — a
+    line-for-line copy of the spec's `CRUD_AFFORDANCE_DEFAULTS`, plus a copy of
+    its override parser.
+
+  `resolveEffectiveCrudAffordances` now **delegates** the bucket/`userActions` half
+  to the spec's `resolveCrudAffordances()`, so the bucket table has exactly one
+  definition on the platform. What stays objectui's is the part the spec has no
+  notion of: intersecting that matrix with the server-resolved effective API
+  operation set (#3391), so the UI never offers a button the server would 405 —
+  and the name now says that instead of claiming to be the spec's function.
+
+  Deriving `RowCrudPredicates` also **tightens** it: the local copy typed
+  `visibleWhen`/`disabledWhen` as `unknown`, where the spec types them as
+  `Expression | ExpressionInput`. That was imprecision, not a deliberate dialect.
+
+- 5eaa861: `list-view` and `embeddable-form` get a data source on the registry path — their required `objectName` was binding to nothing (#3144).
+
+  `SchemaRenderer` puts the data source on `SchemaRendererContext` and **never** injects it into
+  component props. A component that reads `props.dataSource` therefore needs its registration to
+  bridge the two. `object-form`, `object-kanban` and `object-calendar` each register a small
+  renderer that does exactly that. These two did not:
+
+  - `list-view` (and its `view:list` alias) registered the bare `ListView`, which reads
+    `props.dataSource` — so its `getObjectSchema` effect returned immediately, nothing was ever
+    fetched, and it rendered the `empty-state` "Nothing here".
+  - `embeddable-form`'s renderer was `({ schema }) => <EmbeddableForm config={schema} />`, dropping
+    the context entirely — so the read-only source it derives for its inner `ObjectForm` was never
+    built, and its submit path (`if (dataSource) await dataSource.create(...)`) had nothing to call.
+
+  Both declare `objectName` **required** in their registry `inputs`. A binding the protocol obliges
+  an author to supply, that nothing on that path can consume, is objectstack#4413's shape one layer
+  up — and the reason it went unnoticed is that the console never takes this path: it reaches
+  ListView through `ObjectView`'s `renderListView` render-prop, which passes a data source itself.
+  Broken on the registry/SDUI path, which is the path `sdui.manifest.json` describes and a
+  `kind:'react'` page walks.
+
+  Found by `apps/console/src/__tests__/public-block-binding-reach.test.tsx` (objectstack#4472), not
+  by hand — that suite mounts every public block declaring an `objectName` under a recording
+  `dataSource` and asserts the binding arrives. Its ledger carried these two as named debt; with the
+  bridge in place the ledger's both-directions assertion **failed until the entries were deleted**,
+  which is the mechanism working as designed. Only `record:related_list` remains, and legitimately
+  (it needs a parent record id from `RecordContext` before it may fetch).
+
+  An explicit `dataSource` prop still wins, so hosts passing their own are unaffected, and
+  `ListViewRenderer` forwards refs so `ListViewHandle` still works through the registry.
+
+- a8ad6c0: A required boolean must be savable in its UNCHECKED state — `false` and `0` are values.
+
+  Reported against an AI-built task tracker whose 任务 object has a required
+  `是否完成` boolean: the create form showed the switch OFF, answered "是否完成不能
+  为空", and saved instantly once the switch was turned ON. The app could only ever
+  create ALREADY-DONE tasks — the one state the control shows by default was the
+  one value it refused to save (cloud#972).
+
+  Two defects stacked, and either alone is enough to break it:
+
+  **The `required` verdict read truthiness, not presence.** `@objectstack/spec`
+  FieldSchema.required (ADR-0113) is "an insert must provide a NON-NULL value",
+  and objectql's record validator implements exactly that. react-hook-form's
+  built-in rule instead fails whenever `isBoolean(value) && !value` — its
+  accept-the-terms checkbox heritage — silently redefining every required boolean
+  as "must be TRUE", including a select whose chosen option value is `false`. It
+  also disagreed the other way, letting a whitespace-only string through for the
+  server to reject with a 400. The form renderer no longer hands RHF its own
+  `required`: the check is now a `validate` entry keyed `required` (so the error
+  still surfaces as `type: 'required'`, which the conditional-required cleanup
+  keys on) backed by a new shared `isMissingForRequired` in `@object-ui/core`, a
+  deliberate mirror of objectql `record-validator.isMissing` — `undefined`,
+  `null`, blank-after-trim string, empty array. Deleting the inherited rule also
+  stops a `required` that rode in on `validation` from outliving a `requiredWhen`
+  that resolved to FALSE.
+
+  **A boolean field held `undefined` while displaying "off".** A two-state control
+  has no third state, but a field with no entry in `defaultValues` rendered an OFF
+  switch backed by nothing: the create payload omitted the column (it lands null,
+  which reads as unchecked but isn't) and the presence check above would still
+  refuse it. The form renderer now folds `false` into `defaultValues` for every
+  boolean-widget field the caller left unset — in `defaultValues` itself, not
+  per-Controller, because that object is also the dirty-check baseline and what
+  the defaults-reset window replays. Every surface gets it, including the
+  modal/drawer create dialogs that start from a bare `{}`. An authored default
+  (or a loaded record, `null` included) still wins.
+
+  `WizardForm`'s cross-step gate had its own copy of the empty-value predicate; it
+  now imports the shared one so it cannot drift from the per-field verdict. And
+  the field-demo renderer read `schema.defaultValue || schema.value`, throwing
+  away an authored default of `false` / `0` / `''` — same falsy-as-empty class,
+  now `??`.
+
+  Verified end to end on a local stack against the exact metadata shape
+  `apply_blueprint` materializes (`{ type: 'boolean', required: true }`, no
+  default): a 是否完成 = 否 task with 工时 = 0 now creates and persists as
+  `{ hours: 0, is_done: false }`, turning the switch on still stores `true`, and a
+  blank required text is still refused.
+
+- Updated dependencies [4ae0ac4]
+- Updated dependencies [696e3c1]
+- Updated dependencies [bca45cc]
+- Updated dependencies [a889e31]
+- Updated dependencies [09d30a4]
+- Updated dependencies [4bf612c]
+- Updated dependencies [335041c]
+- Updated dependencies [b414983]
+- Updated dependencies [256f8cc]
+- Updated dependencies [d9668a7]
+- Updated dependencies [4b470b9]
+- Updated dependencies [785b8a5]
+- Updated dependencies [cb82705]
+- Updated dependencies [f572849]
+- Updated dependencies [4a51e77]
+- Updated dependencies [f6e8d78]
+- Updated dependencies [ea96284]
+- Updated dependencies [d3584c6]
+- Updated dependencies [a8ad6c0]
+- Updated dependencies [444457c]
+- Updated dependencies [850033c]
+- Updated dependencies [022e4c3]
+- Updated dependencies [009e25d]
+- Updated dependencies [726b89c]
+  - @object-ui/types@17.2.0
+  - @object-ui/components@17.2.0
+  - @object-ui/core@17.2.0
+  - @object-ui/react@17.2.0
+  - @object-ui/i18n@17.2.0
+  - @object-ui/fields@17.2.0
+  - @object-ui/permissions@17.2.0
+
 ## 17.1.0
 
 ### Minor Changes

@@ -1,5 +1,178 @@
 # @object-ui/console
 
+## 17.2.0
+
+### Minor Changes
+
+- d3584c6: Bring the whole `@objectstack` family to `17.0.0-rc.1`, so the dependency graph resolves a
+  single copy of `@objectstack/spec`.
+
+  #3178 bumped **only** `@objectstack/spec` to `17.0.0-rc.1`. The rest of the family —
+  `client`, `core`, `formula`, `lint` (and `sdui-parser`, reached through `lint`) — stayed on
+  `17.0.0-rc.0`, and each of them depends on spec at an **exact** version rather than a
+  caret:
+
+  ```
+  @objectstack/client@17.0.0-rc.0  -> spec "17.0.0-rc.0"
+  @objectstack/core@17.0.0-rc.0    -> spec "17.0.0-rc.0"
+  @objectstack/formula@17.0.0-rc.0 -> spec "17.0.0-rc.0"
+  @objectstack/lint@17.0.0-rc.0    -> spec "17.0.0-rc.0"
+  ```
+
+  So `main` carried **two** spec copies: objectui's own code read `17.0.0-rc.1` while every
+  `@objectstack/*` package read `17.0.0-rc.0` from its own nested `node_modules`. That breaks
+  the single-contract invariant this repo's guards are built on, and it breaks them
+  _silently_ — the affected checks depend on identity, not on version strings:
+
+  - `spec-subschema-parity.test.ts` distinguishes a genuine re-export from a fork by
+    **reference identity** of the zod schema object. Two spec copies make every schema a
+    distinct object, so a real re-export starts reading as a fork (or a fork slips through,
+    depending on which copy each side resolved).
+  - `scripts/check-spec-symbol-derivation.mjs` and `spec-symbol-parity.test.ts` use
+    `createRequire` to resolve spec's `.d.ts` and run it through the TS checker. With two
+    copies installed, _which_ declaration file the checker sees is a function of resolution
+    order rather than of intent.
+
+  The declared ranges were already `^17.0.0-rc.0`, which technically admits rc.1 — the pin
+  lived in the lockfile. Raising the remaining ranges to `^17.0.0-rc.1` makes the floor
+  explicit and forbids a future install from silently sliding back onto a family member that
+  drags rc.0 along with it. The rc.1 family members pin spec at `17.0.0-rc.1` exactly, so the
+  graph now converges on one copy by construction, not by luck.
+
+  No product behaviour changes here. `check:spec-symbols` reconciliation was already
+  completed by #3178 and stays green under the unified graph; this changeset is `minor`
+  per the repo's fixed-group version policy.
+
+### Patch Changes
+
+- 1ce750b: The binding-reach probe was under-reporting its own coverage by six object blocks, silently (#3149).
+
+  `public-block-binding-reach.test.tsx` selects what to probe by filtering `getPublicConfigs()`
+  for a declared `objectName` input. The console registers most object blocks with
+  `registerLazy`, and a pending stub carries no `inputs` — `Registry.getMeta` says in as many
+  words that a consumer must read that as _"not yet known"_, not as _"declares no props"_. The
+  filter read it as the latter, so `object-chart`, `object-kanban`, `object-calendar`,
+  `object-gantt`, `object-timeline` and `object-map` — six Tier-A blocks, every one declaring
+  `objectName` as **required** — dropped out of the candidate set while the suite reported eight
+  green probes and no gap.
+
+  That is objectui#2953's shape (a lazy registration falling out of the contract) recurring in a
+  consumer, and objectstack#4472's shape recurring inside the suite written to answer it: a gate
+  whose stated scope was wider than its reach. The coverage guard could not see it — `length > 0`
+  and `toContain('object-form')` both stayed true at 8 of 14.
+
+  - Pending public lazy loaders are resolved through the registry's own `loadLazy` before
+    candidates are selected — driven off the recorded loaders, not a hand-written list of plugin
+    imports that would drift out of step with `register-plugins.ts` and reintroduce the same
+    shrinkage by another route.
+  - The guard is now an **exact** candidate list, the lesson `public-contract.test.ts` already
+    carries: the failure mode is a set getting smaller, and only an exact comparison makes both
+    directions a deliberate edit. Verified by simulating the regression — with resolution
+    disabled the assertion fails naming the missing blocks.
+
+  All six were already wired correctly (`ObjectChart` reads the context itself; gantt/timeline/map
+  and kanban/calendar have context→prop wrappers), so this found no new defect of the #3144 kind.
+  It found two more probe artifacts, which is the same lesson a third and fourth time — a
+  plausible value for every input is not a plausible _configuration_:
+
+  - **`data` supersedes the binding.** `ObjectChart`'s fetch is guarded by
+    `if ((schema.objectName || schema.dataset) && !boundData && !schema.data)`, and the spec
+    glosses `data` as static data to chart _instead of_ binding via `objectName`. Filling it and
+    then reporting "objectName never reached" would have been the probe manufacturing its own
+    finding. Binding-superseding inputs are now excluded, narrowly and with the guard quoted.
+  - **Teardown is not the subject.** `object-map` mounts maplibre-gl, whose `map.remove()` throws
+    in jsdom for want of a WebGL context. Unmount is caught so the assertion speaks to data reach;
+    an error thrown during _render_ still propagates.
+
+  Coverage after this: 14 of 14 object-bound public blocks. The rest of #3149 — bindings other
+  than `objectName`, the `record:*` family under a record context, and the display primitives —
+  is untouched and still open.
+
+- f6e8d78: Lookup search inside a create/edit modal is typeable again (objectui#3183).
+
+  In every production console build, the search input of a lookup field's
+  quick-select popover — and the nested Record Picker dialog — could not take
+  focus while the form modal was open: every click/focus was synchronously
+  yanked back to the field trigger, so a lookup could not be searched while
+  creating a record.
+
+  Root cause is a race in stock `@radix-ui/react-focus-scope@1.1.16`: the
+  focus-scopes stack effect's cleanup schedules `focusScopesStack.remove(scope)`
+  in a `setTimeout(0)`. When the effect re-runs for a still-mounted scope (a
+  `container` ref flicker), the re-run re-`add`s the scope and the stale timeout
+  then evicts it — the dialog's trap listeners stay active but its scope is no
+  longer in the stack, so an opening popover pauses nothing and the trap yanks
+  focus out of the popover forever.
+
+  Fixed via `patches/@radix-ui__react-focus-scope.patch`: an effect re-run for a
+  live scope cancels the pending eviction; a real unmount still runs the full
+  delayed cleanup (autofocus-on-unmount + stack removal). Regression-tested in
+  `packages/components` with a deterministic reproduction of the race.
+
+- ea96284: The `record:*` family now has behavioural evidence — until now "it works under a record page" was an assumption (#3149 layer 3a).
+
+  `public-block-binding-reach.test.tsx` (objectstack#4472) asks whether a declared `objectName`
+  reaches the data layer when a block is mounted bare. Every `record:*` block is outside that
+  question by construction: they take their subject from `<RecordContextProvider>`, so mounted
+  bare they correctly do nothing, and "made no data call" says nothing about whether they work.
+
+  That gap is the exact place objectstack#4413 lived — `record:details` / `record:highlights` /
+  `record:path` / `record:related_list` published props no renderer read, four blocks rendered
+  blank on a real record page, and every gate stayed green. The framework check compares two
+  declarations; the binding-reach probe cannot see this family at all.
+
+  `apps/console/src/__tests__/record-block-record-reach.test.tsx` mounts all **11** public
+  `record:*` blocks under a record context twice, with two different records of the same object,
+  and asks whether anything changes — in the DOM or in the data calls. Behavioural coverage across
+  the two probes goes 14 → **24** of the 57 curated blocks (`record:related_list` is in both:
+  binding-reach ledgers it as unable to fetch without a parent, and this probe is what finally
+  shows it fetching once one is bound — turning that ledger entry's stated reason from a claim
+  into a checked one).
+
+  - **A differential, not "renders non-empty".** #3149 records the decision _not_ to cover the
+    display primitives precisely because "renders something" is also true of a block that ignores
+    every input it declares. Adding a gate that reports green without checking anything is what
+    objectstack#4472 exists to eliminate. A block rendering the same fixed shell for two different
+    records scores zero.
+  - **Two records, not bound-vs-unbound.** An unbound control differs in tree shape, so `useId`
+    values shift and everything "differs" for reasons unrelated to the record.
+  - **The instrument is checked, not trusted.** Each block also renders record A a _second_ time;
+    that mount must be byte-identical to the first. If it ever isn't, "A differs from B" stops
+    meaning "the record reached the output", and the file says so instead of staying green.
+  - **A crash fails as a crash.** SchemaRenderer paints an error card on a throw, and a crashed
+    block renders the _same_ card for both records — which would land in the "no difference"
+    bucket and read as a finding about its binding. Asserted separately.
+  - **Hermetic.** Blocks in this family call bare `fetch` (`/api/v1/security/explain`); under
+    happy-dom that resolves to `localhost:3000`, so the probe used to "work" only because the
+    connection was refused — 24 ECONNREFUSED lines per run, and different behaviour for anyone
+    with a dev server on that port. `fetch` now rejects immediately and its URL joins the same
+    call log, so a block binding through bare fetch is credited rather than reported unbound.
+
+  Eight blocks respond to the bound record. Three are ledgered with the reason and the host path
+  NAMED, because "host-fed" is only a reason while a host actually feeds it:
+  `record:discussion` (DiscussionContext, mounted by RecordDetailView) and `record:reference_rail`
+  (`entries` injected by `buildDefaultPageSchema`) check out — **`record:activity` does not**, and
+  that is #3165: it renders `items={[]}` hard-coded, nothing supplies items on any path, and its
+  eleven declared inputs are filters over a feed that is always empty. Ledgered rather than fixed
+  here because the fix is a feature, not the missing-bridge one-liner #3144 turned out to be; the
+  ledger's both-directions assertion forces the entry out the day it starts working.
+
+  **#3149 layer 2 lands with it, in the only form the codebase offers.** The slice the issue
+  proposed — `recordId` on `object-form` / `object-master-detail-form` / `embeddable-form` — does
+  not exist: no public block declares a `recordId` input at all (the only `recordId`/`resourceId`
+  inputs in the repo are on `view:detail` and `detail-view`, neither of them public). Same result
+  objectstack#4472's direction (d) hit — a slice proposed from the declarations, unavailable once
+  you look at what is actually declared. What is available is stronger: `record:related_list` and
+  `record:line_items` both bind a **required** `relationshipField` + `childObject` that must land
+  in the child query, checkable only under a record context. Both do, scoped to the bound parent.
+  The "same mechanism, different assertion" hypothesis #3149 wanted tested before anyone widens
+  the sweep holds, and it cost one assertion on mounts that were already happening.
+
+- Updated dependencies [4a51e77]
+- Updated dependencies [cc70b8f]
+  - @object-ui/sdui-parser@17.2.0
+  - @object-ui/react-runtime@17.2.0
+
 ## 17.1.0
 
 ### Patch Changes

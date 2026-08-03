@@ -1,5 +1,916 @@
 # @object-ui/app-shell — Changelog
 
+## 17.2.0
+
+### Minor Changes
+
+- 4ae0ac4: One placement rule for action `locations` (objectui#3142).
+
+  **Breaking for metadata**: an action that declares no `locations` (missing key
+  or `[]`) no longer renders in a located surface. FROM: omitting `locations`
+  made an action appear on the list toolbar, the record header, and every
+  metadata-admin toolbar. TO: declare where it belongs —
+  `locations: ['record_header']` for the record header, `['list_toolbar']` for
+  the list toolbar, and so on. Nothing else changes; actions that already
+  declare a location are untouched.
+
+  Four renderers each answered "where does an action with no `locations` go?"
+  differently — `action:bar` and metadata-admin showed it EVERYWHERE,
+  `page:header` showed it on the header, `action:group` showed it for
+  `undefined` but hid it for `[]` — while `ActionEngine`, `RecordDetailView`,
+  `DeclaredActionsBar`, the related-list bridge and the environment toolbar all
+  showed it NOWHERE. The same action therefore appeared or vanished depending on
+  which component happened to draw it. All eight now go through one exported
+  predicate, `actionRendersAt(action, location)` from `@object-ui/types`: an
+  action renders at a location only if it declares that location.
+
+  The strict reading is the platform's own — ADR-0078 lists "an `action` with no
+  `locations`" as a verified inert shape, and the detail-page synthesizer already
+  documented "must include `locations: ['record_header']` to render". The
+  leniency contradicted both, and it is what let an aggregate-only bulk action
+  (objectui#3139) — one with no single-record placement by construction — mint a
+  list-toolbar button whose dispatch could only fail.
+
+  Two placements are declared elsewhere and need no `locations`, both unchanged:
+  host-injected chrome in the `systemActions` / `headerSystemActions` slot (now
+  consistently exempt on `page:header` too, where it used to be filtered), and an
+  action named in a view's `bulkActions` / `bulkActionDefs`.
+
+  Authoring side: Studio seeds `locations: ['record_header']` on a new action
+  instead of minting one that renders nowhere, and the action inspector says so
+  when no placement is ticked. The `ActionSchema.locations` JSDoc claimed a
+  `['record_header']` default that no renderer ever implemented — corrected.
+
+- 696e3c1: `reference` is the one authorable action-param picker target (objectui#3174).
+
+  **Breaking for authoring**: `ActionParam` in `@object-ui/types` no longer
+  declares the nine resolved-side picker keys — `referenceTo`, `displayField`,
+  `idField`, `descriptionField`, `titleFormat`, `lookupColumns`, `lookupFilters`,
+  `lookupPageSize`, `dependsOn`. FROM: `{ name: 'account_id', type: 'lookup',
+referenceTo: 'account' }` type-checked. TO: `{ name: 'account_id', type:
+'lookup', reference: 'account' }` — or make the param field-backed
+  (`{ field: 'account_id' }`) and it inherits the whole picker group from the
+  object field.
+
+  The two halves of one contract disagreed about a spelling, and the type was the
+  half that was wrong. `resolveActionParams()` reads the spec's `reference` for an
+  inline `lookup`/`master_detail` target and nothing else; it EMITS
+  `ActionParamDef.referenceTo`, the resolved spelling. The public authoring type
+  declared the resolved spelling "for parity with the resolved shape", so an
+  author who followed it got a param whose picker target was dropped in the
+  resolver and a dialog that degraded to a plain record-id text input — asking a
+  human to paste a UUID. The dev warning that fired then told them to declare
+  `reference`, a key the type did not have.
+
+  `reference` wins because the platform had already decided: `ActionParamSchema` in
+  `@objectstack/spec` is `.strict()`, lists `referenceTo` **by name** in its
+  alias map, and answers it with "use `reference`". So an authored `referenceTo`
+  was never storable — it was a hard parse rejection on the server while `tsc`
+  waved it through. Resolving it in objectui instead would have made the renderer
+  accept metadata the platform itself refuses, and such a param would work in a
+  locally-authored TS action and fail at publish; removing the declaration moves
+  the failure to where it can be fixed, at the authoring keystroke.
+
+  - **`@object-ui/types`**: the nine keys are gone, and the rule they violated is
+    now pinned — `ActionParam` declares _exactly_ the spec's authorable key set.
+    The drift guard names the single exception (`validation`, inert and rejected
+    by the same `.strict()` parse — filed as objectui#3201) so a second one cannot
+    appear without being a decision.
+  - **`@object-ui/app-shell`**: `resolveActionParams()` names any resolved-only
+    key it finds on an authored param in a dev-mode warning, with the
+    prescription (`referenceTo` → "use `reference`"; the rest → "make the param
+    field-backed"). It still does **not** read them. This covers the gap `tsc`
+    cannot gate — params authored in plain JS, loaded from JSON, or synthesised
+    at runtime — so the mistake is loud where it is made rather than surfacing
+    downstream as `paramToField()`'s "no reference target" warning naming a key
+    the author never wrote.
+
+  The internal pipeline keeps its two spellings on purpose (authoring `reference`
+  → `ActionParamDef.referenceTo` → the field's `reference_to`); what is pinned now
+  is that the public entry and the public exit agree. The end-to-end test authors
+  through the published `ActionParam` and follows one param to `reference_to` —
+  every previous test authored the resolver's own local input interface, which is
+  why the resolver only ever agreed with itself and the mismatch survived.
+
+- 10bead2: Stop declaring 28 app-shell symbols under names `@objectstack/spec` owns
+  (objectui#3157, objectstack#4115 batch 3).
+
+  **Breaking for importers of `@object-ui/app-shell`** — eight exported names
+  changed, because the spec exports the same name for a _different_ thing:
+
+  | was                     | now                                     | what the spec's same-named export actually is |
+  | :---------------------- | :-------------------------------------- | :-------------------------------------------- |
+  | `FieldInput`            | `ScreenFieldInput`                      | the authoring shape of an object FIELD        |
+  | `ConversationSummary`   | `ConversationListItem`                  | the AI context-compaction record              |
+  | `RuntimeConfig`         | `AppShellRuntimeConfig`                 | the ENGINE runtime config                     |
+  | `PageHeaderProps`       | `PageHeaderComponentProps`              | the authored SDUI page-header schema          |
+  | `FlowNode` / `FlowEdge` | `FlowDesignerNode` / `FlowDesignerEdge` | a COMPLETE authored flow node/edge            |
+  | `PackageManifest`       | `PackageManifestRow`                    | the full authored package manifest            |
+  | `InstalledPackage`      | `InstalledPackageRow`                   | the full install record                       |
+
+  The object designer's `FieldGroup` also becomes `ObjectFieldGroup` — that is
+  the spec's own name for this exact shape, while its `FieldGroup` is the Studio
+  field-editor's group config. The other nineteen keep their names and are now
+  imported or derived from the spec instead of re-declared.
+
+  **Three live defects the copies were hiding**, all fixed by importing the real
+  types:
+
+  - `SchemaDiffEntryKind` was missing `index_mismatch` and `unmapped_index`
+    (framework#3728). The federation validate panel renders a label per kind from
+    a total map, so an index divergence — which the server already emits — arrived
+    as a diff row this UI could not name. The union is now the spec's, and the
+    compiler required the two missing labels.
+  - `ExplainLayer.contributors[].state` (`'active' | 'expired'`) did not exist in
+    the local copy of the access-explain report, so an EXPIRED permission-set or
+    position contribution rendered identically to a live one.
+  - `ExternalColumn.primaryKey` was optional locally while the server always sends
+    it (the spec schema defaults it), and `ExplainRecordAttribution.rules` /
+    `ExplainDecision.principal.positions` / `.permissionSets` were optional here
+    and required there — every reader carried a nullish branch that could not fire.
+
+  The comment justifying the largest copy ("kept local so app-shell does not take
+  a build dependency on the framework spec package") was already false:
+  `@objectstack/spec` is a direct dependency of this package.
+
+  Two symbols are derived structurally rather than re-exported, each with one
+  documented divergence pinned by a test: `ScreenSpec` keeps `fields` optional
+  (an `object-form` step legitimately sends none — #3528), and `DecisionOutputDef`
+  adds `required`, which the server enforces but the spec does not yet model.
+  Deriving the latter also narrowed its `type` from a bare `string` to the spec's
+  closed enum, so a typo'd picker kind now fails to compile instead of silently
+  degrading to a raw record-id text box (objectui#2955).
+
+- a889e31: A record's approval band now shows the quorum / per-group tally the server already computes.
+
+  The showcase's `showcase_committee_quorum` node declares `behavior: 'quorum'` with
+  `minApprovals: 2` over three approvers, and even ships a pre-rendered
+  `"Committee Sign-off (2 of 3)"` label; `showcase_expense_signoff` declares
+  `per_group` (会签) with named manager / finance groups. On the business record
+  the approval band rendered none of it — the lock badge, the recall button and
+  the approve/reject actions were all correct, but a two-of-three committee step
+  looked exactly like a one-approver step. An approver could not see whether their
+  own click finalized the node or was one of three, which is the single fact a
+  quorum node exists to express (objectstack#4478).
+
+  Nothing was wrong on the wire, and nothing here papers over the server. The
+  framework computes `decision_progress` — `{ behavior, got, need, groups? }`,
+  derived from the node's own `node_config_json` snapshot, so the count a client
+  shows is the count the engine will enforce. **It attaches that block in
+  `getRequest` only**: `listRequests` deliberately skips it, because the
+  `sys_approval_action` tally it costs is per row and a list read may return
+  hundreds. The record header's `useRecordApprovals` reads
+  `GET /approvals/requests?object=…&recordId=…` — the list route — so the
+  enrichment was never in the payload it had. The hook now follows up with one
+  single read for the ONE pending row and folds the result onto it; a failed or
+  mismatched follow-up leaves the row exactly as the list sent it, so a display-only
+  enrichment can never take the approval panel down and no tally is ever invented.
+
+  `InlineEditProvider` carries the block through as `approvalProgress`, and the
+  DetailView approval band renders it beside the existing badge: a labelled
+  `role="progressbar"` with one tick per required approval for `quorum` /
+  `unanimous`, and for `per_group` a chip per group marking which have signed
+  (`finance 1/1` ✓, `manager 0/1`). Group names come from the flow author's own
+  config, so they need no locale strings; the three new label keys are added to all
+  ten packs. `first_response` nodes carry no `decision_progress` and are unchanged —
+  one decision is the whole step there, and a "1 of 1" bar would be noise.
+
+  Scored `minor` rather than `patch`: this is new observable rendering plus a new
+  public `approvalProgress` prop / `ApprovalProgress` type on `@object-ui/react`,
+  not a behavior correction inside an existing surface.
+
+- 4bf612c: Aggregate single-call mode for bulk actions: `execution: 'aggregate'` (objectui#3139).
+
+  A `bulkActionDefs` entry with `operation: 'custom'` used to have exactly one
+  dispatch shape: one action-runner call per selected record (`_rowRecord`
+  attached). "Select N rows → ONE call that receives every selected id" — the
+  zip-of-QR-codes / merged-PDF / batch-print shape — could not be expressed, so
+  downstream projects fell back to per-row `window.open` storms or gave up.
+
+  `BulkActionDef` now carries `execution?: 'perRecord' | 'aggregate'` (default
+  `'perRecord'`, existing views untouched). An aggregate def dispatches its
+  action exactly once for the whole selection with `params._selectedIds:
+string[]` injected and the full records published as
+  `context.selectedRecords`. The authored form usually just names a declared
+  object action — `{ name, operation: 'custom', execution: 'aggregate' }` —
+  and `resolveBulkActions` attaches the declaration. Results are
+  all-or-nothing: a failure is attributed to every id with the real error and
+  per-row Retry is hidden (re-running the action is the retry; a total failure
+  keeps the selection). `batchSize` does not apply; `maxRecords` still gates.
+
+  The executor rides the existing `executeBulkBatch` bulk-first decision tree —
+  the aggregate call is its `bulkCall`, and the per-row "fallback" only
+  re-throws the captured error for attribution, never fans out N dispatches
+  against an endpoint written for one `_selectedIds` call.
+
+  Also: url/api target interpolation now exposes `${ctx.selection.ids}` (comma
+  -joined) and `${ctx.selection.count}` from the grid's checkbox selection, so
+  a plain `list_toolbar` action can carry the selection without bulk plumbing;
+  the console's server-action handler recognizes `_selectedIds` and skips the
+  single-record multi-select guard for aggregate dispatches.
+
+- e3aea83: Flow branch editor: an edge it creates carries an `id` (objectui#3202).
+
+  The Branches editor on a Decision node creates an out-edge when a branch names a
+  Target it has no edge for. That edge shipped with no `id`, while
+  `FlowEdgeSchema.id` in `@objectstack/spec` is a required `z.string()` — so the
+  designer drew an edge, its own live draft validation (`clientValidation.ts`,
+  which parses the draft with `FlowSchema`) immediately flagged
+  `edges.N.id: Invalid input: expected string, received undefined`, and saving it
+  was a 422 from the server's parse of the same schema. The author had done
+  nothing wrong and there is no UI anywhere that can supply a missing edge id.
+
+  Created edges now get `uniqueId('edge', …)` — the same minter every other
+  edge-creating path in this designer already used (`FlowCanvas`'s `addNode`,
+  `insertOnEdge`, and the ADR-0044 revise loop). Ids are drawn from the ids
+  already in the flow **plus the ones minted earlier in the same commit**, since
+  one apply can create several edges at once and must not mint a number twice.
+
+  The gate that would have caught it is now in place: every edge produced by
+  `applyDecisionBranches` / `syncDecisionEdgesByOrder`, across create, update,
+  retarget, detach and legacy by-order scenarios, must pass
+  `FlowEdgeSchema.safeParse`. These functions' output is a **committed** state
+  that goes straight to `onPatch` → draft → save, so "the designer's own output is
+  spec-legal" is the contract, not a nicety.
+
+  **Type change (minor, public):** `FlowDesignerEdge.condition` in
+  `views/metadata-admin/previews/flow-canvas-layout` is now the spec's
+  `ExpressionInput` — a bare CEL string, or the ADR-0089 envelope whose `dialect`
+  discriminant is **required**. It was `string | { source?: string }`, which
+  described an envelope the server rejects and that nothing in this repo has ever
+  produced. Code that assigned a `dialect`-less `{ source }` to an edge condition
+  no longer compiles; such a condition was already refused at save, so this only
+  moves the failure to where it can be fixed. The type is **imported** from
+  `@objectstack/spec` rather than restated, so the mirror cannot go stale, and it
+  is pinned by compile-time assertions in a project CI actually type-checks
+  (`tsconfig.typetests.json`). The two other places that restated the same
+  over-wide shape follow: `FlowEdgeInspector` (which only ever commits the
+  bare-string form) and `FlowPreview`, whose duplicate declaration is deleted in
+  favour of the canvas's own type.
+
+  Why the type is part of a bug fix: that over-wide read type already cost a wrong
+  defect diagnosis — objectui#3171 was filed against the phantom `{ source }`
+  envelope and does not reproduce, while the real spec-rejected shape the designer
+  emits was this missing `id`. A type that cannot describe a shape the spec
+  rejects cannot send the next reader down that road either.
+
+  `uniqueId` also moves from `inspectors/_shared.tsx` to `inspectors/unique-id.ts`
+  (re-exported from `_shared`, so every existing import is unchanged) so that pure
+  reconciliation modules can share the one minter without dragging React and the
+  `@object-ui/components` barrel into their unit tests — measured at 7.4s of
+  module load versus 63ms.
+
+- 39033a3: Flow simulator evaluates an edge guard stored as `{ dialect, source }` (objectui#3216).
+
+  A decision's out-edge whose guard is the ADR-0089 expression envelope — say
+  `{ dialect: 'cel', source: 'amount > 10' }` — was reported on the debug timeline
+  as `Branch has no condition.` and skipped. With `amount = 20` the simulation fell
+  through to the default branch (or dead-ended with "No branch matched"), while the
+  engine takes that branch at run time. A designer-time debugger that shows a
+  different route than the runtime is worse than no debugger, and it is the one
+  thing the simulator's own contract forbids: _never silently simulate semantics
+  that differ from the runtime_.
+
+  The envelope is not an exotic spelling. `ExpressionInputSchema` in
+  `@objectstack/spec` is a `ZodPipe`: parsing `condition: 'amount > 10'` **rewrites
+  it into** `{ dialect: 'cel', source: 'amount > 10' }`, and `FlowEdgeSchema.condition`
+  is that schema. So the shape the simulator could not read is the shape the
+  platform itself produces for every authored guard.
+
+  Two readers in `previews/simulator/` each hand-rolled `typeof c === 'string' ? c :
+undefined`, while every other consumer in this repo already accepted both
+  spellings — `conditionText` (canvas labels, `FlowEdgeInspector`, the Branches↔edges
+  reconciliation) and `validateExpressionClient` (the Problems panel). Both now go
+  through `conditionText`, so "how an edge guard is read" has exactly one answer.
+  Its JSDoc says so, because a fifth hand-rolled copy brings this class of bug
+  straight back.
+
+  Two behaviours change, both toward the runtime:
+
+  - **Decision routing** — a branch guarded by an envelope is now evaluated, and
+    selected when true. The timeline shows the CEL source it ran instead of
+    "no condition". An envelope carrying only a compiled `ast` and no `source`
+    (spec phase M9.2) still reports "no condition": there is nothing to evaluate,
+    and the simulator says so rather than faking a result.
+  - **Preflight diagnostics** — `validateFlowDraft` warns that a decision has no
+    default branch when _every_ out-edge is guarded. A decision whose guards were
+    envelopes was silently exempt from that warning; it is exactly as able to
+    dead-end, so the warning now appears in the Problems panel and the canvas
+    banner for those flows too.
+
+  **Type change:** `SimEdge.condition` is now the spec's `ExpressionInput`,
+  **imported** rather than restated — the last copy of the restatement objectui#3202
+  removed from `FlowDesignerEdge`. `string | { source?: string }` was wrong in both
+  directions at once: too wide, since it describes a `dialect`-less envelope the
+  server rejects; too narrow, since excess-property checking then refused the
+  canonical envelope written as a literal (`'dialect' does not exist in type
+'{ source?: string }'`) — the one shape a persisted flow actually carries was the
+  one shape you could not write down. Compile-time assertions pin it in
+  `tsconfig.typetests.json`, the project CI actually type-checks.
+
+- 5cb75b3: fix(studio): the form-layout canvas resolves the object's field and section translations (#3134)
+
+  `ObjectFormDesigner` bills itself as a preview of the end-user form, but it read
+  labels straight off the object draft — `entry.def.label` for fields, `group.label`
+  for section headers. Every other surface for the same object (`ObjectForm`,
+  `RecordDetailView`, the data grid) resolves those through the project's object
+  translations first, so a fully translated object rendered `Opportunity Name` /
+  `Basic Information` on the layout canvas while the very same fields read
+  `商机名称` / `基本信息` one click away.
+
+  The designer now goes through `useSafeFieldLabel()` — `fieldLabel()` for field
+  cards (including the drag overlay) and `sectionLabel()` for section headers —
+  which is the same resolver the runtime form uses, with the authored metadata
+  label as fallback when no translation exists. The lookup root is the object's
+  API name; `StudioDesignSurface` now passes it explicitly (`objectName`) so a
+  draft body that has not been re-named still resolves, falling back to
+  `draft.name`.
+
+  Observable rendering change (translated labels now appear where English source
+  labels did), hence `minor`.
+
+- b06f78a: Inspectors read AND write the `{ dialect, source }` expression envelope (objectui#3218).
+
+  The Hook inspector's "Run only when (optional CEL)" box rendered **empty** for a
+  hook that had a guard. `HookSchema.condition` is `ExpressionInputSchema` — the
+  same `ZodPipe` as `FlowEdgeSchema.condition` — so parsing `condition: 'amount > 10'`
+  **rewrites it into** `{ dialect: 'cel', source: 'amount > 10' }`. The envelope is
+  what a persisted hook carries; the inspector read `typeof draft.condition ===
+'string'` and fell through to `''`.
+
+  An empty box is not a cosmetic defect here. `ConditionBuilder.emit` compiles only
+  the rows currently on screen, so the author's next edit **replaced** a guard they
+  were never shown (clearing it committed `condition: undefined`). Opening the
+  panel is safe on its own — `onCommit` fires only on a real edit — but the empty
+  box is what induces that edit.
+
+  **Read.** Every one of these surfaces now goes through `conditionText`, the one
+  reader objectui#3216 settled on, via a shared `expressionSource` /
+  `writeExpressionSource` pair. No new `typeof c === 'string'` was written.
+
+  **Write.** `source` was the only key the commit path preserved — everything else
+  in the envelope was discarded, because the commit sent a bare string and the
+  spec's pipe hardcodes `dialect: 'cel'`. Editing one character of a
+  `dialect: 'cron'` or `dialect: 'template'` guard silently moved it to a different
+  evaluation engine, and dropped `ast` and ADR-0089 `meta` (`rationale` /
+  `generatedBy` — the keys AI-authored metadata fills and nobody restores by hand).
+  An edit now:
+
+  | key       | behaviour                                                                                                                                                                                                                                               |
+  | :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+  | `dialect` | **preserved**                                                                                                                                                                                                                                           |
+  | `meta`    | **preserved**                                                                                                                                                                                                                                           |
+  | `source`  | replaced                                                                                                                                                                                                                                                |
+  | `ast`     | **discarded** — it was compiled from the OLD source, so keeping it would leave the engine evaluating the old guard while the UI shows the new one. `objectstack compile` refills it, and `ExpressionSchema`'s `source \|\| ast` refinement still holds. |
+
+  With no prior envelope to preserve, the commit stays the bare-string shorthand —
+  which the spec's pipe normalizes to exactly `{ dialect: 'cel', source }`, so
+  nothing is lost and plain-`string` predicate fields keep round-tripping as
+  strings.
+
+  Four surfaces were in this family, not one:
+
+  - **Hook inspector** — `condition` (the reported defect).
+  - **Action inspector** — `visible` and `disabled` (`boolean | ExpressionInput`),
+    same empty-box read.
+  - **The generic SchemaForm condition widget** — every predicate-named field
+    (`visible` / `hidden` / `disabled` / `condition` / `predicate` / `*When`) routes
+    here, and it did `String(value)`: an envelope reached the editor as the literal
+    text `[object Object]`.
+  - **Object validations panel** — the rule `condition`, plus a third narrow read
+    in the type switcher that dropped a persisted guard on the floor and left the
+    skeleton's never-firing `'false'` in its place. `ValidationRuleDraft.condition`
+    is now `ExpressionInput` instead of `string`.
+
+  The flow-edge inspector's **write** is fixed the same way; objectui#3216 had
+  converged only its read.
+
+  Fixtures in the new tests are authored input fed through `HookSchema.parse` — no
+  envelope is hand-written — so they cannot drift from the spec.
+
+- 07de7be: Navigation `action` items actually run now (framework#4509).
+
+  A `type: 'action'` nav item rendered, gated like any other item, and did
+  **nothing** when clicked. `NavigationRenderer` dispatches such a click to an
+  `onAction` prop it expects the host shell to supply — it deliberately never
+  reads `item.actionDef` itself — and no shipped sidebar supplied that prop. So
+  `actionDef.actionName` reached no dispatcher: an author could put an action in
+  the menu, watch it render with its icon and label, and never find out that
+  clicking it was a no-op. The framework's liveness ledger recorded this as the
+  single gap in the AppSchema navigation surface.
+
+  **New `useNavActionDispatch`** (`@object-ui/app-shell`) resolves the nav item's
+  `actionName` against `action` metadata at click time — the same source
+  `DeclaredActionsBar` reads for a record toolbar — and dispatches the resolved
+  definition through `useAction()`. `UnifiedSidebar` now passes it. No new
+  provider is involved: the sidebar already renders inside `ConsoleShell`'s
+  `GlobalActionRuntimeProvider`, so nav actions get the fully-wired console runner
+  including the confirm, param-collection, result and navigate dialogs. A declared
+  `params` array becomes the runner's param-dialog input, and the nav item's own
+  `actionDef.params` is passed as the value bag, so a menu entry can pre-fill the
+  action it launches.
+
+  Nav actions are inherently **global**: `ActionNavItemSchema` is strict with
+  exactly `{ actionName, params? }` and carries no `objectName`, so resolution is
+  by name alone and no record context rides along.
+
+  **Behaviour change:** a shell that passes no `onAction` no longer renders
+  `action` items at all, instead of rendering them dead. This mirrors the existing
+  capability guards — an item the host cannot serve is hidden — and it makes the
+  omission diagnosable: a missing prop now shows up as "my action item is gone",
+  which leads to the prop, rather than "clicking does nothing", which for three
+  releases led nowhere. Every failure at dispatch time (an unnamed item, an
+  unresolvable action, a throwing action) warns and toasts instead of returning
+  silently.
+
+- d3584c6: Bring the whole `@objectstack` family to `17.0.0-rc.1`, so the dependency graph resolves a
+  single copy of `@objectstack/spec`.
+
+  #3178 bumped **only** `@objectstack/spec` to `17.0.0-rc.1`. The rest of the family —
+  `client`, `core`, `formula`, `lint` (and `sdui-parser`, reached through `lint`) — stayed on
+  `17.0.0-rc.0`, and each of them depends on spec at an **exact** version rather than a
+  caret:
+
+  ```
+  @objectstack/client@17.0.0-rc.0  -> spec "17.0.0-rc.0"
+  @objectstack/core@17.0.0-rc.0    -> spec "17.0.0-rc.0"
+  @objectstack/formula@17.0.0-rc.0 -> spec "17.0.0-rc.0"
+  @objectstack/lint@17.0.0-rc.0    -> spec "17.0.0-rc.0"
+  ```
+
+  So `main` carried **two** spec copies: objectui's own code read `17.0.0-rc.1` while every
+  `@objectstack/*` package read `17.0.0-rc.0` from its own nested `node_modules`. That breaks
+  the single-contract invariant this repo's guards are built on, and it breaks them
+  _silently_ — the affected checks depend on identity, not on version strings:
+
+  - `spec-subschema-parity.test.ts` distinguishes a genuine re-export from a fork by
+    **reference identity** of the zod schema object. Two spec copies make every schema a
+    distinct object, so a real re-export starts reading as a fork (or a fork slips through,
+    depending on which copy each side resolved).
+  - `scripts/check-spec-symbol-derivation.mjs` and `spec-symbol-parity.test.ts` use
+    `createRequire` to resolve spec's `.d.ts` and run it through the TS checker. With two
+    copies installed, _which_ declaration file the checker sees is a function of resolution
+    order rather than of intent.
+
+  The declared ranges were already `^17.0.0-rc.0`, which technically admits rc.1 — the pin
+  lived in the lockfile. Raising the remaining ranges to `^17.0.0-rc.1` makes the floor
+  explicit and forbids a future install from silently sliding back onto a family member that
+  drags rc.0 along with it. The rc.1 family members pin spec at `17.0.0-rc.1` exactly, so the
+  graph now converges on one copy by construction, not by luck.
+
+  No product behaviour changes here. `check:spec-symbols` reconciliation was already
+  completed by #3178 and stays green under the unified graph; this changeset is `minor`
+  per the repo's fixed-group version policy.
+
+- 444457c: feat!: follow the framework's `managedBy: 'system'` → `'system-data'` retirement (objectstack#3355)
+
+  **FROM → TO: `managedBy: 'system'` → `managedBy: 'system-data'`.** The framework
+  retired the residual `system` bucket in protocol 17; this is the UI half of that
+  change, landing with it so the closed `ManagedByBucket` union stays a mirror
+  rather than a fork.
+
+  ADR-0103 split the overloaded `system` bucket additively in v16 — the
+  engine-owned objects moved to the explicit `engine-owned`, the admin/user-writable
+  ones stayed on `system` — which left that value named after the half that had
+  already moved out. `system-data` names what it actually holds: the SCHEMA is the
+  platform's, the DATA is the admin's or the user's.
+
+  **The derivation this deletes is the point.** Because v16's `system` doubled as
+  both the engine-owned default and the writable set, three UI surfaces had to
+  RECOVER the distinction from `userActions` at render time:
+
+  - `isSystemWritable()` probed `userActions` for any opted-in write. It is now
+    `managedBy === 'system-data'` — the bucket answers directly.
+  - `ManagedByBadge` derived a synthetic `'system-writable'` variant key. The
+    variant map is now 1:1 with the bucket union, so a new bucket is a compile
+    error to miss instead of a silent fallthrough. The `systemWritable` /
+    `system` i18n keys are **unchanged**, so no locale bundle moves.
+  - `resolveManagedByEmptyState()` asked the resolved `create` affordance whether a
+    `system` list should read "entries appear automatically" or show the New
+    button. `system-data` now falls through to the generic empty state by
+    definition; `engine-owned` keeps the automatic-entries copy.
+
+  **Breaking (UI API):** `ManagedByBadge`'s `userActions` prop and the exported
+  `ManagedByUserActions` interface are **removed**. The bucket alone selects the
+  variant now, so the prop had become metadata nothing read — the exact defect the
+  framework change exists to remove; shipping it as an accepted-but-ignored prop
+  would have reproduced it one layer up. Drop the prop from call sites; no other
+  change is needed.
+
+  `MANAGED_BY_BUCKETS` and `ManagedByBucket` no longer contain `'system'`.
+
+- 850033c: Stop offering the retired `action.shortcut` / `action.bulkEnabled` keys.
+
+  `@objectstack/spec` 17 retired both as `retiredKey()` tombstones: authoring
+  either one is a hard PARSE REJECTION, so a draft carrying it cannot be saved
+  at all. The designer still offered controls for both — a "Bulk — apply to
+  multiple selected rows" checkbox and a "Shortcut" text field — which meant the
+  Studio action inspector let an author build a draft the platform would then
+  refuse, with the rejection arriving later and nowhere near the checkbox.
+
+  - **Action inspector**: both controls removed. The keys stay hidden from the
+    fallback form (the server's live schema still advertises them, so dropping
+    them from the hidden list would put the inputs straight back) — now under a
+    `RETIRED_FIELDS` list that says why, so nobody "restores the missing
+    control". `bulkEnabled`'s replacement is the list view's `bulkActions` /
+    `bulkActionDefs`; `shortcut` has none.
+  - **Action preview**: the `shortcut` and `bulk` pills are gone — they could
+    only ever render for metadata the platform now refuses.
+  - **`ActionEngine.registerActions`**: no longer harvests the two retired keys
+    from authored metadata, which made two dead registration options look
+    load-bearing. Both are still accepted on the single-action
+    `registerAction(action, options)` overload, where a HOST passes them
+    explicitly.
+
+- b67be19: Flow designer: the `script` node authors a function call, and nothing else (framework#4343).
+
+  **Breaking for authoring**, not for stored metadata: the `script` panel no longer
+  offers `Action type`, `Template`, `Recipients`, `Template variables` or the inline
+  `Code` body. What it offers is the function path — `Function` (required),
+  `Inputs`, `Output variable` — shown unconditionally, since there is no action type
+  left to gate them behind.
+
+  framework#4343 retired those five keys because none of them ran. `actionType:
+'email' | 'slack'` were logger-backed stubs: they wrote a log line, reported
+  success, and delivered nothing under any configuration, with `template` /
+  `recipients` / `variables` addressing a message no channel sent. Inline
+  `config.script` was recognized and never executed — the built-in runtime has no
+  server-side JS sandbox. Any other `actionType` value was a second spelling of
+  `function`. Real delivery is a **`notify`** node (the messaging service: in-app
+  inbox by default, email once `@objectstack/plugin-email` is installed); Slack is a
+  **`connector_action`** with the Slack connector, or an `http` node posting to a
+  webhook.
+
+  **Stored nodes are never hidden.** All five keys keep a legacy render-only field
+  (`__legacy__` gating — the rule this group already followed for the `code` / `sms`
+  / `notification` action types objectui#3099 dropped), each labelled `(retired)`
+  with its replacement in the help text. `os migrate meta --from 16` rewrites the
+  metadata; a shorthand `actionType` moves into `function`, which is what it named.
+
+  The flow canvas subtitle now leads with the function name (falling back to the
+  retired keys so an unmigrated node is never blank), and the simulator says what a
+  retired branch actually did rather than pretending it mocked a notification.
+
+  The cross-repo reconciliation ledger spans the spec bump: on a spec that still
+  publishes the retired branches it asserts only that the form offers nothing the
+  executor ignores; on the spec that retires them (`SCRIPT_BUILTIN_ACTION_TYPES`
+  disappearing is the discriminator) the full bidirectional comparison arms itself.
+  Verified against a locally built framework spec: the converged panel reconciles
+  clean in both directions.
+
+- 022e4c3: Upgrade to `@objectstack/spec@17.0.0-rc.1`, stop offering the retired `wait` timeout fields (#3101), and route the newly-adopted `combo` chart type.
+
+  **Breaking for authoring, and the reason to do it now**: the `wait` panel no longer offers
+  `waitEventConfig.timeoutMs` or `.onTimeout`. Both are `retiredKey()` tombstones as of spec
+  17.0.0-rc.1 (framework#4158), which means a value written there is **rejected at load** —
+  so until this lands, Studio can produce flow metadata the author's own runtime refuses.
+  That hazard opened the moment rc.1 published, independent of when this repo bumps.
+
+  `wait` never had a timeout: `onTimeout` had zero readers, so neither `'fail'` nor
+  `'continue'` ever happened, and `timeoutMs`'s only reader used it as the timer **duration**
+  when `timerDuration` was absent. Use **Duration** — it accepts a bare number as
+  milliseconds, making the old `timeoutMs: 60000` and `timerDuration: '60000'` the same wait.
+  Stored flows are converted by framework's D2 conversion; the designer simply stops offering
+  the entry. The two `zh` label overrides go with the fields.
+
+  #3101 asked for this to ride along with the bump rather than land alone, and that is
+  load-bearing: the sibling-block assertion is **bidirectional**, so deleting the fields
+  against a spec that still declares them fails in the other direction.
+
+  **`combo` is now a spec chart type** — the sole addition to `ChartTypeSchema` in rc.1 (19
+  members → 20). It had been a renderer-local family the chart renderer derived from the
+  series, so nothing classified it on the two surfaces that route a _spec_ chart type: a
+  spec-valid `combo` fell through to the red "Unknown component type" panel on a dashboard
+  and to the out-of-spec notice on a report. Both now route it
+  (`widgetDispatch.SERIES_CHART_TYPES`, `planReportChart`). The renderer-local derivation
+  stays — it is what makes an authored `type: 'combo'` render rather than merely validate.
+
+  **Retired spec exports this repo bound to**, all removed upstream in spec 17.0.0:
+
+  - `JoinStrategy` / `WindowFunction` (framework#4286 tombstoned `query.joins` and
+    `query.windowFunctions`: no engine or driver ever read either on the query path). They
+    were derived off the spec enums under objectstack#4115's "come off the spec enum, not a
+    restatement" rule; with no enum left, `data-protocol.ts` now restates the members locally
+    — verbatim from the last spec that published them — as the objectui query-AST vocabulary
+    they have become. The AST itself is unchanged.
+  - `PerformanceConfig`, retired with `dashboard.performance` (framework#3896). Nothing bound
+    to it — `@object-ui/react`'s `usePerformance` declares its own interface and is untouched.
+    The dashboard form is derived from the spec's own `dashboardForm`, so the field
+    disappears from the inspector for free; its test now pins the absence.
+
+  **Three inverted pins fired, and are recorded rather than resolved.** objectstack#4171's
+  tripwires asserted that `NavigationItem`, `FormField` and `ConditionalValidation`'s branches
+  still erased to `any`/`unknown` upstream — the premise that justified objectui keeping local
+  declarations. rc.1 types them properly, so the assertions are inverted to state the new
+  fact. The burn-down each one asks for — deriving those types from the spec — touches
+  widely-used public types and is deliberately **not** bundled into a version bump; it is
+  tracked in #3177. `JoinNode`'s pin is gone outright: the symbol no longer exists.
+
+  **What the bump arms.** The reconciliation ledger's `subflow` and `decision` panels
+  feature-detect their spec exports and had never actually run — rc.0 predates the exports
+  (framework#4278). They now execute and pass. The `script` panel's full bidirectional check
+  stays deliberately skipped: rc.1 predates framework#4343, so the retired dispatch branches
+  are still contract keys there, and only the "offers nothing the executor ignores" direction
+  is meaningful. It arms itself on the next rc.
+
+- 726b89c: `@object-ui/types` stops declaring sixteen symbols under names `@objectstack/spec` owns (objectui#3156, objectstack#4115).
+
+  Seven are now **derived** from the spec, nine are **renamed** to the local
+  dialect they always were. Both halves remove the same hazard: a local
+  declaration under a spec export's name reads as the spec's own definition to
+  the next reader, so a copy that is merely _correct today_ is a planted premise
+  tomorrow.
+
+  **Derived** — the spec now supplies the keys, by reference:
+
+  | symbol                   | derivation                                                                        |
+  | :----------------------- | :-------------------------------------------------------------------------------- |
+  | `ActionParam`            | `z.input<typeof ActionParamSchema>`, `type` widened to the local legacy spellings |
+  | `CreateExportJobRequest` | `Omit<CreateExportJobInput, 'object'>` (`object` is the method argument)          |
+  | `CreateExportJobResult`  | re-export from `@objectstack/spec/contracts`                                      |
+  | `ImportRowResult`        | re-export from `@objectstack/spec/api`                                            |
+  | `NavigationArea`         | spec keys, with `navigation` / `visible` pinned locally                           |
+  | `NavigationAreaSchema`   | `specFieldsExcept(NavigationAreaSchema.shape, …)`                                 |
+  | `Theme`                  | re-export of the spec's `ThemeInput` (the authoring shape)                        |
+  | `ExportJobFormat`        | re-export of the spec's `ExportFormat`                                            |
+
+  Four of these close real gaps rather than tidy names. `ActionParam` never
+  declared `reference` — the key `resolveActionParams()` actually reads for an
+  inline lookup target — nor `defaultFromRow`, which the metadata designer's own
+  inspector writes; it also narrowed `visible` to a bare string although the
+  resolver has always accepted the `{ dialect, source }` envelope too.
+  `CreateExportJobResult.createdAt` and `ImportRowResult.action` were optional
+  here and required by the server, leaving every consumer a branch that could
+  never run. And `NavigationArea`'s `id` now carries the spec's own length rule
+  instead of accepting any string.
+
+  **Renamed** — same word, different concept:
+
+  | was                | now                      | why                                                                                                                            |
+  | :----------------- | :----------------------- | :----------------------------------------------------------------------------------------------------------------------------- |
+  | `FileMetadata`     | `UploadedFileMetadata`   | field-VALUE payload (`url`, `original_name`), not the storage file record                                                      |
+  | `GestureType`      | `TouchGestureType`       | direction-fused (`swipe-left`), not the spec's type+direction pair                                                             |
+  | `GestureConfig`    | `TouchGestureConfig`     | gesture→`action` binding, not per-gesture tuning                                                                               |
+  | `OfflineConfig`    | `PWAOfflineConfig`       | service-worker route caching, not the offline data/sync model                                                                  |
+  | `PageRegion`       | `PageNodeRegion`         | region of the renderer page NODE, holding `SchemaNode`s                                                                        |
+  | `PageRegionSchema` | `PageNodeRegionSchema`   | zod twin of the above                                                                                                          |
+  | `ResponsiveConfig` | `MobileResponsiveConfig` | mobile box config, not the spec's SDUI grid contract                                                                           |
+  | `WidgetManifest`   | `RuntimeWidgetManifest`  | SDUI component manifest, not the field-widget plugin manifest                                                                  |
+  | `WidgetSource`     | `RuntimeWidgetSource`    | `module`/`inline`/`registry` loader union — and its `inline` carries a resolved component where the spec's carries source code |
+
+  **Migration**: the old names are gone, not deprecated — an alias would preserve
+  exactly the ambiguity being removed. Import the new name; nothing about the
+  shapes changed. `@object-ui/types` already re-exports the spec's own
+  `SpecResponsiveConfig`, and `@object-ui/react`'s `useOffline` config remains the
+  spec-shaped `OfflineConfig`, so both concepts stay reachable under
+  distinguishable names.
+
+  Each rename carries a bidirectional tripwire
+  (`packages/types/src/__tests__/page-nav-misc-spec-parity.test.ts`): it fails if
+  the spec ever claims the new name, and also if the spec retires the old one —
+  at which point the natural name can be taken back rather than the workaround
+  outliving its reason.
+
+### Patch Changes
+
+- 335041c: Stop declaring 13 `@object-ui/core` symbols under names `@objectstack/spec` owns
+  (objectui#3158, objectstack#4115 batch 4).
+
+  **Breaking for importers of `@object-ui/core`** — seven exported names changed,
+  because the spec exports the same name for a _different_ thing:
+
+  | was                      | now                               | what the spec's same-named export actually is                                |
+  | :----------------------- | :-------------------------------- | :--------------------------------------------------------------------------- |
+  | `ChartSeries`            | `ChartSeriesBinding`              | the authored dataset-binding descriptor (a measure `name`, no `data`)        |
+  | `ActionHandler`          | `ActionRunnerHandler`             | the SERVER-side objectql handler, `(ctx) => unknown`                         |
+  | `PluginDefinition`       | `RegistryPluginDefinition`        | the platform PACKAGE manifest (`id`/`slug`/`staticPath`/install hooks)       |
+  | `ValidationError`        | `SchemaNodeValidationError`       | plugin-manifest validation, keyed by `field`, no severity                    |
+  | `ValidationResult`       | `SchemaNodeValidationResult`      | ditto, with both arrays optional                                             |
+  | `defineView`             | `defineSystemView`                | the VIEW-DOCUMENT factory: parses a `ViewSchema`, returns a validated `View` |
+  | `resolveCrudAffordances` | `resolveEffectiveCrudAffordances` | the object-level affordance matrix, with no notion of server API operations  |
+
+  The other six keep their names and are now **imported from the spec** instead of
+  re-declared: `StyleMap`, `ResponsiveStyles` (ADR-0065), `RowHeight`,
+  `CONTEXT_TOKENS`, `CrudAffordances`, `RowCrudPredicates`.
+
+  **The copies were live misdescriptions, not just duplicates.** Three said so in
+  their own comments:
+
+  - `CONTEXT_TOKENS` carried a note that the duplication was "temporary until the
+    next coordinated release… because the installed `@objectstack/spec` predates
+    that export". The installed spec (17.0.0-rc.0) exports it, and the copy was
+    byte-identical — so it passed every value comparison and every behavioural
+    test for the whole interval in which its stated reason was false.
+  - `RowHeight` advertised itself as "the spec's `RowHeightSchema` vocabulary"
+    while being a hand-written union. It happened to be correct; nothing would
+    have caught the day it stopped being.
+  - `managedBy.ts` described itself as a "UI-side mirror of the framework's
+    `resolveCrudAffordances()`" and carried its own `DEFAULTS` table — a
+    line-for-line copy of the spec's `CRUD_AFFORDANCE_DEFAULTS`, plus a copy of
+    its override parser.
+
+  `resolveEffectiveCrudAffordances` now **delegates** the bucket/`userActions` half
+  to the spec's `resolveCrudAffordances()`, so the bucket table has exactly one
+  definition on the platform. What stays objectui's is the part the spec has no
+  notion of: intersecting that matrix with the server-resolved effective API
+  operation set (#3391), so the UI never offers a button the server would 405 —
+  and the name now says that instead of claiming to be the spec's function.
+
+  Deriving `RowCrudPredicates` also **tightens** it: the local copy typed
+  `visibleWhen`/`disabledWhen` as `unknown`, where the spec types them as
+  `Expression | ExpressionInput`. That was imprecision, not a deliberate dialect.
+
+- d9668a7: Honor the server's declared percent scale, so a ratio of exactly 1 renders as 100.0% (#3136)
+
+  A dataset measure declared `format: '0.0%'` rendered every ratio below 1
+  correctly and got the single most consequential one wrong: a rate of exactly
+  `1` printed as **`1.0%`**. On an SLA / pass-rate dashboard that turns
+  "everything met the SLA" into "1% met the SLA", on both surfaces the issue
+  names — the KPI card and the dataset-bound table (they share `formatMeasure`).
+
+  The cause was never a bad multiplier; it was a missing fact. `formatMeasure`
+  scaled by magnitude — `percentDisplayValue` multiplies by 100 only strictly
+  inside `(-1, 1)` — because the column arrived with a `%` format string and
+  nothing saying what scale its numbers were on. That guess is undecidable at
+  exactly 1, which is both a full-compliance ratio ("100%") and one percentage
+  point ("1%"), and it resolved to the reading almost nobody means.
+
+  The server now answers the question instead (framework: `percentScaleOf` +
+  `AnalyticsResult.fields[].percentScale`, the sibling of the ADR-0053 currency
+  chain): a `derived: { op: 'ratio' }` measure is a `fraction` by definition, and
+  a measure over a `percent` field inherits that field's scale. `formatMeasure`
+  takes the declared scale as a fourth argument and, when present, scales by it —
+  `fraction` ×100, `whole` verbatim — instead of inspecting the value. Every
+  dataset-bound call site passes the column's `percentScale`: the dashboard
+  metric/table/pivot cells, the report renderer's cells, totals and KPI, and the
+  dataset preview.
+
+  `percentDisplayValue` is untouched and still the fallback for a column that
+  arrives without the annotation (an older server, or a non-dataset percent cell
+  in a list view), so nothing that renders correctly today changes.
+
+- 14f6999: Datasource preview stops reporting read replicas
+
+  `DatasourcePreview` rendered a "2 read replicas" pill from
+  `datasource.readReplicas`. That key is retired in `@objectstack/spec` 17
+  (objectstack#4468): nothing in the platform ever opened a replica connection —
+  no driver reads the key and no query path splits reads from writes — so the
+  pill confirmed a configuration that did not exist.
+
+  It is worth being precise about what the pill did wrong, because a preview
+  panel echoing the draft back is normally harmless. This one did not echo, it
+  concluded: an author who configured replicas, saved, and saw the pill light up
+  got the platform telling them it had understood. It was the only surface in
+  either repo that acknowledged the key at all, which made it the whole of the
+  evidence that the feature worked. `packages/spec/liveness/README.md` has the
+  standing rule — an authoring or preview renderer is never a runtime consumer —
+  and a 2026-06 sweep that classified 13 properties on preview-renderer evidence
+  alone was later found wrong on 10 of them.
+
+  Read-replica routing does not exist yet; it is tracked as a feature request
+  rather than reflected in the UI as though it shipped.
+
+- efd7767: Say what the Decision inspector actually does: the default path is the edge marker, not the branch.
+
+  Two help strings described mechanisms the engine does not have.
+
+  The **Branches** editor said a branch whose expression is `"true"` _is_ the
+  default/else path. It is how you **ask** for one — `FlowEdgeInspector.applyBranch()`
+  turns such a branch into `isDefault: true` on the out-edge it wires, and the marker
+  on that edge is what routes. Conflating the two is the reading that let
+  objectstack-ai/objectstack#4414 ship a decision whose guard did not guard, and it is
+  worth being exact about now that `isDefault` is finally enforced: the key had **zero
+  readers** in the engine until then, so this designer had been writing a marker
+  nothing honoured, and every Studio "default/else" edge ran unconditionally alongside
+  whichever branch matched. The help also now states that branches are tried in order
+  and that the expression is bare CEL — a braced predicate there is a build failure
+  since objectstack-ai/objectstack#4439.
+
+  The legacy single **Condition** field said _"Prefer Branches above"_, which reads as
+  "this works, but the other is better". It does not work at all: the decision executor
+  never reads `config.condition`. The engine honours that key only on a Start node, as
+  the trigger gate, and `os validate` now reports it as `flow-inert-node-condition`.
+  The field stays render-only (its `__legacy__` controller never matches, so it is not
+  offered for new authoring) so a stored value is not invisible — but the help says it
+  is inert and where the predicate belongs instead.
+
+  Text only; no behaviour change on this side.
+
+- 5426cc7: Collapse app-shell's `DecisionOutputDef` to a plain re-export of the spec's
+  (objectstack#4562).
+
+  The local type was `interface DecisionOutputDef extends SpecDecisionOutputDef
+{ required?: boolean }` — a structural derivation carrying ONE documented
+  divergence, because the server enforced `required` (`decide()` rejects a blank
+  required output before any write) while `@objectstack/spec` did not model it.
+  The spec adopted `required` in cd6b9f202 and pinned it at the schema level in
+  objectstack#4561, and this repo now resolves a spec that has it
+  (`@objectstack/spec@17.0.0-rc.1`, #3178). The addition is therefore redundant
+  and the type becomes `export type DecisionOutputDef = SpecDecisionOutputDef`.
+
+  No behavior change and no API change: the symbol is internal to this package
+  (it is not re-exported from `src/index.ts`), the resolved shape is identical
+  key-for-key, and `decisionOutputParams()` still reads `d.required` — now off
+  the spec's own field.
+
+  The module TSDoc still asserted "the spec does not model it yet", which was
+  stale and actively misleading — an agent reading it would take the divergence
+  as ground truth and build on it, which is the objectstack#4115 failure class
+  this file's own tripwires exist to prevent. It now states the current truth.
+
+  The parity pin in `__tests__/spec-symbol-parity.test.ts` is inverted
+  accordingly: `Exclude<keyof DecisionOutputDef, keyof SpecDecisionOutputDef>`
+  is asserted `never` rather than `'required'`, plus an exact-identity
+  assertion, so a future local addition to this symbol cannot slip in
+  undocumented. The `type`-is-the-spec's-closed-enum pin is unchanged — that
+  narrowing is still what stops a typo'd picker kind from silently degrading to
+  a raw record-id text box (objectui#2955).
+
+  Note that this pin, like every other type-level assertion in that file, is not
+  yet compiled by any gate — package tsconfigs exclude `**/*.test.ts`, so
+  nothing type-checks it. It was verified by compiling the file explicitly. See
+  objectui#3181.
+
+- 4b470b9: Localize the environment entitlement dialog and read cloud's nested error envelope.
+
+  The free-plan "Development environments are a paid feature" prompt was built from
+  English string literals in `entitlements.ts` — including the lowercase `your free
+plan` sentence users reported (cloud#959). Both spec builders now take a translator
+  and resolve `environment.entitlement.*`; all ten locale packs carry the strings.
+  `entitlements.ts` stays dependency-free: `t` is passed in, not imported, and
+  defaults to the English copy with local `{{token}}` interpolation.
+
+  The dialog now renders the Console's own copy rather than the server's prose — a
+  control plane upgrades independently and only localizes these messages from
+  cloud#959 on, so preferring the server string left the reactive path English
+  against every older deployment.
+
+  Also fixes the reactive dialog not firing at all: cloud#948 moved coded errors into
+  a nested envelope (`{ success, error: { code, … } }`), and
+  `entitlementDialogFromError` read `code` off the top level — returning `null` for
+  every entitlement 403, so the upgrade dialog degraded to a generic red error toast.
+  Both shapes are read now.
+
+- d9cdda6: fix(approvals): record-header Reject fires after ONE dialog again (objectui#3126)
+
+  Since #2961 made the record header's decision inputs live (`actionParams`),
+  the Reject action carried BOTH `confirmText` and a collectable comment param.
+  The ActionRunner chains confirmation before param collection, so rejecting
+  queued two dialogs: the approver answered "Reject this approval request? →
+  Continue", the alertdialog closed — and no request fired, because it was
+  waiting on a second, unexpected "Action parameters / Comment (optional)"
+  dialog. Anyone on the rc.0 contract (one confirm → request) read that as a
+  silent no-op: zero network traffic, no toast, the flow stuck pending. Approve
+  never declared `confirmText`, which is why it kept working on the same node.
+
+  The Reject action no longer declares `confirmText`. The param dialog is the
+  confirmation surface: it is titled by the action ("Reject"), carries the old
+  confirm question as its description (same `approvals.rejectConfirm` i18n key,
+  so every locale keeps its translation), collects the optional comment and any
+  declared decision outputs, and nothing is sent until its own Confirm — one
+  decision, one dialog, matching Approve and the Approval Center.
+
+- Updated dependencies [4ae0ac4]
+- Updated dependencies [696e3c1]
+- Updated dependencies [bca45cc]
+- Updated dependencies [a889e31]
+- Updated dependencies [09d30a4]
+- Updated dependencies [4bf612c]
+- Updated dependencies [335041c]
+- Updated dependencies [b414983]
+- Updated dependencies [256f8cc]
+- Updated dependencies [c5ccbd5]
+- Updated dependencies [d9668a7]
+- Updated dependencies [4b470b9]
+- Updated dependencies [785b8a5]
+- Updated dependencies [cb82705]
+- Updated dependencies [f572849]
+- Updated dependencies [4a51e77]
+- Updated dependencies [f6e8d78]
+- Updated dependencies [ea96284]
+- Updated dependencies [07de7be]
+- Updated dependencies [d3584c6]
+- Updated dependencies [6d868e1]
+- Updated dependencies [a8ad6c0]
+- Updated dependencies [444457c]
+- Updated dependencies [850033c]
+- Updated dependencies [022e4c3]
+- Updated dependencies [009e25d]
+- Updated dependencies [726b89c]
+  - @object-ui/types@17.2.0
+  - @object-ui/components@17.2.0
+  - @object-ui/core@17.2.0
+  - @object-ui/react@17.2.0
+  - @object-ui/i18n@17.2.0
+  - @object-ui/auth@17.2.0
+  - @object-ui/data-objectstack@17.2.0
+  - @object-ui/fields@17.2.0
+  - @object-ui/collaboration@17.2.0
+  - @object-ui/layout@17.2.0
+  - @object-ui/providers@17.2.0
+  - @object-ui/permissions@17.2.0
+  - @object-ui/plugin-editor@17.2.0
+
 ## 17.1.0
 
 ### Minor Changes

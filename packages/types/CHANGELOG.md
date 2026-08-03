@@ -1,5 +1,402 @@
 # @object-ui/types
 
+## 17.2.0
+
+### Minor Changes
+
+- 4ae0ac4: One placement rule for action `locations` (objectui#3142).
+
+  **Breaking for metadata**: an action that declares no `locations` (missing key
+  or `[]`) no longer renders in a located surface. FROM: omitting `locations`
+  made an action appear on the list toolbar, the record header, and every
+  metadata-admin toolbar. TO: declare where it belongs —
+  `locations: ['record_header']` for the record header, `['list_toolbar']` for
+  the list toolbar, and so on. Nothing else changes; actions that already
+  declare a location are untouched.
+
+  Four renderers each answered "where does an action with no `locations` go?"
+  differently — `action:bar` and metadata-admin showed it EVERYWHERE,
+  `page:header` showed it on the header, `action:group` showed it for
+  `undefined` but hid it for `[]` — while `ActionEngine`, `RecordDetailView`,
+  `DeclaredActionsBar`, the related-list bridge and the environment toolbar all
+  showed it NOWHERE. The same action therefore appeared or vanished depending on
+  which component happened to draw it. All eight now go through one exported
+  predicate, `actionRendersAt(action, location)` from `@object-ui/types`: an
+  action renders at a location only if it declares that location.
+
+  The strict reading is the platform's own — ADR-0078 lists "an `action` with no
+  `locations`" as a verified inert shape, and the detail-page synthesizer already
+  documented "must include `locations: ['record_header']` to render". The
+  leniency contradicted both, and it is what let an aggregate-only bulk action
+  (objectui#3139) — one with no single-record placement by construction — mint a
+  list-toolbar button whose dispatch could only fail.
+
+  Two placements are declared elsewhere and need no `locations`, both unchanged:
+  host-injected chrome in the `systemActions` / `headerSystemActions` slot (now
+  consistently exempt on `page:header` too, where it used to be filtered), and an
+  action named in a view's `bulkActions` / `bulkActionDefs`.
+
+  Authoring side: Studio seeds `locations: ['record_header']` on a new action
+  instead of minting one that renders nowhere, and the action inspector says so
+  when no placement is ticked. The `ActionSchema.locations` JSDoc claimed a
+  `['record_header']` default that no renderer ever implemented — corrected.
+
+- 696e3c1: `reference` is the one authorable action-param picker target (objectui#3174).
+
+  **Breaking for authoring**: `ActionParam` in `@object-ui/types` no longer
+  declares the nine resolved-side picker keys — `referenceTo`, `displayField`,
+  `idField`, `descriptionField`, `titleFormat`, `lookupColumns`, `lookupFilters`,
+  `lookupPageSize`, `dependsOn`. FROM: `{ name: 'account_id', type: 'lookup',
+referenceTo: 'account' }` type-checked. TO: `{ name: 'account_id', type:
+'lookup', reference: 'account' }` — or make the param field-backed
+  (`{ field: 'account_id' }`) and it inherits the whole picker group from the
+  object field.
+
+  The two halves of one contract disagreed about a spelling, and the type was the
+  half that was wrong. `resolveActionParams()` reads the spec's `reference` for an
+  inline `lookup`/`master_detail` target and nothing else; it EMITS
+  `ActionParamDef.referenceTo`, the resolved spelling. The public authoring type
+  declared the resolved spelling "for parity with the resolved shape", so an
+  author who followed it got a param whose picker target was dropped in the
+  resolver and a dialog that degraded to a plain record-id text input — asking a
+  human to paste a UUID. The dev warning that fired then told them to declare
+  `reference`, a key the type did not have.
+
+  `reference` wins because the platform had already decided: `ActionParamSchema` in
+  `@objectstack/spec` is `.strict()`, lists `referenceTo` **by name** in its
+  alias map, and answers it with "use `reference`". So an authored `referenceTo`
+  was never storable — it was a hard parse rejection on the server while `tsc`
+  waved it through. Resolving it in objectui instead would have made the renderer
+  accept metadata the platform itself refuses, and such a param would work in a
+  locally-authored TS action and fail at publish; removing the declaration moves
+  the failure to where it can be fixed, at the authoring keystroke.
+
+  - **`@object-ui/types`**: the nine keys are gone, and the rule they violated is
+    now pinned — `ActionParam` declares _exactly_ the spec's authorable key set.
+    The drift guard names the single exception (`validation`, inert and rejected
+    by the same `.strict()` parse — filed as objectui#3201) so a second one cannot
+    appear without being a decision.
+  - **`@object-ui/app-shell`**: `resolveActionParams()` names any resolved-only
+    key it finds on an authored param in a dev-mode warning, with the
+    prescription (`referenceTo` → "use `reference`"; the rest → "make the param
+    field-backed"). It still does **not** read them. This covers the gap `tsc`
+    cannot gate — params authored in plain JS, loaded from JSON, or synthesised
+    at runtime — so the mistake is loud where it is made rather than surfacing
+    downstream as `paramToField()`'s "no reference target" warning naming a key
+    the author never wrote.
+
+  The internal pipeline keeps its two spellings on purpose (authoring `reference`
+  → `ActionParamDef.referenceTo` → the field's `reference_to`); what is pinned now
+  is that the public entry and the public exit agree. The end-to-end test authors
+  through the published `ActionParam` and follows one param to `reference_to` —
+  every previous test authored the resolver's own local input interface, which is
+  why the resolver only ever agreed with itself and the mismatch survived.
+
+- 4bf612c: Aggregate single-call mode for bulk actions: `execution: 'aggregate'` (objectui#3139).
+
+  A `bulkActionDefs` entry with `operation: 'custom'` used to have exactly one
+  dispatch shape: one action-runner call per selected record (`_rowRecord`
+  attached). "Select N rows → ONE call that receives every selected id" — the
+  zip-of-QR-codes / merged-PDF / batch-print shape — could not be expressed, so
+  downstream projects fell back to per-row `window.open` storms or gave up.
+
+  `BulkActionDef` now carries `execution?: 'perRecord' | 'aggregate'` (default
+  `'perRecord'`, existing views untouched). An aggregate def dispatches its
+  action exactly once for the whole selection with `params._selectedIds:
+string[]` injected and the full records published as
+  `context.selectedRecords`. The authored form usually just names a declared
+  object action — `{ name, operation: 'custom', execution: 'aggregate' }` —
+  and `resolveBulkActions` attaches the declaration. Results are
+  all-or-nothing: a failure is attributed to every id with the real error and
+  per-row Retry is hidden (re-running the action is the retry; a total failure
+  keeps the selection). `batchSize` does not apply; `maxRecords` still gates.
+
+  The executor rides the existing `executeBulkBatch` bulk-first decision tree —
+  the aggregate call is its `bulkCall`, and the per-row "fallback" only
+  re-throws the captured error for attribution, never fans out N dispatches
+  against an endpoint written for one `_selectedIds` call.
+
+  Also: url/api target interpolation now exposes `${ctx.selection.ids}` (comma
+  -joined) and `${ctx.selection.count}` from the grid's checkbox selection, so
+  a plain `list_toolbar` action can carry the selection without bulk plumbing;
+  the console's server-action handler recognizes `_selectedIds` and skips the
+  single-record multi-select guard for aggregate dispatches.
+
+- 444457c: feat!: follow the framework's `managedBy: 'system'` → `'system-data'` retirement (objectstack#3355)
+
+  **FROM → TO: `managedBy: 'system'` → `managedBy: 'system-data'`.** The framework
+  retired the residual `system` bucket in protocol 17; this is the UI half of that
+  change, landing with it so the closed `ManagedByBucket` union stays a mirror
+  rather than a fork.
+
+  ADR-0103 split the overloaded `system` bucket additively in v16 — the
+  engine-owned objects moved to the explicit `engine-owned`, the admin/user-writable
+  ones stayed on `system` — which left that value named after the half that had
+  already moved out. `system-data` names what it actually holds: the SCHEMA is the
+  platform's, the DATA is the admin's or the user's.
+
+  **The derivation this deletes is the point.** Because v16's `system` doubled as
+  both the engine-owned default and the writable set, three UI surfaces had to
+  RECOVER the distinction from `userActions` at render time:
+
+  - `isSystemWritable()` probed `userActions` for any opted-in write. It is now
+    `managedBy === 'system-data'` — the bucket answers directly.
+  - `ManagedByBadge` derived a synthetic `'system-writable'` variant key. The
+    variant map is now 1:1 with the bucket union, so a new bucket is a compile
+    error to miss instead of a silent fallthrough. The `systemWritable` /
+    `system` i18n keys are **unchanged**, so no locale bundle moves.
+  - `resolveManagedByEmptyState()` asked the resolved `create` affordance whether a
+    `system` list should read "entries appear automatically" or show the New
+    button. `system-data` now falls through to the generic empty state by
+    definition; `engine-owned` keeps the automatic-entries copy.
+
+  **Breaking (UI API):** `ManagedByBadge`'s `userActions` prop and the exported
+  `ManagedByUserActions` interface are **removed**. The bucket alone selects the
+  variant now, so the prop had become metadata nothing read — the exact defect the
+  framework change exists to remove; shipping it as an accepted-but-ignored prop
+  would have reproduced it one layer up. Drop the prop from call sites; no other
+  change is needed.
+
+  `MANAGED_BY_BUCKETS` and `ManagedByBucket` no longer contain `'system'`.
+
+- 022e4c3: Upgrade to `@objectstack/spec@17.0.0-rc.1`, stop offering the retired `wait` timeout fields (#3101), and route the newly-adopted `combo` chart type.
+
+  **Breaking for authoring, and the reason to do it now**: the `wait` panel no longer offers
+  `waitEventConfig.timeoutMs` or `.onTimeout`. Both are `retiredKey()` tombstones as of spec
+  17.0.0-rc.1 (framework#4158), which means a value written there is **rejected at load** —
+  so until this lands, Studio can produce flow metadata the author's own runtime refuses.
+  That hazard opened the moment rc.1 published, independent of when this repo bumps.
+
+  `wait` never had a timeout: `onTimeout` had zero readers, so neither `'fail'` nor
+  `'continue'` ever happened, and `timeoutMs`'s only reader used it as the timer **duration**
+  when `timerDuration` was absent. Use **Duration** — it accepts a bare number as
+  milliseconds, making the old `timeoutMs: 60000` and `timerDuration: '60000'` the same wait.
+  Stored flows are converted by framework's D2 conversion; the designer simply stops offering
+  the entry. The two `zh` label overrides go with the fields.
+
+  #3101 asked for this to ride along with the bump rather than land alone, and that is
+  load-bearing: the sibling-block assertion is **bidirectional**, so deleting the fields
+  against a spec that still declares them fails in the other direction.
+
+  **`combo` is now a spec chart type** — the sole addition to `ChartTypeSchema` in rc.1 (19
+  members → 20). It had been a renderer-local family the chart renderer derived from the
+  series, so nothing classified it on the two surfaces that route a _spec_ chart type: a
+  spec-valid `combo` fell through to the red "Unknown component type" panel on a dashboard
+  and to the out-of-spec notice on a report. Both now route it
+  (`widgetDispatch.SERIES_CHART_TYPES`, `planReportChart`). The renderer-local derivation
+  stays — it is what makes an authored `type: 'combo'` render rather than merely validate.
+
+  **Retired spec exports this repo bound to**, all removed upstream in spec 17.0.0:
+
+  - `JoinStrategy` / `WindowFunction` (framework#4286 tombstoned `query.joins` and
+    `query.windowFunctions`: no engine or driver ever read either on the query path). They
+    were derived off the spec enums under objectstack#4115's "come off the spec enum, not a
+    restatement" rule; with no enum left, `data-protocol.ts` now restates the members locally
+    — verbatim from the last spec that published them — as the objectui query-AST vocabulary
+    they have become. The AST itself is unchanged.
+  - `PerformanceConfig`, retired with `dashboard.performance` (framework#3896). Nothing bound
+    to it — `@object-ui/react`'s `usePerformance` declares its own interface and is untouched.
+    The dashboard form is derived from the spec's own `dashboardForm`, so the field
+    disappears from the inspector for free; its test now pins the absence.
+
+  **Three inverted pins fired, and are recorded rather than resolved.** objectstack#4171's
+  tripwires asserted that `NavigationItem`, `FormField` and `ConditionalValidation`'s branches
+  still erased to `any`/`unknown` upstream — the premise that justified objectui keeping local
+  declarations. rc.1 types them properly, so the assertions are inverted to state the new
+  fact. The burn-down each one asks for — deriving those types from the spec — touches
+  widely-used public types and is deliberately **not** bundled into a version bump; it is
+  tracked in #3177. `JoinNode`'s pin is gone outright: the symbol no longer exists.
+
+  **What the bump arms.** The reconciliation ledger's `subflow` and `decision` panels
+  feature-detect their spec exports and had never actually run — rc.0 predates the exports
+  (framework#4278). They now execute and pass. The `script` panel's full bidirectional check
+  stays deliberately skipped: rc.1 predates framework#4343, so the retired dispatch branches
+  are still contract keys there, and only the "offers nothing the executor ignores" direction
+  is meaningful. It arms itself on the next rc.
+
+- 009e25d: Report / chart / query symbols stop wearing `@objectstack/spec`'s names
+  (objectui#3155, objectstack#4115).
+
+  **Breaking for TypeScript imports** — six exported names change. Each was a
+  different concept than the spec export it collided with, so an author reading
+  the objectui declaration as "the spec's" was reading a false claim:
+
+  | was                 | now                      | why they were never the same thing                                                                                                                               |
+  | :------------------ | :----------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `ChartSeries`       | `ChartDataSeries`        | ours is a display name plus literal `data: number[]`; the spec's is a dataset-bound series descriptor (`type`/`stack`/`yAxis`/`variant`) with no data at all     |
+  | `ChartSeriesSchema` | `ChartDataSeriesSchema`  | zod twin of the above                                                                                                                                            |
+  | `QueryAST`          | `SqlQueryAST`            | ours is a compiled SQL syntax tree (`select`/`from`/`join`/`group_by`); the spec's is the ObjectQL request descriptor (`object`/`fields`/`where`/`expand`)       |
+  | `QuerySchema`       | `DriverQueryConfig`      | ours is the high-level config `QueryASTBuilder` compiles; the spec exports that name as a zod schema value                                                       |
+  | `DriverInterface`   | `SqlDriverInterface`     | ours is objectui's SQL-oriented client abstraction (`query(sql, params)`); the spec's is the platform runtime driver contract                                    |
+  | `DatasourceSchema`  | `DatasourceRegistration` | ours is the in-memory record `DatasourceManager` holds — its `driver` is a live instance; the spec's is the authored metadata document, where `driver` is a name |
+
+  Three more are now DERIVED from the spec instead of hand-restated, which fixes
+  live silent-stripping defects, since a `z.object()` drops unknown keys:
+
+  - **`DashboardWidgetSchema`** declared 10 of the spec's 22 keys, so
+    `objectui validate` deleted the other 12 without a word — `chartConfig`,
+    `colorVariant`, `filter`, `responsive`, `aria`,
+    `actionUrl`/`actionType`/`actionIcon`, `compareTo`, `suppressWarnings` and the
+    `requiresObject` / `requiresService` capability gates the dashboard renderer
+    honours at runtime. The TS interface had declared most of them all along, so a
+    widget could type-check and still lose half its configuration on validation.
+    Pinned divergences kept: `id` stays optional, `type` stays widened for the
+    objectui-only `list` / `custom` families, and the legacy `component` envelope
+    stays.
+  - **`GlobalFilterSchema`** took `scope` as a free-form string (any typo
+    validated); it now uses the spec's `widget | dashboard` vocabulary. The three
+    objectui widenings that back a real runtime normalizer are kept and pinned:
+    the bare-string `options` shorthand, the normalized `{ preset }` date default,
+    and an optional `optionsFrom.labelField`.
+  - **`AppContextSelectorSchema`** was a full restatement; spec keys and their
+    defaults now flow in by reference, with `label` widened for objectui's i18n
+    label envelope — which `AppContextSelectors` already renders.
+
+  `ListViewSchema`'s zod node now names the spec in its own initializer rather
+  than one hop away through a local const, so its long-standing derivation is
+  visible where it is declared.
+
+  Drift guard: `packages/types/src/__tests__/report-chart-query-spec-parity.test.ts`.
+
+- 726b89c: `@object-ui/types` stops declaring sixteen symbols under names `@objectstack/spec` owns (objectui#3156, objectstack#4115).
+
+  Seven are now **derived** from the spec, nine are **renamed** to the local
+  dialect they always were. Both halves remove the same hazard: a local
+  declaration under a spec export's name reads as the spec's own definition to
+  the next reader, so a copy that is merely _correct today_ is a planted premise
+  tomorrow.
+
+  **Derived** — the spec now supplies the keys, by reference:
+
+  | symbol                   | derivation                                                                        |
+  | :----------------------- | :-------------------------------------------------------------------------------- |
+  | `ActionParam`            | `z.input<typeof ActionParamSchema>`, `type` widened to the local legacy spellings |
+  | `CreateExportJobRequest` | `Omit<CreateExportJobInput, 'object'>` (`object` is the method argument)          |
+  | `CreateExportJobResult`  | re-export from `@objectstack/spec/contracts`                                      |
+  | `ImportRowResult`        | re-export from `@objectstack/spec/api`                                            |
+  | `NavigationArea`         | spec keys, with `navigation` / `visible` pinned locally                           |
+  | `NavigationAreaSchema`   | `specFieldsExcept(NavigationAreaSchema.shape, …)`                                 |
+  | `Theme`                  | re-export of the spec's `ThemeInput` (the authoring shape)                        |
+  | `ExportJobFormat`        | re-export of the spec's `ExportFormat`                                            |
+
+  Four of these close real gaps rather than tidy names. `ActionParam` never
+  declared `reference` — the key `resolveActionParams()` actually reads for an
+  inline lookup target — nor `defaultFromRow`, which the metadata designer's own
+  inspector writes; it also narrowed `visible` to a bare string although the
+  resolver has always accepted the `{ dialect, source }` envelope too.
+  `CreateExportJobResult.createdAt` and `ImportRowResult.action` were optional
+  here and required by the server, leaving every consumer a branch that could
+  never run. And `NavigationArea`'s `id` now carries the spec's own length rule
+  instead of accepting any string.
+
+  **Renamed** — same word, different concept:
+
+  | was                | now                      | why                                                                                                                            |
+  | :----------------- | :----------------------- | :----------------------------------------------------------------------------------------------------------------------------- |
+  | `FileMetadata`     | `UploadedFileMetadata`   | field-VALUE payload (`url`, `original_name`), not the storage file record                                                      |
+  | `GestureType`      | `TouchGestureType`       | direction-fused (`swipe-left`), not the spec's type+direction pair                                                             |
+  | `GestureConfig`    | `TouchGestureConfig`     | gesture→`action` binding, not per-gesture tuning                                                                               |
+  | `OfflineConfig`    | `PWAOfflineConfig`       | service-worker route caching, not the offline data/sync model                                                                  |
+  | `PageRegion`       | `PageNodeRegion`         | region of the renderer page NODE, holding `SchemaNode`s                                                                        |
+  | `PageRegionSchema` | `PageNodeRegionSchema`   | zod twin of the above                                                                                                          |
+  | `ResponsiveConfig` | `MobileResponsiveConfig` | mobile box config, not the spec's SDUI grid contract                                                                           |
+  | `WidgetManifest`   | `RuntimeWidgetManifest`  | SDUI component manifest, not the field-widget plugin manifest                                                                  |
+  | `WidgetSource`     | `RuntimeWidgetSource`    | `module`/`inline`/`registry` loader union — and its `inline` carries a resolved component where the spec's carries source code |
+
+  **Migration**: the old names are gone, not deprecated — an alias would preserve
+  exactly the ambiguity being removed. Import the new name; nothing about the
+  shapes changed. `@object-ui/types` already re-exports the spec's own
+  `SpecResponsiveConfig`, and `@object-ui/react`'s `useOffline` config remains the
+  spec-shaped `OfflineConfig`, so both concepts stay reachable under
+  distinguishable names.
+
+  Each rename carries a bidirectional tripwire
+  (`packages/types/src/__tests__/page-nav-misc-spec-parity.test.ts`): it fails if
+  the spec ever claims the new name, and also if the spec retires the old one —
+  at which point the natural name can be taken back rather than the workaround
+  outliving its reason.
+
+### Patch Changes
+
+- cb82705: A standalone grid's search box searches the list, not the page you can see (objectui#3118).
+
+  Under server-side pagination a standalone `ObjectGrid` rendered `data-table`'s
+  built-in search box, and that box filtered the rows the table was holding —
+  which is one page. The user read "2 results for X in this list" while 3075 rows
+  never participated, with the pager beside it still reading `1 / 63`. Every piece
+  was individually correct: `searchable` defaults to true, `manualPagination` is
+  true, and the two are declared next to each other in the same object literal.
+
+  This is objectui#3106 one axis over — sort there, filter here — and it takes the
+  same shape. `DataTable` gains `manualSearch` + a controlled `search` +
+  `onSearchChange`. In that mode it filters nothing, reports the typed term, and
+  renders `search` as the box's value, holding **no** term of its own: a private
+  copy beside a controlled prop is the shape the defect had. `ObjectGrid` turns
+  that term into a `$search` on the refetch — the server picks the matching fields
+  from the object's metadata (ADR-0061), the same channel the ListView toolbar has
+  always used — and returns to page 1, since a new term makes the old page index a
+  different set of rows (usually no rows at all). `$searchFields` rides along only
+  when the view declared `searchableFields`, which can narrow the server-resolved
+  set and never widen it.
+
+  Two things worth naming:
+
+  - Both paths are never live at once. The server's answer is the answer; a client
+    pass left running underneath would silently re-narrow it to whichever returned
+    rows happen to contain the term as _rendered text_, overruling the server's
+    own notion of which fields are searchable.
+  - Under `manualSearch` a table with no `onSearchChange` renders **no** search
+    box. The sort axis could degrade to inert headers; here there is no honest
+    local behaviour to fall back to, because the rows to search are not in the
+    browser.
+
+  Client-paginated grids are untouched: inline, bound and grouped grids hold every
+  row they display, so their box keeps filtering in memory, where the count it
+  produces is true. The ListView path was never affected — it passes
+  `showSearch: false` and searches from its own toolbar.
+
+- f572849: Fix the admission probes behind objectstack#4171's three inverted pins, and
+  derive the `NavigationItem` keys that genuinely became derivable (objectui#3177).
+
+  Spec 17.0.0-rc.1 typed `NavigationItem`, `FormField` and
+  `ConditionalValidation.then`/`.otherwise`, so the `IsAny` / `IsUnknown` pins
+  guarding them fired. Firing was supposed to mean "the burn-down is due". A
+  per-symbol triage found it did not: **`any` was never the only blocker for any
+  of the three**, so "no longer `any`" was never the right admission question.
+  Nothing was bound; the probes now ask the condition that actually governs each
+  symbol, and each still asserts today's state — so they pass now and stop
+  compiling the day their own blocker lifts.
+
+  - `NavigationItem` — the spec models navigation as a nine-variant discriminated
+    union; objectui keeps one flat shape, and the spec has no counterpart at
+    either tier for `visible: boolean` (which `menuItemToNavigationItem`
+    manufactures when it inverts legacy `MenuItem.hidden`), `pinned` (backs
+    `useNavPins`), the legacy `defaultOpen` spelling, or a separator carrying a
+    `label`. Four probes, one per blocker.
+  - `FormField` — two concepts on two layers, not two dialects of one: the
+    required keys are disjoint (objectui `name` = the form data path; spec
+    `field` = an object-field reference, with no `name` at either tier), and the
+    shared `field` key is a string on one side and the resolved metadata object
+    on the other. Binding would also collapse the objectui#3090 disambiguation
+    that exports `SpecFormField` separately, and revert framework#4074's
+    `dependsOn` widening.
+  - `ConditionalValidation` — the branches went from `unknown` to
+    `BaseValidationRuleShape`, which is `{ type: string; …; [key: string]:
+unknown }`. Better than `unknown`, still not derivable: `type` is not a
+    literal union so a branch cannot narrow by discriminant, and the index
+    signature waves through any member — a typo'd `type: 'formatt'` included. The
+    spec says so itself and names the remaining work as objectstack#4075. The
+    probe now pins "literal discriminant / no index signature", so it goes green
+    exactly when that lands.
+
+  What DID become derivable is derived. `NavigationItemType` now comes off the
+  spec's own nav-item discriminant instead of a hand-written nine-member copy —
+  the objectstack#4115 failure class, and it also makes a future spec variant a
+  compile error at exhaustive consumers rather than a silent `default:`. Same for
+  `recordMode`, `filters`, `badge`, `target`, `params` and `actionDef`, each taken
+  from the spec branch that owns it, extending the existing `badgeVariant`
+  precedent. No member changes today, so no consumer is affected.
+
 ## 17.1.0
 
 ### Minor Changes

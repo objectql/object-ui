@@ -1,5 +1,300 @@
 # @object-ui/components
 
+## 17.2.0
+
+### Minor Changes
+
+- 4ae0ac4: One placement rule for action `locations` (objectui#3142).
+
+  **Breaking for metadata**: an action that declares no `locations` (missing key
+  or `[]`) no longer renders in a located surface. FROM: omitting `locations`
+  made an action appear on the list toolbar, the record header, and every
+  metadata-admin toolbar. TO: declare where it belongs —
+  `locations: ['record_header']` for the record header, `['list_toolbar']` for
+  the list toolbar, and so on. Nothing else changes; actions that already
+  declare a location are untouched.
+
+  Four renderers each answered "where does an action with no `locations` go?"
+  differently — `action:bar` and metadata-admin showed it EVERYWHERE,
+  `page:header` showed it on the header, `action:group` showed it for
+  `undefined` but hid it for `[]` — while `ActionEngine`, `RecordDetailView`,
+  `DeclaredActionsBar`, the related-list bridge and the environment toolbar all
+  showed it NOWHERE. The same action therefore appeared or vanished depending on
+  which component happened to draw it. All eight now go through one exported
+  predicate, `actionRendersAt(action, location)` from `@object-ui/types`: an
+  action renders at a location only if it declares that location.
+
+  The strict reading is the platform's own — ADR-0078 lists "an `action` with no
+  `locations`" as a verified inert shape, and the detail-page synthesizer already
+  documented "must include `locations: ['record_header']` to render". The
+  leniency contradicted both, and it is what let an aggregate-only bulk action
+  (objectui#3139) — one with no single-record placement by construction — mint a
+  list-toolbar button whose dispatch could only fail.
+
+  Two placements are declared elsewhere and need no `locations`, both unchanged:
+  host-injected chrome in the `systemActions` / `headerSystemActions` slot (now
+  consistently exempt on `page:header` too, where it used to be filtered), and an
+  action named in a view's `bulkActions` / `bulkActionDefs`.
+
+  Authoring side: Studio seeds `locations: ['record_header']` on a new action
+  instead of minting one that renders nowhere, and the action inspector says so
+  when no placement is ticked. The `ActionSchema.locations` JSDoc claimed a
+  `['record_header']` default that no renderer ever implemented — corrected.
+
+- 09d30a4: Stop declaring 18 `@object-ui/auth` / `@object-ui/components` / `@object-ui/react`
+  symbols under names `@objectstack/spec` owns (objectui#3159, objectstack#4115
+  batch 5).
+
+  **Breaking for importers of all three packages** — six exported names changed,
+  because the spec exports the same name for a _different_ thing:
+
+  | package      | was                          | now                      | what the spec's same-named export actually is                                  |
+  | :----------- | :--------------------------- | :----------------------- | :----------------------------------------------------------------------------- |
+  | `auth`       | `AuthSession`                | `AuthClientSession`      | the SERVER's session record (`{ id, userId, expiresAt: ISO string, token? }`)  |
+  | `auth`       | `AuthProviderConfig`         | `AuthProviderOptions`    | an OAuth/OIDC provider registration (`{ id, clientId, clientSecret, scope? }`) |
+  | `components` | `FilterCondition`            | `FilterBuilderCondition` | the recursive ObjectQL predicate AST (`$and`/`$or`/`$not`)                     |
+  | `components` | `Field`                      | `FieldContainer`         | an object FIELD's metadata and its builder namespace                           |
+  | `react`      | `ConflictResolutionStrategy` | `ConflictResolution`     | the metadata-MERGE policy (`error \| priority \| first-wins \| last-wins`)     |
+
+  The `react` rename is the odd one out: the new name is the **spec's own** name
+  for the union that hook always used, so it is a re-export rather than a dialect.
+
+  Eleven more keep their names and are now **imported or derived from the spec**
+  instead of re-declared: `TenancyPosture`, `DelegableScope` (+`DelegableAdminScope`),
+  `AuthUser`, `ShareLinkPermission`, `ShareLinkAudience`, `ShareLink`, `SortItem`,
+  `OfflineStrategy`, `OfflineCacheConfig`, `OfflineSyncConfig`, `OfflineConfig`,
+  `NavigationConfig`.
+
+  **Three of the copies were losing information, not just duplicating it.**
+
+  - `AuthUser` never declared the spec's `positions` or `tenantId` — the
+    authorization inputs. Its `[key: string]: unknown` index signature meant the
+    omission was invisible at every call site _and_ to any structural comparison
+    (the objectstack#4075 mechanism). It now `extends` the spec principal, so the
+    display-only fields (`image`, `role`, `roles`, `emailVerified`) are the delta
+    and the spec's keys arrive on their own.
+  - `useNavigationOverlay`'s copy carried the note _"inline … to avoid importing
+    from `@object-ui/types` (which may not be a direct dependency of
+    `@object-ui/react`)"_. The vocabulary belongs to `@objectstack/spec`, which
+    **is** a direct dependency — the same expired "kept local to avoid a
+    dependency" comment objectui#3169 found in `@object-ui/app-shell`.
+  - `useOffline` and `usePerformance` both opened with _"Types aligned with
+    `@objectstack/spec` v2.0.7"_. The installed spec is 17.0.0-rc.1.
+
+  `ShareLink` derives from the spec row **minus `password_hash`** — omitted rather
+  than optional, because it is the credential itself and typing it in a browser
+  package is an invitation to render it. `password_protected` (the boolean the UI
+  needs in its place) is the one local addition.
+
+  The config types derive from each schema's **input** side, not `z.infer`.
+  `useOffline(config: OfflineConfig = {})` defaults to the empty object, which the
+  output type — every `.default()`ed key required — would reject outright.
+
+  `@objectstack/spec` moves from `devDependencies` to `dependencies` in
+  `@object-ui/components`: its public type surface now references the spec.
+
+  Scored `minor`, not `major`, per this repo's fixed-group rule — objectui's major
+  tracks `@objectstack`, so breaking changes of our own ship as minor with the
+  semantics spelled out above (see AGENTS.md §版本号策略). A `major` here would carry
+  all 39 packages of the fixed group to `18.0.0` and off objectstack's 17.x line.
+
+- 726b89c: `@object-ui/types` stops declaring sixteen symbols under names `@objectstack/spec` owns (objectui#3156, objectstack#4115).
+
+  Seven are now **derived** from the spec, nine are **renamed** to the local
+  dialect they always were. Both halves remove the same hazard: a local
+  declaration under a spec export's name reads as the spec's own definition to
+  the next reader, so a copy that is merely _correct today_ is a planted premise
+  tomorrow.
+
+  **Derived** — the spec now supplies the keys, by reference:
+
+  | symbol                   | derivation                                                                        |
+  | :----------------------- | :-------------------------------------------------------------------------------- |
+  | `ActionParam`            | `z.input<typeof ActionParamSchema>`, `type` widened to the local legacy spellings |
+  | `CreateExportJobRequest` | `Omit<CreateExportJobInput, 'object'>` (`object` is the method argument)          |
+  | `CreateExportJobResult`  | re-export from `@objectstack/spec/contracts`                                      |
+  | `ImportRowResult`        | re-export from `@objectstack/spec/api`                                            |
+  | `NavigationArea`         | spec keys, with `navigation` / `visible` pinned locally                           |
+  | `NavigationAreaSchema`   | `specFieldsExcept(NavigationAreaSchema.shape, …)`                                 |
+  | `Theme`                  | re-export of the spec's `ThemeInput` (the authoring shape)                        |
+  | `ExportJobFormat`        | re-export of the spec's `ExportFormat`                                            |
+
+  Four of these close real gaps rather than tidy names. `ActionParam` never
+  declared `reference` — the key `resolveActionParams()` actually reads for an
+  inline lookup target — nor `defaultFromRow`, which the metadata designer's own
+  inspector writes; it also narrowed `visible` to a bare string although the
+  resolver has always accepted the `{ dialect, source }` envelope too.
+  `CreateExportJobResult.createdAt` and `ImportRowResult.action` were optional
+  here and required by the server, leaving every consumer a branch that could
+  never run. And `NavigationArea`'s `id` now carries the spec's own length rule
+  instead of accepting any string.
+
+  **Renamed** — same word, different concept:
+
+  | was                | now                      | why                                                                                                                            |
+  | :----------------- | :----------------------- | :----------------------------------------------------------------------------------------------------------------------------- |
+  | `FileMetadata`     | `UploadedFileMetadata`   | field-VALUE payload (`url`, `original_name`), not the storage file record                                                      |
+  | `GestureType`      | `TouchGestureType`       | direction-fused (`swipe-left`), not the spec's type+direction pair                                                             |
+  | `GestureConfig`    | `TouchGestureConfig`     | gesture→`action` binding, not per-gesture tuning                                                                               |
+  | `OfflineConfig`    | `PWAOfflineConfig`       | service-worker route caching, not the offline data/sync model                                                                  |
+  | `PageRegion`       | `PageNodeRegion`         | region of the renderer page NODE, holding `SchemaNode`s                                                                        |
+  | `PageRegionSchema` | `PageNodeRegionSchema`   | zod twin of the above                                                                                                          |
+  | `ResponsiveConfig` | `MobileResponsiveConfig` | mobile box config, not the spec's SDUI grid contract                                                                           |
+  | `WidgetManifest`   | `RuntimeWidgetManifest`  | SDUI component manifest, not the field-widget plugin manifest                                                                  |
+  | `WidgetSource`     | `RuntimeWidgetSource`    | `module`/`inline`/`registry` loader union — and its `inline` carries a resolved component where the spec's carries source code |
+
+  **Migration**: the old names are gone, not deprecated — an alias would preserve
+  exactly the ambiguity being removed. Import the new name; nothing about the
+  shapes changed. `@object-ui/types` already re-exports the spec's own
+  `SpecResponsiveConfig`, and `@object-ui/react`'s `useOffline` config remains the
+  spec-shaped `OfflineConfig`, so both concepts stay reachable under
+  distinguishable names.
+
+  Each rename carries a bidirectional tripwire
+  (`packages/types/src/__tests__/page-nav-misc-spec-parity.test.ts`): it fails if
+  the spec ever claims the new name, and also if the spec retires the old one —
+  at which point the natural name can be taken back rather than the workaround
+  outliving its reason.
+
+### Patch Changes
+
+- cb82705: A standalone grid's search box searches the list, not the page you can see (objectui#3118).
+
+  Under server-side pagination a standalone `ObjectGrid` rendered `data-table`'s
+  built-in search box, and that box filtered the rows the table was holding —
+  which is one page. The user read "2 results for X in this list" while 3075 rows
+  never participated, with the pager beside it still reading `1 / 63`. Every piece
+  was individually correct: `searchable` defaults to true, `manualPagination` is
+  true, and the two are declared next to each other in the same object literal.
+
+  This is objectui#3106 one axis over — sort there, filter here — and it takes the
+  same shape. `DataTable` gains `manualSearch` + a controlled `search` +
+  `onSearchChange`. In that mode it filters nothing, reports the typed term, and
+  renders `search` as the box's value, holding **no** term of its own: a private
+  copy beside a controlled prop is the shape the defect had. `ObjectGrid` turns
+  that term into a `$search` on the refetch — the server picks the matching fields
+  from the object's metadata (ADR-0061), the same channel the ListView toolbar has
+  always used — and returns to page 1, since a new term makes the old page index a
+  different set of rows (usually no rows at all). `$searchFields` rides along only
+  when the view declared `searchableFields`, which can narrow the server-resolved
+  set and never widen it.
+
+  Two things worth naming:
+
+  - Both paths are never live at once. The server's answer is the answer; a client
+    pass left running underneath would silently re-narrow it to whichever returned
+    rows happen to contain the term as _rendered text_, overruling the server's
+    own notion of which fields are searchable.
+  - Under `manualSearch` a table with no `onSearchChange` renders **no** search
+    box. The sort axis could degrade to inert headers; here there is no honest
+    local behaviour to fall back to, because the rows to search are not in the
+    browser.
+
+  Client-paginated grids are untouched: inline, bound and grouped grids hold every
+  row they display, so their box keeps filtering in memory, where the count it
+  produces is true. The ListView path was never affected — it passes
+  `showSearch: false` and searches from its own toolbar.
+
+- f6e8d78: Lookup search inside a create/edit modal is typeable again (objectui#3183).
+
+  In every production console build, the search input of a lookup field's
+  quick-select popover — and the nested Record Picker dialog — could not take
+  focus while the form modal was open: every click/focus was synchronously
+  yanked back to the field trigger, so a lookup could not be searched while
+  creating a record.
+
+  Root cause is a race in stock `@radix-ui/react-focus-scope@1.1.16`: the
+  focus-scopes stack effect's cleanup schedules `focusScopesStack.remove(scope)`
+  in a `setTimeout(0)`. When the effect re-runs for a still-mounted scope (a
+  `container` ref flicker), the re-run re-`add`s the scope and the stale timeout
+  then evicts it — the dialog's trap listeners stay active but its scope is no
+  longer in the stack, so an opening popover pauses nothing and the trap yanks
+  focus out of the popover forever.
+
+  Fixed via `patches/@radix-ui__react-focus-scope.patch`: an effect re-run for a
+  live scope cancels the pending eviction; a real unmount still runs the full
+  delayed cleanup (autofocus-on-unmount + stack removal). Regression-tested in
+  `packages/components` with a deterministic reproduction of the race.
+
+- a8ad6c0: A required boolean must be savable in its UNCHECKED state — `false` and `0` are values.
+
+  Reported against an AI-built task tracker whose 任务 object has a required
+  `是否完成` boolean: the create form showed the switch OFF, answered "是否完成不能
+  为空", and saved instantly once the switch was turned ON. The app could only ever
+  create ALREADY-DONE tasks — the one state the control shows by default was the
+  one value it refused to save (cloud#972).
+
+  Two defects stacked, and either alone is enough to break it:
+
+  **The `required` verdict read truthiness, not presence.** `@objectstack/spec`
+  FieldSchema.required (ADR-0113) is "an insert must provide a NON-NULL value",
+  and objectql's record validator implements exactly that. react-hook-form's
+  built-in rule instead fails whenever `isBoolean(value) && !value` — its
+  accept-the-terms checkbox heritage — silently redefining every required boolean
+  as "must be TRUE", including a select whose chosen option value is `false`. It
+  also disagreed the other way, letting a whitespace-only string through for the
+  server to reject with a 400. The form renderer no longer hands RHF its own
+  `required`: the check is now a `validate` entry keyed `required` (so the error
+  still surfaces as `type: 'required'`, which the conditional-required cleanup
+  keys on) backed by a new shared `isMissingForRequired` in `@object-ui/core`, a
+  deliberate mirror of objectql `record-validator.isMissing` — `undefined`,
+  `null`, blank-after-trim string, empty array. Deleting the inherited rule also
+  stops a `required` that rode in on `validation` from outliving a `requiredWhen`
+  that resolved to FALSE.
+
+  **A boolean field held `undefined` while displaying "off".** A two-state control
+  has no third state, but a field with no entry in `defaultValues` rendered an OFF
+  switch backed by nothing: the create payload omitted the column (it lands null,
+  which reads as unchecked but isn't) and the presence check above would still
+  refuse it. The form renderer now folds `false` into `defaultValues` for every
+  boolean-widget field the caller left unset — in `defaultValues` itself, not
+  per-Controller, because that object is also the dirty-check baseline and what
+  the defaults-reset window replays. Every surface gets it, including the
+  modal/drawer create dialogs that start from a bare `{}`. An authored default
+  (or a loaded record, `null` included) still wins.
+
+  `WizardForm`'s cross-step gate had its own copy of the empty-value predicate; it
+  now imports the shared one so it cannot drift from the per-field verdict. And
+  the field-demo renderer read `schema.defaultValue || schema.value`, throwing
+  away an authored default of `false` / `0` / `''` — same falsy-as-empty class,
+  now `??`.
+
+  Verified end to end on a local stack against the exact metadata shape
+  `apply_blueprint` materializes (`{ type: 'boolean', required: true }`, no
+  default): a 是否完成 = 否 task with 工时 = 0 now creates and persists as
+  `{ hours: 0, is_done: false }`, turning the switch on still stores `true`, and a
+  blank required text is still refused.
+
+- Updated dependencies [4ae0ac4]
+- Updated dependencies [696e3c1]
+- Updated dependencies [bca45cc]
+- Updated dependencies [a889e31]
+- Updated dependencies [09d30a4]
+- Updated dependencies [4bf612c]
+- Updated dependencies [335041c]
+- Updated dependencies [b414983]
+- Updated dependencies [256f8cc]
+- Updated dependencies [d9668a7]
+- Updated dependencies [4b470b9]
+- Updated dependencies [cb82705]
+- Updated dependencies [f572849]
+- Updated dependencies [4a51e77]
+- Updated dependencies [ea96284]
+- Updated dependencies [d3584c6]
+- Updated dependencies [cc70b8f]
+- Updated dependencies [a8ad6c0]
+- Updated dependencies [444457c]
+- Updated dependencies [850033c]
+- Updated dependencies [022e4c3]
+- Updated dependencies [009e25d]
+- Updated dependencies [726b89c]
+  - @object-ui/types@17.2.0
+  - @object-ui/core@17.2.0
+  - @object-ui/react@17.2.0
+  - @object-ui/i18n@17.2.0
+  - @object-ui/sdui-parser@17.2.0
+  - @object-ui/react-runtime@17.2.0
+
 ## 17.1.0
 
 ### Minor Changes
