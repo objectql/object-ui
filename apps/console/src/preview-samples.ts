@@ -57,33 +57,45 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
     ],
   },
 
+  // ADR-0021 single form: a report binds a semantic-layer `dataset` and selects
+  // its measures (`values`) grouped by dimensions (`rows`, plus `columns`
+  // across for a matrix). The inline-query form this sample used
+  // (`object` + `columns: [{ field, label }]` + `groupBy`) was removed in the
+  // 9.0 cutover — `ReportSchema` is non-strict, so `object`/`groupBy` were
+  // silently stripped and the draft then failed for having no `dataset`.
   report: {
     name: 'orders_by_status',
     label: 'Orders by Status',
-    object: 'sales_order',
-    columns: [
-      { field: 'name', label: 'Order' },
-      { field: 'status', label: 'Status' },
-      { field: 'amount', label: 'Amount' },
-    ],
-    groupBy: ['status'],
+    type: 'summary',
+    dataset: 'sales_orders',
+    rows: ['status'],
+    values: ['order_count', 'total_amount'],
+    order: [{ by: 'total_amount', direction: 'desc' }],
   },
 
+  // Navigation is a DISCRIMINATED UNION on `type`, and every branch is
+  // `.strict()`: an app does not route by hand-written `path`, it names the
+  // metadata record to open (`objectName` / `pageName` / `dashboardName` /
+  // `url`) and the shell builds the route. `id` is required so a nav entry can
+  // be addressed — by a patch, and by `homePageId`, which replaced the removed
+  // top-level `landing` route (objectstack#4001).
   app: {
     name: 'crm',
     label: 'CRM',
     icon: 'briefcase',
-    landing: '/apps/crm/home',
+    homePageId: 'home',
     navigation: [
-      { label: 'Home', path: '/apps/crm/home', kind: 'page' },
-      { label: 'Accounts', object: 'account', path: '/apps/crm/accounts' },
-      { label: 'Sales Orders', object: 'sales_order', path: '/apps/crm/orders' },
-      { label: 'Dashboard', dashboard: 'sales_overview', path: '/apps/crm/dashboard' },
+      { id: 'home', type: 'page', label: 'Home', pageName: 'crm_welcome' },
+      { id: 'accounts', type: 'object', label: 'Accounts', objectName: 'account' },
+      { id: 'orders', type: 'object', label: 'Sales Orders', objectName: 'sales_order', viewName: 'open_orders' },
+      { id: 'dashboard', type: 'dashboard', label: 'Dashboard', dashboardName: 'sales_overview' },
       {
+        id: 'admin',
+        type: 'group',
         label: 'Admin',
         children: [
-          { label: 'Settings', path: '/apps/crm/settings', kind: 'page' },
-          { label: 'Docs', path: 'https://docs.example.com' },
+          { id: 'settings', type: 'page', label: 'Settings', pageName: 'crm_settings' },
+          { id: 'docs', type: 'url', label: 'Docs', url: 'https://docs.example.com', target: '_blank' },
         ],
       },
     ],
@@ -92,14 +104,22 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
   action: {
     name: 'close_order',
     label: 'Close Order',
-    type: 'server',
+    // `server` was never an ActionType — the server-side form is `script` with
+    // a `target` naming a registered bundle function (a `script` action without
+    // `body` or `target` is rejected: it would register no handler at all).
+    type: 'script',
+    target: 'closeOrder',
     objectName: 'sales_order',
     icon: 'check',
-    variant: 'default',
-    locations: ['record', 'list'],
+    variant: 'primary',
+    // Spec-17 placement vocabulary; the pre-17 `record`/`list` shorthands are
+    // not in the enum (and the ActionPreview placement mock renders nothing
+    // for them, so the "Where it appears" section was empty).
+    locations: ['record_header', 'list_toolbar'],
     confirmText: 'Close this order? This cannot be undone.',
     successMessage: 'Order closed.',
-    bulkEnabled: true,
+    // No `bulkEnabled`: RETIRED in spec 17 (objectstack#3896). The multi-select
+    // toolbar is driven by the LIST VIEW's `bulkActions`, never by this flag.
     refreshAfter: true,
   },
 
@@ -109,9 +129,13 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
     status: 'active',
     version: 2,
     runAs: 'system',
-    type: 'scheduled',
+    // FlowType enum is `autolaunched | record_change | schedule | screen | api`
+    // — the start node below is a cron trigger, so `schedule` (not `scheduled`).
+    type: 'schedule',
+    // FlowVariableSchema is `.strict()` over name/type/isInput/isOutput — a
+    // `description` here is rejected, not merely ignored.
     variables: [
-      { name: 'daysBefore', type: 'number', isInput: true, description: 'Lead time in days' },
+      { name: 'daysBefore', type: 'number', isInput: true },
       { name: 'contract', type: 'object', isInput: true },
       { name: 'reminded', type: 'boolean', isOutput: true },
     ],
@@ -141,7 +165,10 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
       { id: 'guard', type: 'try_catch', label: 'Push with retry', config: { errorVariable: '$error', try: { nodes: [ { id: 'push', type: 'http_request', label: 'Push to CRM', config: { method: 'POST', url: 'https://api.example.com/v1/tasks' } } ], edges: [] }, catch: { nodes: [ { id: 'record_failure', type: 'update_record', label: 'Flag Sync Failure', config: { objectName: 'contract', fields: { reminded: false } } } ], edges: [] } } },
       { id: 'check', type: 'decision', label: 'Within reminder window?', config: { conditions: [ { label: 'Within window', expression: 'daysToExpiry <= daysBefore' }, { label: 'Else', expression: 'true' } ] } },
       { id: 'email', type: 'connector_action', label: 'Send renewal email', connectorConfig: { connectorId: 'email', actionId: 'send', input: { to: 'owner.email', template: 'renewal_reminder' } } },
-      { id: 'wait', type: 'wait', label: 'Wait 3 days', waitEventConfig: { eventType: 'timer', timerDuration: 'P3D', onTimeout: 'continue' } },
+      // No `waitEventConfig.onTimeout`: RETIRED in spec 17 (objectstack#4158).
+      // It had no readers — a wait node resumes only when its timer elapses or
+      // its signal arrives; there is no timeout branch to configure.
+      { id: 'wait', type: 'wait', label: 'Wait 3 days', waitEventConfig: { eventType: 'timer', timerDuration: 'P3D' } },
       { id: 'task', type: 'create_record', label: 'Create CSM follow-up', config: { objectName: 'task', fields: { subject: 'Renewal follow-up', priority: 'high' } } },
       { id: 'skip', type: 'update_record', label: 'Mark as not due', config: { objectName: 'contract', filter: { id: '{contractId}' }, fields: { reminded: false } } },
       { id: 'review', type: 'screen', label: 'CSM review', config: { fields: [ { name: 'discount', label: 'Discount %', type: 'number', required: false }, { name: 'note', label: 'Note', type: 'text', required: true, visibleWhen: 'discount > 0' } ] } },
@@ -149,21 +176,24 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
       { id: 'enrich', type: 'script', label: 'Score (code)', config: { script: "variables.score = 42;\nreturn variables;", outputVariables: ['score'] } },
       { id: 'end', type: 'end', label: 'End', config: { outcome: 'success' } },
     ],
+    // `FlowEdgeSchema.id` is REQUIRED — the canvas already keys off it when
+    // present (splitting an edge, adding a back-edge), and an id-less edge
+    // cannot be addressed by a patch.
     edges: [
-      { source: 'start', target: 'find' },
-      { source: 'find', target: 'each_contract' },
-      { source: 'each_contract', target: 'fan_out' },
-      { source: 'fan_out', target: 'guard' },
-      { source: 'guard', target: 'check' },
-      { source: 'check', target: 'email', condition: 'daysToExpiry <= daysBefore' },
-      { source: 'check', target: 'skip', isDefault: true },
-      { source: 'email', target: 'wait' },
-      { source: 'wait', target: 'task' },
-      { source: 'task', target: 'review' },
-      { source: 'review', target: 'notify' },
-      { source: 'notify', target: 'enrich' },
-      { source: 'enrich', target: 'end' },
-      { source: 'skip', target: 'end' },
+      { id: 'e_start_find', source: 'start', target: 'find' },
+      { id: 'e_find_each', source: 'find', target: 'each_contract' },
+      { id: 'e_each_fan_out', source: 'each_contract', target: 'fan_out' },
+      { id: 'e_fan_out_guard', source: 'fan_out', target: 'guard' },
+      { id: 'e_guard_check', source: 'guard', target: 'check' },
+      { id: 'e_check_email', source: 'check', target: 'email', condition: 'daysToExpiry <= daysBefore' },
+      { id: 'e_check_skip', source: 'check', target: 'skip', isDefault: true },
+      { id: 'e_email_wait', source: 'email', target: 'wait' },
+      { id: 'e_wait_task', source: 'wait', target: 'task' },
+      { id: 'e_task_review', source: 'task', target: 'review' },
+      { id: 'e_review_notify', source: 'review', target: 'notify' },
+      { id: 'e_notify_enrich', source: 'notify', target: 'enrich' },
+      { id: 'e_enrich_end', source: 'enrich', target: 'end' },
+      { id: 'e_skip_end', source: 'skip', target: 'end' },
     ],
   },
 
@@ -220,12 +250,11 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
     model: { provider: 'openai', model: 'gpt-4o', temperature: 0.4, maxTokens: 2048 },
     instructions:
       'You are a helpful sales assistant. Answer questions about accounts and orders, and draft follow-up emails. Always cite the record you used.',
+    // An agent reaches exactly the tools its surface-compatible skills declare
+    // (ADR-0064). No `tools` (RETIRED, objectstack#3894 — put the reference in
+    // a skill instead) and no `knowledge` (RETIRED, objectstack#3896 — it never
+    // scoped retrieval; describe intended grounding in `instructions`).
     skills: ['summarize_account', 'draft_email'],
-    tools: [
-      { type: 'objectql', name: 'query_orders' },
-      { type: 'http', name: 'lookup_company' },
-    ],
-    knowledge: { sources: [{ name: 'sales_playbook', type: 'index' }] },
   },
 
   tool: {
@@ -252,8 +281,11 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
     active: true,
     instructions: 'Write a concise, friendly follow-up email referencing the order.',
     tools: ['lookup_company'],
-    triggerPhrases: ['draft an email', 'follow up'],
-    triggerConditions: [{ expression: "record.status == 'Open'" }],
+    // No `triggerPhrases`: RETIRED in spec 17 (objectstack#3896) — phrases were
+    // never matched against the user's message. Activation is `triggerConditions`
+    // (an AND of context field/operator/value) intersected with the agent's
+    // `skills[]`, so routing intent belongs here.
+    triggerConditions: [{ field: 'objectName', operator: 'eq', value: 'sales_order' }],
   },
 
   permission: {
@@ -280,15 +312,19 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
     name: 'warehouse',
     label: 'Analytics Warehouse',
     description: 'Read-only Postgres replica for reporting.',
+    // `DatasourceSchema` is `.strict()`: `type` is the `driver` (already set
+    // below) and `isDefault` is not a datasource key at all — routing is
+    // declared at stack level via `datasourceMapping`. Both were rejected.
     driver: 'postgres',
-    type: 'sql',
     active: true,
-    isDefault: false,
-    ssl: true,
+    // `ssl` and `capabilities` are config OBJECTS, not a boolean / token list.
+    ssl: { enabled: true, rejectUnauthorized: true },
     config: { host: 'db.internal', port: 5432, database: 'analytics' },
     pool: { min: 2, max: 10 },
-    capabilities: ['read', 'aggregate'],
-    healthCheck: { enabled: true, interval: 60 },
+    capabilities: { readOnly: true, queryAggregations: true },
+    // `interval` → `intervalMs`, and the unit is MILLISECONDS: the old `60`
+    // was read as 60ms once the key was spelled correctly, not 60 seconds.
+    healthCheck: { enabled: true, intervalMs: 60000 },
   },
 
   validation: {
@@ -302,7 +338,10 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
     condition: 'amount > 0',
     expression: 'amount > 0',
     message: 'Order amount must be greater than zero.',
-    events: ['beforeInsert', 'beforeUpdate'],
+    // The enum is the WRITE CONTEXT (`insert` / `update`), not a lifecycle-hook
+    // name: the rule evaluator only runs on the insert/update write path, so
+    // the pre-17 `beforeInsert`/`beforeUpdate` spellings are rejected.
+    events: ['insert', 'update'],
     priority: 10,
   },
 

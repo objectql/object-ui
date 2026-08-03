@@ -5,7 +5,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * `preview-samples.ts` ↔ `@objectstack/spec` conformance (objectui#3257).
+ * `preview-samples.ts` ↔ `@objectstack/spec` conformance (objectui#3257, #3266).
  *
  * The preview gallery's samples are not test fixtures — they are the drafts the
  * metadata designers render, i.e. the worked EXAMPLE an author sees for each
@@ -47,7 +47,11 @@
  * `datasources` are; `views`, `jobs`, `emailTemplates` are not). For the
  * non-strict ones an unknown or retired key is stripped rather than rejected,
  * so a PASS there proves the sample is structurally sound, NOT that it is free
- * of retired keys. The guard is exactly as strict as the spec is.
+ * of retired keys. The guard is exactly as strict as the spec is. `RETIRED_KEYS`
+ * below covers the named retirements regardless, which is the only reason the
+ * `tool` / `report` rows mean anything: `report` reached SPEC_CLEAN by binding a
+ * dataset, and its stripped pre-9.0 `object` / `groupBy` keys would not have
+ * failed anything on their own.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -89,6 +93,15 @@ const SPEC_CLEAN = [
   'permission',
   'position',
   'email_template',
+  // Promoted from KNOWN_STALE by objectui#3266.
+  'action',
+  'agent',
+  'skill',
+  'flow',
+  'report',
+  'validation',
+  'datasource',
+  'app',
 ] as const;
 
 /**
@@ -96,26 +109,29 @@ const SPEC_CLEAN = [
  * is the first thing a reader of that sample would copy and get rejected for.
  *
  * This list is a ledger, not an excuse: the reverse assertion below fails if an
- * entry starts passing, so it can only ever shrink. Fixing them is objectui#3266
- * — deliberately not done here, because several are not mechanical (see that
- * issue: `object.fields` array-vs-record is a shape `readFields()` supports on
- * PURPOSE, and rewriting the `dashboard` sample changes what the gallery
- * renders, which is the shared browser-verification harness).
+ * entry starts passing, so it can only ever shrink. objectui#3266 emptied out
+ * the mechanically-fixable half of it (`action`, `agent`, `skill`, `flow`,
+ * `report`, `validation`, `datasource`, `app` — all now in SPEC_CLEAN above).
+ *
+ * What remains is NOT "not got to yet" — each of these four needs a decision
+ * that does not belong in this file, and the reason is recorded with it. A
+ * sample only leaves this ledger by being FIXED; relaxing the guard, exempting
+ * a schema, or moving a row into NO_AUTHORING_SCHEMA to buy a green run would
+ * delete the only thing keeping the gallery's examples honest.
  */
 const KNOWN_STALE: Record<string, string> = {
+  // Not a typo in the sample: `packages/app-shell/.../object-fields-io.ts`
+  // `readFields()` branches on `shape: 'array' | 'record'` and round-trips
+  // whichever the draft used, so this sample is what covers the array branch in
+  // the gallery. Rewriting it to a record would drop that coverage while
+  // leaving the designer still able to author a shape ObjectSchema rejects,
+  // which is the actual question (AGENTS.md #0.1) — and it is an app-shell
+  // question, not a preview-samples one.
   object: '`fields` is an array; ObjectSchema wants a record keyed by field name',
   page: 'page components carry `props`, which PageComponentSchema rejects (ADR-0089 D3a)',
-  report: '`columns` are objects; ReportSchema wants column-name strings',
   dashboard: 'widgets miss `dataset`/`values` and use retired `value`/`format`; `chart` is not a widget type',
-  app: 'navigation items miss the `type` discriminator; `landing` was removed (objectstack#4001)',
-  action: 'RETIRED `bulkEnabled` (objectstack#3896); `type`/`variant`/`locations` use pre-17 enum values',
-  flow: 'RETIRED `waitEventConfig.onTimeout` (objectstack#4158); `type: scheduled` invalid; edges need `id`',
-  agent: 'RETIRED `tools` (objectstack#3894, use `skills`) and `knowledge` (objectstack#3896)',
-  skill: 'RETIRED `triggerPhrases` (objectstack#3896); `triggerConditions` needs field/operator/value',
-  datasource: '`type`/`isDefault` rejected; `ssl` and `capabilities` are objects; `healthCheck.interval` is `intervalMs`',
-  validation: "`events` uses pre-17 `beforeInsert`/`beforeUpdate`; the enum is `insert`/`update`",
   translation:
-    'the `translations` collection is Array< Record< locale, TranslationData > >, but this sample is the metadata-RECORD form (name/label/locale/data) the console edits — so this row is a mapping mismatch, not necessarily a stale sample. Resolve in objectui#3266 before guarding it.',
+    'the `translations` collection is Array< Record< locale, TranslationData > >, but this sample is the metadata-RECORD form (name/label/locale/data) the console edits — so this row is a mapping mismatch, not necessarily a stale sample. Settle which contract the sample targets before guarding it.',
 };
 
 /**
@@ -127,6 +143,37 @@ const NO_AUTHORING_SCHEMA: Record<string, string> = {
   workflow: 'no `workflows` collection and no WorkflowSchema in spec 17',
   approval: 'no `approvals` collection; spec only has ApprovalNodeConfigSchema (a flow node)',
 };
+
+/**
+ * Retired keys that must never reappear in a sample, with the adjudication that
+ * removed each one. A preview or inspector that still READS one of these is not
+ * a reason to re-add it — that reader is the bug (see objectui#3236 / PR #3258,
+ * where `ToolPreview` stopped rendering its three).
+ */
+const RETIRED_KEYS: Array<[type: string, key: string, adjudication: string]> = [
+  ['tool', 'category', 'objectstack#3896'],
+  ['tool', 'active', 'objectstack#3715 / ADR-0033 §2'],
+  ['tool', 'requiresConfirmation', 'objectstack#3896'],
+  ['action', 'bulkEnabled', 'objectstack#3896'],
+  ['agent', 'tools', 'objectstack#3894 — use `skills`'],
+  ['agent', 'knowledge', 'objectstack#3896'],
+  ['skill', 'triggerPhrases', 'objectstack#3896'],
+  ['flow', 'onTimeout', 'objectstack#4158'],
+  ['app', 'landing', 'objectstack#4001 — use `homePageId`'],
+];
+
+/** Every key name appearing anywhere in `value`, at any depth. */
+function keyNamesIn(value: unknown, out = new Set<string>()): Set<string> {
+  if (Array.isArray(value)) {
+    for (const item of value) keyNamesIn(item, out);
+  } else if (value && typeof value === 'object') {
+    for (const [key, child] of Object.entries(value)) {
+      out.add(key);
+      keyNamesIn(child, out);
+    }
+  }
+  return out;
+}
 
 /** Issues the spec raises for one sample, scoped to that sample's own path. */
 function issuesFor(type: string): { path: string; message: string }[] {
@@ -196,14 +243,18 @@ describe('preview-samples conform to @objectstack/spec', () => {
     },
   );
 
-  // The specific regression objectui#3257 fixed, pinned by name. The list above
-  // would catch these via `tool`'s membership in SPEC_CLEAN, but only as a
-  // generic "sample is invalid"; naming them keeps the retirement legible to
-  // whoever is tempted to re-add one.
-  it.each(['category', 'active', 'requiresConfirmation'])(
-    'tool sample does not resurrect retired key `%s`',
-    (key) => {
-      expect(SAMPLES.tool).not.toHaveProperty(key);
+  // The specific retirements objectui#3257 and objectui#3266 cleared, pinned by
+  // name. SPEC_CLEAN already catches a re-added key (every one of these schemas
+  // rejects it BY NAME via `retiredKey()`), but only as a generic "sample is
+  // invalid"; naming them keeps each retirement legible — with its adjudication
+  // — to whoever is tempted to put one back because a preview still reads it.
+  //
+  // Matched at ANY depth, not just top level: `waitEventConfig.onTimeout` lives
+  // on a flow node, and a retired key is no less retired for being nested.
+  it.each(RETIRED_KEYS)(
+    '%s sample does not resurrect retired key `%s` (%s)',
+    (type, key) => {
+      expect([...keyNamesIn(SAMPLES[type])]).not.toContain(key);
     },
   );
 });
