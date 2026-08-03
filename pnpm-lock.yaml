@@ -1765,9 +1765,6 @@ importers:
       '@object-ui/i18n':
         specifier: workspace:*
         version: link:../i18n
-      '@object-ui/permissions':
-        specifier: workspace:^
-        version: link:../permissions
       '@objectstack/spec':
         specifier: ^17.0.0-rc.1
         version: 17.0.0-rc.1(ai@7.0.37(zod@4.4.3))
@@ -1790,6 +1787,9 @@ importers:
       '@object-ui/fields':
         specifier: workspace:*
         version: link:../fields
+      '@object-ui/permissions':
+        specifier: workspace:*
+        version: link:../permissions
       '@object-ui/react':
         specifier: workspace:*
         version: link:../react
@@ -2107,9 +2107,6 @@ importers:
 
   packages/plugin-list:
     dependencies:
-      '@object-ui/permissions':
-        specifier: workspace:^
-        version: link:../permissions
       lucide-react:
         specifier: ^1.25.0
         version: 1.25.0(react@19.2.8)
@@ -2135,6 +2132,9 @@ importers:
       '@object-ui/mobile':
         specifier: workspace:*
         version: link:../mobile
+      '@object-ui/permissions':
+        specifier: workspace:*
+        version: link:../permissions
       '@object-ui/react':
         specifier: workspace:*
         version: link:../react
