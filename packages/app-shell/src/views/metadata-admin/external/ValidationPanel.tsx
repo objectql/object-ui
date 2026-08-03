@@ -37,6 +37,8 @@ type RunState = 'idle' | 'running' | 'done' | 'error' | 'unavailable';
  * cell. `index_mismatch` and `unmapped_index` (framework#3728) were exactly
  * that: already emitted by the validate route, absent from the local copy of
  * the union, and therefore silently unlabelled here (objectstack#4115).
+ * `default_mismatch` (spec 17.0.0-rc.2) is the mechanism working as intended —
+ * it arrived with the pin bump and failed this build until labelled.
  */
 const DIFF_LABEL: Record<SchemaDiffEntry['kind'], string> = {
   missing_table: 'Missing table',
@@ -47,6 +49,7 @@ const DIFF_LABEL: Record<SchemaDiffEntry['kind'], string> = {
   pk_mismatch: 'Primary-key mismatch',
   index_mismatch: 'Index mismatch',
   unmapped_index: 'Unmapped index',
+  default_mismatch: 'Column default mismatch',
 };
 
 export function ValidationPanel({ datasource }: ValidationPanelProps) {

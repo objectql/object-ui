@@ -33,6 +33,43 @@ type ZodLikeSchema = {
 
 type SchemaLoader = () => Promise<ZodLikeSchema | undefined>;
 
+/**
+ * The `view` metadata type has TWO spec-declared shapes, and the backend serves
+ * both (framework `objectql/engine.ts` registration; see the header of
+ * `MetadataProvider.mergeViewsIntoObjects`):
+ *
+ *  - **ViewItem** (`ViewItemSchema`) — the first-class per-view record,
+ *    `{ name: '<object>.<key>', object, viewKind, label, config }` (ADR-0017,
+ *    "object has-many view"). This is what this admin AUTHORS: see `anchors.ts`
+ *    `createBuildBody` and the `view-create-body.test.ts` guard.
+ *  - **Container** (`ViewSchema`) — the aggregated
+ *    `{ name, label, object, list, form, listViews, formViews }`, still served
+ *    for records that were never expanded into ViewItems.
+ *
+ * This validator used to name only the container. That looked harmless because
+ * the container was non-strict: a ViewItem's `viewKind` / `config` were silently
+ * STRIPPED, so every draft this admin creates "passed" without one of its own
+ * keys ever being checked. Spec 17.0.0 made the container strict, turning that
+ * vacuous pass into a loud rejection — which is how `createConformance.test.ts`
+ * surfaced it during the 17.0.0-rc.2 uptake.
+ *
+ * So dispatch on the record's own discriminant rather than guessing: `viewKind`
+ * is what makes a record a ViewItem, and it is the same test
+ * `MetadataProvider.isViewItem()` applies on the read side. This is NOT a
+ * tolerant fallback — neither shape is coerced or waved through, each is checked
+ * strictly against its own schema. Which of the two should be the single
+ * authorable shape is a real open question, tracked in objectui#3312.
+ */
+function viewSchemaForDraft(item: ZodLikeSchema, container: ZodLikeSchema): ZodLikeSchema {
+  return {
+    safeParse: (value: unknown) => {
+      const isViewItem =
+        !!value && typeof value === 'object' && 'viewKind' in (value as object);
+      return (isViewItem ? item : container).safeParse(value);
+    },
+  };
+}
+
 // Map metadata-type name → loader for that type's root Zod schema.
 // Each loader pulls only one spec subpath so we don't drag the whole
 // 2MB schema bundle into the studio bundle.
@@ -61,7 +98,13 @@ const LOADERS: Record<string, SchemaLoader> = {
   analytics_cube: async () => (await import('@objectstack/spec/data')).CubeSchema as unknown as ZodLikeSchema,
 
   // ui
-  view: async () => (await import('@objectstack/spec/ui')).ViewSchema as unknown as ZodLikeSchema,
+  view: async () => {
+    const { ViewItemSchema, ViewSchema } = await import('@objectstack/spec/ui');
+    return viewSchemaForDraft(
+      ViewItemSchema as unknown as ZodLikeSchema,
+      ViewSchema as unknown as ZodLikeSchema,
+    );
+  },
   page: async () => (await import('@objectstack/spec/ui')).PageSchema as unknown as ZodLikeSchema,
   app: async () => (await import('@objectstack/spec/ui')).AppSchema as unknown as ZodLikeSchema,
   dashboard: async () => (await import('@objectstack/spec/ui')).DashboardSchema as unknown as ZodLikeSchema,
@@ -86,7 +129,15 @@ const LOADERS: Record<string, SchemaLoader> = {
   skill: async () => (await import('@objectstack/spec/ai')).SkillSchema as unknown as ZodLikeSchema,
 
   // system
-  email_template: async () => (await import('@objectstack/spec/system')).EmailTemplateSchema as unknown as ZodLikeSchema,
+  // NOTE: `EmailTemplateDefinitionSchema`, NOT the removed `EmailTemplateSchema`.
+  // The `email_template` metadata kind has resolved to the Definition schema
+  // since spec 7.1.0 (`BUILTIN_METADATA_TYPE_SCHEMAS` in
+  // `kernel/metadata-type-schemas.ts` is the authority); `EmailTemplateSchema`
+  // survived only as an inline sub-shape of the old `Notification` holder and
+  // was deleted with it in objectstack#4610 / #4616. So this validator was
+  // checking authored templates against the WRONG contract — `name` + `locale`
+  // and `bodyHtml` / `bodyText`, not `id` and `body` + `bodyType`.
+  email_template: async () => (await import('@objectstack/spec/system')).EmailTemplateDefinitionSchema as unknown as ZodLikeSchema,
   job: async () => (await import('@objectstack/spec/system')).JobSchema as unknown as ZodLikeSchema,
 
   // security

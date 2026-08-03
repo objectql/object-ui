@@ -836,11 +836,11 @@ function findFirstRoute(items: any[], ctx?: NavTemplateContext): string {
   return '';
 }
 
-// Build the per-item route segment without recursing through groups —
-// used when `homePageId` resolved to an exact match and we just need to
-// know how to address it. Delegates to the layout package's resolveHref()
-// so `recordId`/`recordMode`/`componentRef` semantics stay consistent
-// with the sidebar.
+// Build the per-item route segment without recursing through groups — the
+// caller has already picked the item and just needs to know how to address
+// it. Delegates to the layout package's resolveHref() so
+// `recordId`/`recordMode`/`componentRef` semantics stay consistent with the
+// sidebar.
 function buildItemRoute(item: any, ctx?: NavTemplateContext): string {
   if (!item) return '';
   if (item.type === 'url' || item.type === 'action' || item.type === 'separator' || item.type === 'group') return '';
@@ -852,35 +852,23 @@ function buildItemRoute(item: any, ctx?: NavTemplateContext): string {
   return href.replace(/^\//, '');
 }
 
-function findNavItemById(items: any[], id: string): any | undefined {
-  if (!items) return undefined;
-  for (const item of items) {
-    if (item.id === id) return item;
-    if (item.type === 'group' && item.children) {
-      const hit = findNavItemById(item.children, id);
-      if (hit) return hit;
-    }
-  }
-  return undefined;
-}
-
 /**
  * Resolves the route to navigate to when the user lands on the bare
- * `/console/apps/:appName` URL. Honors the app's explicit
- * `homePageId` (Salesforce-style "Default Landing"); falls back to the
- * first reachable nav item only when no homePageId is set or it points
- * at something that doesn't yield a route. This is what lets the CRM
- * example open on the Sales Dashboard instead of the Lead list.
+ * `/console/apps/:appName` URL: the app's landing page is its FIRST reachable
+ * navigation item, in `order` — `findFirstRoute` walks groups and skips the
+ * item types that address nothing (`url`, `separator`, `action`). Which app
+ * the ROOT lands on is a separate question, decided by `isDefault`.
+ *
+ * This used to honour an explicit `app.homePageId`. Spec 17.0.0 retired that
+ * key (objectstack#4667, premise corrected in #4709 / objectui#3287): it was
+ * an ID cross-reference with no referential integrity, so a dangling id fell
+ * back to the first item *silently*. If the capability returns, the correct
+ * encoding is a flag on the navigation item itself (`navigation[].landing`),
+ * which cannot dangle — hence this function is kept as the seam even though it
+ * now has a single expression.
  */
 function resolveLandingRoute(activeApp: any, ctx?: NavTemplateContext): string {
-  const homePageId: string | undefined = activeApp?.homePageId;
-  const navigation = activeApp?.navigation || [];
-  if (homePageId) {
-    const item = findNavItemById(navigation, homePageId);
-    const route = buildItemRoute(item, ctx);
-    if (route) return route;
-  }
-  return findFirstRoute(navigation, ctx);
+  return findFirstRoute(activeApp?.navigation || [], ctx);
 }
 
 /**

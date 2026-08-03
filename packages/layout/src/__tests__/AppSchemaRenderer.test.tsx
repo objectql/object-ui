@@ -184,42 +184,63 @@ describe('AppSchemaRenderer', () => {
     expect(screen.getByText('Cases')).toBeTruthy();
   });
 
-  // --- Area visibility and permissions ---
+  // --- Area gating moved to the navigation ITEM (spec 17.0.0) ---
+  //
+  // `visible` / `requiredPermissions` were retired at AREA level
+  // (`AREA_VISIBLE_RETIRED` / `AREA_REQUIRED_PERMISSIONS_RETIRED`): an area is a
+  // layout grouping, not an access boundary. These two tests used to assert the
+  // area itself was hidden; they now assert the capability still exists one
+  // level down, which is where the spec moved it. Losing the gate entirely —
+  // rather than relocating it — is the regression worth catching, so the
+  // item-level assertions below are deliberately the same scenarios.
 
-  it('hides areas that fail visibility check', () => {
-    const schemaWithHiddenArea: AppComponentSchema = {
+  // NB: the gated item must live in the FIRST area — that is the one the
+  // switcher activates by default, so it is the only area whose navigation is
+  // actually rendered. Gating an item in a non-active area asserts nothing:
+  // it is absent either way.
+
+  it('gates the navigation ITEM by visibility, not the area', () => {
+    const schema: AppComponentSchema = {
       type: 'app',
       name: 'crm',
       title: 'CRM',
       areas: [
-        salesArea,
-        { ...serviceArea, visible: false },
+        {
+          ...salesArea,
+          navigation: [{ ...salesArea.navigation[0], visible: false }],
+        },
+        serviceArea,
       ],
     };
-    renderApp(schemaWithHiddenArea, {
-      evaluateVisibility: (expr) => {
-        if (expr === false) return false;
-        return true;
-      },
+    renderApp(schema, {
+      evaluateVisibility: (expr) => expr !== false,
     });
-    // Area switcher should not show (only 1 visible area)
-    expect(screen.queryByText('Service')).toBeNull();
+    // The area still appears in the switcher…
+    expect(screen.getByText('Sales')).toBeTruthy();
+    // …but the item it gates does not render.
+    expect(screen.queryByText('Opportunities')).toBeNull();
   });
 
-  it('hides areas that fail permission check', () => {
-    const schemaWithPermArea: AppComponentSchema = {
+  it('gates the navigation ITEM by permission, not the area', () => {
+    const schema: AppComponentSchema = {
       type: 'app',
       name: 'crm',
       title: 'CRM',
       areas: [
-        salesArea,
-        { ...serviceArea, requiredPermissions: ['service:admin'] },
+        {
+          ...salesArea,
+          navigation: [
+            { ...salesArea.navigation[0], requiredPermissions: ['sales:admin'] },
+          ],
+        },
+        serviceArea,
       ],
     };
-    renderApp(schemaWithPermArea, {
-      checkPermission: (perms) => !perms.includes('service:admin'),
+    renderApp(schema, {
+      checkPermission: (perms) => !perms.includes('sales:admin'),
     });
-    expect(screen.queryByText('Service')).toBeNull();
+    expect(screen.getByText('Sales')).toBeTruthy();
+    expect(screen.queryByText('Opportunities')).toBeNull();
   });
 
   // --- Mobile bottom_nav mode ---

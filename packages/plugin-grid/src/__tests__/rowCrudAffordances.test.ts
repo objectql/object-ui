@@ -160,7 +160,11 @@ describe('resolveRowCrudAffordances', () => {
         .toEqual({ canEdit: true, canDelete: true });
     });
 
-    it.each(['system', 'engine-owned', 'append-only', 'better-auth'])(
+    // `'system'` is gone from this list: protocol 17 split that bucket
+    // (objectstack#3355) into `engine-owned` (locked) and `system-data`
+    // (writable), so the old value now resolves to the default-writable
+    // fallback and asserting it is locked pins nothing.
+    it.each(['engine-owned', 'append-only', 'better-auth'])(
       'engine-owned bucket %s hides generic edit/delete',
       (managedBy) => {
         expect(rowGate({ ...wired, managedBy })).toEqual({ canEdit: false, canDelete: false });

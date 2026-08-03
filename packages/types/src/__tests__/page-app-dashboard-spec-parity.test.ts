@@ -136,9 +136,27 @@ describe('spec-only keys are now VALIDATED, not passed through (objectstack#4115
 
   it('App declares the package-lock and access keys that used to ride through', () => {
     const keys = Object.keys(shapeOf(OuiAppSchema));
-    for (const key of ['branding', 'sharing', 'embed', 'objects', 'apis', 'requiredPermissions', 'homePageId', '_packageId']) {
+    // `homePageId` was in this list until spec 17.0.0 retired it; it is now a
+    // tombstone rather than an authorable key, so it is pinned separately
+    // below — listing it here would read as "still authorable".
+    for (const key of ['branding', 'sharing', 'embed', 'objects', 'apis', 'requiredPermissions', '_packageId']) {
       expect(keys, `'${key}' is still undeclared`).toContain(key);
     }
+  });
+
+  it('App REJECTS the retired `homePageId` rather than stripping it', () => {
+    // objectstack#4667 / #4709 retired the key: it was an ID cross-reference
+    // with no referential integrity, so a dangling id silently fell back to the
+    // first nav item. The landing page is now the first reachable nav item (by
+    // `order`), and the root landing follows `isDefault`.
+    //
+    // Rejection, not stripping, is the whole point — objectui's derivation is
+    // strip-mode, so if the tombstone ever stopped flowing in by reference an
+    // author would get their landing-page intent silently deleted instead of an
+    // error naming the migration. That is the failure this pins.
+    const rejected = OuiAppSchema.safeParse({ type: 'app', name: 'app_x', homePageId: 'home' });
+    expect(rejected.success, '`homePageId` is being accepted again').toBe(false);
+    expect(OuiAppSchema.safeParse({ type: 'app', name: 'app_x' }).success).toBe(true);
   });
 
   it('App validates branding instead of accepting any shape', () => {

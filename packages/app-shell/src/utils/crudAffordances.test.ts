@@ -34,7 +34,10 @@ describe('resolveEffectiveCrudAffordances (app-shell re-export)', () => {
   });
 
   it('boolean userActions override the bucket default per flag', () => {
-    const aff = resolveEffectiveCrudAffordances({ managedBy: 'system', userActions: { edit: true } });
+    // `engine-owned`, not the retired `'system'` (protocol 17 split it —
+    // objectstack#3355). The point is that `edit: true` opens ONLY edit, which
+    // needs a bucket that denies both by default.
+    const aff = resolveEffectiveCrudAffordances({ managedBy: 'engine-owned', userActions: { edit: true } });
     expect(aff.edit).toBe(true);
     expect(aff.delete).toBe(false);
   });

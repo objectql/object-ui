@@ -12,8 +12,10 @@
  * The landing is a build/dev-time PRODUCT decision, declared in metadata — not a
  * runtime, per-tenant, Settings-UI preference. Resolution order (see
  * {@link resolveLandingPath}):
- *   1. the App marked `isDefault: true` → `/apps/<it>` — and that App's own
- *      `homePageId` then selects the landing page within it;
+ *   1. the App marked `isDefault: true` → `/apps/<it>` — and the landing page
+ *      WITHIN that app is its first navigation item (by `order`); it used to
+ *      be selectable with `homePageId`, retired in spec 17.0.0
+ *      (objectstack#4667 / #4709);
  *   2. else the single visible App (`active !== false && hidden !== true`)
  *      → `/apps/<it>` (a one-app deployment shouldn't show a one-tile launcher);
  *   3. else `/home` — the multi-app workspace launcher (the legacy default).

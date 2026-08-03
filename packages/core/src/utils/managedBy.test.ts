@@ -31,8 +31,13 @@ describe('resolveEffectiveCrudAffordances — bucket half, delegated to the spec
     }
   });
 
-  it('userActions overrides the bucket default (ADR-0103 writable system)', () => {
-    const aff = resolveEffectiveCrudAffordances({ managedBy: 'system', userActions: { create: true, edit: true, delete: true } });
+  it('userActions overrides the bucket default (ADR-0103 opened-up locked bucket)', () => {
+    // Was `managedBy: 'system'`. Protocol 17 split that bucket
+    // (objectstack#3355) and `'system'` is now simply an unknown value, which
+    // falls back to the writable platform default — so it pinned nothing and
+    // `import: false` was the assertion that noticed. `engine-owned` is the
+    // locked bucket this was always about.
+    const aff = resolveEffectiveCrudAffordances({ managedBy: 'engine-owned', userActions: { create: true, edit: true, delete: true } });
     expect(aff).toMatchObject({ create: true, edit: true, delete: true, import: false });
   });
 
@@ -200,10 +205,10 @@ describe('resolveEffectiveCrudAffordances — effective API operations (#3391)',
 
 describe('isObjectInlineEditable — effective API operations (#3546)', () => {
   it('undefined effective set → bucket affordance decides (backward-compatible)', () => {
-    // platform is inline-editable by default; system is not.
+    // platform is inline-editable by default; engine-owned is not.
     expect(isObjectInlineEditable({ managedBy: 'platform' })).toBe(true);
     expect(isObjectInlineEditable({ managedBy: 'platform' }, undefined)).toBe(true);
-    expect(isObjectInlineEditable({ managedBy: 'system' })).toBe(false);
+    expect(isObjectInlineEditable({ managedBy: 'engine-owned' })).toBe(false);
   });
 
   it('effective set WITHOUT `update` closes inline-edit even on an editable bucket', () => {
@@ -216,8 +221,9 @@ describe('isObjectInlineEditable — effective API operations (#3546)', () => {
   });
 
   it('effective set never re-opens inline-edit the bucket already denied (intersection)', () => {
-    // system resolves edit=false; even a server `update` grant can't re-open it.
-    expect(isObjectInlineEditable({ managedBy: 'system' }, ['get', 'update'])).toBe(false);
+    // engine-owned resolves edit=false; even a server `update` grant can't
+    // re-open it. (Was `'system'`, retired in protocol 17 — objectstack#3355.)
+    expect(isObjectInlineEditable({ managedBy: 'engine-owned' }, ['get', 'update'])).toBe(false);
   });
 
   it('empty effective set → not inline-editable (deny-all)', () => {

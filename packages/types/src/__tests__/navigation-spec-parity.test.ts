@@ -100,16 +100,17 @@ describe('NavigationItemSchema keeps the spec vocabulary it used to drop', () =>
 });
 
 describe('NavigationAreaSchema keeps the spec fields it used to drop', () => {
-  it('keeps order and description', () => {
+  it('keeps description', () => {
+    // `order` was asserted here too until spec 17.0.0 retired it at AREA level
+    // (with `visible` and `requiredPermissions`); `description` is the one of
+    // the pair from objectui#3088 that is still a spec key.
     const r = NavigationAreaSchema.safeParse({
       id: 'sales',
       label: 'Sales',
-      order: 2,
       description: 'Pipeline and accounts',
       navigation: [],
     });
     expect(r.success).toBe(true);
-    expect(r.success && r.data.order).toBe(2);
     expect(r.success && r.data.description).toBe('Pipeline and accounts');
   });
 });

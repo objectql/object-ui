@@ -73,9 +73,12 @@ describe('AppContextSelectorSchema derives from the spec', () => {
     });
     expect(parsed.optionsSource.valueKey).toBe('id');
     expect(parsed.optionsSource.labelKey).toBe('name');
-    expect(parsed.includeAll).toBe(true);
     expect(parsed.persist).toBe('query');
-    expect(parsed.placement).toBe('sidebar_header');
+    // `includeAll` and `placement` were asserted here until spec 17.0.0
+    // removed them (framework#4509 / objectui#3208). Both carried schema
+    // defaults, which is exactly why the liveness lint could not flag them:
+    // a materialised default is indistinguishable from an authored value.
+    // Removal was the only channel that reaches the author.
   });
 });
 

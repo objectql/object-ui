@@ -413,10 +413,18 @@ describe('Type exports', () => {
       label: 'Sales',
       icon: 'DollarSign',
       navigation: [
-        { id: 'nav_leads', type: 'object', label: 'Leads', objectName: 'lead' },
+        // Gating moved to the ITEM in spec 17.0.0: `visible` and
+        // `requiredPermissions` were retired at AREA level, since an area is a
+        // layout grouping and not an access boundary.
+        {
+          id: 'nav_leads',
+          type: 'object',
+          label: 'Leads',
+          objectName: 'lead',
+          visible: true,
+          requiredPermissions: ['sales:access'],
+        },
       ],
-      visible: true,
-      requiredPermissions: ['sales:access'],
     };
     expect(area.id).toBe('sales');
     expect(area.navigation).toHaveLength(1);

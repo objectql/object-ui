@@ -88,7 +88,9 @@ describe('NavigationAreaSchema derives from the spec', () => {
     // One `.unwrap()` deep: `specFieldsExcept` ends in `.partial()`, which wraps
     // each carried field in a fresh `ZodOptional` around the spec's own object.
     // That wrapper is the only new allocation — what it holds must be identical.
-    for (const key of ['icon', 'order', 'description', 'requiredPermissions'] as const) {
+    // `order` and `requiredPermissions` were in this list until spec 17.0.0
+    // retired them at AREA level (see the retirement block below).
+    for (const key of ['icon', 'description'] as const) {
       const local = shapeOf(NavigationAreaSchema)[key] as { unwrap(): unknown };
       expect(
         local.unwrap(),
@@ -97,17 +99,17 @@ describe('NavigationAreaSchema derives from the spec', () => {
     }
   });
 
-  it('keeps `order` and `description`, the two keys the hand copy dropped', () => {
+  it('keeps `description`, one of the two keys the hand copy dropped', () => {
     // objectui#3088: an area authored with a sort weight or a description lost
-    // both — `objectui validate` is strip-mode, so the loss was silent.
+    // both — `objectui validate` is strip-mode, so the loss was silent. `order`
+    // was the other one; spec 17.0.0 retired it at area level, so only
+    // `description` is still a spec key this can be asserted about.
     const parsed = NavigationAreaSchema.parse({
       id: 'area_sales',
       label: 'Sales',
-      order: 1,
       description: 'Pipeline and quotes',
       navigation: [{ id: 'nav_leads', type: 'object', label: 'Leads', objectName: 'lead' }],
     });
-    expect(parsed.order).toBe(1);
     expect(parsed.description).toBe('Pipeline and quotes');
   });
 
@@ -120,18 +122,50 @@ describe('NavigationAreaSchema derives from the spec', () => {
     expect(NavigationAreaSchema.safeParse({ id: 'area_a', navigation: [] }).success).toBe(false);
   });
 
-  it('keeps the bare-predicate `visible` wire contract (input AND output)', () => {
-    // The spec pipes `visible` through ExpressionInput and emits an
-    // `{ dialect, source }` envelope. objectui's renderers read the bare
-    // predicate, so comparing `_output` alone would miss the divergence that
-    // matters here — the guard header's `_input` rule.
-    const bool = NavigationAreaSchema.parse({ id: 'area_a', label: 'A', navigation: [], visible: true });
-    expect(bool.visible).toBe(true);
-    const cel = NavigationAreaSchema.parse({
-      id: 'area_a', label: 'A', navigation: [], visible: 'user.isAdmin',
+  it('follows the AREA-level retirement of `visible` / `order` / `requiredPermissions`', () => {
+    // Spec 17.0.0 (`AREA_VISIBLE_RETIRED` / `AREA_REQUIRED_PERMISSIONS_RETIRED`)
+    // removed all three from `NavigationAreaSchema`: an area is a layout
+    // grouping, not an access boundary, so gating belongs on the navigation
+    // ITEM (`visible` / `requiredPermissions` — both still there) or on the app.
+    //
+    // This block replaces the old "keeps the bare-predicate `visible` wire
+    // contract" pin. That pin existed because objectui re-typed the spec's
+    // `visible`; with the spec key gone there is nothing to re-type, and
+    // re-adding it locally would be a FORK — objectui would accept areas the
+    // platform's `.strict()` schema rejects. So the assertion is inverted: the
+    // three names must be absent from both sides, and a local re-add fails here.
+    for (const key of ['visible', 'order', 'requiredPermissions'] as const) {
+      expect(
+        Object.keys(shapeOf(SpecNavigationAreaSchema)),
+        `spec re-added area-level '${key}' — re-check the retirement`,
+      ).not.toContain(key);
+      expect(
+        Object.keys(shapeOf(NavigationAreaSchema)),
+        `'${key}' was re-added locally; gate the nav ITEM or the app instead`,
+      ).not.toContain(key);
+    }
+  });
+
+  it('gates on the navigation ITEM, which is where the spec kept the keys', () => {
+    // The other half of the retirement: what moved is the LAYER, not the
+    // capability. If these ever stop parsing, the retirement lost its migration
+    // path and areas have no gating story at all.
+    const parsed = NavigationAreaSchema.parse({
+      id: 'area_a',
+      label: 'A',
+      navigation: [
+        {
+          id: 'nav_forecast',
+          type: 'object',
+          label: 'Forecast',
+          objectName: 'forecast',
+          visible: 'user.isAdmin',
+          requiredPermissions: ['sales.admin'],
+        },
+      ],
     });
-    expect(cel.visible).toBe('user.isAdmin');
-    expect(typeof cel.visible).toBe('string');
+    expect(parsed.navigation[0].visible).toBe('user.isAdmin');
+    expect(parsed.navigation[0].requiredPermissions).toEqual(['sales.admin']);
   });
 
   it('validates navigation items, which inheriting the spec key would not', () => {
@@ -153,16 +187,29 @@ describe('NavigationAreaSchema derives from the spec', () => {
 
 describe('NavigationArea derives from the spec', () => {
   it('inherits the spec keys', () => {
+    // `order` / `requiredPermissions` / `visible` were here until spec 17.0.0
+    // retired them at area level; the zod block above pins their absence.
     const area: NavigationArea = {
       id: 'area_sales',
       label: 'Sales',
       icon: 'briefcase',
-      order: 1,
       description: 'Pipeline and quotes',
-      requiredPermissions: ['sales.read'],
       navigation: [],
     };
-    expect(area.order).toBe(1);
+    expect(area.description).toBe('Pipeline and quotes');
+  });
+
+  it('does NOT re-add the retired area-level keys on the TS side either', () => {
+    const area: NavigationArea = { id: 'area_sales', label: 'Sales', navigation: [] };
+    // @ts-expect-error `visible` was retired at AREA level in spec 17.0.0 —
+    // gate the navigation item or the app instead.
+    area.visible = true;
+    // @ts-expect-error `order` was retired at AREA level in spec 17.0.0.
+    area.order = 1;
+    // @ts-expect-error `requiredPermissions` was retired at AREA level in
+    // spec 17.0.0 — an area is a layout grouping, not an access boundary.
+    area.requiredPermissions = ['sales.read'];
+    expect(area.id).toBe('area_sales');
   });
 
   it('holds objectui navigation items, which the spec type cannot express', () => {

@@ -42,7 +42,9 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
     object: 'sales_order',
     list: {
       type: 'grid',
-      object: 'sales_order',
+      // No `object` here: the view root above declares it. The list view is
+      // `.strict()` since spec 17.0.0, so repeating it one level down is a
+      // hard error rather than a silently dropped key.
       columns: ['name', 'amount', 'status', 'close_date'],
     },
   },
@@ -77,13 +79,16 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
   // `.strict()`: an app does not route by hand-written `path`, it names the
   // metadata record to open (`objectName` / `pageName` / `dashboardName` /
   // `url`) and the shell builds the route. `id` is required so a nav entry can
-  // be addressed — by a patch, and by `homePageId`, which replaced the removed
-  // top-level `landing` route (objectstack#4001).
+  // be addressed by a patch.
+  //
+  // There is no landing-page key: `landing` was removed in objectstack#4001,
+  // its replacement `homePageId` was retired in objectstack#4667 / #4709, and
+  // the app now opens on the FIRST navigation item that yields a route — here
+  // `home`. To change where an app opens, reorder `navigation`.
   app: {
     name: 'crm',
     label: 'CRM',
     icon: 'briefcase',
-    homePageId: 'home',
     navigation: [
       { id: 'home', type: 'page', label: 'Home', pageName: 'crm_welcome' },
       { id: 'accounts', type: 'object', label: 'Accounts', objectName: 'account' },
@@ -237,9 +242,11 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
     enabled: true,
     schedule: { type: 'cron', expression: '0 2 * * *', timezone: 'UTC' },
     handler: 'syncOrders',
-    concurrency: 1,
     retryPolicy: { maxRetries: 3 },
-    timeoutMs: 600000,
+    // `timeout`, not `timeoutMs` — the unit is already milliseconds. There is
+    // no `concurrency` key on a job; `JobSchema` is `.strict()` since spec
+    // 17.0.0, so both spellings are now rejected by name instead of dropped.
+    timeout: 600000,
   },
 
   agent: {
@@ -320,14 +327,16 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
     // declared at stack level via `datasourceMapping`. Both were rejected.
     driver: 'postgres',
     active: true,
-    // `ssl` and `capabilities` are config OBJECTS, not a boolean / token list.
+    // `ssl` is a config OBJECT, not a boolean.
     ssl: { enabled: true, rejectUnauthorized: true },
     config: { host: 'db.internal', port: 5432, database: 'analytics' },
     pool: { min: 2, max: 10 },
-    capabilities: { readOnly: true, queryAggregations: true },
-    // `interval` → `intervalMs`, and the unit is MILLISECONDS: the old `60`
-    // was read as 60ms once the key was spelled correctly, not 60 seconds.
-    healthCheck: { enabled: true, intervalMs: 60000 },
+    // No `capabilities` block: spec 17.0.0 removed it (objectstack#4583,
+    // ADR-0049). All eleven flags were declared, strict-guarded and read by
+    // nobody — pushdown is decided by the runtime driver's own `supports.*`,
+    // never by datasource metadata, so `readOnly: true` here made nothing
+    // read-only. `healthCheck` is likewise not a datasource key.
+    // `os migrate meta --from 16` rewrites stored copies.
   },
 
   // `condition` is the FAILURE predicate, not the invariant: `ScriptValidationSchema`
@@ -366,8 +375,12 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
     name: 'order_confirmation',
     label: 'Order Confirmation',
     subject: 'Your order ${order.name} is confirmed',
-    from: 'sales@example.com',
-    to: '${contact.email}',
+    // An email TEMPLATE is not a send: there is no `to` — the recipient is
+    // supplied when the template is rendered and dispatched. The sender
+    // override is `fromOverride`, and it is an OBJECT (`name` + `address`),
+    // not a bare address string. Both `from` and `to` are rejected by name now
+    // that the authorable record is `.strict()` (spec 17.0.0).
+    fromOverride: { name: 'Sales Team', address: 'sales@example.com' },
     bodyHtml:
       '<html><body style="font-family:sans-serif;padding:24px"><h1 style="color:#4f46e5">Thanks for your order!</h1><p>Hi ${contact.name},</p><p>Your order <strong>${order.name}</strong> for <strong>${order.amount}</strong> is confirmed.</p><p>— The Sales Team</p></body></html>',
   },

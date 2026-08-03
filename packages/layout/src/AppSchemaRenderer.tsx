@@ -120,27 +120,29 @@ export interface AppSchemaRendererProps {
 // AreaSwitcher
 // ---------------------------------------------------------------------------
 
+/**
+ * Areas are NOT gated here any more. `@objectstack/spec` 17.0.0 retired
+ * `visible` and `requiredPermissions` at area level
+ * (`AREA_VISIBLE_RETIRED` / `AREA_REQUIRED_PERMISSIONS_RETIRED`): an area is a
+ * layout grouping, not an access boundary, so gating belongs on the navigation
+ * ITEM — which `NavigationRenderer` still enforces, via the same `evalVis` /
+ * `checkPerm` this component used to apply one level up. The spec's area object
+ * is `.strict()`, so no v17-valid app can carry the retired keys and this
+ * filter had become unreachable for every app the platform accepts.
+ *
+ * Consequence worth knowing: an area whose items are all gated away now renders
+ * as a visible-but-empty area rather than disappearing from the switcher.
+ */
 function AreaSwitcher({
   areas,
   activeAreaId,
   onAreaChange,
-  evalVis,
-  checkPerm,
 }: {
   areas: NavigationArea[];
   activeAreaId: string;
   onAreaChange: (id: string) => void;
-  evalVis: VisibilityEvaluator;
-  checkPerm: PermissionChecker;
 }) {
-  // Filter areas by visibility & permissions
-  const visibleAreas = areas.filter((a) => {
-    if (!evalVis(a.visible)) return false;
-    if (a.requiredPermissions?.length && !checkPerm(a.requiredPermissions)) return false;
-    return true;
-  });
-
-  if (visibleAreas.length <= 1) return null;
+  if (areas.length <= 1) return null;
 
   return (
     <SidebarGroup>
@@ -150,7 +152,7 @@ function AreaSwitcher({
       </SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
-          {visibleAreas.map((area) => {
+          {areas.map((area) => {
             const AreaIcon = resolveIcon(area.icon);
             return (
               <SidebarMenuItem key={area.id}>
@@ -353,8 +355,6 @@ function InternalSidebar({
             areas={areas}
             activeAreaId={activeAreaId}
             onAreaChange={setActiveAreaId}
-            evalVis={evalVis}
-            checkPerm={checkPerm}
           />
         )}
 

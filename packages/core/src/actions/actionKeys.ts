@@ -153,6 +153,17 @@ export const ACTION_DEF_KEYS = [
  * `ActionComponent`. The pin test does the walk and fails the day this drifts.
  */
 export const SPEC_ACTION_KEYS = [
+  // The package-lock / provenance envelope, added to `ActionSchema` in spec
+  // 17.0.0-rc.2. Not authorable action vocabulary — it is stamped on a record
+  // that came from an installed package — but it IS declared by the schema, so
+  // an action carrying it must not be reported as having unknown keys.
+  '_lock',
+  '_lockDocsUrl',
+  '_lockReason',
+  '_lockSource',
+  '_packageId',
+  '_packageVersion',
+  '_provenance',
   'ai',
   'aria',
   'body',

@@ -80,8 +80,9 @@ export interface BaseFieldMetadata {
    * Writing it on an object's field definition is meaningless — nothing
    * publishes it and nothing else produces it.
    *
-   * **Consumer**: `TextAreaField` (`@object-ui/fields`), which reads it off
-   * `field` and nowhere else — `field` being the single metadata carrier since
+   * **Consumers**: `TextAreaField` and `RichTextField` (`@object-ui/fields`,
+   * the latter since objectui#3301 / PR #3302), which read it off `field` and
+   * nowhere else — `field` being the single metadata carrier since
    * objectui#3233. It is declared here, on the type
    * `FieldWidgetComponentProps.field` resolves to, so that the one legal
    * location for the flag is a typed one rather than an untyped pun: before

@@ -136,8 +136,10 @@ describe('ObjectForm — blanket lock vs effective API operations (#3546)', () =
   });
 
   it('bucket-locked object stays locked even when the server allows `update`', async () => {
-    // Intersection, never union.
-    const engineOwned = { name: 'sys_automation_run', managedBy: 'system', fields: textField };
+    // Intersection, never union. The bucket is `engine-owned`: protocol 17
+    // split the old `'system'` (objectstack#3355), which now resolves to the
+    // default-writable fallback and would lock nothing.
+    const engineOwned = { name: 'sys_automation_run', managedBy: 'engine-owned', fields: textField };
     state.effectiveOps = ['get', 'list', 'create', 'update', 'delete'];
     expect(await nameInputDisabled(engineOwned, 'edit')).toBe(true);
   });

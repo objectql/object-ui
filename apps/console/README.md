@@ -79,7 +79,6 @@ Additional backend requirements for cross-origin deployments:
 ### AppSchema Support
 - ✅ `name`, `label`, `icon` — Basic app metadata
 - ✅ `description`, `version` — Optional app information
-- ✅ `homePageId` — Custom landing page configuration
 - ✅ `requiredPermissions` — Permission-based access control
 - ✅ `branding.logo`, `branding.primaryColor`, `branding.favicon` — App branding
 

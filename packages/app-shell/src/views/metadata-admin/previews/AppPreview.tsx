@@ -6,7 +6,7 @@
  * admin would be confusing (nav-within-nav).
  *
  * Shows:
- *   • App label/icon + the landing nav item (`homePageId`)
+ *   • App label/icon + the landing nav item (the first reachable entry)
  *   • Top-level navigation items as a clickable list — each link opens
  *     the runtime app in a new tab so authors can test the configured
  *     nav without leaving the editor.
@@ -169,14 +169,21 @@ function kindIcon(kind?: NavKind) {
   }
 }
 
-/** Depth-first lookup of a nav item by `id` — how `homePageId` addresses one. */
-function findNavItem(items: NavItem[], id: string): NavItem | undefined {
+/**
+ * The entry the app opens on: depth-first, the first item that addresses
+ * something inside the app. Mirrors `findFirstRoute` / `resolveLandingRoute`
+ * in `console/AppContent.tsx` — `group` recurses, and `url` / `separator` /
+ * `action` are skipped because none of them yields an in-app route.
+ */
+function findFirstLanding(items: NavItem[]): NavItem | undefined {
   for (const it of items) {
-    if (it.id === id) return it;
-    if (it.children) {
-      const hit = findNavItem(it.children, id);
+    if (it.kind === 'group') {
+      const hit = it.children ? findFirstLanding(it.children) : undefined;
       if (hit) return hit;
+      continue;
     }
+    if (it.kind === 'url' || it.kind === 'separator' || it.kind === 'action') continue;
+    if (it.href) return it;
   }
   return undefined;
 }
@@ -184,12 +191,13 @@ function findNavItem(items: NavItem[], id: string): NavItem | undefined {
 export function AppPreview({ name, draft, editing, selection, onSelectionChange, onPatch }: MetadataPreviewProps) {
   const appName = String((draft as any).name ?? name ?? '');
   const label = (draft as any).label ?? appName;
-  // `homePageId` is a nav item's **id**, not a route: it names which entry
-  // the app opens on (the shell resolves that entry's URL via resolveHref).
-  // The old `landingRoute ?? landing ?? defaultRoute ?? '/'` read three keys
-  // AppSchema has never declared — `landing` was removed outright in
-  // objectstack#4001 — so a valid app always showed the invented `Landing: /`.
-  const homePageId = typeof (draft as any).homePageId === 'string' ? (draft as any).homePageId : undefined;
+  // The landing page is DERIVED, never authored: it is the first navigation
+  // item that actually addresses something. The app used to be able to pin it
+  // with `homePageId`, but spec 17.0.0 retired that key (objectstack#4667 /
+  // #4709) — an ID cross-reference with no referential integrity, which fell
+  // back to the first item silently when it dangled. Before that it was
+  // `landing`, removed in objectstack#4001. Reading either one back here would
+  // show the author a landing page the runtime will not honour.
   const { rootKey, navItems } = React.useMemo<{ rootKey: string | null; navItems: NavItem[] }>(() => {
     const candidates: Array<[string, unknown]> = [
       ['nav', (draft as any).nav],
@@ -204,9 +212,11 @@ export function AppPreview({ name, draft, editing, selection, onSelectionChange,
     return { rootKey: null, navItems: [] };
   }, [draft, appName]);
 
-  // Resolve the landing id against the tree so the author sees WHICH entry
-  // it selects — and, when it matches nothing, that it selects none.
-  const homeItem = homePageId ? findNavItem(navItems, homePageId) : undefined;
+  // Resolve the landing entry the same way `resolveLandingRoute` does in the
+  // console shell, so the author sees WHICH entry the app will open on:
+  // depth-first, first item that yields a route (`group` recurses; `url`,
+  // `separator` and `action` address nothing inside the app).
+  const homeItem = React.useMemo(() => findFirstLanding(navItems), [navItems]);
 
   // For Add we need a root key even when empty — default to `navigation`,
   // the only root key the spec (AppSchema) actually accepts; `nav` /
@@ -245,19 +255,13 @@ export function AppPreview({ name, draft, editing, selection, onSelectionChange,
             <div className="text-sm font-medium text-foreground">{String(label)}</div>
             <div className="text-xs text-muted-foreground font-mono mt-0.5">{appName}</div>
             <div className="text-xs text-muted-foreground mt-1">
-              {homePageId ? (
+              {homeItem ? (
                 <>
-                  Home: <code className="font-mono">{homePageId}</code>
-                  {homeItem ? (
-                    <span className="ml-1.5">→ {homeItem.label}</span>
-                  ) : (
-                    <span className="ml-1 text-amber-700">
-                      — no navigation item with this id
-                    </span>
-                  )}
+                  Home: opens the first navigation item
+                  <span className="ml-1.5">→ {homeItem.label}</span>
                 </>
               ) : (
-                <>Home: opens the first navigation item</>
+                <>Home: no navigation item yields a route yet</>
               )}
             </div>
           </div>

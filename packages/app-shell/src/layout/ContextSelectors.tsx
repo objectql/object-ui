@@ -38,10 +38,8 @@ export interface ContextSelectorDef {
   label?: unknown;
   icon?: string;
   optionsSource: { endpoint: string; valueKey?: string; labelKey?: string; filter?: ContextSelectorFilter[] };
-  includeAll?: boolean;
   allValue?: string;
   persist?: 'query' | 'session' | 'none';
-  placement?: 'sidebar_header' | 'topbar';
 }
 
 interface Option { value: string; label: string }
@@ -240,8 +238,12 @@ function SelectorControl({
 
   // Context selectors are *mandatory scope* selectors: a concrete option must
   // always be active. Allowing an "All" choice would unscope the surface and,
-  // for Studio's package filter, leak system metadata. We therefore ignore
-  // `includeAll`, never render an "All" row, and auto-select the first option
+  // for Studio's package filter, leak system metadata. There is no key to
+  // ignore any more — `includeAll` and `placement` no longer exist (removed
+  // from `AppContextSelectorSchema` in spec 17.0.0, framework#4509 /
+  // objectui#3208; this renderer never rendered an "All" row, so
+  // `includeAll: false` hardened nothing and `includeAll: true` unlocked
+  // nothing). We never render an "All" row, and auto-select the first option
   // as soon as the list resolves when nothing concrete is selected yet.
   const hasConcrete = !!value && value !== (def.allValue ?? '');
   React.useEffect(() => {

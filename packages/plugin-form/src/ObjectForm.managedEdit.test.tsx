@@ -106,10 +106,13 @@ describe('ObjectForm — managed-object edit affordance (ADR-0092 D4)', () => {
   // engine-owned system object stays locked, while one that opened
   // `userActions.create` (e.g. Notification Preferences) unlocks.
   it('create mode: engine-owned system locked, userActions.create unlocks', async () => {
-    const locked = renderCreate({ name: 'sys_automation_run', managedBy: 'system', fields: { name: { type: 'text', label: 'Name', readonly: false } } });
+    // `engine-owned`, not the residual `'system'`: protocol 17 split that
+    // bucket (objectstack#3355), so `'system'` now falls through to the
+    // default-writable branch and pins nothing.
+    const locked = renderCreate({ name: 'sys_automation_run', managedBy: 'engine-owned', fields: { name: { type: 'text', label: 'Name', readonly: false } } });
     expect((await inputByName(locked.container, 'name')).disabled).toBe(true);
 
-    const open = renderCreate({ name: 'sys_notification_preference', managedBy: 'system', userActions: { create: true }, fields: { name: { type: 'text', label: 'Name', readonly: false } } });
+    const open = renderCreate({ name: 'sys_notification_preference', managedBy: 'engine-owned', userActions: { create: true }, fields: { name: { type: 'text', label: 'Name', readonly: false } } });
     expect((await inputByName(open.container, 'name')).disabled).toBe(false);
   });
 });

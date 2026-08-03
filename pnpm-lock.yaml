@@ -35,8 +35,8 @@ importers:
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.8.0(jiti@2.7.0))
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       '@playwright/test':
         specifier: ^1.62.1
         version: 1.62.1
@@ -267,11 +267,11 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@objectstack/client':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
@@ -402,8 +402,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       fumadocs-core:
         specifier: 16.13.0
         version: 16.13.0(@mdx-js/mdx@3.1.1)(@tanstack/react-router@1.170.8(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.2.18)(lucide-react@1.25.0(react@19.2.8))(next@16.2.12(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react-router@7.18.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)(zod@4.4.3)
@@ -691,14 +691,14 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/formula':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       '@objectstack/lint':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       '@sentry/react':
         specifier: ^10.69.0
         version: 10.69.0(react@19.2.8)
@@ -788,8 +788,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       better-auth:
         specifier: ^1.6.25
         version: 1.6.25(@opentelemetry/api@1.9.1)(better-sqlite3@12.9.0)(mongodb@7.2.0)(next@16.2.12(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10)
@@ -872,8 +872,8 @@ importers:
         version: link:../types
     devDependencies:
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       '@types/react':
         specifier: 19.2.18
         version: 19.2.18
@@ -908,8 +908,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       '@radix-ui/react-accordion':
         specifier: ^1.2.20
         version: 1.2.20(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -1092,11 +1092,11 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/formula':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       lodash:
         specifier: ^4.18.1
         version: 4.18.1
@@ -1154,11 +1154,11 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/client':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
     devDependencies:
       tsup:
         specifier: ^8.5.1
@@ -1191,8 +1191,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -1299,8 +1299,8 @@ importers:
         version: 3.6.0
     devDependencies:
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       '@vitejs/plugin-react':
         specifier: ^6.0.5
         version: 6.0.5(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
@@ -1324,8 +1324,8 @@ importers:
         version: link:../types
     devDependencies:
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       '@types/react':
         specifier: 19.2.18
         version: 19.2.18
@@ -1499,8 +1499,8 @@ importers:
         version: 3.10.1(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react-is@19.2.6)(react@19.2.8)(redux@5.0.1)
     devDependencies:
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       '@types/react':
         specifier: 19.2.18
         version: 19.2.18
@@ -1541,8 +1541,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       '@radix-ui/react-slot':
         specifier: ^1.3.3
         version: 1.3.3(@types/react@19.2.18)(react@19.2.8)
@@ -1657,8 +1657,8 @@ importers:
         version: 3.6.0
     devDependencies:
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       '@types/react-grid-layout':
         specifier: ^2.1.0
         version: 2.1.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -1766,8 +1766,8 @@ importers:
         specifier: workspace:*
         version: link:../i18n
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       lucide-react:
         specifier: ^1.25.0
         version: 1.25.0(react@19.2.8)
@@ -1885,8 +1885,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       lucide-react:
         specifier: ^1.25.0
         version: 1.25.0(react@19.2.8)
@@ -1940,8 +1940,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       lucide-react:
         specifier: ^1.25.0
         version: 1.25.0(react@19.2.8)
@@ -2001,8 +2001,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       '@tanstack/react-virtual':
         specifier: ^3.14.9
         version: 3.14.9(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -2142,8 +2142,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       '@types/react':
         specifier: 19.2.18
         version: 19.2.18
@@ -2181,8 +2181,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       lucide-react:
         specifier: ^1.25.0
         version: 1.25.0(react@19.2.8)
@@ -2331,8 +2331,8 @@ importers:
         version: 3.6.0
     devDependencies:
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       '@types/node':
         specifier: ^26.1.2
         version: 26.1.2
@@ -2376,8 +2376,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -2428,8 +2428,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       lucide-react:
         specifier: ^1.25.0
         version: 1.25.0(react@19.2.8)
@@ -2492,8 +2492,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -2526,8 +2526,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -2560,8 +2560,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -2634,8 +2634,8 @@ importers:
         version: 1.0.7(tailwindcss@4.3.3)
     devDependencies:
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
@@ -2673,14 +2673,14 @@ importers:
         specifier: workspace:*
         version: link:../react
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
 
   packages/types:
     dependencies:
       '@objectstack/spec':
-        specifier: ^17.0.0-rc.1
-        version: 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+        specifier: ^17.0.0-rc.2
+        version: 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -4027,26 +4027,26 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@objectstack/client@17.0.0-rc.1':
-    resolution: {integrity: sha512-3ZRNyx+lOx8C+LBBChhXZc22rWcMa5wufVRrGHc5Dfd42OZqn5AsbKjjhSZrHEfyoCvmeeENo9JGlej0R8RJ9Q==}
+  '@objectstack/client@17.0.0-rc.2':
+    resolution: {integrity: sha512-tM4jm2R6UnR2+ymA94BSefco9DbrgeZFytL6b/mTVaUv7uy/joSZKWWrcEG5FiBzcyxJCevDvQixRHuiYzcHHg==}
     engines: {node: '>=22.0.0'}
 
-  '@objectstack/core@17.0.0-rc.1':
-    resolution: {integrity: sha512-3snd0dJhd+MPEDek+YRapZ02siBnbxYNNl8GoyfnlSeEuKXdcY6bDBf/zueAwoTqyV32zNG5epA85cZh1zLQPw==}
+  '@objectstack/core@17.0.0-rc.2':
+    resolution: {integrity: sha512-5hAtKmjBbzEWA7qWXCN8WB12+BhGZ8jZYg7Y5r8PHYH+jOf5ZLX4KkD3bQw6oTUBpBhWclLVREKSlah9truGRA==}
     engines: {node: '>=22.0.0'}
 
-  '@objectstack/formula@17.0.0-rc.1':
-    resolution: {integrity: sha512-oAJENCl3QQcJA0484ScNdOU6EX5MEZ14pRF7sLITnoBkXGhgh/eMKboG+q6zLGJsZwS4ThPEu6sF72GVDlEmuw==}
+  '@objectstack/formula@17.0.0-rc.2':
+    resolution: {integrity: sha512-+4H3nESU3fH+pjjV4b1P8llvSPff/vQF0Th5/FdbZrYz0fKxoNNL+MtLBAzpu+ME3ZLFMwwsKRH7obPyCS9wmQ==}
 
-  '@objectstack/lint@17.0.0-rc.1':
-    resolution: {integrity: sha512-qIXylf5FsFhWAii0m+jQp49kZXlTnGXNz/cyZTrvqwJItI78k5afo3zKxZjmDreGRnAFIKXJLGLEDvZWjHgdFg==}
+  '@objectstack/lint@17.0.0-rc.2':
+    resolution: {integrity: sha512-S571+BtsXhyBpfZSNh9Ic0ljH8cVKyhgaVbQjqPc0ICgzvwh9/b4PEB7ElbgWUvTNje2KOriLgCjgNGGnTGfuw==}
     engines: {node: '>=22.0.0'}
 
-  '@objectstack/sdui-parser@17.0.0-rc.1':
-    resolution: {integrity: sha512-K96OHHU/HtBkumyKhNz+Sxnhvvy1wAtzQOjuTdwTDpUYLxJu3J3xqxoXPBQUh+FuYrTlxJq99CkhsSCjDrSLjA==}
+  '@objectstack/sdui-parser@17.0.0-rc.2':
+    resolution: {integrity: sha512-Xc2ftxDFaDWyKmPWh+nAhgrMXmakKEXACdU/0fTrWertmfv9vRSrKomdCgFSvLksMxS/JcDT2O9EkMxGMQbj2g==}
 
-  '@objectstack/spec@17.0.0-rc.1':
-    resolution: {integrity: sha512-1SIDQHwxaV8GLD8YqLxCJ0fxTag6eYvvWntihil+lBIxNSjYLI3U384I4l03esBvkytrts3L5W0WCZJkquJiXw==}
+  '@objectstack/spec@17.0.0-rc.2':
+    resolution: {integrity: sha512-gvybztXuGTaqAlUzSOP4xeTpjl44ty2RZ67JQfiCma/engMG8pKqfv4/18nYitFktiWUVLsr2U6AquZAidmcRQ==}
     engines: {node: '>=22.0.0'}
     peerDependencies:
       ai: ^7.0.0
@@ -12439,40 +12439,41 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@objectstack/client@17.0.0-rc.1(ai@7.0.44(zod@4.4.3))':
+  '@objectstack/client@17.0.0-rc.2(ai@7.0.44(zod@4.4.3))':
     dependencies:
-      '@objectstack/core': 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
-      '@objectstack/spec': 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+      '@objectstack/core': 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+      '@objectstack/spec': 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/core@17.0.0-rc.1(ai@7.0.44(zod@4.4.3))':
+  '@objectstack/core@17.0.0-rc.2(ai@7.0.44(zod@4.4.3))':
     dependencies:
-      '@objectstack/spec': 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+      '@objectstack/spec': 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       zod: 4.4.3
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/formula@17.0.0-rc.1(ai@7.0.44(zod@4.4.3))':
+  '@objectstack/formula@17.0.0-rc.2(ai@7.0.44(zod@4.4.3))':
     dependencies:
       '@marcbachmann/cel-js': 8.0.0
-      '@objectstack/spec': 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+      '@objectstack/spec': 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/lint@17.0.0-rc.1(ai@7.0.44(zod@4.4.3))':
+  '@objectstack/lint@17.0.0-rc.2(ai@7.0.44(zod@4.4.3))':
     dependencies:
-      '@objectstack/formula': 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
-      '@objectstack/sdui-parser': 17.0.0-rc.1
-      '@objectstack/spec': 17.0.0-rc.1(ai@7.0.44(zod@4.4.3))
+      '@marcbachmann/cel-js': 8.0.0
+      '@objectstack/formula': 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
+      '@objectstack/sdui-parser': 17.0.0-rc.2
+      '@objectstack/spec': 17.0.0-rc.2(ai@7.0.44(zod@4.4.3))
       sucrase: 3.35.1
       typescript: 6.0.3
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/sdui-parser@17.0.0-rc.1': {}
+  '@objectstack/sdui-parser@17.0.0-rc.2': {}
 
-  '@objectstack/spec@17.0.0-rc.1(ai@7.0.44(zod@4.4.3))':
+  '@objectstack/spec@17.0.0-rc.2(ai@7.0.44(zod@4.4.3))':
     dependencies:
       zod: 4.4.3
     optionalDependencies:

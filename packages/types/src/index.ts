@@ -1020,9 +1020,24 @@ export type {
 // ============================================================================
 // v2.0.7 Spec UI Types — Notifications
 // ============================================================================
+/**
+ * The PRESENTATION vocabulary only. `@objectstack/spec/ui` dropped the two
+ * composite notification types in 17.0.0 (objectstack#4610): `Notification`
+ * (a toast/banner instance shape) and `NotificationConfig` (a toaster global
+ * config). Neither has a successor anywhere in the spec.
+ *
+ * Do NOT re-point `Notification` at `@objectstack/spec/api`. That name now has
+ * exactly one owner, and it is a DIFFERENT contract — the REST inbox row
+ * (`id` / `type` / `title` / `body` / `read` / `data` / `actionUrl` /
+ * `createdAt`), with none of `severity` / `duration` / `dismissible` /
+ * `actions` / `position`. Same name, different shape: aliasing it here would
+ * re-create the very dual-source trap #4610 closed.
+ *
+ * The live objectui equivalent of the removed config is
+ * `NotificationSystemConfig` in `@object-ui/react`'s `NotificationContext`,
+ * which is declared locally and is what every surface actually reads.
+ */
 export type {
-  Notification,
-  NotificationConfig,
   NotificationAction,
   NotificationPosition,
   NotificationSeverity,

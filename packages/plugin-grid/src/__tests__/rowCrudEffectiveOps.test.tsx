@@ -190,7 +190,12 @@ describe('ObjectGrid row CRUD vs the effective API operation set (#3720)', () =>
 
 describe('ObjectGrid row CRUD vs the ADR-0103 bucket lock (#3720)', () => {
   it('engine-owned buckets no longer leak generic row Edit/Delete', async () => {
-    expect(await rowKebab({ managedBy: 'system' })).toEqual({ edit: false, delete: false });
+    // `engine-owned`, NOT the residual `'system'` this used to pass. Protocol
+    // 17 split that bucket (objectstack#3355): the engine-owned objects moved
+    // to `engine-owned` and the admin/user-writable half became `system-data`,
+    // so `'system'` is no longer a bucket at all and now resolves to the
+    // default-writable fallback. The lock this pins lives on `engine-owned`.
+    expect(await rowKebab({ managedBy: 'engine-owned' })).toEqual({ edit: false, delete: false });
     cleanup();
     expect(await rowKebab({ managedBy: 'append-only' })).toEqual({ edit: false, delete: false });
   });

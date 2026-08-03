@@ -23,8 +23,10 @@
  * the preview is therefore the link the runtime will follow — the preview
  * cannot drift from the shell because it is no longer guessing separately.
  *
- * `homePageId` is a nav item's **id**, not a route, so it is rendered as an id
- * resolved against the tree — never as a path.
+ * The landing entry is DERIVED (first navigation item that yields a route),
+ * never authored: spec 17.0.0 retired `homePageId` (objectstack#4667 / #4709),
+ * as it retired `landing` before it (objectstack#4001). Reading either back
+ * would show the author a landing page the runtime will not honour.
  */
 
 import { describe, it, expect, afterEach } from 'vitest';
@@ -38,7 +40,6 @@ const VALID_DRAFT = {
   name: 'crm',
   label: 'CRM',
   icon: 'briefcase',
-  homePageId: 'home',
   navigation: [
     { id: 'home', type: 'page', label: 'Home', pageName: 'crm_welcome' },
     { id: 'accounts', type: 'object', label: 'Accounts', objectName: 'account' },
@@ -126,31 +127,32 @@ describe('AppPreview reads the navigation discriminated union', () => {
   });
 });
 
-describe('AppPreview renders homePageId as a nav item id', () => {
-  it('shows the id and the entry it selects', () => {
+describe('AppPreview derives the landing entry from the navigation order', () => {
+  it('names the first navigation item that yields a route', () => {
     renderPreview(VALID_DRAFT);
-    const home = screen.getByText('home');
-    expect(home).toBeTruthy();
+    expect(screen.getByText(/opens the first navigation item/i)).toBeTruthy();
     // Resolved to the entry's label — NOT rendered as a route.
     expect(screen.getByText('→ Home')).toBeTruthy();
   });
 
-  it('never renders homePageId as a path', () => {
+  it('never renders the landing entry as a path', () => {
     const { container } = renderPreview(VALID_DRAFT);
     expect(container.textContent).not.toContain('Landing: /home');
     expect(container.textContent).not.toContain('/apps/crm/home');
   });
 
-  it('says so when the id matches no navigation item', () => {
-    renderPreview({ ...VALID_DRAFT, homePageId: 'nope_missing' });
-    expect(screen.getByText(/no navigation item with this id/i)).toBeTruthy();
+  it('ignores a retired `homePageId` instead of honouring it', () => {
+    // The runtime rejects the key outright (spec 17.0.0). A stored app that
+    // still carries it must NOT be previewed as landing there — that would
+    // promise a landing page the shell will not deliver.
+    renderPreview({ ...VALID_DRAFT, homePageId: 'orders' });
+    expect(screen.getByText('→ Home')).toBeTruthy();
+    expect(screen.queryByText('→ Sales Orders')).toBeNull();
   });
 
-  it('describes the real default when homePageId is absent', () => {
-    const noHome: Record<string, unknown> = { ...VALID_DRAFT };
-    delete noHome.homePageId;
-    renderPreview(noHome);
-    expect(screen.getByText(/opens the first navigation item/i)).toBeTruthy();
+  it('says so when no navigation item yields a route', () => {
+    renderPreview({ name: 'crm', label: 'CRM', navigation: [] });
+    expect(screen.getByText(/no navigation item yields a route/i)).toBeTruthy();
   });
 });
 
@@ -158,7 +160,10 @@ describe('AppPreview renders nothing from keys AppSchema rejects', () => {
   it('does not render the removed `landing` as a route', () => {
     renderPreview(STALE_DRAFT);
     expect(screen.queryByText('/apps/crm/home')).toBeNull();
-    expect(screen.getByText(/opens the first navigation item/i)).toBeTruthy();
+    // Every entry in STALE_DRAFT lacks `type`, so none of them yields a route
+    // and there is no landing entry to name — the point being that the stale
+    // `landing` value is not what fills the gap.
+    expect(screen.getByText(/no navigation item yields a route/i)).toBeTruthy();
   });
 
   it('does not infer a kind from `object` / `dashboard`', () => {

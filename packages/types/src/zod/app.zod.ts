@@ -112,20 +112,28 @@ export const NavigationItemSchema: z.ZodType<any> = z.lazy(() => z.object({
  * Navigation Area Schema — business-domain partition of navigation, DERIVED
  * from `@objectstack/spec/ui` (objectstack#4115).
  *
- * `icon`, `order`, `description` and `requiredPermissions` flow in **by
- * reference** through {@link specFieldsExcept}; `id` and `label` are taken from
- * the spec's own shape too, re-stated only to keep them required (the helper
- * `.partial()`s what it carries, deliberately, so a future spec field cannot
- * become required and invalidate stored objectui apps). `objectui validate`
- * silently dropped `order` and `description` until objectui#3088 — restating
- * this shape by hand is what let that happen.
+ * `icon` and `description` flow in **by reference** through
+ * {@link specFieldsExcept}; `id` and `label` are taken from the spec's own
+ * shape too, re-stated only to keep them required (the helper `.partial()`s
+ * what it carries, deliberately, so a future spec field cannot become required
+ * and invalidate stored objectui apps). `objectui validate` silently dropped
+ * `order` and `description` until objectui#3088 — restating this shape by hand
+ * is what let that happen.
  *
- * Two keys are pinned locally, matching the TS twin in `app.ts`:
+ * One key is pinned locally, matching the TS twin in `app.ts`:
  *  - `navigation` — objectui's `NavigationItemSchema`, because the spec's is
  *    `z.ZodType<any>` (objectstack#4171 / objectui#3162) and would validate
- *    nothing;
- *  - `visible` — objectui's bare-predicate wire contract (`boolean | string`)
- *    rather than the spec's `ExpressionInput` envelope pipe.
+ *    nothing.
+ *
+ * `order`, `visible` and `requiredPermissions` were AREA-level keys until
+ * `@objectstack/spec` 17.0.0 retired them (`AREA_VISIBLE_RETIRED` /
+ * `AREA_REQUIRED_PERMISSIONS_RETIRED`): an area is a layout grouping, not an
+ * access boundary, so gating belongs on the navigation ITEM (`visible` /
+ * `requiredPermissions`, both still there) or on the app. No objectui renderer
+ * ever read the area-level trio — `AppSchemaRenderer`, `AppSidebar`,
+ * `UnifiedSidebar` and `AppHeader` read only `id` / `label` / `navigation` —
+ * so following the spec here drops no behaviour. The spec object is `.strict()`,
+ * so keeping them locally would have meant accepting areas the platform rejects.
  *
  * Drift guard: `__tests__/page-nav-misc-spec-parity.test.ts`.
  */
@@ -133,12 +141,10 @@ export const NavigationAreaSchema = specFieldsExcept(SpecNavigationAreaSchema.sh
   'id',
   'label',
   'navigation',
-  'visible',
 ] as const).extend({
   id: SpecNavigationAreaSchema.shape.id.describe('Unique identifier'),
   label: SpecNavigationAreaSchema.shape.label.describe('Display label'),
   navigation: z.array(NavigationItemSchema).describe('Navigation items within area'),
-  visible: z.union([z.boolean(), z.string()]).optional().describe('Visibility expression'),
 });
 
 // ============================================================================
@@ -217,7 +223,8 @@ export const AppContextSelectorSchema = SpecAppContextSelectorSchema.extend({
  * `BaseSchema` is `.passthrough()` while the spec's `AppSchema` is strict, so
  * before this derivation 23 spec-only keys rode through objectui completely
  * unvalidated — `branding`, `sharing`, `embed`, `objects`, `apis`,
- * `requiredPermissions`, `homePageId`, `protection` and the whole
+ * `requiredPermissions`, `homePageId` (itself retired in spec 17.0.0),
+ * `protection` and the whole
  * `_lock*`/`_package*`/`_provenance` package-lock envelope. A typo in any of
  * them (`brading: {…}`) was invisible, and a packaged app round-tripped
  * through this schema lost nothing only by luck.

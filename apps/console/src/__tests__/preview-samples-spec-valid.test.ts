@@ -42,16 +42,21 @@
  *     asks precisely the question that matters: would this sample survive being
  *     published in a real stack?
  *
- * LIMIT — worth knowing before trusting a pass. Only some element schemas are
- * `.strict()` (`tools`, `apps`, `flows`, `permissions`, `positions`,
- * `datasources` are; `views`, `jobs`, `emailTemplates` are not). For the
- * non-strict ones an unknown or retired key is stripped rather than rejected,
- * so a PASS there proves the sample is structurally sound, NOT that it is free
- * of retired keys. The guard is exactly as strict as the spec is. `RETIRED_KEYS`
- * below covers the named retirements regardless, which is the only reason the
- * `tool` / `report` rows mean anything: `report` reached SPEC_CLEAN by binding a
- * dataset, and its stripped pre-9.0 `object` / `groupBy` keys would not have
- * failed anything on their own.
+ * LIMIT — worth knowing before trusting a pass. This used to read "only some
+ * element schemas are `.strict()`", and it named `views` / `jobs` /
+ * `emailTemplates` as the lenient ones. Spec 17.0.0 closed that gap: those
+ * three now reject unknown keys by name too, which is how the 17.0.0-rc.2 pin
+ * bump caught this file's `view.list.object`, `job.concurrency` /
+ * `job.timeoutMs` and `email_template.from` / `.to` — four stale samples that
+ * had been passing precisely because the key was stripped instead of refused.
+ *
+ * Some element schemas are still non-strict, and for those a PASS proves the
+ * sample is structurally sound, NOT that it is free of retired keys — the guard
+ * is exactly as strict as the spec is. `RETIRED_KEYS` below covers the named
+ * retirements regardless, which is the only reason the `tool` / `report` rows
+ * mean anything: `report` reached SPEC_CLEAN by binding a dataset, and its
+ * stripped pre-9.0 `object` / `groupBy` keys would not have failed anything on
+ * their own.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -159,7 +164,12 @@ const RETIRED_KEYS: Array<[type: string, key: string, adjudication: string]> = [
   ['agent', 'knowledge', 'objectstack#3896'],
   ['skill', 'triggerPhrases', 'objectstack#3896'],
   ['flow', 'onTimeout', 'objectstack#4158'],
-  ['app', 'landing', 'objectstack#4001 — use `homePageId`'],
+  // `landing` was replaced by `homePageId` in objectstack#4001, and
+  // `homePageId` was itself retired in objectstack#4667 / #4709. There is no
+  // authorable landing key any more: the landing page IS the first navigation
+  // item (by `order`), and the root landing follows `isDefault`.
+  ['app', 'landing', 'objectstack#4001 — landing is now the first nav item'],
+  ['app', 'homePageId', 'objectstack#4667 / #4709 — landing is now the first nav item'],
 ];
 
 /** Every key name appearing anywhere in `value`, at any depth. */

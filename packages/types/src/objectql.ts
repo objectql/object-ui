@@ -31,8 +31,16 @@ import type { ListViewInferred } from './zod/objectql.zod.js';
 /**
  * HTTP Method for API requests
  * Canonical definition from @objectstack/spec/ui.
+ *
+ * The spec renamed this export to `HttpMethodType` in 17.0.0 (objectstack#4691):
+ * `HttpMethod` used to name two DIFFERENT types depending on the entry point —
+ * the 7-value enum on `./shared` / `./api` (which adds `HEAD` / `OPTIONS`) and
+ * the 5-value UI subset on `./ui`. We alias the `./ui` one back to `HttpMethod`
+ * so `@object-ui/types`' public surface is unchanged and the shape stays
+ * verbatim identical. Do NOT re-point this at `./shared`: that is the 7-value
+ * enum, and `ApiDataSource` means the 5-value one.
  */
-export type { HttpMethod } from '@objectstack/spec/ui';
+export type { HttpMethodType as HttpMethod } from '@objectstack/spec/ui';
 
 /**
  * HTTP Request Configuration for API Provider

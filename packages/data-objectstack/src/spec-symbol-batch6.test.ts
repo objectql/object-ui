@@ -57,10 +57,13 @@ import type { DroppedFieldsEvent } from './index';
 import type { DroppedFieldsEvent as SpecDroppedFieldsEvent } from '@objectstack/spec/data';
 import type { CacheStats as SpecCacheStats } from '@objectstack/spec/contracts';
 import type {
-  MetadataSaveOptions as SpecMetadataSaveOptions,
   SecurityPolicy as SpecSecurityPolicy,
   ValidationError as SpecValidationError,
 } from '@objectstack/spec/kernel';
+// `MetadataSaveOptions` moved `./kernel` → `./system` in spec 17.0.0-rc.2.
+// The name still belongs to the spec and still means the FILE writer, so the
+// rename this batch recorded stands — only the entry point moved.
+import type { MetadataSaveOptions as SpecMetadataSaveOptions } from '@objectstack/spec/system';
 
 const PROBE_OPTIONS: ts.CompilerOptions = {
   noEmit: true,
