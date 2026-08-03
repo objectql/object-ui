@@ -59,6 +59,7 @@ function SingleSelectField({
   onChange,
   field,
   readonly,
+  error,
   dependentValues,
   dependsOn: dependsOnProp,
   emptyHint,
@@ -113,20 +114,40 @@ function SingleSelectField({
     );
   }
 
+  // Radix `Select.Root` renders no DOM element of its own — anything it does
+  // not recognise (every `aria-*` / `data-*` a host hands this widget) is
+  // silently DROPPED, never reaching a real element. That is how a required
+  // select failed validation with the red message on screen while assistive
+  // tech was told nothing (objectui#3306): the form renderer's `aria-invalid`
+  // / `aria-describedby` / `aria-required` landed on Root and vanished. The
+  // DOM pass-through therefore goes to `SelectTrigger` — the focusable
+  // `<button role="combobox">` a user and their screen reader actually
+  // interact with — with two deliberate exceptions kept on Root:
+  //
+  // - `name`: the ONE whitelist key Root genuinely consumes — it forwards it
+  //   to the hidden native `<select>` that takes part in form submission.
+  //   On the trigger it would sit uselessly on a non-submitter `<button>`.
+  // - `disabled`: Root is the single authority (it disables trigger, item
+  //   interaction and the hidden select together); forwarding the raw prop to
+  //   the trigger as well would give the state a second, OR-merged author.
+  const { name: domName, disabled: _domDisabled, ...triggerDomProps } = toDomProps(props);
+
   return (
     <Select
-      // Radix `Select.Root` renders no element of its own and drops what it
-      // does not recognise, so this spread leaks nothing TODAY. It is closed
-      // anyway because that is an accident of the primitive, not a property of
-      // this widget: the structure is identical to the thirteen widgets that
-      // DID leak, and one refactor to a plain <select> starts it leaking too
-      // (objectui#3291).
-      {...toDomProps(props)}
+      name={domName}
       value={value}
       onValueChange={onChange}
       disabled={readonly || props.disabled}
     >
-      <SelectTrigger className={props.className} id={props.id} data-testid={fieldName ? `select-trigger-${fieldName}` : undefined}>
+      <SelectTrigger
+        {...triggerDomProps}
+        data-testid={fieldName ? `select-trigger-${fieldName}` : undefined}
+        // AFTER the spread so this widget's own computation wins, the #3222
+        // discipline: `error` is the published validation slot
+        // (`FieldWidgetPropsSchema`), and `!!undefined` must yield an explicit
+        // `"false"` — a valid field SAYS it is valid rather than staying mute.
+        aria-invalid={!!error}
+      >
         <SelectValue placeholder={config?.placeholder || t('common.selectOption')} />
       </SelectTrigger>
       <SelectContent position="popper">

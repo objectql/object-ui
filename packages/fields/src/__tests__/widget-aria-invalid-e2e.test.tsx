@@ -51,8 +51,14 @@ import { CurrencyField } from '../widgets/CurrencyField';
 import { PercentField } from '../widgets/PercentField';
 import { RichTextField } from '../widgets/RichTextField';
 import { TextField } from '../widgets/TextField';
+import { SelectField } from '../widgets/SelectField';
 
-/** The seven widgets that read the validation slot, by their form-path key. */
+/**
+ * The widgets that read the validation slot, by their form-path key: the seven
+ * from objectui#3222, plus `select` (objectui#3306) — the widget whose control
+ * is a Radix trigger rather than a native input, where every aria-* used to be
+ * swallowed by the non-DOM `Select.Root`.
+ */
 const WIDGETS = [
   ['email', EmailField],
   ['phone', PhoneField],
@@ -61,6 +67,7 @@ const WIDGETS = [
   ['currency', CurrencyField],
   ['percent', PercentField],
   ['markdown', RichTextField],
+  ['select', SelectField],
 ] as const;
 
 beforeAll(() => {
@@ -184,5 +191,75 @@ describe('field widgets announce an invalid field to AT (objectui#3222)', () => 
     fireEvent.change(controlOf('email'), { target: { value: 'a@example.com' } });
 
     await waitFor(() => expect(controlOf('email')).toHaveAttribute('aria-invalid', 'false'));
+  });
+});
+
+describe('field:select announces validation state on its TRIGGER (objectui#3306)', () => {
+  // Radix `Select.Root` renders no DOM element and silently drops every prop
+  // it does not recognise. The widget used to spread its DOM pass-through onto
+  // Root, so `aria-invalid` / `aria-describedby` / `aria-required` all
+  // vanished: a failed required select showed the red message while assistive
+  // tech was told nothing. The real control is the focusable
+  // `<button role="combobox">` the trigger renders — that is where every
+  // assertion below reads from, never a wrapper.
+  //
+  // `field:select` (not bare `select`) because `select` is a
+  // BUILTIN_FIELD_TYPE in the form renderer and never reaches the registry —
+  // same reason as `field:textarea` above.
+  const OPTIONS = [
+    { label: 'Alpha', value: 'alpha' },
+    { label: 'Beta', value: 'beta' },
+  ];
+
+  const selectField = {
+    name: 'choice',
+    label: 'Choice',
+    type: 'field:select',
+    required: true,
+    options: OPTIONS,
+  };
+
+  /** The trigger button, by role — fails loudly if it stops being a combobox. */
+  function trigger(): Element {
+    const el = document.querySelector('[data-field="choice"] [role="combobox"]');
+    if (!el) throw new Error('no select trigger rendered for field "choice"');
+    return el;
+  }
+
+  it('a required select is aria-invalid only AFTER validation fails, on the trigger', async () => {
+    renderForm(selectField, null);
+
+    // The explicit "false" half is load-bearing, same as the widgets above: a
+    // valid field SAYS it is valid rather than staying mute.
+    expect(trigger()).toHaveAttribute('aria-invalid', 'false');
+
+    submit();
+
+    // Prove the failure actually rendered before reading aria off it — an
+    // error variant that silently produces no error tests nothing.
+    await waitFor(() =>
+      expect(screen.getAllByText('Choice is required')).toHaveLength(1),
+    );
+    expect(trigger()).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('carries aria-required on the trigger — the state channel of objectui#3290', () => {
+    renderForm(selectField, null);
+
+    // Root would swallow it; the trigger is "the control" for a Radix select.
+    expect(trigger()).toHaveAttribute('aria-required', 'true');
+  });
+
+  it('aria-describedby on the trigger references the rendered error message', async () => {
+    renderForm(selectField, null);
+
+    submit();
+
+    const message = await screen.findByText('Choice is required');
+    // The association is only real if the id chain closes: the trigger must
+    // point at the exact element carrying the message text.
+    expect(message.id).not.toBe('');
+    const describedBy = trigger().getAttribute('aria-describedby') ?? '';
+    expect(describedBy.split(/\s+/)).toContain(message.id);
   });
 });
