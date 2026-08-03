@@ -43,7 +43,7 @@
     "ai": "^7.0.37",
     "class-variance-authority": "^0.7.1",
     "lucide-react": "^1.25.0",
-    "motion": "^12.42.2",
+    "motion": "^12.43.0",
     "nanoid": "^6.0.0",
     "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^16.1.1",
