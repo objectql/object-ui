@@ -1,0 +1,168 @@
+# Live E2E — the console driven against a REAL ObjectStack backend (#2835).
+#
+# What runs: an allowlist of e2e/live specs (screen-flow, action-modal,
+# master-detail — `pnpm test:e2e:live:ci`) against `objectstack dev` booted
+# from PUBLISHED @objectstack/* packages serving the showcase app. Every PR
+# therefore smoke-tests "this console x the released backend" — the class of
+# bug only a real browser against a real backend can catch (framework#3528:
+# a lazily-loaded widget's suspension unwound to the host's route boundary
+# and tore down the flow dialog; zero unit test could see it).
+#
+# ⚠️ INFORMATIONAL, NON-REQUIRED lane — `continue-on-error: true` keeps a
+# failure here from failing the workflow run, so it never blocks a merge and
+# never ejects unrelated PRs from the queue (objectstack#4850 is the prior
+# art for why a new lane must prove itself outside the merge gate first).
+# Do NOT add this job to required checks, and do not remove
+# `continue-on-error`, until the lane has run clean for long enough to trust
+# (watch the nightly schedule). Failures still surface: red step + uploaded
+# report + job summary.
+#
+# Growing the allowlist: add specs to `test:e2e:live:ci` in package.json a
+# few at a time, only after they prove flake-free here — do not switch all
+# 20+ live specs on at once and inherit whatever flake exists (#2835's
+# sequencing note).
+#
+# Backend pins live in e2e/live/ci/backend.env — the published package
+# version MUST match the @objectstack/spec version in pnpm-lock.yaml (a
+# mismatched pair proves nothing; bump both in the same PR).
+name: Live E2E
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths-ignore:
+      - '**/*.md'
+      - 'content/**'
+      - 'docs/**'
+      - 'apps/site/**'
+      - '.changeset/**'
+  # Nightly on main: accumulates the stability record that decides when the
+  # lane may be promoted to a required check.
+  schedule:
+    - cron: '30 6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: live-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  live-e2e:
+    name: Live E2E (informational)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    # Non-blocking by construction — see the header comment before touching.
+    continue-on-error: true
+
+    env:
+      LIVE_BACKEND_DIR: ${{ runner.temp }}/live-backend
+      LIVE_BACKEND_PORT: '4010'
+      LIVE_API_URL: http://localhost:4010
+      LIVE_APP_URL: http://localhost:5190
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The backend fixture (showcase metadata + published @objectstack/*
+      # node_modules) only changes when the pins do — cache it on the pin file.
+      # start-backend.sh's stamp check makes a cache hit skip clone + install.
+      - name: Cache live backend fixture
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/live-backend
+          key: live-backend-${{ runner.os }}-${{ hashFiles('e2e/live/ci/backend.env') }}
+
+      - name: Start ObjectStack backend (published packages)
+        run: bash e2e/live/ci/start-backend.sh
+
+      - name: Build console
+        # Absolute base so `vite preview`'s SPA fallback serves deep links
+        # (/apps/showcase_app/…) with resolvable asset URLs — the default
+        # relative base ('./') 404s them (same reason ci.yml's e2e job pins
+        # VITE_BASE_PATH). Vite, not the package build: the SPA bundle is the
+        # only artifact the tests consume.
+        env:
+          VITE_BASE_PATH: /
+        run: pnpm --filter @object-ui/console exec vite build
+
+      - name: Serve console (vite preview)
+        # `preview.proxy` defaults to `server.proxy`, so /api is proxied to
+        # DEV_PROXY_TARGET just like the dev server would.
+        working-directory: apps/console
+        run: |
+          DEV_PROXY_TARGET="$LIVE_API_URL" nohup pnpm exec vite preview --port 5190 --strictPort \
+            > "$RUNNER_TEMP/console-preview.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/console-preview.pid"
+          for i in $(seq 1 60); do
+            curl -sf -o /dev/null "$LIVE_APP_URL" && exit 0
+            sleep 1
+          done
+          echo "console preview never became ready" >&2
+          tail -50 "$RUNNER_TEMP/console-preview.log" >&2
+          exit 1
+
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(pnpm list @playwright/test --depth=0 --json | jq -r '.[0].devDependencies["@playwright/test"].version')" >> $GITHUB_OUTPUT
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Run live E2E allowlist
+        run: pnpm test:e2e:live:ci
+
+      - name: Report failure in job summary
+        if: failure()
+        run: |
+          {
+            echo "## Live E2E failed (informational lane — does not block merge)"
+            echo ""
+            echo "Backend: published \`@objectstack/*\` per \`e2e/live/ci/backend.env\`."
+            echo "See the \`live-e2e-artifacts\` upload for the Playwright report and server logs."
+            echo "If this failure reproduces on re-run it is a real console x backend integration bug — treat it as such even though the lane cannot block your merge."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report and server logs
+        uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() && failure() }}
+        with:
+          name: live-e2e-artifacts
+          path: |
+            playwright-report/
+            test-results/
+            ${{ runner.temp }}/live-backend/backend.log
+            ${{ runner.temp }}/console-preview.log
+          retention-days: 14
+
+      # Ephemeral runner — no teardown needed; stop-backend.sh exists for
+      # local runs of the same scripts.
