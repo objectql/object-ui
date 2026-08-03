@@ -6,8 +6,7 @@
  * AI tools are LLM-callable functions whose contract is a JSON Schema
  * in `parameters`. The preview renders:
  *
- *   1. A header strip: machine name, category, target object, flags
- *      (active, requiresConfirmation, builtIn).
+ *   1. A header strip: machine name, label, target object.
  *   2. The description verbatim (this is what the LLM reads to decide
  *      when to call the tool, so authors must be able to skim it).
  *   3. An **input parameters** table extracted from the JSON Schema:
@@ -21,19 +20,30 @@
  * permission checks, and live datasource access that the preview
  * sandbox doesn't provide. Authors get an `Open in API Console` link
  * for end-to-end testing.
+ *
+ * NO FLAG PILLS — deliberate (objectstack#3715 / #3896, objectui#3236).
+ * The header strip used to render `requiresConfirmation`, `active`,
+ * `builtIn` and `category`. All four were removed from the spec's
+ * `ToolSchema`, which is now `.strict()` and rejects them by name with an
+ * upgrade prescription, so no new tool metadata can carry them. Rendering
+ * them for stale stored rows was worse than useless: `Requires
+ * confirmation` advertised a safety pause no execution path has ever
+ * performed (a real gate is `action.ai.requiresConfirmation` + the HITL
+ * approval queue), and `Disabled` claimed a tool had been withdrawn while
+ * the registry kept handing it to the LLM. Do not re-add a pill for any
+ * of these names — the "stale draft" tests in `ToolPreview.test.tsx` fail
+ * if you do. Any new pill must correspond to a key the spec still accepts
+ * AND a behavior the runtime actually performs.
  */
 
 import * as React from 'react';
 import {
-  AlertTriangle,
   Box,
   CheckCircle2,
   ChevronRight,
   Database,
   ExternalLink,
   FileJson,
-  Power,
-  Tag,
   Wrench,
 } from 'lucide-react';
 import type { MetadataPreviewProps } from '../preview-registry';
@@ -96,11 +106,7 @@ export function ToolPreview({ name, draft }: MetadataPreviewProps) {
   const toolName = String(d.name ?? name ?? '');
   const label = String(d.label ?? toolName);
   const description = String(d.description ?? '');
-  const category = (d.category as string | undefined) || undefined;
   const objectName = (d.objectName as string | undefined) || undefined;
-  const requiresConfirmation = !!d.requiresConfirmation;
-  const active = d.active !== false;
-  const builtIn = !!d.builtIn;
 
   const parameters = (d.parameters ?? {}) as JsonSchema;
   const outputSchema = (d.outputSchema ?? undefined) as JsonSchema | undefined;
@@ -161,15 +167,11 @@ export function ToolPreview({ name, draft }: MetadataPreviewProps) {
                   <span className="text-sm font-medium truncate">{label}</span>
                   <span className="font-mono text-[10px] text-muted-foreground">{toolName}</span>
                 </div>
-                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
-                  {category && <Pill icon={Tag} label={category} />}
-                  {objectName && <Pill icon={Database} label={objectName} mono />}
-                  <Pill icon={Power} label={active ? 'Active' : 'Disabled'} tone={active ? 'green' : 'gray'} />
-                  {requiresConfirmation && (
-                    <Pill icon={AlertTriangle} label="Requires confirmation" tone="amber" />
-                  )}
-                  {builtIn && <Pill label="built-in" />}
-                </div>
+                {objectName && (
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                    <Pill icon={Database} label={objectName} mono />
+                  </div>
+                )}
               </div>
             </div>
             {description && (
@@ -295,27 +297,23 @@ function Empty({ children }: { children: React.ReactNode }) {
   return <div className="text-xs text-muted-foreground italic">{children}</div>;
 }
 
+// `tone` ('green' for Active, 'amber' for Requires confirmation) went away with
+// the flag pills themselves — the surviving caller is the neutral object-name
+// pill. A tone vocabulary kept alive with no caller is how the removed pills
+// grow back.
 function Pill({
   icon: Icon,
   label,
-  tone = 'gray',
   mono = false,
 }: {
   icon?: React.ComponentType<{ className?: string }>;
   label: string;
-  tone?: 'gray' | 'green' | 'amber';
   mono?: boolean;
 }) {
-  const cls =
-    tone === 'green'
-      ? 'text-emerald-700'
-      : tone === 'amber'
-        ? 'text-amber-700'
-        : 'text-foreground';
   return (
     <span className="inline-flex items-center gap-1">
       {Icon && <Icon className="h-3 w-3 text-muted-foreground" />}
-      <span className={`${cls} ${mono ? 'font-mono' : ''}`}>{label}</span>
+      <span className={`text-foreground ${mono ? 'font-mono' : ''}`}>{label}</span>
     </span>
   );
 }
