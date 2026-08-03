@@ -189,8 +189,9 @@ export interface ActionDef {
    * would diverge silently rather than fail.
    *
    * Consumers dispatch bodies by registering a `script` handler that POSTs to
-   * `/api/v1/actions/{object}/{action}` (see app-shell's
-   * `useConsoleActionRuntime`); the server runs the body through its sandbox.
+   * `/api/v1/actions/{object}/{action}`; the server runs the body through its
+   * sandbox. Build that handler with `createServerActionHandler` (#2904) —
+   * app-shell's `useConsoleActionRuntime` and `RecordDetailView` both do.
    */
   body?: unknown;
   /** For type: 'url' — where to open `target`. `'new-tab'` forces a new
@@ -907,7 +908,8 @@ export class ActionRunner {
           error:
             'Action body must be executed server-side — this client runner does not interpret ' +
             '`body` (sandboxed JS needs an isolated VM; expression bodies use the formula engine). ' +
-            'Register a `script` handler that POSTs to /api/v1/actions/{object}/{action}.',
+            'Register a `script` handler that POSTs to /api/v1/actions/{object}/{action} — ' +
+            'build one with createServerActionHandler from @object-ui/core.',
         };
       }
       // ActionDef is open-ended (`[key: string]: any`), so hand-authored

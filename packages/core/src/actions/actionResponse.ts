@@ -1,5 +1,13 @@
 /**
- * The ONE place the console interprets a `POST /api/v1/actions/...` response.
+ * ObjectUI
+ * Copyright (c) 2024-present ObjectStack Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+/**
+ * The ONE place a `POST /api/v1/actions/...` response is interpreted.
  *
  * This existed twice — `useConsoleActionRuntime.serverActionHandler` and
  * `RecordDetailView`'s copy of the same handler — and the two drifted, which is
@@ -7,6 +15,11 @@
  * learned to inspect the inner envelope and the other did not, so a failed
  * action fired a green "completed" toast on every list/page surface. Two copies
  * of a subtle envelope rule is a bug generator; this is the rule, once.
+ *
+ * Moved from `@object-ui/app-shell` (`utils/actionResponse`) into core by
+ * objectui#2904: `createServerActionHandler` — the dispatch every consumer
+ * registers as its `script` handler — lives here and must apply the rule, so
+ * the rule lives beside it.
  *
  * ## The legacy envelope was DOUBLE, and that was the trap (pre-objectstack#3962)
  *

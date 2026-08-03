@@ -252,11 +252,42 @@ Executes action schemas and returns directives:
 
 | Type | Description |
 |------|-------------|
-| `script` | Execute inline JavaScript |
+| `script` | Dispatch a named/registered script action — an `action.body` always executes **server-side** |
 | `url` | Navigate to a URL |
 | `api` | Make an API request (AJAX) |
 | `modal` | Open a modal with a nested schema |
 | `flow` | Execute a multi-step action sequence |
+
+### Server Action Dispatch (`serverActionHandler.ts`)
+
+`ActionSchema.body` (the spec's preferred binding for script actions) executes
+server-side via `POST /api/v1/actions/{object}/{action}` — the client
+dispatches, it never interprets a body (a browser cannot enforce the L2
+sandbox's capabilities/timeout/memory contract, and L1 is formula-engine CEL,
+a different dialect from the `${...}` evaluator).
+
+`createServerActionHandler` is the core factory every consumer uses to build
+that dispatch. It owns the protocol (name-based action identity, record-id
+resolution, re-entrancy guard, the `/actions` response-envelope rule) and
+injects the three things core has no opinion about:
+
+```typescript
+import { createServerActionHandler } from '@object-ui/core';
+
+const script = createServerActionHandler({
+  fetch: myAuthenticatedFetch,          // auth is yours
+  baseUrl: 'https://api.example.com',   // origin is yours ('' = same-origin)
+  resolveObject: () => currentObject,   // fallback object scope is yours
+  onRefresh: () => notifyDataChanged(), // data invalidation is yours
+});
+
+// Registered handlers beat the built-in executors:
+<ActionProvider handlers={{ script }} ... />
+```
+
+The console builds on the same factory (`@object-ui/app-shell`'s
+`createConsoleServerActionHandler` adds the popup pre-open dance and the
+`redirectUrl` convention on top).
 
 ### TransactionManager (`TransactionManager.ts`)
 

@@ -58,6 +58,35 @@ const userName = scope.get('user.name') // 'John'
 const isAdmin = scope.evaluate('${user.role === "admin"}') // true
 ```
 
+### Server Action Dispatch (`createServerActionHandler`)
+
+`ActionSchema.body` (L1 expression / L2 sandboxed JS) executes **server-side**
+— `POST /api/v1/actions/{object}/{action}` → the runtime sandbox. The client
+dispatches; it never interprets a body. Build the dispatch handler with the
+factory and register it — core stays opinion-free about auth, origin and
+object scope, which are injected:
+
+```typescript
+import { createServerActionHandler } from '@object-ui/core'
+
+const script = createServerActionHandler({
+  fetch: myAuthenticatedFetch,          // your auth wrapper (Bearer/cookies/...)
+  baseUrl: 'https://api.example.com',   // '' or omitted = same-origin
+  resolveObject: () => currentObject,   // fallback when the action has no objectName
+  onRefresh: () => refetchData(),       // called per the action's refreshAfter
+})
+
+// Registered handlers beat the built-in executors:
+runner.registerHandler('script', script)
+// (React hosts: <ActionProvider handlers={{ script }} ... />)
+```
+
+The factory owns the protocol so consumers cannot drift on it: name-based
+action identity (ADR-0110), the record-id resolution dance (`_rowRecord`,
+`recordIdField`, selection fallback, aggregate `_selectedIds`), a re-entrancy
+guard, and the `/actions` response-envelope rule (`interpretActionResponse` /
+`readActionPayload`, also exported).
+
 ### System Views (`defineView`)
 
 Schemas authored in source code are part of the product contract and must

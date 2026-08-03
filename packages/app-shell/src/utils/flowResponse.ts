@@ -44,7 +44,7 @@
  * `actionErrorDetail` exists for.
  */
 
-import { actionErrorDetail } from './actionErrorDetail';
+import { actionErrorDetail } from '@object-ui/core';
 
 /**
  * The `AutomationResult` fields the console reads. Deliberately loose: this is

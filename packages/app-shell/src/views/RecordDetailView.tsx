@@ -34,7 +34,7 @@ import { withPageTabsUrlSync } from '../utils/pageTabsUrlSync';
 import { RECORD_DETAIL_TAB_PARAM, RECORD_TRAIL_PARAM, decodeRecordTrail, buildRecordTrailHref } from '../urlParams';
 import { resolveActionParams } from '../utils/resolveActionParams';
 import { decisionOutputDefs, decisionOutputParams, foldDecisionOutputs } from '../utils/decisionOutputParams';
-import { interpretActionResponse } from '../utils/actionResponse';
+import { createConsoleServerActionHandler } from '../utils/consoleServerAction';
 import { interpretFlowResponse } from '../utils/flowResponse';
 import { useRecordBreadcrumbTitle } from '../context/NavigationContext';
 // Audit provenance renders as the one-line <RecordMetaFooter>; the other
@@ -800,171 +800,34 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     }
   }, [authFetch, pureRecordId, objectName]);
 
-  // Server-side action handler — POST to /api/v1/actions/{object}/{action}.
-  // Used for `script` and `modal` actions where `action.target` matches a
-  // server-registered handler name (engine.registerAction). Sends the
-  // current recordId, objectName, and any collected/static params, and the
-  // server resolves the handler (with wildcard '*' fallback) and runs it.
-  const serverActionInFlight = useRef<Set<string>>(new Set());
-  const serverActionHandler = useCallback(async (action: ActionDef) => {
-    const targetName = action.target || action.name;
-    if (!targetName) {
-      return { success: false, error: 'No action target provided' };
-    }
-    const params = (action.params && !Array.isArray(action.params))
-      ? (action.params as Record<string, unknown>)
-      : {};
-
-    // Re-entrancy guard: ignore a repeat click while this action+record runs.
-    const inflightKey = `${targetName}:${pureRecordId ?? ''}`;
-    if (serverActionInFlight.current.has(inflightKey)) {
-      return { success: false, error: 'Action already in progress' };
-    }
-    serverActionInFlight.current.add(inflightKey);
-
-    // ── Popup-blocker workaround ──────────────────────────────────────
-    // When `action.opensInNewTab` is set, the handler is known to return
-    // `{ redirectUrl: ... }` for the UI to navigate to. We pre-open
-    // `about:blank` synchronously *here*, before the await fetch — this
-    // preserves the user-gesture context so Chrome/Safari don't block
-    // the eventual navigation. Drives the same tab to `redirectUrl`
-    // after the server replies. If pre-open fails (popup blocker on the
-    // initial gesture), we fall back to navigating the current tab so
-    // the user always gets there.
-    let preOpenedTab: Window | null = null;
-    if ((action as any).opensInNewTab) {
-      // NOTE: do NOT pass 'noopener' here — per spec it forces window.open to
-      // return null even when the tab opens, so we'd lose the handle, fall
-      // through to the popup branch below, and end up navigating the *current*
-      // tab to the redirectUrl (the double-navigation bug: env opens in a new
-      // tab AND the list/detail page jumps to the now-consumed SSO URL). We
-      // need the reference to drive the pre-opened tab to the SSO redirect.
-      try {
-        preOpenedTab = window.open('about:blank', '_blank');
-        // Paint progress immediately so the new tab isn't blank/frozen during
-        // the (slow) SSO-handoff mint.
-        if (preOpenedTab) {
-          preOpenedTab.document.write('<!doctype html><meta charset="utf-8"><title>正在打开… Opening…</title><body style="margin:0;font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px;color:#4b5563"><div style="width:28px;height:28px;border:3px solid #e5e7eb;border-top-color:#6366f1;border-radius:50%;animation:s .8s linear infinite"></div><div>正在为你打开环境…</div><style>@keyframes s{to{transform:rotate(360deg)}}</style></body>');
-          preOpenedTab.document.close();
-        }
-      } catch { preOpenedTab = null; }
-    }
-
-    try {
-      const baseUrl = import.meta.env.VITE_SERVER_URL || '';
-      // ── Zero-roundtrip fast path ────────────────────────────────────────
-      // `newTabUrl` names a GET endpoint that performs ALL auth/authz itself
-      // (e.g. /sso-open re-runs every check the POST half would have done),
-      // so the POST round trip would add nothing but click latency. Drive the
-      // pre-opened tab there immediately — the spinner page stays painted
-      // until the (possibly slow) endpoint commits its redirect.
-      const newTabUrl = typeof (action as any).newTabUrl === 'string' ? (action as any).newTabUrl as string : '';
-      if ((action as any).opensInNewTab && newTabUrl) {
-        if (pureRecordId == null) {
-          if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
-          return { success: false, error: 'This action runs on a single record — no record id available.' };
-        }
-        // Absolute URL required: the pre-opened tab is an about:blank document,
-        // so a bare-relative href has no reliable resolution base.
-        const directUrl = `${baseUrl || window.location.origin}${newTabUrl.replace('{recordId}', encodeURIComponent(String(pureRecordId)))}`;
-        if (preOpenedTab) {
-          try { preOpenedTab.location.href = directUrl; }
-          catch {
-            try { preOpenedTab.close(); } catch { /* ignore */ }
-            window.location.href = directUrl;
-          }
-        } else {
-          let popup: Window | null = null;
-          try { popup = window.open(directUrl, '_blank'); } catch { popup = null; }
-          if (!popup) {
-            toast('浏览器拦截了弹窗 / Popup blocked', {
-              description: '点击在新标签页打开环境',
-              action: { label: '打开环境', onClick: () => { try { window.open(directUrl, '_blank'); } catch { window.location.href = directUrl; } } },
-              duration: 10000,
-            });
-          }
-        }
-        if (action.refreshAfter === true) notifyRecordChanged();
-        return { success: true };
-      }
-      const obj = action.objectName || objectName || 'global';
-      const res = await authFetch(
-        `${baseUrl}/api/v1/actions/${encodeURIComponent(obj)}/${encodeURIComponent(targetName)}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          // Related-list row actions retarget a CHILD record via explicit
-          // `recordId`; header/more actions carry none and use this page's id.
-          body: JSON.stringify({ recordId: (action as any).recordId ?? pureRecordId, params }),
-        },
-      );
-      const json = await res.json().catch(() => null);
-      // Single source for the `/actions` envelope rule — shared with
-      // useConsoleActionRuntime, from which this copy drifted (it learned to
-      // inspect the inner envelope; the shared runtime had not, which is
-      // objectstack#3913's console symptom). See utils/actionResponse.
-      const outcome = interpretActionResponse(res, json, `Action "${targetName}"`);
-      if (!outcome.ok) {
-        if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
-        // Don't toast here. This handler always runs through the ActionRunner
-        // (registered as the `script` handler on the ActionProvider below, which
-        // wires `onToast`), whose post-execution hook surfaces the returned
-        // `error` as one toast. Toasting again double-fired the message
-        // (e.g. RECORD_LOCKED appeared twice). Mirrors useConsoleActionRuntime.
-        return { success: false, error: outcome.error };
-      }
-      const shouldRefresh = action.refreshAfter !== false;
-      if (shouldRefresh) notifyRecordChanged();
-      const result = outcome.envelope;
-      // ── redirectUrl convention ────────────────────────────────────────
-      // A script-action handler can return `{ redirectUrl: 'https://…' }`
-      // to ask the UI to open the URL. If the action declared
-      // `opensInNewTab: true`, we drive the pre-opened tab to that URL
-      // (popup-blocker-safe). Otherwise we open lazily and, if blocked,
-      // fall back to navigating the current tab so the user always gets
-      // to the destination.
-      //
-      // Read off the HANDLER's return value, not the action envelope wrapping
-      // it — this used to read one level too shallow, where only
-      // `success`/`data` ever live, so the convention never fired at all.
-      const payload = outcome.payload;
-      if (payload && typeof payload === 'object' && typeof (payload as any).redirectUrl === 'string') {
-        const redirectUrl = (payload as any).redirectUrl as string;
-        if (preOpenedTab) {
-          try { preOpenedTab.location.href = redirectUrl; } catch {
-            try { preOpenedTab.close(); } catch { /* ignore */ }
-            window.location.href = redirectUrl;
-          }
-        } else {
-          let popup: Window | null = null;
-          // No 'noopener' so a successful open returns a truthy handle; with
-          // it, the null return would always trip the current-tab fallback.
-          try { popup = window.open(redirectUrl, '_blank'); } catch { popup = null; }
-          if (!popup) {
-            // Don't silently hijack the current tab — offer a one-click open.
-            toast('浏览器拦截了弹窗 / Popup blocked', {
-              description: '点击在新标签页打开环境',
-              action: { label: '打开环境', onClick: () => { try { window.open(redirectUrl, '_blank'); } catch { window.location.href = redirectUrl; } } },
-              duration: 10000,
-            });
-          }
-        }
-      } else if (preOpenedTab) {
-        // Handler didn't return a redirectUrl — close the empty tab we
-        // optimistically pre-opened so the user isn't left with about:blank.
-        try { preOpenedTab.close(); } catch { /* ignore */ }
-      }
-      return { success: true, data: result, reload: shouldRefresh };
-    } catch (error) {
-      if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
-      const msg = (error as Error).message;
-      // Don't toast here — the ActionRunner post-execution hook toasts the
-      // returned `error` once (see the failure branch above).
-      return { success: false, error: msg };
-    } finally {
-      serverActionInFlight.current.delete(inflightKey);
-    }
-  }, [authFetch, pureRecordId, objectName]);
+  // Server-side action handler — POST /api/v1/actions/{object}/{action},
+  // built from @object-ui/core's `createServerActionHandler` via the shared
+  // console wrapper (#2904), exactly like `useConsoleActionRuntime`: core owns
+  // the dispatch (name-only identity per ADR-0110 D1 — this copy used to post
+  // `target || name`, the drift framework#3935 fixed only in the shared
+  // runtime — plus the re-entrancy guard and the /actions envelope rule), the
+  // wrapper owns the popup pre-open / `newTabUrl` fast path / `redirectUrl`
+  // convention.
+  //
+  // The record page resolves records against ITSELF, not a grid selection:
+  // related-list row actions retarget a CHILD record via an explicit
+  // `action.recordId`; header/more actions carry none and use this page's id.
+  // The env ref keeps the handler instance stable across renders (authFetch is
+  // memoized once) while the thunks read the live record/object.
+  const serverActionEnvRef = useRef({ objectName, pureRecordId, notifyRecordChanged });
+  serverActionEnvRef.current = { objectName, pureRecordId, notifyRecordChanged };
+  const serverActionHandler = useMemo(
+    () => createConsoleServerActionHandler({
+      fetch: authFetch,
+      baseUrl: () => import.meta.env.VITE_SERVER_URL || '',
+      resolveObject: () => serverActionEnvRef.current.objectName,
+      resolveRecordId: (action) => ({
+        recordId: (action as { recordId?: unknown }).recordId ?? serverActionEnvRef.current.pureRecordId ?? undefined,
+      }),
+      onRefresh: () => serverActionEnvRef.current.notifyRecordChanged(),
+    }),
+    [authFetch],
+  );
 
   /**
    * `type: 'modal'` dispatch — same rule as the shared console runtime (see

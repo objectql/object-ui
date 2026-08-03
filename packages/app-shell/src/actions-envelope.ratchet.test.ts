@@ -2,8 +2,8 @@
  * ObjectUI
  * Copyright (c) 2024-present ObjectStack Inc.
  *
- * objectstack#3913 ratchet — every `/api/v1/actions` caller goes through
- * `interpretActionResponse`.
+ * objectstack#3913 ratchet — no app-shell file dispatches `/api/v1/actions`
+ * by hand.
  *
  * The bug this guards: the `/actions` response wraps TWICE (the route's own
  * `{success, data}` inside the dispatcher's), and a failure has three shapes
@@ -15,14 +15,16 @@
  * `marketplaceApi.installPackage` had the same hole and could report a package
  * as installed when it was not.
  *
- * Reading the envelope by hand is the anti-pattern, not any particular way of
- * reading it wrong: four hand-rolled copies produced three different bugs
- * (missed inner failure, a `{message}` object handed to `toast.error()` as a
- * React child → React #31, and `redirectUrl` read one level too shallow so it
- * never fired). One helper, one rule.
+ * Since #2904 the dispatch itself lives in `@object-ui/core`
+ * (`createServerActionHandler`, which applies `interpretActionResponse` — the
+ * envelope rule, also moved there) and the console layers its DOM choreography
+ * on top through `utils/consoleServerAction`. The ratchet is therefore
+ * STRONGER than it used to be: an app-shell file has no business naming the
+ * action route in code at all.
  *
- * If this fails: don't hand-roll the check. Import `interpretActionResponse`
- * from `utils/actionResponse` — or, better, call the action through
+ * If this fails: don't hand-roll the POST. Register a handler built with
+ * `createConsoleServerActionHandler` (console surfaces) or core's
+ * `createServerActionHandler` — or call the action through
  * `@objectstack/client`, which folds every shape into `{ success, data?, error? }`.
  */
 
@@ -34,16 +36,12 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appShellSrc = here;
 
-/** The helper that owns the rule — exempt from its own guard. */
-const OWNER = path.join(appShellSrc, 'utils', 'actionResponse.ts');
-
-/** Files allowed to name the route without going through the helper. */
+/** Files allowed to name the route without going through the core dispatcher. */
 const EXEMPT = new Set<string>([
-    OWNER,
     // The cloud marketplace install posts to a *cloud* origin's action route
     // and consumes `InstallResponse`, not `ActionResult`. It still has to
     // honour the envelope, and does — covered by its own tests — but it is not
-    // an ActionRunner handler, so it does not use this helper.
+    // an ActionRunner handler, so it does not use the core dispatcher.
     path.join(appShellSrc, 'console', 'marketplace', 'marketplaceApi.ts'),
 ]);
 
@@ -70,26 +68,34 @@ function stripComments(src: string): string {
         .replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
 
-describe('objectstack#3913 ratchet — /actions callers use interpretActionResponse', () => {
-    const callers = walk(appShellSrc)
-        .filter((f) => !EXEMPT.has(f) && ROUTE.test(stripComments(readFileSync(f, 'utf8'))));
+describe('objectstack#3913 ratchet — /actions dispatch goes through the core dispatcher', () => {
+    const files = walk(appShellSrc);
 
-    const offenders = callers
-        .filter((f) => !readFileSync(f, 'utf8').includes('interpretActionResponse'))
+    const offenders = files
+        .filter((f) => !EXEMPT.has(f) && ROUTE.test(stripComments(readFileSync(f, 'utf8'))))
         .map((f) => path.relative(appShellSrc, f));
 
-    it('no app-shell file interprets an /actions response by hand', () => {
+    it('no app-shell file names the /actions route in code (dispatch is core-owned)', () => {
         expect(offenders).toEqual([]);
     });
 
-    it('still guards something — the known callers are present', () => {
+    it('still guards something — the known dispatch surfaces route through the shared wrapper', () => {
         // A ratchet that matches nothing passes vacuously forever. Pin that the
-        // two handlers it exists for are actually being scanned.
-        expect(callers.map((f) => path.relative(appShellSrc, f))).toEqual(
-            expect.arrayContaining([
-                path.join('hooks', 'useConsoleActionRuntime.tsx'),
-                path.join('views', 'RecordDetailView.tsx'),
-            ]),
-        );
+        // two surfaces the hand-rolled copies lived in still exist and now build
+        // their handler with `createConsoleServerActionHandler` — the moment one
+        // reverts to a hand-rolled fetch, the route string reappears and the
+        // offenders assertion above catches it.
+        const surfaces = [
+            path.join('hooks', 'useConsoleActionRuntime.tsx'),
+            path.join('views', 'RecordDetailView.tsx'),
+        ];
+        for (const rel of surfaces) {
+            const src = readFileSync(path.join(appShellSrc, rel), 'utf8');
+            expect(src, `${rel} should dispatch via createConsoleServerActionHandler`)
+                .toContain('createConsoleServerActionHandler');
+        }
+        // …and the wrapper itself delegates to core rather than fetching.
+        const wrapper = readFileSync(path.join(appShellSrc, 'utils', 'consoleServerAction.ts'), 'utf8');
+        expect(wrapper).toContain('createServerActionHandler');
     });
 });

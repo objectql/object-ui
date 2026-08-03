@@ -39,6 +39,7 @@ import type {
   ResultDialogHandler,
   ToastHandler,
 } from '@object-ui/core';
+import { actionErrorDetail, isRecordScopedAction } from '@object-ui/core';
 import { useActionModal } from './useActionModal';
 import { ActionConfirmDialog, type ConfirmDialogState } from '../views/ActionConfirmDialog';
 import { ActionParamDialog, type ParamDialogState } from '../views/ActionParamDialog';
@@ -48,32 +49,15 @@ import { resolveActionParams } from '../utils/resolveActionParams';
 import { EnvironmentEntitlementDialog, type EntitlementDialogState } from '../environment/EnvironmentEntitlementDialog';
 import { entitlementDialogFromError, type EntitlementDialogSpec } from '../environment/entitlements';
 import { resolvePageVarTokens } from '../utils/resolvePageVarTokens';
-import { actionErrorDetail } from '../utils/actionErrorDetail';
-import { interpretActionResponse } from '../utils/actionResponse';
 import { interpretFlowResponse } from '../utils/flowResponse';
+import { createConsoleServerActionHandler } from '../utils/consoleServerAction';
 
 const FALLBACK_USER = { id: 'current-user', name: 'Demo User', isPlatformAdmin: false };
 
 /**
- * An action that also mounts on list rows (`list_item`) or record pages is
- * designed to run against a single record. When such an action is launched
- * from the list toolbar with nothing selected, there is no record context to
- * resolve — block up front instead of triggering a run that fails at its
- * first record-bound step (#2210: "Update requires an ID"). Actions declaring
- * only object-level locations (e.g. `['list_toolbar']`) are left alone: they
- * legitimately run without a record.
- */
-function isRecordScoped(action: ActionDef): boolean {
-  const locations = (action as { locations?: unknown }).locations;
-  if (!Array.isArray(locations)) return false;
-  return locations.some((l) =>
-    l === 'list_item' || l === 'record_header' || l === 'record_more' || l === 'record_section');
-}
-
-/**
  * Extract a human-readable message from an error response body — shared with
- * `RecordDetailView`, which runs the same `/actions` request and needs the same
- * React-#31 guard. See `../utils/actionErrorDetail`.
+ * every `/actions` caller, which needs the same React-#31 guard. Owned by
+ * `@object-ui/core` since #2904 (it moved there with the dispatch itself).
  */
 const errorDetail = actionErrorDetail;
 
@@ -157,8 +141,6 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
   // Plan/capacity gate dialog (upgrade / limit), shared by the env-list toolbar
   // (proactive) and the api-action error path below (reactive safety net).
   const [entitlementDialog, setEntitlementDialog] = useState<EntitlementDialogState>({ open: false });
-  // Guards against double-firing a server action (slow SSO handoff, etc.).
-  const serverActionInFlight = useRef<Set<string>>(new Set());
 
   const resultDialogHandler = useCallback<ResultDialogHandler>(
     (spec: any, data: unknown, action?: any) => new Promise<void>((resolve) => {
@@ -466,7 +448,7 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
           recordId = selected[0]?.id;
         } else if (selected.length > 1) {
           return { success: false, error: 'This flow runs on a single record — select exactly one row.' };
-        } else if (isRecordScoped(action)) {
+        } else if (isRecordScopedAction(action)) {
           return { success: false, error: 'This flow runs on a single record — select a row first.' };
         }
       }
@@ -511,174 +493,31 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
     }
   }, [authFetch, objApiName, refresh]);
 
-  // Server-side action handler — POST to /api/v1/actions/{object}/{action}.
-  // `context` is the shared ActionRunner context (registered handlers are
-  // invoked as `handler(action, runnerContext)`).
-  const serverActionHandler = useCallback(async (action: ActionDef, context?: ActionContext): Promise<ActionResult> => {
-    // [ADR-0110 D1] The URL identifies the action by its declarative `name`,
-    // never by `target`. `target` is a BINDING EXPRESSION — the handler's
-    // registration key here, but a URL / flow id / FormView name for other
-    // types, `${param.X}`-interpolatable, and legitimately non-unique — so it
-    // cannot identify a declaration. Posting it (the old `target || name`)
-    // meant the server resolved NO declaration for a target-bound action and
-    // silently skipped both the ADR-0066 D4 capability gate and the ADR-0104
-    // param contract (#3935). The server derives the handler key from the
-    // declaration it resolves by name.
-    const actionName = action.name;
-    if (!actionName) {
-      return { success: false, error: 'Action has no name — a server action must declare one' };
-    }
-    const params = (action.params && !Array.isArray(action.params))
-      ? { ...(action.params as Record<string, unknown>) }
-      : {};
-    const _rowRecord = (params as any)._rowRecord as Record<string, any> | undefined;
-    delete (params as any)._rowRecord;
-    const recordIdField = (action as any).recordIdField || 'id';
-    let resolvedRecordId = (params as any).recordId ?? _rowRecord?.[recordIdField];
-    // An AGGREGATE bulk dispatch (objectui#3139) carries the whole selection
-    // as `params._selectedIds` — the server reads that array, not `recordId`.
-    // The single-record fallback below must not touch it: resolving a
-    // recordId would mislabel the run as record-scoped, and the multi-select
-    // guard would block exactly the selection this dispatch exists to carry.
-    const isAggregateDispatch = Array.isArray((params as any)._selectedIds);
-    // Same list_toolbar fallback as flowHandler: no `_rowRecord` means the
-    // action came from the toolbar — resolve the recordId from the grid's
-    // checkbox selection (published as `selectedRecords`). Multi-select is
-    // ambiguous for a single-record action, so block with a message; so is
-    // zero selection when the action is record-scoped (see isRecordScoped).
-    if (resolvedRecordId == null && !isAggregateDispatch) {
-      const selected = Array.isArray(context?.selectedRecords) ? context!.selectedRecords : [];
-      if (selected.length === 1) {
-        resolvedRecordId = selected[0]?.[recordIdField];
-      } else if (selected.length > 1) {
-        // The runner's post-execution hook surfaces `error` as a toast.
-        return { success: false, error: 'This action runs on a single record — select exactly one row.' };
-      } else if (isRecordScoped(action)) {
-        return { success: false, error: 'This action runs on a single record — select a row first.' };
-      }
-    }
-
-    // Re-entrancy guard.
-    const inflightKey = `${actionName}:${resolvedRecordId ?? ''}`;
-    if (serverActionInFlight.current.has(inflightKey)) {
-      return { success: false, error: 'Action already in progress' };
-    }
-    serverActionInFlight.current.add(inflightKey);
-
-    // Popup-blocker workaround: pre-open about:blank synchronously before the
-    // await so the user-gesture context is preserved.
-    let preOpenedTab: Window | null = null;
-    if ((action as any).opensInNewTab) {
-      try {
-        preOpenedTab = window.open('about:blank', '_blank');
-        if (preOpenedTab) {
-          preOpenedTab.document.write('<!doctype html><meta charset="utf-8"><title>正在打开… Opening…</title><body style="margin:0;font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px;color:#4b5563"><div style="width:28px;height:28px;border:3px solid #e5e7eb;border-top-color:#6366f1;border-radius:50%;animation:s .8s linear infinite"></div><div>正在为你打开环境…</div><style>@keyframes s{to{transform:rotate(360deg)}}</style></body>');
-          preOpenedTab.document.close();
-        }
-      } catch { preOpenedTab = null; }
-    }
-    try {
-      const baseUrl = import.meta.env.VITE_SERVER_URL || '';
-      // ── Zero-roundtrip fast path ────────────────────────────────────────
-      // `newTabUrl` names a GET endpoint that performs ALL auth/authz itself
-      // (e.g. /sso-open re-runs every check the POST half would have done),
-      // so the POST round trip would add nothing but click latency. Drive the
-      // pre-opened tab there immediately — the spinner page stays painted
-      // until the (possibly slow) endpoint commits its redirect.
-      const newTabUrl = typeof (action as any).newTabUrl === 'string' ? (action as any).newTabUrl as string : '';
-      if ((action as any).opensInNewTab && newTabUrl) {
-        if (resolvedRecordId == null) {
-          if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
-          return { success: false, error: 'This action runs on a single record — no record id available.' };
-        }
-        // Absolute URL required: the pre-opened tab is an about:blank document,
-        // so a bare-relative href has no reliable resolution base.
-        const directUrl = `${baseUrl || window.location.origin}${newTabUrl.replace('{recordId}', encodeURIComponent(String(resolvedRecordId)))}`;
-        if (preOpenedTab) {
-          try { preOpenedTab.location.href = directUrl; }
-          catch {
-            try { preOpenedTab.close(); } catch { /* ignore */ }
-            window.location.href = directUrl;
-          }
-        } else {
-          let popup: Window | null = null;
-          try { popup = window.open(directUrl, '_blank'); } catch { popup = null; }
-          if (!popup) {
-            toast('浏览器拦截了弹窗 / Popup blocked', {
-              description: '点击在新标签页打开环境',
-              action: { label: '打开环境', onClick: () => { try { window.open(directUrl, '_blank'); } catch { window.location.href = directUrl; } } },
-              duration: 10000,
-            });
-          }
-        }
-        if (action.refreshAfter === true) refresh();
-        return { success: true };
-      }
-      const obj = action.objectName || objApiName || 'global';
-      const res = await authFetch(
-        `${baseUrl}/api/v1/actions/${encodeURIComponent(obj)}/${encodeURIComponent(actionName)}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ recordId: resolvedRecordId, params }),
-        },
-      );
-      const json = await res.json().catch(() => null);
-      // Single source for the `/actions` envelope rule — shared with
-      // RecordDetailView, whose copy of this handler drifted from it and caused
-      // objectstack#3913's console symptom. See utils/actionResponse.
-      const outcome = interpretActionResponse(res, json, `Action "${actionName}"`);
-      if (!outcome.ok) {
-        if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
-        // Don't toast here — the ActionRunner's post-execution hook surfaces
-        // `error` as a toast (see apiHandler/flowHandler, which likewise only
-        // return). Toasting here too double-fires the error (two identical toasts).
-        return { success: false, error: outcome.error };
-      }
-      const shouldRefresh = action.refreshAfter !== false;
-      if (shouldRefresh) refresh();
-      const data = outcome.envelope;
-      // Read `redirectUrl` off the HANDLER's return value, not the action
-      // envelope wrapping it. This used to read one level too shallow, where
-      // only `success`/`data` ever live — so an action returning
-      // `{ redirectUrl }` was silently ignored and an `opensInNewTab` action
-      // left its pre-opened tab parked on the spinner page forever.
-      const payload = outcome.payload;
-      const redirectUrl = (payload && typeof payload === 'object' && typeof (payload as any).redirectUrl === 'string')
-        ? (payload as any).redirectUrl as string
-        : null;
-      if (redirectUrl) {
-        if (preOpenedTab) {
-          try { preOpenedTab.location.href = redirectUrl; }
-          catch {
-            try { preOpenedTab.close(); } catch { /* ignore */ }
-            window.location.href = redirectUrl;
-          }
-        } else {
-          let popup: Window | null = null;
-          try { popup = window.open(redirectUrl, '_blank'); } catch { popup = null; }
-          if (!popup) {
-            toast('浏览器拦截了弹窗 / Popup blocked', {
-              description: '点击在新标签页打开环境',
-              action: { label: '打开环境', onClick: () => { try { window.open(redirectUrl, '_blank'); } catch { window.location.href = redirectUrl; } } },
-              duration: 10000,
-            });
-          }
-        }
-      } else if (preOpenedTab) {
-        try { preOpenedTab.close(); } catch { /* ignore */ }
-      }
-      return { success: true, data, reload: shouldRefresh };
-    } catch (error) {
-      if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
-      const msg = (error as Error).message;
-      // The ActionRunner's post-execution hook toasts `error`; returning it here
-      // (without a local toast.error) avoids the double toast.
-      return { success: false, error: msg };
-    } finally {
-      serverActionInFlight.current.delete(inflightKey);
-    }
-  }, [authFetch, objApiName, refresh]);
+  // Server-side action handler — POST /api/v1/actions/{object}/{action}, built
+  // from @object-ui/core's `createServerActionHandler` via the shared console
+  // wrapper (#2904): core owns the dispatch (name-only identity per ADR-0110
+  // D1, the record-id resolution dance, the re-entrancy guard, the /actions
+  // envelope rule), the wrapper owns the console DOM choreography (popup
+  // pre-open, `newTabUrl` fast path, `redirectUrl` convention).
+  // RecordDetailView builds ITS handler from the same two pieces — the drift
+  // between the two hand-rolled copies (objectstack#3913, framework#3935)
+  // cannot recur.
+  //
+  // The env ref keeps the handler INSTANCE stable across renders (authFetch is
+  // memoized once) while the config thunks read the latest object scope and
+  // refresh callback — the factory's in-flight guard only spans invocations of
+  // the same instance.
+  const serverActionEnvRef = useRef({ objApiName, refresh });
+  serverActionEnvRef.current = { objApiName, refresh };
+  const serverActionHandler = useMemo(
+    () => createConsoleServerActionHandler({
+      fetch: authFetch,
+      baseUrl: () => import.meta.env.VITE_SERVER_URL || '',
+      resolveObject: () => serverActionEnvRef.current.objApiName,
+      onRefresh: () => serverActionEnvRef.current.refresh(),
+    }),
+    [authFetch],
+  );
 
   // Client-side modal transport, shared with RecordDetailView so a
   // `type: 'modal'` action behaves the SAME on a list page, an SDUI page, a

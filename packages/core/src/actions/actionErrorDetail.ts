@@ -1,4 +1,12 @@
 /**
+ * ObjectUI
+ * Copyright (c) 2024-present ObjectStack Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+/**
  * Resolve a human-readable message out of an ObjectStack error payload.
  *
  * Always returns a STRING. The envelope nests the message as
@@ -11,6 +19,10 @@
  *
  * Handles, in order: `{error: 'msg'}`, `{error: {message: 'msg'}}`,
  * `{message: 'msg'}`, else the caller's fallback.
+ *
+ * Moved here from `@object-ui/app-shell` (`utils/actionErrorDetail`) by
+ * objectui#2904 so `createServerActionHandler` — the core dispatch every
+ * consumer registers — can own the rule.
  */
 export function actionErrorDetail(body: unknown, fallback: string): string {
   const b = body as { error?: unknown; message?: unknown } | null;
