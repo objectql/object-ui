@@ -17,9 +17,15 @@ name: Lint
 # setting any `object-ui/*` rule to `error`, or if this workflow stops gating
 # pull requests.
 #
-# `--max-warnings` is deliberately not set: the 7,724 warnings repo-wide are 81%
-# `no-explicit-any`, plus React Compiler rules the config downgrades on purpose.
-# This gate is about errors.
+# `--max-warnings` is deliberately not set: warnings repo-wide run into the
+# thousands, dominated by `no-explicit-any` plus React Compiler rules the config
+# downgrades on purpose — known historical debt, not a signal. This gate is
+# about errors. No exact figure here, for the reason above: this paragraph used
+# to carry a hand-maintained warning count and percentage that nothing
+# recomputed and nothing alarmed on as they aged (#3274), and
+# `scripts/check-lint-coverage.mjs` held a copy of the same number that would
+# have gone stale on its own clock. The order of magnitude is the whole
+# argument; the integer never was.
 on:
   push:
     branches: [main, develop]

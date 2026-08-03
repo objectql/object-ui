@@ -27,7 +27,11 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // Packages with outstanding ESLint *errors*, so they cannot carry a `lint`
 // script without turning CI red. Warnings do not matter here — ESLint only
 // fails on errors unless `--max-warnings` is set, and it deliberately is not
-// (7,724 warnings repo-wide are dominated by `no-explicit-any`; see #2923).
+// (warnings repo-wide run into the thousands, dominated by `no-explicit-any`;
+// see #2923). No exact count on purpose: this line and the matching paragraph
+// in `.github/workflows/lint.yml` used to quote the same hand-maintained
+// figure, which every added `any` aged and nothing ever recomputed — two copies
+// free to drift apart, and apart from reality (#3274).
 //
 // Every entry is real debt: fix the errors, add `"lint": "eslint ."`, then
 // delete the entry.
