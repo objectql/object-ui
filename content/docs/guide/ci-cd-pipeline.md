@@ -5,72 +5,96 @@ description: Overview of the ObjectUI continuous integration and deployment work
 
 # CI/CD Pipeline
 
-ObjectUI uses **11 GitHub Actions workflows** to automate testing, quality checks, security scanning, releases, and repository maintenance. All workflow files live in `.github/workflows/`.
+ObjectUI automates testing, quality checks, releases, and repository maintenance with GitHub Actions. All workflow files live in `.github/workflows/`.
 
-## Workflow Overview
+This page deliberately states **no workflow count**. It used to open with "11 GitHub Actions
+workflows"; the directory held 12 when [#3212](https://github.com/objectstack-ai/objectui/issues/3212)
+was filed and 13 by the time it was fixed. A hand-maintained number drifts by construction, and a
+stale one still reads as authoritative. What is pinned instead is the *set*:
+`scripts/__tests__/ci-cd-pipeline-doc.test.ts` fails `pnpm test` when a file in
+`.github/workflows/` has no section on this page, **and** when this page names a `.yml` that is not
+in that directory. Adding a workflow without documenting it is a red test, not a silent omission.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     Push / PR to main/develop                   │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌──────────┐  ┌──────────────┐                                 │
-│  │  ci.yml  │  │ performance- │                                 │
-│  │ (test,   │  │ budget.yml   │                                 │
-│  │  lint,   │  │ (bundle size)│                                 │
-│  │  build)  │  │              │                                 │
-│  └──────────┘  └──────────────┘                                 │
-│                                                                 │
-│  ┌──────────────┐                                              │
-│  │  labeler.yml │                                              │
-│  │              │                                              │
-│  └──────────────┘                                              │
-│                                                                 │
-├─────────────────────────────────────────────────────────────────┤
-│                        Push to main                             │
-│  ┌───────────────────┐                                         │
-│  │ changeset-release  │ → npm publish via changesets            │
-│  │      .yml          │                                         │
-│  └───────────────────┘                                         │
-│                                                                 │
-├─────────────────────────────────────────────────────────────────┤
-│                      Tag push (v*)                              │
-│  ┌──────────┐  ┌───────────────┐                               │
-│  │ release  │  │ changelog.yml │                               │
-│  │  .yml    │  │ (git-cliff)   │                               │
-│  └──────────┘  └───────────────┘                               │
-│                                                                 │
-├─────────────────────────────────────────────────────────────────┤
-│                        Scheduled                                │
-│  ┌──────────┐  ┌───────────────────┐  ┌──────────────────┐    │
-│  │ stale    │  │ shadcn-check.yml  │  │  dependabot-     │    │
-│  │  .yml    │  │ (weekly Mon 9AM)  │  │  auto-merge.yml  │    │
-│  └──────────┘  └───────────────────┘  └──────────────────┘    │
-│                                                                 │
-├─────────────────────────────────────────────────────────────────┤
-│                    Manual dispatch                              │
-│  ┌──────────────┐                                              │
-│  │ check-links  │ → Lychee link validation                     │
-│  │    .yml      │                                              │
-│  └──────────────┘                                              │
-└─────────────────────────────────────────────────────────────────┘
-```
+## Workflow Inventory
+
+Every workflow, the name it appears under in the checks list (they are not the same string —
+`performance-budget.yml` shows up as **Bundle Analysis**), and whether it can block a merge. Each
+one has its own section below.
+
+| Workflow file | Appears as | Runs on | Blocks a PR? |
+|---|---|---|---|
+| `ci.yml` | CI | Push / PR to `main`, `develop` | **Yes** — 6 of its 7 jobs run on PRs |
+| `lint.yml` | Lint | Push / PR to `main`, `develop`; manual | **Yes** — ESLint **errors** only |
+| `changeset-guard.yml` | Changeset Bump Policy | PR / push touching `.changeset/**` | **Yes** |
+| `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
+| `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
+| `dependabot-auto-merge.yml` | Dependabot Auto-merge | PR to `main`/`develop` authored by `dependabot[bot]` | No |
+| `cross-repo-issue-closer.yml` | Cross-repo Issue Closer | PR `closed` (acts only when merged) | No — runs after merge |
+| `changeset-release.yml` | Changeset Release | Push to `main` | n/a |
+| `release.yml` | Release | Push of a `v*` tag | n/a |
+| `changelog.yml` | Auto Changelog | GitHub Release published; manual | n/a |
+| `stale.yml` | Stale Issues & PRs | Daily cron `0 0 * * *`; manual | n/a |
+| `shadcn-check.yml` | Check Shadcn Components | Weekly cron `0 9 * * 1`; manual | n/a |
+| `check-links.yml` | Check Links | Manual dispatch only | n/a |
+
+Two path-filter facts explain most "why did nothing run on my PR?" questions:
+
+- `ci.yml` and `lint.yml` both list `**/*.md`, `content/**`, `docs/**` and `.changeset/**` under
+  `paths-ignore` (`ci.yml` also ignores `apps/site/**`). A docs-only or changeset-only PR starts
+  neither of them.
+- `changeset-guard.yml` carries the inverse filter — it runs *only* when `.changeset/**` changes,
+  which is precisely why it is a separate workflow instead of a job inside `ci.yml`.
 
 ## Core CI Workflow (`ci.yml`)
 
-**Triggers:** Push and PR to `main` and `develop` branches.
+**Triggers:** Push and PR to `main` and `develop`, unless the change touches only `**/*.md`,
+`content/**`, `docs/**`, `apps/site/**` or `.changeset/**` (`paths-ignore`).
 
-Runs five parallel jobs:
+Seven jobs, all parallel — there are no `needs:` edges between them:
 
-| Job | Description |
-|-----|-------------|
-| **Test** | Runs `vitest` across all packages with Turbo caching. Uploads coverage to Codecov. |
-| **Lint** | Runs ESLint via `eslint.config.js` (flat config) and TypeScript type-checking. |
-| **Build Core** | Builds all packages using `turbo run build`. |
-| **E2E Tests** | Runs Playwright end-to-end tests from the `e2e/` directory. |
-| **Build Docs** | Builds the documentation site (`apps/site`). |
+| Job key | Appears as | What it runs | When |
+|---|---|---|---|
+| `changeset-check` | Changeset Fixed Group Check | `scripts/check-changeset-fixed.mjs` — every workspace package must be in the changeset `fixed` group or explicitly ignored. It checks group *membership*; it does **not** check whether the PR added a changeset. | Every run |
+| `type-check` | Type Check | `scripts/check-type-check-coverage.mjs`, then `pnpm check:spec-symbols`, then `pnpm type-check`. The coverage guard runs first because turbo silently skips packages that have no `type-check` script, so a package without one would otherwise read as passing (#2911). | Every run |
+| `test` | Test (shard N/4) | `pnpm test --shard=N/4` across a 4-runner matrix with `fail-fast: false`, so every shard reports its own failures. No coverage instrumentation — v8 adds 40–100% overhead. | **Pull requests only** |
+| `test-coverage` | Test (coverage) | One unsharded `pnpm test:coverage`, uploaded to Codecov. Nothing blocks on it, which is why it is not sharded. | **Push only** |
+| `e2e` | Build & E2E | Builds the console with `vite build` (`VITE_BASE_PATH=/console/`), verifies the artifact, then `pnpm test:e2e --project=chromium`. Uploads the Playwright report on failure. | Every run |
+| `docs` | Build Docs | `turbo run build --filter='@object-ui/site'`. On a PR it first diffs against the base and skips the build when nothing under `apps/site/` or `content/` changed. | Every run (build itself conditional) |
+| `dev-server` | Dev-server fixture build | `pnpm --filter @object-ui/dev-server build` — guards `apps/dev-server`'s `objectstack.config.ts` against fixture / `@objectstack/spec` drift. | Every run |
 
-Uses: Node 22, pnpm (via `corepack`), Turbo remote caching.
+Uses: Node 22.x, pnpm via `corepack`, `actions/cache` over `.turbo/cache`.
+
+### What is *not* in `ci.yml`
+
+Two jobs this page used to list have never existed under those names, and looking for them in
+`ci.yml` is a dead end:
+
+- **Lint** is not a `ci.yml` job. ESLint runs in its own workflow, `lint.yml` (next section), and
+  shows up as a separate **Lint** check on the PR.
+- **Build Core** does not exist. `ci.yml` builds only the console SPA that Playwright consumes;
+  building the packages and measuring their size belongs to the Bundle Analysis workflow
+  (`performance-budget.yml`), as the comment on the `e2e` job states.
+
+## Lint (`lint.yml`)
+
+**Triggers:** Push and PR to `main`/`develop` (same `paths-ignore` as `ci.yml`, minus
+`apps/site/**`), plus manual dispatch.
+
+This is a **real PR gate**, and it is easy to miss because it is not part of CI — it is its own
+**Lint** entry in the checks list.
+
+- `scripts/check-lint-coverage.mjs` runs first: every package must run ESLint or be declared a
+  known gap. turbo skips scriptless packages silently, so without this guard a package reads as
+  clean because nothing ever linted it.
+- Then `pnpm lint`.
+
+**It gates errors, not warnings.** `--max-warnings` is deliberately unset: the repository carries
+thousands of warnings (overwhelmingly `no-explicit-any`, plus React Compiler rules the config
+downgrades on purpose), and failing on those would make the gate unusable. What must stay clean are
+the rules `eslint.config.js` sets to `error` — including the custom `object-ui/*` ratchets
+(ADR-0054 Phase 5, #2879, the `objectql.ts` ratchet, `no-dynamic-import-in-test-hook`). Until #2923
+this workflow was `workflow_dispatch`-only, so every one of those `error` ratchets was inert: each
+was written specifically to fail CI, and nothing ran them.
 
 ## Performance Budget (`performance-budget.yml`)
 
@@ -182,6 +206,35 @@ Uses [git-cliff](https://git-cliff.org/) with `cliff.toml` configuration to auto
 
 Automatically labels PRs based on file path patterns defined in `.github/labeler.yml`. Syncs labels on each push to the PR.
 
+### Cross-repo Issue Closer (`cross-repo-issue-closer.yml`)
+
+**Trigger:** `pull_request_target` with type `closed`; the job acts only when the PR was actually
+merged.
+
+GitHub's closing keywords work **only within a repository**. A PR here whose body says
+`Fixes objectstack-ai/objectstack#4475` reads to a human exactly like a same-repo close, merges,
+and leaves that issue open forever — with no reference to the PR on the issue's page either. That
+is not hypothetical: during v17 verification it happened twice in one day, and both framework
+issues had to be closed by hand.
+
+This workflow scans the merged PR body for **qualified** `owner/repo#N` closing keywords (the bare
+`#N` form is left to GitHub) and takes one of two visible paths:
+
+| `CROSS_REPO_ISSUE_TOKEN` | Behaviour |
+|---|---|
+| Configured | Comments on each foreign issue with the PR link, then closes it as `completed`. |
+| Absent | Comments **on this PR**, listing every issue that still has to be closed by hand. |
+
+The second path is the point. A workflow that quietly does nothing because a secret was never
+provisioned is the same "declared but never enforced" shape both repositories keep having to fix,
+so the missing credential announces itself — the run logs the token's presence before any early
+return, and the PR comment names the cost.
+
+It uses `pull_request_target` rather than `pull_request` because the latter withholds repository
+secrets from fork-originated runs. The usual hazard of `pull_request_target` does not apply here:
+the job never checks out the head ref and never executes anything from the PR — it reads the body
+and calls the issues API.
+
 ### Stale Issues (`stale.yml`)
 
 **Trigger:** Daily at 00:00 UTC (cron), or manual dispatch.
@@ -210,6 +263,12 @@ Exempt labels: `pinned`, `security`, `critical`, `in-progress`.
 - Uploads analysis artifacts for reference.
 
 ## Adding a New Workflow
+
+> **Give it a section on this page in the same PR.** Not a convention — a test.
+> `scripts/__tests__/ci-cd-pipeline-doc.test.ts` reads `.github/workflows/` and fails when a
+> workflow has no heading here naming its file. Three workflows (`lint.yml`,
+> `cross-repo-issue-closer.yml`, `changeset-guard.yml`) went undocumented for months precisely
+> because nothing checked, and one of them is a PR gate.
 
 1. Create a new `.yml` file in `.github/workflows/`.
 2. Follow the existing pattern for pnpm + Turbo setup:
@@ -240,13 +299,18 @@ on:
       - 'pnpm-lock.yaml'
 ```
 
+5. Add a section for it under the right heading on this page, and a row to the
+   [inventory table](#workflow-inventory). State the display name if it differs from the file name,
+   and say plainly whether it can block a merge.
+
 ## Environment Variables and Secrets
 
 | Secret / Variable | Used By | Purpose |
 |-------------------|---------|---------|
 | `GITHUB_TOKEN` | All workflows | GitHub API access (automatic) |
 | `NPM_TOKEN` | `changeset-release.yml` | npm package publishing |
-| `CODECOV_TOKEN` | `ci.yml` | Coverage upload to Codecov |
+| `CODECOV_TOKEN` | `ci.yml` (`test-coverage` job) | Coverage upload to Codecov |
+| `CROSS_REPO_ISSUE_TOKEN` | `cross-repo-issue-closer.yml` | Closing issues in sibling repositories. `GITHUB_TOKEN` cannot do this — it is scoped to the repository running the workflow. When absent the workflow reports instead of closing. |
 | `TURBO_TOKEN` | Build workflows | Turbo remote cache authentication |
 | `TURBO_TEAM` | Build workflows | Turbo remote cache team identifier |
 

@@ -95,8 +95,71 @@ describe('ci-cd-pipeline.md — advisory package size tiers', () => {
   });
 });
 
+/**
+ * objectui#3212: the forward direction above (every workflow the page names must
+ * exist) was pinned by #3197; the reverse was deliberately left out because it
+ * would have gone red immediately — `lint.yml`, `cross-repo-issue-closer.yml`
+ * and later `changeset-guard.yml` had no section at all. `lint.yml` is a real PR
+ * gate, and a contributor reading this page had no way to learn it existed.
+ *
+ * Only the reverse direction actually stops the drift. Without it, fixing the
+ * page fixes one snapshot and guarantees the next workflow repeats the omission
+ * silently — `changeset-guard.yml` appearing between #3212 being filed and being
+ * fixed is the proof.
+ *
+ * A *heading* is required, not a passing mention: a filename buried in a table
+ * row or an ASCII box is how the page got here. The heading is what makes the
+ * workflow findable and forces someone to write down what it does.
+ */
+
+/**
+ * `filename -> why this workflow must not be documented`. Deliberately empty.
+ *
+ * A workflow that runs in this repository is a workflow contributors can be
+ * blocked by, so "not worth a section" is a claim that has to be made
+ * explicitly and reviewed — never by quietly skipping the page. The test below
+ * also rejects entries that name a workflow which no longer exists, so the
+ * escape hatch cannot rot into a permanent hole.
+ */
+const DOCUMENTATION_EXEMPT = new Map<string, string>();
+
 describe('ci-cd-pipeline.md — workflow inventory', () => {
   const workflowFiles = new Set(fs.readdirSync(workflowDir).filter((f) => f.endsWith('.yml')));
+
+  /** Workflow filenames named in a markdown heading, e.g. `## Lint (\`lint.yml\`)`. */
+  const documented = new Set(
+    doc
+      .split('\n')
+      .filter((line) => /^#{1,6}\s/.test(line))
+      .flatMap((line) => [...line.matchAll(/([a-z0-9][a-z0-9-]*\.yml)\b/g)].map((m) => m[1])),
+  );
+
+  it('gives every workflow in .github/workflows/ its own section', () => {
+    const undocumented = [...workflowFiles].filter(
+      (f) => !documented.has(f) && !DOCUMENTATION_EXEMPT.has(f),
+    );
+
+    expect(
+      undocumented,
+      `These workflows exist in .github/workflows/ but no heading in ` +
+        `content/docs/guide/ci-cd-pipeline.md names them:\n` +
+        undocumented.map((f) => `  - ${f}`).join('\n') +
+        `\n\nAdd a section to that page — a heading that contains the file name ` +
+        `(e.g. "### Stale Issues (\`stale.yml\`)"), what triggers it, and whether it can ` +
+        `block a merge — and a row in the "Workflow Inventory" table. A workflow nobody ` +
+        `documented is a check contributors get blocked by without knowing it exists ` +
+        `(objectui#3212: \`lint.yml\` gated PRs for months while this page never mentioned it).` +
+        `\n\nIf a workflow genuinely must not be documented, add it to DOCUMENTATION_EXEMPT in ` +
+        `this file with the reason — the exemption is reviewable, skipping the page is not.`,
+    ).toEqual([]);
+  });
+
+  it('keeps the documentation exemption list honest', () => {
+    for (const [name, reason] of DOCUMENTATION_EXEMPT) {
+      expect(workflowFiles, `DOCUMENTATION_EXEMPT names ${name}, which no longer exists — drop it`).toContain(name);
+      expect(reason.length, `DOCUMENTATION_EXEMPT[${name}] must carry a real justification`).toBeGreaterThan(20);
+    }
+  });
 
   it('never names a workflow file that does not exist', () => {
     // Fenced blocks are excluded: the ASCII overview box wraps filenames across
