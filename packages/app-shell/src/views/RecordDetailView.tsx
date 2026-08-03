@@ -131,6 +131,36 @@ function isSecondaryField(fieldName: string, fieldDef: any): boolean {
 }
 
 /**
+ * The discussion feed of a record that has none. A module-level constant, not
+ * a fresh `[]` per render: `feedItems` is handed straight to
+ * `DiscussionContextProvider` / `RecordChatterPanel` as a prop, so a new array
+ * identity every render would defeat every memo downstream of it. Read-only by
+ * convention — every write path below produces a NEW array.
+ */
+const EMPTY_FEED: FeedItem[] = [];
+
+/**
+ * Union two feed slices by row id, oldest first.
+ *
+ * Both reads that fill the feed (`sys_comment`, `sys_activity`) land through
+ * here, and so does the re-read that follows a navigation back to a record we
+ * already have rows for. Union-by-id (rather than replace) is what lets an
+ * OPTIMISTIC row — a comment the user just posted, written with the same id it
+ * was `create`d under — survive the refetch: if the row has persisted the
+ * server copy wins on the same key (no duplicate), and if it has not, the local
+ * row is still there.
+ */
+function mergeFeedRows(prev: readonly FeedItem[], incoming: readonly FeedItem[]): FeedItem[] {
+  const byId = new Map<string, FeedItem>();
+  for (const item of [...prev, ...incoming]) byId.set(String(item.id), item);
+  return Array.from(byId.values()).sort((a, b) => {
+    const ta = a.createdAt ? Date.parse(a.createdAt) : 0;
+    const tb = b.createdAt ? Date.parse(b.createdAt) : 0;
+    return ta - tb;
+  });
+}
+
+/**
  * Which system record-header affordances the record page may offer for this
  * object — the primary `sys_edit` CTA (which also gates the record-body
  * inline-edit session) and the `sys_delete` overflow item.
@@ -296,7 +326,9 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   const { isFavorite, toggleFavorite, refreshLabel: refreshFavoriteLabel } = useFavorites();
   const { addRecentItem } = useRecentItems();
   const [isLoading, setIsLoading] = useState(true);
-  const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
+  // The discussion feed, stored PER RECORD (objectui#3268). See the
+  // `feedRecordKey` block below for why this is a map and not a `FeedItem[]`.
+  const [feedItemsByRecord, setFeedItemsByRecord] = useState<Record<string, FeedItem[]>>({});
   const [mentionSuggestions, setMentionSuggestions] = useState<
     Array<{ id: string; label: string; avatarUrl?: string }>
   >([]);
@@ -1363,10 +1395,36 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // render of a record already read as loading, with no reset effect.
   // `record:activity` derives its own flag the same way (`canSelfFetch &&
   // fetched === null`) — one idiom, not two.
+  //
+  // ── Feed STATE is keyed by the same key (objectui#3268) ─────────────────
+  //
+  // `feedRecordKey` is the identity of the record a feed row belongs to — the
+  // very `thread_id` the rows are stored under server-side. Every write into
+  // the feed, fetched or optimistic, goes into that record's slice, and the
+  // render reads only the CURRENT key's slice. This view is not remounted
+  // between records (no `key=` at any mount site — `console/AppContent.tsx`
+  // and the `ObjectView` / `ObjectDataPage` / `InterfaceListPage` drawers just
+  // swap `recordIdOverride`, deliberately: #2269 "refresh data, don't rebuild
+  // UI"), and both reads below merge by row id — so with one flat `FeedItem[]`
+  // record A's comments and activity stayed on record B's panel with B's rows
+  // merged in alongside (different ids, so the merge could not dedupe them).
+  //
+  // Keying rather than clearing is the point:
+  //   • "empty for a new record" FALLS OUT of reading a key with no slice —
+  //     there is no `setFeedItems([])` racing the fetch that filled it;
+  //   • a response that lands AFTER the user navigated away is written under
+  //     the key its effect closed over, so it can never bleed into the record
+  //     now on screen (the same guarantee `settledFeedKey` gives the loading
+  //     flag — one idiom in this file, not two);
+  //   • ⛔ optimistic rows (a comment posted but not yet persisted) ride in
+  //     their own record's slice, so navigating away and back does not drop
+  //     them. Nothing here ever deletes a slice; that is deliberate, and it is
+  //     also why coming back to a record shows its rows immediately instead of
+  //     a spinner while the re-read confirms them (#3205).
+  const feedRecordKey = objectName && pureRecordId ? `${objectName}:${pureRecordId}` : null;
+  const feedItems = (feedRecordKey ? feedItemsByRecord[feedRecordKey] : undefined) ?? EMPTY_FEED;
   const feedFetchKey =
-    dataSource && objectName && pureRecordId && (feedsEnabled || activitiesEnabled)
-      ? `${objectName}:${pureRecordId}`
-      : null;
+    dataSource && feedRecordKey && (feedsEnabled || activitiesEnabled) ? feedRecordKey : null;
   const [settledFeedKey, setSettledFeedKey] = useState<string | null>(null);
   const feedLoading = feedFetchKey !== null && settledFeedKey !== feedFetchKey;
 
@@ -1427,15 +1485,13 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           parentId: c.parent_id ?? undefined,
           reactions: parseReactions(c.reactions),
         }));
-        setFeedItems(prev => {
-          const byId = new Map<string, FeedItem>();
-          for (const item of [...prev, ...mapped]) byId.set(String(item.id), item);
-          return Array.from(byId.values()).sort((a, b) => {
-            const ta = a.createdAt ? Date.parse(a.createdAt) : 0;
-            const tb = b.createdAt ? Date.parse(b.createdAt) : 0;
-            return ta - tb;
-          });
-        });
+        // Into THIS record's slice — `threadId` is the key the effect closed
+        // over, so a response that arrives after the user navigated away
+        // updates the record it was fetched for, never the one on screen.
+        setFeedItemsByRecord(prev => ({
+          ...prev,
+          [threadId]: mergeFeedRows(prev[threadId] ?? EMPTY_FEED, mapped),
+        }));
       })
       .catch(() => {}));
 
@@ -1503,20 +1559,13 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           } as FeedItem);
         }
         if (!mapped.length) return;
-        setFeedItems(prev => {
-          // Merge by id (timeline events are append-only); sort by
-          // createdAt ascending so the activity panel reads as a
-          // chronological narrative.
-          const byId = new Map<string, FeedItem>();
-          for (const item of [...prev, ...mapped]) {
-            byId.set(String(item.id), item);
-          }
-          return Array.from(byId.values()).sort((a, b) => {
-            const ta = a.createdAt ? Date.parse(a.createdAt) : 0;
-            const tb = b.createdAt ? Date.parse(b.createdAt) : 0;
-            return ta - tb;
-          });
-        });
+        // Merge by id into THIS record's slice (timeline events are
+        // append-only); `mergeFeedRows` sorts by createdAt ascending so the
+        // activity panel reads as a chronological narrative.
+        setFeedItemsByRecord(prev => ({
+          ...prev,
+          [threadId]: mergeFeedRows(prev[threadId] ?? EMPTY_FEED, mapped),
+        }));
       })
       .catch(() => {}));
 
@@ -1556,7 +1605,17 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         body: text,
         createdAt: new Date().toISOString(),
       };
-      setFeedItems(prev => [...prev, newItem]);
+      // The optimistic row goes into the slice of the record it was written
+      // ON, under the same key its `thread_id` will carry (objectui#3268) —
+      // so navigating away and back finds it again, and it never shows up on
+      // another record's panel. The re-read merges the persisted copy onto it
+      // by id, so there is no duplicate when it lands.
+      if (feedRecordKey) {
+        setFeedItemsByRecord(prev => ({
+          ...prev,
+          [feedRecordKey]: [...(prev[feedRecordKey] ?? EMPTY_FEED), newItem],
+        }));
+      }
       // Persist to backend (M10.10: snake_case fields per sys_comment schema)
       if (dataSource) {
         const threadId = `${objectName}:${pureRecordId}`;
@@ -1573,7 +1632,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         }).catch(() => {});
       }
     },
-    [currentUser, dataSource, objectName, pureRecordId, mentionSuggestions],
+    [currentUser, dataSource, objectName, pureRecordId, feedRecordKey, mentionSuggestions],
   );
 
   const handleAddReply = useCallback(
@@ -1587,15 +1646,23 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         createdAt: new Date().toISOString(),
         parentId,
       };
-      setFeedItems(prev => {
-        const updated = [...prev, newItem];
-        // Increment replyCount on parent
-        return updated.map(item =>
-          item.id === parentId
-            ? { ...item, replyCount: (item.replyCount ?? 0) + 1 }
-            : item
-        );
-      });
+      // Same record-scoped optimistic write as `handleAddComment` — the reply
+      // and the parent's bumped `replyCount` both belong to THIS record's
+      // slice (objectui#3268).
+      if (feedRecordKey) {
+        setFeedItemsByRecord(prev => {
+          const updated = [...(prev[feedRecordKey] ?? EMPTY_FEED), newItem];
+          return {
+            ...prev,
+            // Increment replyCount on parent
+            [feedRecordKey]: updated.map(item =>
+              item.id === parentId
+                ? { ...item, replyCount: (item.replyCount ?? 0) + 1 }
+                : item
+            ),
+          };
+        });
+      }
       if (dataSource) {
         const threadId = `${objectName}:${pureRecordId}`;
         const mentionIds = extractMentions(text, mentionSuggestions);
@@ -1612,60 +1679,67 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         }).catch(() => {});
       }
     },
-    [currentUser, dataSource, objectName, pureRecordId, mentionSuggestions],
+    [currentUser, dataSource, objectName, pureRecordId, feedRecordKey, mentionSuggestions],
   );
 
   const handleToggleReaction = useCallback(
     (itemId: string | number, emoji: string) => {
-      setFeedItems(prev => prev.map(item => {
-        if (item.id !== itemId) return item;
-        const reactions = [...(item.reactions ?? [])];
-        const idx = reactions.findIndex(r => r.emoji === emoji);
-        if (idx >= 0) {
-          const r = reactions[idx];
-          if (r.reacted) {
-            // Remove user's reaction
-            if (r.count <= 1) {
-              reactions.splice(idx, 1);
+      if (!feedRecordKey) return;
+      // Reactions are toggled from the panel of the record on screen, so they
+      // apply to that record's slice only (objectui#3268) — an id collision
+      // with a row cached for another record cannot reach across.
+      setFeedItemsByRecord(prevByRecord => ({
+        ...prevByRecord,
+        [feedRecordKey]: (prevByRecord[feedRecordKey] ?? EMPTY_FEED).map(item => {
+          if (item.id !== itemId) return item;
+          const reactions = [...(item.reactions ?? [])];
+          const idx = reactions.findIndex(r => r.emoji === emoji);
+          if (idx >= 0) {
+            const r = reactions[idx];
+            if (r.reacted) {
+              // Remove user's reaction
+              if (r.count <= 1) {
+                reactions.splice(idx, 1);
+              } else {
+                reactions[idx] = { ...r, count: r.count - 1, reacted: false };
+              }
             } else {
-              reactions[idx] = { ...r, count: r.count - 1, reacted: false };
+              reactions[idx] = { ...r, count: r.count + 1, reacted: true };
             }
           } else {
-            reactions[idx] = { ...r, count: r.count + 1, reacted: true };
+            reactions.push({ emoji, count: 1, reacted: true });
           }
-        } else {
-          reactions.push({ emoji, count: 1, reacted: true });
-        }
-        const updated = { ...item, reactions };
-        // Persist reactions to backend as JSON. The schema stores
-        // `reactions` as a textarea JSON string of `{ emoji: userIds[] }`,
-        // so we rebuild the canonical shape from the optimistic local
-        // state before writing back. A failed update silently keeps the
-        // optimistic UI change (best-effort, surfaced by RUM if needed).
-        if (dataSource) {
-          const userId = currentUser.id;
-          const remoteShape: Record<string, string[]> = {};
-          for (const r of reactions) {
-            // We don't have the original user-id list locally, so we
-            // approximate by emitting the signed-in user when they are
-            // the (only known) reactor. This is an over-simplification
-            // for single-user pilot installs and will be replaced by a
-            // proper backend reaction endpoint in M11.
-            const ids: string[] = [];
-            if (r.reacted) ids.push(userId);
-            // Pad with a synthetic marker so count is preserved across
-            // refreshes from other clients (best-effort).
-            while (ids.length < r.count) ids.push('__other__');
-            remoteShape[r.emoji] = ids;
+          const updated = { ...item, reactions };
+          // Persist reactions to backend as JSON. The schema stores
+          // `reactions` as a textarea JSON string of `{ emoji: userIds[] }`,
+          // so we rebuild the canonical shape from the optimistic local
+          // state before writing back. A failed update silently keeps the
+          // optimistic UI change (best-effort, surfaced by RUM if needed).
+          if (dataSource) {
+            const userId = currentUser.id;
+            const remoteShape: Record<string, string[]> = {};
+            for (const r of reactions) {
+              // We don't have the original user-id list locally, so we
+              // approximate by emitting the signed-in user when they are
+              // the (only known) reactor. This is an over-simplification
+              // for single-user pilot installs and will be replaced by a
+              // proper backend reaction endpoint in M11.
+              const ids: string[] = [];
+              if (r.reacted) ids.push(userId);
+              // Pad with a synthetic marker so count is preserved across
+              // refreshes from other clients (best-effort).
+              while (ids.length < r.count) ids.push('__other__');
+              remoteShape[r.emoji] = ids;
+            }
+            dataSource.update('sys_comment', String(itemId), {
+              reactions: JSON.stringify(remoteShape),
+            }).catch(() => {});
           }
-          dataSource.update('sys_comment', String(itemId), {
-            reactions: JSON.stringify(remoteShape),
-          }).catch(() => {});
-        }
-        return updated;
+          return updated;
+        }),
       }));
     },
-    [currentUser.id, dataSource],
+    [currentUser.id, dataSource, feedRecordKey],
   );
 
   useEffect(() => {
