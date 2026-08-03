@@ -413,6 +413,19 @@ export type ResultDialogHandler = (
 /**
  * ActionParam definition accepted by the runner.
  * Compatible with @objectstack/spec ActionParam.
+ *
+ * The RESOLVED shape — what `resolveActionParams()` emits and `ActionParamDialog`
+ * reads, after a field-backed param's `{ field }` reference has been inlined.
+ * The AUTHORING counterpart is `@object-ui/types`' `ActionParam` (objectui#3174).
+ *
+ * `validation?: string` used to sit here too, and was removed by objectui#3201:
+ * no producer ever wrote it (it was never a key of `resolveActionParams()`'s
+ * `RawActionParam`, and the runtime field metadata a field-backed param inherits
+ * from carries no `validation` either) and no consumer ever read it —
+ * `paramToField()` did not map it, so it never reached the field widgets, whose
+ * rules `buildValidationRules()` builds from `required` / `minLength` /
+ * `maxLength` / `pattern`. Declaring it on the resolved side only invited the
+ * authoring side to declare it back.
  */
 export interface ActionParamDef {
   name: string;
@@ -423,7 +436,6 @@ export interface ActionParamDef {
   defaultValue?: unknown;
   helpText?: string;
   placeholder?: string;
-  validation?: string;
   /**
    * Visibility predicate (CEL) evaluated against the same scope as action
    * `visible` (`current_user` / `app` / `data` / `features`). When it evaluates

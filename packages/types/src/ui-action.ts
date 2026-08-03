@@ -264,6 +264,8 @@ export type ResolvableParamFieldType = ActionParamFieldType | ObjectUiLocalParam
  * ONE key is pinned locally: `type` takes {@link ResolvableParamFieldType} —
  * the spec vocabulary plus objectui's declared legacy spellings
  * (`checkbox` / `reference` / `datetime-local`), which the dialog resolves.
+ * `type` is a NARROWING of a key the spec already declares, not an addition:
+ * the interface adds no key of its own (objectui#3201 retired the last one).
  *
  * **Authoring ≠ resolved — the resolved-side keys are NOT declared here**
  * (objectui#3174). This interface used to add the whole picker group on top of
@@ -296,6 +298,20 @@ export type ResolvableParamFieldType = ActionParamFieldType | ObjectUiLocalParam
  * shape has and the authoring shape lacks is either a spec change or a
  * field-backed param — never a key added here.
  *
+ * That rule is now literal, with no named exception. `validation?: string` was
+ * carried here as the one key this interface added on top of the spec's set,
+ * and objectui#3201 retired it: `ActionParamSchema` is `.strict()` and does not
+ * list it, so an authored `validation` was a hard PARSE REJECTION on the server
+ * (`Unrecognized key(s) on this action param`) while `tsc` accepted it happily;
+ * and nothing ever read it — `resolveActionParams()` never had it on
+ * `RawActionParam`, `paramToField()` never mapped it, and `buildValidationRules()`
+ * in `@object-ui/fields` builds rules from `required` / `minLength` /
+ * `maxLength` / `pattern` field metadata with no `validation` branch. It was
+ * removed rather than implemented (ADR-0049 enforce-or-remove): giving it
+ * meaning would mean first deciding what an "expression" is here (CEL? formula?
+ * regex?) and adding it to `@objectstack/spec`, which is where such a capability
+ * would have to start.
+ *
  * `label` and `options[].label` are NOT pinned, though the comment above used
  * to justify them as a widening: "labels take the spec's `I18nLabel` (a string
  * or a per-locale record)". In spec 17 `I18nLabelSchema` is `z.ZodString` —
@@ -319,26 +335,6 @@ export interface ActionParam
    * {@link ActionParamFieldType} in new metadata.
    */
   type?: ResolvableParamFieldType;
-
-  /**
-   * Validation expression.
-   *
-   * NOT a spec key — `ActionParamSchema` is `.strict()`, so the server rejects
-   * it — and nothing reads it: `resolveActionParams()` never copies it onto the
-   * resolved param, and `paramToField()` never maps it into the field the
-   * widgets consume (form validation is built from `required` / `minLength` /
-   * `maxLength` / `pattern` field metadata instead). It is the same
-   * declared-but-inert shape objectui#3174 removed the picker group for, minus
-   * the second spelling, and is left standing only because retiring it is its
-   * own decision with its own blast radius — tracked as objectui#3201.
-   *
-   * The drift guard names it as the ONE key this interface adds to the spec's
-   * set, so it cannot be joined by a second without that being a decision.
-   *
-   * @deprecated Inert — declared, never read, and rejected by the server's
-   * param parser. Do not author it.
-   */
-  validation?: string;
 }
 
 /**

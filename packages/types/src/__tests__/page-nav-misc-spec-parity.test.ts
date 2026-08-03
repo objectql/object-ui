@@ -367,21 +367,43 @@ describe('ActionParam declares ONLY authorable keys (objectui#3174)', () => {
     expect(authored.reference).toBe('account');
   });
 
-  it('adds exactly ONE key to the spec set — `validation` (objectui#3201)', () => {
-    // INVERTED PIN, both directions. Forward: no key may join `validation`
-    // without this failing, which is the rule objectui#3174 leaves behind —
-    // the authoring type declares exactly the spec's authorable keys, so a
+  it('adds NO key to the spec set — the exception is gone (objectui#3201)', () => {
+    // The rule objectui#3174 left behind, now with nothing carved out of it:
+    // the authoring type declares EXACTLY the spec's authorable keys, so a
     // capability the resolved shape has and this one lacks is a spec change or
-    // a field-backed param, never a key added here. Reverse: `validation` is
-    // itself inert and rejected by the spec's `.strict()` parse (objectui#3201),
-    // so the day it is retired this line stops compiling and the exception is
-    // deleted rather than inherited.
-    const theOneException: LocalOnlyParamKey = 'validation';
-    type NothingElseIsLocal = Exclude<LocalOnlyParamKey, 'validation'> extends never ? true : false;
-    const nothingElse: NothingElseIsLocal = true;
+    // a field-backed param, never a key added here.
+    //
+    // This used to read `const theOneException: LocalOnlyParamKey = 'validation'`
+    // — an inverted pin whose reverse direction said "the day `validation` is
+    // retired this line stops compiling and the exception is deleted rather
+    // than inherited". objectui#3201 retired it (declared on both halves of the
+    // contract, read by neither, and a hard `.strict()` parse rejection on the
+    // server), so the exception is deleted, not re-pointed at some other key.
+    //
+    // `[T] extends [never]` deliberately, not a naked `T extends never`: the
+    // naked form distributes and evaluates to `never` — not `true` — for the
+    // empty union, which is exactly the case being asserted, so it would fail
+    // to compile the moment it started being satisfied. The tuple wrapper
+    // defeats distribution and lets `never` be tested as a value.
+    type NoLocalOnlyKeys = [LocalOnlyParamKey] extends [never] ? true : false;
+    const noLocalOnlyKeys: NoLocalOnlyKeys = true;
+    expect(noLocalOnlyKeys).toBe(true);
 
-    expect(theOneException).toBe('validation');
-    expect(nothingElse).toBe(true);
+    // Forward direction, made runtime-visible: adding any key not in the spec's
+    // set has to fail here, so the assertion above cannot quietly become
+    // vacuous. `type` is the one key `ActionParam` restates, and it restates a
+    // key the spec already declares (a NARROWING to `ResolvableParamFieldType`),
+    // so it is not local-only and does not belong in this set either.
+    const localOnlyKeys: LocalOnlyParamKey[] = [];
+    expect(localOnlyKeys).toEqual([]);
+
+    // And the retired key specifically is no longer authorable: an authored
+    // `validation` is now the `tsc` error it always should have been, matching
+    // the server, which answers it with
+    // "Unrecognized key(s) on this action param: `validation`".
+    // @ts-expect-error retired by objectui#3201 — inert, and rejected by `ActionParamSchema`
+    const retired: ActionParam = { name: 'p', validation: 'value > 0' };
+    expect(retired.name).toBe('p');
   });
 });
 

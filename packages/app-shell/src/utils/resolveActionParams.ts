@@ -5,9 +5,15 @@
  * Action params (`packages/spec/src/ui/action.zod.ts ActionParamSchema`) may
  * either be declared inline (`{ name, label, type, ... }`) or reference an
  * existing object field via `{ field, objectOverride? }`. Field-backed
- * params inherit label (i18n via `fieldLabel()`), type, options, validation,
- * placeholder, and help text from the object's field definition. Inline
- * properties on a field-backed param act as overrides.
+ * params inherit label (i18n via `fieldLabel()`), type, options, placeholder,
+ * and help text from the object's field definition. Inline properties on a
+ * field-backed param act as overrides.
+ *
+ * NOT validation: this comment used to claim it, but no `validation` was ever
+ * inherited — `RuntimeField` below has no such key to read one from, and the
+ * `ActionParamDef` it would have landed on no longer declares one either
+ * (objectui#3201). A param's constraints reach the widgets through
+ * `paramToField()` as `required` / `minLength` / `maxLength` / `pattern`.
  *
  * The resolver flattens each param to the runtime `ActionParamDef` shape
  * expected by `ActionParamDialog`, so the dialog itself stays agnostic to
