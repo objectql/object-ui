@@ -343,6 +343,80 @@ const defaultPermission: PermissionChecker = () => true;
 const defaultCapability: CapabilityChecker = () => true;
 
 // ---------------------------------------------------------------------------
+// Derived area visibility (objectui#3311)
+// ---------------------------------------------------------------------------
+
+/** Guard callbacks for {@link hasVisibleNavigationItems}. */
+export interface NavigationVisibilityOptions {
+  /** Evaluator for item `visible` expressions. Defaults to always-visible. */
+  evaluateVisibility?: VisibilityEvaluator;
+  /** Checker for item `requiredPermissions`. Defaults to always-permitted. */
+  checkPermission?: PermissionChecker;
+  /** Checker for `requiresObject` / `requiresService`. Defaults to pass. */
+  checkCapability?: CapabilityChecker;
+  /**
+   * Whether the host wires an `onAction` dispatcher. Without one, `action`
+   * items are not rendered at all (framework#4509 — a nav entry that looks
+   * clickable and silently does nothing is worse than an absent one), so
+   * they cannot carry an area's visibility either. Defaults to `false`,
+   * matching a renderer with no `onAction` prop.
+   */
+  hasActionHandler?: boolean;
+}
+
+/**
+ * Whether a navigation tree contains at least one item that would actually
+ * render under the given guards — the exact guards `NavigationItemRenderer`
+ * applies per item: the `visible` expression, `requiredPermissions`, the
+ * `requiresObject` / `requiresService` runtime-capability gates, and (for
+ * `action` items) the presence of an action dispatcher.
+ *
+ * Non-content nodes never count: a `separator` is a visual divider, and a
+ * `group` counts only through its children — a group whose children are all
+ * gated away contributes nothing a user can navigate to.
+ *
+ * This is the predicate behind DERIVED area visibility (objectui#3311).
+ * `@objectstack/spec` 17.0.0 retired the authorable area-level `visible` /
+ * `requiredPermissions` (`AREA_VISIBLE_RETIRED` /
+ * `AREA_REQUIRED_PERMISSIONS_RETIRED`): an area is a layout grouping, not an
+ * access boundary. What replaces those keys is not a new key but this
+ * derivation: an area is visible iff something inside it is. Because it is
+ * computed from the same guards that decide what renders, it can never
+ * disagree with the rendered navigation — and there is nothing for a
+ * metadata author to get wrong. An area with no items at all derives the
+ * same way (no visible item → hidden).
+ */
+export function hasVisibleNavigationItems(
+  items: NavigationItem[],
+  options: NavigationVisibilityOptions = {},
+): boolean {
+  const {
+    evaluateVisibility = defaultVisibility,
+    checkPermission = defaultPermission,
+    checkCapability = defaultCapability,
+    hasActionHandler = false,
+  } = options;
+
+  for (const item of items) {
+    // Same guard order as NavigationItemRenderer.
+    if (!evaluateVisibility(item.visible)) continue;
+    if (item.requiredPermissions?.length && !checkPermission(item.requiredPermissions)) continue;
+    if (item.requiresObject && !checkCapability('object', item.requiresObject)) continue;
+    if (item.requiresService && !checkCapability('service', item.requiresService)) continue;
+
+    if (item.type === 'separator') continue;
+    if (item.type === 'group') {
+      if (hasVisibleNavigationItems(item.children ?? [], options)) return true;
+      continue;
+    }
+    if (item.type === 'action' && !hasActionHandler) continue;
+
+    return true;
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // Internal helper: resolve href from NavigationItem
 // ---------------------------------------------------------------------------
 

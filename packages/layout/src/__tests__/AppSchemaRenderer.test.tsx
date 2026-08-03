@@ -12,6 +12,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { AppComponentSchema, NavigationItem, NavigationArea } from '@object-ui/types';
 import { AppSchemaRenderer } from '../AppSchemaRenderer';
+import { hasVisibleNavigationItems } from '../NavigationRenderer';
 
 /** Wrap component in MemoryRouter */
 function renderApp(
@@ -67,6 +68,15 @@ const serviceArea: NavigationArea = {
   icon: 'Headphones',
   navigation: [
     { id: 'a2', type: 'object', label: 'Cases', icon: 'Inbox', objectName: 'case' },
+  ],
+};
+
+const marketingArea: NavigationArea = {
+  id: 'area-marketing',
+  label: 'Marketing',
+  icon: 'Megaphone',
+  navigation: [
+    { id: 'a3', type: 'object', label: 'Campaigns', icon: 'Send', objectName: 'campaign' },
   ],
 };
 
@@ -189,15 +199,20 @@ describe('AppSchemaRenderer', () => {
   // `visible` / `requiredPermissions` were retired at AREA level
   // (`AREA_VISIBLE_RETIRED` / `AREA_REQUIRED_PERMISSIONS_RETIRED`): an area is a
   // layout grouping, not an access boundary. These two tests used to assert the
-  // area itself was hidden; they now assert the capability still exists one
-  // level down, which is where the spec moved it. Losing the gate entirely —
-  // rather than relocating it — is the regression worth catching, so the
-  // item-level assertions below are deliberately the same scenarios.
+  // area itself was hidden; after #3315 they asserted the capability still
+  // exists one level down, which is where the spec moved it. Losing the gate
+  // entirely — rather than relocating it — is the regression worth catching.
+  //
+  // Since #3311 the gated item needs a VISIBLE sibling here: an area whose
+  // items are ALL gated is now derived-hidden and never activated (see the
+  // "derived area visibility" block below), which would make a lone-gated-item
+  // assertion vacuous. A partially gated area stays visible and active, which
+  // is exactly what keeps "the ITEM is gated, the area is not" load-bearing.
 
-  // NB: the gated item must live in the FIRST area — that is the one the
-  // switcher activates by default, so it is the only area whose navigation is
-  // actually rendered. Gating an item in a non-active area asserts nothing:
-  // it is absent either way.
+  // NB: the gated item must live in the ACTIVE area — the first VISIBLE area
+  // is the one the switcher activates by default, so it is the only area whose
+  // navigation is actually rendered. Gating an item in a non-active area
+  // asserts nothing: it is absent either way.
 
   it('gates the navigation ITEM by visibility, not the area', () => {
     const schema: AppComponentSchema = {
@@ -207,7 +222,10 @@ describe('AppSchemaRenderer', () => {
       areas: [
         {
           ...salesArea,
-          navigation: [{ ...salesArea.navigation[0], visible: false }],
+          navigation: [
+            { ...salesArea.navigation[0], visible: false },
+            { id: 'a1b', type: 'object', label: 'Quotes', objectName: 'quote' },
+          ],
         },
         serviceArea,
       ],
@@ -215,8 +233,10 @@ describe('AppSchemaRenderer', () => {
     renderApp(schema, {
       evaluateVisibility: (expr) => expr !== false,
     });
-    // The area still appears in the switcher…
+    // The partially gated area still appears in the switcher, stays active,
+    // and renders its visible item…
     expect(screen.getByText('Sales')).toBeTruthy();
+    expect(screen.getByText('Quotes')).toBeTruthy();
     // …but the item it gates does not render.
     expect(screen.queryByText('Opportunities')).toBeNull();
   });
@@ -231,6 +251,7 @@ describe('AppSchemaRenderer', () => {
           ...salesArea,
           navigation: [
             { ...salesArea.navigation[0], requiredPermissions: ['sales:admin'] },
+            { id: 'a1b', type: 'object', label: 'Quotes', objectName: 'quote' },
           ],
         },
         serviceArea,
@@ -240,7 +261,250 @@ describe('AppSchemaRenderer', () => {
       checkPermission: (perms) => !perms.includes('sales:admin'),
     });
     expect(screen.getByText('Sales')).toBeTruthy();
+    expect(screen.getByText('Quotes')).toBeTruthy();
     expect(screen.queryByText('Opportunities')).toBeNull();
+  });
+
+  // --- Derived area visibility (#3311) ---
+  //
+  // Spec 17.0.0 retired the authorable area-level `visible` /
+  // `requiredPermissions`; #3315 followed suit, which left an area whose items
+  // are ALL gated rendering as visible-but-empty in the switcher. Per the
+  // #3311 ruling (option C), area visibility is now DERIVED from the items
+  // inside — the same item-level guards NavigationRenderer applies — so a
+  // fully gated area disappears again, with no authorable key involved. An
+  // area with no items at all derives the same way: nothing visible → hidden.
+
+  describe('derived area visibility (#3311)', () => {
+    const gatedSales: NavigationArea = {
+      ...salesArea,
+      navigation: [{ ...salesArea.navigation[0], visible: false }],
+    };
+
+    it('keeps every area in the switcher when every area has a visible item', () => {
+      renderApp({ type: 'app', name: 'crm', title: 'CRM', areas: [salesArea, serviceArea, marketingArea] });
+      expect(screen.getByText('Sales')).toBeTruthy();
+      expect(screen.getByText('Service')).toBeTruthy();
+      expect(screen.getByText('Marketing')).toBeTruthy();
+      // First area is active.
+      expect(screen.getByText('Opportunities')).toBeTruthy();
+    });
+
+    it('hides an area whose items are ALL gated and activates the first visible area', () => {
+      renderApp(
+        { type: 'app', name: 'crm', title: 'CRM', areas: [gatedSales, serviceArea, marketingArea] },
+        { evaluateVisibility: (expr) => expr !== false },
+      );
+      // The fully gated area is not offered in the switcher…
+      expect(screen.queryByText('Sales')).toBeNull();
+      expect(screen.getByText('Service')).toBeTruthy();
+      expect(screen.getByText('Marketing')).toBeTruthy();
+      // …and it is never auto-activated: the first VISIBLE area's navigation
+      // renders instead of a visible-but-empty Sales area.
+      expect(screen.getByText('Cases')).toBeTruthy();
+      expect(screen.queryByText('Opportunities')).toBeNull();
+    });
+
+    it('hides an area whose items all fail their permission checks', () => {
+      const adminSales: NavigationArea = {
+        ...salesArea,
+        navigation: [
+          { ...salesArea.navigation[0], requiredPermissions: ['sales:admin'] },
+        ],
+      };
+      renderApp(
+        { type: 'app', name: 'crm', title: 'CRM', areas: [adminSales, serviceArea, marketingArea] },
+        { checkPermission: (perms) => !perms.includes('sales:admin') },
+      );
+      expect(screen.queryByText('Sales')).toBeNull();
+      expect(screen.getByText('Service')).toBeTruthy();
+      expect(screen.getByText('Cases')).toBeTruthy();
+    });
+
+    it('hides the switcher entirely when only one area remains visible', () => {
+      renderApp(
+        { type: 'app', name: 'crm', title: 'CRM', areas: [gatedSales, serviceArea] },
+        { evaluateVisibility: (expr) => expr !== false },
+      );
+      // One visible area = nothing to switch between: no switcher at all,
+      // so neither area label renders — but the visible area's nav does.
+      expect(screen.queryByText('Sales')).toBeNull();
+      expect(screen.queryByText('Service')).toBeNull();
+      expect(screen.getByText('Cases')).toBeTruthy();
+    });
+
+    it('renders no switcher and no area navigation when every area is fully gated', () => {
+      renderApp(
+        {
+          type: 'app',
+          name: 'crm',
+          title: 'CRM',
+          areas: [
+            gatedSales,
+            { ...serviceArea, navigation: [{ ...serviceArea.navigation[0], visible: false }] },
+          ],
+        },
+        { evaluateVisibility: (expr) => expr !== false },
+      );
+      expect(screen.queryByText('Sales')).toBeNull();
+      expect(screen.queryByText('Service')).toBeNull();
+      expect(screen.queryByText('Opportunities')).toBeNull();
+      expect(screen.queryByText('Cases')).toBeNull();
+      // The shell itself still renders.
+      expect(screen.getByTestId('page-content')).toBeTruthy();
+    });
+
+    it('treats an area with no items at all like a fully gated one (hidden)', () => {
+      // Boundary decision recorded in #3311: an empty area derives exactly
+      // like an all-gated one — no visible item, no entry in the switcher.
+      const emptyArea: NavigationArea = { id: 'area-empty', label: 'Empty', navigation: [] };
+      renderApp({ type: 'app', name: 'crm', title: 'CRM', areas: [emptyArea, salesArea, serviceArea] });
+      expect(screen.queryByText('Empty')).toBeNull();
+      expect(screen.getByText('Sales')).toBeTruthy();
+      expect(screen.getByText('Service')).toBeTruthy();
+      // Active area skips the empty one.
+      expect(screen.getByText('Opportunities')).toBeTruthy();
+    });
+
+    it('derives through groups: an area whose groups have no visible child is hidden', () => {
+      const groupedGated: NavigationArea = {
+        id: 'area-grouped',
+        label: 'Grouped',
+        navigation: [
+          {
+            id: 'grp',
+            type: 'group',
+            label: 'Tools',
+            children: [
+              { id: 'grp-1', type: 'object', label: 'Hidden Tool', objectName: 'tool', visible: false },
+            ],
+          },
+        ],
+      };
+      renderApp(
+        { type: 'app', name: 'crm', title: 'CRM', areas: [groupedGated, serviceArea, marketingArea] },
+        { evaluateVisibility: (expr) => expr !== false },
+      );
+      expect(screen.queryByText('Grouped')).toBeNull();
+      expect(screen.getByText('Service')).toBeTruthy();
+      expect(screen.getByText('Cases')).toBeTruthy();
+    });
+
+    it('re-derives when gating changes: revoking a permission hides the active area and re-elects', () => {
+      const adminSales: NavigationArea = {
+        ...salesArea,
+        navigation: [
+          { ...salesArea.navigation[0], requiredPermissions: ['sales:admin'] },
+        ],
+      };
+      const schema: AppComponentSchema = {
+        type: 'app',
+        name: 'crm',
+        title: 'CRM',
+        areas: [adminSales, serviceArea, marketingArea],
+      };
+      const ui = (checkPermission: (perms: string[]) => boolean) => (
+        <MemoryRouter initialEntries={['/']}>
+          <AppSchemaRenderer schema={schema} basePath="/apps/crm" checkPermission={checkPermission}>
+            <div data-testid="page-content">Page Content</div>
+          </AppSchemaRenderer>
+        </MemoryRouter>
+      );
+      const view = render(ui(() => true));
+      // Permission granted: Sales is visible and active.
+      expect(screen.getByText('Sales')).toBeTruthy();
+      expect(screen.getByText('Opportunities')).toBeTruthy();
+
+      // Permission revoked: Sales derives hidden, drops out of the switcher,
+      // and the shell re-elects the first visible area.
+      view.rerender(ui((perms) => !perms.includes('sales:admin')));
+      expect(screen.queryByText('Sales')).toBeNull();
+      expect(screen.queryByText('Opportunities')).toBeNull();
+      expect(screen.getByText('Cases')).toBeTruthy();
+
+      // Permission granted again: Sales reappears in the switcher, but the
+      // user's current area is NOT yanked away — Service stays active.
+      view.rerender(ui(() => true));
+      expect(screen.getByText('Sales')).toBeTruthy();
+      expect(screen.getByText('Cases')).toBeTruthy();
+      expect(screen.queryByText('Opportunities')).toBeNull();
+    });
+  });
+
+  // --- hasVisibleNavigationItems (the predicate behind #3311) ---
+
+  describe('hasVisibleNavigationItems', () => {
+    it('returns false for an empty tree', () => {
+      expect(hasVisibleNavigationItems([])).toBe(false);
+    });
+
+    it('ignores separators — a divider is not content', () => {
+      expect(
+        hasVisibleNavigationItems([{ id: 's1', type: 'separator', label: '' }]),
+      ).toBe(false);
+    });
+
+    it('counts an action item only when the host wires a dispatcher (framework#4509)', () => {
+      const items: NavigationItem[] = [
+        {
+          id: 'act1',
+          type: 'action',
+          label: 'Export',
+          actionDef: { actionName: 'export_data' },
+        },
+      ];
+      expect(hasVisibleNavigationItems(items)).toBe(false);
+      expect(hasVisibleNavigationItems(items, { hasActionHandler: true })).toBe(true);
+    });
+
+    it('applies the runtime capability gates (requiresObject / requiresService)', () => {
+      const items: NavigationItem[] = [
+        { id: 'n1', type: 'object', label: 'Apps', objectName: 'sys_app', requiresObject: 'sys_app' },
+      ];
+      expect(
+        hasVisibleNavigationItems(items, { checkCapability: () => false }),
+      ).toBe(false);
+      expect(
+        hasVisibleNavigationItems(items, { checkCapability: () => true }),
+      ).toBe(true);
+    });
+
+    it('applies a group\'s own guards before recursing into its children', () => {
+      const items: NavigationItem[] = [
+        {
+          id: 'grp',
+          type: 'group',
+          label: 'Admin',
+          requiredPermissions: ['admin'],
+          children: [
+            { id: 'grp-1', type: 'object', label: 'Users', objectName: 'user' },
+          ],
+        },
+      ];
+      // The child is visible, but the group itself is gated → nothing counts.
+      expect(
+        hasVisibleNavigationItems(items, { checkPermission: () => false }),
+      ).toBe(false);
+      expect(
+        hasVisibleNavigationItems(items, { checkPermission: () => true }),
+      ).toBe(true);
+    });
+
+    it('does not count a group with no visible child', () => {
+      const items: NavigationItem[] = [
+        {
+          id: 'grp',
+          type: 'group',
+          label: 'Tools',
+          children: [
+            { id: 'grp-1', type: 'object', label: 'Hidden', objectName: 'tool', visible: false },
+          ],
+        },
+      ];
+      expect(
+        hasVisibleNavigationItems(items, { evaluateVisibility: (expr) => expr !== false }),
+      ).toBe(false);
+    });
   });
 
   // --- Mobile bottom_nav mode ---

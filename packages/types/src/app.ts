@@ -301,7 +301,12 @@ export interface NavigationItem {
  * `AppSchemaRenderer`'s area switcher filtered areas by `visible` and
  * `requiredPermissions`. That filter is gone, and the gating it did now happens
  * one level down in `NavigationRenderer`, which is where the spec moved it.
- * The premise mismatch is recorded in objectui#3311.
+ * The premise mismatch is recorded in objectui#3311. Per that issue's ruling,
+ * area visibility is now DERIVED rather than authored: `AppSchemaRenderer`
+ * hides an area from the switcher when none of its items survive the
+ * item-level guards (`hasVisibleNavigationItems` in `@object-ui/layout`), so
+ * the pre-17 "fully gated area disappears" UX is back without any authorable
+ * area-level key.
  *
  * One key is pinned locally, for a reason that outlives a spec release:
  *

@@ -41,6 +41,7 @@ import { menuItemToNavigationItem } from '@object-ui/types';
 import { AppShell, type AppShellBranding } from './AppShell';
 import {
   NavigationRenderer,
+  hasVisibleNavigationItems,
   resolveIcon,
   resolveLabel,
   type VisibilityEvaluator,
@@ -121,17 +122,24 @@ export interface AppSchemaRendererProps {
 // ---------------------------------------------------------------------------
 
 /**
- * Areas are NOT gated here any more. `@objectstack/spec` 17.0.0 retired
- * `visible` and `requiredPermissions` at area level
- * (`AREA_VISIBLE_RETIRED` / `AREA_REQUIRED_PERMISSIONS_RETIRED`): an area is a
- * layout grouping, not an access boundary, so gating belongs on the navigation
- * ITEM — which `NavigationRenderer` still enforces, via the same `evalVis` /
- * `checkPerm` this component used to apply one level up. The spec's area object
- * is `.strict()`, so no v17-valid app can carry the retired keys and this
- * filter had become unreachable for every app the platform accepts.
+ * Renders the switcher for the areas the current user can still see.
  *
- * Consequence worth knowing: an area whose items are all gated away now renders
- * as a visible-but-empty area rather than disappearing from the switcher.
+ * Areas carry no authorable gate of their own: `@objectstack/spec` 17.0.0
+ * retired `visible` and `requiredPermissions` at area level
+ * (`AREA_VISIBLE_RETIRED` / `AREA_REQUIRED_PERMISSIONS_RETIRED`) — an area is
+ * a layout grouping, not an access boundary, so gating belongs on the
+ * navigation ITEM, which `NavigationRenderer` still enforces via the same
+ * `evalVis` / `checkPerm` this component used to apply one level up. The
+ * spec's area object is `.strict()`, so no v17-valid app can carry the
+ * retired keys.
+ *
+ * Area visibility is instead DERIVED (objectui#3311): `AppSchemaRenderer`
+ * lists an area here iff `hasVisibleNavigationItems` finds at least one item
+ * in it that survives the item-level guards. An area whose items are all
+ * gated away disappears from the switcher — the same UX the retired keys used
+ * to produce — without resurrecting any authorable key for the platform's
+ * strict schema to reject. An area with no items at all derives the same way
+ * (no visible item → hidden).
  */
 function AreaSwitcher({
   areas,
@@ -272,6 +280,7 @@ function InternalSidebar({
   sidebarHeader,
   sidebarFooter,
   sidebarExtra,
+  visibleAreas,
   activeAreaId,
   setActiveAreaId,
   resolvedNavigation,
@@ -290,6 +299,8 @@ function InternalSidebar({
   sidebarHeader?: React.ReactNode;
   sidebarFooter?: React.ReactNode;
   sidebarExtra?: React.ReactNode;
+  /** Areas with at least one visible item — derived, not authored (#3311). */
+  visibleAreas: NavigationArea[];
   activeAreaId: string | null;
   setActiveAreaId: (id: string) => void;
   resolvedNavigation: NavigationItem[];
@@ -300,7 +311,6 @@ function InternalSidebar({
   onReorder?: (reorderedItems: NavigationItem[]) => void;
 }) {
   const Icon = resolveIcon(schema.logo);
-  const areas = schema.areas ?? [];
   const [searchQuery, setSearchQuery] = useState('');
 
   return (
@@ -349,10 +359,11 @@ function InternalSidebar({
       </SidebarHeader>
 
       <SidebarContent>
-        {/* Area Switcher */}
-        {areas.length > 1 && activeAreaId && (
+        {/* Area Switcher — only areas with a visible item, and only when
+            there is more than one of them left to switch between (#3311) */}
+        {visibleAreas.length > 1 && activeAreaId && (
           <AreaSwitcher
-            areas={areas}
+            areas={visibleAreas}
             activeAreaId={activeAreaId}
             onAreaChange={setActiveAreaId}
           />
@@ -393,7 +404,9 @@ function InternalSidebar({
  * Responsibilities:
  * - Reads `name`, `title`, `description`, `logo`, `favicon` for branding
  * - Renders sidebar navigation from `navigation` or `areas[].navigation`
- * - Area switcher when multiple `areas` are defined
+ * - Area switcher when multiple areas are VISIBLE — area visibility is
+ *   derived from the items inside, not authored (objectui#3311): an area
+ *   whose items are all gated away is hidden and never auto-activated
  * - Mobile modes: `drawer` (sheet overlay, default), `bottom_nav` (fixed
  *   bottom bar), `hamburger` (collapsed sidebar)
  * - Evaluates `visible` expressions and `requiredPermissions` on every item
@@ -448,24 +461,46 @@ export function AppSchemaRenderer({
   const flatNavigation = schema.navigation ?? legacyNavigation;
 
   // --- Area management ---
+  //
+  // Area visibility is DERIVED from the items inside (objectui#3311): an area
+  // is visible iff at least one of its navigation items survives the same
+  // item-level guards `NavigationRenderer` applies (`visible`,
+  // `requiredPermissions`, runtime capabilities, action-dispatcher presence).
+  // Spec 17.0.0 retired the authorable area-level keys; this derivation
+  // restores the "fully gated area disappears" UX without any authorable key.
+  // The active area is elected among the VISIBLE areas only, so the user is
+  // never landed in — or stranded on — an area that renders nothing.
   const areas = schema.areas ?? [];
+  const visibleAreas = areas.filter((area) =>
+    hasVisibleNavigationItems(area.navigation, {
+      evaluateVisibility: evalVis,
+      checkPermission: checkPerm,
+      checkCapability: checkCap,
+      hasActionHandler: !!onAction,
+    }),
+  );
   const [activeAreaId, setActiveAreaId] = useState<string | null>(
-    () => areas.length > 0 ? areas[0].id : null,
+    () => visibleAreas.length > 0 ? visibleAreas[0].id : null,
   );
 
-  const areaIds = areas.map((a) => a.id).join(',');
+  const visibleAreaIds = visibleAreas.map((a) => a.id).join(',');
 
   useEffect(() => {
-    if (areas.length > 0) {
+    if (visibleAreas.length > 0) {
       setActiveAreaId((prev) =>
-        areas.some((a) => a.id === prev) ? prev : areas[0].id,
+        visibleAreas.some((a) => a.id === prev) ? prev : visibleAreas[0].id,
       );
     } else {
       setActiveAreaId(null);
     }
-  }, [schema.name, areaIds]);
+  }, [schema.name, visibleAreaIds]);
 
-  const activeArea = areas.find((a) => a.id === activeAreaId);
+  // Resolve the EFFECTIVE active area at render time rather than trusting the
+  // state: when a gating change hides the currently active area, the effect
+  // above re-elects on the next tick — this fallback keeps the in-between
+  // frame from rendering the hidden area's (empty) navigation.
+  const activeArea =
+    visibleAreas.find((a) => a.id === activeAreaId) ?? visibleAreas[0];
   const resolvedNavigation: NavigationItem[] = activeArea?.navigation ?? flatNavigation;
 
   // --- Branding ---
@@ -487,7 +522,8 @@ export function AppSchemaRenderer({
       sidebarHeader={sidebarHeader}
       sidebarFooter={sidebarFooter}
       sidebarExtra={sidebarExtra}
-      activeAreaId={activeAreaId}
+      visibleAreas={visibleAreas}
+      activeAreaId={activeArea?.id ?? null}
       setActiveAreaId={setActiveAreaId}
       resolvedNavigation={resolvedNavigation}
       enableSearch={enableSearch}
