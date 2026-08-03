@@ -13,6 +13,7 @@
 
 import * as React from 'react';
 import type { MetadataInspectorProps } from '../inspector-registry';
+import type { ExpressionInput } from '@objectstack/spec/shared';
 import { t } from '../i18n';
 import {
   InspectorShell,
@@ -28,6 +29,7 @@ import {
 import { BLOCK_CONFIG, blockHasConfig, type BlockPropField } from '../previews/block-config';
 import { ColorVariantPicker } from '../color-variant-field';
 import { ConditionBuilder } from './ConditionBuilder';
+import { expressionSource, writeExpressionSource } from './expression-envelope';
 import { useObjectOptions } from '../previews/useObjectOptions';
 import { useObjectFields } from '../previews/useObjectFields';
 import {
@@ -190,7 +192,15 @@ interface Block {
   type?: string;
   id?: string;
   className?: string;
-  hidden?: string;
+  /**
+   * Conditional visibility, SHOW-when-truthy (ADR-0089). This is the only key
+   * `PageComponentSchema` (`.strict()`) accepts for it — `hidden` is not in the
+   * key set at all, so a block carrying it is a loud parse failure on save
+   * (objectui#3229). `ExpressionInput`, not `string`: the spec normalizes an
+   * authored string into `{ dialect, source }`, so a persisted block carries
+   * the envelope — read/write it through the shared pair.
+   */
+  visibleWhen?: ExpressionInput;
   children?: Block[];
   [k: string]: unknown;
 }
@@ -550,10 +560,24 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
       <InspectorTextField label={t('engine.inspector.pageBlock.type', locale)} value={block.type ?? ''} onCommit={(v) => patch({ type: v })} disabled={readOnly} mono />
       <InspectorTextField label={t('engine.inspector.pageBlock.id', locale)} value={block.id ?? ''} onCommit={(v) => patch({ id: v })} disabled={readOnly} mono />
       <InspectorTextField label={t('engine.inspector.pageBlock.className', locale)} value={block.className ?? ''} onCommit={(v) => patch({ className: v })} disabled={readOnly} mono />
+      {/* Conditional visibility. The key is `visibleWhen` and the label says
+          "Visible when" — the two must move together (objectui#3229). This
+          control used to author `hidden`, a key `PageComponentSchema`
+          (`.strict()`) does not have: the designer was mass-producing drafts
+          the spec rejects on save, naming a key the author never typed.
+          Renaming the key alone would have been worse than leaving it — a
+          "hide when" label over a show-when-truthy key makes authors write
+          the predicate backwards, i.e. metadata that PARSES and means the
+          opposite (the objectui#3276 class, which #3257's parse guard is
+          structurally blind to). No value is migrated: negating an arbitrary
+          CEL predicate textually is unsound (`!(a && b)` is not `!a && !b`),
+          and the spec's parse error already names `visibleWhen` as the fix.
+          `visibleWhen` is `ExpressionInputSchema`, so it goes through the same
+          envelope read/write pair as the hook / action guards (#3218). */}
       <ConditionBuilder
-        label={t('engine.inspector.pageBlock.hidden', locale)}
-        value={block.hidden ?? ''}
-        onCommit={(v) => patch({ hidden: v || undefined })}
+        label={t('engine.inspector.pageBlock.visibleWhen', locale)}
+        value={expressionSource(block.visibleWhen)}
+        onCommit={(v) => patch({ visibleWhen: writeExpressionSource(block.visibleWhen, v) })}
         objectName={pageObject}
         disabled={readOnly}
       />
