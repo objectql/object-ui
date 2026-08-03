@@ -113,6 +113,12 @@ const useSafeFormTranslation = createSafeTranslation(
     // objectui#3231 — the dependency-gate sentence (#2284). Shared with the
     // option widgets' own fallback so both sides render one wording.
     'fields.options.selectFirst': 'Select {{fields}} first',
+    // objectui#3263 — the built-in `select` branch's own empty copy. Same key
+    // as the option widgets' fallback (`packages/fields`), so an empty option
+    // list reads identically whichever render path produced it. The default
+    // here is what a form with no I18nProvider renders — byte-identical to the
+    // English literal this replaced.
+    'fields.options.empty': 'No options available',
     'validation.required': '{{field}} is required',
     'validation.minLength': '{{field}} must be at least {{min}} characters',
     'validation.maxLength': '{{field}} must be at most {{max}} characters',
@@ -1729,6 +1735,42 @@ function openNativePickerOnClick(inputType: string | undefined) {
   };
 }
 
+/**
+ * The built-in (unregistered) `select` branch's empty state — objectui#3263.
+ *
+ * A component rather than an inline `<div>` because the copy has to go through
+ * `useSafeFormTranslation()`, and `renderFieldComponent` below is a plain
+ * helper, not a component: it early-returns on the registered-widget path, so a
+ * hook called there would run conditionally (rules-of-hooks). Owning the box
+ * gives the hook a legitimate home without changing what the branch renders.
+ *
+ * The host's `emptyHint` still wins when it computed one (the #2284 dependency
+ * gate, already translated via `fields.options.selectFirst`); this only
+ * translates the branch's OWN fallback, which was the last hardcoded English
+ * copy of that sentence in this file.
+ *
+ * Deliberately NOT `packages/fields`' `OptionsEmptyState`: different package,
+ * different render path (this is the inline `BUILTIN_FIELD_TYPES` branch, that
+ * one the registry). What the two share is the i18n KEY, not a component —
+ * unifying them would impose one path's styling and props on the other.
+ *
+ * `...rest` is forwarded because `<FormControl>` is a Radix `Slot`: it hands the
+ * control its `id` / `aria-describedby` / `aria-invalid`, so dropping the rest
+ * props here would silently unlink the field's own label and error message.
+ */
+function BuiltinSelectEmptyState({
+  emptyHint,
+  className,
+  ...rest
+}: { emptyHint?: string } & React.HTMLAttributes<HTMLDivElement>) {
+  const { t } = useSafeFormTranslation();
+  return (
+    <div className={cn('text-sm text-muted-foreground', className)} {...rest}>
+      {emptyHint || t('fields.options.empty')}
+    </div>
+  );
+}
+
 function renderFieldComponent(type: string, props: RenderFieldProps) {
   // 1. Try to resolve specialized field widget from registry first.
   //    Form fields should always prefer the `field:<type>` namespace when
@@ -1838,11 +1880,7 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
       // — surface that instead of the generic "no options" so the user knows to
       // pick the parent first rather than reading it as a broken widget.
       if (!options || options.length === 0) {
-        return (
-          <div className="text-sm text-muted-foreground">
-            {emptyHint || 'No options available'}
-          </div>
-        );
+        return <BuiltinSelectEmptyState emptyHint={emptyHint} />;
       }
 
       return (
