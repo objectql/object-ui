@@ -1040,13 +1040,33 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
   // ----- Mobile UX (round 3) -----
   // 1) Propagate fullscreen-textarea opt-in to each textarea field so the
   //    field widget can render its expand affordance + dialog.
+  //
+  //    `mobile_fullscreen` is a PROJECTION of this form-level setting onto the
+  //    field metadata — this component is its one and only producer, and the
+  //    flag has one and only one legal carrier: the object the form renderer
+  //    forwards to the widget as `field`. That object is `f.field || f`
+  //    (`renderFieldComponent` in `@object-ui/components`): the stashed
+  //    object-field metadata when there is one, else the FormField itself.
+  //
+  //    Stamping it on `f` unconditionally was the objectui#3245 break. For an
+  //    AUTO-GENERATED field `.field` exists, so the widget was handed the raw
+  //    metadata (flag-free) while the FormField-level copy was dropped by
+  //    `stripRegisteredFieldProps` — every generated form silently lost the
+  //    feature, and only the hand-authored `customFields` path (no `.field`)
+  //    ever worked. Resolving the carrier the same way the renderer does keeps
+  //    both paths on ONE key in ONE place (objectui#3232 / #3233): no widget
+  //    reads a second spelling, so a flag written anywhere else stays dead
+  //    instead of being quietly caught by a fallback.
   const mobileOpts = schema.mobile;
   const fieldsWithMobile = mobileOpts?.fullscreenLongText
     ? autoLayoutResult.fields.map((f) => {
         const t = f.type as string | undefined;
         const isTextarea = t === 'textarea' || t === 'field:textarea' ||
           t === 'string-multiline' || t === 'field:markdown' || t === 'field:html';
-        return isTextarea ? ({ ...f, mobile_fullscreen: true } as FormField) : f;
+        if (!isTextarea) return f;
+        return f.field
+          ? { ...f, field: { ...f.field, mobile_fullscreen: true } }
+          : { ...f, mobile_fullscreen: true };
       })
     : autoLayoutResult.fields;
 

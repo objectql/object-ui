@@ -68,6 +68,31 @@ export interface BaseFieldMetadata {
   system?: boolean;
 
   /**
+   * Render a long-text field with a fullscreen-edit affordance (an "expand"
+   * button opening a full-height dialog) — the mobile UX for a textarea that
+   * would otherwise be a 4-row box wedged between other fields.
+   *
+   * **Not authored metadata, and deliberately NOT in `@objectstack/spec`.**
+   * It is a PROJECTION of the FORM-level setting
+   * `ObjectFormSchema.mobile.fullscreenLongText` onto the field metadata,
+   * with exactly one producer: `ObjectForm` (`@object-ui/plugin-form`) stamps
+   * it onto each long-text field's metadata carrier while building the form.
+   * Writing it on an object's field definition is meaningless — nothing
+   * publishes it and nothing else produces it.
+   *
+   * **Consumer**: `TextAreaField` (`@object-ui/fields`), which reads it off
+   * `field` and nowhere else — `field` being the single metadata carrier since
+   * objectui#3233. It is declared here, on the type
+   * `FieldWidgetComponentProps.field` resolves to, so that the one legal
+   * location for the flag is a typed one rather than an untyped pun: before
+   * objectui#3245 it was stamped onto the FormField instead, where the form
+   * renderer's `field: field.field || field` forwarding could not see it and
+   * `stripRegisteredFieldProps` stripped the prop copy — so every
+   * auto-generated form silently lost the feature.
+   */
+  mobile_fullscreen?: boolean;
+
+  /**
    * Placeholder text
    */
   placeholder?: string;
