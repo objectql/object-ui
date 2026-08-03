@@ -16,10 +16,26 @@ import { FieldWidgetComponentProps } from './types';
  * TextAreaField - Multi-line text input widget
  * Supports configurable row count and preserves whitespace in readonly mode.
  *
- * Mobile UX (round 3): when the host form passes `mobileFullscreen` (or the
- * field schema sets `mobile_fullscreen: true`), an "expand" affordance opens
- * a fullscreen edit dialog — much easier on phones than tapping a 4-row
- * textarea trapped between other fields.
+ * Mobile UX (round 3): when the FIELD METADATA carries `mobile_fullscreen:
+ * true`, an "expand" affordance opens a fullscreen edit dialog — much easier
+ * on phones than tapping a 4-row textarea trapped between other fields.
+ *
+ * That flag has exactly one producer: `ObjectForm` stamps it onto every
+ * long-text field when `ObjectFormSchema.mobile.fullscreenLongText` is set
+ * (`plugin-form/src/ObjectForm.tsx`). It reaches this widget on `field`, or
+ * on `schema` when the host is `SchemaRenderer` — the same pair every widget
+ * here resolves as `field || schema` (see `FieldWidgetComponentProps.schema`).
+ *
+ * There is deliberately NO widget-prop override. A `mobileFullscreen`
+ * (camelCase) prop was read here and written by nobody in the repo, and the
+ * snake_case `mobile_fullscreen` prop cannot arrive either: the form renderer
+ * strips both `mobile_fullscreen` and `fullscreen` from the props it forwards
+ * to registered widgets (`stripRegisteredFieldProps` in
+ * `components/src/renderers/form/form.tsx`). Reading keys nobody produces
+ * documented a contract that never held and invited the next author to pass a
+ * silently-ignored prop, so the reads are gone (objectui#3232). If a host
+ * override is ever genuinely needed, declare ONE key on
+ * `FieldWidgetComponentProps`, stop stripping it, and have a host pass it.
  */
 export function TextAreaField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetComponentProps<string>) {
   // Hooks must run before any early return (readonly) to keep hook order stable.
@@ -40,21 +56,17 @@ export function TextAreaField({ value, onChange, field, readonly, errorMessage, 
   // objectui spelling. Dual-read (framework#1878 §3 recheck) — without this a
   // spec-authored maxLength gave neither the textarea cap nor the counter.
   const maxLength = textareaField?.maxLength ?? textareaField?.max_length;
-  // Mobile fullscreen flag may arrive on the field metadata, on the form-field
-  // schema (when called via the form renderer where `field` is the ObjectQL
-  // metadata sub-object), or as an explicit widget prop.
-  const showFullscreenButton = Boolean(
-    (props as any).mobileFullscreen ??
-    textareaField?.mobile_fullscreen ??
-    (props as any).mobile_fullscreen ??
-    (props as any).schema?.mobile_fullscreen,
-  );
+  // Mobile fullscreen opt-in travels on the field metadata and nowhere else.
+  // `textareaField` already resolves the two carriers a host may use for that
+  // metadata (`field`, else `schema`), so this is a single read — a misspelled
+  // flag now has no read path to quietly catch it.
+  const showFullscreenButton = Boolean(textareaField?.mobile_fullscreen);
 
   const openFullscreen = () => { setDraft(value ?? ''); setFullscreenOpen(true); };
   const cancelFullscreen = () => setFullscreenOpen(false);
   const commitFullscreen = () => { onChange(draft); setFullscreenOpen(false); };
 
-  const { inputType, mobileFullscreen, ...domProps } = props as any;
+  const { inputType, ...domProps } = props as any;
 
   return (
     <div className="relative">
