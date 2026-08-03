@@ -1,15 +1,6 @@
-import React, { useState } from 'react';
-import {
-  Textarea,
-  EmptyValue,
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  Button,
-} from '@object-ui/components';
-import { Maximize2, Check, X } from 'lucide-react';
+import React from 'react';
+import { Textarea, EmptyValue } from '@object-ui/components';
+import { FullscreenFieldEditor } from './FullscreenFieldEditor';
 import { FieldWidgetComponentProps } from './types';
 
 /**
@@ -27,6 +18,12 @@ import { FieldWidgetComponentProps } from './types';
  * arrives there too: the registry adapter (`withFieldCarrier`) maps the SDUI
  * `schema` node onto `field` before the widget sees it.
  *
+ * The affordance, the dialog and the draft/commit semantics live in the shared
+ * `FullscreenFieldEditor` — the same producer stamps the same flag on
+ * rich-text fields, and `RichTextField` renders it from there too
+ * (objectui#3301). Only the EDITOR differs per widget; here it is a
+ * full-height `Textarea`.
+ *
  * There is deliberately NO widget-prop override. A `mobileFullscreen`
  * (camelCase) prop was read here and written by nobody in the repo, and the
  * snake_case `mobile_fullscreen` prop cannot arrive either: the form renderer
@@ -39,10 +36,6 @@ import { FieldWidgetComponentProps } from './types';
  * `FieldWidgetComponentProps`, stop stripping it, and have a host pass it.
  */
 export function TextAreaField({ value, onChange, field, readonly, error, ...props }: FieldWidgetComponentProps<string>) {
-  // Hooks must run before any early return (readonly) to keep hook order stable.
-  const [fullscreenOpen, setFullscreenOpen] = useState(false);
-  const [draft, setDraft] = useState(value ?? '');
-
   if (readonly) {
     return (
       <div className="text-sm whitespace-pre-wrap">
@@ -62,10 +55,6 @@ export function TextAreaField({ value, onChange, field, readonly, error, ...prop
   // a single read — a misspelled flag has no read path to quietly catch it.
   const showFullscreenButton = Boolean(textareaField?.mobile_fullscreen);
 
-  const openFullscreen = () => { setDraft(value ?? ''); setFullscreenOpen(true); };
-  const cancelFullscreen = () => setFullscreenOpen(false);
-  const commitFullscreen = () => { onChange(draft); setFullscreenOpen(false); };
-
   const { inputType, ...domProps } = props as any;
 
   return (
@@ -81,17 +70,6 @@ export function TextAreaField({ value, onChange, field, readonly, error, ...prop
         aria-invalid={!!error}
         className={domProps.className}
       />
-      {showFullscreenButton && (
-        <button
-          type="button"
-          onClick={openFullscreen}
-          className="absolute top-1.5 right-1.5 inline-flex items-center justify-center size-7 rounded-md bg-background/80 text-muted-foreground hover:text-foreground hover:bg-background border shadow-sm transition-colors"
-          aria-label={`Edit ${textareaField?.label ?? 'text'} fullscreen`}
-          data-testid="textarea-fullscreen-toggle"
-        >
-          <Maximize2 className="size-3.5" />
-        </button>
-      )}
       {maxLength && (
         <div
           className="absolute bottom-2 right-2 text-xs text-gray-400"
@@ -103,44 +81,31 @@ export function TextAreaField({ value, onChange, field, readonly, error, ...prop
       )}
 
       {showFullscreenButton && (
-        <Dialog open={fullscreenOpen} onOpenChange={setFullscreenOpen}>
-          <DialogContent
-            className="sm:max-w-3xl h-[100dvh] sm:h-[80vh] max-h-[100dvh] sm:max-h-[80vh] flex flex-col p-0 gap-0"
-            data-testid="textarea-fullscreen-dialog"
-          >
-            <DialogHeader className="p-4 border-b">
-              <DialogTitle className="text-base">
-                {textareaField?.label ?? 'Edit text'}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="flex-1 min-h-0 p-4">
-              <Textarea
-                autoFocus
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                maxLength={maxLength}
-                placeholder={textareaField?.placeholder}
-                className="h-full min-h-full resize-none text-base"
-                data-testid="textarea-fullscreen-input"
-              />
-            </div>
-            <DialogFooter className="p-3 border-t flex-row justify-between sm:justify-end gap-2">
-              {maxLength && (
-                <span className="text-xs text-muted-foreground self-center">
-                  {draft.length}/{maxLength}
-                </span>
-              )}
-              <div className="flex gap-2 ml-auto">
-                <Button type="button" variant="ghost" onClick={cancelFullscreen}>
-                  <X className="size-4 mr-1" /> Cancel
-                </Button>
-                <Button type="button" onClick={commitFullscreen} data-testid="textarea-fullscreen-save">
-                  <Check className="size-4 mr-1" /> Done
-                </Button>
-              </div>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <FullscreenFieldEditor
+          value={value ?? ''}
+          onCommit={onChange}
+          label={textareaField?.label}
+          testIdPrefix="textarea"
+          footer={(draft) =>
+            maxLength ? (
+              <span className="text-xs text-muted-foreground self-center">
+                {draft.length}/{maxLength}
+              </span>
+            ) : null
+          }
+        >
+          {(draft, setDraft) => (
+            <Textarea
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              maxLength={maxLength}
+              placeholder={textareaField?.placeholder}
+              className="h-full min-h-full resize-none text-base"
+              data-testid="textarea-fullscreen-input"
+            />
+          )}
+        </FullscreenFieldEditor>
       )}
     </div>
   );

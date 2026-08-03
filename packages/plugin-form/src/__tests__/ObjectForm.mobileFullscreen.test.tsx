@@ -8,7 +8,8 @@
 
 /**
  * End-to-end pin for `ObjectFormSchema.mobile.fullscreenLongText`
- * (objectui#3245) — the ONLY integration coverage this feature has.
+ * (objectui#3245, extended to rich text in objectui#3301) — the ONLY
+ * integration coverage this feature has.
  *
  * Everything below is real: the real `ObjectForm` (the flag's single
  * producer), the real form renderer in `@object-ui/components`, the real
@@ -45,7 +46,7 @@
  * of racing RTL's 1000ms `findBy` budget against a cold Vite transform.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { registerAllFields } from '@object-ui/fields';
 import type { ObjectFormSchema } from '@object-ui/types';
@@ -61,9 +62,34 @@ const objectSchema = {
   },
 };
 
-function makeDataSource() {
+/**
+ * The rich-text half of the same promise (objectui#3301). `markdown` and
+ * `html` both map to `field:markdown` / `field:html` (`mapFieldTypeToFormType`)
+ * and both resolve to `RichTextField`, which — until #3301 — never read the
+ * flag `ObjectForm` had been stamping on them all along.
+ */
+const richTextObjectSchema = {
+  name: 'release_note',
+  label: 'Release Note',
+  fields: {
+    summary: { type: 'markdown', label: 'Summary' },
+    changelog: { type: 'html', label: 'Changelog' },
+  },
+};
+
+/** A form holding BOTH widget families, to pin that one setting drives both. */
+const mixedObjectSchema = {
+  name: 'mixed_note',
+  label: 'Mixed Note',
+  fields: {
+    body: { type: 'textarea', label: 'Body' },
+    summary: { type: 'markdown', label: 'Summary' },
+  },
+};
+
+function makeDataSource(schema: object = objectSchema) {
   return {
-    getObjectSchema: vi.fn().mockResolvedValue(objectSchema),
+    getObjectSchema: vi.fn().mockResolvedValue(schema),
     findOne: vi.fn(),
     insert: vi.fn(),
     update: vi.fn(),
@@ -71,20 +97,32 @@ function makeDataSource() {
   } as any;
 }
 
-function renderForm(schema: Partial<ObjectFormSchema>) {
+function renderForm(
+  schema: Partial<ObjectFormSchema>,
+  object: { name: string } & Record<string, unknown> = objectSchema,
+) {
   return render(
     <ObjectForm
       schema={
         {
           type: 'object-form',
-          objectName: 'issue_note',
+          objectName: object.name,
           mode: 'create',
           ...schema,
         } as ObjectFormSchema
       }
-      dataSource={makeDataSource()}
+      dataSource={makeDataSource(object)}
     />,
   );
+}
+
+/** The widget's INLINE control, as opposed to the one inside its dialog. */
+function inlineControl(fieldName: string): HTMLTextAreaElement {
+  const el = document.querySelector<HTMLTextAreaElement>(
+    `[data-field="${fieldName}"] textarea`,
+  );
+  if (!el) throw new Error(`no control rendered for field "${fieldName}"`);
+  return el;
 }
 
 describe('ObjectForm mobile.fullscreenLongText → TextAreaField (objectui#3245)', () => {
@@ -135,5 +173,76 @@ describe('ObjectForm mobile.fullscreenLongText → TextAreaField (objectui#3245)
     await waitFor(() => {
       expect(screen.queryByTestId('textarea-fullscreen-toggle')).not.toBeInTheDocument();
     });
+  });
+});
+
+/**
+ * The other half of the same setting (objectui#3301).
+ *
+ * `mobile.fullscreenLongText` is documented as "textarea/rich-text get an
+ * expand button", and `ObjectForm` has always stamped `mobile_fullscreen` onto
+ * `field:markdown` / `field:html` too. `RichTextField` never read it, so the
+ * rich-text half of that sentence had been inert since it was written — a
+ * producer with no consumer, which no unit test on either end can see. These
+ * assertions are RED against the pre-#3301 widget.
+ */
+describe('ObjectForm mobile.fullscreenLongText → RichTextField (objectui#3301)', () => {
+  it('reaches the widget for an AUTO-GENERATED field:markdown / field:html field', async () => {
+    renderForm({ mobile: { fullscreenLongText: true } }, richTextObjectSchema);
+
+    // Both rich-text types resolve to the same widget, and both are stamped.
+    await waitFor(() => {
+      expect(screen.getAllByTestId('richtext-fullscreen-toggle')).toHaveLength(2);
+    });
+  });
+
+  it('does NOT render the affordance when the form did not opt in', async () => {
+    renderForm({}, richTextObjectSchema);
+
+    // Settle on the rendered widget before asserting an absence.
+    await waitFor(() => expect(inlineControl('summary')).toBeInTheDocument());
+    await waitFor(() => {
+      expect(screen.queryByTestId('richtext-fullscreen-toggle')).not.toBeInTheDocument();
+    });
+  });
+
+  it('commits a fullscreen edit back into the form state', async () => {
+    // The acceptance criterion end to end: edit inside the dialog, close it,
+    // and the react-hook-form value is updated — observed through the INLINE
+    // control, which re-renders from form state. A widget that committed to a
+    // local buffer instead (or lost the value on unmount) fails here while
+    // every isolated unit test still passes.
+    renderForm(
+      {
+        mobile: { fullscreenLongText: true },
+        customFields: [{ name: 'summary', label: 'Summary', type: 'field:markdown' }],
+      },
+      richTextObjectSchema,
+    );
+
+    const toggle = await screen.findByTestId('richtext-fullscreen-toggle');
+    fireEvent.click(toggle);
+
+    fireEvent.change(screen.getByTestId('richtext-fullscreen-input'), {
+      target: { value: '## Shipped' },
+    });
+    fireEvent.click(screen.getByTestId('richtext-fullscreen-save'));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('richtext-fullscreen-dialog')).not.toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(inlineControl('summary')).toHaveValue('## Shipped');
+    });
+  });
+
+  it('drives BOTH widget families from the one form-level setting', async () => {
+    // The regression this whole issue is about: the setting is form-level, so
+    // a form containing a textarea AND a markdown field must light up both.
+    // Before #3301 only the textarea did, from the very same stamp.
+    renderForm({ mobile: { fullscreenLongText: true } }, mixedObjectSchema);
+
+    expect(await screen.findByTestId('textarea-fullscreen-toggle')).toBeInTheDocument();
+    expect(await screen.findByTestId('richtext-fullscreen-toggle')).toBeInTheDocument();
   });
 });

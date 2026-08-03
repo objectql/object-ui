@@ -1057,12 +1057,27 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
   //    both paths on ONE key in ONE place (objectui#3232 / #3233): no widget
   //    reads a second spelling, so a flag written anywhere else stays dead
   //    instead of being quietly caught by a fallback.
+  //
+  //    Every type below has a READER, which is what makes the stamp mean
+  //    something (objectui#3301): `textarea` is the form renderer's built-in
+  //    branch, `field:textarea` is `TextAreaField`, and `field:markdown` /
+  //    `field:html` both resolve to `RichTextField` — which now reads the flag
+  //    too, so `ObjectFormSchema.mobile`'s documented "textarea/rich-text get
+  //    an expand button" is finally true of rich text as well.
+  //
+  //    A sixth type, `'string-multiline'`, was stamped here until #3301 and is
+  //    gone: `grep -rn "string-multiline"` across BOTH this repo and
+  //    `objectstack` (excluding node_modules/dist) returned exactly one hit —
+  //    this line. No producer emitted it, no registry key matched it, and no
+  //    widget read it, so the branch could only ever be false. Stamping types
+  //    nobody produces is how a flag comes to look supported while doing
+  //    nothing; a type belongs here once something can actually render it.
   const mobileOpts = schema.mobile;
   const fieldsWithMobile = mobileOpts?.fullscreenLongText
     ? autoLayoutResult.fields.map((f) => {
         const t = f.type as string | undefined;
         const isTextarea = t === 'textarea' || t === 'field:textarea' ||
-          t === 'string-multiline' || t === 'field:markdown' || t === 'field:html';
+          t === 'field:markdown' || t === 'field:html';
         if (!isTextarea) return f;
         return f.field
           ? { ...f, field: { ...f.field, mobile_fullscreen: true } }
