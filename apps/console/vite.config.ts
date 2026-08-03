@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import fs from 'fs';
 import { viteCryptoStub } from '../../scripts/vite-crypto-stub';
+import { viteMaplibreWorker } from '../../scripts/vite-maplibre-worker';
 import { compression } from 'vite-plugin-compression2';
 import { visualizer } from 'rollup-plugin-visualizer';
 
@@ -172,6 +173,11 @@ export default defineConfig({
     react(),
     // Inject <link rel="modulepreload"> for critical chunks
     preloadCriticalChunks(),
+    // maplibre-gl loads its worker as a sibling of its own chunk URL — an
+    // edge no bundler can see — so the worker (and the shared module it
+    // imports) must be copied into assets/ or every map page 404s
+    // (objectui#3297). Asserts on drift; never silently skips.
+    viteMaplibreWorker(),
     // Dev-only plugin: serve runtime assets (product logo/favicon) from the
     // host project's runtime/assets directory so branding URLs configured
     // via OS_LOGO_URL / OS_FAVICON_URL resolve without a fragile symlink.
