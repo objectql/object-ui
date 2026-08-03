@@ -180,8 +180,9 @@ export function viteMaplibreWorker(): Plugin {
 
   return {
     name: 'maplibre-sibling-worker',
-    // `pre` so the resolveId hook below sees bare specifiers before Vite's own
-    // resolver rewrites them to a pre-bundled dep.
+    // `pre` so the resolveId hook below runs before Vite's core resolver
+    // answers the specifier — once a plugin resolves an id, later plugins'
+    // resolveId hooks never see it.
     enforce: 'pre',
 
     configResolved(config: ResolvedConfig) {
