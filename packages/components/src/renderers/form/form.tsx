@@ -110,6 +110,9 @@ const panePercent = (size: number | undefined): string | undefined =>
 const useSafeFormTranslation = createSafeTranslation(
   {
     'common.selectOption': 'Select an option',
+    // objectui#3231 — the dependency-gate sentence (#2284). Shared with the
+    // option widgets' own fallback so both sides render one wording.
+    'fields.options.selectFirst': 'Select {{fields}} first',
     'validation.required': '{{field}} is required',
     'validation.minLength': '{{field}} must be at least {{min}} characters',
     'validation.maxLength': '{{field}} must be at most {{max}} characters',
@@ -266,7 +269,7 @@ function stripRegisteredFieldProps(type: string, props: RenderFieldProps): Rende
     mobile_fullscreen: _mobileFullscreen,
     fullscreen: _fullscreen,
     dependentValues,
-    emptyHint: _emptyHint,
+    emptyHint,
     schema: _schema,
     ...fieldProps
   } = props;
@@ -275,7 +278,12 @@ function stripRegisteredFieldProps(type: string, props: RenderFieldProps): Rende
   return {
     ...fieldProps,
     ...(DATA_SOURCE_FIELD_TYPES.has(normalizedType) ? { dataSource, dependentValues } : {}),
-    ...(CASCADE_OPTION_FIELD_TYPES.has(normalizedType) ? { dependentValues } : {}),
+    // The cascade option widgets own the gate hint's presentation, so they get
+    // the computed `emptyHint` alongside the live record (objectui#3231). It is
+    // stripped by default because every OTHER registered widget spreads its
+    // leftover props onto a DOM node, where an unknown `emptyHint` attribute is
+    // a React warning — hence an allow-list, not an unconditional pass-through.
+    ...(CASCADE_OPTION_FIELD_TYPES.has(normalizedType) ? { dependentValues, emptyHint } : {}),
   };
 }
 
@@ -1203,11 +1211,15 @@ ComponentRegistry.register('form',
       // the live record + `current_user`), and gate the whole control
       // while a declared `dependsOn` parent is still empty — surfacing a
       // "select the parent first" hint instead of an unfiltered list.
-      const isOptionField =
-        resolvedType === 'select' ||
-        resolvedType === 'radio' ||
-        resolvedType === 'multiselect' ||
-        resolvedType === 'checkboxes';
+      // `field:select` and `select` name the SAME field kind — the object-form
+      // path (`mapFieldTypeToFormType`) emits the prefixed id, hand-written
+      // form schemas the bare one. Comparing the raw string recognised only the
+      // bare form, so every option field coming from an object schema fell out
+      // of this block entirely and no gate hint was ever computed for it
+      // (objectui#3231). `normalizeFieldType` is the same normalization
+      // `stripRegisteredFieldProps` already applies a few lines down; the two
+      // must agree on what a `select` is.
+      const isOptionField = CASCADE_OPTION_FIELD_TYPES.has(normalizeFieldType(resolvedType));
       const rawOptions = (fieldProps as any).options as SelectOption[] | undefined;
       // Resolve gating + `visibleWhen` filtering through the shared
       // core helper so this pre-filter can't drift from the widgets'
@@ -1219,8 +1231,15 @@ ComponentRegistry.register('form',
       const optionGroupGated = cascade?.gated ?? false;
       const dependsOnFields = cascade?.dependsOnFields ?? [];
       const effectiveOptions = cascade ? cascade.options : rawOptions;
+      // Same i18n key the option widgets fall back to (`fields.options.
+      // selectFirst`, objectui#3231): one sentence, two callers — this one
+      // interpolates the controlling fields' LABELS, a standalone widget its
+      // raw metadata names — so the gate can never read differently depending
+      // on which side produced it.
       const gatedHint = optionGroupGated
-        ? `Select ${dependsOnFields.map((fn) => fieldLabelByName[fn] || fn).join(' / ')} first`
+        ? t('fields.options.selectFirst', {
+            fields: dependsOnFields.map((fn) => fieldLabelByName[fn] || fn).join(' / '),
+          })
         : undefined;
 
       // colSpan classes for grid layout.

@@ -39,6 +39,12 @@ const FIELD_DEFAULTS: Record<string, string> = {
   'lookup.nextPage': 'Next page',
   'lookup.jumpToPage': 'Jump to page',
   'lookup.retry': 'Retry',
+  // objectui#3231 — the empty / dependency-gated state of the fixed-option
+  // widgets (select, multiselect, radio, checkboxes). Only used when the host
+  // supplies no `emptyHint`; the gate sentence shares its key with the form
+  // renderer so both cannot drift apart in a locale.
+  'fields.options.empty': 'No options available',
+  'fields.options.selectFirst': 'Select {{fields}} first',
   // objectstack#3821 — sharing-rule authoring widgets (object-ref /
   // recipient-picker / filter-condition). The recipient placeholder is keyed
   // PER TYPE rather than interpolating the enum value into an English

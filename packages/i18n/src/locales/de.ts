@@ -172,6 +172,10 @@ const de = {
       basicEditorHint: "Rich-Text-Editor (einfach)",
       placeholder: "Text eingeben...",
     },
+    options: {
+      empty: "Keine Optionen verfügbar",
+      selectFirst: "Zuerst {{fields}} auswählen",
+    },
     objectRef: {
       loading: "Objekte werden geladen…",
       placeholder: "Objekt auswählen",

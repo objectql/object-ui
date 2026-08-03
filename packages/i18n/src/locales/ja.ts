@@ -172,6 +172,10 @@ const ja = {
       basicEditorHint: "リッチテキストエディター（基本）",
       placeholder: "テキストを入力...",
     },
+    options: {
+      empty: "選択できる項目がありません",
+      selectFirst: "まず {{fields}} を選択してください",
+    },
     objectRef: {
       loading: "オブジェクトを読み込み中…",
       placeholder: "オブジェクトを選択",

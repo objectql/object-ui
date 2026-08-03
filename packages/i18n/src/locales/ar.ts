@@ -172,6 +172,10 @@ const ar = {
       basicEditorHint: "محرر النص الغني (أساسي)",
       placeholder: "اكتب شيئاً...",
     },
+    options: {
+      empty: "لا توجد خيارات متاحة",
+      selectFirst: "اختر {{fields}} أولاً",
+    },
     objectRef: {
       loading: "جارٍ تحميل الكائنات…",
       placeholder: "اختر كائناً",

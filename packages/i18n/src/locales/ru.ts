@@ -172,6 +172,10 @@ const ru = {
       basicEditorHint: "Редактор форматированного текста (базовый)",
       placeholder: "Введите текст...",
     },
+    options: {
+      empty: "Нет доступных вариантов",
+      selectFirst: "Сначала выберите {{fields}}",
+    },
     objectRef: {
       loading: "Загрузка объектов…",
       placeholder: "Выберите объект",

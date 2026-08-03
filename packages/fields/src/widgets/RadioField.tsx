@@ -2,6 +2,7 @@ import React, { useId, useEffect } from 'react';
 import { RadioGroup, RadioGroupItem, Label, EmptyValue } from '@object-ui/components';
 import { isValueStillOffered, type OptionLike } from '@object-ui/core';
 import { FieldWidgetComponentProps } from './types';
+import { OptionsEmptyState } from './OptionsEmptyState';
 import { useCascadingOptions } from './useCascadingOptions';
 
 type Option = OptionLike;
@@ -27,7 +28,7 @@ export function RadioField({
   schema,
   dependentValues,
   dependsOn: dependsOnProp,
-  emptyHint: _emptyHint,
+  emptyHint,
   dataSource: _dataSource,
   ...props
 }: FieldWidgetComponentProps<string>) {
@@ -61,19 +62,18 @@ export function RadioField({
   }
 
   // No offered options is unfillable — surface a legible state instead of an
-  // empty radio group: a dependency-gated list prompts for its controlling
-  // field; an unconfigured / fully-filtered list says so. Mirrors the select.
+  // empty radio group: the host's `emptyHint` when it computed one, else this
+  // widget's own translated copy. Shared with the select / multiselect /
+  // checkboxes so the four cannot drift again (objectui#3231).
   if (options.length === 0) {
-    const hint = gated
-      ? `Select ${dependsOnFields.join(' / ')} first`
-      : 'No options available';
     return (
-      <div
-        data-testid={fieldName ? `radio-empty-${fieldName}` : undefined}
-        className="flex min-h-9 w-full items-center rounded-md border border-input bg-muted/30 px-3 py-2 text-sm text-muted-foreground"
-      >
-        {hint}
-      </div>
+      <OptionsEmptyState
+        emptyHint={emptyHint}
+        gated={gated}
+        dependsOnFields={dependsOnFields}
+        testId={fieldName ? `radio-empty-${fieldName}` : undefined}
+        className="min-h-9"
+      />
     );
   }
 

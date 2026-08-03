@@ -177,6 +177,10 @@ const zh = {
       basicEditorHint: '富文本编辑器（基础）',
       placeholder: '请输入文字...',
     },
+    options: {
+      empty: '暂无可选项',
+      selectFirst: '请先选择{{fields}}',
+    },
     objectRef: {
       loading: '正在加载对象…',
       placeholder: '请选择对象',

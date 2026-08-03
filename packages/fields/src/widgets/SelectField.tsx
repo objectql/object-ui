@@ -12,6 +12,7 @@ import { SelectFieldMetadata } from '@object-ui/types';
 import { useFieldTranslation } from './useFieldTranslation';
 import { FieldWidgetComponentProps } from './types';
 import { MultiSelectField } from './MultiSelectField';
+import { OptionsEmptyState } from './OptionsEmptyState';
 import { useCascadingOptions } from './useCascadingOptions';
 
 /**
@@ -56,7 +57,7 @@ function SingleSelectField({
   schema,
   dependentValues,
   dependsOn: dependsOnProp,
-  emptyHint: _emptyHint,
+  emptyHint,
   dataSource: _dataSource,
   ...props
 }: FieldWidgetComponentProps<string>) {
@@ -93,19 +94,18 @@ function SingleSelectField({
 
   // A select with no options is unfillable — a silently-empty Radix dropdown
   // reads as "broken widget" and hides the real cause. Surface a legible state:
-  // a dependency-gated list prompts for its controlling field; an unconfigured
-  // list says so. Mirrors the inline form renderer's behaviour.
+  // the host's `emptyHint` when it computed one (it knows the controlling
+  // fields' LABELS), else this widget's own translated copy. Shared with the
+  // other option widgets so the four cannot drift again (objectui#3231).
   if (options.length === 0) {
-    const hint = gated
-      ? `Select ${dependsOnFields.join(' / ')} first`
-      : 'No options available';
     return (
-      <div
-        data-testid={fieldName ? `select-empty-${fieldName}` : undefined}
-        className="flex h-9 w-full items-center rounded-md border border-input bg-muted/30 px-3 py-2 text-sm text-muted-foreground"
-      >
-        {hint}
-      </div>
+      <OptionsEmptyState
+        emptyHint={emptyHint}
+        gated={gated}
+        dependsOnFields={dependsOnFields}
+        testId={fieldName ? `select-empty-${fieldName}` : undefined}
+        className="h-9"
+      />
     );
   }
 

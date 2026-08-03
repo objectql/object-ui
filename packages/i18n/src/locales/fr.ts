@@ -172,6 +172,10 @@ const fr = {
       basicEditorHint: "Éditeur de texte enrichi (basique)",
       placeholder: "Écrivez quelque chose...",
     },
+    options: {
+      empty: "Aucune option disponible",
+      selectFirst: "Sélectionnez d’abord {{fields}}",
+    },
     objectRef: {
       loading: "Chargement des objets…",
       placeholder: "Sélectionner un objet",

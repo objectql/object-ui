@@ -172,6 +172,10 @@ const pt = {
       basicEditorHint: "Editor de texto rico (básico)",
       placeholder: "Digite algo...",
     },
+    options: {
+      empty: "Nenhuma opção disponível",
+      selectFirst: "Selecione primeiro {{fields}}",
+    },
     objectRef: {
       loading: "Carregando objetos…",
       placeholder: "Selecionar um objeto",

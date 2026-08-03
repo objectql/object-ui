@@ -178,6 +178,14 @@ const en = {
       basicEditorHint: 'Rich text editor (basic)',
       placeholder: 'Enter text...',
     },
+    // objectui#3231 — the "this option list cannot be filled" copy shared by
+    // the fixed-option widgets (select / multiselect / radio / checkboxes) AND
+    // by the form renderer's gate hint. One key, one sentence: the renderer
+    // interpolates field LABELS, a standalone widget its raw field names.
+    options: {
+      empty: 'No options available',
+      selectFirst: 'Select {{fields}} first',
+    },
     objectRef: {
       loading: 'Loading objects…',
       placeholder: 'Select an object',

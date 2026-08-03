@@ -99,9 +99,13 @@ export type FieldWidgetComponentProps<T = any> = {
    */
   dependsOn?: DependsOnInput;
   /**
-   * Hint shown when a dependency-gated option list is still waiting on its
-   * controlling field. Forwarded by the form renderer; the option widgets in
-   * this package currently discard it and render their own message instead.
+   * Hint shown when an option list cannot be filled — typically a
+   * dependency-gated list still waiting on its controlling field (#2284).
+   * Forwarded by the form renderer, which resolves the controlling fields to
+   * their human LABELS. **When supplied it wins**; the option widgets fall back
+   * to their own translated copy only when a host computed none (objectui#3231
+   * — they used to discard this prop and always render their own hardcoded
+   * English). See `OptionsEmptyState`, the single consumer.
    */
   emptyHint?: string;
   /**

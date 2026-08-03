@@ -172,6 +172,10 @@ const es = {
       basicEditorHint: "Editor de texto enriquecido (básico)",
       placeholder: "Escribe algo...",
     },
+    options: {
+      empty: "No hay opciones disponibles",
+      selectFirst: "Seleccione primero {{fields}}",
+    },
     objectRef: {
       loading: "Cargando objetos…",
       placeholder: "Seleccionar un objeto",

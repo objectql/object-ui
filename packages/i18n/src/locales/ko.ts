@@ -172,6 +172,10 @@ const ko = {
       basicEditorHint: "서식 있는 텍스트 편집기 (기본)",
       placeholder: "내용을 입력하세요...",
     },
+    options: {
+      empty: "선택할 수 있는 옵션이 없습니다",
+      selectFirst: "먼저 {{fields}}을(를) 선택하세요",
+    },
     objectRef: {
       loading: "객체를 불러오는 중…",
       placeholder: "객체 선택",
