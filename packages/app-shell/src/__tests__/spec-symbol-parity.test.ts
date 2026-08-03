@@ -65,14 +65,24 @@ import { resolve, dirname } from 'node:path';
 
 import { isAggregatedViewContainer } from '../views/metadata-admin/view-item-normalize';
 
+import { FlowNodeSchema } from '@objectstack/spec/automation';
+
 import type { ScreenSpec } from '../views/ScreenView';
 import type { DecisionOutputDef } from '../utils/decisionOutputParams';
 import type { ObjectFieldGroup } from '../views/metadata-admin/previews/object-fields-io';
 import type {
+  FlowNodePosition,
+  FlowDesignerNode,
+} from '../views/metadata-admin/previews/flow-canvas-layout';
+import type {
   ScreenSpec as SpecScreenSpec,
   ScreenFieldSpec as SpecScreenFieldSpec,
 } from '@objectstack/spec/contracts';
-import type { DecisionOutputDef as SpecDecisionOutputDef } from '@objectstack/spec/automation';
+import type {
+  DecisionOutputDef as SpecDecisionOutputDef,
+  FlowNode as SpecFlowNode,
+  FlowNodeParsed as SpecFlowNodeParsed,
+} from '@objectstack/spec/automation';
 
 /** Every name `@objectstack/spec` exports from any subpath — types AND values. */
 function specExportNames(): Set<string> {
@@ -206,9 +216,10 @@ describe('re-exported values are the spec binding itself', () => {
 });
 
 /* -------------------------------------------------------------------------- */
-/* Structural derivations — the three symbols that are neither a plain          */
-/* re-export nor a rename. Each pins its ONE documented divergence, so the      */
-/* divergence cannot silently grow and cannot silently outlive its reason.      */
+/* Structural derivations — the symbols that are neither a plain re-export nor  */
+/* a rename. Each pins its ONE documented divergence, so the divergence cannot  */
+/* silently grow and cannot silently outlive its reason. `FlowNodePosition`     */
+/* (objectui#3172) pins the opposite: a derivation with NO divergence at all.   */
 /* -------------------------------------------------------------------------- */
 
 /**
@@ -279,6 +290,64 @@ describe('DecisionOutputDef is the spec type, with no local divergence left', ()
     >;
 
     expect(true).toBe(true);
+  });
+});
+
+/**
+ * The flow designer's node GEOMETRY is the spec's `FlowNode.position`, taken by
+ * reference (objectui#3172). This is the positive half of the pin above: the
+ * canvas's node type is deliberately NOT the spec's node (it holds mid-edit
+ * state the spec cannot represent), but its geometry has no such excuse — it is
+ * the same object, so it is the same type.
+ *
+ * The runtime half asserts what makes this a behaviour fix and not a rename: the
+ * spec's node schema is `.strict()`, so the designer's retired `ui: { x, y }`
+ * spelling is REJECTED (`unrecognized_keys` in the live client validation, 422
+ * on save). If that ever stops being true, the migration in
+ * `withCanonicalGeometry` is no longer load-bearing and should be re-argued.
+ */
+describe('flow node geometry IS the spec `FlowNode.position` (#3172)', () => {
+  it('is pinned at compile time', () => {
+    type _NotAny = Assert<Equal<IsAny<SpecFlowNode>, false>>;
+    type _LocalNotAny = Assert<Equal<IsAny<FlowNodePosition>, false>>;
+
+    // The local geometry type IS the spec's `position`, not a copy that agrees.
+    type _IsSpecPosition = Assert<Equal<FlowNodePosition, NonNullable<SpecFlowNode['position']>>>;
+    // `position` carries no `.default()`, so authoring and parsed agree — the
+    // z.input/z.infer trap that bites `ObjectFieldGroup` cannot bite here.
+    type _InputEqualsParsed = Assert<
+      Equal<NonNullable<SpecFlowNode['position']>, NonNullable<SpecFlowNodeParsed['position']>>
+    >;
+    // Both coordinates required: a half-position is not representable.
+    type _BothRequired = Assert<Equal<FlowNodePosition, { x: number; y: number }>>;
+    type _HalfIsNotAPosition = Assert<Equal<Extends<{ x: number }, FlowNodePosition>, false>>;
+
+    // …and the designer's node carries exactly that key, optional exactly as the
+    // spec's is (an un-dragged node is auto-laid, in both vocabularies).
+    type _NodeCarriesSpecPosition = Assert<
+      Equal<FlowDesignerNode['position'], SpecFlowNode['position']>
+    >;
+
+    expect(true).toBe(true);
+  });
+
+  it('the spec still spells it `position` with both coordinates required', () => {
+    const base = { id: 'n1', type: 'script', label: 'Do the thing' };
+    expect(FlowNodeSchema.safeParse({ ...base, position: { x: 12, y: 34 } }).success).toBe(true);
+    expect(FlowNodeSchema.safeParse({ ...base, position: { x: 12 } }).success).toBe(false);
+    // No position at all is fine — the designer auto-lays those out.
+    expect(FlowNodeSchema.safeParse(base).success).toBe(true);
+  });
+
+  it('the spec REJECTS the designer’s retired `ui` spelling (the 422 gate)', () => {
+    const parsed = FlowNodeSchema.safeParse({
+      id: 'n1',
+      type: 'script',
+      label: 'Do the thing',
+      ui: { x: 12, y: 34 },
+    });
+    expect(parsed.success).toBe(false);
+    expect(JSON.stringify(parsed.error?.issues)).toContain('unrecognized_keys');
   });
 });
 

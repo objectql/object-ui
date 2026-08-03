@@ -8,7 +8,8 @@
  * Shadcn cards over an SVG edge layer, laid out top-to-bottom by a
  * deterministic layered algorithm (`flow-canvas-layout`). Authors can:
  *
- *   - drag to reposition nodes (committed to `node.ui = {x,y}` on drop),
+ *   - drag to reposition nodes (committed to the spec's `node.position = {x,y}`
+ *     on drop — objectui#3172),
  *   - add nodes from a palette (toolbar or a node's bottom "+" handle),
  *   - insert a node on an edge ("+" at the edge midpoint splits A→B),
  *   - delete the selected node (Delete/Backspace) with full edge cleanup,
@@ -41,6 +42,7 @@ import {
   edgeKey,
   conditionText,
   extractRegions,
+  withCanonicalGeometry,
   type FlowDesignerNode,
   type FlowDesignerEdge,
   type Point,
@@ -127,7 +129,7 @@ export interface FlowCanvasProps {
 }
 
 export function FlowCanvas({
-  nodes,
+  nodes: storedNodes,
   edges,
   editable,
   designMode,
@@ -148,6 +150,14 @@ export function FlowCanvas({
   onSelectNested,
   onPatch,
 }: FlowCanvasProps) {
+  // objectui#3172 — the ONE geometry boundary: nodes enter the canvas with the
+  // retired `ui: {x,y}` spelling already lifted onto the spec's `position`, so
+  // every patch below is built from canonical nodes and no write path can
+  // re-emit `ui` (the compiler cannot catch that for us — `FlowDesignerNode`
+  // has an index signature). Same reference when nothing needed migrating, so
+  // the memos keyed on `nodes` are unaffected.
+  const nodes = React.useMemo(() => withCanonicalGeometry(storedNodes), [storedNodes]);
+
   const viewportRef = React.useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = React.useState(1);
   const [pan, setPan] = React.useState<Point>({ x: 0, y: 0 });
@@ -243,7 +253,7 @@ export function FlowCanvas({
       const idx = nodes.findIndex((n) => n.id === id);
       if (idx < 0) return;
       const node = nodes[idx];
-      const nextNode: FlowDesignerNode = { ...node, ui: { ...(node.ui ?? {}), x, y } };
+      const nextNode: FlowDesignerNode = { ...node, position: { x, y } };
       onPatch({ nodes: spliceArray(nodes, idx, nextNode) });
     },
     [nodes, onPatch],
@@ -260,7 +270,13 @@ export function FlowCanvas({
       // spaces it horizontally among siblings — pinning it directly under the
       // parent (the old behavior) made every sibling stack on the same spot.
       const at = opts?.at;
-      const newNode: FlowDesignerNode = { id, type, label, ...defaultNodeExtras(type), ...(at ? { ui: { x: at.x, y: at.y } } : {}) };
+      const newNode: FlowDesignerNode = {
+        id,
+        type,
+        label,
+        ...defaultNodeExtras(type),
+        ...(at ? { position: { x: at.x, y: at.y } } : {}),
+      };
       const nextNodes = appendArray(nodes, newNode);
       const patch: Record<string, unknown> = { nodes: nextNodes };
       if (opts?.from) {
@@ -313,7 +329,7 @@ export function FlowCanvas({
         type,
         label: defaultNodeLabel(type, locale),
         ...defaultNodeExtras(type),
-        ui: { x: at.x, y: at.y },
+        position: { x: at.x, y: at.y },
       };
       // A→N inherits the original edge's branch semantics; N→B is plain.
       const firstSegment: FlowDesignerEdge = { ...edge, target: id };

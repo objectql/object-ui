@@ -11,6 +11,9 @@ import {
   backEdgeLabelAnchor,
   bottomAnchor,
   extractRegions,
+  hasManualPosition,
+  manualPosition,
+  withCanonicalGeometry,
   NODE_W,
   NODE_H,
   V_GAP,
@@ -187,7 +190,16 @@ describe('computeLayoutWithGeometry — constant-height invariance (the regressi
       ],
     },
     {
-      name: 'manual ui position',
+      name: 'manual position (spec-canonical)',
+      nodes: [
+        { id: 's', type: 'start' },
+        { id: 'pin', type: 'script', position: { x: 400, y: 10 } },
+        { id: 'e', type: 'end' },
+      ],
+      edges: [{ source: 's', target: 'pin' }, { source: 'pin', target: 'e' }],
+    },
+    {
+      name: 'manual position (legacy `ui`, read-compat)',
       nodes: [
         { id: 's', type: 'start' },
         { id: 'pin', type: 'script', ui: { x: 400, y: 10 } },
@@ -248,7 +260,7 @@ describe('computeLayoutWithGeometry — cumulative variable-height offsets (#267
   it('a manually-pinned tall node does not push auto rows (accepted-overlap rule)', () => {
     const nodes: FlowDesignerNode[] = [
       { id: 's', type: 'start' },
-      { id: 'pin', type: 'loop', ui: { x: 400, y: 10 } },
+      { id: 'pin', type: 'loop', position: { x: 400, y: 10 } },
       { id: 'e', type: 'end' },
     ];
     const edges: FlowDesignerEdge[] = [{ source: 's', target: 'pin' }, { source: 'pin', target: 'e' }];
@@ -263,5 +275,103 @@ describe('computeLayoutWithGeometry — cumulative variable-height offsets (#267
 describe('bottomAnchor with explicit height (#2670)', () => {
   it('anchors at the true bottom of a tall card', () => {
     expect(bottomAnchor({ x: 10, y: 20 }, 200)).toEqual({ x: 10 + NODE_W / 2, y: 220 });
+  });
+});
+
+// ── objectui#3172: node geometry IS the spec's `FlowNode.position` ───────────
+
+describe('manualPosition — `position` is canonical, `ui` is legacy read-only', () => {
+  it('reads the spec-canonical `position`', () => {
+    expect(manualPosition({ id: 'n', type: 'script', position: { x: 12, y: 34 } })).toEqual({ x: 12, y: 34 });
+  });
+
+  it('falls back to a legacy `ui` so stored flows still open pinned', () => {
+    expect(manualPosition({ id: 'n', type: 'script', ui: { x: 12, y: 34 } })).toEqual({ x: 12, y: 34 });
+  });
+
+  it('prefers `position` when a legacy node carries both', () => {
+    expect(
+      manualPosition({ id: 'n', type: 'script', position: { x: 1, y: 2 }, ui: { x: 90, y: 90 } }),
+    ).toEqual({ x: 1, y: 2 });
+  });
+
+  it('is null unless BOTH coordinates are finite (either spelling)', () => {
+    expect(manualPosition({ id: 'n', type: 'script' })).toBeNull();
+    expect(manualPosition({ id: 'n', type: 'script', ui: { x: 400 } })).toBeNull();
+    expect(manualPosition({ id: 'n', type: 'script', ui: { y: 400 } })).toBeNull();
+    expect(manualPosition({ id: 'n', type: 'script', position: { x: NaN, y: 1 } })).toBeNull();
+    // A half-position must not shadow a usable legacy one either.
+    expect(
+      manualPosition({ id: 'n', type: 'script', position: { x: 5 } as never, ui: { x: 7, y: 8 } }),
+    ).toEqual({ x: 7, y: 8 });
+    expect(hasManualPosition({ id: 'n', type: 'script', ui: { x: 400 } })).toBe(false);
+    expect(hasManualPosition({ id: 'n', type: 'script', position: { x: 4, y: 0 } })).toBe(true);
+  });
+
+  it('pins a legacy node at exactly the same point as the canonical spelling', () => {
+    const edges: FlowDesignerEdge[] = [{ source: 's', target: 'pin' }];
+    const legacy = computeLayout(
+      [{ id: 's', type: 'start' }, { id: 'pin', type: 'script', ui: { x: 400, y: 10 } }],
+      edges,
+    );
+    const canonical = computeLayout(
+      [{ id: 's', type: 'start' }, { id: 'pin', type: 'script', position: { x: 400, y: 10 } }],
+      edges,
+    );
+    expect(legacy.get('pin')).toEqual({ x: 400, y: 10 });
+    expect(legacy).toEqual(canonical);
+  });
+});
+
+describe('withCanonicalGeometry — migrate-on-write (the strict-schema gate)', () => {
+  it('lifts a legacy `ui` onto `position` and drops the `ui` key', () => {
+    const out = withCanonicalGeometry([{ id: 'n', type: 'script', ui: { x: 7, y: 9 } }]);
+    expect(out[0]).toEqual({ id: 'n', type: 'script', position: { x: 7, y: 9 } });
+    expect('ui' in out[0]).toBe(false);
+  });
+
+  it('keeps an existing `position` and still drops a stale `ui`', () => {
+    const out = withCanonicalGeometry([
+      { id: 'n', type: 'script', position: { x: 1, y: 2 }, ui: { x: 90, y: 90 } },
+    ]);
+    expect(out[0].position).toEqual({ x: 1, y: 2 });
+    expect('ui' in out[0]).toBe(false);
+  });
+
+  it('drops an unusable `ui` without inventing a position', () => {
+    const out = withCanonicalGeometry([{ id: 'n', type: 'script', ui: { x: 5 } }]);
+    expect(out[0]).toEqual({ id: 'n', type: 'script' });
+  });
+
+  it('preserves every other key, including ones the canvas does not understand', () => {
+    const out = withCanonicalGeometry([
+      {
+        id: 'n',
+        type: 'http',
+        label: 'Call',
+        config: { url: 'https://x' },
+        connectorConfig: { connectorId: 'c', actionId: 'a' },
+        ui: { x: 3, y: 4 },
+      },
+    ]);
+    expect(out[0]).toEqual({
+      id: 'n',
+      type: 'http',
+      label: 'Call',
+      config: { url: 'https://x' },
+      connectorConfig: { connectorId: 'c', actionId: 'a' },
+      position: { x: 3, y: 4 },
+    });
+  });
+
+  it('returns the SAME array when nothing needs migrating (memo identity)', () => {
+    const nodes: FlowDesignerNode[] = [
+      { id: 's', type: 'start' },
+      { id: 'n', type: 'script', position: { x: 1, y: 2 } },
+    ];
+    expect(withCanonicalGeometry(nodes)).toBe(nodes);
+    // …and it is idempotent: migrating twice is migrating once.
+    const once = withCanonicalGeometry([{ id: 'n', type: 'script', ui: { x: 7, y: 9 } }]);
+    expect(withCanonicalGeometry(once)).toBe(once);
   });
 });

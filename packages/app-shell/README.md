@@ -332,10 +332,15 @@ Salesforce Flow Builder) instead of a flat step list. It is **dependency-free**
 }
 ```
 
-- **Layout** — nodes without a `ui` hint are placed by a deterministic layered
+- **Layout** — nodes without a `position` are placed by a deterministic layered
   auto-layout (cycle-guarded), so a flow always renders cleanly even before any
-  manual positioning. Dragging a node persists its position to `node.ui.{x,y}`;
+  manual positioning. Dragging a node persists its position to the spec's
+  `node.position.{x,y}` (`FlowNode.position` — `x` and `y` both required);
   positions degrade gracefully (they are layout hints, not required data).
+  Flows stored with the designer's retired `node.ui.{x,y}` spelling still render
+  pinned, and the canvas lifts them onto `position` in the first patch it emits
+  (objectui#3172) — `FlowNodeSchema` is `.strict()`, so a draft that still
+  carries `ui` fails client-side validation and is rejected on save with a 422.
 - **Edges** — branch semantics (`condition`, `label`, `isDefault`) are rendered
   as labels on the connectors and preserved when a node is inserted on an edge.
 

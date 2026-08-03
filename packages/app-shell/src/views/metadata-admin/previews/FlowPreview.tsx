@@ -37,30 +37,24 @@ import { uniqueId, appendArray } from '../inspectors/_shared';
 import { t as tr, translateFlowMeta } from '../i18n';
 import { FlowCanvas } from './FlowCanvas';
 import { defaultNodeLabel } from './flow-canvas-parts';
-import { edgeKey, type FlowDesignerEdge } from './flow-canvas-layout';
+import { edgeKey, type FlowDesignerEdge, type FlowDesignerNode } from './flow-canvas-layout';
 import { NESTED_NODE_KIND, parseNestedNodeId, encodeNestedNodeId } from '../inspectors/flow-nested-selection';
 import { FlowSimulatorPanel } from './FlowSimulatorPanel';
 import { FlowRunsPanel } from './FlowRunsPanel';
 import { ProblemsPanel } from './ProblemsPanel';
 import { buildFlowProblems, deriveInvalidElements, type FlowProblem } from './flow-problems';
 
-interface FlowNode {
-  id: string;
-  type: string;
-  label?: string;
-  config?: Record<string, unknown>;
-  ui?: { x?: number; y?: number };
-  [k: string]: unknown;
-}
-
 /**
- * This preview reads the draft's edges and hands them straight to
- * {@link FlowCanvas}, so it reads them as the canvas's own type rather than
- * restating the shape. It used to restate it — including a `condition` typed
- * `string | { source?: string }`, an envelope the spec's `FlowEdgeSchema`
- * rejects for want of `dialect`. Two copies of one shape is how the wrong one
- * survives being fixed (objectui#3202).
+ * This preview reads the draft's nodes and edges and hands them straight to
+ * {@link FlowCanvas}, so it reads them as the canvas's own types rather than
+ * restating the shapes. It used to restate both — the edge including a
+ * `condition` typed `string | { source?: string }`, an envelope the spec's
+ * `FlowEdgeSchema` rejects for want of `dialect`; the node including a
+ * `ui?: { x?: number; y?: number }` geometry key the spec's `.strict()`
+ * `FlowNodeSchema` rejects outright (objectui#3172). Two copies of one shape is
+ * how the wrong one survives being fixed (objectui#3202).
  */
+type FlowNode = FlowDesignerNode;
 type FlowEdge = FlowDesignerEdge;
 
 interface FlowVariable {

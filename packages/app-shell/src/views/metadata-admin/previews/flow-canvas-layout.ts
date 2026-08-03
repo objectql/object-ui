@@ -11,15 +11,39 @@
  * Salesforce Flow Builder). Origin is the top-left of the diagram bounding
  * box after normalization, so every node sits at x >= PADDING, y >= PADDING.
  *
- * "Dependency-free" means no RUNTIME dependency: the one import below is a
- * `import type`, erased at compile time, and it is here precisely so the
+ * "Dependency-free" means no RUNTIME dependency: the imports below are
+ * `import type`, erased at compile time, and they are here precisely so the
  * designer's edge guard cannot drift from the spec's expression envelope
- * (see {@link FlowDesignerEdge}).
+ * (see {@link FlowDesignerEdge}) and its node geometry cannot drift from the
+ * spec's `FlowNode.position` (see {@link FlowNodePosition}).
  */
 
 import type { ExpressionInput } from '@objectstack/spec/shared';
+import type { FlowNode as SpecFlowNode } from '@objectstack/spec/automation';
 
-export interface FlowNodeUI {
+/**
+ * Canvas geometry of a node — **the spec's own `FlowNode.position`**, taken by
+ * reference rather than restated (objectui#3172).
+ *
+ * `{ x: number; y: number }`, both REQUIRED: a half-coordinate is not a
+ * position, and the spec's node schema rejects one. Derived from the spec's
+ * authoring type so the two cannot drift; `__tests__/spec-symbol-parity.test.ts`
+ * pins the equality in both directions.
+ */
+export type FlowNodePosition = NonNullable<SpecFlowNode['position']>;
+
+/**
+ * The designer's pre-objectui#3172 geometry spelling, kept for READING stored
+ * flows only.
+ *
+ * @deprecated Never write this. `FlowSchema`'s node is `.strict()`
+ * (objectstack#4001), so a node carrying `ui` is rejected by client-side
+ * validation and by the server with a 422 — this spelling could not round-trip
+ * even before it was retired. {@link withCanonicalGeometry} lifts it onto
+ * {@link FlowNodePosition} at the canvas boundary, so a stored flow heals on the
+ * author's first edit.
+ */
+export interface LegacyFlowNodeUI {
   x?: number;
   y?: number;
 }
@@ -48,23 +72,29 @@ export interface FlowNodeUI {
  * every missing member (objectstack#4075) — which is precisely why the NAME had
  * to stop claiming they are the same thing.
  *
- * KNOWN DIVERGENCE, left alone deliberately: this designer persists geometry as
- * `ui: { x, y }` while the spec already models it twice
- * (`FlowNode.position`, and `FlowCanvasNode`). Three spellings of one concept
- * is a real defect, but reconciling it changes what gets written to metadata —
- * a behaviour change that does not belong in a symbol burn-down. See the PR
- * description; filed as a follow-up.
+ * Geometry is NOT a layer difference and no longer diverges: the canvas writes
+ * the spec's own `position` (objectui#3172). The designer's old `ui: { x, y }`
+ * spelling is read-only legacy — see {@link LegacyFlowNodeUI} and
+ * {@link withCanonicalGeometry}. (`@objectstack/spec/studio`'s `FlowCanvasNode`
+ * is a third name but not a third geometry: it is the visual overlay keyed BY
+ * node id, with no consumer in this repo.)
  *
  * `__tests__/spec-symbol-parity.test.ts` pins that the spec owns neither
- * `FlowDesignerNode` nor `FlowDesignerEdge`.
+ * `FlowDesignerNode` nor `FlowDesignerEdge`, and that `position` here IS the
+ * spec's.
  */
 export interface FlowDesignerNode {
   id: string;
   type: string;
   label?: string;
   config?: Record<string, unknown>;
-  /** UI-only layout hint persisted via onPatch; ignored by the runtime. */
-  ui?: FlowNodeUI;
+  /**
+   * Canvas position, spec-canonical (`FlowNode.position`). Optional because an
+   * un-dragged node is placed by the auto-layout, exactly as in the spec.
+   */
+  position?: FlowNodePosition;
+  /** @deprecated Read-only legacy geometry — see {@link LegacyFlowNodeUI}. */
+  ui?: LegacyFlowNodeUI;
   [k: string]: unknown;
 }
 
@@ -124,9 +154,59 @@ function isFiniteNum(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v);
 }
 
+/**
+ * The persisted manual position of a node — **the** reader for node geometry.
+ *
+ * Spec-canonical `position` first; the retired `ui: { x, y }` spelling is read
+ * ONLY as a fallback so a flow stored before objectui#3172 still opens with its
+ * nodes where the author left them. Nothing writes `ui` any more, and
+ * {@link withCanonicalGeometry} strips it at the canvas boundary, so the
+ * fallback is a migration path and not a second contract.
+ *
+ * Both coordinates must be finite — a half or NaN coordinate is not a position
+ * (and the spec's node schema rejects one), so such a node is auto-laid out
+ * instead of being pinned at a garbage point.
+ */
+export function manualPosition(node: FlowDesignerNode): FlowNodePosition | null {
+  const p = node.position;
+  if (isFiniteNum(p?.x) && isFiniteNum(p?.y)) return { x: p.x, y: p.y };
+  const legacy = node.ui;
+  if (isFiniteNum(legacy?.x) && isFiniteNum(legacy?.y)) return { x: legacy.x, y: legacy.y };
+  return null;
+}
+
 /** A node carries a persisted manual position when both x and y are finite. */
 export function hasManualPosition(node: FlowDesignerNode): boolean {
-  return isFiniteNum(node.ui?.x) && isFiniteNum(node.ui?.y);
+  return manualPosition(node) !== null;
+}
+
+/**
+ * Migrate-on-write boundary (objectui#3172): return `nodes` with every legacy
+ * `ui: { x, y }` lifted onto the spec's `position` and the `ui` key REMOVED.
+ *
+ * The canvas runs its own `nodes` prop through this, so every patch it emits is
+ * built from already-canonical nodes and can never re-emit `ui` — including the
+ * patches that have nothing to do with geometry (delete, revise loop). That
+ * matters because a draft carrying `ui` is unsavable, not merely untidy:
+ * `FlowSchema`'s node is `.strict()` (objectstack#4001), so the key surfaces as
+ * `unrecognized_keys` in the live client validation and as a 422 on save. A
+ * stored flow therefore heals on the author's first edit.
+ *
+ * A node whose legacy `ui` is unusable (missing or non-finite coordinate) loses
+ * the key without gaining a position: it was never rendered as pinned, and
+ * keeping it would keep the draft unsavable.
+ *
+ * Returns the SAME array reference when nothing needed migrating, so callers can
+ * use it inside a `useMemo` without invalidating downstream memos every render.
+ */
+export function withCanonicalGeometry(nodes: FlowDesignerNode[]): FlowDesignerNode[] {
+  if (!nodes.some((n) => n && 'ui' in n)) return nodes;
+  return nodes.map((n) => {
+    if (!n || !('ui' in n)) return n;
+    const { ui: _legacy, ...rest } = n;
+    const p = manualPosition(n);
+    return p ? { ...rest, position: p } : rest;
+  });
 }
 
 /**
@@ -208,17 +288,18 @@ export interface FlowLayoutGeometry {
  * - Nodes never reached from a root are dropped into a trailing layer so the
  *   author still sees them.
  * - Within a layer, nodes keep their original `nodes[]` order (stable).
- * - A node with a persisted `ui` position overrides its computed slot, but is
- *   still included in the returned map so callers can size the canvas.
+ * - A node with a persisted manual position ({@link manualPosition}) overrides
+ *   its computed slot, but is still included in the returned map so callers can
+ *   size the canvas.
  *
  * #2670: cards are no longer necessarily {@link NODE_H} tall — an expanded
  * `loop`/`parallel`/`try_catch` container grows to embed its region(s), so
  * layer spacing is **cumulative**: each layer starts below the tallest
  * (auto-laid) card of the previous one. With the default constant `heightOf`
  * the output is IDENTICAL to the historical fixed-pitch layout (pinned by
- * tests). Manual-`ui` nodes are excluded from a row's height (they don't render
- * in their computed slot; counting them would open phantom gaps) — so a pinned
- * node sitting at/below an expanded container can overlap it. Accepted
+ * tests). Manually-positioned nodes are excluded from a row's height (they don't
+ * render in their computed slot; counting them would open phantom gaps) — so a
+ * pinned node sitting at/below an expanded container can overlap it. Accepted
  * limitation: the author can drag it clear.
  */
 export function computeLayoutWithGeometry(
@@ -316,8 +397,8 @@ export function computeLayoutWithGeometry(
     ids.forEach((id, i) => {
       positions.set(id, { x: startX + i * (NODE_W + H_GAP), y });
       const n = byId.get(id);
-      // Manual-`ui` nodes don't render in this slot — exclude from the row
-      // height so they can't open phantom gaps (see JSDoc caveat).
+      // Manually-positioned nodes don't render in this slot — exclude from the
+      // row height so they can't open phantom gaps (see JSDoc caveat).
       if (n && !hasManualPosition(n)) {
         rowMaxHeight = Math.max(rowMaxHeight, heights.get(id) ?? NODE_H);
       }
@@ -344,8 +425,9 @@ export function computeLayoutWithGeometry(
 
   // Apply persisted manual overrides on top of the normalized frame.
   for (const n of nodes) {
-    if (hasManualPosition(n)) {
-      positions.set(n.id, { x: Math.max(0, n.ui!.x!), y: Math.max(0, n.ui!.y!) });
+    const manual = manualPosition(n);
+    if (manual) {
+      positions.set(n.id, { x: Math.max(0, manual.x), y: Math.max(0, manual.y) });
     }
   }
 
