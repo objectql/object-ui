@@ -1,5 +1,5 @@
 ---
-"@object-ui/layout": major
+"@object-ui/layout": minor
 ---
 
 Remove `PageNodeRenderer`, the dead page-node renderer (objectui#3223, ADR-0049
@@ -33,3 +33,8 @@ Also note: this supersedes the `Page` → `PageNodeRenderer` rename shipped for
 this package in the batch 7 symbol burn-down — the renamed symbol is gone rather
 than renamed again. `PageHeaderProps` → `PageHeaderComponentProps` from that same
 batch is unaffected.
+
+Scored `minor`, not `major`, per this repo's fixed-group rule — objectui's major
+tracks `@objectstack`, so breaking changes of our own ship as minor with the
+semantics spelled out above (see AGENTS.md §版本号策略). A `major` here would carry
+all 39 packages of the fixed group to `18.0.0` and off objectstack's 17.x line.

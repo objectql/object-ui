@@ -168,6 +168,7 @@ export const SchemaRenderer = ({ schema }: { schema: UIComponent }) => {
 - minor/patch **独立演进**——objectstack 没动时不必跟发;objectui 自己的改动照常用 changeset 推进(从当前 major 起步,如 `11.0.0 → 11.1.0`)。
 - objectstack 跨 major(→12)时,下一次 objectui 发版一并把 major 提到 `12`。
 - 推论:**changeset 里不要声明 `major`** —— fixed 组任一 `major` 都会把全组推上去、脱离 objectstack 的节奏(如 17.x 期间被推到 18)。objectui 自身的破坏性变更也标 `minor`(在正文里写清 breaking 语义即可);唯一例外是跟随 objectstack 跨 major 的那一次同步升级。
+- **这一条现在由 CI 机械强制** —— `scripts/check-changeset-no-major.mjs` 在任一 changeset 声明 `major` 时退出非零,由 `.github/workflows/changeset-guard.yml` 跑(它是唯一以 `.changeset/**` 为**触发**路径的 workflow:`ci.yml`/`lint.yml` 都把 `**/*.md` 和 `.changeset/**` 列进 `paths-ignore`,只加 changeset 的 PR 不会启动任何 workflow),`pnpm test` 里另有一条仓库状态断言兜底。跟随 objectstack 跨 major 的那一次发版设 `OBJECTUI_ALLOW_MAJOR=1` 放行。前情:objectui#3161/#3159/#3160/#3225 四个 changeset 在 17.x 期间标了 `major`(17 个包条目),足以把 39 个包发成 `18.0.0`。
 - 这是约定优先于 semver 纯粹性的取舍(为可维护/好记),因此 objectui 的 major 不代表「它自身 API 的破坏性变更次数」。`@object-ui/site` 与 `@object-ui/example-*` 在 `ignore` 列表,不随组联动。
 
 ### 多 agent 协作纪律(并行修改本仓库,务必遵守)

@@ -152,6 +152,22 @@ Uses [Changesets](https://github.com/changesets/changesets) for automated versio
 3. Publishes to npm.
 4. Configures a pnpm-lock.yaml merge driver to prevent lock file conflicts.
 
+### Changeset Guard (`changeset-guard.yml`)
+
+**Trigger:** PR to `main`/`develop`, and push to `main`, **when `.changeset/**` changes** — the
+inverse of every other workflow's filter. `ci.yml` and `lint.yml` both list `'**/*.md'` and
+`.changeset/**` under `paths-ignore`, so a PR that adds only a changeset starts nothing else.
+
+Runs `scripts/check-changeset-no-major.mjs`, which fails if any pending changeset declares a
+`major` bump. Every publishable package is in one `fixed` group (39 packages), so a single
+`major` publishes all of them as the next major — and objectui's major is pinned to the
+`@objectstack` major it is compatible with, not to its own count of breaking changes. Score
+breaking changes of our own as `minor` and describe the break in the changeset body.
+
+The one release that legitimately bumps the major is the one following `@objectstack` across
+its major; it sets `OBJECTUI_ALLOW_MAJOR=1`. `pnpm test` asserts the same repository state, so
+the rule survives this workflow being skipped.
+
 ### Changelog Generation (`changelog.yml`)
 
 **Trigger:** `release` event (when a GitHub Release is published), or manual dispatch.

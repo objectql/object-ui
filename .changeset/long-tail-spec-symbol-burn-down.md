@@ -1,14 +1,14 @@
 ---
-"@object-ui/collaboration": major
-"@object-ui/fields": major
-"@object-ui/layout": major
-"@object-ui/plugin-charts": major
-"@object-ui/plugin-detail": major
-"@object-ui/plugin-form": major
-"@object-ui/plugin-grid": major
-"@object-ui/providers": major
-"@object-ui/runner": major
-"@object-ui/sdui-parser": major
+"@object-ui/collaboration": minor
+"@object-ui/fields": minor
+"@object-ui/layout": minor
+"@object-ui/plugin-charts": minor
+"@object-ui/plugin-detail": minor
+"@object-ui/plugin-form": minor
+"@object-ui/plugin-grid": minor
+"@object-ui/providers": minor
+"@object-ui/runner": minor
+"@object-ui/sdui-parser": minor
 ---
 
 Stop declaring 14 symbols across ten packages under names `@objectstack/spec`
@@ -67,3 +67,8 @@ batch 3, so one concept does not acquire two dialect names one package apart.
 `@objectstack/spec` moves from `devDependencies` to `dependencies` in
 `@object-ui/fields` (it re-exports a runtime function) and `@object-ui/providers`
 (its public `.d.ts` now references the spec).
+
+Scored `minor`, not `major`, per this repo's fixed-group rule — objectui's major
+tracks `@objectstack`, so breaking changes of our own ship as minor with the
+semantics spelled out above (see AGENTS.md §版本号策略). A `major` here would carry
+all 39 packages of the fixed group to `18.0.0` and off objectstack's 17.x line.

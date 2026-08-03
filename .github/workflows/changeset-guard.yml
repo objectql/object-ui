@@ -1,0 +1,44 @@
+name: Changeset Guard
+
+# Why this is its own workflow instead of a job in `ci.yml`: a changeset is a
+# markdown file under `.changeset/`, and both `ci.yml` and `lint.yml` list
+# `'**/*.md'` AND `.changeset/**` under `paths-ignore`. A PR that adds only a
+# changeset therefore starts no workflow at all — which is exactly the PR this
+# check needs to see. GitHub has no per-job path filter, so the gate lives here,
+# with the inverse trigger: it runs *only* when `.changeset/**` changes.
+#
+# It needs no install and no build — a checkout plus one `node` call, a few
+# seconds — so keep it that way if you add checks to it.
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - '.changeset/**'
+  push:
+    branches: [main]
+    paths:
+      - '.changeset/**'
+
+concurrency:
+  group: changeset-guard-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  no-major:
+    name: Changeset Bump Policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      # One `major` in the 39-package `fixed` group publishes all 39 as the next
+      # major, taking objectui off the `@objectstack` major it is pinned to.
+      # See AGENTS.md §版本号策略, and the script's header for the full rationale.
+      - name: Verify no changeset declares a major bump
+        run: node scripts/check-changeset-no-major.mjs

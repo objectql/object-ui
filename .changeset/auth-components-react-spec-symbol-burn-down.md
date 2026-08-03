@@ -1,7 +1,7 @@
 ---
-"@object-ui/auth": major
-"@object-ui/components": major
-"@object-ui/react": major
+"@object-ui/auth": minor
+"@object-ui/components": minor
+"@object-ui/react": minor
 ---
 
 Stop declaring 18 `@object-ui/auth` / `@object-ui/components` / `@object-ui/react`
@@ -55,3 +55,8 @@ output type — every `.default()`ed key required — would reject outright.
 
 `@objectstack/spec` moves from `devDependencies` to `dependencies` in
 `@object-ui/components`: its public type surface now references the spec.
+
+Scored `minor`, not `major`, per this repo's fixed-group rule — objectui's major
+tracks `@objectstack`, so breaking changes of our own ship as minor with the
+semantics spelled out above (see AGENTS.md §版本号策略). A `major` here would carry
+all 39 packages of the fixed group to `18.0.0` and off objectstack's 17.x line.

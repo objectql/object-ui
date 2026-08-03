@@ -1,7 +1,7 @@
 ---
-"@object-ui/data-objectstack": major
-"@object-ui/plugin-chatbot": major
-"@object-ui/plugin-list": major
+"@object-ui/data-objectstack": minor
+"@object-ui/plugin-chatbot": minor
+"@object-ui/plugin-list": minor
 ---
 
 Stop declaring 12 `@object-ui/data-objectstack` / `@object-ui/plugin-chatbot` /
@@ -58,3 +58,8 @@ vendored Vercel AI Elements / Shadcn primitives — upstream's component API, no
 objectui's authored surface — so the guard now skips that directory the same way
 it already skips `components/src/ui/`, with a test that fails if any file there
 stops carrying its vendor banner.
+
+Scored `minor`, not `major`, per this repo's fixed-group rule — objectui's major
+tracks `@objectstack`, so breaking changes of our own ship as minor with the
+semantics spelled out above (see AGENTS.md §版本号策略). A `major` here would carry
+all 39 packages of the fixed group to `18.0.0` and off objectstack's 17.x line.
