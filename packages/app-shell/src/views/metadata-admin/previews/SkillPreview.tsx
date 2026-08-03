@@ -14,10 +14,23 @@
  *     it the way the LLM will.
  *   • Tools — chip list. Wildcards (`*`, `prefix.*`) get highlighted
  *     because they expand the agent's tool surface significantly.
- *   • Trigger phrases — the natural-language hints that route a user
- *     message into this skill.
- *   • Trigger conditions — CEL/structured conditions, rendered as a
- *     compact table.
+ *   • Trigger conditions — the AND-ed `{ field, operator, value }` triples
+ *     that gate activation, rendered as a three-column table.
+ *
+ * NOT shown — `skill.triggerPhrases` (objectui#3275). It is a
+ * `retiredKey()` tombstone in `@objectstack/spec` 17 (objectstack#3896):
+ * `SkillSchema` rejects it BY NAME, so a draft carrying it cannot be
+ * saved. The phrases were never matched against a user's message either,
+ * so the `TRIGGER PHRASES` block this preview used to paint advertised
+ * routing that no runtime performed — twice wrong. Activation is
+ * `triggerConditions` intersected with the agent's `skills[]`.
+ *
+ * The conditions table itself was the other half of the bug: it read
+ * `cond.expression ?? cond.value` with a `cond.type` gutter, none of
+ * which `SkillTriggerConditionSchema` declares. A spec-valid condition
+ * therefore rendered as a bare value with its `field` and `operator`
+ * invisible — `COND | sales_order` instead of `objectName eq
+ * sales_order`. Three columns, read straight off the schema's shape.
  */
 
 import * as React from 'react';
@@ -25,7 +38,6 @@ import {
   Asterisk,
   BookOpen,
   Filter,
-  MessagesSquare,
   Power,
   Sparkles,
   Wrench,
@@ -40,7 +52,6 @@ export function SkillPreview({ name, draft }: MetadataPreviewProps) {
   const description = (d.description as string | undefined) ?? '';
   const instructions = (d.instructions as string | undefined) ?? '';
   const tools = Array.isArray(d.tools) ? (d.tools as string[]) : [];
-  const triggerPhrases = Array.isArray(d.triggerPhrases) ? (d.triggerPhrases as string[]) : [];
   const triggerConditions = Array.isArray(d.triggerConditions)
     ? (d.triggerConditions as Array<Record<string, unknown>>)
     : [];
@@ -119,42 +130,42 @@ export function SkillPreview({ name, draft }: MetadataPreviewProps) {
             )}
           </Section>
 
-          {/* Trigger phrases */}
-          {triggerPhrases.length > 0 && (
-            <Section title={`Trigger Phrases (${triggerPhrases.length})`} icon={MessagesSquare}>
-              <ul className="rounded border bg-background divide-y text-xs">
-                {triggerPhrases.map((p, i) => (
-                  <li key={i} className="px-2.5 py-1.5">
-                    <span className="text-muted-foreground mr-2">"</span>
-                    {p}
-                    <span className="text-muted-foreground ml-2">"</span>
-                  </li>
-                ))}
-              </ul>
-            </Section>
-          )}
-
-          {/* Trigger conditions */}
+          {/* Trigger conditions — `{ field, operator, value }`, ANDed.
+              Every column comes from a key SkillTriggerConditionSchema
+              declares; nothing is inferred or defaulted. */}
           {triggerConditions.length > 0 && (
             <Section title={`Trigger Conditions (${triggerConditions.length})`} icon={Filter}>
               <div className="rounded border bg-background overflow-hidden">
                 <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-muted/30 text-left text-[10px] uppercase tracking-wider text-muted-foreground">
+                      <th className="px-2.5 py-1.5 font-medium">Field</th>
+                      <th className="px-2.5 py-1.5 font-medium">Operator</th>
+                      <th className="px-2.5 py-1.5 font-medium">Value</th>
+                    </tr>
+                  </thead>
                   <tbody className="divide-y">
                     {triggerConditions.map((cond, i) => (
-                      <tr key={i}>
-                        <td className="px-2.5 py-1.5 align-top w-24 text-muted-foreground text-[10px] uppercase">
-                          {(cond.type as string | undefined) ?? 'cond'}
+                      <tr key={i} className="align-top">
+                        <td className="px-2.5 py-1.5 font-mono break-all">
+                          {renderCell(cond.field)}
+                        </td>
+                        <td className="px-2.5 py-1.5 font-mono text-muted-foreground">
+                          {renderCell(cond.operator)}
                         </td>
                         <td className="px-2.5 py-1.5 font-mono break-all">
-                          {(cond.expression as string | undefined) ??
-                            (cond.value as string | undefined) ??
-                            JSON.stringify(cond)}
+                          {renderCell(cond.value)}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+              {triggerConditions.length > 1 && (
+                <div className="mt-1 text-[10px] text-muted-foreground">
+                  All conditions must hold (AND) for the skill to activate.
+                </div>
+              )}
             </Section>
           )}
 
@@ -166,6 +177,28 @@ export function SkillPreview({ name, draft }: MetadataPreviewProps) {
         </div>
       </PreviewErrorBoundary>
     </PreviewShell>
+  );
+}
+
+/**
+ * Render one trigger-condition cell.
+ *
+ * `SkillTriggerConditionSchema` declares all three of `field` / `operator` /
+ * `value` as REQUIRED (`value` is `string | string[]`), so an absent or
+ * wrongly-typed cell is a draft that will be rejected at publish. Say so in
+ * place rather than rendering an empty cell that reads as "fine" — the whole
+ * point of this preview is to surface the mistake while the author is still
+ * looking at it.
+ */
+function renderCell(v: unknown): React.ReactNode {
+  if (typeof v === 'string' && v !== '') return v;
+  if (Array.isArray(v) && v.every((x) => typeof x === 'string')) {
+    return (v as string[]).join(', ');
+  }
+  return (
+    <span className="text-amber-700" title="Required by SkillTriggerConditionSchema — this draft will be rejected on save.">
+      missing
+    </span>
   );
 }
 

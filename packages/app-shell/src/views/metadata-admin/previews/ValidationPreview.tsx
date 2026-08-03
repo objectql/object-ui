@@ -3,35 +3,54 @@
 /**
  * ValidationPreview — read-only summary of a Validation rule draft.
  *
- * Validation is a discriminated union by `type`:
- *   script · unique · state_machine · format · cross_field · async ·
- *   custom · conditional · plus the schema-style JSONValidationSchema.
- *
- * The preview shows a shared envelope (target, message, severity,
- * active, events, priority, tags) and then a type-specific body so
- * each rule shape gets the right vocabulary instead of a generic
- * "field dump":
+ * `ValidationRuleSchema` is a discriminated union on `type` with exactly
+ * SIX members, each rendered with its own vocabulary rather than a
+ * generic "field dump":
  *
  *   • script         → CEL condition block
- *   • unique         → unique fields + scope (CEL)
- *   • state_machine  → from→to transitions matrix
+ *   • state_machine  → from→to transitions matrix (+ initial states)
  *   • format         → regex / built-in format name
  *   • cross_field    → involved fields + cross-field condition
- *   • async          → endpoint URL + timeout
- *   • custom         → handler reference
- *   • conditional    → predicate + nested rule reference
+ *   • json_schema    → target field + JSON Schema
+ *   • conditional    → `when` predicate + nested `then` / `otherwise`
  *
- * Severity drives the accent color (error=red, warning=amber,
- * info=blue) the same way runtime UI surfaces it.
+ * The shared envelope (target, message, severity, active, events,
+ * priority, tags) is rendered above the type body. Severity drives the
+ * accent color (error=red, warning=amber, info=blue) the same way
+ * runtime UI surfaces it.
+ *
+ * WHAT THIS FILE DELIBERATELY NO LONGER RENDERS (objectui#3275/#3281).
+ * Three branches — `unique`, `async`, `custom` — were removed from the
+ * spec by one paragraph of `validation.zod.ts` ("Deliberately NOT
+ * validation rules"): a rule is a deterministic, synchronous,
+ * side-effect-free predicate over one record, and none of the three can
+ * be. Uniqueness is a DB unique index (a SELECT-then-INSERT rule is
+ * racy — TOCTOU); async/remote validation is a form-layer concern and an
+ * SSRF hazard on the write path; a custom handler is a `beforeInsert` /
+ * `beforeUpdate` lifecycle hook. Drawing those editors taught authors a
+ * rule type that can never be saved, so each now redirects to the layer
+ * that does the job correctly.
+ *
+ * Two alias fallbacks went with them: `condition ?? expression` and
+ * `pattern ?? regex`. Neither `expression` nor `pattern` has EVER been a
+ * key on any branch — they are not even retired keys, which would at
+ * least have been legal once. `expression` is exactly why a bogus key sat
+ * unnoticed in the console sample for so long (objectui#3276): the
+ * preview rendered either spelling, so nothing ever surfaced the
+ * mistake, while a publish strips the key and the rule silently does
+ * nothing. That is the second de-facto contract AGENTS.md #0.1 forbids.
+ *
+ * `object` is NOT residue and stays: `anchors.ts` registers a standalone
+ * `validation` resource matched by `anchorByField('object')`, so a
+ * standalone rule really does carry it.
  */
 
 import * as React from 'react';
 import {
   AlertTriangle,
   ArrowRight,
+  Braces,
   Code2,
-  Fingerprint,
-  Globe2,
   Info,
   Power,
   Regex,
@@ -168,37 +187,69 @@ export function ValidationPreview({ name, draft }: MetadataPreviewProps) {
   );
 }
 
+/**
+ * The three rule types the spec removed, each with the layer that owns
+ * the job instead. Rendered as a redirect, not as an editor: an author
+ * looking at a `unique` draft needs to know where uniqueness actually
+ * lives, not a prettier view of a rule that cannot be saved.
+ */
+const REMOVED_TYPES: Record<string, string> = {
+  unique:
+    'Uniqueness is a unique INDEX, not a validation rule: declare it on the object as '
+    + '`indexes: [{ fields: [...], unique: true }]` (or `unique: true` on the field). A '
+    + 'SELECT-then-INSERT rule is inherently racy (TOCTOU); a database constraint is not.',
+  async:
+    'Remote/async validation is a form-layer concern — on the server write path it is an '
+    + 'SSRF and latency hazard. Keep it in the form, or enforce the underlying invariant '
+    + 'with a unique index or a lifecycle hook.',
+  custom:
+    'Arbitrary validation code belongs in a `beforeInsert` / `beforeUpdate` lifecycle '
+    + 'hook — the typed, supported extension point.',
+};
+
 function TypeBody({ type, d }: { type: string; d: Record<string, unknown> }) {
+  const removed = REMOVED_TYPES[type];
+  if (removed) {
+    return (
+      <Section title="Not a validation rule" icon={ShieldAlert}>
+        <div className="rounded border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          <div className="font-medium">
+            <code className="font-mono">{type}</code> was removed from ValidationRuleSchema — this
+            rule cannot be saved.
+          </div>
+          <div className="mt-1">{removed}</div>
+        </div>
+      </Section>
+    );
+  }
+
   switch (type) {
     case 'script':
-    case 'conditional':
       return (
         <Section title="Condition" icon={Code2}>
-          <CelBlock value={celText(d.condition) ?? celText(d.expression)} />
+          {/* `condition` only. A CEL predicate that FAILS the record when
+              TRUE — never `expression`, which no branch has ever declared. */}
+          <CelBlock value={celText(d.condition)} />
         </Section>
       );
 
-    case 'unique': {
-      const fields = Array.isArray(d.fields) ? (d.fields as string[]) : [];
-      const scope = celText(d.scope) ?? celText(d.where);
+    case 'conditional': {
+      // `when` gates a nested `then` (and optional `otherwise`) — this used
+      // to be lumped in with `script` and read `condition`, a key the branch
+      // does not have, so a valid conditional rule showed "No expression set".
+      const nested = d.then as Record<string, unknown> | undefined;
+      const otherwise = d.otherwise as Record<string, unknown> | undefined;
       return (
         <>
-          <Section title={`Unique on ${fields.length} field${fields.length === 1 ? '' : 's'}`} icon={Fingerprint}>
-            <div className="flex flex-wrap gap-1">
-              {fields.length === 0 ? (
-                <span className="text-xs text-amber-700 dark:text-amber-400">no fields set</span>
-              ) : (
-                fields.map((f) => (
-                  <span key={f} className="rounded border bg-muted/40 px-1.5 py-0.5 text-[11px] font-mono">
-                    {f}
-                  </span>
-                ))
-              )}
-            </div>
+          <Section title="When" icon={Code2}>
+            <CelBlock value={celText(d.when)} />
           </Section>
-          {scope && (
-            <Section title="Scope" icon={Sigma}>
-              <CelBlock value={scope} />
+          <Section title="Then apply" icon={ShieldAlert}>
+            <NestedRule rule={nested} emptyHint="No nested rule set — this rule enforces nothing." />
+          </Section>
+          {otherwise && (
+            <Section title="Otherwise apply" icon={ShieldAlert}>
+              <NestedRule rule={otherwise} emptyHint="—" />
             </Section>
           )}
         </>
@@ -213,32 +264,51 @@ function TypeBody({ type, d }: { type: string; d: Record<string, unknown> }) {
           : {};
       const entries = Object.entries(transitionMap);
       const field = d.field as string | undefined;
+      const initialStates = Array.isArray(d.initialStates) ? (d.initialStates as string[]) : [];
       return (
-        <Section title={`Transitions${field ? ` on ${field}` : ''}`} icon={Workflow}>
-          {entries.length === 0 ? (
-            <div className="text-xs text-amber-700 dark:text-amber-400">No transitions declared.</div>
-          ) : (
-            <ul className="rounded border bg-background divide-y text-xs">
-              {entries.map(([from, tos]) => (
-                <li key={from} className="flex items-center gap-2 px-2.5 py-1.5">
-                  <span className="font-mono">{from}</span>
-                  <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                  <span className="font-mono text-emerald-700 dark:text-emerald-400">
-                    {Array.isArray(tos) && tos.length > 0 ? tos.join(' | ') : '∅ (dead-end)'}
+        <>
+          <Section title={`Transitions${field ? ` on ${field}` : ''}`} icon={Workflow}>
+            {entries.length === 0 ? (
+              <div className="text-xs text-amber-700 dark:text-amber-400">No transitions declared.</div>
+            ) : (
+              <ul className="rounded border bg-background divide-y text-xs">
+                {entries.map(([from, tos]) => (
+                  <li key={from} className="flex items-center gap-2 px-2.5 py-1.5">
+                    <span className="font-mono">{from}</span>
+                    <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                    <span className="font-mono text-emerald-700 dark:text-emerald-400">
+                      {Array.isArray(tos) && tos.length > 0 ? tos.join(' | ') : '∅ (dead-end)'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Section>
+          {/* `initialStates` gates which states a record may be CREATED in —
+              `transitions` only governs UPDATE, so without this a record can
+              be born mid-flow (objectstack#3165). */}
+          {initialStates.length > 0 && (
+            <Section title="May be created in" icon={Sigma}>
+              <div className="flex flex-wrap gap-1">
+                {initialStates.map((s) => (
+                  <span key={s} className="rounded border bg-muted/40 px-1.5 py-0.5 text-[11px] font-mono">
+                    {s}
                   </span>
-                </li>
-              ))}
-            </ul>
+                ))}
+              </div>
+            </Section>
           )}
-        </Section>
+        </>
       );
     }
 
     case 'format': {
-      const pattern = (d.pattern as string | undefined) ?? (d.regex as string | undefined);
+      // `regex` only — `pattern` is not a key on this branch (or any other).
+      const regex = d.regex as string | undefined;
       const format = d.format as string | undefined;
+      const field = d.field as string | undefined;
       return (
-        <Section title="Format" icon={Regex}>
+        <Section title={`Format${field ? ` on ${field}` : ''}`} icon={Regex}>
           <div className="rounded border bg-background p-2.5 text-xs space-y-1">
             {format && (
               <div>
@@ -246,13 +316,13 @@ function TypeBody({ type, d }: { type: string; d: Record<string, unknown> }) {
                 <code className="font-mono">{format}</code>
               </div>
             )}
-            {pattern && (
+            {regex && (
               <div>
-                <span className="text-muted-foreground">Pattern:</span>{' '}
-                <code className="font-mono break-all">{pattern}</code>
+                <span className="text-muted-foreground">Regex:</span>{' '}
+                <code className="font-mono break-all">{regex}</code>
               </div>
             )}
-            {!format && !pattern && <span className="text-amber-700 dark:text-amber-400">No format or regex set.</span>}
+            {!format && !regex && <span className="text-amber-700 dark:text-amber-400">No format or regex set.</span>}
           </div>
         </Section>
       );
@@ -280,32 +350,23 @@ function TypeBody({ type, d }: { type: string; d: Record<string, unknown> }) {
       );
     }
 
-    case 'async': {
-      const endpoint = (d.endpoint as string | undefined) ?? (d.url as string | undefined);
-      const timeout = d.timeoutMs as number | undefined;
-      const method = (d.method as string | undefined) ?? 'POST';
+    case 'json_schema': {
+      // The sixth union member. It had no branch at all, so a spec-valid
+      // json_schema rule fell through to "Unknown rule type" — the inverse
+      // of the same bug: valid metadata rendered as broken.
+      const field = d.field as string | undefined;
+      const schema = d.schema;
+      const json =
+        schema && typeof schema === 'object' ? JSON.stringify(schema, null, 2) : undefined;
       return (
-        <Section title="Async endpoint" icon={Globe2}>
-          <div className="rounded border bg-background p-2.5 text-xs space-y-1">
-            <div className="flex items-center gap-1.5">
-              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono">{method}</span>
-              <code className="font-mono break-all">{endpoint ?? '—'}</code>
-            </div>
-            {timeout != null && (
-              <div className="text-muted-foreground">timeout: {timeout}ms</div>
-            )}
-          </div>
-        </Section>
-      );
-    }
-
-    case 'custom': {
-      const handler = (d.handler as string | undefined) ?? (d.function as string | undefined);
-      return (
-        <Section title="Custom handler" icon={Code2}>
-          <div className="rounded border bg-background px-2.5 py-1.5 text-xs">
-            {handler ? <code className="font-mono break-all">{handler}</code> : <span className="text-amber-700 dark:text-amber-400">No handler set.</span>}
-          </div>
+        <Section title={`JSON Schema${field ? ` on ${field}` : ''}`} icon={Braces}>
+          {json ? (
+            <pre className="m-0 rounded border bg-background p-2.5 text-xs font-mono overflow-auto max-h-[240px]">
+              {json}
+            </pre>
+          ) : (
+            <div className="text-xs text-amber-700 dark:text-amber-400">No JSON Schema set.</div>
+          )}
         </Section>
       );
     }
@@ -319,6 +380,45 @@ function TypeBody({ type, d }: { type: string; d: Record<string, unknown> }) {
         </Section>
       );
   }
+}
+
+/**
+ * A `conditional` rule's nested `then` / `otherwise` — itself a full
+ * ValidationRule. Summarised (type + message + its own predicate) rather
+ * than recursed, so a deeply nested rule cannot blow the preview up.
+ */
+function NestedRule({
+  rule,
+  emptyHint,
+}: {
+  rule: Record<string, unknown> | undefined;
+  emptyHint: string;
+}) {
+  if (!rule || typeof rule !== 'object') {
+    return <div className="text-xs text-amber-700 dark:text-amber-400">{emptyHint}</div>;
+  }
+  const nestedType = String(rule.type ?? '');
+  const predicate = celText(rule.condition) ?? celText(rule.when);
+  return (
+    <div className="rounded border bg-background p-2.5 text-xs space-y-1">
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        <span className="rounded border bg-muted/40 px-1.5 py-0.5 text-[10px] font-mono">
+          {nestedType || 'no type'}
+        </span>
+        {typeof rule.name === 'string' && (
+          <span className="font-mono text-[10px] text-muted-foreground">{rule.name}</span>
+        )}
+      </div>
+      {typeof rule.message === 'string' && rule.message && (
+        <div className="text-foreground">{rule.message}</div>
+      )}
+      {predicate && (
+        <pre className="m-0 rounded border bg-muted/30 p-2 font-mono whitespace-pre-wrap break-words">
+          {predicate}
+        </pre>
+      )}
+    </div>
+  );
 }
 
 function CelBlock({ value }: { value: string | undefined }) {

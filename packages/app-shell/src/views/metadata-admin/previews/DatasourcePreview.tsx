@@ -8,14 +8,24 @@
  * leak secrets". Concretely:
  *
  *   • Header: driver pill (postgres/mysql/mongo/…), name, label,
- *     active flag, default-flag.
+ *     active flag.
  *   • Connection card: a redacted config table where any key whose
  *     name matches /pass|secret|key|token|credential/i is replaced
  *     with `••••••` and a "redacted" badge. Other primitives render
  *     verbatim; nested objects render as their key count.
  *   • Pool, SSL, retry, health-check pills derived from optional
  *     sibling blocks.
- *   • Capabilities chip strip.
+ *   • Capabilities chip strip — the `DatasourceCapabilities` flags set to
+ *     `true`.
+ *
+ * Three reads were deleted in objectui#3275 because `DatasourceSchema` is
+ * `.strict()` and rejects every one of them, so each made an unsaveable
+ * draft look correct: `driver ?? d.type` (the alias hint is `type` →
+ * `driver`), the `default` pill behind `isDefault ?? default` (routing is
+ * declared at stack level via `datasourceMapping`, never on the
+ * datasource), and `Array.isArray(capabilities)` — which had it exactly
+ * backwards, lighting up only for the array form the schema refuses and
+ * staying dark for the object form it requires.
  *
  * A read-replica count pill used to sit in that strip. It is gone with
  * `datasource.readReplicas` itself (objectstack#4468): nothing in the
@@ -38,7 +48,6 @@ import {
   Power,
   RotateCcw,
   ShieldCheck,
-  Star,
 } from 'lucide-react';
 import type { MetadataPreviewProps } from '../preview-registry';
 import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell';
@@ -55,6 +64,23 @@ function redactValue(v: unknown): string {
   return '••••••';
 }
 
+/**
+ * The capability names an author has switched ON.
+ *
+ * `DatasourceCapabilities` is a flat object of optional booleans, each
+ * defaulting to `false`. Only `true` is an assertion the author made, so
+ * only `true` earns a chip — listing the falses would bury the two facts
+ * that matter under nine that don't. A non-object (e.g. the pre-17 string
+ * array) yields nothing: the block staying empty IS the signal that the
+ * shape is wrong.
+ */
+function enabledCapabilities(raw: unknown): string[] {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
+  return Object.entries(raw as Record<string, unknown>)
+    .filter(([, v]) => v === true)
+    .map(([k]) => k);
+}
+
 function renderValue(v: unknown): string {
   if (v == null) return '∅';
   if (typeof v === 'string') return v;
@@ -69,15 +95,25 @@ export function DatasourcePreview({ name, draft }: MetadataPreviewProps) {
   const dsName = String(d.name ?? name ?? '');
   const label = String(d.label ?? dsName);
   const description = (d.description as string | undefined) ?? '';
-  const driver = (d.driver as string | undefined) ?? (d.type as string | undefined) ?? 'unknown';
+  // `driver` only. `DatasourceSchema` is `.strict()` and rejects `type`
+  // outright (with a `type` → `driver` alias hint), so the old
+  // `?? d.type` fallback rendered a driver pill for a draft that cannot
+  // be saved — and, worse, made the wrong spelling look correct.
+  const driver = (d.driver as string | undefined) ?? 'unknown';
   const active = d.active !== false;
-  const isDefault = !!d.isDefault || !!d.default;
   const config = (d.config as Record<string, unknown> | undefined) ?? {};
   const pool = d.pool as Record<string, unknown> | undefined;
   const ssl = d.ssl as Record<string, unknown> | boolean | undefined;
   const retryPolicy = d.retryPolicy as Record<string, unknown> | undefined;
   const healthCheck = d.healthCheck as Record<string, unknown> | undefined;
-  const capabilities = Array.isArray(d.capabilities) ? (d.capabilities as string[]) : [];
+  // `capabilities` is a DatasourceCapabilities OBJECT of boolean flags
+  // (`{ readOnly, queryAggregations, joins, … }`), never a token array.
+  // Reading it with `Array.isArray` meant a spec-valid draft rendered NO
+  // capabilities block at all, while the old array form — which the schema
+  // rejects — was the only thing that lit it up. Show the flags the author
+  // turned ON; a flag left false is the schema's own default, not a
+  // statement worth a chip.
+  const capabilities = enabledCapabilities(d.capabilities);
 
   // External Datasource Federation (ADR-0015): a non-'managed' schemaMode
   // marks this datasource as federated. The panel keys off the *saved* item
@@ -118,7 +154,6 @@ export function DatasourcePreview({ name, draft }: MetadataPreviewProps) {
                     <HardDrive className="h-3 w-3 text-muted-foreground" /> {driver}
                   </span>
                   <Pill icon={Power} label={active ? 'Active' : 'Disabled'} tone={active ? 'green' : 'gray'} />
-                  {isDefault && <Pill icon={Star} label="default" tone="amber" />}
                 </div>
               </div>
             </div>

@@ -8,9 +8,19 @@
  *   • Persona header (avatar, label, role, active flag).
  *   • Model config (provider, model id, temperature, max tokens).
  *   • System prompt / instructions in a scrollable monospace block.
- *   • Skills + Tools as two collapsible chip lists.
- *   • Knowledge sources (RAG indices) when present.
+ *   • Skills as a chip list.
  *   • Planning + guardrails callouts.
+ *
+ * NOT shown — `agent.tools` and `agent.knowledge` (objectui#3275).
+ * Both are `retiredKey()` tombstones in `@objectstack/spec` 17
+ * (objectstack#3894 / #3896): `AgentSchema` rejects them BY NAME, so a
+ * draft carrying either cannot be saved. This preview used to read both
+ * and paint a TOOLS chip strip plus a `KNOWLEDGE (RAG)` block, which told
+ * the author their draft was fine right up until publish refused it —
+ * the tolerant-consumer shape AGENTS.md #0.1 forbids. An agent reaches
+ * exactly the tools its skills declare (ADR-0064), and grounding is
+ * described in `instructions`, so the Skills list below is the whole
+ * truth about what this agent can do.
  *
  * We intentionally do **not** wire a live chat into this preview:
  *   1. The draft may reference unsaved skills/tools the runtime can't
@@ -27,7 +37,6 @@ import {
   Activity,
   Bot,
   BrainCircuit,
-  Database,
   ExternalLink,
   Eye,
   EyeOff,
@@ -36,7 +45,6 @@ import {
   ScrollText,
   Shield,
   Sparkles,
-  Wrench,
 } from 'lucide-react';
 import { cn } from '@object-ui/components';
 import type { MetadataPreviewProps } from '../preview-registry';
@@ -49,11 +57,6 @@ interface ModelConfig {
   maxTokens?: number;
 }
 
-interface ToolRef {
-  type?: string;
-  name?: string;
-}
-
 export function AgentPreview({ name, draft }: MetadataPreviewProps) {
   const d = draft as Record<string, unknown>;
   const agentName = String(d.name ?? name ?? '');
@@ -64,14 +67,12 @@ export function AgentPreview({ name, draft }: MetadataPreviewProps) {
   const active = d.active !== false;
   const model = (d.model ?? {}) as ModelConfig;
   const skills: string[] = Array.isArray(d.skills) ? (d.skills as string[]) : [];
-  const tools: ToolRef[] = Array.isArray(d.tools) ? (d.tools as ToolRef[]) : [];
-  const knowledge = d.knowledge as Record<string, unknown> | undefined;
   const planning = d.planning as Record<string, unknown> | undefined;
   const memory = d.memory as Record<string, unknown> | undefined;
   const guardrails = d.guardrails as Record<string, unknown> | undefined;
   const permissions = Array.isArray(d.permissions) ? (d.permissions as string[]) : [];
 
-  if (!agentName && !instructions && skills.length === 0 && tools.length === 0) {
+  if (!agentName && !instructions && skills.length === 0) {
     return (
       <PreviewShell hint="agent">
         <PreviewMessage>Fill in label, role, and instructions in the Form tab to see the agent preview.</PreviewMessage>
@@ -136,34 +137,24 @@ export function AgentPreview({ name, draft }: MetadataPreviewProps) {
               )}
             </Section>
 
-            {/* Capabilities */}
-            <Section title="Capabilities" icon={Wrench}>
+            {/* Capabilities — skills only. `tools` is a retired tombstone
+                (objectstack#3894); an agent's reachable tool surface IS the
+                union of its skills' own `tools` (ADR-0064). */}
+            <Section title="Capabilities" icon={Sparkles}>
               <div className="space-y-2">
                 <ChipList
                   label="Skills"
-                  emptyHint="Attach skills (preferred)"
+                  emptyHint="No skills attached — this agent can reach no tools."
                   items={skills.map((s) => ({ key: s, label: s }))}
                   icon={Sparkles}
                   tone="violet"
                   mono
                 />
-                <ChipList
-                  label="Tools"
-                  emptyHint="No direct tools (skills can provide them)"
-                  items={tools.map((t, i) => ({ key: `${t.type ?? ''}:${t.name ?? i}`, label: t.name ?? String(t), hint: t.type }))}
-                  icon={Wrench}
-                  tone="blue"
-                  mono
-                />
+                <div className="text-[10px] text-muted-foreground">
+                  Tools come from the attached skills; grounding is described in the instructions.
+                </div>
               </div>
             </Section>
-
-            {/* Knowledge */}
-            {knowledge && Object.keys(knowledge).length > 0 && (
-              <Section title="Knowledge (RAG)" icon={Database}>
-                <KnowledgeSummary knowledge={knowledge} />
-              </Section>
-            )}
           </div>
 
           {/* Side rail: planning / memory / guardrails / permissions */}
@@ -207,36 +198,6 @@ export function AgentPreview({ name, draft }: MetadataPreviewProps) {
   );
 }
 
-function KnowledgeSummary({ knowledge }: { knowledge: Record<string, unknown> }) {
-  const sources = Array.isArray(knowledge.sources) ? (knowledge.sources as unknown[]) : [];
-  const indexes = Array.isArray(knowledge.indexes) ? (knowledge.indexes as unknown[]) : [];
-  const items = [...sources, ...indexes];
-  if (items.length === 0) {
-    const keys = Object.keys(knowledge);
-    return (
-      <div className="text-xs text-muted-foreground font-mono">
-        {keys.length ? keys.join(', ') : 'configured'}
-      </div>
-    );
-  }
-  return (
-    <ul className="rounded border bg-background divide-y text-xs">
-      {items.map((s, i) => {
-        const obj = (s ?? {}) as Record<string, unknown>;
-        const id = (obj.id ?? obj.name ?? `source ${i + 1}`) as string;
-        const kind = (obj.type ?? obj.kind ?? '') as string;
-        return (
-          <li key={i} className="flex items-center gap-2 px-2.5 py-1.5">
-            <Database className="h-3 w-3 text-muted-foreground" />
-            <span className="font-mono">{String(id)}</span>
-            {kind && <span className="text-[10px] uppercase text-muted-foreground">{kind}</span>}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
 function Section({
   title,
   icon: Icon,
@@ -262,18 +223,13 @@ function Empty({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Tone presets for capability chips — keep skills and tools visually
- * distinct at a glance. Full Tailwind class strings (JIT) with light +
- * dark variants.
+ * Tone preset for capability chips. Full Tailwind class strings (JIT)
+ * with light + dark variants.
  */
 const CHIP_TONE = {
   violet: {
     chip: 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-300',
     icon: 'text-violet-500 dark:text-violet-400',
-  },
-  blue: {
-    chip: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300',
-    icon: 'text-blue-500 dark:text-blue-400',
   },
 } as const;
 

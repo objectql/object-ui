@@ -3,8 +3,13 @@
 /**
  * AppNavCanvas — form-canvas-style editor for an App's top-level
  * navigation tree. Each nav entry becomes a card with a drag handle,
- * a kind icon, an inline-rename label, the bound path, and a remove
- * affordance on hover. Drag-drop reorders within the root list.
+ * a kind icon, an inline-rename label, the metadata record it targets,
+ * and a remove affordance on hover. Drag-drop reorders within the root
+ * list.
+ *
+ * Kind and target are read from the spec's discriminated union — `type`
+ * plus that branch's own target key — never inferred from off-spec keys
+ * (objectui#3275).
  *
  * Nested children are rendered indented; cross-level moves and
  * adding child items are still handled by AppNavInspector (the
@@ -26,7 +31,10 @@ import {
   GripVertical,
   LayoutDashboard,
   Link as LinkIcon,
+  Minus,
+  MousePointerClick,
   Plus,
+  Puzzle,
   Trash2,
   type LucideIcon,
 } from 'lucide-react';
@@ -40,33 +48,30 @@ interface RawNav {
   id?: string;
   type?: string;
   label?: string;
-  title?: string;
-  name?: string;
-  path?: string;
-  href?: string;
-  route?: string;
-  url?: string;
-  kind?: string;
-  object?: string;
   objectName?: string;
-  page?: string;
   pageName?: string;
-  dashboard?: string;
-  report?: string;
+  dashboardName?: string;
+  reportName?: string;
+  url?: string;
+  componentRef?: string;
+  actionDef?: { actionName?: string };
   children?: RawNav[];
   [k: string]: unknown;
 }
 
-function inferKind(it: RawNav): string {
-  if (it.kind) return String(it.kind);
-  if (it.object || it.objectName) return 'object';
-  if (it.page || it.pageName) return 'page';
-  if (it.dashboard) return 'dashboard';
-  if (it.report) return 'report';
-  if (Array.isArray(it.children) && it.children.length) return 'group';
-  const path = it.path ?? it.href ?? it.route ?? it.url;
-  if (typeof path === 'string' && /^https?:/i.test(path)) return 'link';
-  return 'item';
+/**
+ * The nav item's kind IS its `type` discriminator (objectui#3275).
+ *
+ * This used to infer one from `it.object` / `it.dashboard` / a
+ * `path ?? href ?? route ?? url` chain and fall back to `'item'`. Since
+ * every branch of `AppSchema.navigation` is `.strict()`, none of those
+ * keys can appear on a saveable draft — so the inference only ever fired
+ * for metadata the spec rejects, and a spec-VALID app had every entry
+ * badged the meaningless `item`. Reading `type` is both simpler and the
+ * only reading that can be right.
+ */
+function navKind(it: RawNav): string {
+  return typeof it.type === 'string' && it.type ? it.type : 'untyped';
 }
 
 function kindIcon(kind: string): LucideIcon {
@@ -79,10 +84,16 @@ function kindIcon(kind: string): LucideIcon {
       return LayoutDashboard;
     case 'report':
       return BarChart3;
-    case 'link':
+    case 'url':
       return LinkIcon;
     case 'group':
       return Folder;
+    case 'action':
+      return MousePointerClick;
+    case 'component':
+      return Puzzle;
+    case 'separator':
+      return Minus;
     default:
       return Compass;
   }
@@ -115,7 +126,7 @@ const KIND_TONE: Record<string, KindTone> = {
     icon: 'text-amber-500',
     badge: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300',
   },
-  link: {
+  url: {
     icon: 'text-indigo-500',
     badge: 'border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300',
   },
@@ -123,25 +134,65 @@ const KIND_TONE: Record<string, KindTone> = {
     icon: 'text-slate-500',
     badge: 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-300',
   },
-  item: {
-    icon: 'text-zinc-500',
-    badge: 'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400',
+  action: {
+    icon: 'text-rose-500',
+    badge: 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300',
+  },
+  component: {
+    icon: 'text-cyan-500',
+    badge: 'border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-900 dark:bg-cyan-950/40 dark:text-cyan-300',
+  },
+  separator: {
+    icon: 'text-zinc-400',
+    badge: 'border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400',
+  },
+  /**
+   * No `type` at all. Amber, not a neutral zinc: an untyped entry is not a
+   * benign "generic item", it is a draft `AppSchema` will reject for a
+   * missing discriminator, and the badge should read that way.
+   */
+  untyped: {
+    icon: 'text-amber-500',
+    badge: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300',
   },
 };
 
 function kindTone(kind: string): KindTone {
-  return KIND_TONE[kind] ?? KIND_TONE.item;
+  return KIND_TONE[kind] ?? KIND_TONE.untyped;
 }
 
 function navLabel(it: RawNav, i: number): string {
-  const l = it.label ?? it.title ?? it.name ?? it.path;
+  // `label` only — `title` / `name` / `path` are not nav-item keys.
+  const l = it.label;
   if (typeof l === 'string' && l.trim()) return l.trim();
   return `Item ${i + 1}`;
 }
 
-function navPath(it: RawNav): string | undefined {
-  const p = it.path ?? it.href ?? it.route ?? it.url;
-  return typeof p === 'string' && p ? p : undefined;
+/**
+ * The metadata record this entry names, read from the key its own branch
+ * declares. Replaces a `path ?? href ?? route ?? url` chain in which only
+ * `url` was ever a real key — and only on `type: 'url'`.
+ */
+function navTarget(it: RawNav): string | undefined {
+  const pick = (v: unknown) => (typeof v === 'string' && v ? v : undefined);
+  switch (it.type) {
+    case 'object':
+      return pick(it.objectName);
+    case 'page':
+      return pick(it.pageName);
+    case 'dashboard':
+      return pick(it.dashboardName);
+    case 'report':
+      return pick(it.reportName);
+    case 'url':
+      return pick(it.url);
+    case 'component':
+      return pick(it.componentRef);
+    case 'action':
+      return pick(it.actionDef?.actionName);
+    default:
+      return undefined;
+  }
 }
 
 export interface AppNavCanvasProps {
@@ -405,10 +456,10 @@ function NavCard({
   onDropBefore: () => void;
 }) {
   const locale = useMetadataLocale();
-  const kind = inferKind(item);
+  const kind = navKind(item);
   const Icon = kindIcon(kind);
   const tone = kindTone(kind);
-  const path0 = navPath(item);
+  const target = navTarget(item);
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(navLabel(item, index));
   const [hover, setHover] = React.useState(false);
@@ -502,9 +553,9 @@ function NavCard({
         <Badge variant="outline" className={cn('text-[10px] font-medium', tone.badge)}>
           {kind}
         </Badge>
-        {path0 && (
+        {target && (
           <code className="ml-0 text-[10px] text-muted-foreground truncate max-w-[10rem]">
-            {path0}
+            {target}
           </code>
         )}
         {canEdit && hover && !editing && (

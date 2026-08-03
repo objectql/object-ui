@@ -2,55 +2,149 @@
 
 /**
  * AppPreview — visual summary of an App metadata record's nav and
- * landing route, since rendering a full nested AppShell inside the
+ * landing page, since rendering a full nested AppShell inside the
  * admin would be confusing (nav-within-nav).
  *
  * Shows:
- *   • App label/icon + landing route
- *   • Top-level navigation items (tabs/menu) as a clickable list —
- *     each link opens the runtime app in a new tab so authors can
- *     test the configured nav without leaving the editor.
+ *   • App label/icon + the landing nav item (`homePageId`)
+ *   • Top-level navigation items as a clickable list — each link opens
+ *     the runtime app in a new tab so authors can test the configured
+ *     nav without leaving the editor.
+ *
+ * READING THE NAV (rewritten in objectui#3275). `AppSchema.navigation` is
+ * a DISCRIMINATED UNION on `type` and every branch is `.strict()`. This
+ * file used to ignore that: it inferred a "kind" from `it.object` /
+ * `it.dashboard` and took a route from `it.path ?? it.href ?? it.route ??
+ * it.url`. Not one of `path` / `href` / `route` / `object` / `dashboard`
+ * is a key in any branch — the spec rejects them by name — while the keys
+ * that ARE declared (`objectName`, `pageName`, `dashboardName`, `url`)
+ * were never read. The result was exactly inverted: a spec-valid app
+ * rendered every entry as an unlabelled generic item with no target,
+ * and only an unsaveable one looked complete.
+ *
+ * An app does not route by hand-written path; it names the metadata
+ * record to open and the SHELL derives the URL. So the route column now
+ * comes from `resolveHref` — the shell's own nav → URL mapping, which
+ * `NavigationRenderer` documents as the single source of truth and which
+ * `useNavPins` / `SearchResultsPage` already share. A link shown here is
+ * therefore the link the user will actually follow, `recordId` /
+ * `filters` / `componentRef` semantics included.
  *
  * If the App schema doesn't follow the expected shape we degrade to
  * a "no preview" hint rather than throw.
  */
 
 import * as React from 'react';
-import { Compass, ExternalLink, LayoutDashboard, FileText, Database, BarChart3 } from 'lucide-react';
+import {
+  Compass,
+  ExternalLink,
+  Folder,
+  LayoutDashboard,
+  FileText,
+  Database,
+  BarChart3,
+  Link as LinkIcon,
+  Minus,
+  MousePointerClick,
+  Puzzle,
+} from 'lucide-react';
+import { resolveHref } from '@object-ui/layout';
 import type { MetadataPreviewProps } from '../preview-registry';
 import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell';
 import { AppNavCanvas } from './AppNavCanvas';
 
+/** The nine members of the spec's navigation union. */
+type NavKind =
+  | 'object'
+  | 'dashboard'
+  | 'page'
+  | 'url'
+  | 'report'
+  | 'action'
+  | 'component'
+  | 'group'
+  | 'separator';
+
+const NAV_KINDS: readonly string[] = [
+  'object', 'dashboard', 'page', 'url', 'report', 'action', 'component', 'group', 'separator',
+];
+
 interface NavItem {
+  id?: string;
   label: string;
-  path?: string;
-  kind?: 'object' | 'page' | 'dashboard' | 'report' | 'link' | 'group';
+  /** The discriminator, verbatim — never inferred. */
+  kind?: NavKind;
+  /** The metadata record this entry names (`objectName`, `pageName`, …). */
+  target?: string;
+  /** Route the shell will navigate to, from `resolveHref`. */
+  href?: string;
+  external?: boolean;
   children?: NavItem[];
 }
 
-function normalizeNav(raw: unknown): NavItem[] {
+/**
+ * The target a nav item names, read from the key its own branch declares.
+ * Returns undefined for branches that name nothing (`group`, `separator`).
+ */
+function navTarget(it: Record<string, unknown>, kind?: NavKind): string | undefined {
+  switch (kind) {
+    case 'object':
+      return typeof it.objectName === 'string' ? it.objectName : undefined;
+    case 'dashboard':
+      return typeof it.dashboardName === 'string' ? it.dashboardName : undefined;
+    case 'page':
+      return typeof it.pageName === 'string' ? it.pageName : undefined;
+    case 'report':
+      return typeof it.reportName === 'string' ? it.reportName : undefined;
+    case 'url':
+      return typeof it.url === 'string' ? it.url : undefined;
+    case 'component':
+      return typeof it.componentRef === 'string' ? it.componentRef : undefined;
+    case 'action': {
+      const def = it.actionDef as Record<string, unknown> | undefined;
+      return def && typeof def.actionName === 'string' ? def.actionName : undefined;
+    }
+    default:
+      return undefined;
+  }
+}
+
+function normalizeNav(raw: unknown, appName: string): NavItem[] {
   if (!Array.isArray(raw)) return [];
   return raw
     .map((it: any): NavItem | null => {
       if (!it || typeof it !== 'object') return null;
-      const label = String(it.label ?? it.title ?? it.name ?? it.path ?? '').trim();
+      const kind: NavKind | undefined =
+        typeof it.type === 'string' && NAV_KINDS.includes(it.type) ? (it.type as NavKind) : undefined;
+      if (kind === 'separator') {
+        return { id: typeof it.id === 'string' ? it.id : undefined, label: '', kind };
+      }
+      const label = typeof it.label === 'string' ? it.label.trim() : '';
       if (!label && !it.children) return null;
-      const path: string | undefined = it.path ?? it.href ?? it.route ?? it.url ?? undefined;
-      // Best-effort kind inference for icon selection.
-      let kind: NavItem['kind'];
-      if (it.object || it.objectName) kind = 'object';
-      else if (it.page || it.pageName) kind = 'page';
-      else if (it.dashboard) kind = 'dashboard';
-      else if (it.report) kind = 'report';
-      else if (typeof path === 'string' && /^https?:/i.test(path)) kind = 'link';
-      else if (Array.isArray(it.children) && it.children.length) kind = 'group';
-      const children = Array.isArray(it.children) ? normalizeNav(it.children) : undefined;
-      return { label: label || '(unnamed)', path, kind, children };
+      const target = navTarget(it, kind);
+      // Delegate to the shell's own mapping so the preview cannot invent a
+      // route the runtime would not produce. Needs a `type`, so an item
+      // missing the discriminator gets no link — which is the truth.
+      let href: string | undefined;
+      let external = false;
+      if (kind && appName) {
+        try {
+          const r = resolveHref(it, `/apps/${encodeURIComponent(appName)}`);
+          if (r.href && r.href !== '#') {
+            href = r.href;
+            external = r.external;
+          }
+        } catch {
+          href = undefined;
+        }
+      }
+      const children = Array.isArray(it.children) ? normalizeNav(it.children, appName) : undefined;
+      return { id: typeof it.id === 'string' ? it.id : undefined, label: label || '(unnamed)', kind, target, href, external, children };
     })
     .filter((x): x is NavItem => x !== null);
 }
 
-function kindIcon(kind?: NavItem['kind']) {
+function kindIcon(kind?: NavKind) {
   switch (kind) {
     case 'object':
       return Database;
@@ -60,15 +154,42 @@ function kindIcon(kind?: NavItem['kind']) {
       return LayoutDashboard;
     case 'report':
       return BarChart3;
+    case 'url':
+      return LinkIcon;
+    case 'group':
+      return Folder;
+    case 'action':
+      return MousePointerClick;
+    case 'component':
+      return Puzzle;
+    case 'separator':
+      return Minus;
     default:
       return Compass;
   }
 }
 
+/** Depth-first lookup of a nav item by `id` — how `homePageId` addresses one. */
+function findNavItem(items: NavItem[], id: string): NavItem | undefined {
+  for (const it of items) {
+    if (it.id === id) return it;
+    if (it.children) {
+      const hit = findNavItem(it.children, id);
+      if (hit) return hit;
+    }
+  }
+  return undefined;
+}
+
 export function AppPreview({ name, draft, editing, selection, onSelectionChange, onPatch }: MetadataPreviewProps) {
   const appName = String((draft as any).name ?? name ?? '');
   const label = (draft as any).label ?? appName;
-  const landing = (draft as any).landingRoute ?? (draft as any).landing ?? (draft as any).defaultRoute ?? '/';
+  // `homePageId` is a nav item's **id**, not a route: it names which entry
+  // the app opens on (the shell resolves that entry's URL via resolveHref).
+  // The old `landingRoute ?? landing ?? defaultRoute ?? '/'` read three keys
+  // AppSchema has never declared — `landing` was removed outright in
+  // objectstack#4001 — so a valid app always showed the invented `Landing: /`.
+  const homePageId = typeof (draft as any).homePageId === 'string' ? (draft as any).homePageId : undefined;
   const { rootKey, navItems } = React.useMemo<{ rootKey: string | null; navItems: NavItem[] }>(() => {
     const candidates: Array<[string, unknown]> = [
       ['nav', (draft as any).nav],
@@ -78,10 +199,14 @@ export function AppPreview({ name, draft, editing, selection, onSelectionChange,
       ['menu', (draft as any).menu],
     ];
     for (const [k, c] of candidates) {
-      if (Array.isArray(c) && c.length) return { rootKey: k, navItems: normalizeNav(c) };
+      if (Array.isArray(c) && c.length) return { rootKey: k, navItems: normalizeNav(c, appName) };
     }
     return { rootKey: null, navItems: [] };
-  }, [draft]);
+  }, [draft, appName]);
+
+  // Resolve the landing id against the tree so the author sees WHICH entry
+  // it selects — and, when it matches nothing, that it selects none.
+  const homeItem = homePageId ? findNavItem(navItems, homePageId) : undefined;
 
   // For Add we need a root key even when empty — default to `navigation`,
   // the only root key the spec (AppSchema) actually accepts; `nav` /
@@ -120,7 +245,20 @@ export function AppPreview({ name, draft, editing, selection, onSelectionChange,
             <div className="text-sm font-medium text-foreground">{String(label)}</div>
             <div className="text-xs text-muted-foreground font-mono mt-0.5">{appName}</div>
             <div className="text-xs text-muted-foreground mt-1">
-              Landing: <code className="font-mono">{String(landing)}</code>
+              {homePageId ? (
+                <>
+                  Home: <code className="font-mono">{homePageId}</code>
+                  {homeItem ? (
+                    <span className="ml-1.5">→ {homeItem.label}</span>
+                  ) : (
+                    <span className="ml-1 text-amber-700">
+                      — no navigation item with this id
+                    </span>
+                  )}
+                </>
+              ) : (
+                <>Home: opens the first navigation item</>
+              )}
             </div>
           </div>
 
@@ -136,7 +274,7 @@ export function AppPreview({ name, draft, editing, selection, onSelectionChange,
             />
           ) : navItems.length === 0 ? (
             <PreviewMessage>
-              No top-level nav items. Add <code>nav</code> / <code>tabs</code> entries in the Form tab to populate the app's navigation.
+              No top-level nav items. Add <code>navigation</code> entries in the Form tab to populate the app's navigation.
             </PreviewMessage>
           ) : (
             <div className="border rounded divide-y">
@@ -144,7 +282,6 @@ export function AppPreview({ name, draft, editing, selection, onSelectionChange,
                 <NavRow
                   key={i}
                   item={item}
-                  appName={appName}
                   depth={0}
                   path={`${rootKey}[${i}]`}
                   onSelect={onSelect}
@@ -161,21 +298,19 @@ export function AppPreview({ name, draft, editing, selection, onSelectionChange,
 
 function NavRow({
   item,
-  appName,
   depth,
   path,
   onSelect,
   selectedId,
 }: {
   item: NavItem;
-  appName: string;
   depth: number;
   path: string;
   onSelect?: (path: string, item: NavItem) => void;
   selectedId: string | null;
 }) {
   const Icon = kindIcon(item.kind);
-  const url = buildUrl(appName, item.path);
+  const url = item.href;
   const selected = selectedId === path;
   return (
     <>
@@ -187,8 +322,18 @@ function NavRow({
         {/* eslint-disable-next-line react-hooks/static-components -- kindIcon returns a stable icon component from a static registry, not one created during render */}
         <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
         <span className="font-medium truncate">{item.label}</span>
-        {item.kind && (
+        {item.kind ? (
           <span className="text-[10px] uppercase tracking-wider opacity-60">{item.kind}</span>
+        ) : (
+          <span
+            className="text-[10px] uppercase tracking-wider text-amber-700"
+            title="Every navigation item needs a `type` discriminator — this entry will be rejected on save."
+          >
+            no type
+          </span>
+        )}
+        {item.target && (
+          <span className="font-mono text-[10px] text-muted-foreground truncate">{item.target}</span>
         )}
         {url && (
           <a
@@ -198,7 +343,7 @@ function NavRow({
             onClick={(e) => e.stopPropagation()}
             className="ml-auto font-mono text-[10px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
           >
-            {item.path} <ExternalLink className="h-3 w-3" />
+            {url} <ExternalLink className="h-3 w-3" />
           </a>
         )}
       </div>
@@ -206,7 +351,6 @@ function NavRow({
         <NavRow
           key={i}
           item={c}
-          appName={appName}
           depth={depth + 1}
           path={`${path}.children[${i}]`}
           onSelect={onSelect}
@@ -217,11 +361,3 @@ function NavRow({
   );
 }
 
-function buildUrl(appName: string, path?: string): string | null {
-  if (!path) return null;
-  if (/^https?:/i.test(path)) return path;
-  if (!appName) return null;
-  // Treat path as relative to /apps/<appName>/ by default.
-  const trimmed = path.startsWith('/') ? path.slice(1) : path;
-  return `/apps/${encodeURIComponent(appName)}/${trimmed}`;
-}
