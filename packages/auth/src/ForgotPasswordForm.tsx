@@ -204,7 +204,8 @@ export function ForgotPasswordForm({
     setError(null);
 
     try {
-      await forgotPassword(email);
+      // Trim pasted/autofilled whitespace before the reset request (#3238).
+      await forgotPassword(email.trim());
       setSubmitted(true);
       onSuccess?.();
     } catch (err) {

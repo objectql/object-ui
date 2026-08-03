@@ -253,6 +253,70 @@ describe('LoginForm — phone + password sign-in (framework#2780)', () => {
   });
 });
 
+// #3238: autofill/copy-paste smuggle leading/trailing whitespace into the
+// identifier; the server then rejects it ("Invalid email"). The form must trim
+// before validating, routing, or sending.
+describe('LoginForm — identifier whitespace trimming (#3238)', () => {
+  it('trims whitespace around the email before signIn', async () => {
+    const signIn = vi.fn().mockResolvedValue({ user: { id: '1' }, session: { token: 't' } });
+    renderLogin(createMockClient({}, { signIn }));
+
+    fireEvent.change(await screen.findByLabelText('Email'), {
+      target: { value: '  admin@objectos.ai  ' },
+    });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'pw' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
+
+    await waitFor(() =>
+      expect(signIn).toHaveBeenCalledWith({ email: 'admin@objectos.ai', password: 'pw' }),
+    );
+  });
+
+  it('trims whitespace around the email in the SSO request body', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ message: 'nope' }), {
+        status: 404,
+        headers: { 'content-type': 'application/json' },
+      }));
+    try {
+      renderLogin(createMockClient({ features: { sso: true } }));
+      const button = await screen.findByRole('button', SSO_BUTTON);
+
+      fireEvent.change(screen.getByLabelText('Email'), {
+        target: { value: '  a@corp.example  ' },
+      });
+      fireEvent.click(button);
+
+      await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+      const body = JSON.parse(String(fetchSpy.mock.calls[0][1]?.body)) as { email: string };
+      expect(body.email).toBe('a@corp.example');
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('still routes a whitespace-padded phone identifier to signInWithPhonePassword', async () => {
+    const signIn = vi.fn();
+    const signInWithPhonePassword = vi.fn().mockResolvedValue({
+      user: { id: 'u2' },
+      session: { token: 'pw-tok' },
+    });
+    renderLogin(createMockClient({ features: { phoneNumber: true } }, { signIn, signInWithPhonePassword }));
+
+    fireEvent.change(await screen.findByLabelText('Email or phone number'), {
+      target: { value: '  +86 138-0013-8000  ' },
+    });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'S3cret!' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
+
+    await waitFor(() =>
+      expect(signInWithPhonePassword).toHaveBeenCalledWith('+8613800138000', 'S3cret!'),
+    );
+    expect(signIn).not.toHaveBeenCalled();
+  });
+});
+
 describe('LoginForm — SSO button pending state (objectui#2458 item 1)', () => {
   it('disables the SSO button while /sign-in/sso is in flight and surfaces failure inline', async () => {
     let resolveFetch!: (r: Response) => void;

@@ -159,10 +159,13 @@ export function RegisterForm({
       return;
     }
 
+    // Autofill and copy-paste routinely smuggle in leading/trailing whitespace
+    // that the server rejects as "Invalid email" (#3238) — trim before use.
+    const trimmedEmail = email.trim();
     try {
-      const result = await signUp(name, email, password);
+      const result = await signUp(name, trimmedEmail, password);
       if (result?.requiresVerification) {
-        onVerificationRequired?.(email);
+        onVerificationRequired?.(trimmedEmail);
         return;
       }
       onSuccess?.();

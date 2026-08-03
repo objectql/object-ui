@@ -265,16 +265,19 @@ export function LoginForm({
     e.preventDefault();
     setError(null);
 
+    // Autofill and copy-paste routinely smuggle in leading/trailing whitespace
+    // that the server rejects as "Invalid email" (#3238) — trim before use.
+    const identifier = email.trim();
     try {
       if (mode === 'phone-otp') {
         await signInWithPhoneOtp(phone.trim(), otpCode.trim());
-      } else if (phonePasswordEnabled && looksLikePhoneIdentifier(email)) {
+      } else if (phonePasswordEnabled && looksLikePhoneIdentifier(identifier)) {
         // Unified identifier: a phone-shaped entry routes to phone+password.
         // Normalize identically to the backend (strip formatting, no country
         // code) or the phoneNumber lookup fails.
-        await signInWithPhonePassword(normalizePhoneIdentifier(email) ?? email.trim(), password);
+        await signInWithPhonePassword(normalizePhoneIdentifier(identifier) ?? identifier, password);
       } else {
-        await signIn(email, password);
+        await signIn(identifier, password);
       }
       onSuccess?.();
     } catch (err) {
@@ -322,8 +325,9 @@ export function LoginForm({
   const handleSso = async () => {
     if (ssoSubmitting) return;
     setError(null);
+    const identifier = email.trim();
     // SSO routes by email domain — a phone-shaped identifier can't map to an IdP.
-    if (looksLikePhoneIdentifier(email)) {
+    if (looksLikePhoneIdentifier(identifier)) {
       setError('Enter your email address to sign in with SSO.');
       return;
     }
@@ -333,7 +337,7 @@ export function LoginForm({
       const res = await fetch('/api/v1/auth/sign-in/sso', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, callbackURL: base + '/home' }),
+        body: JSON.stringify({ email: identifier, callbackURL: base + '/home' }),
         credentials: 'include',
       });
       const data = (await res.json().catch(() => ({}))) as { url?: string; message?: string };
