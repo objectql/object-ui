@@ -34,5 +34,6 @@ Also removes ci.yml's stale `dev-server` job — `apps/dev-server` left the tree
 long ago, `pnpm --filter @object-ui/dev-server build` matches nothing, and the
 job has been green by vacuity ever since. And re-enables
 `DashboardRenderer.designMode` (skipped since 2026-05-01 as `TODO(#ci-hang)`):
-the suite passes standalone and inside the full root run on today's dependency
-tree, so the skip was outliving whatever transitive dependency caused the hang.
+on today's dependency tree the suite passes standalone (24/24), and the
+re-enabling PR's own sharded Test jobs gate the full-suite behaviour, so the
+skip was outliving whatever transitive dependency caused the hang.

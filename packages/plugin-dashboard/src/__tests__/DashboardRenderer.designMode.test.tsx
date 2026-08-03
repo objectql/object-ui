@@ -33,11 +33,11 @@ const DASHBOARD_WITH_WIDGETS: DashboardComponentSchema = {
 // Re-enabled 2026-08-03 (#2835 scope check). This suite was `describe.skip`'d
 // since 2026-05-01 as `TODO(#ci-hang)`: it hung in `vitest run`, and the hang
 // was attributed to a transitive dependency rather than this file or
-// DashboardRenderer.tsx. On today's dependency tree it passes both standalone
-// and inside the full root run, so the skip had outlived its cause. If it
-// hangs again, the failure signature is the Test job hitting its
-// `timeout-minutes` with this file mid-run — re-skip with a pointer here and
-// bisect the dep change that brought the hang back.
+// DashboardRenderer.tsx. On today's dependency tree it passes standalone
+// (24/24 in ~8s); the re-enabling PR's own sharded Test jobs are the
+// full-suite gate. If the hang comes back, the failure signature is the Test
+// job hitting its `timeout-minutes` with this file mid-run — re-skip with a
+// pointer here and bisect the dep change that brought it back.
 describe('DashboardRenderer design mode', () => {
   describe('Widget selection', () => {
     it('should render widget test IDs in design mode', () => {
