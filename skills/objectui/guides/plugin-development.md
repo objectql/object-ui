@@ -266,11 +266,36 @@ The slot is named `error` because that is what `FieldWidgetPropsSchema` in
 `@objectstack/spec/ui` — the published widget contract — calls it.
 
 The type is **closed**: it also declares the host plumbing and DOM/ARIA
-pass-through keys the renderer forwards (`schema`, `dataSource`,
-`dependentValues`, `dependsOn`, `emptyHint`, `compact`, `id`, `name`,
-`aria-*`, `data-*`), and nothing else. A key it does not declare is a compile
-error rather than a silent `any`, so a typo like `readOnly` for `readonly` is
-caught at build time instead of being quietly `undefined` at runtime.
+pass-through keys the renderer forwards (`dataSource`, `dependentValues`,
+`dependsOn`, `emptyHint`, `compact`, `id`, `name`, `aria-*`, `data-*`), and
+nothing else. A key it does not declare is a compile error rather than a silent
+`any`, so a typo like `readOnly` for `readonly` is caught at build time instead
+of being quietly `undefined` at runtime.
+
+### `field` is the only metadata carrier (v17, breaking)
+
+Before v17 a widget could receive its metadata under **either** `field` or
+`schema`, so widgets in the wild resolve their config as `field || schema`.
+`schema` is gone from the widget contract in v17 — read `props.field`, full
+stop.
+
+`schema` still exists everywhere else: it is the universal SDUI node
+`SchemaRenderer` hands to *every* registered component. That is exactly why a
+field widget needs an adapter when it is rendered from a schema node rather
+than from a form. Wrap it once, at registration:
+
+```tsx
+import { ComponentRegistry } from '@object-ui/core';
+import { withFieldCarrier } from '@object-ui/fields';
+
+ComponentRegistry.register('color', withFieldCarrier(ColorField), {
+  namespace: 'field',
+});
+```
+
+`withFieldCarrier` maps the node onto `field` (by reference — nothing is
+copied or dropped) and consumes `schema`, so the widget only ever implements
+one contract. All built-in field widgets are registered through it.
 
 Two things are deliberately **not** props, because each has exactly one author
 in the form renderer: the validation message TEXT (`<FormMessage/>`) and the

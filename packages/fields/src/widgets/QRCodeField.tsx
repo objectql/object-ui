@@ -9,7 +9,7 @@ import { FieldWidgetComponentProps } from './types';
  */
 export function QRCodeField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<string>) {
   const [showQR, setShowQR] = React.useState(false);
-  const config = field || (props as any).schema;
+  const config = field;
 
   // Simple QR code generation using an external library would be ideal
   // For now, we'll use a service API approach or placeholder

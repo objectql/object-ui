@@ -7,7 +7,7 @@ import { FieldWidgetComponentProps } from './types';
  * Allows editing structured JSON data
  */
 export function ObjectField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<any>) {
-  const config = field || (props as any).schema;
+  const config = field;
   
   // Initialize string state based on value
   const getInitialJsonString = () => {

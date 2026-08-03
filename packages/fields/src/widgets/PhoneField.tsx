@@ -7,7 +7,7 @@ import { FieldWidgetComponentProps } from './types';
  * Renders as a clickable tel link when readonly, standard phone input otherwise
  */
 export function PhoneField({ value, onChange, field, readonly, error, ...props }: FieldWidgetComponentProps<string>) {
-  const config = field || (props as any).schema;
+  const config = field;
   if (readonly) {
     if (!value) return <EmptyValue />;
     return (

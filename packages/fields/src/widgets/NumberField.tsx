@@ -12,7 +12,7 @@ export function NumberField({ value, onChange, field, readonly, ...props }: Fiel
     return value == null ? <EmptyValue /> : <span className="text-sm">{value}</span>;
   }
 
-  const numberField = (field || (props as any).schema) as NumberFieldMetadata;
+  const numberField = field as NumberFieldMetadata;
   // Step follows `scale` (decimal places), not `precision` (total digit count):
   // a decimal(10, 0) column has 0 decimal places, so the input should step by 1
   // (`scale: 0` is a valid declaration — hence the typeof check, not truthiness).

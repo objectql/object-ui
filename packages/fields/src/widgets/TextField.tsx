@@ -8,7 +8,7 @@ import { FieldWidgetComponentProps } from './types';
  * Automatically renders as a textarea when rows are configured in field metadata
  */
 export function TextField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<string>) {
-  const fieldData = field || (props as any).schema;
+  const fieldData = field;
 
   if (readonly) {
     return <span className="text-sm">{value || <EmptyValue />}</span>;

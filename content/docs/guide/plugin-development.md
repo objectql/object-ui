@@ -195,6 +195,33 @@ The validation slot is named `error`, matching `FieldWidgetPropsSchema` in
 `@objectstack/spec/ui` — the published contract a widget is written against.
 The form renderer supplies it from the active validation message.
 
+### `field` is the only metadata carrier (v17, breaking)
+
+Before v17 a widget could receive its metadata under **either** `field` or
+`schema`, depending on which host rendered it, so widgets written in that era
+resolve their config as `field || schema`. `schema` has been removed from
+`FieldWidgetComponentProps` in v17: **read `props.field`, full stop.** Reading
+`props.schema` now yields `undefined`.
+
+`schema` itself is not going anywhere — it is the universal SDUI node
+`SchemaRenderer` hands to *every* registered component (`element:*`, `page:*`,
+grids, reports). That is precisely why a **field widget** needs an adapter when
+it is rendered from a schema node instead of from a form. Wrap it once, at
+registration, and the widget only ever implements one contract:
+
+```tsx
+import { ComponentRegistry } from '@object-ui/core';
+import { withFieldCarrier } from '@object-ui/fields';
+
+ComponentRegistry.register('color', withFieldCarrier(ColorPickerField), {
+  namespace: 'field',
+});
+```
+
+`withFieldCarrier` forwards the node by reference (nothing is copied or
+dropped) and consumes `schema` so it never reaches the DOM. Every built-in
+field widget is registered through it.
+
 ### Who renders what
 
 The widget and the form renderer split validation display, and the split is
@@ -268,9 +295,10 @@ Register it as a field widget:
 ```tsx
 // src/index.tsx
 import { ComponentRegistry } from '@object-ui/core';
+import { withFieldCarrier } from '@object-ui/fields';
 import { ColorPickerField } from './ColorPickerField';
 
-ComponentRegistry.register('field-color', ColorPickerField, {
+ComponentRegistry.register('field-color', withFieldCarrier(ColorPickerField), {
   namespace: 'plugin-board',
   label: 'Color Picker',
   category: 'field',

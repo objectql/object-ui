@@ -20,7 +20,7 @@ export function RichTextField({ value, onChange, field, readonly, error, ...prop
     );
   }
 
-  const richField = (field || (props as any).schema) as any;
+  const richField = field as any;
   const rows = richField?.rows || 8;
   const format = richField?.format || 'markdown'; // 'markdown' or 'html'
 

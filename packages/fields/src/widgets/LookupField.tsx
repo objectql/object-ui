@@ -215,7 +215,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   const [activeIndex, setActiveIndex] = useState(-1);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const lookupField = (field || (props as any).schema) as any;
+  const lookupField = field as any;
 
   // When rendered via createFieldRenderer wrapper the actual objectSchema field
   // metadata (reference_to, display_field, etc.) lives at lookupField.field.

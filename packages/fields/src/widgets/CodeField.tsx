@@ -8,7 +8,7 @@ import { FieldWidgetComponentProps } from './types';
  * For advanced code editing, use the @object-ui/plugin-editor component
  */
 export function CodeField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<string>) {
-  const config = field || (props as any).schema;
+  const config = field;
   // Get code-specific configuration from field metadata
   const language = (config as any)?.language ?? 'javascript';
 

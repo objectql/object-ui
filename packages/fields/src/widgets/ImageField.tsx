@@ -26,7 +26,7 @@ const ImageCropperDialog = lazy(() =>
  */
 export function ImageField({ value, onChange, field, readonly, onUploadingChange, ...props }: FieldWidgetComponentProps<any>) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const imageField = (field || (props as any).schema) as any;
+  const imageField = field as any;
   const multiple = imageField?.multiple || false;
   const accept = imageField?.accept ? imageField.accept.join(',') : 'image/*';
   /**

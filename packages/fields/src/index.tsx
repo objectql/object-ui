@@ -14,6 +14,7 @@ import { Badge, Avatar, AvatarImage, AvatarFallback, Button, Checkbox, EmptyValu
 import { Check, X, Copy, Phone as PhoneIcon, MapPin } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/react';
 import { SchemaRendererContext as _SchemaRendererContext } from '@object-ui/react';
+import { withFieldCarrier } from './withFieldCarrier';
 
 // Module-level cache so multiple renderers fetching the same lookup ID
 // only trigger one network call. Keyed by `${objectName}:${id}`.
@@ -2277,9 +2278,12 @@ export function registerField(fieldType: string): void {
   
   // Create lazy component
   const LazyFieldWidget = React.lazy(loader);
-  
-  // Register with field namespace - NO WRAPPER to allow form renderer to control label/layout
-  ComponentRegistry.register(fieldType, LazyFieldWidget, {
+
+  // Register with field namespace. No LAYOUT wrapper — the form renderer owns
+  // label/description/spacing. The only thing wrapped is the metadata carrier:
+  // `withFieldCarrier` maps `SchemaRenderer`'s `schema` node onto `field`
+  // (objectui#3233) and renders nothing of its own.
+  ComponentRegistry.register(fieldType, withFieldCarrier(LazyFieldWidget), {
     namespace: 'field',
     skipFallback: FIELD_TYPES_SKIP_FALLBACK.has(fieldType),
   });
@@ -2353,7 +2357,7 @@ export function registerFields() {
   // field type. Registered WITHOUT createFieldRenderer: it is a fully-controlled
   // widget (value/onChange from RHF), so the wrapper's extra label + local value
   // buffer would only duplicate the form's FormLabel and desync the value.
-  ComponentRegistry.register('capability-multiselect', CapabilityMultiSelectField, { namespace: 'field', skipFallback: true });
+  ComponentRegistry.register('capability-multiselect', withFieldCarrier(CapabilityMultiSelectField), { namespace: 'field', skipFallback: true });
   // master_detail = child-side FK lookup (single value, typically required). See
   // fieldWidgetMap above for rationale.
   ComponentRegistry.register('master_detail', createFieldRenderer(LookupField), { namespace: 'field' });
@@ -2450,6 +2454,12 @@ export * from './widgets/MultiSelectField';
 export * from './widgets/RadioField';
 export * from './widgets/CheckboxesField';
 export * from './widgets/TagsField';
+
+// The SDUI-node → `field` adapter every registration here goes through
+// (objectui#3233). Exported so a widget registered OUTSIDE this repo can reach
+// the same single-carrier guarantee instead of re-growing a `field || schema`
+// read of its own.
+export { withFieldCarrier } from './withFieldCarrier';
 
 // Initialize registry
 registerAllFields();

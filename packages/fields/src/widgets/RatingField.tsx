@@ -9,7 +9,7 @@ import { FieldWidgetComponentProps } from './types';
  */
 export function RatingField({ value, onChange, field, readonly, className, ...props }: FieldWidgetComponentProps<number>) {
   // Get rating-specific configuration from field metadata
-  const ratingField = (field || (props as any).schema) as any;
+  const ratingField = field as any;
   const max = ratingField?.max ?? 5;
   const currentValue = value ?? 0;
 

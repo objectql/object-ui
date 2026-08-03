@@ -54,6 +54,22 @@ import type { DependsOnInput, FieldMetadata } from '@object-ui/types';
  * is expressed as a template-literal index signature, which — unlike
  * `[key: string]` — leaves `keyof` finite, so an undeclared prop still fails.
  *
+ * ## Why there is no `schema` (objectui#3233)
+ *
+ * `schema` used to be declared here as a SECOND carrier for what `field`
+ * already means — `SchemaRenderer` handed the SDUI node down as `schema`, the
+ * form renderer forwarded `schema={props.field || props.schema || props}`
+ * *alongside* `field`, and ~30 widgets resolved their config as
+ * `field || schema`. One concept, two keys, two producers: exactly the
+ * consumer-side tolerance AGENTS.md #0.1 forbids, and exactly the shape that
+ * lets an AI-written widget pick the wrong spelling and still "work" under one
+ * host while reading `undefined` under another.
+ *
+ * v17 converged it at the PRODUCERS. `field` is the only carrier a widget ever
+ * sees; the SDUI node → `field` translation happens once, in this package's
+ * registry adapter (`withFieldCarrier`), not ~30 times in the widgets. Reading
+ * `props.schema` is now a compile error rather than a silent second contract.
+ *
  * Adding a key here is a contract change: say who produces it and who reads it.
  */
 export type FieldWidgetComponentProps<T = any> = {
@@ -62,8 +78,17 @@ export type FieldWidgetComponentProps<T = any> = {
   value: T;
   onChange: (val: T) => void;
   /**
-   * The field's metadata. Deliberately the looser `@object-ui/types` shape
-   * rather than the spec's, to avoid a circular dependency for now.
+   * The field's metadata, and the SINGLE carrier for it (objectui#3233).
+   *
+   * Deliberately the looser `@object-ui/types` shape rather than the spec's,
+   * to avoid a circular dependency for now.
+   *
+   * Every host produces it: the form renderer's `renderFieldComponent`, the
+   * inline-edit hosts (`FieldEditWidget`), `ActionParamDialog` /
+   * `BulkActionDialog`, and — since #3233 — the registry adapter that adapts
+   * `SchemaRenderer`'s SDUI node onto this contract (`withFieldCarrier` in
+   * `packages/fields/src/withFieldCarrier.tsx`). A widget reads `props.field`
+   * and nothing else; there is no second key to check.
    */
   field: FieldMetadata;
   readonly?: boolean;
@@ -94,17 +119,6 @@ export type FieldWidgetComponentProps<T = any> = {
 
   /* ── Host plumbing: what a rendering host actually forwards ─────────────── */
 
-  /**
-   * The raw authored node the widget was rendered from. Two hosts supply it:
-   * `SchemaRenderer` (`<Component schema={schema} {...schema} />`) and the
-   * form renderer's `renderFieldComponent` (`schema={props.field || ...}`),
-   * which is why ~25 widgets read `field || schema` for their config.
-   *
-   * This is a second carrier for what `field` already means, i.e. a de-facto
-   * second contract (AGENTS.md #0.1) — declared here so it is at least
-   * visible; converging the two is tracked separately.
-   */
-  schema?: FieldMetadata | Record<string, unknown>;
   /**
    * DataSource for widgets that query records (lookup / user / object-ref /
    * recipient-picker / grid). Injected by the form renderer for the field

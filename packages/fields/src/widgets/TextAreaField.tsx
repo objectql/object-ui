@@ -22,9 +22,10 @@ import { FieldWidgetComponentProps } from './types';
  *
  * That flag has exactly one producer: `ObjectForm` stamps it onto every
  * long-text field when `ObjectFormSchema.mobile.fullscreenLongText` is set
- * (`plugin-form/src/ObjectForm.tsx`). It reaches this widget on `field`, or
- * on `schema` when the host is `SchemaRenderer` — the same pair every widget
- * here resolves as `field || schema` (see `FieldWidgetComponentProps.schema`).
+ * (`plugin-form/src/ObjectForm.tsx`). It reaches this widget on `field` — the
+ * single metadata carrier since objectui#3233. A `SchemaRenderer`-hosted node
+ * arrives there too: the registry adapter (`withFieldCarrier`) maps the SDUI
+ * `schema` node onto `field` before the widget sees it.
  *
  * There is deliberately NO widget-prop override. A `mobileFullscreen`
  * (camelCase) prop was read here and written by nobody in the repo, and the
@@ -50,16 +51,15 @@ export function TextAreaField({ value, onChange, field, readonly, error, ...prop
     );
   }
 
-  const textareaField = (field || (props as any).schema) as any;
+  const textareaField = field as any;
   const rows = textareaField?.rows || 4;
   // Spec FieldSchema declares camelCase `maxLength`; `max_length` is the legacy
   // objectui spelling. Dual-read (framework#1878 §3 recheck) — without this a
   // spec-authored maxLength gave neither the textarea cap nor the counter.
   const maxLength = textareaField?.maxLength ?? textareaField?.max_length;
   // Mobile fullscreen opt-in travels on the field metadata and nowhere else.
-  // `textareaField` already resolves the two carriers a host may use for that
-  // metadata (`field`, else `schema`), so this is a single read — a misspelled
-  // flag now has no read path to quietly catch it.
+  // That metadata has exactly one carrier (`field`, objectui#3233), so this is
+  // a single read — a misspelled flag has no read path to quietly catch it.
   const showFullscreenButton = Boolean(textareaField?.mobile_fullscreen);
 
   const openFullscreen = () => { setDraft(value ?? ''); setFullscreenOpen(true); };

@@ -91,21 +91,32 @@ describe('TextAreaField mobile fullscreen — the metadata flag is the only sour
     expect(onChange).toHaveBeenCalledWith('hello from fullscreen');
   });
 
-  it('reads the flag off `schema` when the host supplies no `field`', () => {
-    // `SchemaRenderer` passes the authored node as `schema`; the widget
-    // resolves its config as `field || schema`, which is why deleting the
-    // separate `schema.mobile_fullscreen` read lost nothing. `field` is
-    // required by the type, so the cast reproduces the runtime shape only.
-    render(
-      <TextAreaField
-        value=""
-        onChange={() => {}}
-        field={undefined as unknown as FieldMetadata}
-        schema={fieldMeta({ mobile_fullscreen: true })}
-      />,
-    );
+  it('no longer reads the flag off a `schema` prop (objectui#3233)', () => {
+    // This used to be the second carrier: `SchemaRenderer` passed the authored
+    // node as `schema` and the widget resolved `field || schema`. v17 converged
+    // that at the producer — the registry adapter (`withFieldCarrier`) maps the
+    // SDUI node onto `field` before any widget sees it, so the widget has one
+    // read. A host that still passes `schema` is now inert AND loud: a compile
+    // error on the closed props type, and no affordance at runtime.
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const legacyHostProps = {
+        schema: fieldMeta({ mobile_fullscreen: true }),
+      } as unknown as Partial<FieldWidgetComponentProps<string>>;
 
-    expect(screen.getByTestId('textarea-fullscreen-toggle')).toBeInTheDocument();
+      render(
+        <TextAreaField
+          value=""
+          onChange={() => {}}
+          field={fieldMeta()}
+          {...legacyHostProps}
+        />,
+      );
+
+      expect(screen.queryByTestId('textarea-fullscreen-toggle')).not.toBeInTheDocument();
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it('renders no affordance when the metadata does not opt in', () => {
@@ -127,6 +138,10 @@ describe('TextAreaField mobile fullscreen — the retired prop spellings', () =>
     void props.mobileFullscreen;
     // @ts-expect-error `mobile_fullscreen` is a metadata key, not a widget prop
     void props.mobile_fullscreen;
+    // …and the retired second METADATA carrier (objectui#3233). The flag has
+    // one source and that source now has one carrier.
+    // @ts-expect-error `schema` was retired from the widget contract in v17
+    void props.schema;
 
     expect(true).toBe(true);
   });

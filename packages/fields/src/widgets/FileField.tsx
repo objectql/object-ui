@@ -119,7 +119,7 @@ export function FileField({ value, onChange, field, readonly, onUploadingChange,
   const { t } = useObjectTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
-  const fileField = (field || (props as any).schema) as any;
+  const fileField = field as any;
   const multiple = fileField?.multiple || false;
   const accept = fileField?.accept ? fileField.accept.join(',') : undefined;
   const maxSize = fileField?.maxSize as number | undefined; // bytes

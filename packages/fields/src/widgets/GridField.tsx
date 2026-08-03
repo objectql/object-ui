@@ -324,7 +324,7 @@ export function GridField({
    *  the header (`parent.status == 'paid'`). Supplied by MasterDetailForm. */
   contextRecord?: Record<string, unknown>;
 }) {
-  const cfg = (field || (props as any).schema || {}) as any;
+  const cfg = (field || {}) as any;
   const allColumns: GridColumn[] = cfg.columns || [];
   const rows: Row[] = Array.isArray(value) ? value : [];
   const contextRecord = props.contextRecord;

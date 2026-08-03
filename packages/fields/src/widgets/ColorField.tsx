@@ -7,7 +7,7 @@ import { FieldWidgetComponentProps } from './types';
  * Supports hex color values (e.g., #ff0000)
  */
 export function ColorField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<string>) {
-  const colorField = (field || (props as any).schema) as any;
+  const colorField = field as any;
 
   if (readonly) {
     return (

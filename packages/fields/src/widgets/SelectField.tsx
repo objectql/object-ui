@@ -31,7 +31,7 @@ import { useCascadingOptions } from './useCascadingOptions';
  * in lockstep.
  */
 export function SelectField(props: FieldWidgetComponentProps<any>) {
-  const config = (props.field || (props as any).schema) as SelectFieldMetadata | undefined;
+  const config = props.field as SelectFieldMetadata | undefined;
   if ((config as any)?.multiple) {
     return <MultiSelectField {...props} />;
   }
@@ -54,14 +54,13 @@ function SingleSelectField({
   onChange,
   field,
   readonly,
-  schema,
   dependentValues,
   dependsOn: dependsOnProp,
   emptyHint,
   dataSource: _dataSource,
   ...props
 }: FieldWidgetComponentProps<string>) {
-  const config = (field || schema) as SelectFieldMetadata;
+  const config = field as SelectFieldMetadata;
   const rawOptions = config?.options || [];
   const { t } = useFieldTranslation();
   // Stable hook for automation/e2e — react-hook-form + Radix Select cannot be

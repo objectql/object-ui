@@ -8,7 +8,7 @@ import { FieldWidgetComponentProps } from './types';
  */
 export function SliderField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<number>) {
   // Get slider-specific configuration from field metadata
-  const sliderField = (field || (props as any).schema) as any;
+  const sliderField = field as any;
   const min = sliderField?.min ?? 0;
   const max = sliderField?.max ?? 100;
   const step = sliderField?.step ?? 1;

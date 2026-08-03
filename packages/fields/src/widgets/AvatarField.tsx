@@ -11,7 +11,7 @@ export function AvatarField({ value, onChange, field, readonly, ...props }: Fiel
   const [isHovered, setIsHovered] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   
-  const avatarField = (field || (props as any).schema) as any;
+  const avatarField = field as any;
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];

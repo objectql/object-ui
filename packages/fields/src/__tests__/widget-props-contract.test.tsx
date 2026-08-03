@@ -69,6 +69,14 @@ describe('FieldWidgetComponentProps is closed (objectui#3221)', () => {
     // @ts-expect-error the prop is `onChange`
     void props.onchange;
 
+    // The second metadata carrier is gone (objectui#3233). `schema` was a
+    // DECLARED key here through #3221 — one concept under two spellings, which
+    // is how ~30 widgets ended up resolving `field || schema`. v17 converged it
+    // at the producers, so reading it is now a compile error rather than a
+    // silent second contract for the next widget author to discover.
+    // @ts-expect-error `schema` was retired from the widget contract in v17
+    void props.schema;
+
     expect(true).toBe(true);
   });
 
@@ -79,9 +87,11 @@ describe('FieldWidgetComponentProps is closed (objectui#3221)', () => {
     const passThrough: FieldWidgetComponentProps<string> = {
       value: '',
       onChange: () => {},
+      // The single metadata carrier (objectui#3233) — every host produces this
+      // one key: the form renderer (`renderFieldComponent`), the inline-edit
+      // hosts, and the registry adapter that maps `SchemaRenderer`'s SDUI node
+      // onto it.
       field,
-      // form renderer (`renderFieldComponent`)
-      schema: field,
       dataSource: {},
       dependentValues: { country: 'cn' },
       dependsOn: ['country'],

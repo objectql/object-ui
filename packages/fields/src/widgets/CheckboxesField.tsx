@@ -25,14 +25,13 @@ export function CheckboxesField({
   field,
   readonly,
   className,
-  schema,
   dependentValues,
   dependsOn: dependsOnProp,
   emptyHint,
   dataSource: _dataSource,
   ...props
 }: FieldWidgetComponentProps<string[]>) {
-  const config = (field || schema) as any;
+  const config = field as any;
   const rawOptions: Option[] = config?.options || [];
   const selected: string[] = Array.isArray(value) ? value : value == null ? [] : [value as unknown as string];
   const groupId = useId();

@@ -25,7 +25,7 @@ export function MasterDetailField({
   ...props 
 }: FieldWidgetComponentProps<MasterDetailValue[]>) {
   const items = value || [];
-  const config = field || (props as any).schema;
+  const config = field;
 
   const handleAdd = () => {
     // This would typically open a dialog to select/create related records

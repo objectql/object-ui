@@ -7,7 +7,7 @@ import { FieldWidgetComponentProps } from './types';
  * Values are computed on the backend and cannot be edited
  */
 export function FormulaField({ value, field, ...props }: FieldWidgetComponentProps<any>) {
-  const formulaField = (field || (props as any).schema) as any;
+  const formulaField = field as any;
   const returnType = formulaField?.return_type || 'text';
 
   if (value == null) {

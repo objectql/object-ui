@@ -30,7 +30,7 @@ function withBannedFilter(filters?: any[]): any[] {
 }
 
 export function UserField(props: FieldWidgetComponentProps<any>) {
-  const raw = (props.field || (props as any).schema) as any;
+  const raw = props.field as any;
 
   // The objectSchema field metadata may live directly on `field`, or nested at
   // `field.field` when rendered via the createFieldRenderer wrapper — mirror the

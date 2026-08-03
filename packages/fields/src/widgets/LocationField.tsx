@@ -7,7 +7,7 @@ import { FieldWidgetComponentProps } from './types';
  * Stores location as { latitude, longitude } object and displays as comma-separated pair
  */
 export function LocationField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<any>) {
-  const config = field || (props as any).schema;
+  const config = field;
   // Location is stored as { latitude, longitude } object
   // For display, convert to "latitude, longitude" string format
   const displayValue = value && typeof value === 'object' 

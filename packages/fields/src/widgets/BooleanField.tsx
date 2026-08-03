@@ -7,7 +7,7 @@ import { FieldWidgetComponentProps } from './types';
  * Renders as Switch or Checkbox based on field widget configuration
  */
 export function BooleanField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<boolean>) {
-  const config = (field || (props as any).schema) as any;
+  const config = field as any;
   // Use simple type assertion for arbitrary custom properties not in BaseFieldMetadata
   const widget = config?.widget;
   // Generate unique ID using React's useId hook - must be before early returns (rules of hooks)

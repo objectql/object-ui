@@ -8,7 +8,7 @@ import { FieldWidgetComponentProps } from './types';
  * Includes a slider for interactive control.
  */
 export function PercentField({ value, onChange, field, readonly, error, className, ...props }: FieldWidgetComponentProps<number>) {
-  const percentField = (field || (props as any).schema) as any;
+  const percentField = field as any;
   const precision = percentField?.precision ?? 2;
 
   // Convention detection. A field declaring `max > 1` (e.g. `max: 100`) stores

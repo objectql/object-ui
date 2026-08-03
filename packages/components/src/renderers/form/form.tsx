@@ -283,6 +283,10 @@ function stripRegisteredFieldProps(type: string, props: RenderFieldProps): Rende
     fullscreen: _fullscreen,
     dependentValues,
     emptyHint,
+    // Retired from the widget contract in v17 (objectui#3233): `field` is the
+    // single metadata carrier. The strip stays so an authored form field that
+    // happens to carry a `schema` key cannot resurrect the second carrier —
+    // or spill an object onto the DOM through a widget's `...props` spread.
     schema: _schema,
     ...fieldProps
   } = props;
@@ -1807,15 +1811,52 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
   //    available (e.g. so { type: 'text' } in a form schema resolves to the
   //    text input field, not the display text widget that shares the same
   //    short name in the global registry).
-  const RegisteredComponent = !BUILTIN_FIELD_TYPES.has(type)
-    ? ((!type.includes(':') && ComponentRegistry.get(`field:${type}`)) ||
-      ComponentRegistry.get(type))
+  //
+  //    Which entry answered decides which CONTRACT the resolved component
+  //    implements, so the lookups are kept apart rather than folded into one
+  //    `||` chain (objectui#3233):
+  //
+  //      - a `field:` entry is a FIELD WIDGET — `FieldWidgetComponentProps`,
+  //        whose metadata carrier is `field` and nothing else since v17;
+  //      - the bare-name fallback is a plain SDUI COMPONENT (the display
+  //        `text` widget, `alert`, `badge` …). Its contract is the universal
+  //        `schema` node every registered component receives from
+  //        `SchemaRenderer`. That key is NOT retired and must still be passed,
+  //        or such a field renders `undefined.className`.
+  const namespacedWidget = !BUILTIN_FIELD_TYPES.has(type) && !type.includes(':')
+    ? ComponentRegistry.get(`field:${type}`)
     : undefined;
+  const RegisteredComponent = !BUILTIN_FIELD_TYPES.has(type)
+    ? (namespacedWidget || ComponentRegistry.get(type))
+    : undefined;
+  // A colon-qualified type resolves directly, and is a field widget only when
+  // it names the `field` namespace (`type: 'field:textarea'`).
+  const isFieldWidget = !!namespacedWidget || type.startsWith('field:');
 
   if (RegisteredComponent) {
     const registeredProps = stripRegisteredFieldProps(type, props);
-    const fieldSchema = props.field || props.schema || props;
-    return <RegisteredComponent schema={fieldSchema} {...registeredProps} />;
+
+    if (isFieldWidget) {
+      // `field` is the single metadata carrier (objectui#3233). It rides in
+      // `registeredProps` untouched — the caller always sets it (`field.field
+      // || field`, i.e. the raw metadata object, never undefined) and
+      // `stripRegisteredFieldProps` keeps it.
+      //
+      // This used to ALSO pass `schema={props.field || props.schema || props}`,
+      // a second key carrying the *same* object: `props.field` is truthy at the
+      // only call site, so the two chain terms after it were unreachable and
+      // `schema` was always `=== props.field`. Widgets therefore resolved
+      // `field || schema` to `field` on this path every time — which is why
+      // dropping the key here changes no payload, only the number of spellings
+      // a widget author has to know.
+      return <RegisteredComponent {...registeredProps} />;
+    }
+
+    // Non-field component reached through the bare-name fallback: `schema` is
+    // ITS contract, not the retired field-widget carrier, so the original
+    // resolution is preserved verbatim.
+    const nodeSchema = props.field || props.schema || props;
+    return <RegisteredComponent schema={nodeSchema} {...registeredProps} />;
   }
 
   const { inputType, options = [], placeholder, readonly, emptyHint, ...fieldProps } = props;

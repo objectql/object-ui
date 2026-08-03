@@ -25,14 +25,13 @@ export function RadioField({
   field,
   readonly,
   className,
-  schema,
   dependentValues,
   dependsOn: dependsOnProp,
   emptyHint,
   dataSource: _dataSource,
   ...props
 }: FieldWidgetComponentProps<string>) {
-  const config = (field || schema) as any;
+  const config = field as any;
   const rawOptions: Option[] = config?.options || [];
   const groupId = useId();
   const fieldName = props.name || config?.name || props.id || '';

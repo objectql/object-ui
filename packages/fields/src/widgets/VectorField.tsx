@@ -7,7 +7,7 @@ import { FieldWidgetComponentProps } from './types';
  * Shows vector embeddings in a read-only format
  */
 export function VectorField({ value, field, ...props }: FieldWidgetComponentProps<number[]>) {
-  const vectorField = (field || (props as any).schema) as any;
+  const vectorField = field as any;
   const dimensions = vectorField?.dimensions || (Array.isArray(value) ? value.length : 0);
 
   if (!value || !Array.isArray(value)) {

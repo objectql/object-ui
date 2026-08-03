@@ -7,7 +7,7 @@ import { FieldWidgetComponentProps } from './types';
  * Validates URLs to only render http/https links for security
  */
 export function UrlField({ value, onChange, field, readonly, error, ...props }: FieldWidgetComponentProps<string>) {
-  const config = field || (props as any).schema;
+  const config = field;
   if (readonly) {
     if (!value) return <EmptyValue />;
     

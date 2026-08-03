@@ -37,7 +37,7 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
 };
 
 export function CurrencyField({ value, onChange, field, readonly, error, className, ...props }: FieldWidgetComponentProps<number>) {
-  const currencyField = (field || (props as any).schema) as any;
+  const currencyField = field as any;
   // Shared precedence: field currency → currencyConfig → tenant default (ADR-0053).
   const { currency: tenantCurrency } = useLocalization();
   const currency: string | undefined = resolveFieldCurrency(currencyField, tenantCurrency);

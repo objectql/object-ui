@@ -7,7 +7,7 @@ import { FieldWidgetComponentProps } from './types';
  * Values are aggregated from related records and cannot be edited
  */
 export function SummaryField({ value, field, ...props }: FieldWidgetComponentProps<any>) {
-  const summaryField = (field || (props as any).schema) as any;
+  const summaryField = field as any;
   const summaryType = summaryField?.summary_type || 'count';
 
   if (value == null) {
