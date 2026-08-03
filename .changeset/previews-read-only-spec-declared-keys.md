@@ -35,9 +35,10 @@ a valid app showed generic badges, no targets and an invented `Landing: /`. Now
 (`objectName`/`pageName`/`dashboardName`/`url`/`reportName`/`componentRef`/
 `actionDef.actionName`), and the route comes from `resolveHref`, the shell's own
 nav → URL mapping that `useNavPins` and `SearchResultsPage` already share — so a
-link in the preview is the link the runtime follows. `homePageId` is rendered as
-the nav item **id** it is, resolved to the entry it selects; it is never printed
-as a path.
+link in the preview is the link the runtime follows. The landing entry is
+DERIVED, never read off the draft — it is the first navigation item that yields
+a route, the same rule the console shell applies; `homePageId` was retired in
+`@objectstack/spec` 17.0.0 and is not consulted.
 
 **`DatasourcePreview`** — `capabilities` is a `DatasourceCapabilities` object of
 boolean flags, and the preview tested `Array.isArray`, lighting the block up only
