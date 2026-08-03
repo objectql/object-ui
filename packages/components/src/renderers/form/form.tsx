@@ -1355,7 +1355,25 @@ ComponentRegistry.register('form',
                 <FormLabel className="text-xs font-normal text-muted-foreground">
                   {label}
                   {required && (
-                    <span className="text-destructive ml-1" aria-label="required">
+                    // Purely visual redundancy now that `aria-required` rides
+                    // on the control itself (objectui#3290). It used to carry
+                    // `aria-label="required"`, which made the asterisk part of
+                    // the control's accessible name; keeping both channels
+                    // would have assistive tech announce required TWICE — once
+                    // inside the name, once as the state. The state channel is
+                    // the correct single source, so the marker leaves the
+                    // accessibility tree entirely.
+                    //
+                    // `data-required-marker` is the stable locator for the
+                    // sighted-user affordance (ADR-0054 C4), replacing the
+                    // `aria-label` that end-to-end specs were selecting on —
+                    // a11y attributes must not double as test hooks, which is
+                    // how this one survived as long as it did.
+                    <span
+                      className="text-destructive ml-1"
+                      data-required-marker="true"
+                      aria-hidden="true"
+                    >
                       *
                     </span>
                   )}
@@ -1410,6 +1428,40 @@ ComponentRegistry.register('form',
                   // Undefined when the field is valid, so the key is simply
                   // absent from the DOM rather than rendering `error=""`.
                   error: fieldState.error?.message,
+                  // Required is a STATE, so it travels the state channel
+                  // (objectui#3290). Until now the resolved `required` (static
+                  // `required` + `requiredWhen` CEL) drove exactly one thing —
+                  // the red asterisk in `<FormLabel>` — which reached assistive
+                  // tech only by being folded into the control's ACCESSIBLE
+                  // NAME ("Title required"). Three ways that fails: a name is
+                  // read in name order rather than announced as a state, "list
+                  // the required fields" navigation cannot see it, and a field
+                  // rendered without a `label` (compact layouts, inline grid
+                  // editing) draws no asterisk at all, so the signal vanishes.
+                  //
+                  // No widget change is needed for this to land on the input:
+                  // `aria-required` is already declared and typed on the widget
+                  // props contract (`FieldWidgetComponentProps & AriaAttributes`)
+                  // and every widget forwards its leftover props to the control
+                  // it renders. The builtin branch is the same story — neither
+                  // `stripRegisteredFieldProps` nor `stripRendererOnlyProps`
+                  // touches `aria-*`. That is precisely why #3222 refused to
+                  // sink a `required` BOOLEAN into the widget contract: a
+                  // boolean gives the asterisk a second author and the next
+                  // AI-written widget draws its own, while `aria-required` goes
+                  // straight to the DOM with no new key to get wrong.
+                  //
+                  // `|| undefined` (not `String(required)`) so an optional
+                  // field carries NO attribute at all. `aria-required="false"`
+                  // is legal but semantically noisier than absence, and absence
+                  // is what the dynamic `requiredWhen` FALSE case must produce.
+                  //
+                  // Deliberately NOT the native `required` attribute: that
+                  // would arm the browser's own constraint-validation bubble
+                  // alongside react-hook-form's messages — two validators, two
+                  // UIs, one field. `aria-required` reports the state without
+                  // triggering native validation.
+                  'aria-required': required || undefined,
                 })}
               </FormControl>
               {description && (

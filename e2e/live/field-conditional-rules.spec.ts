@@ -17,11 +17,18 @@ import { selectOption } from './helpers';
  * Driving the Status select must reactively re-gate every dependent field.
  */
 
-/** True when the field's <label> carries the required asterisk. */
+/**
+ * True when the field's <label> carries the required asterisk.
+ *
+ * Selects on `data-required-marker`, not the marker's old `aria-label`
+ * (objectui#3290): the asterisk is now `aria-hidden` because the required STATE
+ * travels to the control as `aria-required` instead of being folded into its
+ * accessible name. The visual marker is unchanged — only its locator is.
+ */
 async function isRequired(dialog: Locator, labelText: string): Promise<boolean> {
   const marker = dialog
     .locator('label', { hasText: labelText })
-    .locator('span[aria-label="required"]');
+    .locator('span[data-required-marker]');
   return (await marker.count()) > 0;
 }
 
