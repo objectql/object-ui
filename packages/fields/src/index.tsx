@@ -2461,5 +2461,13 @@ export * from './widgets/TagsField';
 // read of its own.
 export { withFieldCarrier } from './withFieldCarrier';
 
+// The whitelist that decides what a widget's `...props` spread may put on a
+// DOM element (objectui#3291) — the runtime executor of the "DOM pass-through"
+// block of `FieldWidgetComponentProps`. Exported for the same reason as
+// `withFieldCarrier` above: a widget authored outside this repo needs to reach
+// it, or it re-grows the bare spread this closed.
+export { toDomProps } from './widgets/toDomProps';
+export type { DomProps } from './widgets/toDomProps';
+
 // Initialize registry
 registerAllFields();

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Input, Slider, EmptyValue } from '@object-ui/components';
 import { FieldWidgetComponentProps } from './types';
+import { toDomProps } from './toDomProps';
 
 /**
  * PercentField - Percentage input with configurable decimal precision
@@ -64,7 +65,7 @@ export function PercentField({ value, onChange, field, readonly, error, classNam
     <div className="space-y-2">
       <div className="relative">
         <Input
-          {...props}
+          {...toDomProps(props)}
           type="number"
           value={displayValue}
           onChange={handleChange}

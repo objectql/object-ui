@@ -11,6 +11,7 @@ import { isValueStillOffered } from '@object-ui/core';
 import { SelectFieldMetadata } from '@object-ui/types';
 import { useFieldTranslation } from './useFieldTranslation';
 import { FieldWidgetComponentProps } from './types';
+import { toDomProps } from './toDomProps';
 import { MultiSelectField } from './MultiSelectField';
 import { OptionsEmptyState } from './OptionsEmptyState';
 import { useCascadingOptions } from './useCascadingOptions';
@@ -33,6 +34,10 @@ import { useCascadingOptions } from './useCascadingOptions';
 export function SelectField(props: FieldWidgetComponentProps<any>) {
   const config = props.field as SelectFieldMetadata | undefined;
   if ((config as any)?.multiple) {
+    // NOT `toDomProps` — this is a widget-to-widget delegation, not a DOM
+    // spread. `MultiSelectField` implements the same contract and needs the
+    // whole of it (`value`, `onChange`, `field`, `dataSource`, …); narrowing
+    // here to the DOM whitelist would hand it an empty widget.
     return <MultiSelectField {...props} />;
   }
   return <SingleSelectField {...(props as FieldWidgetComponentProps<string>)} />;
@@ -110,7 +115,13 @@ function SingleSelectField({
 
   return (
     <Select
-      {...props}
+      // Radix `Select.Root` renders no element of its own and drops what it
+      // does not recognise, so this spread leaks nothing TODAY. It is closed
+      // anyway because that is an accident of the primitive, not a property of
+      // this widget: the structure is identical to the thirteen widgets that
+      // DID leak, and one refactor to a plain <select> starts it leaking too
+      // (objectui#3291).
+      {...toDomProps(props)}
       value={value}
       onValueChange={onChange}
       disabled={readonly || props.disabled}

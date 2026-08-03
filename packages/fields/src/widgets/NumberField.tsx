@@ -2,6 +2,7 @@ import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
 import { NumberFieldMetadata } from '@object-ui/types';
 import { FieldWidgetComponentProps } from './types';
+import { toDomProps } from './toDomProps';
 
 /**
  * NumberField - Numeric input with optional decimal precision
@@ -25,8 +26,7 @@ export function NumberField({ value, onChange, field, readonly, ...props }: Fiel
         ? Math.pow(10, -scale)
         : 'any';
 
-  // Filter out non-DOM props
-  const { inputType, ...domProps } = props as any;
+  const domProps = toDomProps(props);
 
   return (
     <Input

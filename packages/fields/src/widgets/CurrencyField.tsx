@@ -1,6 +1,7 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
 import { FieldWidgetComponentProps } from './types';
+import { toDomProps } from './toDomProps';
 import { useLocalization } from '@object-ui/i18n';
 import { resolveFieldCurrency } from '../currency';
 
@@ -70,7 +71,7 @@ export function CurrencyField({ value, onChange, field, readonly, error, classNa
         </span>
       )}
       <Input
-        {...props}
+        {...toDomProps(props)}
         type="number"
         value={value ?? ''}
         onChange={(e) => {

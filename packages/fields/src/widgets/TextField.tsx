@@ -2,6 +2,7 @@ import React from 'react';
 import { Input, Textarea, EmptyValue } from '@object-ui/components';
 import { TextareaFieldMetadata } from '@object-ui/types';
 import { FieldWidgetComponentProps } from './types';
+import { toDomProps } from './toDomProps';
 
 /**
  * TextField - Standard single-line or multi-line text input
@@ -17,8 +18,7 @@ export function TextField({ value, onChange, field, readonly, ...props }: FieldW
   // Cast for rows property
   const rows = (fieldData as unknown as TextareaFieldMetadata)?.rows;
 
-  // Filter out non-DOM props
-  const { inputType, ...domProps } = props as any;
+  const domProps = toDomProps(props);
 
   if (rows && rows > 1) {
     return (

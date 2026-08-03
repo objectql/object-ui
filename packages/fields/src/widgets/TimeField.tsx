@@ -1,6 +1,7 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
 import { FieldWidgetComponentProps } from './types';
+import { toDomProps } from './toDomProps';
 import { openNativePicker } from './openNativePicker';
 
 /**
@@ -12,8 +13,7 @@ export function TimeField({ value, onChange, field, readonly, ...props }: FieldW
     return <span className="text-sm">{value || <EmptyValue />}</span>;
   }
 
-  // Filter out non-DOM props
-  const { inputType, ...domProps } = props as any;
+  const domProps = toDomProps(props);
 
   return (
     <Input

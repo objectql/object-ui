@@ -2,6 +2,7 @@ import React from 'react';
 import { Textarea, EmptyValue } from '@object-ui/components';
 import { FullscreenFieldEditor } from './FullscreenFieldEditor';
 import { FieldWidgetComponentProps } from './types';
+import { toDomProps } from './toDomProps';
 
 /**
  * TextAreaField - Multi-line text input widget
@@ -55,7 +56,7 @@ export function TextAreaField({ value, onChange, field, readonly, error, ...prop
   // a single read — a misspelled flag has no read path to quietly catch it.
   const showFullscreenButton = Boolean(textareaField?.mobile_fullscreen);
 
-  const { inputType, ...domProps } = props as any;
+  const domProps = toDomProps(props);
 
   return (
     <div className="relative">

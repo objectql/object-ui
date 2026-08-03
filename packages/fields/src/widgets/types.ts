@@ -169,6 +169,19 @@ export type FieldWidgetComponentProps<T = any> = {
   onCreateNew?: (searchQuery: string) => void;
 
   /* ── DOM pass-through: what `...props` may legitimately reach an input ──── */
+  //
+  // ENFORCED AT RUNTIME by `toDomProps` (objectui#3291) — the whitelist every
+  // widget spreads through instead of `{...props}`. Before it, this block was
+  // a claim a widget broke simply by spreading: the form renderer forwards any
+  // extra key an author wrote on the field config, and `SchemaRenderer` spreads
+  // the whole authored node with no strip layer at all, so both arrived on the
+  // element (`zzcanaryobj="[object Object]"` on a real input).
+  //
+  // `toDomProps` forwards these keys, plus `AriaAttributes` and the `data-*`
+  // family below, plus the two DOM-legal keys declared above under the
+  // controlled-input contract (`className`, `disabled` — see the helper for
+  // why). ADDING A KEY HERE DOES NOT FORWARD IT: add it to
+  // `DOM_PASS_THROUGH_KEYS` in `toDomProps.ts` too, and say who produces it.
 
   id?: string;
   /** react-hook-form's field name, spread in by the form renderer. */

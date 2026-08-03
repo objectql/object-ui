@@ -3,6 +3,7 @@ import { Input } from '@object-ui/components';
 import { Button } from '@object-ui/components';
 import { Eye, EyeOff } from 'lucide-react';
 import { FieldWidgetComponentProps } from './types';
+import { toDomProps } from './toDomProps';
 
 /**
  * PasswordField - Secure password input with visibility toggle
@@ -16,8 +17,7 @@ export function PasswordField({ value, onChange, field, readonly, className, ...
     return <span className="text-sm">••••••••</span>;
   }
 
-  // Filter out non-DOM props
-  const { inputType, ...domProps } = props as any;
+  const domProps = toDomProps(props);
 
   return (
     <div className="relative">

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
 import { FieldWidgetComponentProps } from './types';
+import { toDomProps } from './toDomProps';
 import { openNativePicker } from './openNativePicker';
 
 /**
@@ -18,8 +19,7 @@ export function DateTimeField({ value, onChange, field, readonly, ...props }: Fi
     );
   }
 
-  // Filter out non-DOM props
-  const { inputType, ...domProps } = props as any;
+  const domProps = toDomProps(props);
 
   return (
     <Input

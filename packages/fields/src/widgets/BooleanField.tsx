@@ -1,6 +1,7 @@
 import React, { useId } from 'react';
 import { Switch, Checkbox, Label } from '@object-ui/components';
 import { FieldWidgetComponentProps } from './types';
+import { toDomProps } from './toDomProps';
 
 /**
  * BooleanField - Toggle input supporting switch and checkbox variants
@@ -19,8 +20,7 @@ export function BooleanField({ value, onChange, field, readonly, ...props }: Fie
     return <span className="text-sm">{value ? 'Yes' : 'No'}</span>;
   }
 
-  // Filter out non-DOM props
-  const { inputType, ...domProps } = props as any;
+  const domProps = toDomProps(props);
 
   if (widget === 'checkbox') {
      return (
