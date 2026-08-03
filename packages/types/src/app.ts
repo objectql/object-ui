@@ -294,8 +294,14 @@ export interface NavigationItem {
  * `order`, `visible` and `requiredPermissions` were area-level keys until spec
  * 17.0.0 retired them (`AREA_VISIBLE_RETIRED` /
  * `AREA_REQUIRED_PERMISSIONS_RETIRED`): an area is a layout grouping, not an
- * access boundary — gate the navigation ITEM or the app instead. No objectui
- * renderer ever read them at area level, so dropping them costs no behaviour.
+ * access boundary — gate the navigation ITEM or the app instead.
+ *
+ * Worth stating plainly, because the retirement's own rationale says an area
+ * "carries no gate of its own": objectui DID gate on them —
+ * `AppSchemaRenderer`'s area switcher filtered areas by `visible` and
+ * `requiredPermissions`. That filter is gone, and the gating it did now happens
+ * one level down in `NavigationRenderer`, which is where the spec moved it.
+ * The premise mismatch is recorded in objectui#3311.
  *
  * One key is pinned locally, for a reason that outlives a spec release:
  *

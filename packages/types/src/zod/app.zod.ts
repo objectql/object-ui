@@ -129,11 +129,15 @@ export const NavigationItemSchema: z.ZodType<any> = z.lazy(() => z.object({
  * `@objectstack/spec` 17.0.0 retired them (`AREA_VISIBLE_RETIRED` /
  * `AREA_REQUIRED_PERMISSIONS_RETIRED`): an area is a layout grouping, not an
  * access boundary, so gating belongs on the navigation ITEM (`visible` /
- * `requiredPermissions`, both still there) or on the app. No objectui renderer
- * ever read the area-level trio — `AppSchemaRenderer`, `AppSidebar`,
- * `UnifiedSidebar` and `AppHeader` read only `id` / `label` / `navigation` —
- * so following the spec here drops no behaviour. The spec object is `.strict()`,
- * so keeping them locally would have meant accepting areas the platform rejects.
+ * `requiredPermissions`, both still there) or on the app.
+ *
+ * Note the retirement's rationale ("an area carries no gate of its own") did
+ * NOT hold here: `AppSchemaRenderer`'s area switcher filtered areas by
+ * `visible` / `requiredPermissions`. That filter is gone and the gating moved
+ * down to `NavigationRenderer` — see objectui#3311 for the premise mismatch.
+ * Following the spec is still right: its area object is `.strict()`, so a
+ * v17-valid app cannot carry these keys, and keeping them locally would have
+ * meant accepting areas the platform rejects.
  *
  * Drift guard: `__tests__/page-nav-misc-spec-parity.test.ts`.
  */
