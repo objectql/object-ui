@@ -1,11 +1,21 @@
 name: Lint
 
 # Until #2923 this workflow was `workflow_dispatch`-only, so ESLint had never
-# gated a PR. That mattered more than it looked: `eslint.config.js` sets three
-# `object-ui/*` rules to `error` *specifically* so a new violation fails CI
-# (ADR-0054 Phase 5, #2879, and the objectql.ts ratchet), and each author
-# pre-cleaned the existing sites so the rule would lint clean. All three
-# ratchets were inert because nothing ran them.
+# gated a PR. That mattered more than it looked: every `object-ui/*` rule that
+# `eslint.config.js` sets to `error` is a ratchet — added *specifically* so a
+# new violation fails CI, with its existing sites pre-cleaned first so the rule
+# lints clean on the day it lands. While nothing ran them, every one of them was
+# inert.
+#
+# `eslint.config.js` is the single list of those rules, and this comment
+# deliberately neither counts them nor names them: it used to hand-count, and
+# the count was stale by the time anyone read it (#3261). A hand-copied
+# enumeration drifts by construction, and a stale one still reads as
+# authoritative — `content/docs/guide/ci-cd-pipeline.md` avoids the number for
+# the same reason. `scripts/__tests__/lint-workflow.test.ts` holds that in
+# place: it fails if a count or a rule name reappears here, if the config stops
+# setting any `object-ui/*` rule to `error`, or if this workflow stops gating
+# pull requests.
 #
 # `--max-warnings` is deliberately not set: the 7,724 warnings repo-wide are 81%
 # `no-explicit-any`, plus React Compiler rules the config downgrades on purpose.
