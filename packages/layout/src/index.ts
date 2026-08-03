@@ -27,13 +27,33 @@ export function registerLayout() {
   // namespace. We intentionally do NOT re-register `page:header` here —
   // doing so would (depending on package load order) clobber the
   // record-aware renderer in components with this thinner one.
+  //
+  // `inputs` declares the AUTHORABLE surface, and it must name the same keys
+  // the spec does — the designer and the framework's
+  // `check:react-declaration-parity` read this list and treat everything in it
+  // as a legal input (objectui#3226). `@objectstack/spec/ui`'s
+  // `PageHeaderProps` declares `subtitle`; it has no `description`. This list
+  // used to declare `description`, so the alias did not merely tolerate a
+  // legacy spelling — it ADVERTISED a second dialect for the one concept
+  // `page:header` calls `subtitle`, and metadata authored against it renders
+  // a subtitle here and nothing at all under the canonical key.
+  //
+  // The runtime `subtitle ?? description` fallback in `PageHeader.tsx` stays
+  // for now ON PURPOSE: this alias exists for out-of-repo consumer schemas, so
+  // "no in-repo author writes `description`" is not evidence that nobody does,
+  // and dropping the read would silently delete their second line. That read
+  // is retired together with an ADR-0087 D2 conversion entry
+  // (`page-header-subtitle-alias`, `description` → `subtitle` at load time),
+  // which lives in the framework repo. Narrowing the DECLARATION is
+  // unconditional and independent of that: it breaks no consumer, and it stops
+  // the registry from teaching the wrong key in the meantime.
   ComponentRegistry.register('page-header', PageHeader, {
       namespace: 'layout',
       label: 'Page Header',
       category: 'Layout',
       inputs: [
-          { name: 'title', type: 'string' },
-          { name: 'description', type: 'string' }
+          { name: 'title', type: 'string', label: 'Title' },
+          { name: 'subtitle', type: 'string', label: 'Subtitle' }
       ]
   });
 
