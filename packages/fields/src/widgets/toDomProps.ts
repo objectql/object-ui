@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { FieldWidgetComponentProps } from './types';
+import type { FieldWidgetComponentProps, FieldWidgetDomProps } from './types';
 
 /**
  * The RUNTIME EXECUTOR of the "DOM pass-through" section of
@@ -47,12 +47,13 @@ import type { FieldWidgetComponentProps } from './types';
  * ## Declared = enforced
  *
  * {@link FieldWidgetComponentProps} already DECLARES the closed set of keys a
- * widget may receive, including which of them may legitimately reach a DOM
- * element (objectui#3221). Until now that was a type-level claim a widget
- * could violate at runtime simply by spreading. This function is that
- * declaration's executable form, and the assertion below makes the link
- * mechanical: a key forwarded here that is not declared on the contract is a
- * compile error, so the two cannot drift apart.
+ * widget may receive, and {@link FieldWidgetDomProps} names the subset that may
+ * legitimately reach a DOM element (objectui#3221). Until now that was a
+ * type-level claim a widget could violate at runtime simply by spreading. This
+ * function is that declaration's executable form, and TWO compile-time
+ * assertions below bind them in both directions — forwarding an undeclared key
+ * and declaring an unforwarded DOM key are each a compile error. Neither
+ * direction can drift silently.
  *
  * ## Deliberately NOT forwarded
  *
@@ -92,15 +93,38 @@ const DOM_PASS_THROUGH_KEYS = [
 type DomPassThroughKey = (typeof DOM_PASS_THROUGH_KEYS)[number];
 
 /**
- * Compile-time link to the declaration: every key forwarded at runtime must
- * exist on {@link FieldWidgetComponentProps}. Deleting a key from the contract
- * without deleting it here fails `pnpm --filter @object-ui/fields type-check`,
- * which is what keeps this helper from becoming a second, drifting contract.
+ * Compile-time link to the declaration, direction 1 of 2: every key forwarded
+ * at runtime must exist on {@link FieldWidgetComponentProps}. Deleting a key
+ * from the contract without deleting it here is a compile error.
+ *
+ * Catches: helper forwards something the contract no longer declares.
  */
 type EveryForwardedKeyIsDeclared =
   DomPassThroughKey extends keyof FieldWidgetComponentProps ? true : never;
 const _everyForwardedKeyIsDeclared: EveryForwardedKeyIsDeclared = true;
 void _everyForwardedKeyIsDeclared;
+
+/**
+ * Direction 2 of 2: every key of {@link FieldWidgetDomProps} — the contract's
+ * DOM pass-through block — must be one this helper actually forwards. Adding a
+ * DOM key to the contract without adding it to `DOM_PASS_THROUGH_KEYS` is a
+ * compile error.
+ *
+ * Catches: DECLARED BUT NOT DELIVERED — a key that type-checks, reads as
+ * supported, and silently never reaches the element. That is the failure this
+ * repo treats as first-class (objectui#3290's `aria-required` that never
+ * reached a control; objectui#3222's validation slot nobody produced), and it
+ * is the one direction the leak test structurally CANNOT see: that test looks
+ * for attributes that arrive, not for ones that go missing.
+ *
+ * `className` / `disabled` are not part of `FieldWidgetDomProps` (they are
+ * controlled-input keys this helper also forwards — see above), so they are
+ * bound by direction 1 only. That is deliberate, not an oversight.
+ */
+type EveryDeclaredDomKeyIsForwarded =
+  keyof FieldWidgetDomProps extends DomPassThroughKey ? true : never;
+const _everyDeclaredDomKeyIsForwarded: EveryDeclaredDomKeyIsForwarded = true;
+void _everyDeclaredDomKeyIsForwarded;
 
 const DOM_PASS_THROUGH: ReadonlySet<string> = new Set<string>(DOM_PASS_THROUGH_KEYS);
 

@@ -54,8 +54,23 @@ The forwarded set is the one `FieldWidgetComponentProps` already **declares**:
 `id`, `name`, `autoFocus`, `tabIndex`, `onBlur`, `onFocus`, `onClick`,
 `className`, `disabled`, plus `aria-*` and the `data-*` family. Until now that
 was a type-level claim a widget could violate at runtime just by spreading;
-`toDomProps` is its executable form, and a compile-time assertion ties the two
-together so they cannot drift.
+`toDomProps` is its executable form.
+
+Two compile-time assertions tie the helper to the declaration, and it is worth
+being exact about which drift each one prevents:
+
+- the contract's DOM pass-through block is now a named type
+  (`FieldWidgetDomProps`), and **both directions are compiler-bound**:
+  forwarding a key the contract does not declare fails to compile, and
+  declaring a DOM key the helper does not forward fails to compile too. The
+  second direction guards *declared but not delivered* — a key that
+  type-checks, reads as supported, and silently never reaches the element. The
+  leak test structurally cannot see that class of bug: it looks for attributes
+  that arrive, not for ones that go missing.
+- `className` and `disabled` are bound in the **forward direction only**. They
+  are DOM-legal and are forwarded, but they live in the controlled-input block
+  because widgets also interpret them, so they are deliberately outside
+  `FieldWidgetDomProps`.
 
 An HTML global attribute the contract does not declare (`role`, say) is no
 longer forwarded. It only ever arrived through the open spread. If a field node
