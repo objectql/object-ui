@@ -56,6 +56,13 @@ export const RecordChatterRenderer: React.FC<RecordChatterRendererProps> = ({
       <RecordChatterPanel
         items={(discussion?.items as any) || []}
         config={config}
+        // The host that owns the fetch produces this (app-shell
+        // `RecordDetailView`); without it a hand-placed `record:chatter` /
+        // `record:discussion` spends the whole fetch claiming the record has
+        // no comments (objectui#3209 — #3205 added the render branch, this
+        // is the signal that reaches it). `record:activity` reads the same
+        // field off the same context; no second idiom.
+        loading={discussion?.loading}
         onAddComment={discussion?.onAddComment as any}
         onAddReply={discussion?.onAddReply as any}
         onToggleReaction={discussion?.onToggleReaction as any}

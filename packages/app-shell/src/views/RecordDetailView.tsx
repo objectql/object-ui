@@ -1342,6 +1342,34 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     [user?.id, user?.name, user?.image, permissionsLoaded, systemPermissions],
   );
 
+  // ── Feed loading signal (objectui#3209) ──────────────────────────────────
+  //
+  // This view OWNS the discussion fetch (the two `find`s below are the only
+  // thing that can fill `feedItems`), so it is the only place that can say
+  // "still fetching". Until this existed nobody on the chain could: the
+  // panel spent every fetch asserting `No comments yet` — a factual claim
+  // about the record — and then contradicted itself when the rows landed.
+  // #3205 gave `RecordActivityTimeline` the loading render branch; this is
+  // the missing SIGNAL behind it. Same shape as #3165/#3205: produced by the
+  // host that owns the fetch, never guessed at the consumer (a "no items yet
+  // and just mounted" heuristic down in the timeline would be wrong the
+  // moment a record genuinely has no comments).
+  //
+  // Keyed rather than a plain boolean, deliberately. A `useState(false)` +
+  // `setFeedLoading(true)` inside the effect paints the empty state for the
+  // frame before the effect runs, and navigating to another record would show
+  // the PREVIOUS record's settled state until its effect re-fired. Deriving
+  // "the key I would fetch for ≠ the key I have settled" makes the very first
+  // render of a record already read as loading, with no reset effect.
+  // `record:activity` derives its own flag the same way (`canSelfFetch &&
+  // fetched === null`) — one idiom, not two.
+  const feedFetchKey =
+    dataSource && objectName && pureRecordId && (feedsEnabled || activitiesEnabled)
+      ? `${objectName}:${pureRecordId}`
+      : null;
+  const [settledFeedKey, setSettledFeedKey] = useState<string | null>(null);
+  const feedLoading = feedFetchKey !== null && settledFeedKey !== feedFetchKey;
+
   // Fetch comments from API.
   //
   // NOTE: Record-level presence ("who else is viewing this record") used to
@@ -1353,7 +1381,12 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // realtime / OCC plan.
   useEffect(() => {
     if (!dataSource || !objectName || !pureRecordId) return;
+    let cancelled = false;
     const threadId = `${objectName}:${pureRecordId}`;
+    // The two reads below run in PARALLEL and are collected here so the
+    // loading flag can close over BOTH of them — see the `allSettled` at the
+    // end of this effect.
+    const inFlight: Promise<unknown>[] = [];
 
     // M10.10: Fetch persisted comments from sys_comment. Field names
     // are snake_case to match the platform-objects schema
@@ -1380,7 +1413,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       }));
     };
 
-    if (feedsEnabled) dataSource.find('sys_comment', { $filter: { thread_id: threadId }, $orderby: { created_at: 'asc' } })
+    if (feedsEnabled) inFlight.push(dataSource.find('sys_comment', { $filter: { thread_id: threadId }, $orderby: { created_at: 'asc' } })
       .then((res: any) => {
         if (!res?.data?.length) return;
         const mapped: FeedItem[] = res.data.map((c: any) => ({
@@ -1404,7 +1437,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           });
         });
       })
-      .catch(() => {});
+      .catch(() => {}));
 
     // M10.11: Fetch sys_activity rows for this record and merge into the
     // timeline. plugin-audit's writers populate sys_activity on every
@@ -1438,7 +1471,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       login:     undefined,
       logout:    undefined,
     };
-    if (activitiesEnabled) dataSource.find('sys_activity', {
+    if (activitiesEnabled) inFlight.push(dataSource.find('sys_activity', {
       $filter: { object_name: objectName, record_id: pureRecordId },
       $orderby: { timestamp: 'asc' },
       $top: 200,
@@ -1485,8 +1518,22 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           });
         });
       })
-      .catch(() => {});
-  }, [dataSource, objectName, pureRecordId, currentUser, feedsEnabled, activitiesEnabled]);
+      .catch(() => {}));
+
+    // The panel leaves the loading state exactly once, when BOTH reads have
+    // answered. `allSettled` over promises that already carry their own
+    // `.catch(() => {})` is what makes a FAILED read count as an answer: a
+    // 404 from `sys_activity` (deployment without the audit plugin) or a
+    // rejected `sys_comment` must land the panel on the empty state, never
+    // pin it in a permanent spinner. Keyed off `feedFetchKey` so a settle
+    // that arrives after the user has navigated to another record cannot
+    // clear the new record's loading state.
+    Promise.allSettled(inFlight).then(() => {
+      if (!cancelled) setSettledFeedKey(feedFetchKey);
+    });
+
+    return () => { cancelled = true; };
+  }, [dataSource, objectName, pureRecordId, currentUser, feedsEnabled, activitiesEnabled, feedFetchKey]);
 
   /**
    * Note: comment-mention → notification fan-out lives on the server
@@ -2082,6 +2129,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         <HighlightFieldsProvider>
         <DiscussionContextProvider
           items={feedItems as any}
+          loading={feedLoading}
           onAddComment={handleAddComment as any}
           onAddReply={handleAddReply as any}
           onToggleReaction={handleToggleReaction as any}
@@ -2163,6 +2211,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
                       },
                     }}
                     items={feedItems}
+                    loading={feedLoading}
                     onAddComment={handleAddComment}
                     onAddReply={handleAddReply}
                     onToggleReaction={handleToggleReaction}
