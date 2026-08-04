@@ -96,4 +96,19 @@ describe('PermissionMatrixEditPage — B1 first-screen collapse (objectui#2600)'
     expect(screen.getByTestId('cap-picker')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Add capability/i })).toBeNull();
   });
+
+  // objectui#3332 — a large capability chip wall (44+ grants → 20+ rows) is a
+  // non-shrinking sibling of the flex-1 object matrix; unbounded it squeezed
+  // the matrix to ~9px with no page scrollbar. The picker must sit inside a
+  // height-capped, internally-scrolling container so the matrix keeps the rest
+  // of the viewport.
+  it('caps the capability area with its own scroll so the matrix stays reachable (objectui#3332)', async () => {
+    await renderSet({
+      systemPermissions: Array.from({ length: 44 }, (_, i) => `navigation.item_${i}`),
+    });
+    const wrap = screen.getByTestId('capability-scroll');
+    expect(wrap).toContainElement(screen.getByTestId('cap-picker'));
+    expect(wrap.className).toContain('overflow-y-auto');
+    expect(wrap.className).toMatch(/max-h-/);
+  });
 });

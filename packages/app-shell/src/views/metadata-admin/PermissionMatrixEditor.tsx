@@ -775,15 +775,26 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
             <p className="text-xs text-muted-foreground mt-0.5 mb-2">
               {t('perm.field.systemCapabilitiesHelp')}
             </p>
-            <CapabilityMultiSelectField
-              value={JSON.stringify(draft.systemPermissions ?? [])}
-              onChange={(v: unknown) =>
-                setDraft((p) => ({ ...p, systemPermissions: parseCapabilityNames(v) }))
-              }
-              field={{ name: 'system_permissions' } as any}
-              dataSource={adapter as any}
-              readonly={!writable}
-            />
+            {/* objectui#3332 — the capability chip wall grows with the live
+                sys_capability registry (44+ nav capabilities → 20+ rows). It is
+                a non-shrinking sibling of the flex-1 matrix, so unbounded it
+                squeezes the object list to ~0px with no page scrollbar. Cap it
+                to a viewport share and scroll internally; the matrix keeps the
+                remaining height (per #2600 B1 the picker itself stays inline). */}
+            <div
+              data-testid="capability-scroll"
+              className="max-h-[30vh] overflow-y-auto overscroll-contain"
+            >
+              <CapabilityMultiSelectField
+                value={JSON.stringify(draft.systemPermissions ?? [])}
+                onChange={(v: unknown) =>
+                  setDraft((p) => ({ ...p, systemPermissions: parseCapabilityNames(v) }))
+                }
+                field={{ name: 'system_permissions' } as any}
+                dataSource={adapter as any}
+                readonly={!writable}
+              />
+            </div>
           </div>
         )}
 
