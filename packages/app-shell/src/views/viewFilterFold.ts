@@ -76,11 +76,19 @@ function isGroupLike(value: unknown): value is FilterGroupLike {
  *   server's enum rejects it loudly, rather than being coerced to `equals`.
  * - **Blank rows are dropped.** `Add filter` inserts a row with `field: ''`;
  *   it is not yet a filter. (Same predicate the Studio inspector used.)
- * - **`id` is stripped.** It is a React list key, not spec vocabulary. The read
- *   path regenerates it — `parseSpecFilter`'s `parseTriplet` always mints
- *   `crypto.randomUUID()`, and `parseSingleOrNested` does `item.id ||
- *   crypto.randomUUID()` — so nothing downstream needs it persisted, and the
- *   at-rest body stays the declared `{field, operator, value}` only.
+ * - **`id` is stripped.** It is a React list key, not spec vocabulary. Two
+ *   independent reasons, both measured:
+ *   1. `ViewFilterRuleSchema` is a `strictObject` over `{field, operator,
+ *      value}` — the spec version this repo pins REJECTS a rule carrying `id`
+ *      with `unrecognized_keys` on `filter.0`. (The issue's replay matrix saw
+ *      variant ② accepted against a server running framework `main`, where
+ *      #5154 tolerates the extra key; objectui's own pin does not. Keeping the
+ *      id would only trade one 422 for another.)
+ *   2. Nothing downstream needs it persisted: the read path regenerates it —
+ *      `parseSpecFilter`'s `parseTriplet` always mints `crypto.randomUUID()`,
+ *      and `parseSingleOrNested` / `toFilterGroup` fall back to one — so the
+ *      builder round-trip is lossless without it.
+ *   `viewFilterFold.test.ts` pins both.
  * - **`value` is carried verbatim**, including `''` (the row the toolbar emits
  *   the moment a field is picked). `ViewFilterRuleSchema.value` accepts it and
  *   rewriting it here would silently change what the user saved.

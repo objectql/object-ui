@@ -245,6 +245,31 @@ describe('the folded body is what the spec actually accepts (replay-matrix closu
         expect(paths).toContain('filter');
     });
 
+    // Replay variant ② — flat rule list, but still carrying the builder's row
+    // `id`. The issue's matrix recorded this as ACCEPTED against a server
+    // running framework `main` (PR #5154 tolerates the undeclared key). It is
+    // NOT accepted by the spec objectui itself pins: `ViewFilterRuleSchema` is
+    // a `strictObject` over `{field, operator, value}` only. So stripping `id`
+    // is not merely the tidier at-rest shape — under this pin it is required,
+    // and a fold that kept the id would trade a 422 `invalid_union` for a 422
+    // `unrecognized_keys`. This pins the measurement behind that decision; if a
+    // later spec bump declares `id`, this test is the one that says so.
+    it('#5159 variant ②: a rule keeping the builder `id` is REJECTED, on `filter.0`', () => {
+        const withId = { id: '712135fb-58c5-4be4-a611-1925181509b0', field: 'title', operator: 'equals', value: '' };
+        const parsed = ListViewSchema.safeParse(viewBody([withId]));
+        expect(parsed.success).toBe(false);
+        const issues = (parsed as any).error.issues;
+        expect(issues.map((i: any) => i.path.join('.'))).toContain('filter.0');
+        expect(issues.map((i: any) => i.code)).toContain('unrecognized_keys');
+    });
+
+    // …and the fold is what keeps us out of variant ②.
+    it('the fold strips the `id` that variant ② proves the spec rejects', () => {
+        const folded = foldFilterGroupToSpecRules(CAPTURED_TOOLBAR_GROUP);
+        expect(folded.ok).toBe(true);
+        expect(folded.ok && folded.rules.every((r) => !('id' in r))).toBe(true);
+    });
+
     // Replay variant ③ — what the fold now emits.
     it('#5159 variant ③: the folded rule array is ACCEPTED by ListViewSchema', () => {
         const folded = foldFilterGroupToSpecRules(CAPTURED_TOOLBAR_GROUP);
