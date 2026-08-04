@@ -107,6 +107,14 @@ export const ActionParamDialog: React.FC<ActionParamDialogProps> = ({
   const renderField = (param: ActionParamDef) => {
     const value = values[param.name];
     const error = errors[param.name];
+    // Required is a STATE and must reach the CONTROL, not just the label's
+    // asterisk (objectui#3299, same shape as #3290/#3298): `aria-required` on
+    // each control, `aria-hidden` on the `*` so it stays out of the accessible
+    // name. Deliberately NOT the native `required` attribute — that would arm
+    // the browser's constraint-validation bubble alongside this dialog's own
+    // "<label> is required" messages (#3290 ruling). `|| undefined` so an
+    // optional param carries no attribute at all.
+    const ariaRequired = param.required || undefined;
 
     switch (param.type) {
       case 'textarea':
@@ -114,10 +122,11 @@ export const ActionParamDialog: React.FC<ActionParamDialogProps> = ({
           <div key={param.name} className="space-y-2">
             <Label htmlFor={param.name}>
               {param.label}
-              {param.required && <span className="text-destructive ml-1">*</span>}
+              {param.required && <span className="text-destructive ml-1" aria-hidden="true">*</span>}
             </Label>
             <Textarea
               id={param.name}
+              aria-required={ariaRequired}
               value={value || ''}
               onChange={(e) => handleChange(param.name, e.target.value)}
               placeholder={param.placeholder}
@@ -134,10 +143,11 @@ export const ActionParamDialog: React.FC<ActionParamDialogProps> = ({
           <div key={param.name} className="space-y-2">
             <Label htmlFor={param.name}>
               {param.label}
-              {param.required && <span className="text-destructive ml-1">*</span>}
+              {param.required && <span className="text-destructive ml-1" aria-hidden="true">*</span>}
             </Label>
             <Input
               id={param.name}
+              aria-required={ariaRequired}
               type="number"
               value={value ?? ''}
               onChange={(e) => handleChange(param.name, Number.isNaN(e.target.valueAsNumber) ? '' : e.target.valueAsNumber)}
@@ -170,13 +180,15 @@ export const ActionParamDialog: React.FC<ActionParamDialogProps> = ({
           <div key={param.name} className="space-y-2">
             <Label htmlFor={param.name}>
               {param.label}
-              {param.required && <span className="text-destructive ml-1">*</span>}
+              {param.required && <span className="text-destructive ml-1" aria-hidden="true">*</span>}
             </Label>
             <Select
               value={value || ''}
               onValueChange={(val) => handleChange(param.name, val)}
             >
-              <SelectTrigger>
+              {/* The trigger IS the focusable combobox control, so the state
+                  belongs on it (the Radix root renders no element of its own). */}
+              <SelectTrigger aria-required={ariaRequired}>
                 <SelectValue placeholder={param.placeholder || 'Select...'} />
               </SelectTrigger>
               <SelectContent>
@@ -199,10 +211,11 @@ export const ActionParamDialog: React.FC<ActionParamDialogProps> = ({
           <div key={param.name} className="space-y-2">
             <Label htmlFor={param.name}>
               {param.label}
-              {param.required && <span className="text-destructive ml-1">*</span>}
+              {param.required && <span className="text-destructive ml-1" aria-hidden="true">*</span>}
             </Label>
             <Input
               id={param.name}
+              aria-required={ariaRequired}
               type="date"
               value={value || ''}
               onChange={(e) => handleChange(param.name, e.target.value)}
@@ -220,10 +233,11 @@ export const ActionParamDialog: React.FC<ActionParamDialogProps> = ({
           <div key={param.name} className="space-y-2">
             <Label htmlFor={param.name}>
               {param.label}
-              {param.required && <span className="text-destructive ml-1">*</span>}
+              {param.required && <span className="text-destructive ml-1" aria-hidden="true">*</span>}
             </Label>
             <Input
               id={param.name}
+              aria-required={ariaRequired}
               type="text"
               value={value || ''}
               onChange={(e) => handleChange(param.name, e.target.value)}

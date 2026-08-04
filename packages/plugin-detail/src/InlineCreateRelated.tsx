@@ -207,11 +207,18 @@ export const InlineCreateRelated: React.FC<InlineCreateRelatedProps> = ({
                 <div key={field.name}>
                   <label className="text-xs font-medium text-muted-foreground mb-1 block">
                     {field.label}
+                    {/* Visual-only (objectui#3299): the required STATE is
+                        announced via `aria-required` on the input below. */}
                     {field.required && (
-                      <span className="text-destructive ml-0.5">*</span>
+                      <span className="text-destructive ml-0.5" aria-hidden="true">*</span>
                     )}
                   </label>
                   <Input
+                    // State channel for required (objectui#3299) — not the native
+                    // `required` attribute, per the #3290 ruling (it would arm the
+                    // browser's constraint-validation UI alongside this form's own
+                    // `isCreateValid` gating).
+                    aria-required={field.required || undefined}
                     type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
                     placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
                     value={formValues[field.name] || ''}

@@ -61,7 +61,7 @@ const FieldContainer = React.forwardRef<HTMLDivElement, FieldProps>(
           </Label>
         )}
         
-        <SlotPrimitive 
+        <SlotPrimitive
           id={fieldId}
           aria-describedby={
             [description && descriptionId, error && errorId]
@@ -69,6 +69,15 @@ const FieldContainer = React.forwardRef<HTMLDivElement, FieldProps>(
               .join(" ") || undefined
           }
           aria-invalid={!!error}
+          // Required is a STATE, so it rides the same Slot injection as the
+          // other a11y wiring (objectui#3299) — one line here covers every
+          // consumer of FieldContainer. Until now `required` drove only the
+          // label's CSS asterisk (`after:content-['*']`), which never enters
+          // the a11y tree as a state. `|| undefined` so an optional field
+          // carries no attribute. Deliberately NOT the native `required`
+          // attribute (#3290 ruling: it arms browser constraint validation
+          // alongside the host's own `error` slot).
+          aria-required={required || undefined}
         >
           {children}
         </SlotPrimitive>

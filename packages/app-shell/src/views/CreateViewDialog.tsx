@@ -507,10 +507,14 @@ export function CreateViewDialog({
                     className="text-xs font-medium"
                   >
                     {t(rf.i18nKey)}
-                    <span className="ml-1 text-destructive">*</span>
+                    {/* Visual-only (objectui#3299): required is announced as a
+                        STATE via `aria-required` on the control; hiding the `*`
+                        keeps "asterisk" out of the accessible name. */}
+                    <span className="ml-1 text-destructive" aria-hidden="true">*</span>
                   </label>
                   <select
                     id={`create-view-required-${rf.key}`}
+                    aria-required="true"
                     data-testid={`create-view-required-${rf.key}`}
                     value={selectedFieldValue}
                     onChange={(e) => setRequiredValue(rf.key, e.target.value)}
@@ -554,10 +558,11 @@ export function CreateViewDialog({
         <div className="space-y-1">
           <label htmlFor="create-view-name-input" className="text-xs font-medium">
             {t('console.objectView.title')}
-            <span className="ml-1 text-destructive">*</span>
+            <span className="ml-1 text-destructive" aria-hidden="true">*</span>
           </label>
           <Input
             id="create-view-name-input"
+            aria-required="true"
             data-testid="create-view-name-input"
             autoFocus
             value={label}
@@ -576,10 +581,11 @@ export function CreateViewDialog({
         <div className="space-y-1">
           <label htmlFor="create-view-machine-name-input" className="text-xs font-medium">
             {t('console.objectView.viewName')}
-            <span className="ml-1 text-destructive">*</span>
+            <span className="ml-1 text-destructive" aria-hidden="true">*</span>
           </label>
           <Input
             id="create-view-machine-name-input"
+            aria-required="true"
             data-testid="create-view-machine-name-input"
             value={name}
             onChange={(e) => { setName(e.target.value); setNameTouched(true); }}

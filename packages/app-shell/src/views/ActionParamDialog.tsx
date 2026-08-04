@@ -236,11 +236,20 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
                         onChange={(checked: unknown) => updateValue(param.name, checked === true)}
                         field={field}
                         className="mt-0.5"
+                        // Required is a STATE, so it rides the state channel to the
+                        // control (objectui#3299, same shape as #3290/#3298). The
+                        // widget's `toDomProps` whitelist forwards `aria-*` by
+                        // prefix, so this lands on the rendered control. `|| undefined`
+                        // so an optional param carries no attribute at all.
+                        aria-required={param.required || undefined}
                       />
                     </Suspense>
                     <Label htmlFor={param.name} className="font-normal cursor-pointer">
                       {param.label}
-                      {param.required && <span className="text-destructive ml-1">*</span>}
+                      {/* Visual-only: the state is announced via `aria-required` on
+                          the control; without `aria-hidden` the bare `*` would fold
+                          into the accessible name ("Label asterisk"). */}
+                      {param.required && <span className="text-destructive ml-1" aria-hidden="true">*</span>}
                     </Label>
                   </div>
                   {errors[param.name] && (
@@ -257,7 +266,10 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
             <div key={param.name} className="grid gap-2">
               <Label htmlFor={param.name}>
                 {param.label}
-                {param.required && <span className="text-destructive ml-1">*</span>}
+                {/* Visual-only (objectui#3299): `aria-required` on the widget is
+                    the announced channel; hiding the `*` keeps it out of the
+                    control's accessible name. */}
+                {param.required && <span className="text-destructive ml-1" aria-hidden="true">*</span>}
               </Label>
 
               <Suspense fallback={<WidgetFallback />}>
@@ -267,6 +279,13 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
                   onChange={(v: unknown) => updateValue(param.name, v)}
                   field={field}
                   className={errors[param.name] ? 'border-destructive' : ''}
+                  // State channel for required (objectui#3299) — deliberately NOT
+                  // the native `required` attribute (#3290 ruling: that would arm
+                  // the browser's constraint-validation bubble alongside the
+                  // dialog's own `requiredError` messages — two validators, one
+                  // field). Widgets forward `aria-*` via their `toDomProps`
+                  // whitelist, so this reaches the real control.
+                  aria-required={param.required || undefined}
                   {...uploadProps}
                 />
               </Suspense>
