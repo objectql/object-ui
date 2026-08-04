@@ -38,6 +38,7 @@ import {
   X,
 } from 'lucide-react';
 import type { DataSource, LookupColumnDef, LookupFilterDef } from '@object-ui/types';
+import { useSafeFieldLabel } from '@object-ui/i18n';
 import { useFieldTranslation } from './useFieldTranslation';
 import { useRecordQuery } from './useRecordQuery';
 
@@ -279,6 +280,18 @@ export interface RecordPickerDialogProps {
   cellRenderer?: CellRendererResolver;
 
   /**
+   * The referenced object's schema `fields` map (field name → field
+   * definition). When provided, cell renderers receive the FULL field
+   * metadata — `options`, `currency`, `scale`, `precision`, `format`,
+   * `reference_to`, … — exactly like the list view enriches its columns from
+   * the object schema. Without it a `select` column falls back to
+   * title-casing the raw stored value instead of resolving the option label
+   * (#3333: `manufacturing` rendered as "Manufacturing" instead of the
+   * authored option label).
+   */
+  fieldsMeta?: Record<string, any>;
+
+  /**
    * Filter bar column definitions.
    * When provided, shows an inline filter bar below the search input.
    * Columns can include type-specific inputs (text, number, select, date, boolean).
@@ -344,11 +357,13 @@ export function RecordPickerDialog({
   lookupFilters,
   baseFilter,
   cellRenderer,
+  fieldsMeta,
   filterColumns,
   renderFilterBar,
   renderGrid,
 }: RecordPickerDialogProps) {
   const { t } = useFieldTranslation();
+  const { translateOptions } = useSafeFieldLabel();
 
   // Query state (records/loading/error/total + page/search/sort) lives in the
   // shared useRecordQuery kernel — instantiated after mergedFilter below.
@@ -384,6 +399,29 @@ export function RecordPickerDialog({
     // Auto-infer: just use displayField
     return [{ field: displayField, label: fieldToLabel(displayField) }];
   }, [columnsProp, displayField]);
+
+  // Field descriptors handed to the type-aware cell renderers, enriched from
+  // the referenced object's schema (`fieldsMeta`) the same way the list view
+  // enriches its columns. This is what lets a `select` column resolve its
+  // option label (options + i18n) instead of title-casing the raw value
+  // (#3333). Columns whose def carries no `type` inherit the schema field's
+  // type so authored string `lookup_columns` format identically.
+  const columnFieldDescriptors = useMemo<Record<string, any>>(() => {
+    const map: Record<string, any> = {};
+    for (const col of resolvedColumns) {
+      const meta = fieldsMeta?.[col.field];
+      const type = col.type ?? meta?.type;
+      if (!type) continue;
+      const descriptor: any = meta
+        ? { ...meta, name: col.field, type }
+        : { name: col.field, type };
+      if (Array.isArray(descriptor.options) && objectName) {
+        descriptor.options = translateOptions(objectName, col.field, descriptor.options);
+      }
+      map[col.field] = descriptor;
+    }
+    return map;
+  }, [resolvedColumns, fieldsMeta, objectName, translateOptions]);
 
   // Auto-generate filter columns from lookupFilters when no explicit filterColumns given.
   // Each LookupFilterDef becomes a filterable field with inferred type.
@@ -637,11 +675,13 @@ export function RecordPickerDialog({
 
     const val = record[col.field];
 
-    // Use type-aware renderer when column type and resolver are available
-    if (col.type && cellRenderer) {
-      const Renderer = cellRenderer(col.type);
+    // Use type-aware renderer when a field descriptor (column `type`, or the
+    // schema field's type via `fieldsMeta`) and a resolver are available.
+    const descriptor = columnFieldDescriptors[col.field];
+    if (descriptor && cellRenderer) {
+      const Renderer = cellRenderer(descriptor.type);
       if (Renderer) {
-        return <Renderer value={val} field={{ name: col.field, type: col.type } as any} />;
+        return <Renderer value={val} field={descriptor} />;
       }
     }
 
@@ -657,7 +697,7 @@ export function RecordPickerDialog({
     }
     if (typeof val === 'boolean') return val ? 'Yes' : 'No';
     return String(val);
-  }, [cellRenderer, titleFormat, displayField]);
+  }, [cellRenderer, titleFormat, displayField, columnFieldDescriptors]);
 
   // Render sort indicator for a column
   const renderSortIcon = useCallback((field: string) => {

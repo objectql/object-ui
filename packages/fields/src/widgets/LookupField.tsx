@@ -1248,6 +1248,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
           lookupFilters={lookupFilters}
           baseFilter={dependentFilter}
           cellRenderer={getCellRendererResolver()}
+          fieldsMeta={refObjectSchema?.fields}
           filterColumns={filterColumns}
         />
       )}
