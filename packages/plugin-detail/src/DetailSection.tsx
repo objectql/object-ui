@@ -33,8 +33,8 @@ import { useDetailTranslation } from './useDetailTranslation';
 import { useSafeFieldLabel } from '@object-ui/react';
 import { PermissionFacetLink } from './renderers/PermissionFacetLink';
 import { NON_EDITABLE_SYSTEM_FIELDS } from './systemFields';
-import { InlineFieldInput, TEXTUAL_REF_FALLBACK_TYPES } from './InlineFieldInput';
-import { enrichDetailField } from './fieldEnrichment';
+import { InlineFieldInput } from './InlineFieldInput';
+import { enrichDetailField, isComputedFieldType } from './fieldEnrichment';
 
 /**
  * Section-header icon. `fieldGroups[].icon` declares a Lucide name (spec),
@@ -224,8 +224,12 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     // fields explicitly flagged `readonly` are never editable. `onEnterInlineEdit`
     // is only threaded when the record itself is inline-editable, so its presence
     // carries the object-lifecycle + permission gate.
-    const inlineEditType = enrichedField.type || field.type;
-    const isComputedField = TEXTUAL_REF_FALLBACK_TYPES.has(inlineEditType as string);
+    // Read the authored view type and the object type SEPARATELY — the gate is
+    // the UNION of the two, so an authored display `type` (which still drives
+    // renderer/editor selection through `enrichedField.type`) can narrow
+    // editability but never widen it (objectui#3355). Shared with
+    // HeaderHighlight via `isComputedFieldType` so the two can't drift.
+    const isComputedField = isComputedFieldType(field.type, objectDefField?.type);
     // Honor the OBJECT metadata's read-only flag too — the enrichment above
     // intentionally doesn't copy `readonly` into enrichedField, so read it
     // straight off objectDefField (covers formula / non-updateable fields the

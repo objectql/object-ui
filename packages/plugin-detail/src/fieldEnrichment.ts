@@ -7,6 +7,60 @@
  */
 
 /**
+ * Field types the PLATFORM computes — the value is machine-owned and no user
+ * write is legitimate. They carry a `reference_to` for relational metadata but
+ * have no editor of their own.
+ *
+ * One set, three readers, so they cannot drift: `InlineFieldInput` renders them
+ * as text instead of hijacking them into a record picker, and both editability
+ * gates (`DetailSection`, `HeaderHighlight`) treat them as never inline-editable.
+ * It lives beside `enrichDetailField` — deciding whether a column is
+ * machine-computed is part of resolving a detail field's shape out of the view
+ * entry plus the object schema, not the private business of any one component.
+ * Re-exported from `InlineFieldInput` under its historical name.
+ */
+export const TEXTUAL_REF_FALLBACK_TYPES = new Set([
+  'formula',
+  'summary',
+  'rollup',
+  'auto_number',
+]);
+
+/**
+ * Is this field machine-computed, given the type authored on the view entry and
+ * the type declared on the object schema?
+ *
+ * **Narrow-only — the answer is the UNION of the two.** Either type being
+ * computed locks the field. An authored `type` is a DISPLAY override: it picks
+ * the cell renderer and the editor, and that selection keeps its usual
+ * precedence (`viewFieldType || objectFieldType`) everywhere else. It can
+ * therefore only ever *narrow* editability, never widen it.
+ *
+ * Before objectui#3355 both gates resolved a single effective type with that
+ * same display precedence, so an authored non-computed type ERASED the object's
+ * computed declaration from the gate's view. The app that reported
+ * objectstack-ai/objectstack#5077 ships `{ name: 'supply_share', type: 'number' }`
+ * — a display override worked around objectstack#5066 — over a hook-maintained
+ * ROLLUP, and the header chip became inline-editable: a user overwrote the
+ * computed value by hand and it stayed corrupted until an unrelated child-row
+ * touch re-fired the rollup (downstream yinlianghui/hotcrm-heimao#61).
+ *
+ * The object schema is authoritative about what is machine-owned; a
+ * presentation override has no business granting write access. Narrowing still
+ * works — an authored `type: 'formula'` locks a plain object column, which is
+ * how a view declares "this column is computed elsewhere".
+ */
+export function isComputedFieldType(
+  viewFieldType: unknown,
+  objectFieldType: unknown,
+): boolean {
+  return (
+    TEXTUAL_REF_FALLBACK_TYPES.has(viewFieldType as string) ||
+    TEXTUAL_REF_FALLBACK_TYPES.has(objectFieldType as string)
+  );
+}
+
+/**
  * Object-metadata keys carried onto a detail-view field so the read cell and
  * the inline editor see the SAME resolved field shape the object form does.
  *
