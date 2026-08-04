@@ -84,6 +84,11 @@ export interface ConsoleServerActionOptions {
   t?: ConsoleServerActionTranslate;
 }
 
+/** Minimal HTML escape for locale strings interpolated into the spinner document. */
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 /**
  * Pre-open `about:blank` synchronously (user-gesture context) and paint
  * progress immediately so the tab isn't blank/frozen during the (slow)
@@ -94,11 +99,6 @@ export interface ConsoleServerActionOptions {
  * fallback would fire, and the CURRENT tab would navigate to the now-consumed
  * SSO URL (the double-navigation bug).
  */
-/** Minimal HTML escape for locale strings interpolated into the spinner document. */
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
 function preOpenSpinnerTab(t: ConsoleServerActionTranslate): Window | null {
   try {
     const tab = window.open('about:blank', '_blank');
