@@ -7,6 +7,7 @@
  */
 
 import { ComponentRegistry, type ComponentInput } from '@object-ui/core';
+import { withFieldCarrier } from '@object-ui/fields';
 import { DetailView } from './DetailView';
 import { DetailSection } from './DetailSection';
 import { DetailTabs } from './DetailTabs';
@@ -456,7 +457,13 @@ ComponentRegistry.register('alert', RecordAlertRenderer, {
 // the record form and inline edit resolve `field:permission-facet-link`; the
 // detail read path special-cases it in DetailSection. Setup never edits these
 // facets — they are designed in Studio's structured editors.
-ComponentRegistry.register('permission-facet-link', PermissionFacetLink, {
+//
+// `withFieldCarrier` is MANDATORY on every `field:` registration (objectui#3233
+// / #3307): `SchemaRenderer` hands the authored node over as `schema`, and the
+// adapter converges it onto `field` — the field-widget contract's only
+// metadata carrier. Registered raw, the widget reads `field === undefined`
+// under the SDUI path and silently renders an anonymous summary.
+ComponentRegistry.register('permission-facet-link', withFieldCarrier(PermissionFacetLink), {
   namespace: 'field',
   skipFallback: true,
 });

@@ -19,6 +19,7 @@
  */
 
 import type { BaseSchema } from './base';
+import type { BulkActionOperation } from '@objectstack/spec/ui';
 import type { FormField } from './form';
 // ListView type is now derived from the zod schema (issue #2231) — see ListViewSchema below.
 import type { ListViewInferred } from './zod/objectql.zod.js';
@@ -309,8 +310,13 @@ export interface BulkActionParam {
  * executor dispatches that action through the action runner: once per record by
  * default, or once for the whole selection when the def opts into
  * {@link BulkActionDef.execution} `'aggregate'` (objectui#3139).
+ *
+ * Spec-owned since 17.0.0-rc.2 (`@objectstack/spec/ui` exports the identical
+ * `'update' | 'delete' | 'custom'` union); re-exported so consumers keep this
+ * import path. (Imported at the top of this module — BulkActionDef below
+ * references it.)
  */
-export type BulkActionOperation = 'update' | 'delete' | 'custom';
+export type { BulkActionOperation };
 
 /**
  * Rich, schema-driven definition of a bulk action.

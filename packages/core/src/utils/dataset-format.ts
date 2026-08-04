@@ -17,6 +17,8 @@
  * by both `@object-ui/plugin-dashboard` and `@object-ui/plugin-report`.
  */
 
+import type { PercentScale } from '@objectstack/spec/data';
+
 /**
  * Column metadata the analytics server returns alongside the rows: a display
  * `label` for both dimensions and measures, plus a measure's numeral `format`
@@ -41,8 +43,12 @@ export interface DatasetResultField {
  * field's scale) and carried on the result column, so display never has to
  * infer it from the value's magnitude — the inference that printed a ratio of
  * exactly 1 as "1.0%" (#3136).
+ *
+ * Spec-owned since 17.0.0-rc.2 (`@objectstack/spec/data` exports the identical
+ * union); re-exported here so existing `@object-ui/core` consumers keep their
+ * import path.
  */
-export type PercentScale = 'fraction' | 'whole';
+export type { PercentScale } from '@objectstack/spec/data';
 
 /**
  * Scale a stored `percent`-field value to its DISPLAY magnitude.

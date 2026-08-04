@@ -27,6 +27,7 @@ one has its own section below.
 | `lint.yml` | Lint | Push / PR to `main`, `develop`; manual | **Yes** — ESLint **errors** only |
 | `changeset-guard.yml` | Changeset Bump Policy | PR / push touching `.changeset/**` | **Yes** |
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
+| `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane, `continue-on-error` |
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
 | `dependabot-auto-merge.yml` | Dependabot Auto-merge | PR to `main`/`develop` authored by `dependabot[bot]` | No |
 | `cross-repo-issue-closer.yml` | Cross-repo Issue Closer | PR `closed` (acts only when merged) | No — runs after merge |
@@ -143,6 +144,25 @@ reviewers; exceeding any of them turns no check red and blocks no merge:
 > documentation because it advertises a guardrail that does not exist. If you want
 > these tiers enforced, add the comparison to the workflow — do not describe it as
 > enforced here.
+
+## Live E2E (`live-e2e.yml`)
+
+**Trigger:** PRs to `main` / `develop` (same code-path filter as `ci.yml` — docs-only and
+changeset-only PRs skip it), a nightly cron (`30 6 * * *`) on `main`, and manual dispatch.
+
+**Blocks a merge: no.** The job runs with `continue-on-error: true` by construction — a red run
+is informational and never ejects a PR from the merge queue. Do not add it to required checks
+(and do not remove `continue-on-error`) until the nightly record proves the lane stable; see the
+header comment in the workflow file (#2835).
+
+What it does: runs the allowlisted live specs (`pnpm test:e2e:live:ci` — screen-flow,
+action-modal, master-detail) against a real `objectstack dev` backend booted from **published**
+`@objectstack/*` packages serving the showcase app, catching the class of bug only a real
+browser against a real backend can see. Failures still surface as a red step plus an uploaded
+Playwright report and job summary.
+
+Backend pins live in `e2e/live/ci/backend.env` and must match the `@objectstack/spec` version in
+`pnpm-lock.yaml` — bump both in the same PR, or the run proves nothing.
 
 ## Link Checking (`check-links.yml`)
 
