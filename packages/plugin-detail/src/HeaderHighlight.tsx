@@ -104,7 +104,7 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
             // object metadata), and immutable system/audit fields never edit.
             const isComputed = TEXTUAL_REF_FALLBACK_TYPES.has(resolvedType as string);
             const isReadonly =
-              (field as any).readonly === true || objectDefField?.readonly === true;
+              field.readonly === true || objectDefField?.readonly === true;
             const isSystem = NON_EDITABLE_SYSTEM_FIELDS.has(field.name);
             const fieldEditable = !isComputed && !isReadonly && !isSystem;
             const canInlineEditField = canEdit && fieldEditable;

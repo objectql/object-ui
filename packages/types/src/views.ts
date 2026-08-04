@@ -134,6 +134,20 @@ export interface HighlightField {
   type?: DetailViewField['type'];
   /** Optional icon */
   icon?: string;
+  /**
+   * Whether the chip is read-only — no inline-edit affordance, ever.
+   *
+   * Mirrors `DetailViewField.readonly` so the highlights strip and the details
+   * body take the same declaration. The strip's editability gate has always
+   * read this key; it is declared here so it is a typed part of the surface
+   * rather than an `any` cast (objectstack#5077).
+   *
+   * Use it for columns whose value is owned by the platform rather than the
+   * user — hook-maintained rollups, approval-written grades — where marking
+   * the OBJECT field `readonly` is not an option because that would also strip
+   * the hook's own write-back.
+   */
+  readonly?: boolean;
 }
 
 /**

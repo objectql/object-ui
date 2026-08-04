@@ -66,8 +66,18 @@ export interface RecordDetailsComponentProps {
  * Aligned with @objectstack/spec RecordHighlightsProps.
  */
 export interface RecordHighlightsComponentProps {
-  /** Fields to display as highlights — bare names or {name,label?,icon?,type?} for inline overrides */
-  fields: Array<string | { name: string; label?: string; icon?: string; type?: string }>;
+  /**
+   * Fields to display as highlights — bare names or
+   * `{name,label?,icon?,type?,readonly?}` for inline overrides.
+   *
+   * `readonly: true` suppresses the chip's inline-edit affordance
+   * (objectstack#5077) without touching the object field, which is what
+   * hook-maintained columns need: marking the object field `readonly` would
+   * also strip the hook's own write-back.
+   */
+  fields: Array<
+    string | { name: string; label?: string; icon?: string; type?: string; readonly?: boolean }
+  >;
   /** Layout mode for highlights display */
   layout?: 'horizontal' | 'vertical' | 'grid';
   /** ARIA accessibility attributes */
