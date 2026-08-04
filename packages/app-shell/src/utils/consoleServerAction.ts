@@ -48,6 +48,17 @@ import {
   type ServerActionRecordIdResolver,
 } from '@object-ui/core';
 
+/**
+ * i18next-style translate function: `t(key, englishDefault)` returns the
+ * translation for `key` in the active locale, or `englishDefault` when the
+ * key is missing. Injected from a hook context (`useObjectTranslation().t`)
+ * because this wrapper is a plain function and cannot call hooks itself.
+ */
+export type ConsoleServerActionTranslate = (key: string, englishDefault: string) => string;
+
+/** No-`t` fallback (tests / standalone): every string is its English default. */
+const defaultTranslate: ConsoleServerActionTranslate = (_key, englishDefault) => englishDefault;
+
 export interface ConsoleServerActionOptions {
   /** Authenticated fetch wrapper (Bearer + tenant + cookies). */
   fetch: ServerActionFetch;
@@ -63,6 +74,14 @@ export interface ConsoleServerActionOptions {
   resolveRecordId?: ServerActionRecordIdResolver;
   /** Data invalidation, invoked per the action's `refreshAfter` semantics. */
   onRefresh: () => void;
+  /**
+   * Localizes the user-facing copy this wrapper owns (the SSO spinner tab,
+   * the popup-blocked toast) via the `console.serverAction.*` keys in
+   * `@object-ui/i18n`. Optional: when omitted the English defaults apply —
+   * per AGENTS.md Commandment #-1, no non-English copy lives in code
+   * (objectui#3321).
+   */
+  t?: ConsoleServerActionTranslate;
 }
 
 /**
@@ -75,11 +94,18 @@ export interface ConsoleServerActionOptions {
  * fallback would fire, and the CURRENT tab would navigate to the now-consumed
  * SSO URL (the double-navigation bug).
  */
-function preOpenSpinnerTab(): Window | null {
+/** Minimal HTML escape for locale strings interpolated into the spinner document. */
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function preOpenSpinnerTab(t: ConsoleServerActionTranslate): Window | null {
   try {
     const tab = window.open('about:blank', '_blank');
     if (tab) {
-      tab.document.write('<!doctype html><meta charset="utf-8"><title>正在打开… Opening…</title><body style="margin:0;font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px;color:#4b5563"><div style="width:28px;height:28px;border:3px solid #e5e7eb;border-top-color:#6366f1;border-radius:50%;animation:s .8s linear infinite"></div><div>正在为你打开环境…</div><style>@keyframes s{to{transform:rotate(360deg)}}</style></body>');
+      const title = escapeHtml(t('console.serverAction.openingTitle', 'Opening…'));
+      const body = escapeHtml(t('console.serverAction.openingBody', 'Opening… this may take a moment.'));
+      tab.document.write(`<!doctype html><meta charset="utf-8"><title>${title}</title><body style="margin:0;font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px;color:#4b5563"><div style="width:28px;height:28px;border:3px solid #e5e7eb;border-top-color:#6366f1;border-radius:50%;animation:s .8s linear infinite"></div><div>${body}</div><style>@keyframes s{to{transform:rotate(360deg)}}</style></body>`);
       tab.document.close();
     }
     return tab;
@@ -99,7 +125,7 @@ function closeTab(tab: Window | null): void {
  * and, when the popup blocker eats it, offer a one-click toast instead of
  * silently hijacking the current tab.
  */
-function openInTab(preOpenedTab: Window | null, url: string): void {
+function openInTab(preOpenedTab: Window | null, url: string, t: ConsoleServerActionTranslate): void {
   if (preOpenedTab) {
     try {
       preOpenedTab.location.href = url;
@@ -114,9 +140,9 @@ function openInTab(preOpenedTab: Window | null, url: string): void {
   // null return would always trip the toast fallback.
   try { popup = window.open(url, '_blank'); } catch { popup = null; }
   if (!popup) {
-    toast('浏览器拦截了弹窗 / Popup blocked', {
-      description: '点击在新标签页打开环境',
-      action: { label: '打开环境', onClick: () => { try { window.open(url, '_blank'); } catch { window.location.href = url; } } },
+    toast(t('console.serverAction.popupBlockedTitle', 'Popup blocked'), {
+      description: t('console.serverAction.popupBlockedDescription', 'Your browser blocked the new tab from opening.'),
+      action: { label: t('console.serverAction.popupBlockedAction', 'Open in new tab'), onClick: () => { try { window.open(url, '_blank'); } catch { window.location.href = url; } } },
       duration: 10000,
     });
   }
@@ -131,6 +157,7 @@ export function createConsoleServerActionHandler(opts: ConsoleServerActionOption
     onRefresh: opts.onRefresh,
   });
   const resolveRecordId = opts.resolveRecordId ?? resolveServerActionRecordId;
+  const t = opts.t ?? defaultTranslate;
 
   return async (action: ActionDef, context?: ActionContext) => {
     // ── Zero-roundtrip fast path ────────────────────────────────────────
@@ -151,18 +178,18 @@ export function createConsoleServerActionHandler(opts: ConsoleServerActionOption
       if (recordId == null) {
         return { success: false, error: 'This action runs on a single record — no record id available.' };
       }
-      const preOpenedTab = preOpenSpinnerTab();
+      const preOpenedTab = preOpenSpinnerTab(t);
       // Absolute URL required: the pre-opened tab is an about:blank document,
       // so a bare-relative href has no reliable resolution base.
       const directUrl = `${opts.baseUrl() || window.location.origin}${newTabUrl.replace('{recordId}', encodeURIComponent(String(recordId)))}`;
-      openInTab(preOpenedTab, directUrl);
+      openInTab(preOpenedTab, directUrl, t);
       if (action.refreshAfter === true) opts.onRefresh();
       return { success: true };
     }
 
     // Popup-blocker workaround: pre-open about:blank synchronously before the
     // await so the user-gesture context is preserved.
-    const preOpenedTab = action.opensInNewTab ? preOpenSpinnerTab() : null;
+    const preOpenedTab = action.opensInNewTab ? preOpenSpinnerTab(t) : null;
     try {
       const result = await dispatch(action, context);
       if (!result.success) {
@@ -182,7 +209,7 @@ export function createConsoleServerActionHandler(opts: ConsoleServerActionOption
         ? (payload as { redirectUrl: string }).redirectUrl
         : null;
       if (redirectUrl) {
-        openInTab(preOpenedTab, redirectUrl);
+        openInTab(preOpenedTab, redirectUrl, t);
       } else {
         // Handler didn't return a redirectUrl — close the empty tab we
         // optimistically pre-opened so the user isn't left with about:blank.

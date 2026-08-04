@@ -1419,6 +1419,13 @@ const ar = {
       retry: "إعادة المحاولة",
       retrying: "جاري إعادة المحاولة…",
     },
+    serverAction: {
+      openingTitle: "جارٍ الفتح…",
+      openingBody: "جارٍ الفتح… قد يستغرق ذلك لحظة.",
+      popupBlockedTitle: "تم حظر النافذة المنبثقة",
+      popupBlockedDescription: "حظر المتصفح فتح علامة التبويب الجديدة.",
+      popupBlockedAction: "فتح في علامة تبويب جديدة",
+    },
     shortcuts: {
       title: "اختصارات لوحة المفاتيح",
       description: "مرجع سريع لجميع اختصارات لوحة المفاتيح المتاحة.",

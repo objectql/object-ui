@@ -1414,6 +1414,15 @@ const en = {
       retry: 'Retry',
       retrying: 'Retrying…',
     },
+    // Copy owned by the console server-action wrapper (`consoleServerAction.ts`,
+    // objectui#3321): the pre-opened SSO spinner tab and the popup-blocked toast.
+    serverAction: {
+      openingTitle: 'Opening…',
+      openingBody: 'Opening… this may take a moment.',
+      popupBlockedTitle: 'Popup blocked',
+      popupBlockedDescription: 'Your browser blocked the new tab from opening.',
+      popupBlockedAction: 'Open in new tab',
+    },
     shortcuts: {
       title: 'Keyboard Shortcuts',
       description: 'Quick reference for all available keyboard shortcuts.',

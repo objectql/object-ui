@@ -1419,6 +1419,13 @@ const pt = {
       retry: "Tentar novamente",
       retrying: "Tentando novamente…",
     },
+    serverAction: {
+      openingTitle: "Abrindo…",
+      openingBody: "Abrindo… isso pode levar um momento.",
+      popupBlockedTitle: "Pop-up bloqueado",
+      popupBlockedDescription: "O navegador bloqueou a abertura da nova aba.",
+      popupBlockedAction: "Abrir em nova aba",
+    },
     shortcuts: {
       title: "Atalhos de teclado",
       description: "Referência rápida de todos os atalhos de teclado disponíveis.",

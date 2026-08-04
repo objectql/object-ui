@@ -1419,6 +1419,13 @@ const ru = {
       retry: "Повторить",
       retrying: "Повтор…",
     },
+    serverAction: {
+      openingTitle: "Открытие…",
+      openingBody: "Открытие… это может занять некоторое время.",
+      popupBlockedTitle: "Всплывающее окно заблокировано",
+      popupBlockedDescription: "Браузер заблокировал открытие новой вкладки.",
+      popupBlockedAction: "Открыть в новой вкладке",
+    },
     shortcuts: {
       title: "Горячие клавиши",
       description: "Краткий справочник по всем доступным горячим клавишам.",

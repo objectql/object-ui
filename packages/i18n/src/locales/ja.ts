@@ -1419,6 +1419,13 @@ const ja = {
       retry: "再試行",
       retrying: "再試行中…",
     },
+    serverAction: {
+      openingTitle: "開いています…",
+      openingBody: "開いています…しばらくお待ちください。",
+      popupBlockedTitle: "ポップアップがブロックされました",
+      popupBlockedDescription: "ブラウザが新しいタブを開くのをブロックしました。",
+      popupBlockedAction: "新しいタブで開く",
+    },
     shortcuts: {
       title: "キーボードショートカット",
       description: "利用可能なすべてのキーボードショートカットのクイックリファレンス。",

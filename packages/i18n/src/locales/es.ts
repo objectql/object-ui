@@ -1419,6 +1419,13 @@ const es = {
       retry: "Reintentar",
       retrying: "Reintentando…",
     },
+    serverAction: {
+      openingTitle: "Abriendo…",
+      openingBody: "Abriendo… esto puede tardar un momento.",
+      popupBlockedTitle: "Ventana emergente bloqueada",
+      popupBlockedDescription: "El navegador bloqueó la apertura de la nueva pestaña.",
+      popupBlockedAction: "Abrir en una pestaña nueva",
+    },
     shortcuts: {
       title: "Atajos de teclado",
       description: "Referencia rápida de todos los atajos de teclado disponibles.",

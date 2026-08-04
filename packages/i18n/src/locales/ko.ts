@@ -1419,6 +1419,13 @@ const ko = {
       retry: "재시도",
       retrying: "재시도 중…",
     },
+    serverAction: {
+      openingTitle: "여는 중…",
+      openingBody: "여는 중… 잠시 기다려 주세요.",
+      popupBlockedTitle: "팝업이 차단되었습니다",
+      popupBlockedDescription: "브라우저가 새 탭 열기를 차단했습니다.",
+      popupBlockedAction: "새 탭에서 열기",
+    },
     shortcuts: {
       title: "키보드 단축키",
       description: "사용 가능한 모든 키보드 단축키 빠른 참조.",

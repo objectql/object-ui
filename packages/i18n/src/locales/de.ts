@@ -1419,6 +1419,13 @@ const de = {
       retry: "Erneut versuchen",
       retrying: "Wird wiederholt…",
     },
+    serverAction: {
+      openingTitle: "Wird geöffnet…",
+      openingBody: "Wird geöffnet… das kann einen Moment dauern.",
+      popupBlockedTitle: "Pop-up blockiert",
+      popupBlockedDescription: "Der Browser hat das Öffnen des neuen Tabs blockiert.",
+      popupBlockedAction: "In neuem Tab öffnen",
+    },
     shortcuts: {
       title: "Tastenkürzel",
       description: "Kurzreferenz für alle verfügbaren Tastenkürzel.",

@@ -1417,6 +1417,13 @@ const zh = {
       retry: '重试',
       retrying: '正在重试…',
     },
+    serverAction: {
+      openingTitle: '正在打开…',
+      openingBody: '正在打开…可能需要一点时间。',
+      popupBlockedTitle: '浏览器拦截了弹窗',
+      popupBlockedDescription: '浏览器阻止了新标签页的打开。',
+      popupBlockedAction: '在新标签页打开',
+    },
     shortcuts: {
       title: '键盘快捷键',
       description: '所有可用键盘快捷键的快速参考。',

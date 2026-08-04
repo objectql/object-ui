@@ -160,6 +160,11 @@ describe('redirectUrl convention', () => {
 
     expect(openSpy).toHaveBeenCalledWith('https://example.test/sso', '_blank');
     expect(toast).toHaveBeenCalledTimes(1); // popup blocked → one-click fallback
+    // Default (no injected `t`) copy is the English fallback (objectui#3321).
+    expect(toast).toHaveBeenCalledWith('Popup blocked', expect.objectContaining({
+      description: 'Your browser blocked the new tab from opening.',
+      action: expect.objectContaining({ label: 'Open in new tab' }),
+    }));
   });
 
   it('closes the optimistically pre-opened tab when the handler returns no redirectUrl', async () => {
@@ -171,6 +176,75 @@ describe('redirectUrl convention', () => {
 
     expect(res.success).toBe(true);
     expect(tab.close).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('user-facing copy (objectui#3321)', () => {
+  it('the spinner tab defaults to English-only copy — no CJK in code (Commandment #-1)', async () => {
+    const tab = makeTab();
+    vi.spyOn(window, 'open').mockReturnValue(tab as any);
+    const { handler } = makeHandler();
+
+    await handler({
+      type: 'script', name: 'sso_as_owner', opensInNewTab: true,
+      newTabUrl: '/sso-open/{recordId}', params: { recordId: 'e1' },
+    } as any);
+
+    expect(tab.document.write).toHaveBeenCalledTimes(1);
+    const html = (tab.document.write as any).mock.calls[0][0] as string;
+    expect(html).toContain('<title>Opening…</title>');
+    expect(html).toContain('Opening… this may take a moment.');
+    // The commandment pin: the copy shipped from CODE carries no CJK. Chinese
+    // lives in `@object-ui/i18n`'s zh locale pack and arrives via `t`.
+    expect(html).not.toMatch(/[\u3000-\u30ff\u4e00-\u9fff]/);
+  });
+
+  it('an injected `t` localizes the spinner tab via console.serverAction.* keys', async () => {
+    const tab = makeTab();
+    vi.spyOn(window, 'open').mockReturnValue(tab as any);
+    const { handler } = makeHandler({ t: (key: string) => `x:${key}` });
+
+    await handler({
+      type: 'script', name: 'sso_as_owner', opensInNewTab: true,
+      newTabUrl: '/sso-open/{recordId}', params: { recordId: 'e1' },
+    } as any);
+
+    const html = (tab.document.write as any).mock.calls[0][0] as string;
+    expect(html).toContain('<title>x:console.serverAction.openingTitle</title>');
+    expect(html).toContain('x:console.serverAction.openingBody');
+  });
+
+  it('an injected `t` localizes the popup-blocked toast via console.serverAction.* keys', async () => {
+    vi.spyOn(window, 'open').mockReturnValue(null);
+    const { handler } = makeHandler({
+      t: (key: string) => `x:${key}`,
+      fetch: okFetch({
+        success: true,
+        data: { success: true, data: { redirectUrl: 'https://example.test/sso' } },
+      }) as any,
+    });
+
+    await handler({ type: 'script', name: 'open_env' } as any);
+
+    expect(toast).toHaveBeenCalledWith('x:console.serverAction.popupBlockedTitle', expect.objectContaining({
+      description: 'x:console.serverAction.popupBlockedDescription',
+      action: expect.objectContaining({ label: 'x:console.serverAction.popupBlockedAction' }),
+    }));
+  });
+
+  it('locale strings are HTML-escaped before entering the spinner document', async () => {
+    const tab = makeTab();
+    vi.spyOn(window, 'open').mockReturnValue(tab as any);
+    const { handler } = makeHandler({ t: (_key: string, englishDefault: string) => `<b>&${englishDefault}` });
+
+    await handler({
+      type: 'script', name: 'sso_as_owner', opensInNewTab: true,
+      newTabUrl: '/sso-open/{recordId}', params: { recordId: 'e1' },
+    } as any);
+
+    const html = (tab.document.write as any).mock.calls[0][0] as string;
+    expect(html).toContain('&lt;b&gt;&amp;Opening…');
+    expect(html).not.toContain('<b>&Opening…');
   });
 });
 

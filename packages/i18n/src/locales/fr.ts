@@ -1419,6 +1419,13 @@ const fr = {
       retry: "Réessayer",
       retrying: "Nouvelle tentative…",
     },
+    serverAction: {
+      openingTitle: "Ouverture…",
+      openingBody: "Ouverture… cela peut prendre un moment.",
+      popupBlockedTitle: "Fenêtre contextuelle bloquée",
+      popupBlockedDescription: "Le navigateur a bloqué l'ouverture du nouvel onglet.",
+      popupBlockedAction: "Ouvrir dans un nouvel onglet",
+    },
     shortcuts: {
       title: "Raccourcis clavier",
       description: "Référence rapide de tous les raccourcis clavier disponibles.",
