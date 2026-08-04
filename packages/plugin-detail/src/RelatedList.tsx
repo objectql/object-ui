@@ -43,6 +43,7 @@ import { getCellRenderer, resolveCellRendererType, RecordPickerDialog } from '@o
 import {
   columnIdentity,
   compareSortValues,
+  getRecordDisplayName,
   getSortValue,
   isExpandableFieldType,
   userActionPredicates,
@@ -161,6 +162,40 @@ function resolveIconComponent(name: string | undefined): LucideIcon {
     .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
     .join('');
   return ((lucideIcons as Record<string, LucideIcon>)[pascal]) || Inbox;
+}
+
+/**
+ * Resolve one referenced record to the label its cell should show.
+ *
+ * Goes through the unified ADR-0079 resolver when the target object's schema
+ * is available, so an object that declares its display name (e.g.
+ * `sys_permission_set` with `nameField: 'label'`, whose `name` is the API
+ * name) resolves to the same string the cell's own `useLookupName` fetch
+ * shows — the two used to disagree, making the column flash from the display
+ * name to the API name once this batch map landed (objectui#3330). Falls back
+ * to the legacy hard-coded chain when no schema reached us or the resolver
+ * bottoms out at its `Record #<id>` / `Untitled` floor.
+ */
+function resolveRelatedLookupLabel(record: any, refSchema: any): string | undefined {
+  const id = record?.id ?? record?._id;
+  if (refSchema) {
+    const resolved = getRecordDisplayName(refSchema, record);
+    const isFloor =
+      resolved === 'Untitled' || (id != null && resolved === `Record #${id}`);
+    if (resolved && !isFloor) return resolved;
+  }
+  return (
+    record?.full_name ||
+    record?.fullname ||
+    record?.display_name ||
+    record?.name ||
+    record?.subject ||
+    record?.title ||
+    record?.label ||
+    record?.code ||
+    record?.email ||
+    (id != null ? String(id) : undefined)
+  );
 }
 
 /**
@@ -491,25 +526,22 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     let cancelled = false;
     Promise.all(
       tasks.map(({ fieldName, target, ids }) =>
-        dataSource
-          .find(target, { $filter: { id: { $in: ids } }, $top: ids.length })
-          .then((res: any) => {
+        Promise.all([
+          dataSource.find(target, { $filter: { id: { $in: ids } }, $top: ids.length }),
+          // Target object's schema (nameField / titleFormat) so the batch map
+          // resolves display names through the same ADR-0079 resolver as the
+          // cell's own fetch — see resolveRelatedLookupLabel (objectui#3330).
+          typeof dataSource.getObjectSchema === 'function'
+            ? dataSource.getObjectSchema(target).catch(() => undefined)
+            : Promise.resolve(undefined),
+        ])
+          .then(([res, refSchema]: [any, any]) => {
             const records: any[] = Array.isArray(res) ? res : res?.data || [];
             const map: Record<string, string> = {};
             for (const r of records) {
               const id = r?.id || r?._id;
               if (!id) continue;
-              map[String(id)] =
-                r?.full_name ||
-                r?.fullname ||
-                r?.display_name ||
-                r?.name ||
-                r?.subject ||
-                r?.title ||
-                r?.label ||
-                r?.code ||
-                r?.email ||
-                String(id);
+              map[String(id)] = resolveRelatedLookupLabel(r, refSchema) ?? String(id);
             }
             return { fieldName, map };
           })
