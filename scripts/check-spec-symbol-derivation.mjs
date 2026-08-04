@@ -126,6 +126,31 @@ const ALLOW = {
       "the sanctioned set.",
     issue: 4115,
   },
+  "@object-ui/types:BulkActionParam": {
+    reason:
+      "Renderer-side dialect of the spec's authored param (objectui#3334). The spec's " +
+      "BulkActionParamSchema closes `type` over the FieldWidget enum — right for authored " +
+      "view metadata that `objectstack build` validates. This interface types what the " +
+      "BulkActionDialog RENDERS, which also includes defs promoted at runtime from object " +
+      "actions (`resolveBulkActions`, objectui#3002) whose param types are whatever the " +
+      "action declared — so `type` stays an open string and a catch-all index signature " +
+      "forwards widget-specific config (min/max/step/…) the way the field renderers expect. " +
+      "Divergence pinned by packages/types/src/__tests__/bulk-action-spec-parity.test.ts.",
+    issue: 3334,
+  },
+  "@object-ui/types:BulkActionDef": {
+    reason:
+      "Renderer-side dialect (objectui#3334): carries `actionDef` — the source object " +
+      "ActionDef attached at runtime when a `bulkActions: ['<name>']` entry is promoted " +
+      "(objectui#3002/#3139) — which the spec's STRICT BulkActionDefSchema rejects by design " +
+      "(it validates authored view metadata, and `actionDef` is a resolution artifact that " +
+      "must never be authored). `visible` also stays on the pre-normalization " +
+      "`string | { dialect?, source }` wire shape the action bridge forwards. Divergences " +
+      "pinned by packages/types/src/__tests__/bulk-action-spec-parity.test.ts; " +
+      "`BulkActionOperation` and the param/def spec keys are shared, and the operation union " +
+      "is imported from the spec at its declaration in objectql.ts.",
+    issue: 3334,
+  },
   "@object-ui/auth:AuthProvider": {
     reason:
       "A REACT CONTEXT PROVIDER COMPONENT, not a type — `<AuthProvider authUrl=…>` is the " +
