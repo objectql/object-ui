@@ -23,16 +23,19 @@ import {
   coerceToSafeValue,
 } from '@object-ui/fields';
 import { PermissionFacetLink } from './renderers/PermissionFacetLink';
+import { TEXTUAL_REF_FALLBACK_TYPES } from './fieldEnrichment';
 
 /**
  * Field types that carry a `reference_to` for relational metadata but are NOT
  * edited via the lookup picker (they have their own dedicated inputs/renderers).
- * Used so the inline-edit branch doesn't hijack them into a record picker.
+ * Used below so the inline-edit branch doesn't hijack them into a record picker.
  *
- * Exported because `DetailSection`'s per-field editability gate keys off the
- * same set (a computed field is never editable), so the two must not drift.
+ * The set itself moved to `fieldEnrichment` (objectui#3355) — the module both
+ * hosts' editability gates already share — so this renderer fallback and those
+ * gates read the ONE definition of "machine-computed". Re-exported here to keep
+ * the package's public name unchanged.
  */
-export const TEXTUAL_REF_FALLBACK_TYPES = new Set(['formula', 'summary', 'rollup', 'auto_number']);
+export { TEXTUAL_REF_FALLBACK_TYPES };
 
 /**
  * Extract the id a reference widget expects from a value that may already be

@@ -6,6 +6,7 @@ import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, 
 import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator, Button, ChartSkeleton } from '@object-ui/components';
 import { AlertCircle, ArrowUpRight } from 'lucide-react';
 import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
+import type { DrillDownConfig } from '@object-ui/types';
 
 /**
  * Humanize a snake_case or kebab-case string into Title Case.
@@ -599,7 +600,26 @@ export const ObjectChart = (props: any) => {
   // filtered by the click context (category → groupBy field). The drilled
   // table is rendered via SchemaRenderer + the registered "object-data-table"
   // component (provided by plugin-dashboard).
-  const drillDown = (schema as any).drillDown;
+  //
+  // This read used to be `(schema as any).drillDown`, and framework#5022 is the
+  // issue that untyped read produced: the block drove a real capability that
+  // the PROTOCOL declared nowhere, so the spec's own migration prose ended up
+  // prescribing a key no schema had. The protocol now declares it —
+  // `ChartDrillDownSchema` in `@objectstack/spec/ui`, published on this block's
+  // react contract — and the registry `inputs` below carry it, so the SDUI save
+  // gate treats it as a contract prop instead of an unknown one.
+  //
+  // TODO(framework#5022): narrow this to the spec type once the pin advances.
+  // `@objectstack/spec` is pinned at `^17.0.0-rc.2` here and the declaration
+  // lands in the NEXT rc, so importing `ChartDrillDown` today would not compile
+  // against the published package. Re-declaring the shape locally instead is
+  // exactly the fork that would let the two drift, so the read stays on
+  // `DrillDownConfig` — the renderer-side type five widgets already share —
+  // until the bump. Note the two are not the same set on purpose: the spec type
+  // is the CHART subset (`enabled`/`filter`/`title`/`target`/`columns`/
+  // `maxRows`), while this one also carries the table/pivot/metric keys
+  // (`mode`, `report`, the `navigate` target) that this component does not read.
+  const drillDown = (schema as { drillDown?: DrillDownConfig }).drillDown;
   const groupByField = schema.aggregate?.groupBy || schema.xAxisKey;
 
   // Build a label→raw map from the resolved chart data. resolveGroupByLabels
@@ -828,5 +848,17 @@ ComponentRegistry.register('object-chart', ObjectChart, {
         { name: 'data', type: 'array', label: 'Data', description: 'Optional static data' },
         { name: 'filter', type: 'array', label: 'Filter' },
         { name: 'aggregate', type: 'object', label: 'Aggregate', description: 'Aggregation config: { field, function, groupBy }' },
+        // framework#5022. The manifest built from these `inputs` is what the
+        // SDUI save gate validates a page's JSX against, so an undeclared prop
+        // is reported as `unknown-prop` — which is what an author writing the
+        // segment drill got, for a prop this component has always read. The
+        // spec now declares the shape (`ChartDrillDownSchema`), and this entry
+        // is the half that makes the gate agree.
+        //
+        // Only the six keys the spec declares are honoured here; the wider
+        // renderer-side `DrillDownConfig` (mode / report / view / sort, and the
+        // `navigate` target) belongs to the table/pivot/metric widgets, and two
+        // of its keys are read by nothing at all — objectui#3354.
+        { name: 'drillDown', type: 'object', label: 'Drill-down', description: "Segment drill config: { enabled?, filter?, title?, target?: 'drawer' | 'dialog', columns?, maxRows? }. Present = on; {} is enough. Clicking a segment opens the underlying records filtered by the clicked category." },
     ]
 });

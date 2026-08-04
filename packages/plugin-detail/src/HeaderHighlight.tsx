@@ -19,8 +19,8 @@ import type { HighlightField } from '@object-ui/types';
 import { getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
 import { useSafeFieldLabel, useInlineEdit } from '@object-ui/react';
 import { Check, X, Pencil } from 'lucide-react';
-import { InlineFieldInput, TEXTUAL_REF_FALLBACK_TYPES } from './InlineFieldInput';
-import { enrichDetailField } from './fieldEnrichment';
+import { InlineFieldInput } from './InlineFieldInput';
+import { enrichDetailField, isComputedFieldType } from './fieldEnrichment';
 import { NON_EDITABLE_SYSTEM_FIELDS } from './systemFields';
 import { useDetailTranslation } from './useDetailTranslation';
 
@@ -98,13 +98,19 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
             const draftVal = inline?.draft?.[field.name];
             const value = draftVal !== undefined ? draftVal : rawValue;
 
-            // Field-level editability gate — mirrors DetailSection so the strip
-            // and the body agree on which highlights are editable. Computed
-            // types (formula/summary/rollup/auto_number), `readonly` (view OR
-            // object metadata), and immutable system/audit fields never edit.
-            const isComputed = TEXTUAL_REF_FALLBACK_TYPES.has(resolvedType as string);
+            // Field-level editability gate — shares `isComputedFieldType` with
+            // DetailSection so the strip and the body agree on which highlights
+            // are editable. Computed types (formula/summary/rollup/auto_number),
+            // `readonly` (view OR object metadata), and immutable system/audit
+            // fields never edit.
+            //
+            // The gate takes the authored type and the object type SEPARATELY,
+            // not `resolvedType` — an authored display `type` can narrow
+            // editability but never widen it (objectui#3355). `resolvedType`
+            // keeps its display precedence for renderer selection just below.
+            const isComputed = isComputedFieldType(field.type, objectDefField?.type);
             const isReadonly =
-              (field as any).readonly === true || objectDefField?.readonly === true;
+              field.readonly === true || objectDefField?.readonly === true;
             const isSystem = NON_EDITABLE_SYSTEM_FIELDS.has(field.name);
             const fieldEditable = !isComputed && !isReadonly && !isSystem;
             const canInlineEditField = canEdit && fieldEditable;

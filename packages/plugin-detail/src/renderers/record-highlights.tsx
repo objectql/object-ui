@@ -50,9 +50,25 @@ export const RecordHighlightsRenderer: React.FC<RecordHighlightsRendererProps> =
     required.every((p) => perms.can(objectName, p as any));
 
   const rawFields: any[] = Array.isArray(schema.fields) ? schema.fields : [];
-  // Normalize: spec accepts either bare strings or { name, label?, icon?, type? }
+  // Normalize: accepts either bare strings or { name, label?, icon?, type?, readonly? }.
+  //
+  // `readonly` is copied through deliberately: HeaderHighlight's editability
+  // gate has always consulted `field.readonly`, but this map used to rebuild
+  // each entry from a fixed four-key list, so an authored `readonly: true` was
+  // dropped one layer BEFORE the check that would honour it and the gate could
+  // never fire from authored metadata (objectstack#5077). Rebuilding key-by-key
+  // rather than spreading keeps the entry shape closed — an undeclared key is
+  // still not silently forwarded to the strip.
   const normalized = rawFields.map((f) =>
-    typeof f === 'string' ? { name: f } : { name: f?.name, label: f?.label, icon: f?.icon, type: f?.type },
+    typeof f === 'string'
+      ? { name: f }
+      : {
+          name: f?.name,
+          label: f?.label,
+          icon: f?.icon,
+          type: f?.type,
+          readonly: f?.readonly === true,
+        },
   ).filter((f) => typeof f.name === 'string' && f.name.length > 0);
 
   const enforceFLS = (schema as any).enforceFieldSecurity === true;
