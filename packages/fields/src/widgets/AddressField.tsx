@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { Input, Label, EmptyValue } from '@object-ui/components';
 import { FieldWidgetComponentProps } from './types';
 import { toDomProps } from './toDomProps';
@@ -26,6 +26,12 @@ export function AddressField({ value, onChange, field, readonly, error, ...props
   // `aria-invalid={!!error}` (a form-level failure means the whole address is
   // missing/invalid, and whichever sub-input the user reaches must announce it).
   const domProps = toDomProps(props);
+  // Sub-input ids (objectui#3343): `useId()` prefix + sub-field name — the
+  // `groupId` paradigm of RadioField / CheckboxesField. Hardcoded literals
+  // ("street", "city", …) collide as soon as a form renders two address
+  // fields, and every label's htmlFor then resolves to the FIRST match.
+  const groupId = useId();
+  const subId = (name: keyof AddressValue) => `${groupId}-${name}`;
 
   const handleFieldChange = (fieldName: keyof AddressValue, fieldValue: string) => {
     onChange({
@@ -52,10 +58,10 @@ export function AddressField({ value, onChange, field, readonly, error, ...props
   return (
     <div className="space-y-3">
       <div>
-        <Label htmlFor="street" className="text-xs">Street Address</Label>
+        <Label htmlFor={subId('street')} className="text-xs">Street Address</Label>
         <Input
           {...domProps}
-          id="street"
+          id={subId('street')}
           type="text"
           value={address.street || ''}
           onChange={(e) => handleFieldChange('street', e.target.value)}
@@ -68,9 +74,9 @@ export function AddressField({ value, onChange, field, readonly, error, ...props
       
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label htmlFor="city" className="text-xs">City</Label>
+          <Label htmlFor={subId('city')} className="text-xs">City</Label>
           <Input
-            id="city"
+            id={subId('city')}
             type="text"
             value={address.city || ''}
             onChange={(e) => handleFieldChange('city', e.target.value)}
@@ -81,9 +87,9 @@ export function AddressField({ value, onChange, field, readonly, error, ...props
         </div>
         
         <div>
-          <Label htmlFor="state" className="text-xs">State / Province</Label>
+          <Label htmlFor={subId('state')} className="text-xs">State / Province</Label>
           <Input
-            id="state"
+            id={subId('state')}
             type="text"
             value={address.state || ''}
             onChange={(e) => handleFieldChange('state', e.target.value)}
@@ -96,9 +102,9 @@ export function AddressField({ value, onChange, field, readonly, error, ...props
       
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label htmlFor="zipCode" className="text-xs">ZIP / Postal Code</Label>
+          <Label htmlFor={subId('zipCode')} className="text-xs">ZIP / Postal Code</Label>
           <Input
-            id="zipCode"
+            id={subId('zipCode')}
             type="text"
             value={address.zipCode || ''}
             onChange={(e) => handleFieldChange('zipCode', e.target.value)}
@@ -109,9 +115,9 @@ export function AddressField({ value, onChange, field, readonly, error, ...props
         </div>
         
         <div>
-          <Label htmlFor="country" className="text-xs">Country</Label>
+          <Label htmlFor={subId('country')} className="text-xs">Country</Label>
           <Input
-            id="country"
+            id={subId('country')}
             type="text"
             value={address.country || ''}
             onChange={(e) => handleFieldChange('country', e.target.value)}

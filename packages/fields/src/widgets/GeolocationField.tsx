@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { Input, Button, Label, EmptyValue } from '@object-ui/components';
 import { MapPin, Crosshair } from 'lucide-react';
 import { FieldWidgetComponentProps } from './types';
@@ -24,6 +24,13 @@ export function GeolocationField({ value, onChange, field, readonly, error, ...p
   // sub-input (latitude); the composite's validation state goes onto BOTH
   // focusable sub-inputs via `aria-invalid={!!error}`.
   const domProps = toDomProps(props);
+  // Sub-input ids (objectui#3343): `useId()` prefix + sub-field name — the
+  // `groupId` paradigm of RadioField / CheckboxesField. Hardcoded literals
+  // ("latitude" / "longitude") collide as soon as a form renders two
+  // geolocation fields, and every label's htmlFor then resolves to the
+  // FIRST match.
+  const groupId = useId();
+  const subId = (name: keyof GeolocationValue) => `${groupId}-${name}`;
 
   const handleFieldChange = (fieldName: keyof GeolocationValue, fieldValue: string) => {
     onChange({
@@ -120,10 +127,10 @@ export function GeolocationField({ value, onChange, field, readonly, error, ...p
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label htmlFor="latitude" className="text-xs">Latitude</Label>
+          <Label htmlFor={subId('latitude')} className="text-xs">Latitude</Label>
           <Input
             {...domProps}
-            id="latitude"
+            id={subId('latitude')}
             type="number"
             value={location.latitude ?? ''}
             onChange={(e) => handleFieldChange('latitude', e.target.value)}
@@ -136,9 +143,9 @@ export function GeolocationField({ value, onChange, field, readonly, error, ...p
         </div>
         
         <div>
-          <Label htmlFor="longitude" className="text-xs">Longitude</Label>
+          <Label htmlFor={subId('longitude')} className="text-xs">Longitude</Label>
           <Input
-            id="longitude"
+            id={subId('longitude')}
             type="number"
             value={location.longitude ?? ''}
             onChange={(e) => handleFieldChange('longitude', e.target.value)}
