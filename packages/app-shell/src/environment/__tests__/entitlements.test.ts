@@ -11,6 +11,7 @@ import {
   entitlementDialogFromError,
   decideEnvironmentCta,
   upgradeDialogSpec,
+  DEFAULT_UPGRADE_URL,
   type EnvironmentEntitlementsState,
 } from '../entitlements';
 
@@ -36,15 +37,18 @@ describe('entitlementDialogFromError', () => {
   it('returns null for non-entitlement errors (so a normal toast still fires)', () => {
     expect(entitlementDialogFromError({ error: 'Boom' })).toBeNull();
     expect(entitlementDialogFromError(null)).toBeNull();
-    expect(entitlementDialogFromError({ code: 'VALIDATION' })).toBeNull();
+    expect(entitlementDialogFromError({ error: { code: 'VALIDATION' } })).toBeNull();
   });
 
-  it('maps DEV_ENV_PLAN_LOCKED to an upgrade dialog with the server upgrade_url', () => {
+  it('maps DEV_ENV_PLAN_LOCKED to an upgrade dialog with the upgrade_url from error.details', () => {
     const spec = entitlementDialogFromError({
-      error: 'Development environments are a paid feature...',
-      code: 'DEV_ENV_PLAN_LOCKED',
-      upgrade_url: '/settings/billing',
-      plan: 'free',
+      success: false,
+      error: {
+        code: 'DEV_ENV_PLAN_LOCKED',
+        message: 'Development environments are a paid feature...',
+        httpStatus: 403,
+        details: { upgrade_url: '/settings/billing', plan: 'free' },
+      },
     });
     expect(spec).not.toBeNull();
     expect(spec!.code).toBe('DEV_ENV_PLAN_LOCKED');
@@ -54,49 +58,90 @@ describe('entitlementDialogFromError', () => {
   });
 
   it('names a paid plan in the plan-locked copy', () => {
-    const spec = entitlementDialogFromError({ code: 'DEV_ENV_PLAN_LOCKED', plan: 'team' });
+    const spec = entitlementDialogFromError({ error: { code: 'DEV_ENV_PLAN_LOCKED', details: { plan: 'team' } } });
     expect(spec!.message).toContain('Your team plan includes');
   });
 
   it('maps DEV_ENV_LIMIT to an upgrade dialog (limit-reached title)', () => {
-    const spec = entitlementDialogFromError({ code: 'DEV_ENV_LIMIT', upgrade_url: '/u' });
+    const spec = entitlementDialogFromError({ error: { code: 'DEV_ENV_LIMIT', details: { upgrade_url: '/u' } } });
     expect(spec!.title).toBe('Development environment limit reached');
     expect(spec!.cta!.url).toBe('/u');
     expect(spec!.message).toContain('Capacity scales with AI seats');
   });
 
   it('quotes the seat-pool usage when the server reports counts', () => {
-    const spec = entitlementDialogFromError({ code: 'DEV_ENV_LIMIT', current: 3, limit: 3 });
+    const spec = entitlementDialogFromError({ error: { code: 'DEV_ENV_LIMIT', details: { current: 3, limit: 3 } } });
     expect(spec!.message).toContain('using 3 of 3 development environments');
   });
 
-  // cloud#948 nested every coded error under `error: { … }`. Reading `code` off
-  // the top level made this mapper return null against an up-to-date control
-  // plane, degrading the friendly dialog to a generic red toast.
-  it('reads the nested cloud#948 error envelope', () => {
-    const spec = entitlementDialogFromError({
-      success: false,
-      error: {
-        code: 'DEV_ENV_PLAN_LOCKED',
-        message: 'Development environments are a paid feature. …',
-        httpStatus: 403,
-        plan: 'free',
-        upgrade_url: '/settings/billing',
-      },
+  // ─── strictness pins (cloud#1046 / objectui#3329) ──────────────────────────
+  //
+  // `error.details` is the ONLY accepted home for entitlement context. These
+  // pins are the "provably strict" half: they fail the moment anyone
+  // reintroduces a `??` chain to an older location. `code` / `message` are
+  // declared `ApiErrorSchema` fields and legitimately stay on `error` itself.
+  describe('reads error.details and nowhere else', () => {
+    it('ignores entitlement keys sitting as undeclared siblings of `code`', () => {
+      // The pre-cloud#1046 wire shape. `code` is declared, so the dialog still
+      // opens — but every context key degrades to its default, proving none of
+      // them is read from the old top-level position.
+      const spec = entitlementDialogFromError({
+        success: false,
+        error: {
+          code: 'DEV_ENV_LIMIT',
+          message: 'Development environment limit reached.',
+          httpStatus: 403,
+          upgrade_url: '/sibling-upgrade',
+          current: 3,
+          limit: 3,
+          seatCount: 2,
+        },
+      });
+      expect(spec!.cta!.url).toBe(DEFAULT_UPGRADE_URL);
+      expect(spec!.message).not.toContain('3 of 3');
+      // …the no-counts copy ("— add an AI seat" is the with-counts variant).
+      expect(spec!.message).toContain('Capacity scales with AI seats. Add an AI seat');
     });
-    expect(spec).not.toBeNull();
-    expect(spec!.code).toBe('DEV_ENV_PLAN_LOCKED');
-    expect(spec!.cta).toEqual({ label: 'Upgrade plan', url: '/settings/billing' });
-  });
 
-  it('still reads the legacy flat body (older control planes)', () => {
-    const spec = entitlementDialogFromError({
-      success: false,
-      error: 'Development environments are a paid feature. …',
-      code: 'DEV_ENV_PLAN_LOCKED',
-      upgrade_url: '/legacy',
+    it('ignores a sibling `plan`, so the plan-locked copy degrades to the free-plan phrase', () => {
+      const spec = entitlementDialogFromError({ error: { code: 'DEV_ENV_PLAN_LOCKED', plan: 'team' } });
+      expect(spec!.message).toContain('Your free plan includes');
+      expect(spec!.message).not.toContain('team plan');
     });
-    expect(spec!.cta!.url).toBe('/legacy');
+
+    it('ignores a sibling `contact_url`, so PRODUCTION_ENV_LIMIT drops its CTA', () => {
+      const spec = entitlementDialogFromError({
+        error: { code: 'PRODUCTION_ENV_LIMIT', contact_url: 'mailto:sales@objectos.ai' },
+      });
+      expect(spec!.cta).toBeUndefined();
+    });
+
+    it('returns null for the legacy FLAT body — the dual-dialect tolerance is gone', () => {
+      // Pre-cloud#948: `error` is a string and `code` rides the top level. The
+      // `body?.error ?? body` fallback that used to accept this is deleted, so
+      // this now takes the caller's generic error path (no dialog).
+      expect(
+        entitlementDialogFromError({
+          success: false,
+          error: 'Development environments are a paid feature. …',
+          code: 'DEV_ENV_PLAN_LOCKED',
+          upgrade_url: '/legacy',
+        }),
+      ).toBeNull();
+    });
+
+    it('returns null for a bare body with no `error` envelope at all', () => {
+      expect(
+        entitlementDialogFromError({ code: 'DEV_ENV_PLAN_LOCKED', upgrade_url: '/legacy', plan: 'free' }),
+      ).toBeNull();
+    });
+
+    it('tolerates a non-object `details` without reaching for another location', () => {
+      const spec = entitlementDialogFromError({
+        error: { code: 'DEV_ENV_PLAN_LOCKED', details: 'not-an-object', upgrade_url: '/sibling' },
+      });
+      expect(spec!.cta!.url).toBe(DEFAULT_UPGRADE_URL);
+    });
   });
 
   // cloud#959 — the dialog is a paid-conversion surface, so its copy comes from
@@ -121,15 +166,17 @@ describe('entitlementDialogFromError', () => {
 
   it('maps PRODUCTION_ENV_LIMIT to a contact-sales dialog (no upgrade CTA)', () => {
     const spec = entitlementDialogFromError({
-      code: 'PRODUCTION_ENV_LIMIT',
-      error: 'You already have your production environment.',
-      contact_url: 'mailto:sales@objectos.ai',
+      error: {
+        code: 'PRODUCTION_ENV_LIMIT',
+        message: 'You already have your production environment.',
+        details: { contact_url: 'mailto:sales@objectos.ai' },
+      },
     });
     expect(spec!.cta).toEqual({ label: 'Contact sales', url: 'mailto:sales@objectos.ai' });
   });
 
   it('falls back to a default upgrade_url when the server omits one', () => {
-    const spec = entitlementDialogFromError({ code: 'DEV_ENV_PLAN_LOCKED' });
+    const spec = entitlementDialogFromError({ error: { code: 'DEV_ENV_PLAN_LOCKED' } });
     expect(spec!.cta!.url).toBe('/settings/billing');
     expect(spec!.message).toBeTruthy(); // default copy when server message absent
   });
@@ -168,7 +215,7 @@ describe('upgradeDialogSpec', () => {
   it('reads identically to the reactive DEV_ENV_PLAN_LOCKED dialog', () => {
     const proactive = upgradeDialogSpec(base({ plan: 'free', upgradeUrl: '/settings/billing' }));
     const reactive = entitlementDialogFromError({
-      error: { code: 'DEV_ENV_PLAN_LOCKED', plan: 'free', upgrade_url: '/settings/billing' },
+      error: { code: 'DEV_ENV_PLAN_LOCKED', details: { plan: 'free', upgrade_url: '/settings/billing' } },
     });
     expect(reactive).toEqual(proactive);
   });

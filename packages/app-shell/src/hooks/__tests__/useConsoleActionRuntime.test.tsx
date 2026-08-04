@@ -221,10 +221,14 @@ describe('useConsoleActionRuntime — authenticated handlers', () => {
       ok: false,
       status: 403,
       json: async () => ({
-        error: 'Development environments are a paid feature. Upgrade to add them.',
-        code: 'DEV_ENV_PLAN_LOCKED',
-        upgrade_url: '/settings/billing',
-        plan: 'free',
+        success: false,
+        error: {
+          code: 'DEV_ENV_PLAN_LOCKED',
+          message: 'Development environments are a paid feature. Upgrade to add them.',
+          httpStatus: 403,
+          // Business context lives in the declared `details` slot (cloud#1046).
+          details: { upgrade_url: '/settings/billing', plan: 'free' },
+        },
       }),
     });
     const onRefresh = vi.fn();
@@ -247,6 +251,42 @@ describe('useConsoleActionRuntime — authenticated handlers', () => {
     // …and the shared entitlement dialog is now open with the upgrade title.
     render(<>{result.current.dialogs}</>);
     expect(await screen.findByText('Development environments are a paid feature')).toBeTruthy();
+  });
+
+  it('apiHandler does NOT open the entitlement dialog for the retired flat error shape', async () => {
+    // objectui#3329 / cloud#1046: `error.details` is the only accepted home for
+    // entitlement context, and the flat `body?.error ?? body` tolerance is
+    // deleted. This body — a pre-cloud#948 flat shape — must therefore take the
+    // ordinary error path (a red toast), not the friendly dialog. Pinned here
+    // because this handler feeds `entitlementDialogFromError` the RAW wire body.
+    authFetchSpy.mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: async () => ({
+        success: false,
+        error: 'Development environments are a paid feature. Upgrade to add them.',
+        code: 'DEV_ENV_PLAN_LOCKED',
+        upgrade_url: '/settings/billing',
+        plan: 'free',
+      }),
+    });
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [] }),
+    );
+
+    let res: any;
+    await act(async () => {
+      res = await result.current.apiHandler({
+        type: 'api', name: 'create_environment', target: '/api/v1/cloud/environments',
+      } as any);
+    });
+
+    expect(res).toEqual({
+      success: false,
+      error: 'Development environments are a paid feature. Upgrade to add them.',
+    });
+    render(<>{result.current.dialogs}</>);
+    expect(screen.queryByText('Development environments are a paid feature')).toBeNull();
   });
 
   it('apiHandler merges bodyExtra into the dataSource update payload (pure-confirmation action)', async () => {

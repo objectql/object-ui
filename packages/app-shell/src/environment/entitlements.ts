@@ -72,26 +72,35 @@ function planPhrase(t: EntitlementTranslate, plan: unknown): string {
 }
 
 /**
- * Read the coded-error fields off a cloud error body, tolerating BOTH shapes:
- *
- *   • nested (cloud#948 and later) — `{ success, error: { code, message, … } }`
- *   • flat (older control planes)  — `{ success, error: '…', code, … }`
- *
- * The nested envelope moved `code` a level down, which made this mapper return
- * `null` for every entitlement 403 — so the friendly upgrade dialog silently
- * degraded to a generic red toast against an up-to-date control plane. Control
- * planes upgrade independently of the Console, so both shapes stay supported.
- */
-function entitlementErrorFields(body: any): any {
-  const nested = body?.error;
-  return nested && typeof nested === 'object' ? nested : body;
-}
-
-/**
  * Map a cloud env-create 403 body to a dialog spec. Returns `null` for any
  * non-entitlement error so the caller falls back to its normal error handling
  * (a red toast). This is the safety net: it fires regardless of whether the
  * up-front state-aware presentation was right.
+ *
+ * ## Exactly ONE accepted wire shape (cloud#1046)
+ *
+ * ```jsonc
+ * { "success": false,
+ *   "error": { "code": "DEV_ENV_LIMIT", "message": "…", "httpStatus": 403,
+ *              "details": { "current": 3, "limit": 3, "upgrade_url": "…" } } }
+ * ```
+ *
+ * `code` and `message` are DECLARED `ApiErrorSchema` fields and stay on
+ * `error`. The business context (`upgrade_url`, `contact_url`, `plan`,
+ * `current`, `limit`) is read from `error.details` and NOWHERE ELSE — that is
+ * the slot ADR-0112 declares for it (framework#4224; cloud#930's
+ * `AiErrorExtra`). These keys used to ride as undeclared siblings of `code`,
+ * where they only ever "parsed clean" because `ApiErrorSchema` is a plain
+ * `z.object` that STRIPS unknown keys: conformant by evaporating rather than
+ * by declaration.
+ *
+ * There is deliberately no fallback to the older locations — neither the
+ * pre-`details` siblings nor the flat pre-cloud#948 body. Producer and
+ * consumer ship atomically in the hosted product (the cloud image pins
+ * objectui by `.objectui-sha`; cloud#1046 lands the producer change together
+ * with the pin bump), so a tolerant reader would buy nothing and would
+ * fossilize the retired dialects into a second de-facto contract — exactly
+ * the multi-dialect drift cloud#944 is retiring. One strict contract beats N.
  *
  * The copy is the CONSOLE's, not the server's: a control plane may be older
  * than the Console (or newer), and its prose is only localized from cloud#959
@@ -100,12 +109,14 @@ function entitlementErrorFields(body: any): any {
  * keeps it identical to the proactive prompt in {@link upgradeDialogSpec}.
  */
 export function entitlementDialogFromError(body: any, t: EntitlementTranslate = fallbackTranslate): EntitlementDialogSpec | null {
-  const fields = entitlementErrorFields(body);
-  const code = fields?.code;
+  const error = body?.error;
+  if (!error || typeof error !== 'object') return null;
+  const code = error.code;
   if (!isEntitlementErrorCode(code)) return null;
+  const details = error.details && typeof error.details === 'object' ? error.details : undefined;
   const upgradeUrl =
-    typeof fields?.upgrade_url === 'string' && fields.upgrade_url ? fields.upgrade_url : DEFAULT_UPGRADE_URL;
-  const contactUrl = typeof fields?.contact_url === 'string' && fields.contact_url ? fields.contact_url : '';
+    typeof details?.upgrade_url === 'string' && details.upgrade_url ? details.upgrade_url : DEFAULT_UPGRADE_URL;
+  const contactUrl = typeof details?.contact_url === 'string' && details.contact_url ? details.contact_url : '';
 
   if (code === 'PRODUCTION_ENV_LIMIT') {
     return {
@@ -135,7 +146,7 @@ export function entitlementDialogFromError(body: any, t: EntitlementTranslate = 
         defaultValue: 'Development environments are a paid feature',
       }),
       message: t('environment.entitlement.planLockedBody', {
-        plan: planPhrase(t, fields?.plan),
+        plan: planPhrase(t, details?.plan),
         defaultValue:
           'Your {{plan}} includes one production environment. Upgrade to add development environments — build in dev, then publish to production.',
       }),
@@ -146,8 +157,8 @@ export function entitlementDialogFromError(body: any, t: EntitlementTranslate = 
   // DEV_ENV_LIMIT — a paid org that exhausted its seat-scaled pool. Quote the
   // usage when the server reported it; the counts carry the same information
   // the server's own prose did.
-  const used = Number(fields?.current);
-  const limit = Number(fields?.limit);
+  const used = Number(details?.current);
+  const limit = Number(details?.limit);
   const hasCounts = Number.isFinite(used) && Number.isFinite(limit);
   return {
     code,
