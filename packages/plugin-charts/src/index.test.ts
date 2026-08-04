@@ -136,3 +136,35 @@ describe('Plugin Charts', () => {
     });
   });
 });
+
+// framework#5022 — the segment drill is a CONTRACT prop now, on both sides.
+//
+// The SDUI save gate validates a page's JSX against a manifest built from these
+// registry `inputs` (`manifestFromConfigs` copies them verbatim), so a prop that
+// is missing here is reported as `unknown-prop` — which is what an author
+// writing `drillDown` got, for a prop `ObjectChart` has read all along. The spec
+// half is `ChartDrillDownSchema`; this is the half that makes the gate agree.
+describe('object-chart — drillDown is a declared input (framework#5022)', () => {
+  const inputs = () => ComponentRegistry.getConfig('object-chart')?.inputs ?? [];
+
+  it('declares drillDown, so the save gate stops calling it unknown', () => {
+    const drill = inputs().find((i: any) => i.name === 'drillDown');
+    expect(drill, 'the registry must publish the prop the renderer reads').toBeDefined();
+    expect(drill?.type).toBe('object');
+  });
+
+  it('describes the SIX keys the spec declares — not the wider renderer union', () => {
+    // objectui's own `DrillDownConfig` is shared with the table/pivot/metric
+    // widgets and carries `mode` / `report` / `view` / `sort` and a `navigate`
+    // target. ObjectChart reads none of them, and two are read by no renderer
+    // at all (objectui#3354), so advertising them here would re-open the gap
+    // framework#5022 closed — one layer down, in the designer palette.
+    const d = String(inputs().find((i: any) => i.name === 'drillDown')?.description ?? '');
+    for (const key of ['enabled', 'filter', 'title', 'target', 'columns', 'maxRows']) {
+      expect(d, `the declared key ${key} must be described`).toContain(key);
+    }
+    for (const key of ['mode', 'report', 'navigate']) {
+      expect(d, `${key} is another widget's key — it must not be advertised here`).not.toContain(key);
+    }
+  });
+});
