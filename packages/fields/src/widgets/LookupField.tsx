@@ -11,6 +11,7 @@ import { cn,
   PopoverContent, EmptyValue } from '@object-ui/components';
 import { Search, X, Loader2, AlertCircle, Plus, TableProperties } from 'lucide-react';
 import { FieldWidgetComponentProps } from './types';
+import { toDomProps } from './toDomProps';
 import type { DataSource, QueryParams, LookupColumnDef } from '@object-ui/types';
 import { RecordPickerDialog, lookupFiltersToRecord } from './RecordPickerDialog';
 import type { RecordPickerFilterColumn } from './RecordPickerDialog';
@@ -191,7 +192,7 @@ function mapFieldTypeToFilterType(
  * from the referenced object using `DataSource.find()`.
  * Falls back to static `options` when no DataSource is available.
  */
-export function LookupField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<any>) {
+export function LookupField({ value, onChange, field, readonly, error: fieldError, ...props }: FieldWidgetComponentProps<any>) {
   const [isOpen, setIsOpen] = useState(false);
   const { t } = useFieldTranslation();
   const listboxId = React.useId();
@@ -912,8 +913,15 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   // Shared field trigger — the anchor for either the inline PeoplePicker
   // (search fields) or the classic quick-select popover. No onClick: the Radix
   // trigger it is slotted into (PopoverTrigger / SheetTrigger) owns open/close.
+  //
+  // DOM pass-through onto this button — the widget's real focusable control —
+  // per objectui#3318. `name` is withheld: no native control here takes part
+  // in form submission, and a stray `name` on a button invites exactly the
+  // accidental-submitter semantics #3306 kept it off the SelectTrigger for.
+  const { name: _domName, ...triggerDomProps } = toDomProps(props);
   const triggerButton = (
     <Button
+      {...triggerDomProps}
       variant="outline"
       className={cn(
         'min-w-0 flex-1 justify-start text-left font-normal',
@@ -925,6 +933,10 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
       title={dependenciesMissing
         ? t('lookup.selectFirst', { fields: dependsOn.map(d => d.field).join(', ') })
         : undefined}
+      // AFTER the spread so this widget's own computation wins (#3222):
+      // `fieldError` is the published validation slot — NOT the popover's
+      // fetch error, which is a widget-internal state named `error` below.
+      aria-invalid={!!fieldError}
     >
       {hydrating ? (
         <Loader2

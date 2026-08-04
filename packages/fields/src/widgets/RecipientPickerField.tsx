@@ -2,6 +2,7 @@ import React from 'react';
 import { Combobox, EmptyValue, cn } from '@object-ui/components';
 import { SchemaRendererContext } from '@object-ui/react';
 import type { FieldWidgetComponentProps } from './types';
+import { toDomProps } from './toDomProps';
 import { useFieldTranslation } from './useFieldTranslation';
 
 /**
@@ -53,6 +54,7 @@ export function RecipientPickerField({
   onChange,
   readonly,
   className,
+  error,
   ...props
 }: FieldWidgetComponentProps<string>) {
   const ctx = React.useContext(SchemaRendererContext);
@@ -133,6 +135,8 @@ export function RecipientPickerField({
     // field is never un-editable.
     return (
       <input
+        // DOM pass-through onto the real focusable control (objectui#3318).
+        {...toDomProps(props)}
         className={cn(
           'w-full rounded border bg-background px-2 py-1 text-sm',
           className,
@@ -140,6 +144,7 @@ export function RecipientPickerField({
         value={value ?? ''}
         disabled={disabled || readonly}
         onChange={(e) => onChange(e.target.value as any)}
+        aria-invalid={!!error}
       />
     );
   }
@@ -149,8 +154,19 @@ export function RecipientPickerField({
     return <span className={className}>{options.find((o) => o.value === value)?.label ?? value}</span>;
   }
 
+  // DOM pass-through onto the combobox trigger — the widget's real focusable
+  // control (objectui#3318). `name` is withheld: the trigger is a button, not
+  // a submission control (same reasoning as #3306's SelectTrigger).
+  //
+  // NOTE this widget stays on the #3318 ledger regardless: its dependency-
+  // gated state (no `recipient_type` chosen yet — the state a fresh form and
+  // the registry sweep render) is a plain hint paragraph with no focusable
+  // control, so there is nothing there to carry the attribute.
+  const { name: _domName, ...triggerDomProps } = toDomProps(props);
+
   return (
     <Combobox
+      {...triggerDomProps}
       options={options}
       value={value ?? ''}
       onValueChange={(v) => onChange(v as any)}
@@ -163,6 +179,8 @@ export function RecipientPickerField({
       emptyText={records === null ? t('fields.recipient.loading') : t('fields.recipient.empty')}
       disabled={disabled}
       className={cn('w-full', className)}
+      // AFTER the spread so this widget's own computation wins (#3222).
+      aria-invalid={!!error}
     />
   );
 }

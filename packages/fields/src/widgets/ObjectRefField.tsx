@@ -2,6 +2,7 @@ import React from 'react';
 import { Combobox, EmptyValue, cn } from '@object-ui/components';
 import { SchemaRendererContext } from '@object-ui/react';
 import type { FieldWidgetComponentProps } from './types';
+import { toDomProps } from './toDomProps';
 import { useFieldTranslation } from './useFieldTranslation';
 
 /**
@@ -31,6 +32,7 @@ export function ObjectRefField({
   onChange,
   readonly,
   className,
+  error,
   ...props
 }: FieldWidgetComponentProps<string>) {
   const ctx = React.useContext(SchemaRendererContext);
@@ -91,8 +93,14 @@ export function ObjectRefField({
     return <span className={className}>{label}</span>;
   }
 
+  // DOM pass-through onto the combobox trigger — the widget's real focusable
+  // control (objectui#3318). `name` is withheld: the trigger is a button, not
+  // a submission control (same reasoning as #3306's SelectTrigger).
+  const { name: _domName, ...triggerDomProps } = toDomProps(props);
+
   return (
     <Combobox
+      {...triggerDomProps}
       options={options}
       value={value ?? ''}
       onValueChange={(v) => onChange(v as any)}
@@ -104,6 +112,8 @@ export function ObjectRefField({
       // `w-[200px]` is a component default that left this control stranded at
       // a third of the row while `名称` beside it ran full width.
       className={cn('w-full', className)}
+      // AFTER the spread so this widget's own computation wins (#3222).
+      aria-invalid={!!error}
     />
   );
 }

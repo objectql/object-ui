@@ -4,6 +4,7 @@ import { useUpload } from '@object-ui/providers';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Upload, X, File as FileIcon, ImageIcon, Camera, Loader2 } from 'lucide-react';
 import { FieldWidgetComponentProps } from './types';
+import { toDomProps } from './toDomProps';
 import { useUploadingSignal } from './useUploadingSignal';
 import {
   fileValueForSubmit,
@@ -115,7 +116,7 @@ function useFileUploads(opts: {
  * Supports single and multiple file uploads with configurable accepted file types.
  * L2: File size validation, per-file progress indicators, error messages.
  */
-export function FileField({ value, onChange, field, readonly, onUploadingChange, ...props }: FieldWidgetComponentProps<any>) {
+export function FileField({ value, onChange, field, readonly, onUploadingChange, error, ...props }: FieldWidgetComponentProps<any>) {
   const { t } = useObjectTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -209,6 +210,8 @@ export function FileField({ value, onChange, field, readonly, onUploadingChange,
     }
   };
 
+  const { name: _domName, ...dropzoneDomProps } = toDomProps(props);
+
   return (
     <div className={props.className}>
       <input
@@ -233,8 +236,13 @@ export function FileField({ value, onChange, field, readonly, onUploadingChange,
       )}
       
       <div className="space-y-2">
-        {/* Drag-and-drop zone */}
+        {/* Drag-and-drop zone — the widget's real focusable control (it is the
+            keyboard path to the hidden file input), so the DOM pass-through
+            and the validation state land here (objectui#3318). `name` is
+            withheld: only DOM-legal on form controls, and on this div it is
+            exactly the leak #3291 sweeps for. */}
         <div
+          {...dropzoneDomProps}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
@@ -255,6 +263,8 @@ export function FileField({ value, onChange, field, readonly, onUploadingChange,
               inputRef.current?.click();
             }
           }}
+          // AFTER the spread so this widget's own computation wins (#3222).
+          aria-invalid={!!error}
         >
           <Upload className={`size-8 ${isDragOver ? 'text-primary' : 'text-muted-foreground'}`} />
           <div className="text-center">

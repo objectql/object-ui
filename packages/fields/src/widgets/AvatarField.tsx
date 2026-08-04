@@ -2,12 +2,13 @@ import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage, Button } from '@object-ui/components';
 import { Upload, X } from 'lucide-react';
 import { FieldWidgetComponentProps } from './types';
+import { toDomProps } from './toDomProps';
 
 /**
  * Avatar field widget - provides an avatar/profile picture uploader
  * Supports image URLs or file uploads
  */
-export function AvatarField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<string>) {
+export function AvatarField({ value, onChange, field, readonly, error, ...props }: FieldWidgetComponentProps<string>) {
   const [isHovered, setIsHovered] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   
@@ -92,11 +93,17 @@ export function AvatarField({ value, onChange, field, readonly, ...props }: Fiel
           className="hidden"
         />
         <Button
+          // DOM pass-through onto the widget's real focusable control — the
+          // upload button is the keyboard path to the hidden file input
+          // (objectui#3318).
+          {...toDomProps(props)}
           type="button"
           variant="outline"
           size="sm"
           onClick={() => fileInputRef.current?.click()}
           disabled={readonly || props.disabled}
+          // AFTER the spread so this widget's own computation wins (#3222).
+          aria-invalid={!!error}
         >
           <Upload className="w-4 h-4 mr-2" />
           {value ? 'Change' : 'Upload'} Avatar

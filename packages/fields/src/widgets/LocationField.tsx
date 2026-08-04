@@ -1,12 +1,13 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
 import { FieldWidgetComponentProps } from './types';
+import { toDomProps } from './toDomProps';
 
 /**
  * LocationField - Geographic coordinate input for latitude and longitude
  * Stores location as { latitude, longitude } object and displays as comma-separated pair
  */
-export function LocationField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<any>) {
+export function LocationField({ value, onChange, field, readonly, error, ...props }: FieldWidgetComponentProps<any>) {
   const config = field;
   // Location is stored as { latitude, longitude } object
   // For display, convert to "latitude, longitude" string format
@@ -39,12 +40,18 @@ export function LocationField({ value, onChange, field, readonly, ...props }: Fi
 
   return (
     <Input
+      // DOM pass-through onto the real focusable control (objectui#3318).
+      {...toDomProps(props)}
       type="text"
       value={displayValue}
       onChange={handleChange}
       placeholder={config?.placeholder || 'latitude, longitude'}
       disabled={readonly || props.disabled}
       className={props.className}
+      // AFTER the spread so this widget's own computation wins: `error` is
+      // the published validation slot (#3222), `!!undefined` → explicit
+      // "false".
+      aria-invalid={!!error}
     />
   );
 }

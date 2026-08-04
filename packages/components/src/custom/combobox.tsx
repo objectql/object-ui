@@ -32,7 +32,18 @@ export interface ComboboxOption {
   label: string
 }
 
-export interface ComboboxProps {
+/**
+ * Beyond its own named props, the combobox accepts standard button attributes
+ * (`id`, `aria-*`, `data-*`, handlers, …) and forwards them to the trigger —
+ * the focusable `role="combobox"` button a user and their screen reader
+ * actually interact with. Without this seam a field widget rendering a
+ * Combobox had no element to deliver `aria-invalid` / `aria-describedby` to
+ * after a validation failure (objectui#3318; the same reason #3306 routes the
+ * select's pass-through onto `SelectTrigger`). `value` / `onChange` are
+ * omitted: this component's own `value` / `onValueChange` contract owns them.
+ */
+export interface ComboboxProps
+  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "value" | "onChange"> {
   options: ComboboxOption[]
   value?: string
   onValueChange?: (value: string) => void
@@ -52,6 +63,7 @@ export function Combobox({
   emptyText = "No option found.",
   className,
   disabled,
+  ...triggerProps
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
 
@@ -59,6 +71,9 @@ export function Combobox({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          // Before this component's own props, which stay authoritative for
+          // the combobox contract (role, aria-expanded, className, disabled).
+          {...triggerProps}
           variant="outline"
           role="combobox"
           aria-expanded={open}

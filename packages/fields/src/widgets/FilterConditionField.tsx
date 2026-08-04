@@ -2,6 +2,7 @@ import React from 'react';
 import { FilterBuilder, cn } from '@object-ui/components';
 import { SchemaRendererContext } from '@object-ui/react';
 import type { FieldWidgetComponentProps } from './types';
+import { toDomProps } from './toDomProps';
 import { useFieldTranslation } from './useFieldTranslation';
 
 /**
@@ -297,6 +298,7 @@ export function FilterConditionField({
   onChange,
   readonly,
   className,
+  error,
   ...props
 }: FieldWidgetComponentProps<string | object>) {
   const ctx = React.useContext(SchemaRendererContext);
@@ -397,10 +399,19 @@ export function FilterConditionField({
       {rawMode ? (
         <>
           <textarea
+            // DOM pass-through onto the raw-JSON editing surface
+            // (objectui#3318). NOTE this widget stays on the #3318 ledger
+            // regardless: its dependency-gated state (no `object_name` chosen
+            // yet — the state a fresh form and the registry sweep render) is a
+            // plain hint paragraph with no focusable control.
+            {...toDomProps(props)}
             className="min-h-[96px] w-full rounded border bg-background px-2 py-1 font-mono text-xs"
             value={rawValue}
             placeholder='{ "type": "customer", "is_active": true }'
             onChange={(e) => onChange(e.target.value as any)}
+            // The form's validation slot (#3222) OR this widget's own
+            // unparsable-JSON state, which already renders its red message.
+            aria-invalid={!!error || !parsed.ok}
           />
           {!parsed.ok && (
             <span className="text-xs text-destructive">{t('fields.filterCondition.invalidJson')}</span>

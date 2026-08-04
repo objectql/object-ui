@@ -2,6 +2,7 @@ import React, { useId, useEffect } from 'react';
 import { RadioGroup, RadioGroupItem, Label, EmptyValue } from '@object-ui/components';
 import { isValueStillOffered, type OptionLike } from '@object-ui/core';
 import { FieldWidgetComponentProps } from './types';
+import { toDomProps } from './toDomProps';
 import { OptionsEmptyState } from './OptionsEmptyState';
 import { useCascadingOptions } from './useCascadingOptions';
 
@@ -29,6 +30,7 @@ export function RadioField({
   dependsOn: dependsOnProp,
   emptyHint,
   dataSource: _dataSource,
+  error,
   ...props
 }: FieldWidgetComponentProps<string>) {
   const config = field as any;
@@ -77,11 +79,20 @@ export function RadioField({
   }
 
   return (
+    // DOM pass-through onto the radiogroup (objectui#3318). Unlike Radix
+    // `Select.Root` (#3306) this Root IS a real DOM element — a
+    // `<div role="radiogroup">` — and `radiogroup` is exactly the role
+    // WAI-ARIA designates to carry `aria-invalid` for a set of radios
+    // (`radio` itself does not support it): the group's state is announced
+    // when focus lands on any radio inside it.
     <RadioGroup
+      {...toDomProps(props)}
       value={value ?? ''}
       onValueChange={onChange}
       disabled={props.disabled}
       className={className}
+      // AFTER the spread so this widget's own computation wins (#3222).
+      aria-invalid={!!error}
     >
       {options.map((opt) => {
         // Radix speaks strings — stringify the (possibly numeric,

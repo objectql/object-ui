@@ -4,6 +4,7 @@ import { useUpload } from '@object-ui/providers';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { X, Image as ImageIcon, Crop as CropIcon, Loader2 } from 'lucide-react';
 import { FieldWidgetComponentProps } from './types';
+import { toDomProps } from './toDomProps';
 import { ImageLightbox } from './ImageLightbox';
 import { useUploadingSignal } from './useUploadingSignal';
 import {
@@ -24,7 +25,7 @@ const ImageCropperDialog = lazy(() =>
  * ImageField - Image upload widget with preview thumbnails
  * Supports single and multiple image uploads with drag-and-drop and preview display
  */
-export function ImageField({ value, onChange, field, readonly, onUploadingChange, ...props }: FieldWidgetComponentProps<any>) {
+export function ImageField({ value, onChange, field, readonly, onUploadingChange, error, ...props }: FieldWidgetComponentProps<any>) {
   const inputRef = useRef<HTMLInputElement>(null);
   const imageField = field as any;
   const multiple = imageField?.multiple || false;
@@ -212,12 +213,18 @@ export function ImageField({ value, onChange, field, readonly, onUploadingChange
         )}
         
         <Button
+          // DOM pass-through onto the widget's real focusable control — the
+          // upload button is the keyboard path to the hidden file input
+          // (objectui#3318).
+          {...toDomProps(props)}
           type="button"
           variant="outline"
           onClick={() => inputRef.current?.click()}
           className="w-full"
           disabled={uploading}
           data-testid="image-field-upload-button"
+          // AFTER the spread so this widget's own computation wins (#3222).
+          aria-invalid={!!error}
         >
           {uploading ? (
             <Loader2 className="size-4 mr-2 animate-spin" />

@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Badge, EmptyValue, cn } from '@object-ui/components';
 import type { OptionLike } from '@object-ui/core';
 import { FieldWidgetComponentProps } from './types';
+import { toDomProps } from './toDomProps';
 import { OptionsEmptyState } from './OptionsEmptyState';
 import { useCascadingOptions } from './useCascadingOptions';
 
@@ -31,6 +32,7 @@ export function MultiSelectField({
   dependsOn: dependsOnProp,
   emptyHint,
   dataSource: _dataSource,
+  error,
   ...props
 }: FieldWidgetComponentProps<string[]>) {
   const config = field as any;
@@ -91,8 +93,22 @@ export function MultiSelectField({
     onChange(next);
   };
 
+  // DOM pass-through (objectui#3318): the container carries the form
+  // renderer's id / aria-describedby, but NOT its `aria-invalid` — a plain
+  // wrapper div is not where assistive tech reads the invalid state. That
+  // state goes onto every focusable chip button below, computed from the
+  // published `error` slot (#3222), so whichever chip the user tabs to
+  // announces the failure. `name` is withheld too: it is only DOM-legal on
+  // form controls, and on this div it is exactly the leak #3291 sweeps for.
+  const {
+    'aria-invalid': _hostAriaInvalid,
+    name: _domName,
+    ...groupDomProps
+  } = toDomProps(props);
+
   return (
     <div
+      {...groupDomProps}
       className={cn('flex flex-wrap gap-1.5', className)}
       data-testid={fieldName ? `multiselect-${fieldName}` : undefined}
     >
@@ -108,6 +124,7 @@ export function MultiSelectField({
             onClick={() => toggle(value)}
             disabled={props.disabled}
             aria-pressed={active}
+            aria-invalid={!!error}
             data-testid={`multiselect-option-${opt.value}`}
             className={cn(
               'rounded-full border px-3 py-1 text-sm transition-colors',

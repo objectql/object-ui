@@ -2,12 +2,13 @@ import React from 'react';
 import { Input, Button, EmptyValue } from '@object-ui/components';
 import { QrCode, Copy } from 'lucide-react';
 import { FieldWidgetComponentProps } from './types';
+import { toDomProps } from './toDomProps';
 
 /**
  * QR Code field widget - generates QR codes from text
  * Uses a simple SVG-based QR code generator
  */
-export function QRCodeField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<string>) {
+export function QRCodeField({ value, onChange, field, readonly, error, ...props }: FieldWidgetComponentProps<string>) {
   const [showQR, setShowQR] = React.useState(false);
   const config = field;
 
@@ -47,12 +48,18 @@ export function QRCodeField({ value, onChange, field, readonly, ...props }: Fiel
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <Input
+          // DOM pass-through onto the real focusable control (objectui#3318).
+          {...toDomProps(props)}
           type="text"
           value={value || ''}
           onChange={(e) => onChange(e.target.value)}
           placeholder={config?.placeholder || 'Enter text for QR code'}
           disabled={readonly || props.disabled}
           className={props.className}
+          // AFTER the spread so this widget's own computation wins: `error`
+          // is the published validation slot (#3222), `!!undefined` →
+          // explicit "false".
+          aria-invalid={!!error}
         />
         {value && (
           <>

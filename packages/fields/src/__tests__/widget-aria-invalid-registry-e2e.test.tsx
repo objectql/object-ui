@@ -159,11 +159,32 @@ const WIDGETS: Record<string, ComponentType<any>> = {
  * objectui#3318, not an accepted state: the field shows its red message while
  * assistive tech is told nothing.
  *
- * Mechanism, per widget: none of these forwards its DOM pass-through (which
- * carries the `<FormControl>` Slot's `aria-invalid`) to the control it
- * renders, nor computes one from the published `error` slot. `grid` is the
- * one partial case — it has per-CELL `aria-invalid` for its own line-item
- * validation, but a form-level failure does not drive it.
+ * The objectui#3318 delivery batch cleared 20 of the original 29 entries with
+ * the objectui#3222/#3306 pattern. What remains cannot take that pattern
+ * as-is; each entry names why, so the follow-up starts from the blocker and
+ * not from a re-audit:
+ *
+ * - `formula` / `summary` / `auto_number` / `vector` — read-only computed /
+ *   display widgets: they render static text and NO focusable control, so
+ *   there is no element assistive tech would read the state from (marking the
+ *   text span would be exactly the non-focusable-wrapper move this ledger's
+ *   rules forbid). A `required` failure on a non-editable field is a metadata
+ *   authoring problem more than a widget one.
+ * - `grid` — composite line-item editor with its own per-CELL `aria-invalid`
+ *   for line validation; driving it from a FORM-level failure needs a design
+ *   (which cell? the add-row button?) rather than a spread.
+ * - `slider` — the focusable thumb (`role="slider"`, the ARIA-designated
+ *   carrier) is rendered inside the synced shadcn `ui/slider.tsx` (a #7
+ *   no-touch file), which forwards arbitrary props only to its non-focusable
+ *   Root span; delivering needs a components-level change.
+ * - `signature` — the drawing `<canvas>` is not focusable at all (no keyboard
+ *   input path exists); the only focusable element is the auxiliary Clear
+ *   button. Needs a real a11y design, not an attribute.
+ * - `filter-condition` / `recipient-picker` — dependency-gated: with no
+ *   sibling `object_name` / `recipient_type` chosen (the state a fresh form
+ *   and THIS SWEEP render) they show a hint paragraph with no focusable
+ *   control. Their editable states DO deliver `aria-invalid` since #3318's
+ *   delivery batch.
  *
  * Do NOT add to this list to make a new widget pass; fix the widget (the
  * objectui#3222/#3306 pattern: spread `toDomProps(props)` onto the real
@@ -173,33 +194,13 @@ const WIDGETS: Record<string, ComponentType<any>> = {
  * its own ledger row red until it is removed here. The ledger only shrinks.
  */
 const NOT_YET_DELIVERED: ReadonlySet<string> = new Set([
-  'multiselect',
-  'radio',
-  'checkboxes',
-  'tags',
-  'lookup',
-  'master_detail',
-  'file',
-  'image',
-  'location',
   'formula',
   'summary',
   'auto_number',
-  'user',
-  'owner',
-  'object',
   'vector',
   'grid',
-  'color',
   'slider',
-  'rating',
-  'code',
-  'avatar',
-  'address',
-  'geolocation',
   'signature',
-  'qrcode',
-  'object-ref',
   'filter-condition',
   'recipient-picker',
 ]);

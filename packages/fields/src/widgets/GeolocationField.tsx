@@ -2,6 +2,7 @@ import React from 'react';
 import { Input, Button, Label, EmptyValue } from '@object-ui/components';
 import { MapPin, Crosshair } from 'lucide-react';
 import { FieldWidgetComponentProps } from './types';
+import { toDomProps } from './toDomProps';
 
 /**
  * Geolocation data structure
@@ -16,9 +17,13 @@ export interface GeolocationValue {
  * Geolocation field widget - provides a location picker with coordinates
  * Supports manual entry and browser geolocation API
  */
-export function GeolocationField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<GeolocationValue>) {
+export function GeolocationField({ value, onChange, field, readonly, error, ...props }: FieldWidgetComponentProps<GeolocationValue>) {
   const [isLoading, setIsLoading] = React.useState(false);
   const location = value || {};
+  // DOM pass-through (objectui#3318): the whitelist spread goes onto the FIRST
+  // sub-input (latitude); the composite's validation state goes onto BOTH
+  // focusable sub-inputs via `aria-invalid={!!error}`.
+  const domProps = toDomProps(props);
 
   const handleFieldChange = (fieldName: keyof GeolocationValue, fieldValue: string) => {
     onChange({
@@ -117,6 +122,7 @@ export function GeolocationField({ value, onChange, field, readonly, ...props }:
         <div>
           <Label htmlFor="latitude" className="text-xs">Latitude</Label>
           <Input
+            {...domProps}
             id="latitude"
             type="number"
             value={location.latitude ?? ''}
@@ -125,6 +131,7 @@ export function GeolocationField({ value, onChange, field, readonly, ...props }:
             disabled={readonly || props.disabled}
             step="any"
             className={props.className}
+            aria-invalid={!!error}
           />
         </div>
         
@@ -138,6 +145,7 @@ export function GeolocationField({ value, onChange, field, readonly, ...props }:
             placeholder="-122.4194"
             disabled={readonly || props.disabled}
             step="any"
+            aria-invalid={!!error}
           />
         </div>
       </div>
