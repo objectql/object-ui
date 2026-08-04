@@ -71,6 +71,14 @@ export function Combobox({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          // Inside a <form> a bare <button> defaults to type="submit", so an
+          // untyped trigger would submit the enclosing object form on every
+          // click (objectui#3344). Radix's PopoverTrigger happens to supply
+          // type="button" via its Slot today, but that is an upstream
+          // implementation detail — declare the contract locally, like
+          // LookupField / MultiSelectField / RatingField do. Placed BEFORE the
+          // pass-through spread so an explicit consumer `type` still wins.
+          type="button"
           // Before this component's own props, which stay authoritative for
           // the combobox contract (role, aria-expanded, className, disabled).
           {...triggerProps}
