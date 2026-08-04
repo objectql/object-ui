@@ -831,19 +831,35 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
 
   /**
    * `type: 'modal'` dispatch — same rule as the shared console runtime (see
-   * `useConsoleActionRuntime.modalActionHandler`): open `target` as a page (or
-   * an object form) when it names one, else fall through to the action's
-   * server-side handler. Registering it as a handler rather than relying on the
-   * runner's built-in `executeModal` is what gives the record page that server
-   * fallback, so a modal action bound to `engine.registerAction(...)` completes
-   * here exactly as it does on a list page.
+   * `useConsoleActionRuntime.modalActionHandler`): CLIENT-SIDE ONLY. The
+   * action's `target` names the page (or object form) to open; rendering it is
+   * the whole of what a modal action does.
+   *
+   * [objectstack#3959 / objectui#3320] This used to fall through to
+   * `serverActionHandler` when the target resolved to neither a page nor an
+   * object, "so a modal action bound to `engine.registerAction(...)` completes
+   * here exactly as it does on a list page". It never ran: the framework's
+   * `headlessActionTypeError` rejects `type: 'modal'` over REST with a 400,
+   * because a modal has no server dispatch — the fallthrough only converted an
+   * authoring mistake (a target naming no page) into a confusing round-trip.
+   * objectstack#3959 removed it from the shared runtime; this copy kept the
+   * pre-#3959 shape until objectui#3320. An unresolvable target is now
+   * reported as what it is. To collect input and then run server-side, declare
+   * `type: 'script'` with `params`: the runner collects the same dialog and
+   * the handler runs with those values.
    */
   const modalActionHandler = useCallback(async (action: ActionDef) => {
     const schema = (action as any).modal ?? action.target ?? (action as any).params?.schema;
     const descriptor = schema != null ? await resolveModalTarget(schema) : null;
     if (descriptor) return modalHandler(descriptor);
-    return serverActionHandler(action);
-  }, [resolveModalTarget, modalHandler, serverActionHandler]);
+    return {
+      success: false,
+      error:
+        `Action "${action.name}" is type:'modal' but its target ` +
+        `${schema != null ? `"${String(schema)}" ` : ''}names no page or object to open. ` +
+        `Point it at a page, or use type:'script' with params to collect input and run a handler.`,
+    };
+  }, [resolveModalTarget, modalHandler]);
 
   // ─── Approvals ─────────────────────────────────────────────────────
   // Since ADR-0019 an approval is a flow node: the flow opens the request,
