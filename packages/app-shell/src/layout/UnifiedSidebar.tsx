@@ -38,8 +38,8 @@ import {
   Home,
   Layers,
 } from 'lucide-react';
-import { NavigationRenderer } from '@object-ui/layout';
-import type { NavigationItem } from '@object-ui/types';
+import { NavigationRenderer, hasVisibleNavigationItems } from '@object-ui/layout';
+import type { NavigationArea, NavigationItem } from '@object-ui/types';
 import { useMetadata } from '../providers/MetadataProvider';
 import { useExpressionContext, evaluateVisibility } from '../providers/ExpressionProvider';
 import { usePermissions } from '@object-ui/permissions';
@@ -197,22 +197,97 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
   const { applyOrder, handleReorder } = useNavOrder(activeApp?.name || 'home');
   const { togglePin, applyPins } = useNavPins();
 
-  // Area management
-  const areas: any[] = activeApp?.areas || [];
-  const [activeAreaId, setActiveAreaId] = React.useState<string | null>(
-    () => areas.length > 0 ? areas[0].id : null,
+  // Visibility evaluation
+  const { evaluator } = useExpressionContext();
+  const evalVis = React.useCallback(
+    (expr: string | boolean | undefined) => evaluateVisibility(expr, evaluator),
+    [evaluator],
   );
 
+  // Permission check for nav `requiredPermissions` entries.
+  //
+  // Two authored forms:
+  //  - `object:action` → object CRUD gate.
+  //  - bare name → an ADR-0066 system capability, checked against the union of
+  //    the user's permission-set `systemPermissions` (from /me/permissions) —
+  //    the SAME subset rule the server applies to `AppSchema.requiredPermissions`.
+  //    This used to be misread as `can(<name>, 'read')` only, so a nav item
+  //    requiring a capability was hidden even from users whose permission set
+  //    granted it (admins included) — `requiredPermissions` degenerated into a
+  //    "hide from everyone" switch. The object-read fallback stays for nav
+  //    items that gate on a plain object name.
+  const { can, hasCapabilities } = usePermissions();
+  const checkPerm = React.useCallback(
+    (permissions: string[]) => permissions.every((perm: string) => {
+      const parts = perm.split(':');
+      if (parts.length >= 2) {
+        return can(parts[0], parts[1] as any);
+      }
+      return hasCapabilities([perm]) || can(perm, 'read');
+    }),
+    [can, hasCapabilities],
+  );
+
+  // Runtime capability gate: hide nav items targeting objects/services
+  // not registered in this runtime (e.g. cloud-only `sys_app`).
+  const registeredObjectNames = React.useMemo(
+    () => new Set<string>((metadataObjects || []).map((o: any) => o?.name).filter(Boolean)),
+    [metadataObjects],
+  );
+  const checkCap = React.useCallback(
+    (kind: 'object' | 'service', name: string): boolean => {
+      if (kind === 'object') {
+        if (registeredObjectNames.size === 0) return true;
+        return registeredObjectNames.has(name);
+      }
+      return true;
+    },
+    [registeredObjectNames],
+  );
+
+  // Area management.
+  //
+  // Area visibility is DERIVED from the items inside (objectui#3311 /
+  // objectui#3319): the switcher offers an area iff at least one of its
+  // navigation items survives the same item-level guards NavigationRenderer
+  // applies (`visible`, `requiredPermissions`, runtime capabilities,
+  // action-dispatcher presence). The active area is elected among the
+  // VISIBLE areas only, so the user is never landed in — or stranded on —
+  // an area that renders nothing. Same derivation as `AppSchemaRenderer`
+  // (@object-ui/layout); the predicate is shared, not re-implemented.
+  const areas: NavigationArea[] = activeApp?.areas || [];
+  const visibleAreas = areas.filter((area) =>
+    hasVisibleNavigationItems(area.navigation, {
+      evaluateVisibility: evalVis,
+      checkPermission: checkPerm,
+      checkCapability: checkCap,
+      // This sidebar always wires `onAction={dispatchNavAction}` on its
+      // NavigationRenderer (framework#4509), so `action` items render and
+      // count as area content.
+      hasActionHandler: !!dispatchNavAction,
+    }),
+  );
+  const [activeAreaId, setActiveAreaId] = React.useState<string | null>(
+    () => visibleAreas.length > 0 ? visibleAreas[0].id : null,
+  );
+
+  const visibleAreaIds = visibleAreas.map((a) => a.id).join(',');
+
+  // Re-elect when the app changes or the visible-area set changes. Keeping
+  // `prev` whenever it is still visible means merely REVEALING a new area
+  // never steals the user's current selection.
   React.useEffect(() => {
-    if (areas.length > 0) {
-      setActiveAreaId(prev => areas.some((a: any) => a.id === prev) ? prev : areas[0].id);
+    if (visibleAreas.length > 0) {
+      setActiveAreaId(prev => visibleAreas.some((a) => a.id === prev) ? prev : visibleAreas[0].id);
     } else {
       setActiveAreaId(null);
     }
-  }, [activeApp?.name, areas.length]);
+  }, [activeApp?.name, visibleAreaIds]);
 
-  // Resolve navigation items
-  const activeArea = areas.find((a: any) => a.id === activeAreaId);
+  // Resolve navigation items. The render-time `?? visibleAreas[0]` fallback
+  // covers the frame between a gating change hiding the active area and the
+  // effect above re-electing.
+  const activeArea = visibleAreas.find((a) => a.id === activeAreaId) ?? visibleAreas[0];
   const appNavigation: NavigationItem[] = activeArea?.navigation || activeApp?.navigation || [];
 
   // App-level context selectors (e.g. Studio's package scope). Their
@@ -310,54 +385,6 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
   // Recent section collapsed by default
   const [recentExpanded, setRecentExpanded] = React.useState(false);
 
-  // Visibility evaluation
-  const { evaluator } = useExpressionContext();
-  const evalVis = React.useCallback(
-    (expr: string | boolean | undefined) => evaluateVisibility(expr, evaluator),
-    [evaluator],
-  );
-
-  // Permission check for nav `requiredPermissions` entries.
-  //
-  // Two authored forms:
-  //  - `object:action` → object CRUD gate.
-  //  - bare name → an ADR-0066 system capability, checked against the union of
-  //    the user's permission-set `systemPermissions` (from /me/permissions) —
-  //    the SAME subset rule the server applies to `AppSchema.requiredPermissions`.
-  //    This used to be misread as `can(<name>, 'read')` only, so a nav item
-  //    requiring a capability was hidden even from users whose permission set
-  //    granted it (admins included) — `requiredPermissions` degenerated into a
-  //    "hide from everyone" switch. The object-read fallback stays for nav
-  //    items that gate on a plain object name.
-  const { can, hasCapabilities } = usePermissions();
-  const checkPerm = React.useCallback(
-    (permissions: string[]) => permissions.every((perm: string) => {
-      const parts = perm.split(':');
-      if (parts.length >= 2) {
-        return can(parts[0], parts[1] as any);
-      }
-      return hasCapabilities([perm]) || can(perm, 'read');
-    }),
-    [can, hasCapabilities],
-  );
-
-  // Runtime capability gate: hide nav items targeting objects/services
-  // not registered in this runtime (e.g. cloud-only `sys_app`).
-  const registeredObjectNames = React.useMemo(
-    () => new Set<string>((metadataObjects || []).map((o: any) => o?.name).filter(Boolean)),
-    [metadataObjects],
-  );
-  const checkCap = React.useCallback(
-    (kind: 'object' | 'service', name: string): boolean => {
-      if (kind === 'object') {
-        if (registeredObjectNames.size === 0) return true;
-        return registeredObjectNames.has(name);
-      }
-      return true;
-    },
-    [registeredObjectNames],
-  );
-
   const isStudioHomeActive = isStudioApp && location.pathname.replace(/\/+$/, '') === basePath;
 
   return (
@@ -420,8 +447,9 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
             </SidebarGroup>
           )}
 
-          {/* Area Switcher */}
-           {areas.length > 1 && (
+          {/* Area Switcher — offered only when MULTIPLE areas are visible;
+              area visibility is derived from the items inside (#3319) */}
+           {visibleAreas.length > 1 && (
              <SidebarGroup>
                <SidebarGroupLabel className="flex items-center gap-1.5">
                  <Layers className="h-3.5 w-3.5" />
@@ -429,9 +457,9 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
                </SidebarGroupLabel>
                <SidebarGroupContent>
                  <SidebarMenu>
-                   {areas.map((area: any) => {
+                   {visibleAreas.map((area) => {
                      const AreaIcon = getIcon(area.icon);
-                     const isActiveArea = area.id === activeAreaId;
+                     const isActiveArea = area.id === activeArea?.id;
                      return (
                        <SidebarMenuItem key={area.id}>
                          <SidebarMenuButton

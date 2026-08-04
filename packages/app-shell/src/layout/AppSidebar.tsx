@@ -53,8 +53,8 @@ import {
   Home,
   ListTree,
 } from 'lucide-react';
-import { NavigationRenderer, resolveHref, resolveActiveNavItem } from '@object-ui/layout';
-import type { NavigationItem } from '@object-ui/types';
+import { NavigationRenderer, resolveHref, resolveActiveNavItem, hasVisibleNavigationItems } from '@object-ui/layout';
+import type { NavigationArea, NavigationItem } from '@object-ui/types';
 import { useMetadata } from '../providers/MetadataProvider';
 import { useExpressionContext, evaluateVisibility } from '../providers/ExpressionProvider';
 import { useAuth, useIsWorkspaceAdmin, getUserInitials } from '@object-ui/auth';
@@ -191,45 +191,6 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
   // Navigation pin persistence via localStorage
   const { togglePin, applyPins } = useNavPins();
 
-  // Area management — track selected area when app defines areas
-  const areas: any[] = activeApp?.areas || [];
-  const [activeAreaId, setActiveAreaId] = React.useState<string | null>(
-    () => areas.length > 0 ? areas[0].id : null,
-  );
-
-  // Reset area when app changes or areas become available
-  React.useEffect(() => {
-    if (areas.length > 0) {
-      setActiveAreaId(prev => areas.some((a: any) => a.id === prev) ? prev : areas[0].id);
-    } else {
-      setActiveAreaId(null);
-    }
-  }, [activeAppName, areas.length]);
-
-  // Resolve navigation items: area navigation > flat navigation > empty
-  const activeArea = areas.find((a: any) => a.id === activeAreaId);
-  const resolvedNavigation: NavigationItem[] = activeArea?.navigation || activeApp?.navigation || [];
-
-  // App-level context selectors (e.g. Studio's package scope). Their
-  // values are injected into nav items as `{<id>}` template vars.
-  const { contextValues, element: contextSelectorsUI } = useAppContextSelectors(
-    activeAppName,
-    activeApp?.contextSelectors,
-    t,
-  );
-
-  // Apply saved order and pin state to navigation items
-  const processedNavigation = React.useMemo(() => {
-    const ordered = applyOrder(resolvedNavigation);
-    return applyPins(ordered);
-  }, [resolvedNavigation, applyOrder, applyPins]);
-
-  // Search filter state for sidebar navigation
-  const [navSearchQuery, setNavSearchQuery] = React.useState('');
-
-  // Recent section collapsed by default
-  const [recentExpanded, setRecentExpanded] = React.useState(false);
-
   // Visibility evaluation from Console expression context
   const { evaluator } = useExpressionContext();
   const evalVis = React.useCallback(
@@ -276,6 +237,71 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
     },
     [registeredObjectNames],
   );
+
+  // Area management — track selected area when app defines areas.
+  //
+  // Area visibility is DERIVED from the items inside (objectui#3311 /
+  // objectui#3319): the switcher offers an area iff at least one of its
+  // navigation items survives the same item-level guards NavigationRenderer
+  // applies (`visible`, `requiredPermissions`, runtime capabilities,
+  // action-dispatcher presence). The active area is elected among the
+  // VISIBLE areas only, so the user is never landed in — or stranded on —
+  // an area that renders nothing. Same derivation as `AppSchemaRenderer`
+  // (@object-ui/layout); the predicate is shared, not re-implemented.
+  const areas: NavigationArea[] = activeApp?.areas || [];
+  const visibleAreas = areas.filter((area) =>
+    hasVisibleNavigationItems(area.navigation, {
+      evaluateVisibility: evalVis,
+      checkPermission: checkPerm,
+      checkCapability: checkCap,
+      // This sidebar wires no `onAction` on its NavigationRenderer, so
+      // `action` items never render here and cannot carry an area's
+      // visibility either (framework#4509).
+      hasActionHandler: false,
+    }),
+  );
+  const [activeAreaId, setActiveAreaId] = React.useState<string | null>(
+    () => visibleAreas.length > 0 ? visibleAreas[0].id : null,
+  );
+
+  const visibleAreaIds = visibleAreas.map((a) => a.id).join(',');
+
+  // Re-elect when the app changes or the visible-area set changes. Keeping
+  // `prev` whenever it is still visible means merely REVEALING a new area
+  // never steals the user's current selection.
+  React.useEffect(() => {
+    if (visibleAreas.length > 0) {
+      setActiveAreaId(prev => visibleAreas.some((a) => a.id === prev) ? prev : visibleAreas[0].id);
+    } else {
+      setActiveAreaId(null);
+    }
+  }, [activeAppName, visibleAreaIds]);
+
+  // Resolve navigation items: area navigation > flat navigation > empty.
+  // The render-time `?? visibleAreas[0]` fallback covers the frame between
+  // a gating change hiding the active area and the effect above re-electing.
+  const activeArea = visibleAreas.find((a) => a.id === activeAreaId) ?? visibleAreas[0];
+  const resolvedNavigation: NavigationItem[] = activeArea?.navigation || activeApp?.navigation || [];
+
+  // App-level context selectors (e.g. Studio's package scope). Their
+  // values are injected into nav items as `{<id>}` template vars.
+  const { contextValues, element: contextSelectorsUI } = useAppContextSelectors(
+    activeAppName,
+    activeApp?.contextSelectors,
+    t,
+  );
+
+  // Apply saved order and pin state to navigation items
+  const processedNavigation = React.useMemo(() => {
+    const ordered = applyOrder(resolvedNavigation);
+    return applyPins(ordered);
+  }, [resolvedNavigation, applyOrder, applyPins]);
+
+  // Search filter state for sidebar navigation
+  const [navSearchQuery, setNavSearchQuery] = React.useState('');
+
+  // Recent section collapsed by default
+  const [recentExpanded, setRecentExpanded] = React.useState(false);
 
   const basePath = activeApp ? `/apps/${appRouteSegment(activeApp) ?? activeAppName}` : '';
 
@@ -435,8 +461,9 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
       <SidebarContent>
          {activeApp ? (
            <>
-           {/* Area Switcher — shown when app defines areas */}
-           {areas.length > 1 && (
+           {/* Area Switcher — offered only when MULTIPLE areas are visible;
+               area visibility is derived from the items inside (#3319) */}
+           {visibleAreas.length > 1 && (
              <SidebarGroup>
                <SidebarGroupLabel className="flex items-center gap-1.5">
                  <Layers className="h-3.5 w-3.5" />
@@ -444,9 +471,9 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                </SidebarGroupLabel>
                <SidebarGroupContent>
                  <SidebarMenu>
-                   {areas.map((area: any) => {
+                   {visibleAreas.map((area) => {
                      const AreaIcon = getIcon(area.icon);
-                     const isActiveArea = area.id === activeAreaId;
+                     const isActiveArea = area.id === activeArea?.id;
                      return (
                        <SidebarMenuItem key={area.id}>
                          <SidebarMenuButton
