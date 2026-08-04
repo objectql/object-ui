@@ -203,6 +203,9 @@ const ja = {
       editAsJson: "JSON で編集",
       useVisualBuilder: "ビジュアルビルダーを使用",
     },
+    tags: {
+      placeholder: "入力してEnterキーで追加…",
+    },
   },
   table: {
     rowsPerPage: "1ページの行数",

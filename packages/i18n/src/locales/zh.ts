@@ -208,6 +208,9 @@ const zh = {
       editAsJson: '以 JSON 编辑',
       useVisualBuilder: '使用可视化构建器',
     },
+    tags: {
+      placeholder: '输入后回车添加…',
+    },
   },
   table: {
     rowsPerPage: '每页行数',

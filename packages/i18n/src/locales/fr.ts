@@ -203,6 +203,9 @@ const fr = {
       editAsJson: "Modifier en JSON",
       useVisualBuilder: "Utiliser le constructeur visuel",
     },
+    tags: {
+      placeholder: "Saisissez puis appuyez sur Entrée pour ajouter…",
+    },
   },
   table: {
     rowsPerPage: "Lignes par page",

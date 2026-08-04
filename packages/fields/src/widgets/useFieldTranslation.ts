@@ -75,6 +75,9 @@ const FIELD_DEFAULTS: Record<string, string> = {
   'fields.filterCondition.jsonOnly': 'This criteria can only be edited as JSON',
   'fields.filterCondition.editAsJson': 'Edit as JSON',
   'fields.filterCondition.useVisualBuilder': 'Use visual builder',
+  // objectui#3342 — the tags widget's input hint. Used only when the field
+  // author declared no `placeholder` of their own (author declaration wins).
+  'fields.tags.placeholder': 'Type and press Enter to add…',
   // objectui#2600 B5 — capability picker scope group headers.
   'capability.group.platform': 'Platform',
   'capability.group.org': 'Organization',

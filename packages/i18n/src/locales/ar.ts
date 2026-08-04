@@ -203,6 +203,9 @@ const ar = {
       editAsJson: "التحرير بصيغة JSON",
       useVisualBuilder: "استخدام المُنشئ المرئي",
     },
+    tags: {
+      placeholder: "اكتب واضغط Enter للإضافة…",
+    },
   },
   table: {
     rowsPerPage: "صفوف في الصفحة",

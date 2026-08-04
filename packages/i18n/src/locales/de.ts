@@ -203,6 +203,9 @@ const de = {
       editAsJson: "Als JSON bearbeiten",
       useVisualBuilder: "Visuellen Builder verwenden",
     },
+    tags: {
+      placeholder: "Tippen und mit der Eingabetaste hinzufügen…",
+    },
   },
   table: {
     rowsPerPage: "Zeilen pro Seite",

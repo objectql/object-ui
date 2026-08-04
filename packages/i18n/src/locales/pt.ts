@@ -203,6 +203,9 @@ const pt = {
       editAsJson: "Editar como JSON",
       useVisualBuilder: "Usar o construtor visual",
     },
+    tags: {
+      placeholder: "Digite e pressione Enter para adicionar…",
+    },
   },
   table: {
     rowsPerPage: "Linhas por página",

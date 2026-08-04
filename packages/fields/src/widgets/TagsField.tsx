@@ -2,6 +2,7 @@ import React from 'react';
 import { Badge, Input, EmptyValue, cn } from '@object-ui/components';
 import { FieldWidgetComponentProps } from './types';
 import { toDomProps } from './toDomProps';
+import { useFieldTranslation } from './useFieldTranslation';
 
 /**
  * TagsField - free-form list of string tags. Type a value and press Enter (or
@@ -11,6 +12,8 @@ import { toDomProps } from './toDomProps';
 export function TagsField({ value, onChange, field, readonly, className, error, ...props }: FieldWidgetComponentProps<string[]>) {
   const tags: string[] = Array.isArray(value) ? value : value == null ? [] : [value as unknown as string];
   const [draft, setDraft] = React.useState('');
+  // Unconditional hook call (rules-of-hooks): before the readonly early return.
+  const { t } = useFieldTranslation();
 
   if (readonly) {
     if (tags.length === 0) return <EmptyValue />;
@@ -64,7 +67,15 @@ export function TagsField({ value, onChange, field, readonly, className, error, 
         onKeyDown={onKeyDown}
         onBlur={() => addTag(draft)}
         disabled={props.disabled}
-        placeholder={tags.length === 0 ? '输入后回车添加…' : ''}
+        // Placeholder chain (objectui#3342): the author-declared
+        // `field.placeholder` wins; otherwise the widget's own copy arrives
+        // via `useFieldTranslation()` — `fields.tags.placeholder` in the
+        // locale packs, English default from FIELD_DEFAULTS when no
+        // I18nProvider is mounted. This used to be a hardcoded Chinese
+        // literal (Commandment #-1); Chinese now lives in the zh pack only.
+        // Shown only while the list is empty — once a tag exists the input is
+        // a small continuation strip and the hint would be noise.
+        placeholder={tags.length === 0 ? field?.placeholder || t('fields.tags.placeholder') : ''}
         className="h-7 flex-1 border-0 bg-transparent p-0 px-1 shadow-none focus-visible:ring-0 min-w-[8ch]"
         // AFTER the spread so this widget's own computation wins (the #3222
         // discipline): `error` is the published validation slot, and

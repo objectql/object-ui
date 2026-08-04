@@ -203,6 +203,9 @@ const ru = {
       editAsJson: "Редактировать как JSON",
       useVisualBuilder: "Использовать визуальный конструктор",
     },
+    tags: {
+      placeholder: "Введите и нажмите Enter, чтобы добавить…",
+    },
   },
   table: {
     rowsPerPage: "Строк на странице",

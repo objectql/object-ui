@@ -213,6 +213,11 @@ const en = {
       editAsJson: 'Edit as JSON',
       useVisualBuilder: 'Use visual builder',
     },
+    // objectui#3342 — the tags widget's input hint, shown while the tag list
+    // is empty. The author-declared `field.placeholder` always wins over this.
+    tags: {
+      placeholder: 'Type and press Enter to add…',
+    },
   },
   table: {
     rowsPerPage: 'Rows per page',

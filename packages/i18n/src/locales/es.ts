@@ -203,6 +203,9 @@ const es = {
       editAsJson: "Editar como JSON",
       useVisualBuilder: "Usar el constructor visual",
     },
+    tags: {
+      placeholder: "Escriba y pulse Intro para añadir…",
+    },
   },
   table: {
     rowsPerPage: "Filas por página",
