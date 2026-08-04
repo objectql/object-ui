@@ -1677,6 +1677,8 @@ const en = {
       objectNotFound: 'Object Not Found',
       objectNotFoundDescription: 'The object "{{objectName}}" does not exist in the current configuration.',
       objectNotFoundHint: 'Check your app navigation settings or select a different object from the sidebar.',
+      filterOrNotSavable: 'This filter uses OR between conditions, which a saved view cannot store yet. It still applies to this list — remove the OR grouping to save it to the view.',
+      filterNestedNotSavable: 'This filter uses nested condition groups, which a saved view cannot store. Flatten it to a single list of conditions to save it to the view.',
       systemViewReadonly: 'System view defined in code — read-only.',
       expandToPage: 'Open as full page',
       allRecords: 'All Records',

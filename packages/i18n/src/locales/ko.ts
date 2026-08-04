@@ -1496,6 +1496,8 @@ const ko = {
       objectNotFound: "객체를 찾을 수 없음",
       objectNotFoundDescription: "객체 \"{{objectName}}\"이(가) 현재 구성에 존재하지 않습니다.",
       objectNotFoundHint: "앱 탐색 설정을 확인하거나 사이드바에서 다른 객체를 선택하세요.",
+      filterOrNotSavable: "이 필터는 조건 사이에 OR을 사용하며, 저장된 뷰에는 아직 저장할 수 없습니다. 현재 목록에는 계속 적용됩니다. 뷰에 저장하려면 OR 그룹을 해제하세요.",
+      filterNestedNotSavable: "이 필터는 중첩된 조건 그룹을 사용하며, 저장된 뷰에는 저장할 수 없습니다. 뷰에 저장하려면 단일 조건 목록으로 펼치세요.",
       allRecords: "모든 레코드",
       exitDesignMode: "디자인 모드 종료",
       enterDesignMode: "디자인 모드 시작",

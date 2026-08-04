@@ -1496,6 +1496,8 @@ const de = {
       objectNotFound: "Objekt nicht gefunden",
       objectNotFoundDescription: "Das Objekt „{{objectName}}\" existiert in der aktuellen Konfiguration nicht.",
       objectNotFoundHint: "Überprüfen Sie Ihre App-Navigationseinstellungen oder wählen Sie ein anderes Objekt aus der Seitenleiste.",
+      filterOrNotSavable: "Dieser Filter verknüpft Bedingungen mit ODER, was eine gespeicherte Ansicht noch nicht ablegen kann. Er gilt weiterhin für diese Liste – entfernen Sie die ODER-Gruppierung, um ihn in der Ansicht zu speichern.",
+      filterNestedNotSavable: "Dieser Filter verwendet verschachtelte Bedingungsgruppen, die eine gespeicherte Ansicht nicht ablegen kann. Reduzieren Sie ihn auf eine einzelne Bedingungsliste, um ihn in der Ansicht zu speichern.",
       allRecords: "Alle Datensätze",
       exitDesignMode: "Designmodus beenden",
       enterDesignMode: "Designmodus starten",

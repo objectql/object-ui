@@ -14,6 +14,7 @@ import { useParams, useSearchParams, useNavigate, useLocation } from 'react-rout
 import { resolveFilterPlaceholders, DENSITY_MODE_TO_ROW_HEIGHT, normalizeListViewSchema, type FilterTokenScope } from '@object-ui/core';
 import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState';
 import { buildListFilterKey, readListFilterState, writeListFilterState } from './listFilterStorage';
+import { foldFilterGroupToSpecRules, FILTER_FOLD_REFUSAL_KEYS } from './viewFilterFold';
 const ObjectChart = lazy(() =>
   import('@object-ui/plugin-charts').then((m) => ({ default: m.ObjectChart })),
 );
@@ -263,6 +264,34 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             }, 300);
         },
         [dataSource, objectName]
+    );
+
+    /**
+     * Persist a toolbar filter change (objectstack#5159).
+     *
+     * The list toolbar's FilterBuilder emits its own grouped dialect
+     * (`{ id, logic, conditions }`); `ListViewSchema.filter` declares
+     * `ViewFilterRule[]`. Handing the group straight to `persistViewPatch` is
+     * what made every `Filter → Add filter` PUT come back 422 `invalid_union`.
+     * Fold at the producer (AGENTS.md #0.1) — the spec is not widened.
+     *
+     * A group that cannot fold LOSSLESSLY (`logic: 'or'` across several
+     * conditions, or a nested group) is refused out loud and NOT saved, rather
+     * than quietly written as AND: an AND rewrite would return a different
+     * record set than the one the user is looking at. The filter still applies
+     * to the live grid — `convertFilterGroupToAST` honours `logic` in-session —
+     * it just does not become part of the stored view.
+     */
+    const persistViewFilter = useCallback(
+        (viewIdLocal: string, baseViewDef: Record<string, any>, group: unknown) => {
+            const folded = foldFilterGroupToSpecRules(group);
+            if (!folded.ok) {
+                toast.error(t(FILTER_FOLD_REFUSAL_KEYS[folded.reason]));
+                return;
+            }
+            persistViewPatch(viewIdLocal, baseViewDef, { filter: folded.rules });
+        },
+        [persistViewPatch, t]
     );
 
     const handleViewConfigSave = useCallback((draft: Record<string, any>) => {
@@ -1335,7 +1364,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                 persistViewPatch(viewDef.id, viewDef, { sort });
             },
             onFilterChange: (filter: any) => {
-                persistViewPatch(viewDef.id, viewDef, { filter });
+                persistViewFilter(viewDef.id, viewDef, filter);
             },
             onHiddenFieldsChange: (hidden: string[]) => {
                 persistViewPatch(viewDef.id, viewDef, { hiddenFields: hidden });
@@ -1590,7 +1619,11 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     persistViewPatch(viewDef.id, viewDef, { sort });
                 }}
                 onFilterChange={(filter: any) => {
-                    persistViewPatch(viewDef.id, viewDef, { filter });
+                    persistViewFilter(viewDef.id, viewDef, filter);
+                    // localStorage keeps the BUILDER's group verbatim — it is
+                    // read back into `initialFilters`, which needs `conditions`
+                    // (and the row ids) to rehydrate the toolbar. Only the
+                    // spec-governed view body is folded.
                     writeListFilterState(listFilterKey, { filters: filter });
                 }}
                 onSearchChange={(search: string) => {
@@ -1612,7 +1645,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                 dataSource={ds}
             />
         );
-    }, [activeView, objectDef, objectName, refreshKey, navOverlay, actions, persistViewPatch, urlFilters, initialUfSelections, handleUserFilterSelectionsChange, user?.id]);
+    }, [activeView, objectDef, objectName, refreshKey, navOverlay, actions, persistViewPatch, persistViewFilter, urlFilters, initialUfSelections, handleUserFilterSelectionsChange, user?.id]);
 
     // Memoize the merged views array so PluginObjectView doesn't get a new
     // reference on every render (which would trigger unnecessary data refetches).

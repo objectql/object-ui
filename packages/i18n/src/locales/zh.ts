@@ -1672,6 +1672,8 @@ const zh = {
       objectNotFound: '未找到对象',
       objectNotFoundDescription: '对象"{{objectName}}"在当前配置中不存在。',
       objectNotFoundHint: '请检查您的应用导航设置或从侧边栏选择其他对象。',
+      filterOrNotSavable: '该筛选条件之间使用「或」,保存到视图暂不支持这种结构。它仍会作用于当前列表 —— 取消「或」分组后才能保存到视图。',
+      filterNestedNotSavable: '该筛选使用了嵌套条件分组,保存到视图不支持这种结构。请改为单层条件列表后再保存到视图。',
       allRecords: '所有记录',
       exitDesignMode: '退出设计模式',
       enterDesignMode: '进入设计模式',

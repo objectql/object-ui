@@ -43,7 +43,10 @@ import {
 } from '@object-ui/components';
 import { ChevronDown, ChevronsUpDown, ChevronUp, Eye, EyeOff, Plus, Search, Trash2 } from 'lucide-react';
 import { iconNames } from 'lucide-react/dynamic.mjs';
+import { toast } from 'sonner';
+import { useObjectTranslation } from '@object-ui/i18n';
 import { useMetadataLocale, t, tFormat } from './i18n';
+import { foldFilterGroupToSpecRules, FILTER_FOLD_REFUSAL_KEYS } from '../viewFilterFold';
 import { ColorVariantPicker } from './color-variant-field';
 import { ConditionBuilder } from './inspectors/ConditionBuilder';
 import { expressionSource, writeExpressionSource } from './inspectors/expression-envelope';
@@ -1675,14 +1678,13 @@ function ActionMultiWidget({ id, value, onChange, readOnly, context }: WidgetPro
 /* by ViewFilterRuleSchema); reads also accept legacy shorthand/camelCase      */
 /* spellings still present in already-stored view metadata (gt / eq / isNull). */
 /* -------------------------------------------------------------------------- */
-const FB_TO_SPEC: Record<string, string> = {
-  equals: 'equals', notEquals: 'not_equals', contains: 'contains', notContains: 'not_contains',
-  isEmpty: 'is_empty', isNotEmpty: 'is_not_empty',
-  greaterThan: 'greater_than', lessThan: 'less_than',
-  greaterOrEqual: 'greater_than_or_equal', lessOrEqual: 'less_than_or_equal',
-  before: 'before', after: 'after', between: 'between',
-  in: 'in', notIn: 'not_in',
-};
+/* The WRITE direction (builder group → spec `ViewFilterRule[]`) now lives in  */
+/* `../viewFilterFold`, shared with the runtime list toolbar — this file used  */
+/* to hold the only copy, which is why the toolbar had none and PUT its raw    */
+/* FilterGroup (objectstack#5159). Its local `FB_TO_SPEC` table went with it:  */
+/* the shared fold normalizes through the spec's own                           */
+/* `normalizeFilterOperator`, which covers the four builder operators this     */
+/* table had drifted behind (startsWith / endsWith / isNull / isNotNull).      */
 /** Spec operator → FilterBuilder camelCase. Keys cover both the canonical
  *  vocabulary and legacy spellings (shorthand + snake/camel) so stored view
  *  metadata written before canonicalization still seeds the builder. */
@@ -1707,6 +1709,10 @@ function FilterBuilderField({ value, onChange, fields, readOnly }: {
   fields: Array<{ name: string; label?: string; type?: string }>;
   readOnly?: boolean;
 }) {
+  // The metadata-admin `t` above is a static engine-string table; refusal
+  // copy lives in the shared console locale packs, so it resolves through the
+  // platform translator (same one ObjectView's toolbar toasts use).
+  const { t: tr } = useObjectTranslation();
   const rules = Array.isArray(value) ? value : [];
   const group = {
     id: 'g',
@@ -1725,10 +1731,16 @@ function FilterBuilderField({ value, onChange, fields, readOnly }: {
     ? rules.map((r) => `${fields.find((f) => f.name === r.field)?.label || r.field}`).filter(Boolean).join(', ')
     : '';
   const handle = (g: any) => {
-    const next = (g?.conditions ?? [])
-      .filter((c: any) => c?.field)
-      .map((c: any) => ({ field: c.field, operator: FB_TO_SPEC[c.operator] ?? c.operator, value: c.value }));
-    onChange(next);
+    // Shared with the runtime list toolbar (objectstack#5159). A group that
+    // cannot fold losslessly — `logic: 'or'` over several rows, or a nested
+    // group — is refused rather than silently written as AND, which is what
+    // this callback used to do by dropping `g.logic` on the floor.
+    const folded = foldFilterGroupToSpecRules(g);
+    if (!folded.ok) {
+      toast.error(tr(FILTER_FOLD_REFUSAL_KEYS[folded.reason]));
+      return;
+    }
+    onChange(folded.rules as FilterRuleLite[]);
   };
   return (
     <Popover>
