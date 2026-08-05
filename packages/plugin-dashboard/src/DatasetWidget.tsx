@@ -77,9 +77,9 @@ export const buildDrillFilter = buildDatasetDrillFilter;
  * the cross-tab renderer — must build its key with this function; a second,
  * hand-rolled encoding of the same id is what made the old bug invisible.
  *
- * Known residual, tracked separately: a null/undefined dimension value is
- * encoded as the placeholder below, so it still collides with a value that
- * literally equals that placeholder.
+ * Known residual, tracked separately in objectstack#5666: a null/undefined
+ * dimension value is encoded as the placeholder character below, so it still
+ * collides with a value that literally equals that placeholder.
  */
 export const pivotRowId = (dimensionValues: string[]): string => JSON.stringify(dimensionValues);
 
