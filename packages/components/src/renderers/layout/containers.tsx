@@ -1077,6 +1077,35 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     });
   }, [rawHeaderActions, hostSystemActions, ctx?.data, predicateScope]);
 
+  // Dispatch shape for record-page header actions (objectui#3391) — the same
+  // shape ObjectGrid row actions, RelatedRecordActionsBridge, and
+  // DeclaredActionsBar use: stash the current record under `params._rowRecord`
+  // (the api handler's `{field}` URL-interpolation + record-id source) and
+  // surface a spec-shaped `params` ARRAY as `actionParams` (the runner's
+  // param-dialog input), reserving `params` for the stash. Without this, a
+  // `record_header` `type:'api'` action targeting `/api/v1/data/:object/{id}`
+  // was sent with the literal `{id}` (`%7Bid%7D` on the wire) while the SAME
+  // declaration interpolated fine from `list_item`. Dispatching a fresh object
+  // also keeps ActionRunner's collected-params merge (which writes
+  // `action.params` in place) from mutating the authored schema node between
+  // invocations. Non-record hosts (no RecordContext data) dispatch unchanged.
+  const record = ctx?.data;
+  const dispatchHeaderAction = React.useCallback((action: any) => {
+    if (!record || typeof record !== 'object') {
+      void execute(action);
+      return;
+    }
+    const { params: rawParams, ...rest } = (action ?? {}) as Record<string, any>;
+    const dispatch: any = { ...rest };
+    if (Array.isArray(rawParams)) {
+      if (!dispatch.actionParams && rawParams.length > 0) dispatch.actionParams = rawParams;
+      dispatch.params = { _rowRecord: record };
+    } else {
+      dispatch.params = { ...(rawParams || {}), _rowRecord: record };
+    }
+    void execute(dispatch);
+  }, [record, execute]);
+
   const renderHeaderActions = () => {
     if (headerActions.length === 0) return null;
     // Resolve a translated label for an action via the
@@ -1186,7 +1215,7 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
               void action.onClick();
               return;
             }
-            void execute(action);
+            dispatchHeaderAction(action);
           }}
         >
           {icon && <LazyIcon name={icon} className="h-4 w-4" />}
@@ -1230,7 +1259,7 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
                         void action.onClick();
                         return;
                       }
-                      void execute(action);
+                      dispatchHeaderAction(action);
                     }}
                     className={cn(
                       'gap-2',

@@ -8,7 +8,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { useEffect } from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ComponentRegistry } from '@object-ui/core';
 import {
   ActionProvider,
@@ -420,6 +420,125 @@ describe('PageHeaderRenderer — inline/overflow split (objectui#2361)', () => {
     expect(screen.getByRole('button', { name: /Convert Lead/i })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /^Delete$/i })).toBeNull();
     expect(screen.getByRole('button', { name: /More actions/i })).toBeTruthy();
+  });
+});
+
+// objectui#3391 — record dispatch shape. A `record_header` / `record_more`
+// action must reach the runtime in the SAME shape ObjectGrid row actions and
+// DeclaredActionsBar dispatch: the record stashed under `params._rowRecord`
+// (the api handler's `{field}` URL-interpolation + record-id source) and a
+// spec-shaped `params` ARRAY surfaced as `actionParams`. Before this, a
+// `type:'api'` header action targeting `/api/v1/data/:object/{id}` was sent
+// with the literal `{id}` (`%7Bid%7D` on the wire) while the same declaration
+// interpolated fine from `list_item`.
+describe('PageHeaderRenderer — record dispatch shape (objectui#3391)', () => {
+  function renderWithApiHandler(opts: {
+    action: any;
+    record?: any;
+    onParamCollection?: (params: any[], action?: any) => Promise<Record<string, any> | null>;
+  }) {
+    const api = vi.fn(async () => ({ success: true }));
+    const header = <PageHeader schema={{ type: 'page:header', title: 'Plan', actions: [opts.action] }} />;
+    render(
+      <ActionProvider handlers={{ api }} onParamCollection={opts.onParamCollection}>
+        {opts.record !== undefined ? (
+          <RecordContextProvider
+            objectName="os_plan"
+            recordId={opts.record?.id ?? null}
+            data={opts.record}
+            objectSchema={{ name: 'os_plan', label: 'Plan' }}
+          >
+            {header}
+          </RecordContextProvider>
+        ) : (
+          header
+        )}
+      </ActionProvider>,
+    );
+    return { api };
+  }
+
+  it('stashes the record under params._rowRecord without mutating the authored node', async () => {
+    const record = { id: 'rec-1', status: 'open' };
+    const action = {
+      name: 'copy_plan_row_3391',
+      type: 'api',
+      method: 'PATCH',
+      locations: ['record_header'],
+      label: 'Copy Plan',
+      target: '/api/v1/data/os_plan/{id}',
+    };
+    const { api } = renderWithApiHandler({ action, record });
+    fireEvent.click(screen.getByRole('button', { name: /Copy Plan/i }));
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(1));
+    const dispatched: any = api.mock.calls[0][0];
+    expect(dispatched.params._rowRecord).toBe(record);
+    expect(dispatched.target).toBe('/api/v1/data/os_plan/{id}');
+    // The authored schema node must stay pristine — the runner merges
+    // collected params into `action.params` IN PLACE, so dispatching the raw
+    // node would pollute the schema between invocations.
+    expect(action).not.toHaveProperty('params');
+  });
+
+  it('surfaces a spec-shaped params ARRAY as actionParams and keeps the stash through collection', async () => {
+    const record = { id: 'rec-2' };
+    const paramDefs = [{ name: 'copy_ovr_start', type: 'date', required: true }];
+    const onParamCollection = vi.fn(async () => ({ copy_ovr_start: '2026-01-01' }));
+    const action = {
+      name: 'copy_plan_params_3391',
+      type: 'api',
+      locations: ['record_header'],
+      label: 'Copy With Params',
+      target: '/api/v1/data/os_plan/{id}',
+      params: paramDefs,
+    };
+    const { api } = renderWithApiHandler({ action, record, onParamCollection });
+    fireEvent.click(screen.getByRole('button', { name: /Copy With Params/i }));
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(1));
+    expect(onParamCollection).toHaveBeenCalledTimes(1);
+    expect(onParamCollection.mock.calls[0][0]).toEqual(paramDefs);
+    const dispatched: any = api.mock.calls[0][0];
+    // The runner merged the collected values into `params` while PRESERVING
+    // the row stash (ActionRunner's `_rowRecord` carve-out).
+    expect(dispatched.params.copy_ovr_start).toBe('2026-01-01');
+    expect(dispatched.params._rowRecord).toBe(record);
+    expect(dispatched.actionParams).toEqual(paramDefs);
+    // Authored node untouched: `params` is still the param-def ARRAY.
+    expect(action.params).toBe(paramDefs);
+  });
+
+  it('merges the stash into object-shaped params without dropping authored keys', async () => {
+    const record = { id: 'rec-3' };
+    const action = {
+      name: 'object_params_3391',
+      type: 'api',
+      locations: ['record_header'],
+      label: 'Object Params',
+      target: '/api/v1/data/os_plan/{id}',
+      params: { channel: 'header' },
+    };
+    const { api } = renderWithApiHandler({ action, record });
+    fireEvent.click(screen.getByRole('button', { name: /Object Params/i }));
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(1));
+    const dispatched: any = api.mock.calls[0][0];
+    expect(dispatched.params).toMatchObject({ channel: 'header', _rowRecord: record });
+    expect((action.params as any)._rowRecord).toBeUndefined();
+  });
+
+  it('dispatches unchanged outside a record context', async () => {
+    const action = {
+      name: 'no_record_3391',
+      type: 'api',
+      locations: ['record_header'],
+      label: 'No Record',
+      target: '/api/v1/misc/ping',
+    };
+    const { api } = renderWithApiHandler({ action });
+    fireEvent.click(screen.getByRole('button', { name: /No Record/i }));
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(1));
+    const dispatched: any = api.mock.calls[0][0];
+    expect(dispatched).toBe(action);
+    expect(dispatched.params).toBeUndefined();
   });
 });
 

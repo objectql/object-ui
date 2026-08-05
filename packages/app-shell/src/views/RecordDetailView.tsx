@@ -620,11 +620,22 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       const targetStr = typeof target === 'string' ? target : '';
       if (targetStr.startsWith('/') || /^https?:\/\//i.test(targetStr)) {
         const baseUrl = import.meta.env.VITE_SERVER_URL || '';
-        // Interpolate `{field}` tokens in the target URL from the row record.
+        // Interpolate `{field}` tokens in the target URL. Source: the stashed
+        // row when the dispatch carries one (related-list rows; page:header
+        // since objectui#3391), else THIS page's record — but only when the
+        // action doesn't retarget another object (a child action interpolated
+        // from the parent's fields would hit the wrong record; same guard as
+        // the recordIdParam fallback below). Without the page-record fallback,
+        // a `record_header` action reaching here through any dispatch path
+        // that doesn't stash `_rowRecord` sent the literal `{id}` on the wire.
+        const interpolationRecord = rowRecord
+          ?? (!action.objectName || action.objectName === objectName
+            ? (pageRecord as Record<string, any> | undefined) ?? undefined
+            : undefined);
         let resolvedTarget = targetStr;
-        if (rowRecord && /\{[a-z_][a-z0-9_]*\}/i.test(resolvedTarget)) {
+        if (interpolationRecord && /\{[a-z_][a-z0-9_]*\}/i.test(resolvedTarget)) {
           resolvedTarget = resolvedTarget.replace(/\{([a-z_][a-z0-9_]*)\}/gi, (_, k) => {
-            const v = rowRecord[k];
+            const v = interpolationRecord[k];
             return v == null ? '' : encodeURIComponent(String(v));
           });
         }
@@ -755,6 +766,15 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     }
     try {
       const baseUrl = import.meta.env.VITE_SERVER_URL || '';
+      // `_rowRecord` is the client-side row stash (page:header dispatches
+      // carry it since objectui#3391) — never part of the trigger contract;
+      // strip it exactly like useConsoleActionRuntime's flowHandler does.
+      const flowParams = {
+        ...(action.params && !Array.isArray(action.params)
+          ? (action.params as Record<string, any>)
+          : {}),
+      };
+      delete flowParams._rowRecord;
       const res = await authFetch(
         `${baseUrl}/api/v1/automation/${encodeURIComponent(flowName)}/trigger`,
         {
@@ -766,7 +786,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
             // record when the action carries none (header/more actions).
             recordId: (action as any).recordId ?? pureRecordId,
             objectName: action.objectName ?? objectName,
-            params: action.params ?? {},
+            params: flowParams,
           }),
         },
       );
