@@ -630,7 +630,8 @@ export const ObjectChart = (props: any) => {
   // site, and at the time this component ignored `'navigate'`. That measurement
   // changed with this issue, so the protocol's union is now narrower than what
   // the renderer delivers. The fix belongs in the spec (extend the union), not
-  // here: widening the union renderer-side is free, but ADVERTISING it before
+  // here (objectstack#5435): widening the union renderer-side is free, but
+  // ADVERTISING it before
   // the protocol does would collide with the publish gate that parses the
   // strict schema. Until the spec moves, `'navigate'` works for any host that
   // composes an `object-chart` schema directly, and stays absent from the
