@@ -12,7 +12,7 @@ import { ComponentRegistry, buildExpandFields, getRecordDisplayName } from '@obj
 import { cn, Card, CardContent, NavigationOverlay } from '@object-ui/components';
 import type { GalleryConfig, ViewNavigationConfig, GroupingConfig } from '@object-ui/types';
 import { ChevronRight, ChevronDown } from 'lucide-react';
-import { getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
+import { getCellRenderer, resolveCellRendererType, readFileValues } from '@object-ui/fields';
 
 export interface ObjectGalleryProps {
     schema: {
@@ -187,6 +187,40 @@ const GalleryIconTile: React.FC<{
     );
 };
 
+/**
+ * The cover image URL for one record, whatever shape its file value arrived in.
+ *
+ * ADR-0104 D3 wave 2 made the **stored** value of a `file`/`image`/`avatar`/
+ * `video`/`audio` field an opaque `sys_file` id, which the read path expands
+ * in place into `{ id, name, size, mimeType, url }`. So a spec-correct cover
+ * reaches this component as an **object**, and the old `item[coverField] as
+ * string` read resolved to no usable URL for every conforming record: the only
+ * values that ever rendered a cover were the inline `data:` URIs and external
+ * links ADR-0104 retired (objectui#3317).
+ *
+ * Shape handling is delegated to `readFileValues` — the platform's single
+ * arbiter of file value shapes (`@object-ui/fields`, `widgets/file-value`) —
+ * rather than re-derived here, so the gallery cover, the `image` cell renderer
+ * and the edit-form widgets can never disagree about what a value means. It
+ * accepts the expanded object, a legacy bare URL string (still valid during the
+ * dual-mode window), and a still-bare `sys_file` id, which it resolves to the
+ * stable `/files/:id` download endpoint rather than dropping — a bare reference
+ * is what the read path leaves behind when it did not expand, and that endpoint
+ * is directly usable as an `<img src>`. A value carrying no resolvable URL at
+ * all yields `undefined`, which collapses the cover area instead of emitting a
+ * broken `<img src>`.
+ *
+ * A `multiple` file field arrives as an array; its first entry is the cover.
+ */
+const resolveCoverUrl = (
+    item: Record<string, unknown> | undefined,
+    coverField: string,
+): string | undefined => {
+    const raw = item?.[coverField];
+    if (raw == null || raw === '') return undefined;
+    return readFileValues(raw)[0]?.url;
+};
+
 export const ObjectGallery: React.FC<ObjectGalleryProps> = (props) => {
     const { schema } = props;
     const context = useContext(SchemaRendererContext);
@@ -326,8 +360,12 @@ export const ObjectGallery: React.FC<ObjectGalleryProps> = (props) => {
     // an explicit one but no populated values) render with a giant empty
     // letter-placeholder block that dwarfs the actual content. By collapsing
     // it when there's nothing to show, the cards become information-dense.
+    // Resolved through the very same `resolveCoverUrl` each card renders with:
+    // when this predicate and the per-card read disagree about what counts as a
+    // cover, the area collapses for values that would have rendered fine (the
+    // objectui#3317 failure — a string-only test against an expanded object).
     const hasAnyCover = useMemo(
-        () => items.some((it) => typeof (it as any)[coverField] === 'string' && !!(it as any)[coverField]),
+        () => items.some((it) => !!resolveCoverUrl(it, coverField)),
         [items, coverField],
     );
     // Show the cover area only when at least one record has a non-empty
@@ -449,7 +487,7 @@ export const ObjectGallery: React.FC<ObjectGalleryProps> = (props) => {
                 ? String(item[titleField])
                 : undefined;
         const title = explicitTitle ?? getRecordDisplayName(objectDef, item);
-        const imageUrl = item[coverField] as string | undefined;
+        const imageUrl = resolveCoverUrl(item, coverField);
         const placeholder = pickPlaceholderGradient(String(id) + '|' + title);
 
         const cardClass = cn(
