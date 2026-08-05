@@ -22,6 +22,17 @@
  * Every locale case asserts the English literal is GONE as well as that the
  * translation is present: a re-inlined literal alongside a translated sibling
  * would still satisfy a positive-only assertion.
+ *
+ * The copy fixtures are deliberately LABEL-LESS since objectui#3393. The
+ * subject of this suite is the two GENERIC strings — `form.fullscreen.title`
+ * ("Edit text") and `form.fullscreen.textFallback` ("text", interpolated into
+ * `form.fullscreen.toggle`) — which are reachable only when the field has no
+ * label. When these cases were written the field was labelled `Notes` and the
+ * generic copy still appeared, because the renderer never forwarded `label`;
+ * that was the bug #3393 fixed, and re-pointing the fixtures at the stack the
+ * fallback actually serves is what keeps these ten packs covered rather than
+ * re-asserting the fixed defect. The labelled stack is pinned next door, in
+ * `form-fullscreen-textarea-label.test.tsx`.
  */
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
@@ -31,11 +42,16 @@ import { I18nProvider } from '@object-ui/i18n';
 // is billed to `hookTimeout` (objectui#3010/#3021).
 import '../../../renderers';
 
-const fields = [
+/** No `label` — the one authoring stack the generic copy is written for. */
+const unlabelledFields = [
+  { name: 'notes', type: 'textarea', mobile_fullscreen: true },
+];
+
+const labelledFields = [
   { name: 'notes', label: 'Notes', type: 'textarea', mobile_fullscreen: true },
 ];
 
-function renderFormIn(language: string) {
+function renderFormIn(language: string, fields: any[] = unlabelledFields) {
   const Form = ComponentRegistry.get('form')!;
   return render(
     <I18nProvider config={{ defaultLanguage: language, detectBrowserLanguage: false }}>
@@ -111,7 +127,9 @@ describe('form renderer — fullscreen textarea dialog is translated (objectui#3
     // The `Done` button lost its literal child; this pins that the click
     // handler still rides on the translated button rather than on some other
     // node that happened to carry the old text.
-    renderFormIn('zh');
+    // Labelled here, so the committed value can be found through the field's
+    // own `<FormLabel>` association — this case asserts wiring, not copy.
+    renderFormIn('zh', labelledFields);
     openFullscreen();
 
     fireEvent.change(screen.getByTestId('form-textarea-fullscreen-input'), {

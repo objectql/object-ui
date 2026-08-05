@@ -264,6 +264,16 @@ function stripRendererOnlyProps<T extends Record<string, any>>(props: T): T {
     // is a React warning, so it is stripped here exactly like `dependentValues`.
     dependsOnLabels: _dependsOnLabels,
     emptyHint: _emptyHint,
+    // The field's own label (objectui#3393). It is forwarded from the single
+    // call site for ONE reader — the built-in `textarea` branch's fullscreen
+    // dialog, which names the field in its title and in the expand button's
+    // accessible name — and is renderer-only everywhere else: `<FormLabel>`
+    // above already renders it, and every other built-in branch spreads its
+    // leftover props straight onto a DOM node, where `label` would show up as
+    // a stray `label="Notes"` attribute on an `<input>` / `<textarea>` /
+    // Radix control. The `textarea` branch therefore reads it off the
+    // PRE-strip props, exactly like `mobile_fullscreen`.
+    label: _label,
     // The validation message (objectui#3222) is for REGISTERED widgets, which
     // need it to put `aria-invalid` on the control they render. The builtin
     // branch below renders its control directly inside `<FormControl>`, whose
@@ -320,6 +330,17 @@ function stripRegisteredFieldProps(type: string, props: RenderFieldProps): Rende
     dependentValues,
     dependsOnLabels,
     emptyHint,
+    // Renderer-only, and deliberately NOT a new key in the widget contract
+    // (objectui#3393). The call site started forwarding `label` for the
+    // built-in fullscreen dialog; registered widgets must keep receiving
+    // exactly what they received before, because `field` is their single
+    // metadata carrier since v17 (objectui#3233) and it already carries the
+    // label. Adding a second spelling here would give every AI-authored widget
+    // two places to read one fact — and, since widgets spread their leftover
+    // props onto the control they render, would also drop a `label` attribute
+    // onto seven widgets' DOM overnight. Whether the contract SHOULD publish a
+    // `label` prop is a separate decision against `FieldWidgetPropsSchema`.
+    label: _label,
     // Retired from the widget contract in v17 (objectui#3233): `field` is the
     // single metadata carrier. The strip stays so an authored form field that
     // happens to carry a `schema` key cannot resurrect the second carrier —
@@ -1448,6 +1469,15 @@ ComponentRegistry.register('form',
                   field: field.field || field,
                   ...formField,
                   inputType: fieldProps.inputType,
+                  // The field's label, forwarded explicitly because the
+                  // destructure above takes it OFF `fieldProps` (objectui#3393).
+                  // Without this key the built-in `textarea` branch's `label`
+                  // was `undefined` on every render, so the fullscreen dialog's
+                  // title fell to the generic "Edit text" and all three long-text
+                  // fields on one form gave their expand buttons the SAME
+                  // accessible name. Renderer-only: both strips drop it, so it
+                  // reaches no DOM attribute and no registered widget.
+                  label,
                   options: isOptionField ? effectiveOptions : fieldProps.options,
                   placeholder: fieldProps.placeholder ?? (resolvedType === 'select' ? t('common.selectOption') : undefined),
                   // `disabled` means "not interactive, muted"; `readonly` means
@@ -1869,6 +1899,12 @@ interface RenderFieldProps {
    * `@objectstack/spec/ui`'s `FieldWidgetPropsSchema` gives it (objectui#3222).
    */
   error?: string;
+  /**
+   * The field's authored label (objectui#3393). Renderer-only: consumed by the
+   * built-in `textarea` branch's fullscreen dialog, stripped before the DOM and
+   * before every registered widget (which reads it off `field`).
+   */
+  label?: string;
   [key: string]: any;
 }
 
@@ -2020,8 +2056,16 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
       // whoever reads this file next (AGENTS.md #0.1). `ObjectForm` is the sole
       // producer and it stamps `mobile_fullscreen` (#3245/#3300), which is also
       // the single spelling `TextAreaField` and `RichTextField` read.
+      //
+      // `label` rides the same way: read off the PRE-strip props, because
+      // `stripRendererOnlyProps` discards it for the DOM (objectui#3393). It
+      // used to be discarded by a local `const { label: _label, ...rest }` on
+      // the next line — which ESLint flagged as an unused binding, correctly:
+      // the call site never forwarded a `label`, so the guard was defending
+      // against something that never arrived, while every OTHER built-in
+      // branch had no guard at all. Now the strip owns it for all branches.
       const { mobile_fullscreen, label } = fieldProps as any;
-      const { label: _label, ...rest } = stripRendererOnlyProps(fieldProps);
+      const rest = stripRendererOnlyProps(fieldProps);
       if (mobile_fullscreen) {
         return (
           <FullscreenTextarea
