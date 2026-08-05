@@ -695,6 +695,15 @@ const en = {
       over: 'overloaded',
       empty: 'No tasks to allocate.',
     },
+    quickFilter: {
+      all: 'All',
+      clear: 'Clear filters',
+      empty: 'No options',
+      // SINGLE braces on purpose: the ObjectGantt call site resolves these
+      // with a literal `.replace('{shown}', …)`, not i18next interpolation
+      // (same convention as `autoScheduleDlg.body` above).
+      resultSummary: 'Showing {shown} / {total} tasks',
+    },
     readOnly: 'Read-only',
     readOnlyHint: 'Editing is disabled for this view.',
     lockedHint: 'No edit permission',

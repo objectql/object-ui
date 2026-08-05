@@ -646,6 +646,12 @@ const fr = {
       over: "surchargée",
       empty: "Aucune tâche à affecter.",
     },
+    quickFilter: {
+      all: "Tous",
+      clear: "Effacer les filtres",
+      empty: "Aucune option",
+      resultSummary: "Affichage de {shown} / {total} tâches",
+    },
     readOnly: "Lecture seule",
     readOnlyHint: "L'édition est désactivée pour cette vue.",
     lockedHint: "Aucune autorisation de modification",

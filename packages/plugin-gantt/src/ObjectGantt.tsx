@@ -1388,11 +1388,22 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           onClear={clearFilters}
           resultCount={displayTasks.length}
           totalCount={tasks.length}
+          // Bundle keys, not literals: hardcoding these pinned the bar to
+          // Chinese in every locale while the rest of the gantt toolbar
+          // localized (objectstack#5427), and violated the English-only
+          // codebase rule. `resultSummary` uses SINGLE-brace placeholders
+          // resolved by a literal `.replace` — the same convention as
+          // `gantt.autoScheduleDlg.body`, which `all-locales-key-parity`'s
+          // placeholder check recognises via its SINGLE regex. Do not respell
+          // them as i18next `{{...}}` interpolation.
           labels={{
-            all: '全部',
-            clear: '清除筛选',
-            empty: '无可选项',
-            resultSummary: (shown, total) => `显示 ${shown} / ${total} 项任务`,
+            all: t('gantt.quickFilter.all'),
+            clear: t('gantt.quickFilter.clear'),
+            empty: t('gantt.quickFilter.empty'),
+            resultSummary: (shown, total) =>
+              t('gantt.quickFilter.resultSummary')
+                .replace('{shown}', String(shown))
+                .replace('{total}', String(total)),
           }}
         />
       )}

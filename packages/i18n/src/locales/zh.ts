@@ -692,6 +692,12 @@ const zh = {
       over: '超载',
       empty: '没有可分配的任务。',
     },
+    quickFilter: {
+      all: '全部',
+      clear: '清除筛选',
+      empty: '无可选项',
+      resultSummary: '显示 {shown} / {total} 项任务',
+    },
     readOnly: '只读',
     readOnlyHint: '此视图已禁用编辑。',
     lockedHint: '无编辑权限',

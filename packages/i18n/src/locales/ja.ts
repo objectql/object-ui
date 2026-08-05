@@ -646,6 +646,12 @@ const ja = {
       over: "過負荷",
       empty: "割り当てるタスクがありません。",
     },
+    quickFilter: {
+      all: "すべて",
+      clear: "フィルターをクリア",
+      empty: "選択肢がありません",
+      resultSummary: "{shown} / {total} 件のタスクを表示",
+    },
     readOnly: "読み取り専用",
     readOnlyHint: "このビューでは編集できません。",
     lockedHint: "編集権限がありません",

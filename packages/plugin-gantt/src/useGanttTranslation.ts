@@ -79,6 +79,13 @@ export const GANTT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'gantt.autoScheduleDlg.confirm': 'Apply',
   'gantt.autoScheduleDlg.cancel': 'Cancel',
   'gantt.autoScheduleDlg.none': 'All dependencies satisfied — nothing to reschedule.',
+  'gantt.quickFilter.all': 'All',
+  'gantt.quickFilter.clear': 'Clear filters',
+  'gantt.quickFilter.empty': 'No options',
+  // SINGLE braces on purpose — the ObjectGantt call site resolves these with a
+  // literal `.replace('{shown}', …)`, not i18next interpolation (same as
+  // `gantt.autoScheduleDlg.body` above).
+  'gantt.quickFilter.resultSummary': 'Showing {shown} / {total} tasks',
   'gantt.resource.header': 'Resource',
   'gantt.resource.peak': 'Peak',
   'gantt.resource.over': 'overloaded',

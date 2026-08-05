@@ -646,6 +646,12 @@ const ar = {
       over: "محمّل بإفراط",
       empty: "لا توجد مهام لتخصيصها.",
     },
+    quickFilter: {
+      all: "الكل",
+      clear: "مسح عوامل التصفية",
+      empty: "لا توجد خيارات",
+      resultSummary: "عرض {shown} / {total} من المهام",
+    },
     readOnly: "للقراءة فقط",
     readOnlyHint: "التحرير معطّل في هذا العرض.",
     lockedHint: "لا توجد صلاحية تحرير",

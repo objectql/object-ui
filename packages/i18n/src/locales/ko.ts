@@ -646,6 +646,12 @@ const ko = {
       over: "과부하",
       empty: "배정할 작업이 없습니다.",
     },
+    quickFilter: {
+      all: "전체",
+      clear: "필터 지우기",
+      empty: "옵션 없음",
+      resultSummary: "작업 {shown} / {total}건 표시",
+    },
     readOnly: "읽기 전용",
     readOnlyHint: "이 보기에서는 편집할 수 없습니다.",
     lockedHint: "편집 권한 없음",

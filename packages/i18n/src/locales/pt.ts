@@ -646,6 +646,12 @@ const pt = {
       over: "sobrecarregado",
       empty: "Nenhuma tarefa para alocar.",
     },
+    quickFilter: {
+      all: "Todos",
+      clear: "Limpar filtros",
+      empty: "Sem opções",
+      resultSummary: "Exibindo {shown} / {total} tarefas",
+    },
     readOnly: "Somente leitura",
     readOnlyHint: "A edição está desativada nesta visão.",
     lockedHint: "Sem permissão de edição",

@@ -651,6 +651,12 @@ const es = {
       over: "sobrecargado",
       empty: "No hay tareas que asignar.",
     },
+    quickFilter: {
+      all: "Todos",
+      clear: "Borrar filtros",
+      empty: "Sin opciones",
+      resultSummary: "Mostrando {shown} / {total} tareas",
+    },
     readOnly: "Solo lectura",
     readOnlyHint: "La edición está deshabilitada en esta vista.",
     lockedHint: "Sin permiso de edición",

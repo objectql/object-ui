@@ -646,6 +646,12 @@ const de = {
       over: "überlastet",
       empty: "Keine Vorgänge zum Zuweisen.",
     },
+    quickFilter: {
+      all: "Alle",
+      clear: "Filter zurücksetzen",
+      empty: "Keine Optionen",
+      resultSummary: "{shown} / {total} Vorgänge werden angezeigt",
+    },
     readOnly: "Schreibgeschützt",
     readOnlyHint: "Die Bearbeitung ist in dieser Ansicht deaktiviert.",
     lockedHint: "Keine Bearbeitungsberechtigung",
