@@ -153,17 +153,23 @@ describe('object-chart — drillDown is a declared input (framework#5022)', () =
     expect(drill?.type).toBe('object');
   });
 
-  it('describes the SIX keys the spec declares — not the wider renderer union', () => {
+  it('describes exactly what this component reads — not the wider renderer union', () => {
     // objectui's own `DrillDownConfig` is shared with the table/pivot/metric
-    // widgets and carries `mode` / `report` / `view` / `sort` and a `navigate`
-    // target. ObjectChart reads none of them, and two are read by no renderer
-    // at all (objectui#3354), so advertising them here would re-open the gap
-    // framework#5022 closed — one layer down, in the designer palette.
+    // widgets and also carries `mode` / `report`. ObjectChart reads neither, so
+    // advertising them here would re-open the gap framework#5022 closed — one
+    // layer down, in the designer palette.
+    //
+    // `navigate` moved to the advertised side in objectui#3354: it used to sit
+    // in this exclusion list because the chart silently degraded it to a Sheet.
+    // The chart honours it now, so withholding it from the palette would just
+    // invert the defect (delivered but undeclared). `view` / `sort` are not
+    // listed on either side any more — that issue deleted them from
+    // `DrillDownConfig`, so there is no key left to advertise or withhold.
     const d = String(inputs().find((i: any) => i.name === 'drillDown')?.description ?? '');
-    for (const key of ['enabled', 'filter', 'title', 'target', 'columns', 'maxRows']) {
+    for (const key of ['enabled', 'filter', 'title', 'target', 'columns', 'maxRows', 'navigate']) {
       expect(d, `the declared key ${key} must be described`).toContain(key);
     }
-    for (const key of ['mode', 'report', 'navigate']) {
+    for (const key of ['mode', 'report']) {
       expect(d, `${key} is another widget's key — it must not be advertised here`).not.toContain(key);
     }
   });

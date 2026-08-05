@@ -893,6 +893,21 @@ export type PivotAggregation = 'sum' | 'count' | 'avg' | 'min' | 'max';
  *
  * Pivot event payload:  rowKey, colKey, rowLabel, colLabel, value, scope
  * Chart event payload:  category, series, value
+ *
+ * ## Declared = delivered (objectui#3354)
+ *
+ * Every key below is read by at least one of the five widgets that share this
+ * interface, and `target` is honoured by all of them. Two keys used to break
+ * that rule and were removed rather than left as authoring bait:
+ *
+ *  - `view?: string` — self-described as "reserved"; no renderer ever looked it
+ *    up, so the drawer rendered its inline `object-data-table` regardless.
+ *  - `sort?: Array<{ field; dir? }>` — documented as "default sort applied to
+ *    the drill list"; no widget passed it into the drilled table schema.
+ *
+ * Do not re-add a key here before a renderer reads it. This type is what the
+ * protocol's own `drillDown` declaration is derived from (objectstack#5022), so
+ * a dead key here becomes a dead key with protocol authority.
  */
 export interface DrillDownConfig {
   /** Master switch. Set to true (or supply any other field) to enable. */
@@ -940,12 +955,6 @@ export interface DrillDownConfig {
   /** Drawer/dialog title. Supports `${event.*}` interpolation. */
   title?: string;
   /**
-   * Optional list view id (reserved). When supported the engine looks up
-   * the named list view from the app and renders it inside the drawer.
-   * For the L1 implementation an inline ObjectDataTable is rendered.
-   */
-  view?: string;
-  /**
    * Drill into an analytical Report instead of the raw record list. When
    * provided, the drill-down drawer renders the supplied `SpecReport` (with
    * `widget.filter ∧ report.filter` merged so the metric's scope is honoured).
@@ -975,8 +984,6 @@ export interface DrillDownConfig {
    * data table renders all default columns.
    */
   columns?: string[];
-  /** Default sort applied to the drill list. */
-  sort?: Array<{ field: string; dir?: 'asc' | 'desc' }>;
   /** Hard cap on rows fetched. */
   maxRows?: number;
 }
