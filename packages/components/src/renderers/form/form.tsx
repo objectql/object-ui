@@ -256,7 +256,6 @@ function stripRendererOnlyProps<T extends Record<string, any>>(props: T): T {
     fieldContainerClass: _fieldContainerClass,
     mobileStickyActions: _mobileStickyActions,
     mobile_fullscreen: _mobileFullscreen,
-    fullscreen: _fullscreen,
     dependentValues: _dependentValues,
     dependsOn: _dependsOn,
     // objectstack#5407 — the sibling name→label map is for widgets that NAME a
@@ -318,7 +317,6 @@ function stripRegisteredFieldProps(type: string, props: RenderFieldProps): Rende
     fieldContainerClass: _fieldContainerClass,
     mobileStickyActions: _mobileStickyActions,
     mobile_fullscreen: _mobileFullscreen,
-    fullscreen: _fullscreen,
     dependentValues,
     dependsOnLabels,
     emptyHint,
@@ -2013,9 +2011,18 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
       );
 
     case 'textarea': {
-      const { mobile_fullscreen, fullscreen, label } = fieldProps as any;
+      // `mobile_fullscreen` is the flag's ONE spelling (objectui#3303). This
+      // branch used to read `mobile_fullscreen || fullscreen`; the second term
+      // had no producer anywhere in this repo or in `@objectstack/spec` — the
+      // only `fullscreen` properties that exist belong to the unrelated
+      // feedback/loading overlay — so it was undefined from the day it was
+      // written, while advertising a spelling that silently does nothing to
+      // whoever reads this file next (AGENTS.md #0.1). `ObjectForm` is the sole
+      // producer and it stamps `mobile_fullscreen` (#3245/#3300), which is also
+      // the single spelling `TextAreaField` and `RichTextField` read.
+      const { mobile_fullscreen, label } = fieldProps as any;
       const { label: _label, ...rest } = stripRendererOnlyProps(fieldProps);
-      if (mobile_fullscreen || fullscreen) {
+      if (mobile_fullscreen) {
         return (
           <FullscreenTextarea
             placeholder={placeholder}
