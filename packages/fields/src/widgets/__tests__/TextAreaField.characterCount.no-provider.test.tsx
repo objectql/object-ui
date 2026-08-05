@@ -78,8 +78,17 @@ describe('character counter — English fallback survives with no i18n configure
     expect(counterLabel()).not.toContain('{{');
   });
 
-  it('counts an undefined value as zero rather than announcing a hole', () => {
-    render(<TextAreaField value={undefined} onChange={vi.fn()} field={textareaField({ maxLength: 40 })} />);
+  it('announces zero for an empty value rather than a hole in the sentence', () => {
+    // `0` is falsy, so an interpolation that guarded on truthiness would drop
+    // it and speak "Character count:  of 40" — the one input length where the
+    // substitution can fail on its own.
+    //
+    // Deliberately `''` and not `undefined`: `FieldWidgetComponentProps`
+    // declares `value: T`, non-optional. The widget's `value || ''` guard
+    // predates this change and covers a JS host that ignores the type; pinning
+    // an out-of-contract shape here would be the lenient-consumer move
+    // AGENTS.md #0.1 rules out, and is not what this issue is about.
+    render(<TextAreaField value="" onChange={vi.fn()} field={textareaField({ maxLength: 40 })} />);
 
     expect(counterLabel()).toBe('Character count: 0 of 40');
   });
