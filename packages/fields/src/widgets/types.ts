@@ -185,6 +185,20 @@ export type FieldWidgetComponentProps<T = any> = {
    */
   dependsOn?: DependsOnInput;
   /**
+   * Controlling-field name → its human LABEL, for widgets that have to NAME a
+   * sibling field in user-visible copy (the dependent-lookup gate hint).
+   *
+   * Only the form renderer knows a field's label — the widget sees its own
+   * metadata and a `depends_on` list of API names. Without this map the gate
+   * sentence interpolated the raw API name into every locale, `en` included
+   * ("Select crm_account first"), which is an internal identifier leaking into
+   * the UI, not merely an untranslated word (objectstack#5407). This is the
+   * lookup-side counterpart of `emptyHint`, which the form already resolves to
+   * labels for the fixed-option widgets. A name with no entry falls back to
+   * itself, so a host that passes nothing renders exactly what it did before.
+   */
+  dependsOnLabels?: Record<string, string>;
+  /**
    * Hint shown when an option list cannot be filled — typically a
    * dependency-gated list still waiting on its controlling field (#2284).
    * Forwarded by the form renderer, which resolves the controlling fields to

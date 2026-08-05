@@ -94,7 +94,12 @@ const es = {
     },
   },
   validation: {
-    required: "{{field}} es obligatorio",
+    // "{{field}} es obligatorio" only agreed with masculine field labels —
+    // "Cuenta es obligatorio" is wrong (objectstack#5407). Spanish adjectives
+    // agree with the head noun, which a runtime label cannot declare, so the
+    // template supplies its own masculine head ("el campo") and the adjective
+    // agrees with THAT for every label.
+    required: "El campo {{field}} es obligatorio",
     minLength: "{{field}} debe tener al menos {{min}} caracteres",
     maxLength: "{{field}} debe tener como máximo {{max}} caracteres",
     min: "{{field}} debe ser al menos {{min}}",
@@ -103,7 +108,8 @@ const es = {
     url: "Por favor, introduzca una URL válida",
     pattern: "El formato de {{field}} no es válido",
     formInvalid: "Por favor, revise los campos resaltados: {{fields}}",
-    unique: "{{field}} debe ser único",
+    formInvalidJoiner: ", ",
+    unique: "El campo {{field}} debe ser único",
     type: "{{field}} debe ser un {{type}} válido",
   },
   form: {
@@ -727,6 +733,7 @@ const es = {
     viewHistory: "Ver historial",
     delete: "Eliminar",
     moreActions: "Más acciones",
+    addReaction: "Añadir reacción",
     addToFavorites: "Añadir a favoritos",
     removeFromFavorites: "Quitar de favoritos",
     previousRecord: "Registro anterior",

@@ -43,6 +43,10 @@ export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'detail.viewHistory': 'View history',
   'detail.delete': 'Delete',
   'detail.moreActions': 'More actions',
+  // objectstack#5407 — the activity-feed reaction button's accessible name.
+  // It is icon-only, so this label IS the button as far as a screen reader
+  // (or a hover tooltip) is concerned; it used to be an English literal.
+  'detail.addReaction': 'Add reaction',
   'detail.addToFavorites': 'Add to favorites',
   'detail.removeFromFavorites': 'Remove from favorites',
   'detail.previousRecord': 'Previous record',

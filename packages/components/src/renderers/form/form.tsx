@@ -128,6 +128,12 @@ const useSafeFormTranslation = createSafeTranslation(
     'validation.email': 'Please enter a valid email address',
     'validation.url': 'Please enter a valid URL',
     'validation.formInvalid': 'Please check the highlighted fields: {{fields}}',
+    // objectstack#5407 — the joiner between the field names is a LOCALE
+    // property, not a code constant. It used to be a hardcoded `、` (U+3001),
+    // which is right for zh/ja and wrong everywhere else — including `en`,
+    // where the toast read "Subject、Account、Status". A locale that ships no
+    // entry falls back through i18next to `en`'s ", ".
+    'validation.formInvalidJoiner': ', ',
     'errors.forbidden': 'Access denied.',
     'form.noPermissionToSave': "You don't have permission to save this record.",
     'form.submitFailed': 'Could not save. Please try again.',
@@ -282,6 +288,7 @@ function stripRegisteredFieldProps(type: string, props: RenderFieldProps): Rende
     mobile_fullscreen: _mobileFullscreen,
     fullscreen: _fullscreen,
     dependentValues,
+    dependsOnLabels,
     emptyHint,
     // Retired from the widget contract in v17 (objectui#3233): `field` is the
     // single metadata carrier. The strip stays so an authored form field that
@@ -294,7 +301,12 @@ function stripRegisteredFieldProps(type: string, props: RenderFieldProps): Rende
 
   return {
     ...fieldProps,
-    ...(DATA_SOURCE_FIELD_TYPES.has(normalizedType) ? { dataSource, dependentValues } : {}),
+    // `dependsOnLabels` rides with `dependentValues`: the widgets that gate on
+    // a sibling field's VALUE are exactly the ones that have to NAME that field
+    // in the gate hint (objectstack#5407). Stripped for everything else for the
+    // same reason `emptyHint` is — an unknown object prop reaching a DOM node
+    // through a widget's `...props` spread is a React warning.
+    ...(DATA_SOURCE_FIELD_TYPES.has(normalizedType) ? { dataSource, dependentValues, dependsOnLabels } : {}),
     // The cascade option widgets own the gate hint's presentation, so they get
     // the computed `emptyHint` alongside the live record (objectui#3231). It is
     // stripped by default because every OTHER registered widget spreads its
@@ -877,7 +889,9 @@ ComponentRegistry.register('form',
       setRejectedFieldNames(names);
       const labels = names.map((n) => fieldLabelByName[n] || n);
       const MAX = 3;
-      const fieldsText = labels.slice(0, MAX).join('、') + (labels.length > MAX ? '…' : '');
+      const fieldsText =
+        labels.slice(0, MAX).join(t('validation.formInvalidJoiner')) +
+        (labels.length > MAX ? '…' : '');
       toast.error(t('validation.formInvalid', { fields: fieldsText }));
 
       const errored = new Set(names);
@@ -1410,6 +1424,14 @@ ComponentRegistry.register('form',
                   // form, not read a stale record snapshot. Forwarded to
                   // data-source widgets only (see stripRegisteredFieldProps).
                   dependentValues: ruleRecord,
+                  // Field name → label for the SAME sibling fields
+                  // `dependentValues` carries the values of, so a gated lookup
+                  // can say "Select Account first" instead of naming the raw
+                  // API name (objectstack#5407). The whole form's map is passed
+                  // (not a per-field slice) because the widget reads only the
+                  // entries its own `depends_on` names, and one stable
+                  // reference keeps the widget's memo deps from thrashing.
+                  dependsOnLabels: fieldLabelByName,
                   // The validation slot the widget props contract has declared
                   // all along and nobody produced (objectui#3222). Spelled
                   // `error` because that is what `@objectstack/spec/ui`'s

@@ -47,7 +47,7 @@ import {
   DropdownMenuItem,
 } from '../../ui';
 import { RecordTitleChip } from '../../custom/RecordTitleChip';
-import { useObjectLabel, useSafeFieldLabel, useObjectTranslation, pickLocalized } from '@object-ui/i18n';
+import { useObjectLabel, useSafeFieldLabel, useObjectTranslation, useSafeTranslate, pickLocalized } from '@object-ui/i18n';
 import { MoreHorizontal } from 'lucide-react';
 
 /**
@@ -875,6 +875,10 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   const { objectLabel: tObjectLabel, actionLabel: tActionLabel } = useObjectLabel();
   const { fieldOptionLabel } = useSafeFieldLabel();
   const { language } = useObjectTranslation();
+  // Console-supplied chrome copy (objectstack#5407). `detail.moreActions` is
+  // the SAME key `action:menu`'s overflow trigger already reads, so the two
+  // `⋯` buttons a record page can show cannot read differently per locale.
+  const tt = useSafeTranslate();
   // Spec bridge may either inline `properties.*` onto the node or preserve
   // the raw bag (see record:quick_actions for the same pattern). Read from
   // both so a `{ properties: { title } }` schema is rendered correctly.
@@ -1204,7 +1208,7 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
                 variant="outline"
                 size="sm"
                 className="gap-1 px-2"
-                aria-label="More actions"
+                aria-label={tt('detail.moreActions', 'More actions')}
               >
                 <MoreHorizontal className="h-4 w-4" />
               </Button>

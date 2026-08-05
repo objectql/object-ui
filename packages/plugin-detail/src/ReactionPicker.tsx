@@ -10,6 +10,7 @@ import * as React from 'react';
 import { cn, Button } from '@object-ui/components';
 import { SmilePlus } from 'lucide-react';
 import type { Reaction } from '@object-ui/types';
+import { useDetailTranslation } from './useDetailTranslation';
 
 const DEFAULT_EMOJI_OPTIONS = ['👍', '❤️', '🎉', '😂', '😮', '😢'];
 
@@ -35,6 +36,7 @@ export const ReactionPicker: React.FC<ReactionPickerProps> = ({
   className,
 }) => {
   const [showPicker, setShowPicker] = React.useState(false);
+  const { t } = useDetailTranslation();
 
   const handleReaction = React.useCallback(
     (emoji: string) => {
@@ -74,7 +76,7 @@ export const ReactionPicker: React.FC<ReactionPickerProps> = ({
             size="icon"
             className="h-6 w-6"
             onClick={() => setShowPicker(!showPicker)}
-            aria-label="Add reaction"
+            aria-label={t('detail.addReaction')}
           >
             <SmilePlus className="h-3.5 w-3.5" />
           </Button>

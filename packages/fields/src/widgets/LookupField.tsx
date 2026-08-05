@@ -280,6 +280,23 @@ export function LookupField({ value, onChange, field, readonly, error: fieldErro
     return [];
   }, [fieldMeta?.depends_on, fieldMeta?.dependsOn]);
 
+  /**
+   * The gate sentence's `{{fields}}` — the controlling fields named the way the
+   * user sees them on the form, not the way the metadata spells them.
+   *
+   * `depends_on` holds API names, and this used to interpolate them straight
+   * into the sentence, so every locale — `en` included — read "Select
+   * crm_account first" (objectstack#5407): an internal identifier in the UI,
+   * not merely an untranslated word. The host form supplies the name→label map
+   * (`dependsOnLabels`); a name it doesn't cover falls back to itself, so a
+   * standalone widget with no host renders exactly what it did before.
+   */
+  const dependsOnLabelsProp = props.dependsOnLabels;
+  const dependsOnFieldsText = useMemo(
+    () => dependsOn.map((d) => dependsOnLabelsProp?.[d.field] || d.field).join(', '),
+    [dependsOn, dependsOnLabelsProp],
+  );
+
   // Resolve dependent field values from explicit prop or SchemaRendererContext.data
   const dependentValuesProp = props.dependentValues;
 
@@ -931,7 +948,7 @@ export function LookupField({ value, onChange, field, readonly, error: fieldErro
       disabled={dependenciesMissing || props.disabled}
       data-testid={dependenciesMissing ? 'lookup-trigger-gated' : ((props.name || lookupField?.name) ? `lookup-trigger-${props.name || lookupField.name}` : 'lookup-trigger')}
       title={dependenciesMissing
-        ? t('lookup.selectFirst', { fields: dependsOn.map(d => d.field).join(', ') })
+        ? t('lookup.selectFirst', { fields: dependsOnFieldsText })
         : undefined}
       // AFTER the spread so this widget's own computation wins (#3222):
       // `fieldError` is the published validation slot — NOT the popover's
@@ -948,7 +965,7 @@ export function LookupField({ value, onChange, field, readonly, error: fieldErro
       )}
       <span className={cn('truncate', compact && selectedOptions.length === 0 && 'text-muted-foreground')}>
         {dependenciesMissing
-          ? t('lookup.selectFirst', { fields: dependsOn.map(d => d.field).join(', ') })
+          ? t('lookup.selectFirst', { fields: dependsOnFieldsText })
           : hydrating
             // The value EXISTS but its labels are still loading — say so
             // instead of the empty placeholder (#3108).
@@ -1230,7 +1247,7 @@ export function LookupField({ value, onChange, field, readonly, error: fieldErro
           onClick={() => setIsPickerOpen(true)}
           aria-label={t('lookup.browseAll')}
           title={dependenciesMissing
-            ? t('lookup.selectFirst', { fields: dependsOn.map(d => d.field).join(', ') })
+            ? t('lookup.selectFirst', { fields: dependsOnFieldsText })
             : t('lookup.browseAll')}
           data-testid="browse-all-records"
         >

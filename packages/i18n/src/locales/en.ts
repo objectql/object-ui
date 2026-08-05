@@ -109,6 +109,12 @@ const en = {
     url: 'Please enter a valid URL',
     pattern: '{{field}} format is invalid',
     formInvalid: 'Please check the highlighted fields: {{fields}}',
+    // Separator between the field names interpolated into `formInvalid`.
+    // Per-locale because list punctuation is a locale property, not a code
+    // constant: CJK enumerates with U+3001, Latin scripts with a comma+space,
+    // Arabic with U+060C. Hardcoding one of them in the renderer put the CJK
+    // comma into the English toast (objectstack#5407).
+    formInvalidJoiner: ', ',
     unique: '{{field}} must be unique',
     type: '{{field}} must be a valid {{type}}',
   },
@@ -771,6 +777,7 @@ const en = {
     viewHistory: 'View history',
     delete: 'Delete',
     moreActions: 'More actions',
+    addReaction: 'Add reaction',
     addToFavorites: 'Add to favorites',
     removeFromFavorites: 'Remove from favorites',
     previousRecord: 'Previous record',
