@@ -36,8 +36,9 @@ const BASE = `${SERVER_URL}/api/settings`;
  *   payload; it passes through untouched. The console ships as a versioned
  *   asset that outlives any single server build, which is why both generations
  *   are read rather than the old one being declared gone. Drop the passthrough
- *   once the oldest supported server carries #3843 — the tests below name that
- *   branch explicitly so deleting it is a red test, not a silent regression.
+ *   once the oldest supported server carries #3843 — `api.envelope.test.ts`
+ *   drives that branch explicitly, so deleting it is a red test naming the
+ *   server generation it was carrying, not a silent regression.
  *
  * This is deliberately a local copy rather than an import: the console talks to
  * `/api/settings` with raw `fetch` and does not construct an `ObjectStackClient`,
