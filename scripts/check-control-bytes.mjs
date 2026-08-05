@@ -352,13 +352,20 @@ nobody removes is how a baseline turns into a permanent skip-list.`);
   process.exit(1);
 }
 
-if (process.argv.includes('--list')) {
-  const result = scan(repoRoot());
-  for (const f of result.skipped.binary) console.log(`binary         ${f}`);
-  for (const f of result.skipped['wide-encoding']) console.log(`wide-encoding  ${f}`);
-  for (const f of result.skipped.unreadable) console.log(`non-regular    ${f}`);
-  for (const b of result.baselined) console.log(`baselined      ${describe(b)}  [${b.issue}]`);
-  console.log(`\n${summarise(result)} (of ${result.tracked} tracked path(s))`);
-} else if (import.meta.url === `file://${process.argv[1]}`) {
-  main();
+// Run only when invoked directly — the test suite imports `scan`/`classify`
+// from here and must not trigger a repo scan (or a process.exit) on import.
+// Same guard shape as scripts/check-changeset-no-major.mjs.
+const invokedDirectly = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (invokedDirectly) {
+  if (process.argv.includes('--list')) {
+    const result = scan(repoRoot());
+    for (const f of result.skipped.binary) console.log(`binary         ${f}`);
+    for (const f of result.skipped['wide-encoding']) console.log(`wide-encoding  ${f}`);
+    for (const f of result.skipped.unreadable) console.log(`non-regular    ${f}`);
+    for (const b of result.baselined) console.log(`baselined      ${describe(b)}  [${b.issue}]`);
+    console.log(`\n${summarise(result)} (of ${result.tracked} tracked path(s))`);
+  } else {
+    main();
+  }
 }
