@@ -78,6 +78,24 @@ export const InlineCreateRelated: React.FC<InlineCreateRelatedProps> = ({
     [instanceId],
   );
 
+  /**
+   * The link-tab search box (objectui#3381). Same namespacing rationale as
+   * `fieldDomId`; the hyphenated `link-search` segment cannot collide with a
+   * `fieldDomId(...)` suffix, which is a metadata field name (`[a-z0-9_]+`).
+   */
+  const searchInputId = `inline-create-${instanceId}-link-search`;
+  /**
+   * Single source for the search box's name: the visible-to-AT `<label>` below
+   * and the placeholder are the SAME string (the placeholder only adds the
+   * ellipsis). Before #3381 there was no label at all, so the accessible name
+   * fell through to the placeholder — the last resort in HTML-AAM, which (a)
+   * is what a real browser shows only until the user types, and (b) is not
+   * implemented at all by `dom-accessibility-api`, so under test the control
+   * had NO name. Keeping both strings on one expression is what stops the
+   * label and the placeholder from drifting apart later.
+   */
+  const searchLabel = `Search ${objectName}`;
+
   const filteredResults = React.useMemo(() => {
     if (!searchQuery.trim()) return searchResults;
     const query = searchQuery.toLowerCase();
@@ -276,9 +294,27 @@ export const InlineCreateRelated: React.FC<InlineCreateRelatedProps> = ({
           {onLinkRecord && (
             <TabsContent value="link" className="space-y-3 mt-0">
               <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                {/* Visually hidden rather than `aria-label` (objectui#3381):
+                    the accessible name stays a real label element, on the same
+                    expression as the placeholder, so the two cannot drift the
+                    way a detached `aria-label` string does. `sr-only` is the
+                    repo's existing shape for a search box whose name is carried
+                    by the magnifier icon visually (see app-shell's
+                    SearchResultsPage). */}
+                <label htmlFor={searchInputId} className="sr-only">
+                  {searchLabel}
+                </label>
+                {/* Decorative: the name is on the label above. lucide-react
+                    already defaults childless, a11y-prop-less icons to
+                    `aria-hidden`, but that is a dependency default — spelling
+                    it out keeps the intent local and survives an icon-lib bump. */}
+                <Search
+                  aria-hidden="true"
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground"
+                />
                 <Input
-                  placeholder={`Search ${objectName}…`}
+                  id={searchInputId}
+                  placeholder={`${searchLabel}…`}
                   value={searchQuery}
                   onChange={(e) => handleSearchChange(e.target.value)}
                   className="h-8 text-sm pl-8"
