@@ -83,8 +83,16 @@ function useProductionEnvState(warmUrl?: string): Resolved {
           credentials: 'include',
         });
         if (!res.ok) throw new Error(`entitlements ${res.status}`);
-        const json = await res.json().catch(() => null);
-        const data = (json?.data ?? json) as { hasProductionEnv?: boolean } | null;
+        // Strict envelope read: the control plane wraps every success body as
+        // `{ success, data }` (cloud#1046). A bare body is a producer contract
+        // violation, not a second accepted dialect — reading it would resolve
+        // `hasProductionEnv` to `false` from an absent field and strand a user
+        // who HAS a production env behind a wrong "create" CTA. Unresolvable
+        // ⇒ `unknown`, which degrades to both actions and always works.
+        const json = (await res.json().catch(() => null)) as
+          | { data?: { hasProductionEnv?: boolean } }
+          | null;
+        const data = json?.data;
         if (cancelled) return;
         if (!data || typeof data !== 'object') {
           setState({ phase: 'unknown' });

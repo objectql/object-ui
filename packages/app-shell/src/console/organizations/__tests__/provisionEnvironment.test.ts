@@ -58,6 +58,27 @@ describe('provisionProductionEnvironment', () => {
     expect(out).toEqual({ alreadyProvisioned: true });
   });
 
+  // Strict envelope pin (#3352): the control plane wraps success payloads as
+  // `{ success, data }`, so a BARE body is a producer contract violation — it
+  // must NOT be read as the provisioned environment. This used to fall through
+  // to `return body`, reporting a successful provision from a shape that never
+  // existed; now it throws into the caller's documented lazy-provision path.
+  it('does NOT read a bare (un-enveloped) 2xx body as the provisioned env', async () => {
+    authFetch.mockResolvedValue(res(200, { id: 'env-1', hostname: 'os-abc.localhost' }));
+
+    await expect(provisionProductionEnvironment({ organizationId: 'org-123' })).rejects.toThrow(
+      /envelope/i,
+    );
+  });
+
+  it('throws when a 2xx body carries the envelope but no data payload', async () => {
+    authFetch.mockResolvedValue(res(200, { success: true }));
+
+    await expect(provisionProductionEnvironment({ organizationId: 'org-123' })).rejects.toThrow(
+      /envelope/i,
+    );
+  });
+
   it('throws on a genuine failure so the caller can fall back to the lazy gate', async () => {
     authFetch.mockResolvedValue(res(500, { success: false }));
 

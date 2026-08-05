@@ -7,7 +7,8 @@
  *      by the same helper the create guard uses). Gives plan + dev-create
  *      capability precisely, including the seat-scaled / subscription cases the
  *      client can't derive from rows.
- *   2. FALLBACK — when that endpoint is unavailable (older control plane / error),
+ *   2. FALLBACK — when that endpoint is unavailable (older control plane / error,
+ *      or a success body that doesn't carry the `{ success, data }` envelope),
  *      derive `hasProductionEnv` from the org's env rows via the data API (which
  *      is org-scoped on the control plane). This keeps the critical
  *      "set up your production environment" path working without a backend deploy;
@@ -72,8 +73,17 @@ export function useEnvironmentEntitlements(
           credentials: 'include',
         });
         if (!res.ok) return null;
-        const json = await res.json().catch(() => null);
-        const data = (json?.data ?? json) as EnvironmentEntitlementsSummary | undefined;
+        // Strict envelope read: the control plane wraps every success body as
+        // `{ success, data }` (cloud#1046), and `EnvironmentEntitlementsSummary`
+        // is declared as that `data` payload. A bare body is therefore a
+        // producer contract violation, not a second accepted dialect — reading
+        // it would yield a summary whose fields are all `undefined`, i.e. a
+        // silent `hasProductionEnv: false`. Returning null instead degrades to
+        // the `fromRows()` derivation, which resolves that signal for real.
+        const json = (await res.json().catch(() => null)) as
+          | { data?: EnvironmentEntitlementsSummary }
+          | null;
+        const data = json?.data;
         if (!data || typeof data !== 'object') return null;
         return {
           ready: true,

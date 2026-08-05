@@ -48,7 +48,8 @@ export interface ProvisionedEnvironment {
  * switch has propagated. The env is named `Production` to match the
  * born-with-env convention used by the signup org.
  *
- * @throws on a genuine control-plane failure (5xx / network). A 403/409
+ * @throws on a genuine control-plane failure (5xx / network), or on a 2xx whose
+ *   body doesn't carry the contractual `{ success, data }` envelope. A 403/409
  *   "already has its production env" is NOT an error — it resolves to
  *   `{ alreadyProvisioned: true }`.
  */
@@ -73,12 +74,19 @@ export async function provisionProductionEnvironment(opts: {
     }
     throw new Error(`Failed to provision production environment (status ${res.status})`);
   }
-  // The control plane wraps payloads as `{ success, data }`; tolerate both.
-  const body = (await res.json().catch(() => ({}))) as
-    | { data?: ProvisionedEnvironment }
-    | ProvisionedEnvironment;
-  if (body && typeof body === 'object' && 'data' in body && body.data) {
-    return body.data;
+  // Strict envelope read: the control plane wraps every success payload as
+  // `{ success, data }` (cloud#1046), so `data` is the only place the created
+  // environment lives. A bare body is a producer contract violation, not a
+  // second accepted dialect — returning it (or an empty object) would report a
+  // successful provision carrying no env at all. Throwing routes it to the
+  // caller's documented failure path: the onboarding gate provisions lazily on
+  // first navigation.
+  const body = (await res.json().catch(() => null)) as { data?: ProvisionedEnvironment } | null;
+  const data = body?.data;
+  if (!data || typeof data !== 'object') {
+    throw new Error(
+      'Malformed control-plane response: expected a `{ success, data }` envelope from POST /cloud/environments',
+    );
   }
-  return (body as ProvisionedEnvironment) ?? {};
+  return data;
 }

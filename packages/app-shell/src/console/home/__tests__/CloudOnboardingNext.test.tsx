@@ -93,6 +93,41 @@ describe('CloudOnboardingNext', () => {
     expect(screen.queryByText('Create your environment')).toBeNull();
   });
 
+  // Strict envelope pins (#3352): the control plane wraps success bodies as
+  // `{ success, data }`, so a BARE body is a producer contract violation and
+  // must NOT produce a usable summary. It resolves to `unknown` (both actions
+  // work) instead of being read field-by-field off the wrong shape.
+  it('does NOT read a bare (un-enveloped) body as a usable summary', async () => {
+    fetchImpl = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ hasProductionEnv: true }),
+    });
+    const { container } = renderOnboarding(<CloudOnboardingNext {...PROPS} />);
+
+    await waitFor(() =>
+      expect(container.querySelector('[data-onboarding="unknown"]')).toBeTruthy(),
+    );
+    expect(container.querySelector('[data-onboarding="ready"]')).toBeNull();
+  });
+
+  it('never strands a user behind a wrong "create" CTA when the envelope is missing', async () => {
+    // The silent-degradation case the strict read exists to kill: an
+    // un-enveloped body whose `hasProductionEnv` reads as absent used to
+    // resolve to `ready:false` and show "Create your environment" to an org
+    // that already HAS a production env.
+    fetchImpl = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ hasProductionEnv: false }),
+    });
+    const { container } = renderOnboarding(<CloudOnboardingNext {...PROPS} />);
+
+    expect(await screen.findByText('Open Production')).toBeTruthy();
+    expect(screen.queryByText('Create your environment')).toBeNull();
+    expect(container.querySelector('[data-onboarding="unknown"]')).toBeTruthy();
+  });
+
   it('renders a non-CTA skeleton while the signal is still loading', async () => {
     let resolveFetch: (v: any) => void = () => {};
     fetchImpl = () => new Promise((r) => { resolveFetch = r; });
