@@ -11,12 +11,14 @@ import {
   cn,
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
   Button,
 } from '@object-ui/components';
 import { Maximize2, Check, X } from 'lucide-react';
+import { useFieldTranslation } from './useFieldTranslation';
 
 /**
  * The fullscreen-edit affordance shared by every long-text widget: the "expand"
@@ -99,6 +101,27 @@ import { Maximize2, Check, X } from 'lucide-react';
  * had found. The editor's own test id belongs to `children` for the same
  * reason.
  *
+ * ## Copy (objectui#3404)
+ *
+ * Every string here goes through `useFieldTranslation()` and consumes the
+ * EXISTING `form.fullscreen.*` / `common.cancel` keys — the same ones the
+ * built-in branch consumes since objectui#3272. Nothing was missing from the
+ * ten locale packs; this path simply never read them, so a zh session opened a
+ * dialog reading `Cancel` / `Done` while a long-text field rendered by the
+ * built-in branch **in the same form** read 「取消 / 完成」.
+ *
+ * Sharing the keys rather than minting `fields.fullscreen.*` twins is the
+ * point: one form-level setting (`mobile.fullscreenLongText`) projects onto
+ * both render paths, so two copies of this copy could only drift.
+ *
+ * `useFieldTranslation` (not bare `useObjectTranslation`) because this widget
+ * is rendered without an `I18nProvider` by standalone/embedded hosts and by
+ * every bare-render test in this package. Measured before the change: with no
+ * provider mounted `useObjectTranslation().t('common.cancel')` returns
+ * `"common.cancel"` — the raw key — and the `{{label}}` interpolation collapses
+ * entirely. The safe hook's English defaults are byte-identical to the literals
+ * they replaced, so the provider-less rendering is unchanged.
+ *
  * Focus management, `Esc`, the overlay and the close button are Radix's, via
  * the repo's `Dialog` (`@object-ui/components`) — deliberately not re-answered
  * here.
@@ -165,6 +188,7 @@ export function FullscreenFieldEditor({
   footer,
   toggleClassName,
 }: FullscreenFieldEditorProps) {
+  const { t } = useFieldTranslation();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value ?? '');
 
@@ -194,7 +218,9 @@ export function FullscreenFieldEditor({
           'disabled:opacity-50 disabled:pointer-events-none',
           toggleClassName,
         )}
-        aria-label={`Edit ${label ?? 'text'} fullscreen`}
+        aria-label={t('form.fullscreen.toggle', {
+          label: label ?? t('form.fullscreen.textFallback'),
+        })}
         data-testid={`${testIdPrefix}-fullscreen-toggle`}
       >
         <Maximize2 className="size-3.5" />
@@ -206,14 +232,27 @@ export function FullscreenFieldEditor({
           data-testid={`${testIdPrefix}-fullscreen-dialog`}
         >
           <DialogHeader className="p-4 border-b">
-            <DialogTitle className="text-base">{label ?? 'Edit text'}</DialogTitle>
+            <DialogTitle className="text-base">{label ?? t('form.fullscreen.title')}</DialogTitle>
+            {/*
+              Parity with the built-in branch (`form.tsx`), which has carried
+              this sr-only line since #3272. Without it Radix reports no
+              `descriptionPresent` and omits `aria-describedby` altogether, so
+              the registered path's dialog had no accessible description while
+              the identical built-in one did — and `form.fullscreen.description`
+              was a key with no consumer here. (The missing-Description console
+              warning older Radix versions emitted is NOT why: @radix-ui/react-dialog
+              1.1.23 contains no `console.*` call at all, verified before adding this.)
+            */}
+            <DialogDescription className="sr-only">
+              {t('form.fullscreen.description')}
+            </DialogDescription>
           </DialogHeader>
           <div className="flex-1 min-h-0 p-4">{children(draft, setDraft, disabled)}</div>
           <DialogFooter className="p-3 border-t flex-row justify-between sm:justify-end gap-2">
             {footer?.(draft)}
             <div className="flex gap-2 ml-auto">
               <Button type="button" variant="ghost" onClick={cancelFullscreen}>
-                <X className="size-4 mr-1" /> Cancel
+                <X className="size-4 mr-1" /> {t('common.cancel')}
               </Button>
               <Button
                 type="button"
@@ -221,7 +260,7 @@ export function FullscreenFieldEditor({
                 disabled={disabled}
                 data-testid={`${testIdPrefix}-fullscreen-save`}
               >
-                <Check className="size-4 mr-1" /> Done
+                <Check className="size-4 mr-1" /> {t('form.fullscreen.done')}
               </Button>
             </div>
           </DialogFooter>
