@@ -18,6 +18,7 @@
  */
 
 import { ActionRunner, type ActionDef, type ActionContext, type ActionResult } from './ActionRunner';
+import { toPredicateInput } from '../evaluator/predicateInput.js';
 
 /**
  * Action location types — re-exported from `@objectstack/spec/ui` so the
@@ -194,13 +195,18 @@ export class ActionEngine {
    *      action behaves identically whether surfaced via the engine or
    *      consumed standalone.
    *
-   *   Predicate normalization matches `@object-ui/react`'s `toPredicateInput`:
+   *   Predicate normalization goes through the shared `toPredicateInput`
+   *   (`@object-ui/core`'s canonical helper — semantically identical to
+   *   `@object-ui/react`'s renderer-side twin, pinned by a parity test):
    *   raw strings (`'record.foo == true'`) are wrapped as `${...}` so they
-   *   evaluate as expressions, not as truthy string literals. Spec-style
-   *   `{ dialect, source }` envelopes are unwrapped to their `source`.
-   *   Without this, every per-action renderer (which already calls
-   *   `toPredicateInput`) and the engine path would disagree on the same
-   *   `visible:` predicate.
+   *   evaluate as expressions, not as truthy string literals, and a spec-style
+   *   `{ dialect: 'cel', source }` envelope is passed through INTACT so
+   *   `evaluateCondition` routes it to the canonical `@objectstack/formula`
+   *   engine (#2661). Unwrapping the envelope here — as this method used to —
+   *   dropped the dialect and silently demoted every CEL predicate to the
+   *   legacy JS evaluator, so the same `visible:` reached a different verdict
+   *   via the engine than via a renderer (#3314): CEL faults on `null < null`
+   *   and fail-closed hides, JS quietly returns `false`.
    */
   getActionsForLocation(location: ActionLocation): ActionDef[] {
     const evaluator = this.runner.getEvaluator();
@@ -223,15 +229,17 @@ export class ActionEngine {
         const raw = ra.action.visible;
         if (raw == null || raw === '' || raw === true) return true;
         if (raw === false) return false;
-        let expr: string | boolean;
-        if (typeof raw === 'string') {
-          expr = `\${${raw}}`;
-        } else if (typeof raw === 'object' && typeof raw.source === 'string') {
-          const src = raw.source;
-          if (!src) return true;
-          expr = `\${${src}}`;
-        } else {
-          expr = Boolean(raw);
+        // #3314 — one shared normalization, not two. Hand-rolling the envelope
+        // unwrap here is what dropped `dialect: 'cel'` and demoted the
+        // predicate to the legacy JS engine; `toPredicateInput` keeps the
+        // envelope so `evaluateCondition` can route it to `@objectstack/formula`
+        // (the engine the server enforces with), exactly as the renderers do.
+        const expr = toPredicateInput(raw);
+        if (expr === undefined) {
+          // Not an evaluable predicate: an envelope with an empty `source`
+          // (→ nothing declared → visible), or a stray non-predicate value,
+          // which keeps the historical `Boolean(raw)` coercion.
+          return typeof raw === 'object' ? true : Boolean(raw);
         }
         try {
           // `throwOnError: true` is required for fail-closed semantics: the
@@ -239,8 +247,10 @@ export class ActionEngine {
           // returns the raw template string, which `Boolean(string)` then
           // coerces to `true` — silently leaking actions whose preconditions
           // failed (e.g. `ctx` undefined). Surface the error so our catch
-          // below can hide the action.
-          return evaluator.evaluateCondition(expr as any, { throwOnError: true } as any);
+          // below can hide the action. It is equally load-bearing on the CEL
+          // path, where the canonical helper fails SOFT to visible/enabled
+          // unless the caller opts in.
+          return evaluator.evaluateCondition(expr, { throwOnError: true });
         } catch (err) {
           // Fail-closed: hide the action. But a *thrown* predicate is almost
           // always an authoring bug, not a real precondition — most often a

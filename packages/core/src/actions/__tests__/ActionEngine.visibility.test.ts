@@ -14,8 +14,10 @@
  *   1. `visible` is evaluated against the runner context, not ignored.
  *   2. Raw expression strings (`'record.x == y'`) are treated as
  *      expressions, not as truthy string literals.
- *   3. `{ dialect, source }` envelopes (the spec serialization form)
- *      are unwrapped to their `source` before evaluation.
+ *   3. `{ dialect, source }` envelopes (the spec serialization form) are
+ *      evaluated — a `cel` dialect on the canonical `@objectstack/formula`
+ *      engine (#3314; the envelope is NOT flattened to `${source}`), any
+ *      other dialect unwrapped onto the legacy `${…}` path.
  *   4. Predicate errors fail closed (action hidden), not open.
  *   5. `null`/`undefined`/`''`/`true` all mean "always visible".
  *   6. Literal `false` always hides.
@@ -87,7 +89,7 @@ describe('ActionEngine.getActionsForLocation — visibility filter', () => {
     expect(engine.getActionsForLocation('record_section').map(a => a.name)).toEqual(['self_only']);
   });
 
-  it('unwraps `{ dialect, source }` envelopes (the spec serialization form)', () => {
+  it('evaluates `{ dialect, source }` envelopes (the spec serialization form)', () => {
     const engine = makeEngine(ctx);
     engine.registerAction(
       {
@@ -212,6 +214,99 @@ describe('ActionEngine.getActionsForLocation — visibility filter', () => {
       expect(engine.getActionsForLocation('record_section')).toHaveLength(0);
       engine.updateContext({ user: { id: 'u1', role: 'admin' } });
       expect(engine.getActionsForLocation('record_section')).toHaveLength(1);
+    });
+  });
+
+  // #3314 — the engine used to unwrap a `{ dialect: 'cel', source }` envelope
+  // into a `${source}` string before calling `evaluateCondition`, which only
+  // routes to the canonical `@objectstack/formula` engine while the argument
+  // is STILL an envelope. Every CEL predicate therefore silently ran on the
+  // legacy JS evaluator here, while the renderers (`toPredicateInput` →
+  // `useCondition`) ran the same predicate on CEL (#2661).
+  //
+  // The discriminator is a null comparison, where the two engines genuinely
+  // disagree: CEL has no `<` overload for `null` → the predicate faults →
+  // `throwOnError` → fail-closed HIDE; JS evaluates `null < null` to `false`
+  // → `!(…)` is `true` → SHOW. Same predicate text, opposite verdict.
+  describe('CEL envelopes route to the canonical formula engine (#3314)', () => {
+    const NULLS = { record: { a: null, b: null, status: 'open' } };
+    const NULL_PRED = '!(record.a < record.b)';
+
+    it('routes a `cel` envelope to CEL — a null comparison faults and fail-closed hides', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const engine = new ActionEngine(NULLS);
+        engine.registerAction(
+          { name: 'cel_nulls', type: 'api', visible: { dialect: 'cel', source: NULL_PRED } } as any,
+          { locations: ['record_section'] },
+        );
+        // BEFORE the fix the envelope was flattened to `${!(record.a < record.b)}`
+        // and the legacy JS engine returned `true` — the action stayed visible.
+        expect(engine.getActionsForLocation('record_section')).toHaveLength(0);
+        // …and the fail-closed hide is diagnosable, with the envelope's source
+        // in the message (not `[object Object]`).
+        const hits = warn.mock.calls.filter(c => String(c[0]).includes('cel_nulls'));
+        expect(hits).toHaveLength(1);
+        expect(String(hits[0][0])).toContain(NULL_PRED);
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it('keeps the bare-string predicate on the legacy JS path (no regression)', () => {
+      // The same predicate text as a bare string is NOT a CEL envelope, so it
+      // stays on the legacy `${…}` path — `null < null` is `false` there, so
+      // the action shows. This is the assertion that makes the case above a
+      // real engine discriminator rather than a predicate that hides anyway.
+      const engine = new ActionEngine(NULLS);
+      engine.registerAction(
+        { name: 'js_nulls', type: 'api', visible: NULL_PRED } as any,
+        { locations: ['record_section'] },
+      );
+      expect(engine.getActionsForLocation('record_section').map(a => a.name)).toEqual(['js_nulls']);
+    });
+
+    it('keeps a non-`cel` dialect envelope on the legacy JS path', () => {
+      const engine = new ActionEngine(NULLS);
+      engine.registerAction(
+        { name: 'tpl_nulls', type: 'api', visible: { dialect: 'template', source: NULL_PRED } } as any,
+        { locations: ['record_section'] },
+      );
+      expect(engine.getActionsForLocation('record_section').map(a => a.name)).toEqual(['tpl_nulls']);
+    });
+
+    it('still evaluates a well-formed `cel` envelope to its real verdict', () => {
+      // Guard against "the fix just hides everything": a CEL predicate that
+      // genuinely holds must still pass the filter, and one that genuinely
+      // fails must be dropped — neither is a fault.
+      const engine = new ActionEngine(NULLS);
+      engine.registerAction(
+        { name: 'cel_true', type: 'api', visible: { dialect: 'cel', source: 'record.status == "open"' } } as any,
+        { locations: ['record_section'] },
+      );
+      engine.registerAction(
+        { name: 'cel_false', type: 'api', visible: { dialect: 'cel', source: 'record.status == "closed"' } } as any,
+        { locations: ['record_section'] },
+      );
+      expect(engine.getActionsForLocation('record_section').map(a => a.name)).toEqual(['cel_true']);
+    });
+
+    it('treats an empty `source` as "no predicate declared" (visible), for every dialect', () => {
+      const engine = new ActionEngine(NULLS);
+      engine.registerAction(
+        { name: 'cel_empty', type: 'api', visible: { dialect: 'cel', source: '' } } as any,
+        { locations: ['record_section'] },
+      );
+      engine.registerAction(
+        { name: 'tpl_empty', type: 'api', visible: { dialect: 'template', source: '' } } as any,
+        { locations: ['record_section'] },
+      );
+      engine.registerAction(
+        { name: 'no_source', type: 'api', visible: {} } as any,
+        { locations: ['record_section'] },
+      );
+      expect(engine.getActionsForLocation('record_section').map(a => a.name))
+        .toEqual(['cel_empty', 'tpl_empty', 'no_source']);
     });
   });
 
