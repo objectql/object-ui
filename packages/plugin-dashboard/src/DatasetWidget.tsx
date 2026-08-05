@@ -86,7 +86,13 @@ export function buildPivot(
   const colSeen = new Set<string>();
   const cellIndex = new Map<string, number>();
   rows.forEach((row, index) => {
-    const rid = rowDims.map((d) => String(row[d] ?? '∅')).join('');
+    // The row-dimension separator below is the escaped U+0001 spelling, not the
+    // byte itself (objectstack#5450). U+0001 does not blind grep the way U+0000
+    // does, but written raw it is invisible in every editor and every diff, so no
+    // reviewer could tell what this separator actually was. The runtime value is
+    // unchanged: a character no dimension value can carry, which is what keeps
+    // two dimension values from merging into one ambiguous row id.
+    const rid = rowDims.map((d) => String(row[d] ?? '∅')).join('\u0001');
     const cid = String(row[colDim] ?? '∅');
     if (!rowSeen.has(rid)) { rowSeen.add(rid); rowHeaders.push({ id: rid, labels: rowDims.map((d) => formatDimensionValue(row[d])) }); }
     if (!colSeen.has(cid)) { colSeen.add(cid); colHeaders.push({ id: cid, label: formatDimensionValue(row[colDim]) }); }

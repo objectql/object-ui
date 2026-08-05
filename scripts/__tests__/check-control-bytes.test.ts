@@ -303,6 +303,49 @@ describe('objectstack#5425 — the file that started this is readable again', ()
   });
 });
 
+/**
+ * objectstack#5450 — the four files the baseline shipped with are now clean, and
+ * KNOWN_OFFENDERS is empty.
+ *
+ * Two harms, so two assertion shapes. Three of the four carried U+0000 and were
+ * genuinely invisible to content search, so the pin for those is a real grep
+ * that must print a line. The fourth carried U+0001, which (measured on GNU grep
+ * 3.11 and ripgrep 14) never blinded grep at all — claiming a search outage
+ * there would be a fabricated pin, so it is asserted only on the byte's absence,
+ * which is the harm it actually had: an unreviewable literal.
+ */
+describe('objectstack#5450 — the four baselined files are clean', () => {
+  const cleaned = [
+    { file: 'packages/core/src/evaluator/listConditional.ts', grepFor: 'warnedError' },
+    { file: 'packages/core/src/utils/record-title.ts', grepFor: 'EMPTY_TOKEN' },
+    { file: 'packages/fields/src/widgets/PeoplePicker.tsx', grepFor: 'recordsSignature' },
+    // U+0001, not U+0000: never a search outage, so no grep assertion below.
+    { file: 'packages/plugin-dashboard/src/DatasetWidget.tsx', grepFor: null },
+  ];
+
+  it.each(cleaned.map((c) => c.file))('%s carries no control byte at all', (file) => {
+    const buf = fs.readFileSync(path.join(repoRoot, file));
+    const found = [...buf].filter((b) => SCANNED_BYTES.has(b));
+    expect(found).toEqual([]);
+  });
+
+  it.each(cleaned.filter((c) => c.grepFor).map((c) => [c.file, c.grepFor as string]))(
+    '%s is visible to a content search again',
+    (file, needle) => {
+      const out = execFileSync('grep', ['-n', needle, file], { cwd: repoRoot, encoding: 'utf8' });
+      expect(out).toMatch(new RegExp(needle));
+      expect(out).not.toMatch(/binary file matches/);
+    },
+  );
+
+  it('has no baseline entry left for any of them', () => {
+    const baseline = KNOWN_OFFENDERS as Map<string, unknown>;
+    for (const { file } of cleaned) {
+      expect(baseline.has(file), `${file} is clean; its KNOWN_OFFENDERS entry must be gone`).toBe(false);
+    }
+  });
+});
+
 describe('wiring — the gate is actually reachable and actually runs', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
   const workflowPath = path.join(repoRoot, '.github/workflows/control-bytes.yml');

@@ -384,3 +384,46 @@ describe('formatTitleTemplate', () => {
     expect(formatTitleTemplate(undefined, { id: '1' })).toBe('');
   });
 });
+
+/**
+ * objectstack#5450. The empty-placeholder sentinel `EMPTY_TOKEN` is a U+0000
+ * that used to be written into the source as the raw byte, which made this
+ * module binary to grep. Re-spelling it as an escape leaves the runtime value
+ * identical — these pin the behaviour that identity is responsible for, so a
+ * later attempt to "make it printable" cannot pass quietly.
+ *
+ * Byte discipline: the assertions test CODE POINTS via charCodeAt. No control
+ * character is written into this file, as a literal or as an escape.
+ */
+describe('formatTitleTemplate — the empty-placeholder sentinel', () => {
+  /** True when every code point is printable (no C0 control, no U+007F). */
+  const isPrintable = (s: string) =>
+    Array.from(s).every((c) => {
+      const cp = c.codePointAt(0) as number;
+      return cp >= 0x20 && cp !== 0x7f;
+    });
+
+  it('never leaks the sentinel into the rendered title', () => {
+    const out = formatTitleTemplate('{full_name} - {company}', { company: 'Acme' });
+    expect(out).toBe('Acme');
+    expect(isPrintable(out), 'the sentinel must not survive into a rendered title').toBe(true);
+  });
+
+  it('strips several empty placeholders and their orphan separators at once', () => {
+    const out = formatTitleTemplate('{a} - {b} | {c}', { b: 'Only' });
+    expect(out).toBe('Only');
+    expect(isPrintable(out)).toBe(true);
+  });
+
+  it('leaves a separator that sits between two RESOLVED fields alone', () => {
+    // The strip passes are anchored on the sentinel, so a real separator with
+    // content on both sides must survive — otherwise "A - B" would become "AB".
+    expect(formatTitleTemplate('{a} - {b}', { a: 'A', b: 'B' })).toBe('A - B');
+  });
+
+  it('does not swallow a record value just because it neighbours an empty one', () => {
+    const out = formatTitleTemplate('{missing}·{kept}', { kept: 'Kept' });
+    expect(out).toBe('Kept');
+    expect(isPrintable(out)).toBe(true);
+  });
+});

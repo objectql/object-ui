@@ -319,6 +319,37 @@ describe('DatasetWidget', () => {
     expect(p.cellIndex.get('Done Low')).toBeUndefined(); // sparse combo absent
   });
 
+  // objectstack#5450. Every case above pivots on ONE row dimension, so the
+  // separator that joins several of them was never exercised — it could have
+  // been anything, including the empty string, and the suite stayed green. It
+  // was a raw U+0001 in the source (invisible in every editor and diff) and is
+  // now the same character written as an escape; these pin what that character
+  // is responsible for.
+  //
+  // Byte discipline: the expected id is built from a NUMBER via fromCharCode.
+  // No control character is written into this file, as a literal or an escape.
+  it('buildPivot keeps two row dimensions apart that would merge without a separator', () => {
+    const rows = [
+      // "x" + "yz" and "xy" + "z" concatenate to the same string, so an empty
+      // (or absent) separator collapses these into ONE row header and the second
+      // row's cell overwrites the first.
+      { region: 'x', segment: 'yz', priority: 'High', total: 1 },
+      { region: 'xy', segment: 'z', priority: 'High', total: 2 },
+    ];
+    const p = buildPivot(rows, ['region', 'segment'], 'priority');
+
+    expect(p.rowHeaders).toHaveLength(2);
+    expect(p.rowHeaders.map((r) => r.labels)).toEqual([
+      ['x', 'yz'],
+      ['xy', 'z'],
+    ]);
+
+    const SEP = String.fromCharCode(0x01);
+    expect(p.rowHeaders.map((r) => r.id)).toEqual([`x${SEP}yz`, `xy${SEP}z`]);
+    expect(p.cellIndex.get(`x${SEP}yz High`)).toBe(0);
+    expect(p.cellIndex.get(`xy${SEP}z High`)).toBe(1);
+  });
+
   it('renders a pivot (≥2 dims) as a true cross-tab, not a flat table', async () => {
     const src = { queryDataset: vi.fn(async () => ({
       rows: [

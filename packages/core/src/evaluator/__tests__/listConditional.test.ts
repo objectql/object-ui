@@ -117,6 +117,30 @@ describe('evalRowPredicate', () => {
       expect(r).toBe(false);
       expect(warn).not.toHaveBeenCalled();
     });
+
+    // The warning is deduped per (label, source) pair. These two pin the two
+    // halves of that contract across the objectstack#5450 key change: the key
+    // used to be the pair joined on a raw U+0000 byte (which is what made this
+    // file invisible to grep) and is now JSON.stringify of the pair.
+    it('warns only once for the same (label, source) pair', () => {
+      const faulty = 'record.dedupe_once ==';
+      evalRowPredicate(faulty, { a: 1 }, { warnOnError: true, label: 'twice' });
+      evalRowPredicate(faulty, { a: 2 }, { warnOnError: true, label: 'twice' });
+      expect(warn).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the label/source boundary unambiguous', () => {
+      // The obvious repair for an "impossible character" separator is to pick a
+      // printable one, which merely relocates the collision. These two pairs
+      // share a label+source CONCATENATION and would collapse into one key under
+      // a space separator, so the second warning would be swallowed. JSON needs
+      // no impossible character and no such assumption.
+      evalRowPredicate('beta record.boundary ==', { a: 1 }, { warnOnError: true, label: 'alpha' });
+      evalRowPredicate('record.boundary ==', { a: 1 }, { warnOnError: true, label: 'alpha beta' });
+      expect(warn).toHaveBeenCalledTimes(2);
+      expect(String(warn.mock.calls[0][0])).toContain('(alpha)');
+      expect(String(warn.mock.calls[1][0])).toContain('(alpha beta)');
+    });
   });
 });
 

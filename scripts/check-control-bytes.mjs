@@ -148,10 +148,11 @@ const WIDE_BOMS = [
  * The map is expected to reach empty and stay there.
  */
 export const KNOWN_OFFENDERS = new Map([
-  ['packages/core/src/evaluator/listConditional.ts', { bytes: [NUL], issue: 'objectstack#5450' }],
-  ['packages/core/src/utils/record-title.ts', { bytes: [NUL], issue: 'objectstack#5450' }],
-  ['packages/fields/src/widgets/PeoplePicker.tsx', { bytes: [NUL], issue: 'objectstack#5450' }],
-  ['packages/plugin-dashboard/src/DatasetWidget.tsx', { bytes: [0x01], issue: 'objectstack#5450' }],
+  // Empty, and expected to stay that way. The four entries this map shipped
+  // with (two in `@object-ui/core`, one in `@object-ui/fields`, one in
+  // `@object-ui/plugin-dashboard`) were cleaned by objectstack#5450 and deleted
+  // in the same PR, because `scan()` reports a stale entry as loudly as a new
+  // offender. Add one back only with an issue number, and only as debt.
 ]);
 
 function hasWideBom(buf) {

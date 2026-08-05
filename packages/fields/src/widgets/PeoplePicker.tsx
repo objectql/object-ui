@@ -316,8 +316,14 @@ export function PeoplePicker({
   // returns the same records (StrictMode double-effect, refetch-on-focus)
   // re-emits a new array; resetting on identity alone yanked the cursor to -1
   // mid-navigation (flaky ArrowDown→Enter, and a real UX nit).
+  //
+  // The id separator is the escaped U+0000 spelling, not the byte itself
+  // (objectstack#5450): one raw NUL made this whole file binary to grep and
+  // ripgrep — a content search printed `binary file matches` and no line. The
+  // runtime value is unchanged, and it is the same separator the `cursorEpoch`
+  // key below already spelled this way.
   const recordsSignature = useMemo(
-    () => query.records.map(r => String(getPersonId(r, idField))).join(' '),
+    () => query.records.map(r => String(getPersonId(r, idField))).join('\u0000'),
     [query.records, idField],
   );
   // The reset runs in the RENDER PHASE (the "adjusting state during render"
