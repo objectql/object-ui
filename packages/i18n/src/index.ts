@@ -35,7 +35,16 @@
 export { createI18n, getDirection, getAvailableLanguages, type I18nConfig, type TranslationKeys } from './i18n';
 
 // React integration
-export { I18nProvider, useObjectTranslation, useI18nContext, type I18nProviderProps } from './provider';
+export {
+  I18nProvider,
+  useObjectTranslation,
+  useI18nContext,
+  // Language-preference persistence: the key the provider writes, and the
+  // reader apps that bring their own i18next instance need to honour it.
+  LOCALE_STORAGE_KEY,
+  readStoredLanguage,
+  type I18nProviderProps,
+} from './provider';
 
 // Safe translation hook factory
 export { createSafeTranslation, useSafeTranslate } from './useSafeTranslation';

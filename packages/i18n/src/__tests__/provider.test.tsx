@@ -1,8 +1,17 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import React from 'react';
 import { I18nProvider, useObjectTranslation, useI18nContext } from '../provider';
 import { createI18n } from '../i18n';
+
+// Each test below is written as a fresh browser: the provider now remembers the
+// language across mounts (objectstack#5406), so the `changeLanguage` test would
+// otherwise hand its `zh` to every test after it — including the ones asserting
+// a config-supplied bootstrap language. Persistence itself is covered in
+// `provider-locale-persistence.test.tsx`.
+beforeEach(() => {
+  window.localStorage.clear();
+});
 
 describe('I18nProvider', () => {
   it('creates i18n instance from config', () => {

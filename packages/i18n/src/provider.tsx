@@ -7,6 +7,101 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState 
 import { I18nextProvider, useTranslation } from 'react-i18next';
 import type { i18n as I18nInstance } from 'i18next';
 import { createI18n, getDirection, type I18nConfig } from './i18n';
+import { builtInLocales } from './locales/index';
+
+/**
+ * `localStorage` key holding the user's explicit language choice.
+ *
+ * Follows the console's existing preference-key convention
+ * (`objectui-favorites`, `objectui-recent-items`), and sits beside the theme
+ * preference the same avatar menu writes — a language switch is a preference,
+ * not ephemeral UI state, so it belongs in storage (AGENTS.md §5 #8).
+ *
+ * Exported so an app that builds its own i18next instance (and therefore owns
+ * its bootstrap language — see {@link I18nProviderProps.instance}) can honour
+ * the same preference, and so a sign-out flow can clear it.
+ */
+export const LOCALE_STORAGE_KEY = 'objectui-locale';
+
+/**
+ * Read the persisted language choice, or `null` when nothing is stored.
+ *
+ * Defensive by design: `localStorage` does not exist under SSR and *throws* on
+ * access in Safari private mode / partitioned iframes. A language preference is
+ * never worth taking the app down for, so every failure degrades to "nothing
+ * stored".
+ */
+export function readStoredLanguage(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage.getItem(LOCALE_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredLanguage(lang: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LOCALE_STORAGE_KEY, lang);
+  } catch {
+    // Storage blocked or full — the switch still applies for this session.
+  }
+}
+
+function clearStoredLanguage(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(LOCALE_STORAGE_KEY);
+  } catch {
+    // Nothing readable means nothing to purge.
+  }
+}
+
+/**
+ * Languages `createI18n(config)` will know about: the built-in packs plus any
+ * extra `config.resources`.
+ *
+ * `hasOwnProperty` rather than `in`: a junk stored value like `constructor`
+ * would pass an `in` check against the locale map's prototype.
+ */
+function isKnownLanguage(lang: string, config?: I18nConfig): boolean {
+  const own = Object.prototype.hasOwnProperty;
+  return own.call(builtInLocales, lang) || Boolean(config?.resources && own.call(config.resources, lang));
+}
+
+/**
+ * Resolve the bootstrap config for a provider-owned i18next instance, applying
+ * a stored language choice when there is a usable one.
+ *
+ * Applied at instance creation rather than through a post-mount
+ * `changeLanguage`, because the very first render must already be in the right
+ * locale: `<html lang>` seeds the `Accept-Language` header on every API call
+ * (`createAuthenticatedFetch`, issue #1319), so a late switch would fetch the
+ * first wave of server-resolved metadata labels in the wrong language and then
+ * have to remount to fix it.
+ *
+ * A stored choice outranks browser detection (which itself outranks
+ * `defaultLanguage` in `createI18n`) — otherwise a user who picked 中文 on a
+ * `ja` browser would be handed `ja` back on every reload, and the preference
+ * would be unusable for exactly the users who need it.
+ *
+ * A stored value the app no longer offers is dropped *and purged*, so one stale
+ * entry can never lock the UI to a locale that has no translations.
+ */
+function resolveBootstrapConfig(
+  config: I18nConfig | undefined,
+  persist: boolean,
+): I18nConfig | undefined {
+  if (!persist) return config;
+  const stored = readStoredLanguage();
+  if (!stored) return config;
+  if (!isKnownLanguage(stored, config)) {
+    clearStoredLanguage();
+    return config;
+  }
+  return { ...config, defaultLanguage: stored, detectBrowserLanguage: false };
+}
 
 interface I18nContextValue {
   /** Current language code */
@@ -44,6 +139,26 @@ export interface I18nProviderProps {
    * ```
    */
   loadLanguage?: (lang: string) => Promise<Record<string, unknown>>;
+  /**
+   * Remember the active language in `localStorage` ({@link LOCALE_STORAGE_KEY})
+   * and restore it on the next mount. Default: `true`.
+   *
+   * Every language change on the instance is persisted — whether it came from
+   * this provider's `changeLanguage`, a switcher calling
+   * `i18n.changeLanguage()` directly, or app code — because the promise the UI
+   * makes ("this is my language now") must not depend on which API the caller
+   * reached for.
+   *
+   * The *restore* half only applies to an instance this provider creates: when
+   * you pass your own {@link I18nProviderProps.instance}, its bootstrap
+   * language is yours to choose (call {@link readStoredLanguage} if you want
+   * the same preference honoured).
+   *
+   * Set `false` for surfaces that must stay on a fixed language regardless of
+   * what the user picked elsewhere on the origin — previews, demos, screenshot
+   * harnesses.
+   */
+  persistLanguage?: boolean;
   /** Children to render */
   children: React.ReactNode;
 }
@@ -58,10 +173,16 @@ export interface I18nProviderProps {
  * </I18nProvider>
  * ```
  */
-export function I18nProvider({ config, instance: externalInstance, loadLanguage, children }: I18nProviderProps) {
+export function I18nProvider({
+  config,
+  instance: externalInstance,
+  loadLanguage,
+  persistLanguage = true,
+  children,
+}: I18nProviderProps) {
   const i18nInstance = useMemo(
-    () => externalInstance || createI18n(config),
-    [externalInstance, config],
+    () => externalInstance || createI18n(resolveBootstrapConfig(config, persistLanguage)),
+    [externalInstance, config, persistLanguage],
   );
 
   const [language, setLanguage] = useState(i18nInstance.language || 'en');
@@ -74,6 +195,13 @@ export function I18nProvider({ config, instance: externalInstance, loadLanguage,
   useEffect(() => {
     const handleLanguageChanged = (lng: string) => {
       setLanguage(lng);
+      // Remember the choice. This is the single choke point every switch runs
+      // through — i18next fires `languageChanged` for the context's
+      // `changeLanguage` and for a direct `i18n.changeLanguage()` alike — so no
+      // switcher can be wired in a way that silently forgets the preference.
+      // Bootstrap does NOT fire this event, so restoring a stored language
+      // never re-writes it.
+      if (persistLanguage) writeStoredLanguage(lng);
       // Update document direction for RTL support
       if (typeof document !== 'undefined') {
         document.documentElement.dir = getDirection(lng);
@@ -98,7 +226,7 @@ export function I18nProvider({ config, instance: externalInstance, loadLanguage,
     return () => {
       i18nInstance.off('languageChanged', handleLanguageChanged);
     };
-  }, [i18nInstance]);
+  }, [i18nInstance, persistLanguage]);
 
   // Load app-specific translations for the initial language on mount
   useEffect(() => {
