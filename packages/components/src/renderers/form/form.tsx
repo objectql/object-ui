@@ -232,6 +232,11 @@ function stripRendererOnlyProps<T extends Record<string, any>>(props: T): T {
     fullscreen: _fullscreen,
     dependentValues: _dependentValues,
     dependsOn: _dependsOn,
+    // objectstack#5407 — the sibling name→label map is for widgets that NAME a
+    // controlling field in their own copy (the lookup gate hint). No builtin
+    // branch renders such copy, and an object-valued prop reaching a DOM node
+    // is a React warning, so it is stripped here exactly like `dependentValues`.
+    dependsOnLabels: _dependsOnLabels,
     emptyHint: _emptyHint,
     // The validation message (objectui#3222) is for REGISTERED widgets, which
     // need it to put `aria-invalid` on the control they render. The builtin
