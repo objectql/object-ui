@@ -26,6 +26,7 @@ one has its own section below.
 | `ci.yml` | CI | Push / PR to `main`, `develop` | **Yes** — 6 of its 7 jobs run on PRs |
 | `lint.yml` | Lint | Push / PR to `main`, `develop`; manual | **Yes** — ESLint **errors** only |
 | `changeset-guard.yml` | Changeset Bump Policy | PR / push touching `.changeset/**` | **Yes** |
+| `control-bytes.yml` | Control Byte Scan | Push / PR to `main`, `develop` — **no path filter**; manual | **Yes** |
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
 | `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane, `continue-on-error` |
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
@@ -96,6 +97,54 @@ the rules `eslint.config.js` sets to `error` — including the custom `object-ui
 (ADR-0054 Phase 5, #2879, the `objectql.ts` ratchet, `no-dynamic-import-in-test-hook`). Until #2923
 this workflow was `workflow_dispatch`-only, so every one of those `error` ratchets was inert: each
 was written specifically to fail CI, and nothing ran them.
+
+## Control Bytes (`control-bytes.yml`)
+
+**Triggers:** Push and PR to `main`/`develop`, plus manual dispatch — with **no path filter at
+all**, which is the point of the workflow. It appears in the checks list as **Control Byte Scan**.
+
+Runs `scripts/check-control-bytes.mjs`, which reads `git ls-files` and rejects raw control
+characters in every tracked **text** file: the C0 range apart from tab, line feed and carriage
+return, plus U+007F. No install, no build — a checkout and one `node` call.
+
+**Why it blocks a merge.** A single raw U+0000 makes grep and ripgrep classify the *entire* file
+as binary: they print `binary file matches` and no matching line, so the file silently drops out
+of code search and out of every grep-based lint. Nothing else catches it — git decides
+binary-ness from the first 8000 bytes only, so a control byte past that offset keeps diffing as
+ordinary text, and review cannot see a character that renders as nothing. objectui had no such
+guard until objectstack#5425, by which time five files had accumulated the defect.
+
+The two byte classes carry different harms and the report says which:
+
+| Byte | Harm | Measured behaviour |
+|---|---|---|
+| U+0000 | Code-search outage | GNU grep 3.11 and ripgrep 14 both refuse to print matching lines |
+| Every other control byte | Invisible, unreviewable literal | Both tools print the line normally |
+
+Covering only U+0000 would reproduce a known miss: objectstack#5140 shipped a NUL *and* a U+0001
+fourteen bytes away, and the NUL-only scanner reported OK on the second one (objectstack#5157).
+
+**Why it is a separate workflow.** `ci.yml` and `lint.yml` both list `'**/*.md'`, `content/**`,
+`docs/**` and `.changeset/**` under `paths-ignore`, and GitHub has no per-job path filter. Markdown
+is exactly the carrier the worst instance of this bug used — objectstack#4890 was a raw NUL in a
+`.claude/` skill file, emitted by the PR that was writing the rule forbidding it, leaving the agent
+instructions unfindable by `grep -r` with no signal that anything was missing. A path-filtered gate
+could not have seen that PR. `scripts/__tests__/check-control-bytes.test.ts` fails if a `paths` or
+`paths-ignore` key is ever added here.
+
+**If it fails:** write the escape sequence (backslash, lowercase `u`, four zeroes) instead of the
+byte — the resulting string is byte-identical at runtime. Better still, if the byte was only ever
+"a character the data cannot contain" (a join/split separator, a sentinel), use something a reader
+can verify: a newline, a comma, or `JSON.stringify`, which needs no impossible character at all.
+When writing *about* these bytes in prose or in a tool payload, name them as `U+0000` — a backslash
+escape typed into an agent's tool payload gets decoded into the real byte before it reaches disk,
+which is how two of the five incidents in this family happened.
+
+**Known pre-existing offenders.** `KNOWN_OFFENDERS` in the script baselines the files that already
+carried a control byte when the gate landed, so it could be switched on as a ratchet. It is not a
+skip-list: the scan fails on an entry whose file has been cleaned or deleted, so a fix that forgets
+to remove its entry is as red as a new offender. Entries carry the issue tracking their removal
+(objectstack#5450) and the map is expected to reach empty and stay there.
 
 ## Performance Budget (`performance-budget.yml`)
 

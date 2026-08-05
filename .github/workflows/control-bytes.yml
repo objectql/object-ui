@@ -1,0 +1,53 @@
+name: Control Bytes
+
+# Why this is its own workflow instead of a job in `ci.yml` or `lint.yml`: both
+# of those list `'**/*.md'`, `content/**`, `docs/**` and `.changeset/**` under
+# `paths-ignore`, and GitHub has no per-job path filter. A raw control byte lands
+# in markdown exactly as easily as in TypeScript — objectstack#4890 was a NUL in
+# a `.claude/` skill file, emitted by the very PR that was writing the rule
+# against it — so a gate that cannot see a markdown-only PR rebuilds the hole it
+# exists to close. `changeset-guard.yml` sits in this repo for the same reason
+# and says so in its own header.
+#
+# Hence: no `paths` and no `paths-ignore` here, deliberately.
+# `scripts/__tests__/check-control-bytes.test.ts` fails if either is ever added.
+#
+# It needs no install and no build — a checkout plus one `node` call over
+# `git ls-files`, a few seconds — so keep it that way if you add checks to it.
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+concurrency:
+  group: control-bytes-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  control-bytes:
+    name: Control Byte Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+
+      # A single raw U+0000 makes grep and ripgrep classify the whole file as
+      # binary and print no matching lines at all, so the file drops out of code
+      # search and out of every grep-based lint — with no error to say so. git
+      # will not warn either: it decides binary-ness from the first 8000 bytes
+      # only. Reads `git ls-files`, so no install is required.
+      - name: Scan tracked text files for raw control bytes
+        run: node scripts/check-control-bytes.mjs

@@ -243,7 +243,13 @@ export function useDatasetFieldCatalog(
   include: string[],
 ): DatasetFieldCatalog {
   const client = useMetadataClient();
-  const includeKey = include.join(' ');
+  // Serialized rather than joined on a separator: this value is only a React
+  // dependency key, and the separator used to be a raw U+0000 byte picked as
+  // "a character no path can contain" -- which made this entire file binary to
+  // grep, so no content search could see it (objectstack#5425). JSON needs no
+  // impossible character at all, so the round-trip below cannot be broken by
+  // any path value, and the source stays plain ASCII.
+  const includeKey = JSON.stringify(include);
   const [state, setState] = React.useState<DatasetFieldCatalog>({
     relationships: [],
     fieldOptions: [],
@@ -262,7 +268,7 @@ export function useDatasetFieldCatalog(
         const baseDoc = await client.get<Record<string, unknown>>('object', object);
         if (cancelled) return;
         const base = normalizeObject(baseDoc, object);
-        const includeList = includeKey ? includeKey.split(' ') : [];
+        const includeList: string[] = JSON.parse(includeKey);
         // Walk each included PATH hop-by-hop, fetching every object along the
         // chain (memoized by name) so multi-hop `a.b.field` paths resolve
         // (ADR-0021 single-hop, generalized by ADR-0071). Hops can't be fetched
@@ -314,7 +320,7 @@ export function useDatasetFieldCatalog(
       cancelled = true;
     };
     // includeKey captures the include array by value; eslint-disable the
-    // exhaustive-deps array-identity warning since we key on the joined string.
+    // exhaustive-deps array-identity warning since we key on the serialized string.
   }, [client, object, includeKey]);
 
   return state;
