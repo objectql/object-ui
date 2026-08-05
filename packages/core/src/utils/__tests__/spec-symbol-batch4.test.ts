@@ -279,3 +279,71 @@ describe('renamed local concepts do not collide with a spec export (objectui#307
     }
   });
 });
+
+/**
+ * `EvaluatorPredicateInput` — the #3314 rename (objectui#3314, objectstack#4115).
+ *
+ * `packages/core/src/evaluator/predicateInput.ts` declares the union
+ * `ExpressionEvaluator.evaluateCondition` ACCEPTS. Its first spelling was
+ * `PredicateInput`, which `@objectstack/spec` owns — and owns for a different
+ * concept, so `check:spec-symbols` failed it (correctly: same name, different
+ * meaning is the whole failure class).
+ *
+ * The two really are different, which is why this is a rename and not a
+ * re-export:
+ *
+ *   spec  `PredicateInput` = `z.input<typeof PredicateInputSchema>`
+ *         — what an AUTHOR writes: bare string | `{ dialect: cel|cron|template,
+ *           source?, ast?, meta? }`.
+ *   local `EvaluatorPredicateInput`
+ *         — what the EVALUATOR takes after normalization: `boolean` |
+ *           `${…}` template string | `{ dialect: 'cel'; source: string }` |
+ *           `undefined`.
+ *
+ * Neither assigns to the other: the spec union has no `boolean` arm and no
+ * `${…}` convention, and this one has no `cron` dialect, no optional `source`,
+ * no `ast` / `meta`.
+ *
+ * A separate `specExportNames` call from the block above, over ALL published
+ * subpaths (`/shared` included — that is where the collision was reported), so
+ * this guard stands alone and cannot pass vacuously because the name lives on a
+ * subpath the other list happens to omit.
+ */
+describe('EvaluatorPredicateInput is renamed off a spec-owned name (#3314)', () => {
+  const names = specExportNames([
+    '@objectstack/spec',
+    '@objectstack/spec/shared',
+    '@objectstack/spec/ui',
+    '@objectstack/spec/data',
+    '@objectstack/spec/kernel',
+    '@objectstack/spec/contracts',
+  ]);
+
+  it('reads a plausible spec export set (guards the assertions below)', () => {
+    expect(names.size).toBeGreaterThan(100);
+  });
+
+  it('the spec still owns `PredicateInput`, which is why the rename happened', () => {
+    // The other direction of the tripwire: if the spec ever RETIRES the name,
+    // the local type can take it back and this rename should be revisited — a
+    // workaround must not outlive its reason (objectui#3169).
+    expect(names, "spec no longer owns 'PredicateInput' — re-run the triage")
+      .toContain('PredicateInput');
+  });
+
+  it('the spec does not own `EvaluatorPredicateInput` (normalized evaluator argument, not the authored predicate)', () => {
+    // Renaming ONTO another spec-held name is the objectui#3074 mistake; this
+    // is the assertion that would have caught it.
+    expect(names).not.toContain('EvaluatorPredicateInput');
+  });
+
+  it('records the sibling names that are spec-owned and were therefore NOT used', () => {
+    // Checked while picking the new name. Pinning them means the next reader
+    // sees why the obvious spellings are unavailable instead of rediscovering
+    // it through a red gate.
+    for (const owned of ['PredicateInputSchema', 'Predicate', 'ExpressionInput']) {
+      expect(names, `'${owned}' is no longer spec-owned — the note above is stale`)
+        .toContain(owned);
+    }
+  });
+});

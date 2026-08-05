@@ -11,8 +11,30 @@
  * a boolean (short-circuits), a `${…}` template string (legacy JS path), a
  * `{ dialect: 'cel', source }` envelope (canonical `@objectstack/formula`
  * path), or `undefined` for "no predicate declared".
+ *
+ * ## Why not `PredicateInput` (objectstack#4115 / objectui#3074)
+ *
+ * `@objectstack/spec` owns `PredicateInput` — and it is a genuinely DIFFERENT
+ * concept, so wearing that name would be the exact drift this repo's
+ * `check:spec-symbols` gate exists to stop. The spec's is
+ * `z.input<typeof PredicateInputSchema>`: what an author WRITES, before
+ * normalization — a bare string, or an envelope over the full dialect set
+ * (`cel` | `cron` | `template`) with optional `source` / `ast` / `meta`.
+ *
+ * This one is the OUTPUT of normalization: what the evaluator ACCEPTS. It
+ * admits `boolean` and the `${…}` template spelling (neither of which the spec
+ * models as a predicate), narrows `dialect` to `cel` alone (every other dialect
+ * has already been flattened onto the legacy path by `toPredicateInput`),
+ * requires a non-empty `source`, and carries no `ast` / `meta`. The two unions
+ * are not mutually assignable in either direction.
+ *
+ * The rename is pinned from both sides by the tripwire in
+ * `packages/core/src/utils/__tests__/spec-symbol-batch4.test.ts`: the spec must
+ * still own `PredicateInput` (else this rename has lost its reason), and must
+ * still NOT own `EvaluatorPredicateInput` (the objectui#3074 mistake of
+ * renaming onto another name the spec already holds).
  */
-export type PredicateInput =
+export type EvaluatorPredicateInput =
   | string
   | boolean
   | { dialect: 'cel'; source: string }
@@ -54,7 +76,7 @@ export type PredicateInput =
  * by a parity test) and engine-side code can share one normalization instead
  * of hand-rolling envelope unwrapping per call site.
  */
-export function toPredicateInput(value: unknown): PredicateInput {
+export function toPredicateInput(value: unknown): EvaluatorPredicateInput {
   if (value === null || value === undefined || value === '') return undefined;
   if (typeof value === 'boolean') return value;
   if (typeof value === 'string') return `\${${value}}`;
