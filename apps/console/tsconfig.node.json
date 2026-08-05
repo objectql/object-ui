@@ -1,11 +1,27 @@
 {
   "compilerOptions": {
     "composite": true,
+    /* This project exists to be type-checked, not to ship anything: its output
+       is thrown away. It cannot say `noEmit` — `tsconfig.json` references it,
+       and a referenced project that disables emit is TS6310 — so instead the
+       emit is aimed at a gitignored cache directory. Left at the default it
+       writes .js/.d.ts next to every input (apps/console/vite.config.js,
+       scripts/vite-*.d.ts, …), and that untracked litter is a large part of why
+       this project was never wired into a gate (objectui#3305). */
+    "outDir": "../../node_modules/.cache/tsc/console-node",
+    /* `composite` defaults `rootDir` to this file's own directory, which would
+       put `../../scripts/vite-*.ts` outside it (TS6059). The project genuinely
+       spans both, so name the repo root explicitly. */
+    "rootDir": "../..",
     "skipLibCheck": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
     "strict": true
   },
-  "include": ["vite.config.ts", "vitest.setup.ts"]
+  /* `../../scripts/vite-*.ts` are the repo-level Vite plugins vite.config.ts
+     imports. They must be listed here or each one is a TS6307 ("not listed
+     within the file list of project") — the error that kept this project red,
+     and therefore ungated. */
+  "include": ["vite.config.ts", "vitest.setup.ts", "../../scripts/vite-*.ts"]
 }

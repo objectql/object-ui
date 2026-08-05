@@ -1,4 +1,8 @@
-import { defineConfig } from 'vite';
+// `defineConfig` comes from `vitest/config`, not `vite` — this file carries a
+// `test` block (consumed by `vitest.config.ts`, which merges this config), and
+// `vite`'s own `UserConfigExport` has no `test` property. Importing it from
+// `vite` left that whole block unchecked (objectui#3305).
+import { defineConfig } from 'vitest/config';
 import type { Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
@@ -185,13 +189,20 @@ export default defineConfig({
     // Gzip/Brotli compression & bundle visualizer are skipped on Vercel/CI to
     // reduce memory usage — Vercel's CDN compresses assets automatically.
     ...(!isCI ? [
+      // `algorithms` (plural, an array) is the key vite-plugin-compression2
+      // declares. The singular `algorithm` used here before was never read: it
+      // fell through to the plugin's default, which is BOTH
+      // `['gzip', 'brotliCompress']` — so each of these two instances was
+      // compressing every asset twice, and the `.gz`/`.br` pair that made the
+      // build look correct came from the default, not from these options
+      // (objectui#3305).
       compression({
-        algorithm: 'gzip',
+        algorithms: ['gzip'],
         exclude: [/\.(br)$/, /\.(gz)$/],
         threshold: 1024,
       }),
       compression({
-        algorithm: 'brotliCompress',
+        algorithms: ['brotliCompress'],
         exclude: [/\.(br)$/, /\.(gz)$/],
         threshold: 1024,
       }),
