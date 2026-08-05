@@ -1,0 +1,221 @@
+// Copyright (c) 2026 ObjectStack. Licensed under the Apache-2.0 license.
+
+/**
+ * **Every node shape the flow designer SEEDS must survive the spec's own
+ * loader** (#3316).
+ *
+ * The designer does not only render authored metadata — it *produces* it. Two
+ * places mint a brand-new node before the author has touched anything:
+ *
+ * 1. `defaultNodeExtras()` (`flow-canvas-parts.tsx`), spread into every node
+ *    added from the palette or inserted on an edge (`FlowCanvas` `addNode` /
+ *    `insertOnEdge`).
+ * 2. `addReviseLoop()` (`FlowCanvas.tsx`), the one-click ADR-0044 revision
+ *    loop, which writes its `wait` node inline.
+ *
+ * When a spec property is retired via `retiredKey()` (`z.never().optional()`)
+ * a seed still writing it is not "an extra key that gets stripped" — it is a
+ * hard `FlowNodeSchema.parse()` error, so the designer emits metadata its own
+ * runtime refuses and publish 422s on a flow the author never edited. That is
+ * exactly what `waitEventConfig.onTimeout` did between spec 17 (framework
+ * #4158) and #3316: the label overrides for the retired keys were dropped from
+ * `i18n.ts`, and the hand-written form dropped the fields
+ * (`inspectors/flow-node-config.ts`), but the two *seed* sites kept writing
+ * `onTimeout: 'fail'`.
+ *
+ * This file is the ratchet that makes the NEXT retirement land red here
+ * instead of at publish time. It renders (rather than staying a pure `.test.ts`
+ * in the cheap `unit` project) because the second producer only exists inside
+ * a React callback — and keeping both producers in one file is the point: the
+ * #3316 failure mode was fixing the visible consumer and missing the other.
+ *
+ * **Two criteria, deliberately different** (key-vs-value reachability):
+ *
+ * - The spec-structured sibling blocks (`waitEventConfig` / `connectorConfig` /
+ *   `boundaryConfig`) are strict objects and their seeds are complete, so the
+ *   assertion is full `safeParse` green on the whole node — a *value* verdict.
+ * - The `config`-rooted seeds (`approval` / `notify` / `http`) are invisible to
+ *   `FlowNodeSchema`, whose `config` is a permissive `z.record()`; and they are
+ *   deliberately PARTIAL (an author still supplies notify's `title`, http's
+ *   `url`), so demanding full parse green would assert something the seed never
+ *   promised. Their assertion is therefore key-level: every seeded key must be
+ *   a live, declared key of the spec's published node-config Zod — never a
+ *   `[REMOVED]` tombstone.
+ */
+
+import * as React from 'react';
+import { describe, it, expect, afterEach } from 'vitest';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import * as Automation from '@objectstack/spec/automation';
+import { FlowCanvas } from './FlowCanvas';
+import { NODE_PALETTE, defaultNodeExtras, defaultNodeLabel } from './flow-canvas-parts';
+
+afterEach(cleanup);
+
+interface ZodIssue {
+  path: PropertyKey[];
+  message: string;
+}
+interface ZodLike {
+  shape?: Record<string, { description?: string } | undefined>;
+  unwrap?: () => ZodLike;
+  safeParse: (value: unknown) => { success: boolean; error?: { issues: ZodIssue[] } };
+}
+
+const spec = Automation as unknown as Record<string, ZodLike | undefined>;
+const FlowNodeSchema = spec.FlowNodeSchema!;
+
+/** Unwrap `.optional()` / `.default()` wrappers down to the object schema. */
+function unwrapped(schema: ZodLike | undefined): ZodLike | undefined {
+  let cur = schema;
+  for (let i = 0; cur && !cur.shape && typeof cur.unwrap === 'function' && i < 5; i++) {
+    cur = cur.unwrap();
+  }
+  return cur;
+}
+
+/**
+ * Keys a Zod object schema declares as LIVE authoring surface. `retiredKey()`
+ * tombstones stay in the shape so their rejection can carry the upgrade
+ * prescription (spec `shared/retired-key.ts` marks them `[REMOVED]`), but they
+ * are not authorable — the same filter `flow-node-config.spec-reconciliation`
+ * uses, for the same reason: counting them would false-pass exactly this drift.
+ */
+function liveKeys(schema: ZodLike | undefined): string[] {
+  const shape = unwrapped(schema)?.shape;
+  expect(shape, 'expected a Zod object schema exposing .shape').toBeDefined();
+  return Object.keys(shape ?? {})
+    .filter((k) => {
+      const description = shape![k]?.description;
+      return !(typeof description === 'string' && description.startsWith('[REMOVED]'));
+    })
+    .sort();
+}
+
+/** Tombstoned (retired) keys of a Zod object schema — never authorable. */
+function retiredKeys(schema: ZodLike | undefined): string[] {
+  const shape = unwrapped(schema)?.shape ?? {};
+  return Object.keys(shape)
+    .filter((k) => {
+      const description = shape[k]?.description;
+      return typeof description === 'string' && description.startsWith('[REMOVED]');
+    })
+    .sort();
+}
+
+/** Readable `safeParse` failure — the spec's own prescription, verbatim. */
+function explain(result: { success: boolean; error?: { issues: ZodIssue[] } }): string {
+  if (result.success) return 'ok';
+  return (result.error?.issues ?? [])
+    .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
+    .join('\n');
+}
+
+/**
+ * Node types whose seeds this file covers: everything the palette offers, plus
+ * the `defaultNodeExtras` branches reachable from outside it (`start` / `end`
+ * bootstrap nodes, the `http_request` alias, `boundary_event` attached by the
+ * boundary affordance). Driven off `NODE_PALETTE` so a palette entry added
+ * without a spec-valid seed fails here rather than at publish.
+ */
+const SEEDED_TYPES: string[] = [
+  ...new Set([...NODE_PALETTE.map((p) => p.type), 'start', 'end', 'http_request', 'boundary_event']),
+];
+
+describe('designer node seeds ↔ spec FlowNodeSchema (#3316)', () => {
+  it.each(SEEDED_TYPES)(
+    '`%s`: a freshly added node parses as a spec FlowNode',
+    (type) => {
+      // Exactly what `FlowCanvas.addNode` builds before the author edits it.
+      const node = { id: 'node_1', type, label: defaultNodeLabel(type), ...defaultNodeExtras(type) };
+      const result = FlowNodeSchema.safeParse(node);
+      expect(result.success, `${type} seed rejected by FlowNodeSchema:\n${explain(result)}`).toBe(true);
+    },
+  );
+
+  it('seeds no key the spec has retired in a structured sibling block', () => {
+    // The direct #3316 ratchet, with a message that names the offender: the
+    // next `retiredKey()` on one of these blocks fails HERE, pointing at the
+    // seed, rather than as an opaque `invalid_type: never` at publish time.
+    const BLOCKS = ['waitEventConfig', 'connectorConfig', 'boundaryConfig'] as const;
+    const offenders: string[] = [];
+    for (const type of SEEDED_TYPES) {
+      const extras = defaultNodeExtras(type) as Record<string, unknown>;
+      for (const block of BLOCKS) {
+        const seeded = extras[block];
+        if (!seeded || typeof seeded !== 'object') continue;
+        const retired = retiredKeys(FlowNodeSchema.shape?.[block] as ZodLike | undefined);
+        const live = liveKeys(FlowNodeSchema.shape?.[block] as ZodLike | undefined);
+        for (const key of Object.keys(seeded as Record<string, unknown>)) {
+          if (retired.includes(key)) offenders.push(`${type}.${block}.${key} (retired in spec)`);
+          else if (!live.includes(key)) offenders.push(`${type}.${block}.${key} (not declared by spec)`);
+        }
+      }
+    }
+    expect(offenders, 'designer seeds writing non-authorable keys').toEqual([]);
+  });
+
+  it('`wait` seeds only the timer flavor — no retired timeout keys', () => {
+    // Pinned by name because this is the shape #3316 found in the field: the
+    // wait node has NO timeout (framework#4158), it resumes when its timer
+    // elapses or its signal arrives. `timerDuration` is the author's to fill.
+    expect(defaultNodeExtras('wait')).toEqual({ waitEventConfig: { eventType: 'timer' } });
+  });
+
+  it('the config-rooted seeds write only live keys of the spec node-config Zods', () => {
+    // Key-level, not full-parse: these seeds are deliberately partial (notify
+    // has no `title` yet, http no `url`) and `FlowNodeSchema.config` is a
+    // permissive record that cannot see them at all.
+    const CASES: ReadonlyArray<{ type: string; schema: string }> = [
+      { type: 'approval', schema: 'ApprovalNodeConfigSchema' },
+      { type: 'notify', schema: 'NotifyConfigSchema' },
+      { type: 'http', schema: 'HttpConfigSchema' },
+      { type: 'http_request', schema: 'HttpConfigSchema' },
+    ];
+    for (const { type, schema } of CASES) {
+      const zod = spec[schema];
+      // Feature-detected: a spec that predates the export skips rather than
+      // false-passing (it arms itself on the next `@objectstack/spec` bump).
+      if (!zod) continue;
+      const seeded = Object.keys((defaultNodeExtras(type).config ?? {}) as Record<string, unknown>);
+      expect(seeded.length, `${type}: expected a config-rooted seed`).toBeGreaterThan(0);
+      const live = liveKeys(zod);
+      expect(
+        seeded.filter((k) => !live.includes(k)),
+        `${type}: seeded config keys that ${schema} does not declare as live`,
+      ).toEqual([]);
+    }
+  });
+});
+
+describe('FlowCanvas one-click revision loop ↔ spec FlowNodeSchema (#3316)', () => {
+  it('the wait node the revision-loop button creates parses as a spec FlowNode', () => {
+    const patches: Array<Record<string, unknown>> = [];
+    render(
+      <FlowCanvas
+        nodes={[{ id: 'appr', type: 'approval', label: 'Manager approval' }]}
+        edges={[]}
+        editable
+        designMode
+        selectedId={null}
+        onSelect={() => {}}
+        onPatch={(partial) => patches.push(partial)}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add revision loop' }));
+
+    expect(patches, 'the revision-loop button must emit one patch').toHaveLength(1);
+    const nodes = patches[0]!.nodes as Array<Record<string, unknown>>;
+    const waitNode = nodes.find((n) => n.type === 'wait');
+    expect(waitNode, 'the patch must add a wait node').toBeDefined();
+
+    const result = FlowNodeSchema.safeParse(waitNode);
+    expect(
+      result.success,
+      `revision-loop wait node rejected by FlowNodeSchema:\n${explain(result)}`,
+    ).toBe(true);
+    // The signal flavor is the point of the affordance — assert it survived.
+    expect(waitNode!.waitEventConfig).toEqual({ eventType: 'signal', signalName: 'revision' });
+  });
+});

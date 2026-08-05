@@ -364,7 +364,9 @@ export function FlowCanvas({
         type: 'wait',
         label: tr('engine.flowCanvas.awaitingRevision', locale),
         // Signal-flavored wait: the submitter's resubmit signal resumes the run.
-        waitEventConfig: { eventType: 'signal', signalName: 'revision', onTimeout: 'fail' },
+        // No `onTimeout` — retired in spec 17 (framework#4158); writing it makes
+        // `FlowNodeSchema.parse()` reject the node this button just created.
+        waitEventConfig: { eventType: 'signal', signalName: 'revision' },
       };
       const existingEdgeIds = edges.map((e) => e.id).filter(Boolean) as string[];
       const reviseId = uniqueId('edge', existingEdgeIds);

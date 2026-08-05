@@ -376,13 +376,23 @@ export function defaultNodeLabel(type: string, locale?: string): string {
  * Spec-valid seed fields for a newly created node, so structured blocks start
  * in a valid-ish shape (e.g. a wait node already has a timer eventType) rather
  * than an empty intermediate state. Returns extra node props to spread in.
+ *
+ * Every branch here must survive `FlowNodeSchema.parse()` on the installed
+ * `@objectstack/spec` — a seed the loader rejects makes the designer's own
+ * output unpublishable the moment the author saves. Pinned by
+ * `flow-canvas-seeds.spec-parse.test.tsx` (#3316).
  */
 export function defaultNodeExtras(type: string): Record<string, unknown> {
   switch (type) {
     case 'start':
       return {};
     case 'wait':
-      return { waitEventConfig: { eventType: 'timer', onTimeout: 'fail' } };
+      // No `onTimeout`: retired in spec 17 (framework#4158) as a `retiredKey()`
+      // tombstone, so writing it is a hard `FlowNodeSchema` error, not a
+      // silently-stripped extra. A wait node has no timeout — it resumes when
+      // its timer elapses or its signal arrives. The author fills in
+      // `timerDuration`.
+      return { waitEventConfig: { eventType: 'timer' } };
     case 'connector_action':
       return { connectorConfig: { connectorId: '', actionId: '', input: {} } };
     case 'boundary_event':
