@@ -372,6 +372,29 @@ function stripRegisteredFieldProps(type: string, props: RenderFieldProps): Rende
  * opens a fullscreen edit dialog. Mobile UX (round 3) — driven by the form
  * field's `mobile_fullscreen: true` flag (propagated from
  * `ObjectFormSchema.mobile.fullscreenLongText`).
+ *
+ * `readOnly` / `disabled` are DECLARED props here, not passengers on `rest`
+ * (objectui#3400). This component owns three separate controls — the inline
+ * textarea, the expand button, and the dialog's own textarea — and only the
+ * first of them ever saw a spread prop. So a long-text field that the form had
+ * resolved as read-only or disabled was fully editable through the dialog, and
+ * "Done" wrote the edit back into form state. The two states get the two
+ * different treatments the rest of the renderer already gives them:
+ *
+ *   - `readOnly` → NO expand button at all. That is what the registered path
+ *     does (`fields/src/widgets/TextAreaField.tsx` early-returns a read-only
+ *     display before `showFullscreenButton` is even computed), so both render
+ *     paths now give the same metadata the same user-visible behaviour. A
+ *     disabled button would be worse: it advertises an affordance the read-only
+ *     path does not have.
+ *   - `disabled` → the button stays (the field is "not interactive, muted",
+ *     not "shown plainly"), but it is `disabled`.
+ *
+ * Both then get a second line of defence inside the dialog rather than relying
+ * on the button alone, because `disabled` is not only static: it is also
+ * `isSubmitting`, which can flip to true while the dialog is ALREADY open. In
+ * that moment the button is no longer reachable but the dialog is, so the
+ * dialog's textarea and its "Done" button have to lock on their own.
  */
 function FullscreenTextarea({
   value,
@@ -379,6 +402,8 @@ function FullscreenTextarea({
   placeholder,
   className,
   label,
+  readOnly,
+  disabled,
   ...rest
 }: {
   value?: string;
@@ -386,6 +411,8 @@ function FullscreenTextarea({
   placeholder?: string;
   className?: string;
   label?: string;
+  readOnly?: boolean;
+  disabled?: boolean;
   [key: string]: any;
 }) {
   // A real component (rendered as `<FullscreenTextarea />`), so the hook runs
@@ -394,29 +421,43 @@ function FullscreenTextarea({
   const { t } = useSafeFormTranslation();
   const [open, setOpen] = React.useState(false);
   const [draft, setDraft] = React.useState(value ?? '');
-  const safeOnChange = (v: string) => onChange && onChange(v);
-  const openDialog = () => { setDraft(value ?? ''); setOpen(true); };
+  // ONE gate, guarding the single point where a value can leave this component
+  // for form state. Native `readOnly`/`disabled` attributes stop the pointer
+  // and keyboard paths, but `commit` is a click handler on a different control
+  // reading React state — nothing native gates it, so it is gated here.
+  const locked = readOnly === true || disabled === true;
+  const safeOnChange = (v: string) => { if (locked) return; onChange?.(v); };
+  const openDialog = () => { if (locked) return; setDraft(value ?? ''); setOpen(true); };
   const commit = () => { safeOnChange(draft); setOpen(false); };
   return (
     <div className="relative">
       <Textarea
         placeholder={placeholder}
-        className={cn('pr-10', className)}
+        // The right padding reserves room for the expand button; with no button
+        // rendered there is nothing to reserve, and the control should look
+        // exactly like the plain read-only textarea the non-fullscreen exit
+        // renders.
+        className={cn(!readOnly && 'pr-10', className)}
         value={value ?? ''}
         onChange={(e) => safeOnChange(e.target.value)}
         {...rest}
+        readOnly={readOnly}
+        disabled={disabled}
       />
-      <button
-        type="button"
-        onClick={openDialog}
-        className="absolute top-1.5 right-1.5 inline-flex items-center justify-center size-7 rounded-md bg-background/80 text-muted-foreground hover:text-foreground hover:bg-background border shadow-sm"
-        aria-label={t('form.fullscreen.toggle', {
-          label: label ?? t('form.fullscreen.textFallback'),
-        })}
-        data-testid="form-textarea-fullscreen-toggle"
-      >
-        <Maximize2 className="size-3.5" />
-      </button>
+      {!readOnly && (
+        <button
+          type="button"
+          onClick={openDialog}
+          disabled={disabled}
+          className="absolute top-1.5 right-1.5 inline-flex items-center justify-center size-7 rounded-md bg-background/80 text-muted-foreground hover:text-foreground hover:bg-background border shadow-sm disabled:opacity-50 disabled:pointer-events-none"
+          aria-label={t('form.fullscreen.toggle', {
+            label: label ?? t('form.fullscreen.textFallback'),
+          })}
+          data-testid="form-textarea-fullscreen-toggle"
+        >
+          <Maximize2 className="size-3.5" />
+        </button>
+      )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent
           className="sm:max-w-3xl h-[100dvh] sm:h-[80vh] max-h-[100dvh] sm:max-h-[80vh] flex flex-col p-0 gap-0"
@@ -435,6 +476,8 @@ function FullscreenTextarea({
               onChange={(e) => setDraft(e.target.value)}
               placeholder={placeholder}
               className="h-full min-h-full resize-none text-base"
+              readOnly={readOnly}
+              disabled={disabled}
               data-testid="form-textarea-fullscreen-input"
             />
           </div>
@@ -442,7 +485,12 @@ function FullscreenTextarea({
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
               <X className="size-4 mr-1" /> {t('common.cancel')}
             </Button>
-            <Button type="button" onClick={commit} data-testid="form-textarea-fullscreen-save">
+            <Button
+              type="button"
+              onClick={commit}
+              disabled={locked}
+              data-testid="form-textarea-fullscreen-save"
+            >
               <Check className="size-4 mr-1" /> {t('form.fullscreen.done')}
             </Button>
           </DialogFooter>
@@ -2071,8 +2119,16 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
           <FullscreenTextarea
             placeholder={placeholder}
             label={label}
-            className="min-h-[44px] sm:min-h-0"
+            // `readonly` is destructured off `props` at the top of this
+            // function, so — exactly like `label` and `mobile_fullscreen` — it
+            // is NOT in `rest` and has to be forwarded by name (objectui#3400).
+            // The non-fullscreen exit below always did this; this exit forwarded
+            // neither the attribute nor the tint, which is why a read-only long
+            // text field was editable in place the moment the fullscreen flag
+            // was on. (`disabled` rides `rest`, which no strip touches.)
+            className={cn('min-h-[44px] sm:min-h-0', readonlyInputClass)}
             {...rest}
+            readOnly={readonly}
             value={rest.value ?? ''}
           />
         );
