@@ -32,6 +32,7 @@ function renderDrawerIn(language: string) {
     <I18nProvider config={{ defaultLanguage: language, detectBrowserLanguage: false }}>
       <NavigationOverlay
         isOpen
+        isOverlay
         selectedRecord={record}
         mode="drawer"
         close={() => {}}
@@ -49,6 +50,7 @@ function renderSplitIn(language: string) {
     <I18nProvider config={{ defaultLanguage: language, detectBrowserLanguage: false }}>
       <NavigationOverlay
         isOpen
+        isOverlay
         selectedRecord={record}
         mode="split"
         close={() => {}}
@@ -64,28 +66,43 @@ function renderSplitIn(language: string) {
 
 afterEach(() => cleanup());
 
+/**
+ * Addressing the drawer's close button: by `title`, NOT by role+name.
+ *
+ * The shadcn `Sheet` primitive auto-renders a close button of its own, whose
+ * only accessible name is a hardcoded English `sr-only` span
+ * (`packages/components/src/ui/sheet.tsx:80` — an upstream No-Touch zone,
+ * AGENTS.md #7). `NavigationOverlay` CSS-hides it with
+ * `[&>button:last-of-type]:hidden`, so a real browser drops it from the
+ * accessibility tree — but jsdom does not apply Tailwind, so RTL still sees it
+ * and `getByRole('button', { name: 'Close' })` matches two elements under `en`.
+ *
+ * Ours is the only close carrying a `title`, so that is the precise handle. The
+ * primitive's own untranslated label is a separate, out-of-scope finding.
+ */
 describe('NavigationOverlay drawer close — accessible name (objectstack#5430)', () => {
   it('still reads English under an en session', () => {
     renderDrawerIn('en');
 
-    expect(screen.getByRole('button', { name: 'Close' })).toBeTruthy();
+    expect(screen.getByTitle('Close').getAttribute('aria-label')).toBe('Close');
   });
 
   it('reads the zh bundle value under a zh session', () => {
     renderDrawerIn('zh');
 
+    expect(screen.getByTitle('关闭').getAttribute('aria-label')).toBe('关闭');
     expect(screen.getByRole('button', { name: '关闭' })).toBeTruthy();
-    // The literal this replaced. Negative direction matters here: the shadcn
-    // Sheet ships its own auto-rendered close button, so a re-inlined English
-    // name would otherwise hide behind the positive assertion.
-    expect(screen.queryByRole('button', { name: 'Close' })).toBeNull();
+    // The literal this replaced, scoped to OUR button via `title` so the
+    // primitive's hidden English one cannot mask a re-inlined string here.
+    expect(screen.queryByTitle('Close')).toBeNull();
   });
 
   it('reads the de bundle value under a de session', () => {
     renderDrawerIn('de');
 
+    expect(screen.getByTitle('Schließen').getAttribute('aria-label')).toBe('Schließen');
     expect(screen.getByRole('button', { name: 'Schließen' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Close' })).toBeNull();
+    expect(screen.queryByTitle('Close')).toBeNull();
   });
 });
 
