@@ -39,7 +39,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { DataSource, FieldMetadata } from '@object-ui/types';
-import { getCellRenderer, resolveCellRendererType, RecordPickerDialog } from '@object-ui/fields';
+import { getCellRenderer, resolveCellRendererType, RecordPickerDialog, deriveLookupColumns } from '@object-ui/fields';
 import {
   columnIdentity,
   compareSortValues,
@@ -368,6 +368,30 @@ export const RelatedList: React.FC<RelatedListProps> = ({
       });
     }
   }, [api, dataSource]);
+
+  // Add-picker target schema, fetched lazily on first open. It drives the
+  // picker's display column (`add.picker.labelField` → displayField), the
+  // auto-derived multi-column layout, and type-aware cell rendering — without
+  // it the dialog fell back to a single title-cased NAME column showing
+  // machine names even though the page metadata declared `labelField: 'label'`
+  // (#3365: sys_position / sys_permission_set Add pickers).
+  const pickerObject = add?.picker?.object;
+  const [pickerSchema, setPickerSchema] = React.useState<any>(null);
+  React.useEffect(() => {
+    if (!pickerOpen || !pickerObject || pickerSchema || !dataSource?.getObjectSchema) return;
+    let cancelled = false;
+    dataSource.getObjectSchema(pickerObject).then((s: any) => {
+      if (!cancelled) setPickerSchema(s);
+    }).catch((err: unknown) => {
+      console.warn(`[RelatedList] Failed to fetch schema for ${pickerObject}:`, err);
+    });
+    return () => { cancelled = true; };
+  }, [pickerOpen, pickerObject, pickerSchema, dataSource]);
+  const pickerDisplayField = add?.picker?.labelField || 'name';
+  const pickerColumns = React.useMemo(() => {
+    const derived = deriveLookupColumns(pickerSchema, { displayField: pickerDisplayField });
+    return derived.length > 0 ? derived : undefined;
+  }, [pickerSchema, pickerDisplayField]);
 
   React.useEffect(() => {
     // Stale-response guard: page flips re-run this effect while an earlier
@@ -1267,6 +1291,10 @@ export const RelatedList: React.FC<RelatedListProps> = ({
           dataSource={dataSource as any}
           objectName={add.picker.object}
           title={add.label || t('detail.add', { defaultValue: 'Add' })}
+          displayField={pickerDisplayField}
+          columns={pickerColumns}
+          cellRenderer={getCellRenderer}
+          fieldsMeta={pickerSchema?.fields}
           onSelect={() => {}}
           onSelectRecords={(records: any[]) => { void handleAddRecords(records); }}
         />

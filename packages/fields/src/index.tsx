@@ -2427,6 +2427,11 @@ export * from './widgets/ObjectRefField';
 export * from './widgets/FilterConditionField';
 export * from './widgets/RecipientPickerField';
 export * from './widgets/RecordPickerDialog';
+// Shared picker-column derivation (ADR-0085 highlightFields → displayFields →
+// schema walk) — consumed by LookupField AND by RelatedList's Add-picker so a
+// lookup picker and a related-list Add dialog of the same object agree on
+// columns (#3365).
+export * from './widgets/deriveLookupColumns';
 export * from './widgets/FileField';
 export * from './widgets/ImageField';
 export { ImageCropperDialog } from './widgets/ImageCropperDialog';
