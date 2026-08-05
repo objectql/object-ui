@@ -189,11 +189,11 @@ export const ActionParamDialog: React.FC<ActionParamDialogProps> = ({
               {/* The trigger IS the focusable combobox control, so both the
                   state and the `id` belong on it (the Radix root renders no
                   element of its own). Without the `id` the sibling
-                  `<Label htmlFor={param.name}>` pointed at nothing, and the
-                  combobox took its accessible name from the placeholder
-                  instead of the label — every other branch already sets it
-                  (objectui#3341). `button` is a labelable element, so the
-                  plain `htmlFor` association is enough here. */}
+                  `<Label htmlFor={param.name}>` pointed at nothing, so the
+                  label text never reached the combobox's accessible name —
+                  every other branch already sets the `id` (objectui#3341).
+                  `button` is a labelable element, so the plain `htmlFor`
+                  association is enough here; no `aria-labelledby` needed. */}
               <SelectTrigger id={param.name} aria-required={ariaRequired}>
                 <SelectValue placeholder={param.placeholder || 'Select...'} />
               </SelectTrigger>

@@ -220,10 +220,12 @@ export const InlineCreateRelated: React.FC<InlineCreateRelatedProps> = ({
                 <div key={field.name}>
                   <label
                     // Programmatic label→control association (objectui#3341).
-                    // Without it the input's accessible name fell back to the
-                    // placeholder ("Enter name") and the label text — the real
-                    // field name — never reached assistive tech; clicking the
-                    // label also failed to focus the input.
+                    // Without it the label text — the real field name — never
+                    // reached the input's accessible name (a browser fell back
+                    // to the placeholder, "Enter name"; the jsdom accname
+                    // implementation has no placeholder fallback and produced
+                    // an empty name — see the test header). Clicking the label
+                    // also failed to focus the input.
                     htmlFor={fieldDomId(field.name)}
                     className="text-xs font-medium text-muted-foreground mb-1 block"
                   >
