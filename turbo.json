@@ -41,7 +41,11 @@
     "type-check": {
       "dependsOn": ["^build"],
       "outputs": [],
-      "cache": true
+      "cache": true,
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/scripts/vite-*.ts"
+      ]
     },
     "clean": {
       "cache": false
