@@ -34,8 +34,8 @@
  *   literal sitting next to a translated sibling still satisfies a
  *   positive-only assertion.
  * - **`ja` carries the load-bearing ORDER check.** Its translation puts the cap
- *   BEFORE the count (「{{max}} 文字中 {{count}} 文字」). An implementation that
- *   assembled the sentence from parts in code — "label + count + separator +
+ *   BEFORE the count ("of {{max}} characters, {{count}}"). An implementation
+ *   that assembled the sentence from parts in code — "label + count + separator +
  *   max" — cannot produce that order, so it passes a zh-only check by luck and
  *   fails here. This is the case that justifies one interpolated key over a
  *   per-part assembly.

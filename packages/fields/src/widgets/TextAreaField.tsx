@@ -94,10 +94,10 @@ export function TextAreaField({ value, onChange, field, readonly, error, ...prop
           // and this element is `aria-live`, so a non-English session heard an
           // English sentence read out on every keystroke.
           //
-          // One interpolated key rather than a per-part assembly: the number
-          // and the cap sit on opposite sides of the noun in ja/ko
-          // (「{{max}}文字中{{count}}文字」), which no code-side concatenation
-          // can express. The English default in `FIELD_DEFAULTS` is
+          // One interpolated key rather than a per-part assembly: ja and ko
+          // interpolate the CAP BEFORE the count ("of {{max}} characters,
+          // {{count}}"), an order no code-side concatenation can express.
+          // The English default in `FIELD_DEFAULTS` is
           // byte-identical to the literal it replaces, so a widget rendered
           // with no I18nProvider is unchanged.
           //
