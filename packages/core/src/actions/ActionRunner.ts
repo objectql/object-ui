@@ -1220,25 +1220,11 @@ export class ActionRunner {
       let body: any = undefined;
       let responseType: 'json' | 'text' | 'blob' = 'json';
 
-      // `params._rowRecord` is the CLIENT-side row stash (list rows and
-      // page:header dispatches park the record there for `{field}` URL
-      // interpolation and record-id resolution) — never part of the wire
-      // contract, so the fallback body serialization strips it, matching
-      // serverActionHandler and the console api handlers.
-      const bodyParams = (): unknown => {
-        if (action.params && !Array.isArray(action.params)) {
-          const p = { ...(action.params as Record<string, unknown>) };
-          delete p._rowRecord;
-          return p;
-        }
-        return action.params;
-      };
-
       if (typeof apiConfig === 'string') {
         // Simple string endpoint
         url = this.interpolateTarget(apiConfig, action);
         method = action.method || 'POST';
-        body = JSON.stringify(bodyParams() || this.context.data || {});
+        body = JSON.stringify(action.params || this.context.data || {});
       } else {
         // Complex ApiConfig
         const config = apiConfig as ApiConfig;
@@ -1259,7 +1245,7 @@ export class ActionRunner {
             ? config.body
             : JSON.stringify(config.body);
         } else if (method !== 'GET' && method !== 'HEAD') {
-          body = JSON.stringify(bodyParams() || this.context.data || {});
+          body = JSON.stringify(action.params || this.context.data || {});
         }
       }
 
