@@ -65,6 +65,19 @@ export const InlineCreateRelated: React.FC<InlineCreateRelatedProps> = ({
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isSearching, setIsSearching] = React.useState(false);
 
+  /**
+   * Namespace for the create-tab input ids (objectui#3341). `field.name` alone
+   * is unique only WITHIN one instance — a detail page renders one of these per
+   * related list, so two lists both offering a `name` field would emit
+   * duplicate ids and `<label for>` would resolve to whichever came first.
+   * `React.useId` supplies the per-instance half.
+   */
+  const instanceId = React.useId();
+  const fieldDomId = React.useCallback(
+    (fieldName: string) => `inline-create-${instanceId}-${fieldName}`,
+    [instanceId],
+  );
+
   const filteredResults = React.useMemo(() => {
     if (!searchQuery.trim()) return searchResults;
     const query = searchQuery.toLowerCase();
@@ -205,7 +218,15 @@ export const InlineCreateRelated: React.FC<InlineCreateRelatedProps> = ({
             <TabsContent value="create" className="space-y-3 mt-0">
               {fields.map((field) => (
                 <div key={field.name}>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                  <label
+                    // Programmatic label→control association (objectui#3341).
+                    // Without it the input's accessible name fell back to the
+                    // placeholder ("Enter name") and the label text — the real
+                    // field name — never reached assistive tech; clicking the
+                    // label also failed to focus the input.
+                    htmlFor={fieldDomId(field.name)}
+                    className="text-xs font-medium text-muted-foreground mb-1 block"
+                  >
                     {field.label}
                     {/* Visual-only (objectui#3299): the required STATE is
                         announced via `aria-required` on the input below. */}
@@ -214,6 +235,7 @@ export const InlineCreateRelated: React.FC<InlineCreateRelatedProps> = ({
                     )}
                   </label>
                   <Input
+                    id={fieldDomId(field.name)}
                     // State channel for required (objectui#3299) — not the native
                     // `required` attribute, per the #3290 ruling (it would arm the
                     // browser's constraint-validation UI alongside this form's own
