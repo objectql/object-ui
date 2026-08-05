@@ -2,9 +2,35 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, waitFor, within, fireEvent } from '@testing-library/react';
-import { DatasetWidget, buildDrillFilter, buildPivot, toCsv } from '../DatasetWidget';
+import { DatasetWidget, buildDrillFilter, buildPivot, pivotCellKey, toCsv } from '../DatasetWidget';
+// The drill-through case below mounts DrillDownDrawer's record list, which is
+// rendered through the component registry. Imported at module scope, not in a
+// hook: the cold transform must not be billed to a bounded test/hook budget
+// (AGENTS.md 测试纪律, objectui#3010).
+import '@object-ui/components';
 
 afterEach(cleanup);
+
+/**
+ * Resolve a cross-tab cell the way the renderer does: find the row/column
+ * bucket by its DISPLAY labels, then look the pair up with the module's own key
+ * builder. Tests state which (row, column) combination must resolve to which
+ * flat row index — never how the key is spelled — so the encoding stays free to
+ * change while the guarantee (distinct combinations never share a cell) does
+ * not. Spelling keys literally (`cellIndex.get('Open High')`) is what let a key
+ * that merged two rows on a space read as correct for so long (objectstack#5473).
+ */
+const cellAt = (
+  p: ReturnType<typeof buildPivot>,
+  rowLabels: string[],
+  colLabel: string,
+): number | undefined => {
+  const rh = p.rowHeaders.find(
+    (r) => r.labels.length === rowLabels.length && r.labels.every((l, i) => l === rowLabels[i]),
+  );
+  const ch = p.colHeaders.find((c) => c.label === colLabel);
+  return rh && ch ? p.cellIndex.get(pivotCellKey(rh.id, ch.id)) : undefined;
+};
 
 const makeSource = (impl: (d: string, s: any) => Promise<{ rows: any[] }>) => ({ queryDataset: vi.fn(impl) });
 
@@ -313,26 +339,60 @@ describe('DatasetWidget', () => {
     const p = buildPivot(rows, ['status'], 'priority');
     expect(p.rowHeaders.map((r) => r.labels[0])).toEqual(['Open', 'Done']);
     expect(p.colHeaders.map((c) => c.label)).toEqual(['High', 'Low']);
-    expect(p.cellIndex.get('Open High')).toBe(0);
-    expect(p.cellIndex.get('Open Low')).toBe(1);
-    expect(p.cellIndex.get('Done High')).toBe(2);
-    expect(p.cellIndex.get('Done Low')).toBeUndefined(); // sparse combo absent
+    expect(cellAt(p, ['Open'], 'High')).toBe(0);
+    expect(cellAt(p, ['Open'], 'Low')).toBe(1);
+    expect(cellAt(p, ['Done'], 'High')).toBe(2);
+    expect(cellAt(p, ['Done'], 'Low')).toBeUndefined(); // sparse combo absent
   });
 
-  // objectstack#5450. Every case above pivots on ONE row dimension, so the
-  // separator that joins several of them was never exercised — it could have
-  // been anything, including the empty string, and the suite stayed green. It
-  // was a raw U+0001 in the source (invisible in every editor and diff) and is
-  // now the same character written as an escape; these pin what that character
-  // is responsible for.
-  //
-  // Byte discipline: the expected id is built from a NUMBER via fromCharCode.
-  // No control character is written into this file, as a literal or an escape.
-  it('buildPivot keeps two row dimensions apart that would merge without a separator', () => {
+  // objectstack#5473 — the cell key joined the row id and the column id with a
+  // PLAIN SPACE, and dimension values contain spaces constantly ("New York",
+  // "In Progress"). Two rows whose ids met at a different point of the same
+  // string produced one key, the later row overwrote the earlier one, and the
+  // cell showed a different row's number with no error anywhere.
+  it('buildPivot keeps two rows apart whose ids meet at a different point of the same string', () => {
     const rows = [
-      // "x" + "yz" and "xy" + "z" concatenate to the same string, so an empty
-      // (or absent) separator collapses these into ONE row header and the second
-      // row's cell overwrites the first.
+      { region: 'New', quarter: 'York Q1', amount: 111 },
+      { region: 'New York', quarter: 'Q1', amount: 222 },
+    ];
+    const p = buildPivot(rows, ['region'], 'quarter');
+    // Two rows in, two cells out — one key for both is the defect.
+    expect(p.cellIndex.size).toBe(2);
+    expect(cellAt(p, ['New'], 'York Q1')).toBe(0);
+    expect(cellAt(p, ['New York'], 'Q1')).toBe(1);
+    // The combinations no row covers stay absent — a merged key made one of
+    // them borrow the other row's index instead.
+    expect(cellAt(p, ['New'], 'Q1')).toBeUndefined();
+    expect(cellAt(p, ['New York'], 'York Q1')).toBeUndefined();
+  });
+
+  it('buildPivot keeps multi-dimension rows apart when the dimension values contain spaces', () => {
+    // The same collision one dimension deeper, and the shape a single-row-
+    // dimension fixture cannot reach: under the old space join, "New York" ·
+    // "SMB Retail" × "Q1" and "New York" · "SMB" × "Retail Q1" spelled one key.
+    const rows = [
+      { region: 'New York', segment: 'SMB Retail', quarter: 'Q1', amount: 10 },
+      { region: 'New York', segment: 'SMB', quarter: 'Retail Q1', amount: 20 },
+    ];
+    const p = buildPivot(rows, ['region', 'segment'], 'quarter');
+    expect(p.cellIndex.size).toBe(2);
+    expect(cellAt(p, ['New York', 'SMB Retail'], 'Q1')).toBe(0);
+    expect(cellAt(p, ['New York', 'SMB'], 'Retail Q1')).toBe(1);
+  });
+
+  // objectstack#5450 added this case: before it, every pivot fixture had ONE row
+  // dimension, so the boundary that joins several of them was never exercised —
+  // it could have been anything, including the empty string, and the suite
+  // stayed green. That version pinned the ids' literal shape (a control
+  // character built from a number via fromCharCode); objectstack#5473 replaced
+  // that encoding, so what is pinned here now is what the boundary is FOR. No
+  // control character is referenced by this file any more — not as a literal,
+  // not as an escape, not via fromCharCode.
+  it('buildPivot keeps two row dimensions apart that would merge without a boundary', () => {
+    const rows = [
+      // "x" + "yz" and "xy" + "z" concatenate to the same string, so an absent
+      // boundary collapses these into ONE row header and the second row's cell
+      // overwrites the first.
       { region: 'x', segment: 'yz', priority: 'High', total: 1 },
       { region: 'xy', segment: 'z', priority: 'High', total: 2 },
     ];
@@ -344,10 +404,9 @@ describe('DatasetWidget', () => {
       ['xy', 'z'],
     ]);
 
-    const SEP = String.fromCharCode(0x01);
-    expect(p.rowHeaders.map((r) => r.id)).toEqual([`x${SEP}yz`, `xy${SEP}z`]);
-    expect(p.cellIndex.get(`x${SEP}yz High`)).toBe(0);
-    expect(p.cellIndex.get(`xy${SEP}z High`)).toBe(1);
+    expect(p.rowHeaders[0].id).not.toBe(p.rowHeaders[1].id);
+    expect(cellAt(p, ['x', 'yz'], 'High')).toBe(0);
+    expect(cellAt(p, ['xy', 'z'], 'High')).toBe(1);
   });
 
   it('renders a pivot (≥2 dims) as a true cross-tab, not a flat table', async () => {
@@ -382,6 +441,48 @@ describe('DatasetWidget', () => {
     render(<DatasetWidget widget={{ type: 'pivot', dataset: 'tasks', dimensions: ['status'], values: ['task_count'] }} dataSource={src} />);
     await screen.findByText('Status');
     expect(screen.queryByTestId('dataset-matrix')).not.toBeInTheDocument();
+  });
+
+  it('gives each colliding row its OWN cell and drills that cell to ITS record set (objectstack#5473)', async () => {
+    // End-to-end shape of the defect: two rows whose region/quarter values meet
+    // at a different point of the same string. The cell key merged them, so the
+    // table showed 222 twice, 111 was unreachable anywhere, and the "New" cell
+    // drilled into the OTHER row's records — all with no error.
+    const src = {
+      queryDataset: vi.fn(async () => ({
+        rows: [
+          { region: 'New', quarter: 'York Q1', amount: 111 },
+          { region: 'New York', quarter: 'Q1', amount: 222 },
+        ],
+        fields: [
+          { name: 'region', type: 'string', label: 'Region' },
+          { name: 'quarter', type: 'string', label: 'Quarter' },
+          { name: 'amount', type: 'number', label: 'Amount' },
+        ],
+        object: 'showcase_deal',
+        dimensionFields: { region: 'region', quarter: 'quarter' },
+        drillRawRows: [
+          { region: 'new', quarter: 'york_q1' },
+          { region: 'new_york', quarter: 'q1' },
+        ],
+      })),
+      find: vi.fn(async () => ({ data: [] })),
+      getObjectSchema: vi.fn(async () => ({ fields: { region: { type: 'text', label: 'Region' } } })),
+    };
+    render(<DatasetWidget widget={{ type: 'pivot', dataset: 'deals', dimensions: ['region', 'quarter'], values: ['amount'] }} dataSource={src} />);
+    const m = await screen.findByTestId('dataset-matrix');
+
+    // Column order is first-seen: "York Q1", then "Q1".
+    const rowNew = within(m).getByText('New').closest('tr') as HTMLElement;
+    expect([...rowNew.querySelectorAll('td')].map((td) => td.textContent)).toEqual(['New', '111', '—']);
+    const rowNewYork = within(m).getByText('New York').closest('tr') as HTMLElement;
+    expect([...rowNewYork.querySelectorAll('td')].map((td) => td.textContent)).toEqual(['New York', '—', '222']);
+
+    // Drill-through reads `drillRawRows` by the same index the cell resolved,
+    // so a merged cell drilled into the wrong records too.
+    fireEvent.click(within(rowNew).getByTestId('dataset-drill-cell'));
+    await waitFor(() => expect(src.find).toHaveBeenCalled());
+    expect((src.find.mock.calls[0][1] as any).$filter).toEqual({ region: 'new', quarter: 'york_q1' });
   });
 
   it('makes matrix cells drillable when the server returns drill metadata', async () => {
@@ -437,6 +538,40 @@ describe('DatasetWidget', () => {
     expect(within(m).getAllByTestId('matrix-row-total').map((e) => e.textContent)).toEqual(['3', '3']);
     // Grand total.
     expect(within(m).getByTestId('matrix-grand-total').textContent).toBe('6');
+  });
+
+  it('matches server row subtotals to a MULTI-dimension row bucket', async () => {
+    // The row-total lookup keys the same row bucket ids as the row headers, so
+    // it has to build them with the same encoder. It used to roll its own join,
+    // which agreed with the headers only while a pivot had exactly ONE row
+    // dimension — the shape every fixture in this file had. With two row
+    // dimensions (a 3-dimension pivot) every lookup missed and the Total column
+    // rendered blank. Unifying the encoder (objectstack#5473) is what makes
+    // this pass; the assertion is on the totals, not on the id spelling.
+    const src = { queryDataset: vi.fn(async () => ({
+      rows: [
+        { region: 'North', segment: 'SMB', quarter: 'Q1', amount: 1 },
+        { region: 'North', segment: 'Enterprise', quarter: 'Q1', amount: 2 },
+      ],
+      fields: [
+        { name: 'region', type: 'string', label: 'Region' },
+        { name: 'segment', type: 'string', label: 'Segment' },
+        { name: 'quarter', type: 'string', label: 'Quarter' },
+        { name: 'amount', type: 'number', label: 'Amount' },
+      ],
+      totals: [
+        { dimensions: ['region', 'segment'], rows: [
+          { region: 'North', segment: 'SMB', amount: 10 },
+          { region: 'North', segment: 'Enterprise', amount: 20 },
+        ] },
+        { dimensions: ['quarter'], rows: [{ quarter: 'Q1', amount: 30 }] },
+        { dimensions: [], rows: [{ amount: 30 }] },
+      ],
+    })) };
+    render(<DatasetWidget widget={{ type: 'pivot', dataset: 'deals', dimensions: ['region', 'segment', 'quarter'], values: ['amount'] }} dataSource={src} />);
+    const m = await screen.findByTestId('dataset-matrix');
+    expect(within(m).getAllByTestId('matrix-row-total').map((e) => e.textContent)).toEqual(['10', '20']);
+    expect(within(m).getByTestId('matrix-grand-total').textContent).toBe('30');
   });
 
   it('renders no totals UI when the server omits totals (older server)', async () => {

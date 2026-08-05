@@ -64,12 +64,44 @@ interface DatasetCapableSource {
 export const buildDrillFilter = buildDatasetDrillFilter;
 
 /**
+ * Encode a pivot ROW bucket id from its dimension values.
+ *
+ * `JSON.stringify` of the value array — not a delimiter character — carries the
+ * boundary between two values, so the id is unambiguous for ANY value a
+ * dimension can hold. The previous encodings both relied on a character the
+ * values were assumed never to contain, which is exactly how two different
+ * rows collapsed into one bucket (objectstack#5473; same treatment as the
+ * include key in objectui#3388 and the warning-dedupe key in objectstack#5450).
+ *
+ * Every consumer of a row id — the cell index below AND the row-total lookup in
+ * the cross-tab renderer — must build its key with this function; a second,
+ * hand-rolled encoding of the same id is what made the old bug invisible.
+ *
+ * Known residual, tracked separately: a null/undefined dimension value is
+ * encoded as the placeholder below, so it still collides with a value that
+ * literally equals that placeholder.
+ */
+export const pivotRowId = (dimensionValues: string[]): string => JSON.stringify(dimensionValues);
+
+/**
+ * Encode the `cellIndex` key for a (row bucket, column bucket) pair.
+ *
+ * Was `${rowId} ${colId}` — a plain space, while dimension values contain
+ * spaces all the time ("New York", "In Progress"). Two rows whose ids met at a
+ * different point of the same string ("New" + "York Q1" vs "New York" + "Q1")
+ * produced ONE key: the later row silently overwrote the earlier one, the cell
+ * showed another row's measure, and drill-through followed the same wrong
+ * index. `JSON.stringify` of the pair has no such boundary (objectstack#5473).
+ */
+export const pivotCellKey = (rowId: string, colId: string): string => JSON.stringify([rowId, colId]);
+
+/**
  * Pivot flat dataset rows into a cross-tab: `rowDims` go DOWN, `colDim` spreads
  * ACROSS. Returns ordered row/column headers (display labels from the rows) and
- * a map from a `${rowId} ${colId}` cell key to the FLAT row index holding
- * that combination's measure values. No re-aggregation — the dataset already
- * grouped by every dimension, so each cell maps to exactly one row (the index
- * is also what drill-through uses to read `drillRawRows`).
+ * a map from a `pivotCellKey(rowId, colId)` cell key to the FLAT row index
+ * holding that combination's measure values. No re-aggregation — the dataset
+ * already grouped by every dimension, so each cell maps to exactly one row (the
+ * index is also what drill-through uses to read `drillRawRows`).
  */
 export function buildPivot(
   rows: Array<Record<string, unknown>>,
@@ -86,17 +118,17 @@ export function buildPivot(
   const colSeen = new Set<string>();
   const cellIndex = new Map<string, number>();
   rows.forEach((row, index) => {
-    // The row-dimension separator below is the escaped U+0001 spelling, not the
-    // byte itself (objectstack#5450). U+0001 does not blind grep the way U+0000
-    // does, but written raw it is invisible in every editor and every diff, so no
-    // reviewer could tell what this separator actually was. The runtime value is
-    // unchanged: a character no dimension value can carry, which is what keeps
-    // two dimension values from merging into one ambiguous row id.
-    const rid = rowDims.map((d) => String(row[d] ?? '∅')).join('\u0001');
+    // Both ids are opaque lookup keys, never displayed — the visible text comes
+    // from `labels`/`label` via formatDimensionValue. The column id stays the
+    // bare value because a single value needs no boundary; only the row id joins
+    // several values, and pivotRowId encodes that join unambiguously. (It used to
+    // join them with a control character no dimension value was ASSUMED to carry;
+    // pivotRowId needs no such assumption.)
+    const rid = pivotRowId(rowDims.map((d) => String(row[d] ?? '∅')));
     const cid = String(row[colDim] ?? '∅');
     if (!rowSeen.has(rid)) { rowSeen.add(rid); rowHeaders.push({ id: rid, labels: rowDims.map((d) => formatDimensionValue(row[d])) }); }
     if (!colSeen.has(cid)) { colSeen.add(cid); colHeaders.push({ id: cid, label: formatDimensionValue(row[colDim]) }); }
-    cellIndex.set(`${rid} ${cid}`, index);
+    cellIndex.set(pivotCellKey(rid, cid), index);
   });
   return { rowHeaders, colHeaders, cellIndex };
 }
@@ -460,7 +492,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
       const findTotals = (dims: string[]) =>
         state.totals?.find((t) => Array.isArray(t.dimensions) && t.dimensions.join(',') === dims.join(','))?.rows;
       const rowTotalById = new Map<string, Row>();
-      for (const r of findTotals(rowDims) ?? []) rowTotalById.set(rowDims.map((d) => String(r[d] ?? '∅')).join(''), r);
+      for (const r of findTotals(rowDims) ?? []) rowTotalById.set(pivotRowId(rowDims.map((d) => String(r[d] ?? '∅'))), r);
       const colTotalById = new Map<string, Row>();
       for (const r of findTotals([colDim]) ?? []) colTotalById.set(String(r[colDim] ?? '∅'), r);
       const grandTotal = findTotals([])?.[0];
@@ -492,7 +524,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
                     <td key={di} className="px-2 py-1 whitespace-nowrap font-medium">{lbl}</td>
                   ))}
                   {cellCols.map((cc) => {
-                    const index = pivot.cellIndex.get(`${rh.id} ${cc.col.id}`);
+                    const index = pivot.cellIndex.get(pivotCellKey(rh.id, cc.col.id));
                     const fr = index != null ? state.rows[index] : undefined;
                     const clickable = canDrill && index != null;
                     const title = [...rh.labels, cc.col.label].filter(Boolean).join(' / ');
