@@ -1,0 +1,244 @@
+/**
+ * ObjectUI
+ * Copyright (c) 2024-present ObjectStack Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+/**
+ * A DISABLED `RichTextField` cannot be edited through its fullscreen dialog —
+ * objectui#3402.
+ *
+ * The rich-text half of the same defect the sibling
+ * `TextAreaField.fullscreenDisabled.test.tsx` pins, and it is a genuinely
+ * separate code path rather than a copy of the assertions: this widget reaches
+ * the affordance through `RichTextEditorSurface`'s `overlay` slot, and the
+ * dialog renders the SAME surface again. `disabled` therefore has to be
+ * resolved once and given to both renderings, exactly like `formatLabel` /
+ * `hint` / `placeholder` already were — otherwise the two surfaces disagree
+ * about whether the field is editable, which is the drift #3301 built the
+ * shared surface to prevent.
+ *
+ * Measured on `origin/main` before the fix, by a dynamic probe (the issue
+ * carried static evidence only):
+ *
+ *     PROBE richtext: inline disabled = true , toggle disabled = false
+ *     PROBE richtext: dialog opened = true , dialog input disabled = false
+ *     PROBE richtext: onChange calls = [["# EDITED WHILE DISABLED"]]
+ *
+ * `readonly` was never part of this: the widget early-returns a read-only
+ * display before the affordance is computed. That path is untouched by the fix
+ * and pinned below as a non-regression.
+ */
+
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import '@testing-library/jest-dom';
+
+import { RichTextField } from '../RichTextField';
+import type { FieldMetadata } from '@object-ui/types';
+
+const fieldMeta = (extra: Record<string, unknown> = {}) =>
+  ({
+    name: 'notes',
+    label: 'Notes',
+    type: 'markdown',
+    mobile_fullscreen: true,
+    ...extra,
+  }) as unknown as FieldMetadata;
+
+const toggle = () =>
+  screen.queryByTestId('richtext-fullscreen-toggle') as HTMLButtonElement | null;
+const dialogInput = () =>
+  screen.queryByTestId('richtext-fullscreen-input') as HTMLTextAreaElement | null;
+const saveButton = () =>
+  screen.queryByTestId('richtext-fullscreen-save') as HTMLButtonElement | null;
+
+describe('RichTextField fullscreen — disabled keeps the affordance but makes it inert (objectui#3402)', () => {
+  it('keeps the expand button and disables it', () => {
+    render(
+      <RichTextField value="# hello" onChange={() => {}} field={fieldMeta()} disabled />,
+    );
+
+    expect(toggle()).not.toBeNull();
+    expect(toggle()!.disabled).toBe(true);
+  });
+
+  it('does not open the dialog when that button is clicked anyway', () => {
+    render(
+      <RichTextField value="# hello" onChange={() => {}} field={fieldMeta()} disabled />,
+    );
+
+    fireEvent.click(toggle()!);
+
+    expect(screen.queryByTestId('richtext-fullscreen-dialog')).not.toBeInTheDocument();
+    expect(dialogInput()).toBeNull();
+  });
+
+  it('still disables the inline editing surface', () => {
+    render(
+      <RichTextField value="# hello" onChange={() => {}} field={fieldMeta()} disabled />,
+    );
+
+    const inline = screen.getAllByRole('textbox')[0] as HTMLTextAreaElement;
+    expect(inline.disabled).toBe(true);
+  });
+
+  it('never commits a value while disabled', () => {
+    const onChange = vi.fn();
+    render(
+      <RichTextField value="# hello" onChange={onChange} field={fieldMeta()} disabled />,
+    );
+
+    fireEvent.click(toggle()!);
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe('RichTextField fullscreen — the dialog holds on its own when disabled arrives mid-edit (objectui#3402)', () => {
+  /**
+   * The `isSubmitting` shape at widget level: the form renderer has already
+   * OR-ed `isSubmitting` into the `disabled` this widget receives, so a submit
+   * starting under an open dialog looks exactly like this rerender.
+   */
+  function openThenDisable(onChange: () => void) {
+    const { rerender } = render(
+      <RichTextField value="# hello" onChange={onChange} field={fieldMeta()} />,
+    );
+    fireEvent.click(toggle()!);
+    expect(dialogInput()).not.toBeNull();
+
+    rerender(
+      <RichTextField value="# hello" onChange={onChange} field={fieldMeta()} disabled />,
+    );
+  }
+
+  it('locks the dialog controls', () => {
+    openThenDisable(vi.fn());
+
+    expect(dialogInput()).not.toBeNull();
+    expect(dialogInput()!.disabled).toBe(true);
+    expect(saveButton()!.disabled).toBe(true);
+  });
+
+  /** Split from the attribute assertions for the reason its textarea sibling
+   * spells out: as a tail on them it could only run when the native attribute
+   * was already doing the work. */
+  it('refuses the write-back even when "Done" is driven directly', () => {
+    const onChange = vi.fn();
+    openThenDisable(onChange);
+
+    fireEvent.change(dialogInput()!, { target: { value: '# EDITED WHILE SUBMITTING' } });
+    fireEvent.click(saveButton()!);
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('still lets the user out of the dialog', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <RichTextField value="# hello" onChange={onChange} field={fieldMeta()} />,
+    );
+
+    fireEvent.click(toggle()!);
+    rerender(
+      <RichTextField value="# hello" onChange={onChange} field={fieldMeta()} disabled />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+
+    expect(screen.queryByTestId('richtext-fullscreen-dialog')).not.toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe('RichTextField fullscreen — the states the fix must not have moved (objectui#3402)', () => {
+  it('still edits fullscreen and commits when the field is editable', () => {
+    const onChange = vi.fn();
+    render(<RichTextField value="# hello" onChange={onChange} field={fieldMeta()} />);
+
+    expect(toggle()!.disabled).toBe(false);
+    fireEvent.click(toggle()!);
+
+    const input = dialogInput()!;
+    expect(input.disabled).toBe(false);
+    expect(saveButton()!.disabled).toBe(false);
+
+    fireEvent.change(input, { target: { value: '# hello from fullscreen' } });
+    fireEvent.click(saveButton()!);
+
+    expect(onChange).toHaveBeenCalledWith('# hello from fullscreen');
+  });
+
+  it('keeps the dialog holding the REAL editor, disabled and not', () => {
+    // #3301's acceptance criterion, re-pinned under `disabled`: the dialog
+    // shows the same surface as the inline one (same format indicator), and now
+    // the same interactivity too — the very thing that had drifted.
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <RichTextField
+        value=""
+        onChange={onChange}
+        field={fieldMeta({ format: 'html' })}
+      />,
+    );
+
+    fireEvent.click(toggle()!);
+    expect(screen.getAllByText('Format: html')).toHaveLength(2);
+
+    rerender(
+      <RichTextField
+        value=""
+        onChange={onChange}
+        field={fieldMeta({ format: 'html' })}
+        disabled
+      />,
+    );
+
+    // Both surfaces present, both inert.
+    expect(screen.getAllByText('Format: html')).toHaveLength(2);
+    // Queried off the document rather than by role: the dialog is modal, so
+    // Radix marks the background `aria-hidden` and a role query sees only the
+    // dialog's own control — which is precisely the textarea NOT at issue here.
+    // Both surfaces have to be disabled, so both are read directly.
+    const textareas = Array.from(
+      document.body.querySelectorAll('textarea'),
+    ) as HTMLTextAreaElement[];
+    expect(textareas).toHaveLength(2);
+    expect(textareas.every((el) => el.disabled)).toBe(true);
+  });
+
+  it('still renders no affordance at all in readonly mode', () => {
+    // The untouched early return — why readonly was never part of this defect.
+    render(
+      <RichTextField value="# hello" onChange={() => {}} readonly field={fieldMeta()} />,
+    );
+
+    expect(toggle()).toBeNull();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.getByText('# hello')).toBeInTheDocument();
+  });
+
+  it('still renders no affordance when the metadata does not opt in, disabled or not', () => {
+    const { rerender } = render(
+      <RichTextField
+        value="# hello"
+        onChange={() => {}}
+        field={fieldMeta({ mobile_fullscreen: false })}
+      />,
+    );
+    expect(toggle()).toBeNull();
+
+    rerender(
+      <RichTextField
+        value="# hello"
+        onChange={() => {}}
+        field={fieldMeta({ mobile_fullscreen: false })}
+        disabled
+      />,
+    );
+    expect(toggle()).toBeNull();
+  });
+});

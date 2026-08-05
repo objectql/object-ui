@@ -120,6 +120,12 @@ export function RichTextField({ value, onChange, field, readonly, error, ...prop
   // Same single read as `TextAreaField`: the field metadata is the only
   // carrier, and this widget is the second consumer the flag always had.
   const showFullscreenButton = Boolean(richField?.mobile_fullscreen);
+  // Resolved once and given to BOTH renderings of the editor (objectui#3402) —
+  // exactly like `formatLabel` / `hint` / `placeholder` below, and for the same
+  // reason. Landing it on the inline surface alone left a disabled rich-text
+  // field greyed out next to a live expand button whose dialog committed any
+  // edit through `onCommit`. `disabled` also carries the form's `isSubmitting`.
+  const disabled = Boolean(props.disabled);
 
   // Resolved once and handed to BOTH renderings of the editor, so the dialog
   // cannot drift into showing different copy than the inline surface.
@@ -137,7 +143,7 @@ export function RichTextField({ value, onChange, field, readonly, error, ...prop
       hint={hint}
       placeholder={placeholder}
       rows={rows}
-      disabled={readonly || props.disabled}
+      disabled={readonly || disabled}
       error={error}
       className={props.className}
       overlay={
@@ -147,14 +153,16 @@ export function RichTextField({ value, onChange, field, readonly, error, ...prop
             onCommit={onChange}
             label={richField?.label}
             testIdPrefix="richtext"
+            disabled={disabled}
           >
-            {(draft, setDraft) => (
+            {(draft, setDraft, editorDisabled) => (
               <RichTextEditorSurface
                 value={draft}
                 onChange={setDraft}
                 formatLabel={formatLabel}
                 hint={hint}
                 placeholder={placeholder}
+                disabled={editorDisabled}
                 autoFocus
                 fullHeight
                 textareaTestId="richtext-fullscreen-input"

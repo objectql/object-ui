@@ -57,6 +57,12 @@ export function TextAreaField({ value, onChange, field, readonly, error, ...prop
   const showFullscreenButton = Boolean(textareaField?.mobile_fullscreen);
 
   const domProps = toDomProps(props);
+  // Resolved once and given to BOTH editing surfaces (objectui#3402). It used
+  // to reach the inline `<Textarea>` alone, so a disabled field greyed out
+  // correctly while its expand button stayed live and the dialog wrote the edit
+  // straight back through `onCommit`. `disabled` also carries the form's
+  // `isSubmitting`, so that hole was open for the duration of every submit.
+  const disabled = Boolean(domProps.disabled);
 
   return (
     <div className="relative">
@@ -65,7 +71,7 @@ export function TextAreaField({ value, onChange, field, readonly, error, ...prop
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
         placeholder={textareaField?.placeholder}
-        disabled={readonly || domProps.disabled}
+        disabled={readonly || disabled}
         rows={rows}
         maxLength={maxLength}
         aria-invalid={!!error}
@@ -87,6 +93,7 @@ export function TextAreaField({ value, onChange, field, readonly, error, ...prop
           onCommit={onChange}
           label={textareaField?.label}
           testIdPrefix="textarea"
+          disabled={disabled}
           footer={(draft) =>
             maxLength ? (
               <span className="text-xs text-muted-foreground self-center">
@@ -95,11 +102,12 @@ export function TextAreaField({ value, onChange, field, readonly, error, ...prop
             ) : null
           }
         >
-          {(draft, setDraft) => (
+          {(draft, setDraft, editorDisabled) => (
             <Textarea
               autoFocus
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
+              disabled={editorDisabled}
               maxLength={maxLength}
               placeholder={textareaField?.placeholder}
               className="h-full min-h-full resize-none text-base"
