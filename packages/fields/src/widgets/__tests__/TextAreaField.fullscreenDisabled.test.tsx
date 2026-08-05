@@ -123,13 +123,13 @@ describe('TextAreaField fullscreen — disabled keeps the affordance but makes i
 
 describe('TextAreaField fullscreen — the dialog holds on its own when disabled arrives mid-edit (objectui#3402)', () => {
   /**
-   * The `isSubmitting` case. This widget never sees `isSubmitting` — it sees
-   * `disabled`, which the form renderer has already OR-ed it into — so the
-   * honest widget-level reproduction is the prop flipping true while the dialog
-   * is open, which is exactly what a submit does to it. (The form-level
+   * Open the dialog while editable, then flip `disabled` under it — the
+   * `isSubmitting` case. This widget never sees `isSubmitting`; it sees
+   * `disabled`, which the form renderer has already OR-ed it into, so the honest
+   * widget-level reproduction is the prop flipping true while the dialog is
+   * open, which is exactly what a submit does to it. (The form-level
    * composition itself is pinned on the built-in path by #3400/PR #3401.)
    */
-  /** Open the dialog while editable, then flip `disabled` under it. */
   function openThenDisable(onChange: () => void) {
     const { rerender } = render(
       <TextAreaField value="hello" onChange={onChange} field={fieldMeta()} />,
