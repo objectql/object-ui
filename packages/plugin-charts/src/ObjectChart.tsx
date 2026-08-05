@@ -622,9 +622,19 @@ export const ObjectChart = (props: any) => {
   //
   // objectui#3354 shrank the gap from the other side: the whole `target` union
   // — including `'navigate'` — is honoured below, and the two keys no renderer
-  // read at all (`view`, `sort`) are gone from `DrillDownConfig`. When the spec
-  // declaration lands it should be derived from the CLEANED shape, so the chart
-  // subset's `target` needs all three members.
+  // read at all (`view`, `sort`) are gone from `DrillDownConfig`.
+  //
+  // That leaves ONE asymmetry, deliberately not papered over here. The spec's
+  // `ChartDrillDownSchema` declares `target: 'drawer' | 'dialog'`, and its
+  // stated rationale was a measurement — every key has an `ObjectChart` read
+  // site, and at the time this component ignored `'navigate'`. That measurement
+  // changed with this issue, so the protocol's union is now narrower than what
+  // the renderer delivers. The fix belongs in the spec (extend the union), not
+  // here: widening the union renderer-side is free, but ADVERTISING it before
+  // the protocol does would collide with the publish gate that parses the
+  // strict schema. Until the spec moves, `'navigate'` works for any host that
+  // composes an `object-chart` schema directly, and stays absent from the
+  // registry `inputs` below.
   const drillDown = (schema as { drillDown?: DrillDownConfig }).drillDown;
   const groupByField = schema.aggregate?.groupBy || schema.xAxisKey;
 
@@ -907,15 +917,26 @@ ComponentRegistry.register('object-chart', ObjectChart, {
         // spec now declares the shape (`ChartDrillDownSchema`), and this entry
         // is the half that makes the gate agree.
         //
-        // Only the keys this component actually reads are advertised here. The
-        // rest of the renderer-side `DrillDownConfig` (`mode`, `report`) belongs
-        // to the table/pivot/metric widgets; advertising them would re-open the
-        // gap framework#5022 closed, one layer down in the designer palette.
+        // Only the six keys the spec declares are advertised here; the wider
+        // renderer-side `DrillDownConfig` (`mode`, `report`) belongs to the
+        // table/pivot/metric widgets, and advertising it would re-open the gap
+        // framework#5022 closed — one layer down, in the designer palette.
         //
-        // `target: 'navigate'` IS advertised now (objectui#3354): the component
-        // honours it, so hiding it here would only invert the same defect —
-        // delivered but undeclared. `view` / `sort` are gone from
-        // `DrillDownConfig` entirely in that issue; no renderer ever read them.
-        { name: 'drillDown', type: 'object', label: 'Drill-down', description: "Segment drill config: { enabled?, filter?, title?, target?: 'drawer' | 'dialog' | 'navigate', columns?, maxRows? }. Present = on; {} is enough. Clicking a segment opens the underlying records filtered by the clicked category; 'navigate' opens the object's full list page instead when the host provides drill navigation." },
+        // `target: 'navigate'` is DELIVERED by this component since
+        // objectui#3354 but is deliberately NOT advertised here yet, and the
+        // asymmetry is on purpose. `ChartDrillDownSchema` (`@objectstack/spec`)
+        // landed the chart drill as `target: 'drawer' | 'dialog'` — strict, and
+        // enforced at publish by `validate-react-page-props`, which PARSES it
+        // against the authored `drillDown={{…}}` literal. Listing `'navigate'`
+        // in this palette would therefore hand an author a value the publish
+        // gate then rejects: the platform's authority for a key its own gate
+        // refuses, which is precisely the failure framework#5022 was opened to
+        // stop. The protocol's union is the thing that has to move first; until
+        // it does, this description tracks the spec, not the renderer.
+        //
+        // `view` / `sort` are gone from `DrillDownConfig` entirely
+        // (objectui#3354) — no renderer ever read them, so there is no longer a
+        // key to advertise or withhold.
+        { name: 'drillDown', type: 'object', label: 'Drill-down', description: "Segment drill config: { enabled?, filter?, title?, target?: 'drawer' | 'dialog', columns?, maxRows? }. Present = on; {} is enough. Clicking a segment opens the underlying records filtered by the clicked category." },
     ]
 });
