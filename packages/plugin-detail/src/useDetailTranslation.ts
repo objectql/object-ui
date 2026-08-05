@@ -47,6 +47,14 @@ export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
   // It is icon-only, so this label IS the button as far as a screen reader
   // (or a hover tooltip) is concerned; it used to be an English literal.
   'detail.addReaction': 'Add reaction',
+  // objectstack#5430 — the rest of the reaction chrome. The picker popup is
+  // `role="listbox"` with no visible label, and each reaction chip is an
+  // emoji + a bare number, so these labels ARE those controls to a screen
+  // reader. The count pair follows the repo's two-key plural convention
+  // (`relatedRecords`/`relatedRecordOne`), never an i18next `_one` suffix.
+  'detail.emojiPicker': 'Emoji picker',
+  'detail.reactionCount': '{{emoji}} {{count}} reactions',
+  'detail.reactionCountOne': '{{emoji}} {{count}} reaction',
   'detail.addToFavorites': 'Add to favorites',
   'detail.removeFromFavorites': 'Remove from favorites',
   'detail.previousRecord': 'Previous record',

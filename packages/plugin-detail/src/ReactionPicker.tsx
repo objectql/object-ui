@@ -49,24 +49,36 @@ export const ReactionPicker: React.FC<ReactionPickerProps> = ({
   return (
     <div className={cn('flex items-center gap-1 flex-wrap', className)}>
       {/* Existing reactions */}
-      {reactions.map((reaction) => (
-        <button
-          key={reaction.emoji}
-          type="button"
-          className={cn(
-            'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs border transition-colors',
-            reaction.reacted
-              ? 'bg-primary/10 border-primary/30 text-primary'
-              : 'bg-muted border-border text-muted-foreground hover:bg-muted/80',
-          )}
-          onClick={() => handleReaction(reaction.emoji)}
-          disabled={!onToggleReaction}
-          aria-label={`${reaction.emoji} ${reaction.count} reaction${reaction.count !== 1 ? 's' : ''}`}
-        >
-          <span>{reaction.emoji}</span>
-          <span>{reaction.count}</span>
-        </button>
-      ))}
+      {reactions.map((reaction) => {
+        // Two keys, NOT an i18next `_one`/`_other` pair — this repo's own
+        // plural convention (`detail.relatedRecords`/`relatedRecordOne`,
+        // `lookup.recordCount`/`recordCountOne`). A `_one` suffix would break
+        // `all-locales-key-parity`: zh/ja/ko have no separate singular form,
+        // so those packs would legitimately omit the `_one` half and the gate
+        // would read that as a missing key (objectstack#5430).
+        const countLabel = t(
+          reaction.count === 1 ? 'detail.reactionCountOne' : 'detail.reactionCount',
+          { emoji: reaction.emoji, count: reaction.count },
+        );
+        return (
+          <button
+            key={reaction.emoji}
+            type="button"
+            className={cn(
+              'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs border transition-colors',
+              reaction.reacted
+                ? 'bg-primary/10 border-primary/30 text-primary'
+                : 'bg-muted border-border text-muted-foreground hover:bg-muted/80',
+            )}
+            onClick={() => handleReaction(reaction.emoji)}
+            disabled={!onToggleReaction}
+            aria-label={countLabel}
+          >
+            <span>{reaction.emoji}</span>
+            <span>{reaction.count}</span>
+          </button>
+        );
+      })}
 
       {/* Add reaction button */}
       {onToggleReaction && (
@@ -85,7 +97,7 @@ export const ReactionPicker: React.FC<ReactionPickerProps> = ({
             <div
               className="absolute bottom-full mb-1 left-0 bg-popover border rounded-md shadow-md z-50 p-1.5 flex gap-1"
               role="listbox"
-              aria-label="Emoji picker"
+              aria-label={t('detail.emojiPicker')}
             >
               {emojiOptions.map((emoji) => (
                 <button

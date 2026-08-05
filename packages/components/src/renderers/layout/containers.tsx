@@ -1198,7 +1198,7 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       <div
         className="flex flex-wrap items-center gap-2 shrink-0"
         role="toolbar"
-        aria-label="Page header actions"
+        aria-label={tt('detail.pageHeaderActions', 'Page header actions')}
       >
         {inlineActions.map(renderButton)}
         {useOverflow && (

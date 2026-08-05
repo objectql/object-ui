@@ -66,6 +66,7 @@ import {
   ResizableHandle,
 } from './resizable';
 import { usePopperAwareInteractOutside } from './mobile-dialog-content';
+import { useSafeTranslate } from '@object-ui/i18n';
 
 /** Navigation mode type — matches ViewNavigationConfig.mode */
 export type NavigationOverlayMode =
@@ -286,6 +287,10 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
   // Inline-edit dropdowns render in body-level poppers; without this guard the
   // click that closes an open dropdown also dismisses the drawer/modal (#2156).
   const handleInteractOutside = usePopperAwareInteractOutside();
+  // Both close affordances below are icon-only, so their accessible name IS
+  // the control to a screen reader and to the hover tooltip (objectstack#5430).
+  // Must stay above the conditional returns — rules-of-hooks.
+  const tt = useSafeTranslate();
 
   // Non-overlay modes don't render anything
   if (mode === 'page' || mode === 'new_window' || mode === 'none') {
@@ -388,8 +393,8 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
               <SheetClose asChild>
                 <button
                   type="button"
-                  aria-label="Close"
-                  title="Close"
+                  aria-label={tt('common.close', 'Close')}
+                  title={tt('common.close', 'Close')}
                   className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -473,7 +478,7 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
               <button
                 onClick={close}
                 className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                aria-label="Close panel"
+                aria-label={tt('common.closePanel', 'Close panel')}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
