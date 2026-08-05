@@ -145,7 +145,7 @@ const es = {
       description: "Edita el valor de texto completo y luego guarda o cancela los cambios.",
       done: "Listo",
       toggle: "Editar {{label}} en pantalla completa",
-      toggleUnlabeled: "Editar texto en pantalla completa",
+      textFallback: "texto",
     },
   },
   fields: {

@@ -140,7 +140,7 @@ const ja = {
       description: "テキスト全体を編集してから、変更を保存またはキャンセルしてください。",
       done: "完了",
       toggle: "{{label}}を全画面で編集",
-      toggleUnlabeled: "テキストを全画面で編集",
+      textFallback: "テキスト",
     },
   },
   fields: {

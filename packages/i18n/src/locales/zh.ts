@@ -145,7 +145,7 @@ const zh = {
       description: '编辑完整的文本内容，然后保存或取消更改。',
       done: '完成',
       toggle: '全屏编辑{{label}}',
-      toggleUnlabeled: '全屏编辑文本',
+      textFallback: '文本',
     },
   },
   fields: {

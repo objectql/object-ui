@@ -151,7 +151,7 @@ const en = {
       description: 'Edit the full text value, then save or cancel your changes.',
       done: 'Done',
       toggle: 'Edit {{label}} fullscreen',
-      toggleUnlabeled: 'Edit text fullscreen',
+      textFallback: 'text',
     },
   },
   fields: {

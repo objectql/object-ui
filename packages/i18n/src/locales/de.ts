@@ -140,7 +140,7 @@ const de = {
       description: "Bearbeiten Sie den vollständigen Textwert und speichern oder verwerfen Sie dann Ihre Änderungen.",
       done: "Fertig",
       toggle: "{{label}} im Vollbild bearbeiten",
-      toggleUnlabeled: "Text im Vollbild bearbeiten",
+      textFallback: "Text",
     },
   },
   fields: {

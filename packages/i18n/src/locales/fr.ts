@@ -140,7 +140,7 @@ const fr = {
       description: "Modifiez la valeur texte complète, puis enregistrez ou annulez vos modifications.",
       done: "Terminé",
       toggle: "Modifier {{label}} en plein écran",
-      toggleUnlabeled: "Modifier le texte en plein écran",
+      textFallback: "le texte",
     },
   },
   fields: {

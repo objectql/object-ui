@@ -126,12 +126,17 @@ const useSafeFormTranslation = createSafeTranslation(
     'form.fullscreen.title': 'Edit text',
     'form.fullscreen.description': 'Edit the full text value, then save or cancel your changes.',
     'form.fullscreen.done': 'Done',
-    // Two keys rather than one with a defaulted `{{label}}`: an interpolation
-    // that falls back to an untranslated English noun ("text") would leak that
-    // noun into every other language's sentence. The unlabeled case is its own
-    // sentence so each pack can word it naturally.
+    // The trigger's accessible name keeps the literal's shape —
+    // `Edit ${label ?? 'text'} fullscreen` — as ONE sentence with a
+    // TRANSLATED generic noun standing in for a missing label. The obvious
+    // alternative (a second, label-less sentence key) would ship dead in all
+    // ten packs: `label` is destructured off the field config before
+    // `...fieldProps`, so the only caller never forwards it and the labelled
+    // limb is unreachable today (filed separately). Interpolating a
+    // translated noun keeps BOTH keys on the live path while leaving the
+    // limb's fate to that issue.
     'form.fullscreen.toggle': 'Edit {{label}} fullscreen',
-    'form.fullscreen.toggleUnlabeled': 'Edit text fullscreen',
+    'form.fullscreen.textFallback': 'text',
     // objectui#3231 — the dependency-gate sentence (#2284). Shared with the
     // option widgets' own fallback so both sides render one wording.
     'fields.options.selectFirst': 'Select {{fields}} first',
@@ -386,11 +391,9 @@ function FullscreenTextarea({
         type="button"
         onClick={openDialog}
         className="absolute top-1.5 right-1.5 inline-flex items-center justify-center size-7 rounded-md bg-background/80 text-muted-foreground hover:text-foreground hover:bg-background border shadow-sm"
-        aria-label={
-          label
-            ? t('form.fullscreen.toggle', { label })
-            : t('form.fullscreen.toggleUnlabeled')
-        }
+        aria-label={t('form.fullscreen.toggle', {
+          label: label ?? t('form.fullscreen.textFallback'),
+        })}
         data-testid="form-textarea-fullscreen-toggle"
       >
         <Maximize2 className="size-3.5" />

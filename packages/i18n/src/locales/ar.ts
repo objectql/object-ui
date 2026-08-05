@@ -140,7 +140,7 @@ const ar = {
       description: "حرّر قيمة النص الكاملة، ثم احفظ التغييرات أو ألغِها.",
       done: "تم",
       toggle: "تحرير {{label}} بملء الشاشة",
-      toggleUnlabeled: "تحرير النص بملء الشاشة",
+      textFallback: "النص",
     },
   },
   fields: {

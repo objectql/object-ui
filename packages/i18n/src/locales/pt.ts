@@ -140,7 +140,7 @@ const pt = {
       description: "Edite o valor de texto completo e depois salve ou cancele as alterações.",
       done: "Concluído",
       toggle: "Editar {{label}} em tela cheia",
-      toggleUnlabeled: "Editar texto em tela cheia",
+      textFallback: "texto",
     },
   },
   fields: {

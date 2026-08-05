@@ -140,7 +140,7 @@ const ko = {
       description: "전체 텍스트 값을 편집한 다음 변경 사항을 저장하거나 취소하세요.",
       done: "완료",
       toggle: "{{label}} 전체 화면으로 편집",
-      toggleUnlabeled: "텍스트 전체 화면으로 편집",
+      textFallback: "텍스트",
     },
   },
   fields: {
