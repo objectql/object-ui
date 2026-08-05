@@ -215,6 +215,9 @@ const fr = {
     tags: {
       placeholder: "Saisissez puis appuyez sur Entrée pour ajouter…",
     },
+    textarea: {
+      characterCount: "Nombre de caractères : {{count}} sur {{max}}",
+    },
   },
   table: {
     rowsPerPage: "Lignes par page",

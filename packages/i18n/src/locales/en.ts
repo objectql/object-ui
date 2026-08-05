@@ -232,6 +232,16 @@ const en = {
     tags: {
       placeholder: 'Type and press Enter to add…',
     },
+    // objectui#3406 — the accessible name of the textarea character counter,
+    // rendered only when the field declares `maxLength`. The visible text is
+    // `{count}/{max}` digits and needs no locale; this sentence is what a
+    // screen reader speaks off an `aria-live` region. ONE interpolated key
+    // rather than assembled parts: ja/ko put the cap BEFORE the count
+    // (「{{max}} 文字中 {{count}} 文字」), an order no code-side
+    // concatenation can produce.
+    textarea: {
+      characterCount: 'Character count: {{count}} of {{max}}',
+    },
   },
   table: {
     rowsPerPage: 'Rows per page',

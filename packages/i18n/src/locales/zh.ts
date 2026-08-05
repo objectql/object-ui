@@ -220,6 +220,9 @@ const zh = {
     tags: {
       placeholder: '输入后回车添加…',
     },
+    textarea: {
+      characterCount: '已输入 {{count}} 个字符，最多 {{max}} 个',
+    },
   },
   table: {
     rowsPerPage: '每页行数',

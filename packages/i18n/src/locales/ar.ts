@@ -215,6 +215,9 @@ const ar = {
     tags: {
       placeholder: "اكتب واضغط Enter للإضافة…",
     },
+    textarea: {
+      characterCount: "عدد الأحرف: {{count}} من {{max}}",
+    },
   },
   table: {
     rowsPerPage: "صفوف في الصفحة",

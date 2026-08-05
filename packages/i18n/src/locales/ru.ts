@@ -215,6 +215,9 @@ const ru = {
     tags: {
       placeholder: "Введите и нажмите Enter, чтобы добавить…",
     },
+    textarea: {
+      characterCount: "Количество символов: {{count}} из {{max}}",
+    },
   },
   table: {
     rowsPerPage: "Строк на странице",

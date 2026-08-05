@@ -215,6 +215,9 @@ const pt = {
     tags: {
       placeholder: "Digite e pressione Enter para adicionar…",
     },
+    textarea: {
+      characterCount: "Contagem de caracteres: {{count}} de {{max}}",
+    },
   },
   table: {
     rowsPerPage: "Linhas por página",

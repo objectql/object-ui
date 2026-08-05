@@ -220,6 +220,9 @@ const es = {
     tags: {
       placeholder: "Escriba y pulse Intro para añadir…",
     },
+    textarea: {
+      characterCount: "Recuento de caracteres: {{count}} de {{max}}",
+    },
   },
   table: {
     rowsPerPage: "Filas por página",

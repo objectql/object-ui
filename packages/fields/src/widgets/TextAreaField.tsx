@@ -3,6 +3,7 @@ import { Textarea, EmptyValue } from '@object-ui/components';
 import { FullscreenFieldEditor } from './FullscreenFieldEditor';
 import { FieldWidgetComponentProps } from './types';
 import { toDomProps } from './toDomProps';
+import { useFieldTranslation } from './useFieldTranslation';
 
 /**
  * TextAreaField - Multi-line text input widget
@@ -37,6 +38,12 @@ import { toDomProps } from './toDomProps';
  * `FieldWidgetComponentProps`, stop stripping it, and have a host pass it.
  */
 export function TextAreaField({ value, onChange, field, readonly, error, ...props }: FieldWidgetComponentProps<string>) {
+  // Above the `readonly` early return on purpose: a hook may not sit behind a
+  // conditional return. The readonly branch renders no counter, so this is a
+  // no-op there — but moving it down would desync hook order the moment a
+  // field toggles readonly.
+  const { t } = useFieldTranslation();
+
   if (readonly) {
     return (
       <div className="text-sm whitespace-pre-wrap">
@@ -81,7 +88,27 @@ export function TextAreaField({ value, onChange, field, readonly, error, ...prop
         <div
           className="absolute bottom-2 right-2 text-xs text-gray-400"
           aria-live="polite"
-          aria-label={`Character count: ${(value || '').length} of ${maxLength}`}
+          // objectui#3406 — this was the English literal
+          // `Character count: ${n} of ${max}`. The VISIBLE text next to it is
+          // digits and needs no locale, but the accessible name is a sentence,
+          // and this element is `aria-live`, so a non-English session heard an
+          // English sentence read out on every keystroke.
+          //
+          // One interpolated key rather than a per-part assembly: the number
+          // and the cap sit on opposite sides of the noun in ja/ko
+          // (「{{max}}文字中{{count}}文字」), which no code-side concatenation
+          // can express. The English default in `FIELD_DEFAULTS` is
+          // byte-identical to the literal it replaces, so a widget rendered
+          // with no I18nProvider is unchanged.
+          //
+          // Deliberately NOT changed here: `aria-live="polite"` plus a name
+          // recomputed per keystroke. That is a behaviour question (how often
+          // a screen reader should speak), filed separately — this change is
+          // key-ing only, byte-for-byte in English.
+          aria-label={t('fields.textarea.characterCount', {
+            count: (value || '').length,
+            max: maxLength,
+          })}
         >
           {(value || '').length}/{maxLength}
         </div>

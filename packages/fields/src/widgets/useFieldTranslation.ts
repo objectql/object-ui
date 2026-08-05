@@ -78,6 +78,13 @@ const FIELD_DEFAULTS: Record<string, string> = {
   // objectui#3342 — the tags widget's input hint. Used only when the field
   // author declared no `placeholder` of their own (author declaration wins).
   'fields.tags.placeholder': 'Type and press Enter to add…',
+  // objectui#3406 — the accessible name of `TextAreaField`'s character
+  // counter, rendered only when the field declares `maxLength`. The visible
+  // `{n}/{max}` is digits; this sentence is what a screen reader speaks, and
+  // the element is `aria-live`, so before the key existed a non-English
+  // session heard English on every keystroke. Byte-identical to the literal
+  // it replaces, so a no-provider render is unchanged.
+  'fields.textarea.characterCount': 'Character count: {{count}} of {{max}}',
   // objectui#3404 — the shared fullscreen long-text dialog
   // (`FullscreenFieldEditor`, reached from `TextAreaField` and
   // `RichTextField` when `mobile_fullscreen` is set).

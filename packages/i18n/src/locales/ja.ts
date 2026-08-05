@@ -215,6 +215,9 @@ const ja = {
     tags: {
       placeholder: "入力してEnterキーで追加…",
     },
+    textarea: {
+      characterCount: "文字数: {{max}} 文字中 {{count}} 文字",
+    },
   },
   table: {
     rowsPerPage: "1ページの行数",

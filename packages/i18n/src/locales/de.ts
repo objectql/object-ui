@@ -215,6 +215,9 @@ const de = {
     tags: {
       placeholder: "Tippen und mit der Eingabetaste hinzufügen…",
     },
+    textarea: {
+      characterCount: "Zeichenanzahl: {{count}} von {{max}}",
+    },
   },
   table: {
     rowsPerPage: "Zeilen pro Seite",

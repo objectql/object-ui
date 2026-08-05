@@ -215,6 +215,9 @@ const ko = {
     tags: {
       placeholder: "입력 후 Enter 키로 추가…",
     },
+    textarea: {
+      characterCount: "글자 수: {{max}}자 중 {{count}}자",
+    },
   },
   table: {
     rowsPerPage: "페이지당 행 수",
