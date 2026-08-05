@@ -204,13 +204,26 @@ export const InlineCreateRelated: React.FC<InlineCreateRelatedProps> = ({
           <span>
             {activeTab === 'create' ? 'Create' : 'Link'} {objectName}
           </span>
+          {/* Icon-only button, so the name has to be authored (objectui#3411):
+              its only child is a lucide icon, and lucide-react excludes
+              childless, a11y-prop-less icons from the a11y tree, leaving the
+              computed name the empty string. `aria-label` rather than #3381's
+              visually-hidden label because there is no visible copy here for a
+              label to stay in step with — nothing can drift — and it is the
+              shape the repo's own close buttons already use (shadcn's
+              dialog/sheet, DashboardEditor). */}
           <Button
             variant="ghost"
             size="icon"
             className="h-6 w-6"
+            aria-label="Close"
             onClick={() => setIsOpen(false)}
           >
-            <X className="h-3.5 w-3.5" />
+            {/* Decorative: the name is on the button. lucide-react already
+                defaults childless icons to `aria-hidden`, but that is a
+                dependency default — spelling it out keeps the intent local and
+                survives an icon-lib bump. */}
+            <X aria-hidden="true" className="h-3.5 w-3.5" />
           </Button>
         </CardTitle>
       </CardHeader>
