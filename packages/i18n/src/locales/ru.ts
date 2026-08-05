@@ -135,6 +135,13 @@ const ru = {
     createSuccess: "{{object}} создан",
     updateSuccess: "{{object}} обновлён",
     deleteSuccess: "{{object}} удалён",
+    fullscreen: {
+      title: "Изменить текст",
+      description: "Измените полное текстовое значение, затем сохраните или отмените изменения.",
+      done: "Готово",
+      toggle: "Редактировать {{label}} в полноэкранном режиме",
+      toggleUnlabeled: "Редактировать текст в полноэкранном режиме",
+    },
   },
   fields: {
     image: {

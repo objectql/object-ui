@@ -135,6 +135,13 @@ const pt = {
     createSuccess: "{{object}} criado",
     updateSuccess: "{{object}} atualizado",
     deleteSuccess: "{{object}} excluído",
+    fullscreen: {
+      title: "Editar texto",
+      description: "Edite o valor de texto completo e depois salve ou cancele as alterações.",
+      done: "Concluído",
+      toggle: "Editar {{label}} em tela cheia",
+      toggleUnlabeled: "Editar texto em tela cheia",
+    },
   },
   fields: {
     image: {

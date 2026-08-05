@@ -135,6 +135,13 @@ const ar = {
     createSuccess: "تم إنشاء {{object}}",
     updateSuccess: "تم تحديث {{object}}",
     deleteSuccess: "تم حذف {{object}}",
+    fullscreen: {
+      title: "تحرير النص",
+      description: "حرّر قيمة النص الكاملة، ثم احفظ التغييرات أو ألغِها.",
+      done: "تم",
+      toggle: "تحرير {{label}} بملء الشاشة",
+      toggleUnlabeled: "تحرير النص بملء الشاشة",
+    },
   },
   fields: {
     image: {

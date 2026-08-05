@@ -135,6 +135,13 @@ const ko = {
     createSuccess: "{{object}} 생성됨",
     updateSuccess: "{{object}} 업데이트됨",
     deleteSuccess: "{{object}} 삭제됨",
+    fullscreen: {
+      title: "텍스트 편집",
+      description: "전체 텍스트 값을 편집한 다음 변경 사항을 저장하거나 취소하세요.",
+      done: "완료",
+      toggle: "{{label}} 전체 화면으로 편집",
+      toggleUnlabeled: "텍스트 전체 화면으로 편집",
+    },
   },
   fields: {
     image: {

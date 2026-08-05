@@ -140,6 +140,13 @@ const zh = {
     createSuccess: '{{object}}创建成功',
     updateSuccess: '{{object}}更新成功',
     deleteSuccess: '{{object}}删除成功',
+    fullscreen: {
+      title: '编辑文本',
+      description: '编辑完整的文本内容，然后保存或取消更改。',
+      done: '完成',
+      toggle: '全屏编辑{{label}}',
+      toggleUnlabeled: '全屏编辑文本',
+    },
   },
   fields: {
     relativeDate: {

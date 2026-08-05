@@ -135,6 +135,13 @@ const ja = {
     createSuccess: "{{object}}が作成されました",
     updateSuccess: "{{object}}が更新されました",
     deleteSuccess: "{{object}}が削除されました",
+    fullscreen: {
+      title: "テキストを編集",
+      description: "テキスト全体を編集してから、変更を保存またはキャンセルしてください。",
+      done: "完了",
+      toggle: "{{label}}を全画面で編集",
+      toggleUnlabeled: "テキストを全画面で編集",
+    },
   },
   fields: {
     image: {

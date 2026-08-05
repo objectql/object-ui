@@ -110,6 +110,28 @@ const panePercent = (size: number | undefined): string | undefined =>
 const useSafeFormTranslation = createSafeTranslation(
   {
     'common.selectOption': 'Select an option',
+    // objectui#3272 — the action bar's button copy when the schema authored no
+    // `submitLabel` / `cancelLabel`. Deliberately the SHARED `common.*` keys
+    // rather than new `form.*` twins: "Submit" and "Cancel" are the same words
+    // the rest of the console already ships in ten packs, and a second copy of
+    // a one-word string is exactly the drift #3231/#3263 had to undo. The
+    // defaults here are byte-identical to the English literals they replaced,
+    // so a form with no I18nProvider renders what it always did.
+    'common.submit': 'Submit',
+    'common.cancel': 'Cancel',
+    // objectui#3272 — the fullscreen long-text editor (`mobile_fullscreen`).
+    // A whole dialog, not a word: title, its sr-only description, the footer's
+    // confirm button, and the trigger's accessible name. `Cancel` in the footer
+    // reuses `common.cancel` above for the same reason.
+    'form.fullscreen.title': 'Edit text',
+    'form.fullscreen.description': 'Edit the full text value, then save or cancel your changes.',
+    'form.fullscreen.done': 'Done',
+    // Two keys rather than one with a defaulted `{{label}}`: an interpolation
+    // that falls back to an untranslated English noun ("text") would leak that
+    // noun into every other language's sentence. The unlabeled case is its own
+    // sentence so each pack can word it naturally.
+    'form.fullscreen.toggle': 'Edit {{label}} fullscreen',
+    'form.fullscreen.toggleUnlabeled': 'Edit text fullscreen',
     // objectui#3231 — the dependency-gate sentence (#2284). Shared with the
     // option widgets' own fallback so both sides render one wording.
     'fields.options.selectFirst': 'Select {{fields}} first',
@@ -342,6 +364,10 @@ function FullscreenTextarea({
   label?: string;
   [key: string]: any;
 }) {
+  // A real component (rendered as `<FullscreenTextarea />`), so the hook runs
+  // unconditionally — unlike `renderFieldComponent`, the plain helper below
+  // that had to grow `BuiltinSelectEmptyState` to own its own hook (#3263).
+  const { t } = useSafeFormTranslation();
   const [open, setOpen] = React.useState(false);
   const [draft, setDraft] = React.useState(value ?? '');
   const safeOnChange = (v: string) => onChange && onChange(v);
@@ -360,7 +386,11 @@ function FullscreenTextarea({
         type="button"
         onClick={openDialog}
         className="absolute top-1.5 right-1.5 inline-flex items-center justify-center size-7 rounded-md bg-background/80 text-muted-foreground hover:text-foreground hover:bg-background border shadow-sm"
-        aria-label={`Edit ${label ?? 'text'} fullscreen`}
+        aria-label={
+          label
+            ? t('form.fullscreen.toggle', { label })
+            : t('form.fullscreen.toggleUnlabeled')
+        }
         data-testid="form-textarea-fullscreen-toggle"
       >
         <Maximize2 className="size-3.5" />
@@ -371,9 +401,9 @@ function FullscreenTextarea({
           data-testid="form-textarea-fullscreen-dialog"
         >
           <DialogHeader className="p-4 border-b">
-            <DialogTitle className="text-base">{label ?? 'Edit text'}</DialogTitle>
+            <DialogTitle className="text-base">{label ?? t('form.fullscreen.title')}</DialogTitle>
             <DialogDescription className="sr-only">
-              Edit the full text value, then save or cancel your changes.
+              {t('form.fullscreen.description')}
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 min-h-0 p-4">
@@ -388,10 +418,10 @@ function FullscreenTextarea({
           </div>
           <DialogFooter className="p-3 border-t flex-row justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-              <X className="size-4 mr-1" /> Cancel
+              <X className="size-4 mr-1" /> {t('common.cancel')}
             </Button>
             <Button type="button" onClick={commit} data-testid="form-textarea-fullscreen-save">
-              <Check className="size-4 mr-1" /> Done
+              <Check className="size-4 mr-1" /> {t('form.fullscreen.done')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -407,8 +437,16 @@ ComponentRegistry.register('form',
     const {
       defaultValues: authoredDefaultValues = {},
       fields: rawFields = [],
-      submitLabel = 'Submit',
-      cancelLabel = 'Cancel',
+      // No English default here — objectui#3272. A literal default made the
+      // absence of an authored label indistinguishable from an author who
+      // typed "Submit", and froze every un-labelled form's buttons to English
+      // in a zh/ja/ar session. The default is now the ABSENCE of a value, and
+      // the fallback happens at render through `t()` (see the action bar
+      // below), so `submitLabel?: string` staying optional in the spec means
+      // exactly what it says: unset = "whatever this session's language calls
+      // it". An authored value still wins verbatim, including `''`.
+      submitLabel,
+      cancelLabel,
       showCancel = false,
       showSubmit = true,
       layout = 'vertical',
@@ -1719,7 +1757,10 @@ ComponentRegistry.register('form',
                   disabled={isSubmitting || disabled}
                   className="w-full sm:w-auto"
                 >
-                  {cancelLabel}
+                  {/* `??`, not `||`: an authored `cancelLabel: ''` is an
+                      explicit choice (an icon-only / deliberately blank
+                      button), not "unset". Only null/undefined falls back. */}
+                  {cancelLabel ?? t('common.cancel')}
                 </Button>
               )}
               {showSubmit && (
@@ -1729,7 +1770,7 @@ ComponentRegistry.register('form',
                 className="w-full sm:w-auto"
               >
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {submitLabel}
+                {submitLabel ?? t('common.submit')}
               </Button>
               )}
             </div>
@@ -2044,7 +2085,13 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
           {...selectProps}
         >
           <SelectTrigger className="min-h-[44px] sm:min-h-0">
-            <SelectValue placeholder={placeholder || 'Select an option'} />
+            {/* No `|| 'Select an option'` — objectui#3272. The single call site
+                already supplies `t('common.selectOption')` for `select`, so the
+                literal was all but unreachable; the ONE stack that did reach it
+                was an authored `placeholder: ''` (the call site's `??` keeps an
+                empty string), where a second fallback overrode the author's
+                explicit blank with an untranslated English word. */}
+            <SelectValue placeholder={placeholder} />
           </SelectTrigger>
           <SelectContent>
             {options.map((opt: SelectOption) => (

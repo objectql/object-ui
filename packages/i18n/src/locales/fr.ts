@@ -135,6 +135,13 @@ const fr = {
     createSuccess: "{{object}} créé",
     updateSuccess: "{{object}} mis à jour",
     deleteSuccess: "{{object}} supprimé",
+    fullscreen: {
+      title: "Modifier le texte",
+      description: "Modifiez la valeur texte complète, puis enregistrez ou annulez vos modifications.",
+      done: "Terminé",
+      toggle: "Modifier {{label}} en plein écran",
+      toggleUnlabeled: "Modifier le texte en plein écran",
+    },
   },
   fields: {
     image: {

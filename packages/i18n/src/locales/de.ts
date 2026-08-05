@@ -135,6 +135,13 @@ const de = {
     createSuccess: "{{object}} erfolgreich erstellt",
     updateSuccess: "{{object}} erfolgreich aktualisiert",
     deleteSuccess: "{{object}} erfolgreich gelöscht",
+    fullscreen: {
+      title: "Text bearbeiten",
+      description: "Bearbeiten Sie den vollständigen Textwert und speichern oder verwerfen Sie dann Ihre Änderungen.",
+      done: "Fertig",
+      toggle: "{{label}} im Vollbild bearbeiten",
+      toggleUnlabeled: "Text im Vollbild bearbeiten",
+    },
   },
   fields: {
     image: {

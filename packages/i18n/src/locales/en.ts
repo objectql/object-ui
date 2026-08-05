@@ -146,6 +146,13 @@ const en = {
     createSuccess: '{{object}} created successfully',
     updateSuccess: '{{object}} updated successfully',
     deleteSuccess: '{{object}} deleted successfully',
+    fullscreen: {
+      title: 'Edit text',
+      description: 'Edit the full text value, then save or cancel your changes.',
+      done: 'Done',
+      toggle: 'Edit {{label}} fullscreen',
+      toggleUnlabeled: 'Edit text fullscreen',
+    },
   },
   fields: {
     relativeDate: {
