@@ -128,5 +128,5 @@ migrate a single object to page mode:
 ## See also
 
 - [`@object-ui/app-shell` README](https://www.objectui.org/docs/layout/app-shell)
-- [`ObjectForm` API](../plugins/plugin-form.md)
+- [`ObjectForm` API](../plugins/plugin-form.mdx)
 - [Schema rendering](./schema-rendering.md)

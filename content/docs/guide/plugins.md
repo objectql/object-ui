@@ -20,7 +20,7 @@ Object UI provides 14+ official plugins for common use cases:
 
 ### Data Visualization & Dashboards
 
-#### [@object-ui/plugin-charts](../plugins/plugin-charts.md)
+#### [@object-ui/plugin-charts](../plugins/plugin-charts.mdx)
 
 Data visualization components powered by Recharts.
 
@@ -29,11 +29,11 @@ Data visualization components powered by Recharts.
 - Customizable colors
 - Lazy-loaded (~80 KB)
 
-[Read full documentation →](../plugins/plugin-charts.md)
+[Read full documentation →](../plugins/plugin-charts.mdx)
 
 ---
 
-#### [@object-ui/plugin-dashboard](../plugins/plugin-dashboard.md)
+#### [@object-ui/plugin-dashboard](../plugins/plugin-dashboard.mdx)
 
 Dashboard layouts with metric cards and widgets.
 
@@ -42,11 +42,11 @@ Dashboard layouts with metric cards and widgets.
 - Widget system
 - Lazy-loaded (~22 KB)
 
-[Read full documentation →](../plugins/plugin-dashboard.md)
+[Read full documentation →](../plugins/plugin-dashboard.mdx)
 
 ---
 
-#### [@object-ui/plugin-timeline](../plugins/plugin-timeline.md)
+#### [@object-ui/plugin-timeline](../plugins/plugin-timeline.mdx)
 
 Timeline component with multiple layout variants.
 
@@ -55,11 +55,11 @@ Timeline component with multiple layout variants.
 - Date formatting
 - Lazy-loaded (~20 KB)
 
-[Read full documentation →](../plugins/plugin-timeline.md)
+[Read full documentation →](../plugins/plugin-timeline.mdx)
 
 ---
 
-#### [@object-ui/plugin-gantt](../plugins/plugin-gantt.md)
+#### [@object-ui/plugin-gantt](../plugins/plugin-gantt.mdx)
 
 Gantt chart for project visualization.
 
@@ -68,11 +68,11 @@ Gantt chart for project visualization.
 - ObjectQL integration
 - Lazy-loaded (~40 KB)
 
-[Read full documentation →](../plugins/plugin-gantt.md)
+[Read full documentation →](../plugins/plugin-gantt.mdx)
 
 ---
 
-#### [@object-ui/plugin-calendar](../plugins/plugin-calendar.md)
+#### [@object-ui/plugin-calendar](../plugins/plugin-calendar.mdx)
 
 Calendar visualization for events.
 
@@ -81,11 +81,11 @@ Calendar visualization for events.
 - ObjectQL integration
 - Lazy-loaded (~25 KB)
 
-[Read full documentation →](../plugins/plugin-calendar.md)
+[Read full documentation →](../plugins/plugin-calendar.mdx)
 
 ---
 
-#### [@object-ui/plugin-map](../plugins/plugin-map.md)
+#### [@object-ui/plugin-map](../plugins/plugin-map.mdx)
 
 Map visualization with markers.
 
@@ -94,13 +94,13 @@ Map visualization with markers.
 - ObjectQL integration
 - Lazy-loaded (~60 KB)
 
-[Read full documentation →](../plugins/plugin-map.md)
+[Read full documentation →](../plugins/plugin-map.mdx)
 
 ---
 
 ### Data Management
 
-#### [@object-ui/plugin-grid](../plugins/plugin-grid.md)
+#### [@object-ui/plugin-grid](../plugins/plugin-grid.mdx)
 
 Advanced data grid with sorting, filtering, and pagination.
 
@@ -109,11 +109,11 @@ Advanced data grid with sorting, filtering, and pagination.
 - Row selection
 - Lazy-loaded (~45 KB)
 
-[Read full documentation →](../plugins/plugin-grid.md)
+[Read full documentation →](../plugins/plugin-grid.mdx)
 
 ---
 
-#### [@object-ui/plugin-form](../plugins/plugin-form.md)
+#### [@object-ui/plugin-form](../plugins/plugin-form.mdx)
 
 Advanced form builder with validation.
 
@@ -122,11 +122,11 @@ Advanced form builder with validation.
 - Custom field types
 - Lazy-loaded (~28 KB)
 
-[Read full documentation →](../plugins/plugin-form.md)
+[Read full documentation →](../plugins/plugin-form.mdx)
 
 ---
 
-#### [@object-ui/plugin-view](../plugins/plugin-view.md)
+#### [@object-ui/plugin-view](../plugins/plugin-view.mdx)
 
 ObjectQL-integrated views for automatic CRUD.
 
@@ -135,13 +135,13 @@ ObjectQL-integrated views for automatic CRUD.
 - Field mapping
 - Lazy-loaded (~35 KB)
 
-[Read full documentation →](../plugins/plugin-view.md)
+[Read full documentation →](../plugins/plugin-view.mdx)
 
 ---
 
 ### Content & Editing
 
-#### [@object-ui/plugin-editor](../plugins/plugin-editor.md)
+#### [@object-ui/plugin-editor](../plugins/plugin-editor.mdx)
 
 Code editor component powered by Monaco Editor.
 
@@ -150,11 +150,11 @@ Code editor component powered by Monaco Editor.
 - Multiple themes
 - Lazy-loaded (~120 KB)
 
-[Read full documentation →](../plugins/plugin-editor.md)
+[Read full documentation →](../plugins/plugin-editor.mdx)
 
 ---
 
-#### [@object-ui/plugin-markdown](../plugins/plugin-markdown.md)
+#### [@object-ui/plugin-markdown](../plugins/plugin-markdown.mdx)
 
 Markdown renderer with GitHub Flavored Markdown support.
 
@@ -163,11 +163,11 @@ Markdown renderer with GitHub Flavored Markdown support.
 - Code syntax highlighting
 - Lazy-loaded (~30 KB)
 
-[Read full documentation →](../plugins/plugin-markdown.md)
+[Read full documentation →](../plugins/plugin-markdown.mdx)
 
 ---
 
-#### [@object-ui/plugin-chatbot](../plugins/plugin-chatbot.md)
+#### [@object-ui/plugin-chatbot](../plugins/plugin-chatbot.mdx)
 
 Chat interface component.
 
@@ -178,13 +178,13 @@ Chat interface component.
 - Inline responding, stop, and retry states
 - Lazy-loaded (~35 KB)
 
-[Read full documentation →](../plugins/plugin-chatbot.md)
+[Read full documentation →](../plugins/plugin-chatbot.mdx)
 
 ---
 
 ### Workflows & Tasks
 
-#### [@object-ui/plugin-kanban](../plugins/plugin-kanban.md)
+#### [@object-ui/plugin-kanban](../plugins/plugin-kanban.mdx)
 
 Kanban board component with drag-and-drop powered by @dnd-kit.
 
@@ -193,7 +193,7 @@ Kanban board component with drag-and-drop powered by @dnd-kit.
 - Card badges for status/priority
 - Lazy-loaded (~100 KB)
 
-[Read full documentation →](../plugins/plugin-kanban.md)
+[Read full documentation →](../plugins/plugin-kanban.mdx)
 
 ---
 
@@ -512,7 +512,6 @@ export function registerComponents() {
 
 - [Component Registry](./component-registry.md) - Understanding the registry
 - [Schema Rendering](./schema-rendering.md) - How schemas become UI
-- [Lazy-Loaded Plugins Architecture](./lazy-loading.md) - Deep dive
 - [Creating Components](/spec/component-package.md) - Component development
 - **[Create Plugin Utility](/docs/utilities/create-plugin)** - Scaffold new plugins quickly
 - **[CLI Tool](/docs/utilities/cli)** - Test plugins with the CLI
