@@ -41,8 +41,8 @@
  * `FullscreenFieldEditor.no-provider.test.tsx` and
  * `TagsField.placeholder.no-provider.test.tsx`.
  */
-import { describe, it, expect, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 
 import { TextAreaField } from '../TextAreaField';
@@ -51,10 +51,24 @@ import type { FieldMetadata } from '@object-ui/types';
 const textareaField = (extra: Record<string, unknown> = {}) =>
   ({ name: 'notes', type: 'textarea', ...extra }) as unknown as FieldMetadata;
 
-const counter = () => document.querySelector('[aria-live="polite"]');
-const counterLabel = () => counter()?.getAttribute('aria-label');
+const visibleCounter = () => document.querySelector('[data-testid="textarea-character-count"]');
+const statusRegion = () => document.querySelector('[aria-live="polite"]');
+
+/**
+ * objectui#3408 moved the sentence off the live region's `aria-label` and onto
+ * the textarea's accessible DESCRIPTION. Resolved here the way an assistive
+ * technology resolves it — follow `aria-describedby` — so the association is
+ * under assertion alongside the copy.
+ */
+const counterLabel = () => {
+  const box = screen.getByRole('textbox');
+  const ids = (box.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+  return ids.map((id) => document.getElementById(id)?.textContent ?? '').join(' ').trim();
+};
 
 describe('character counter — English fallback survives with no i18n configured (objectui#3406)', () => {
+  afterEach(() => vi.useRealTimers());
+
   it('renders the English default, not a raw key', () => {
     render(
       <TextAreaField value="hello" onChange={vi.fn()} field={textareaField({ maxLength: 200 })} />,
@@ -93,15 +107,43 @@ describe('character counter — English fallback survives with no i18n configure
     expect(counterLabel()).toBe('Character count: 0 of 40');
   });
 
-  it('keeps the live region — the attribute is why this string is spoken', () => {
-    // This change is key-ing only. `aria-live="polite"` and the per-keystroke
-    // recompute are a BEHAVIOUR question, filed separately and deliberately
-    // untouched here; pin the attribute so "fixing" it silently is a red.
+  it('keeps a live region, now SEPARATE from the visible digits', () => {
+    // objectui#3406 pinned `aria-live="polite"` on the counter itself and said
+    // so explicitly: the per-keystroke re-announce was a behaviour question,
+    // filed separately, deliberately untouched. objectui#3408 is that filing,
+    // and this pin is updated in the direction it decided — the live region
+    // still exists (that attribute is why anything is ever spoken) but it is a
+    // visually-hidden node of its own, and the digits it used to share an
+    // element with are now `aria-hidden`.
     render(
       <TextAreaField value="hello" onChange={vi.fn()} field={textareaField({ maxLength: 200 })} />,
     );
 
-    expect(counter()).toHaveAttribute('aria-live', 'polite');
+    expect(statusRegion()).toHaveAttribute('aria-live', 'polite');
+    expect(statusRegion()).not.toBe(visibleCounter());
+    expect(visibleCounter()).toHaveAttribute('aria-hidden', 'true');
+    expect(visibleCounter()).not.toHaveAttribute('aria-live');
+  });
+
+  it('renders the English near-limit warning too, not a raw key', () => {
+    // The second half of the fallback contract: `charactersRemaining` is the
+    // only sentence the widget still speaks while typing, so a key leaking
+    // here is the same invisible failure — heard by exactly the users who
+    // cannot see that it is a key. 190 of 200 is inside the warning band; the
+    // 1s pause is what releases it.
+    vi.useFakeTimers();
+    render(
+      <TextAreaField
+        value={'x'.repeat(190)}
+        onChange={vi.fn()}
+        field={textareaField({ maxLength: 200 })}
+      />,
+    );
+    act(() => { vi.advanceTimersByTime(1000); });
+
+    expect(statusRegion()).toHaveTextContent('Characters remaining: 10');
+    expect(statusRegion()!.textContent).not.toMatch(/fields\.textarea/);
+    expect(statusRegion()!.textContent).not.toContain('{{');
   });
 
   it('the code-shipped default carries no CJK (Commandment #-1)', () => {

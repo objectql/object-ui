@@ -222,6 +222,7 @@ const zh = {
     },
     textarea: {
       characterCount: '已输入 {{count}} 个字符，最多 {{max}} 个',
+      charactersRemaining: '还可输入 {{count}} 个字符',
     },
   },
   table: {

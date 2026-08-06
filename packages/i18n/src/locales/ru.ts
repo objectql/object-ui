@@ -217,6 +217,7 @@ const ru = {
     },
     textarea: {
       characterCount: "Количество символов: {{count}} из {{max}}",
+      charactersRemaining: "Осталось символов: {{count}}",
     },
   },
   table: {

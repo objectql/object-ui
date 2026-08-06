@@ -50,10 +50,26 @@
  * - **Recompute-on-input.** The name is derived per render. Pinned so a future
  *   memo cannot freeze it at the mount-time length while the visible digits
  *   move on.
+ *
+ * ## objectui#3408 — same key, different place, plus a sibling
+ *
+ * The sentence is no longer an `aria-live` region's `aria-label`. It is the
+ * textarea's accessible DESCRIPTION (`aria-describedby`), read once on focus
+ * instead of re-announced on every keystroke, and the cases above resolve it
+ * through that association. The expected strings did not change: the ten packs
+ * still serve them, and this file still guards the same drift (backfilled
+ * English, a code-assembled sentence that cannot reproduce ja's word order, a
+ * raw key surfacing where plural lookup fails).
+ *
+ * `fields.textarea.charactersRemaining` is the sibling #3408 added — the only
+ * thing the widget still SPEAKS while typing, and therefore the one the
+ * English-backfill risk now applies to. Its cases sit at the bottom, with fake
+ * timers, because reaching it requires crossing the near-limit threshold and
+ * then pausing.
  */
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { I18nProvider } from '@object-ui/i18n';
 
@@ -72,14 +88,29 @@ function renderIn(language: string, element: React.ReactElement) {
 }
 
 /**
- * The counter is queried by its live-region role rather than by its own text:
- * the wrapper `div` has the same `textContent` as the counter (the textarea
- * contributes none), so a text query matches two nodes. Reading the element
- * this way also keeps `aria-live` itself under assertion — the attribute is
- * the reason this string is spoken at all.
+ * Where the sentence lives moved in objectui#3408: it was the `aria-label` of
+ * the visible counter, which was ALSO the `aria-live` region — so the whole
+ * sentence was re-announced on every keystroke. It is now the textarea's
+ * accessible DESCRIPTION, read once when focus lands.
+ *
+ * These helpers therefore resolve it the way an assistive technology does —
+ * follow `aria-describedby`, concatenate the referenced nodes — instead of
+ * reading an attribute off a node found by selector. That keeps the
+ * ASSOCIATION under assertion here too, and it is why the cases below did not
+ * need their expected strings changed: the same ten-pack key still produces
+ * them, in a place a screen reader reaches without typing.
+ *
+ * The digits stay queryable separately (`visibleCounter`) because several
+ * cases assert that the visible half is unchanged. The behaviour half of
+ * #3408 — how often the live region speaks — is pinned in
+ * `TextAreaField.characterCount.announcements.test.tsx`.
  */
-const counter = () => document.querySelector('[aria-live="polite"]');
-const counterLabel = () => counter()?.getAttribute('aria-label');
+const visibleCounter = () => document.querySelector('[data-testid="textarea-character-count"]');
+const describedText = () => {
+  const box = screen.getByRole('textbox');
+  const ids = (box.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+  return ids.map((id) => document.getElementById(id)?.textContent ?? '').join(' ').trim();
+};
 
 describe('TextAreaField character counter is translated (objectui#3406)', () => {
   it('renders the English sentence under an en provider', () => {
@@ -89,8 +120,8 @@ describe('TextAreaField character counter is translated (objectui#3406)', () => 
     );
 
     // Byte-identical to the literal this replaced, so `en` is a no-op change.
-    expect(counterLabel()).toBe('Character count: 5 of 200');
-    expect(counter()).toHaveTextContent('5/200');
+    expect(describedText()).toBe('Character count: 5 of 200');
+    expect(visibleCounter()).toHaveTextContent('5/200');
   });
 
   it('renders the sentence in Chinese under a zh provider', () => {
@@ -99,12 +130,12 @@ describe('TextAreaField character counter is translated (objectui#3406)', () => 
       <TextAreaField value="hello" onChange={vi.fn()} field={textareaField({ maxLength: 200 })} />,
     );
 
-    expect(counterLabel()).toBe('已输入 5 个字符，最多 200 个');
+    expect(describedText()).toBe('已输入 5 个字符，最多 200 个');
     // The literal, asserted absent — a re-inlined one would still satisfy a
     // positive-only check on a sibling case.
-    expect(counterLabel()).not.toMatch(/character count/i);
+    expect(describedText()).not.toMatch(/character count/i);
     // The digits stay language-independent; only the accessible name moved.
-    expect(counter()).toHaveTextContent('5/200');
+    expect(visibleCounter()).toHaveTextContent('5/200');
   });
 
   it('renders the sentence in Japanese, with the cap interpolated BEFORE the count', () => {
@@ -115,9 +146,9 @@ describe('TextAreaField character counter is translated (objectui#3406)', () => 
 
     // `{{max}}` precedes `{{count}}` in this pack. Code-side concatenation
     // cannot produce this order — that is the point of the assertion.
-    expect(counterLabel()).toBe('文字数: 200 文字中 5 文字');
-    expect(counterLabel()!.indexOf('200')).toBeLessThan(counterLabel()!.indexOf('5'));
-    expect(counterLabel()).not.toMatch(/character count/i);
+    expect(describedText()).toBe('文字数: 200 文字中 5 文字');
+    expect(describedText()!.indexOf('200')).toBeLessThan(describedText()!.indexOf('5'));
+    expect(describedText()).not.toMatch(/character count/i);
   });
 
   it('resolves the base key under ru, whose plural rules i18next consults first', () => {
@@ -126,10 +157,10 @@ describe('TextAreaField character counter is translated (objectui#3406)', () => 
       <TextAreaField value="hello" onChange={vi.fn()} field={textareaField({ maxLength: 200 })} />,
     );
 
-    expect(counterLabel()).toBe('Количество символов: 5 из 200');
+    expect(describedText()).toBe('Количество символов: 5 из 200');
     // The failure this guards: plural lookup missing and no base-key fallback
     // would surface the raw key instead of a sentence.
-    expect(counterLabel()).not.toContain('fields.textarea');
+    expect(describedText()).not.toContain('fields.textarea');
   });
 
   it('resolves the base key under ar as well', () => {
@@ -138,8 +169,8 @@ describe('TextAreaField character counter is translated (objectui#3406)', () => 
       <TextAreaField value="hello" onChange={vi.fn()} field={textareaField({ maxLength: 200 })} />,
     );
 
-    expect(counterLabel()).toBe('عدد الأحرف: 5 من 200');
-    expect(counterLabel()).not.toContain('fields.textarea');
+    expect(describedText()).toBe('عدد الأحرف: 5 من 200');
+    expect(describedText()).not.toContain('fields.textarea');
   });
 
   it('recomputes the spoken count as the user types', () => {
@@ -150,12 +181,12 @@ describe('TextAreaField character counter is translated (objectui#3406)', () => 
       return <TextAreaField value={v} onChange={setV} field={textareaField({ maxLength: 200 })} />;
     };
     renderIn('zh', <Host />);
-    expect(counterLabel()).toBe('已输入 5 个字符，最多 200 个');
+    expect(describedText()).toBe('已输入 5 个字符，最多 200 个');
 
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'hello world' } });
 
-    expect(counterLabel()).toBe('已输入 11 个字符，最多 200 个');
-    expect(counter()).toHaveTextContent('11/200');
+    expect(describedText()).toBe('已输入 11 个字符，最多 200 个');
+    expect(visibleCounter()).toHaveTextContent('11/200');
   });
 
   it('keeps reading the legacy snake_case max_length spelling', () => {
@@ -166,7 +197,7 @@ describe('TextAreaField character counter is translated (objectui#3406)', () => 
       <TextAreaField value="hello" onChange={vi.fn()} field={textareaField({ max_length: 80 })} />,
     );
 
-    expect(counterLabel()).toBe('已输入 5 个字符，最多 80 个');
+    expect(describedText()).toBe('已输入 5 个字符，最多 80 个');
   });
 
   it('renders no counter at all when the field declares no maxLength', () => {
@@ -175,7 +206,7 @@ describe('TextAreaField character counter is translated (objectui#3406)', () => 
     // keystroke in every long-text field in the app.
     renderIn('zh', <TextAreaField value="hello" onChange={vi.fn()} field={textareaField()} />);
 
-    expect(counter()).toBeNull();
+    expect(visibleCounter()).toBeNull();
   });
 
   it('renders no counter in the readonly branch', () => {
@@ -192,8 +223,60 @@ describe('TextAreaField character counter is translated (objectui#3406)', () => 
       />,
     );
 
-    expect(counter()).toBeNull();
+    expect(visibleCounter()).toBeNull();
     expect(screen.getByText('hello')).toBeInTheDocument();
+  });
+});
+
+/**
+ * The near-limit warning — the sentence that IS spoken mid-typing
+ * (objectui#3408). Reaching it needs the value inside the last 10% / 20
+ * characters of the cap AND a pause, so these render already-near-full values
+ * and advance fake timers rather than typing 490 characters.
+ */
+describe('TextAreaField near-limit warning is translated (objectui#3408)', () => {
+  afterEach(() => vi.useRealTimers());
+
+  // Scoped to its own container and unmounted before returning: some cases
+  // call this twice, and a document-wide query would read the FIRST mount's
+  // region — green for the previous language, not the one under test.
+  const nearLimit = (language: string) => {
+    vi.useFakeTimers();
+    const { container, unmount } = renderIn(
+      language,
+      <TextAreaField value={'x'.repeat(190)} onChange={vi.fn()} field={textareaField({ maxLength: 200 })} />,
+    );
+    act(() => { vi.advanceTimersByTime(1000); });
+    const spoken = container.querySelector('[aria-live="polite"]')?.textContent ?? '';
+    unmount();
+    vi.useRealTimers();
+    return spoken;
+  };
+
+  it('renders the English sentence under an en provider', () => {
+    expect(nearLimit('en')).toBe('Characters remaining: 10');
+  });
+
+  it('renders the sentence in Chinese under a zh provider', () => {
+    expect(nearLimit('zh')).toBe('还可输入 10 个字符');
+    // A backfilled English string is invisible at runtime — the whole defect
+    // class is English reaching a non-English screen reader.
+    expect(nearLimit('zh')).not.toMatch(/characters remaining/i);
+  });
+
+  it('renders the sentence in Japanese', () => {
+    expect(nearLimit('ja')).toBe('残り 10 文字');
+  });
+
+  it('resolves the base key under ru and ar, whose plural rules i18next consults first', () => {
+    // Same mechanism as `characterCount` above: `count` sends i18next to
+    // `key_one` / `key_few` / … before the base key, and these packs declare
+    // the base key only. A raw key reaching a screen-reader-only string is
+    // invisible to everyone who could report it.
+    expect(nearLimit('ru')).toBe('Осталось символов: 10');
+    expect(nearLimit('ar')).toBe('الأحرف المتبقية: 10');
+    expect(nearLimit('ru')).not.toContain('fields.textarea');
+    expect(nearLimit('ar')).not.toContain('fields.textarea');
   });
 });
 

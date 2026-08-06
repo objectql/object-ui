@@ -17,6 +17,10 @@
  *     at once, which is exactly the moment a copy-paste backfill is cheapest —
  *     and a copied English string is invisible at runtime, because the whole
  *     defect being fixed is English reaching a non-English screen reader.
+ *
+ * A second block below covers `fields.textarea.charactersRemaining`
+ * (objectui#3408) — the same widget's near-limit warning, born in all ten packs
+ * the same way, with one extra guard the sibling does not need.
  */
 import { describe, it, expect } from 'vitest';
 import { builtInLocales } from '../locales';
@@ -25,6 +29,9 @@ const LANGS = Object.keys(builtInLocales);
 
 const characterCountOf = (lang: string) =>
   (builtInLocales[lang] as any)?.fields?.textarea?.characterCount as string | undefined;
+
+const charactersRemainingOf = (lang: string) =>
+  (builtInLocales[lang] as any)?.fields?.textarea?.charactersRemaining as string | undefined;
 
 describe('fields.textarea.characterCount locale coverage (objectui#3406)', () => {
   it('covers all ten built-in packs', () => {
@@ -62,6 +69,68 @@ describe('fields.textarea.characterCount locale coverage (objectui#3406)', () =>
     // it while satisfying every parity guard in the repo.
     const untranslated = LANGS.filter(
       (l) => l !== 'en' && characterCountOf(l)!.includes('Character count'),
+    );
+    expect(untranslated).toEqual([]);
+  });
+});
+
+/**
+ * `fields.textarea.charactersRemaining` — the near-limit warning
+ * (objectui#3408).
+ *
+ * Same three guards, and one more that only applies to this key. #3406's
+ * sentence is now a DESCRIPTION a screen reader reads on focus;
+ * `charactersRemaining` is the only textarea copy still SPOKEN mid-typing, so
+ * an English backfill here is heard by exactly the users who cannot see that
+ * it is English.
+ */
+describe('fields.textarea.charactersRemaining locale coverage (objectui#3408)', () => {
+  it.each(LANGS)('%s defines the near-limit sentence as a non-empty string', (lang) => {
+    const value = charactersRemainingOf(lang);
+    expect(typeof value, `${lang} has no fields.textarea.charactersRemaining`).toBe('string');
+    expect(
+      value!.trim().length,
+      `${lang}.fields.textarea.charactersRemaining is empty`,
+    ).toBeGreaterThan(0);
+  });
+
+  it.each(LANGS)('%s interpolates the remaining count and NOT the cap', (lang) => {
+    const value = charactersRemainingOf(lang)!;
+    expect(value, `${lang} drops {{count}}`).toContain('{{count}}');
+    // The cap belongs to the description, which is read on focus. Repeating it
+    // here would make the one interruption the design still permits longer
+    // than it needs to be — the opposite of what #3408 is for.
+    expect(value, `${lang} re-states {{max}} in the warning`).not.toContain('{{max}}');
+  });
+
+  it.each(LANGS)('%s stays grammatical at a count of 1 without plural forms', (lang) => {
+    // `count` sends i18next to plural lookup (`_one` / `_few` / …) BEFORE the
+    // base key, and no pack declares those forms — the base key is what
+    // resolves, for every count. So the sentence may not contain a noun whose
+    // form bends on the number in a way "1" would break. Mechanically: the
+    // packs are written so `{{count}}` sits at an edge or after a colon,
+    // never mid-clause in a way English/ru/de plural agreement would spoil.
+    // The check that survives translation is the negative one — nobody smuggled
+    // in the plural-suffixed KEY, which would silently resolve to nothing.
+    const value = charactersRemainingOf(lang)!;
+    expect(value).not.toContain('_one');
+    expect(value).not.toContain('_other');
+    const pack = (builtInLocales[lang] as any)?.fields?.textarea ?? {};
+    expect(Object.keys(pack).filter((k) => k.startsWith('charactersRemaining_'))).toEqual([]);
+  });
+
+  it('the English pack matches the code default in `packages/fields`', () => {
+    // `packages/i18n` cannot import `packages/fields` (the dependency runs the
+    // other way), so this literal and `FIELD_DEFAULTS
+    // ['fields.textarea.charactersRemaining']` are pinned to each other by
+    // being spelled out in both places. The fields-side half is in
+    // `TextAreaField.characterCount.no-provider.test.tsx`.
+    expect(charactersRemainingOf('en')).toBe('Characters remaining: {{count}}');
+  });
+
+  it('no other pack serves the English sentence verbatim', () => {
+    const untranslated = LANGS.filter(
+      (l) => l !== 'en' && charactersRemainingOf(l)!.includes('Characters remaining'),
     );
     expect(untranslated).toEqual([]);
   });

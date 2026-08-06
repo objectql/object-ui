@@ -232,15 +232,26 @@ const en = {
     tags: {
       placeholder: 'Type and press Enter to add…',
     },
-    // objectui#3406 — the accessible name of the textarea character counter,
-    // rendered only when the field declares `maxLength`. The visible text is
-    // `{count}/{max}` digits and needs no locale; this sentence is what a
-    // screen reader speaks off an `aria-live` region. ONE interpolated key
+    // objectui#3406 — the accessible sentence of the textarea character
+    // counter, rendered only when the field declares `maxLength`. The visible
+    // text is `{count}/{max}` digits and needs no locale. ONE interpolated key
     // rather than assembled parts: ja and ko put the cap BEFORE the count
     // ("of {{max}} characters, {{count}}"), an order no code-side
     // concatenation can produce.
+    //
+    // objectui#3408 moved it off the `aria-live` region and onto the
+    // textarea's `aria-describedby` — read once when focus lands, instead of
+    // re-announced on every keystroke — and added `charactersRemaining` as the
+    // one thing that IS still spoken while typing: after a pause, and only
+    // inside the last 10% (or last 20 characters) of the cap.
+    //
+    // `charactersRemaining` is deliberately colon-form. `count` sends i18next
+    // to plural lookup before the base key, and these packs declare the base
+    // key only; a sentence whose grammar does not bend on the number is
+    // correct at 1 without ten plural entries per pack.
     textarea: {
       characterCount: 'Character count: {{count}} of {{max}}',
+      charactersRemaining: 'Characters remaining: {{count}}',
     },
   },
   table: {

@@ -217,6 +217,7 @@ const fr = {
     },
     textarea: {
       characterCount: "Nombre de caractères : {{count}} sur {{max}}",
+      charactersRemaining: "Caractères restants : {{count}}",
     },
   },
   table: {

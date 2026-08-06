@@ -217,6 +217,7 @@ const ja = {
     },
     textarea: {
       characterCount: "文字数: {{max}} 文字中 {{count}} 文字",
+      charactersRemaining: "残り {{count}} 文字",
     },
   },
   table: {

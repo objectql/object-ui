@@ -217,6 +217,7 @@ const de = {
     },
     textarea: {
       characterCount: "Zeichenanzahl: {{count}} von {{max}}",
+      charactersRemaining: "Verbleibende Zeichen: {{count}}",
     },
   },
   table: {

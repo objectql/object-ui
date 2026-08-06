@@ -85,6 +85,20 @@ const FIELD_DEFAULTS: Record<string, string> = {
   // session heard English on every keystroke. Byte-identical to the literal
   // it replaces, so a no-provider render is unchanged.
   'fields.textarea.characterCount': 'Character count: {{count}} of {{max}}',
+  // objectui#3408 — the NEAR-LIMIT warning, spoken by the counter's status
+  // region after the typist pauses and only once they are inside the last 10%
+  // (or last 20 characters) of the cap. The sentence above became the field's
+  // `aria-describedby` description in the same change; this one is the only
+  // thing that is ever announced mid-typing, which is why it says what is
+  // LEFT rather than repeating the whole count.
+  //
+  // Colon form, not "You have {{count}} characters remaining": `count` makes
+  // i18next attempt plural lookup (`_one` / `_few` / …) before the base key,
+  // and these packs declare the base key only — the same base-key fallback
+  // `characterCount` already relies on. A sentence whose grammar does not
+  // depend on the number stays correct at 1 without ten plural entries per
+  // pack, and matches the sibling key's shape.
+  'fields.textarea.charactersRemaining': 'Characters remaining: {{count}}',
   // objectui#3404 — the shared fullscreen long-text dialog
   // (`FullscreenFieldEditor`, reached from `TextAreaField` and
   // `RichTextField` when `mobile_fullscreen` is set).

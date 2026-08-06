@@ -217,6 +217,7 @@ const pt = {
     },
     textarea: {
       characterCount: "Contagem de caracteres: {{count}} de {{max}}",
+      charactersRemaining: "Caracteres restantes: {{count}}",
     },
   },
   table: {

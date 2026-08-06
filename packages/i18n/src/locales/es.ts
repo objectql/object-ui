@@ -222,6 +222,7 @@ const es = {
     },
     textarea: {
       characterCount: "Recuento de caracteres: {{count}} de {{max}}",
+      charactersRemaining: "Caracteres restantes: {{count}}",
     },
   },
   table: {

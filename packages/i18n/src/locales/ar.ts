@@ -217,6 +217,7 @@ const ar = {
     },
     textarea: {
       characterCount: "عدد الأحرف: {{count}} من {{max}}",
+      charactersRemaining: "الأحرف المتبقية: {{count}}",
     },
   },
   table: {

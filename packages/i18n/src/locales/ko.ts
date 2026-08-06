@@ -217,6 +217,7 @@ const ko = {
     },
     textarea: {
       characterCount: "글자 수: {{max}}자 중 {{count}}자",
+      charactersRemaining: "{{count}}자 남음",
     },
   },
   table: {
