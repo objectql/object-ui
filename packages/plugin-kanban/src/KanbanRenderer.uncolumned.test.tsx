@@ -17,6 +17,19 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { KanbanRenderer } from './index';
 
+// Pay the board's lazy chunk at import time, not inside a `findBy` budget
+// (AGENTS.md §测试纪律). `KanbanRenderer` renders
+// `React.lazy(() => import('./KanbanImpl'))` behind a Suspense boundary, and
+// both assertions below sit AFTER that boundary — the card has to be on screen
+// before it can be found. Importing `./index` alone does NOT warm it: that only
+// registers the lazy factory, it never executes the dynamic import. Under full
+// CI parallelism a first `import()` has been measured at ~976ms against RTL's
+// 1000ms default, so without this the suite would race the module loader. The
+// specifier must stay byte-identical to the one in `./index` — ESM caches by
+// resolved specifier, which is what makes the component's own lazy factory
+// resolve immediately.
+import './KanbanImpl';
+
 const columns = [
   { id: 'todo', title: 'To Do' },
   { id: 'in_progress', title: 'In Progress' },
