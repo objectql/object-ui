@@ -269,12 +269,15 @@ export function RecordDetailDrawer({
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         {/* Drag handle on the left edge — only rendered on >= sm screens
-            where pointer-resize is meaningful. */}
+            where pointer-resize is meaningful. The handle carries no visible
+            label, so its `aria-label` IS the control to a screen reader —
+            hence it comes from the locale pack, not a literal
+            (objectstack#5733, twin of #5506's NavigationOverlay handle). */}
         {resizable && (
           <div
             role="separator"
             aria-orientation="vertical"
-            aria-label="Resize drawer"
+            aria-label={t('common.resizeDrawer')}
             onPointerDown={handleResizePointerDown}
             className="hidden sm:block absolute left-0 top-0 h-full w-1.5 cursor-col-resize select-none bg-transparent hover:bg-primary/30 active:bg-primary/50 transition-colors z-10"
           />

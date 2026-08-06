@@ -27,6 +27,13 @@ export const createSafeTranslationHook = createSafeTranslation;
  * Used as fallback when no I18nProvider is available.
  */
 export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
+  // objectstack#5733 — RecordDetailDrawer's drag-resize handle. The only
+  // `common.*` key in this map, deliberately: it is the SAME key #5506 gave
+  // NavigationOverlay's identical handle (`common.resizeDrawer`, already in
+  // all ten packs), and one control should not get two spellings just because
+  // it is rendered from two packages. Adding a `detail.resizeDrawer` twin
+  // would fork the translation and drift the two handles apart.
+  'common.resizeDrawer': 'Resize drawer',
   'detail.back': 'Back',
   'detail.edit': 'Edit',
   'detail.editInline': 'Edit',
