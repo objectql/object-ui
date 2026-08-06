@@ -28,6 +28,6 @@ pnpm install
 
 ## Learn more
 
-- [CRM Example](../crm/) — full-featured reference app
-- [Todo Example](../todo/) — ObjectStack protocol basics
+- [BYO Backend Console](../byo-backend-console/) — add ObjectUI to an existing product with your own REST/GraphQL backend (~100 lines: custom `DataSource` + router)
+- [Console Starter](../console-starter/) — fork it to stand up a brand-new ObjectStack console, with the full plugin set already wired
 - [Schema Catalog](../schema-catalog/) — canonical JSON schemas used across docs & tests
