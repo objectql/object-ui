@@ -22,6 +22,12 @@
  *      puts bare rule objects where the AST expects nodes. Covered at the merge
  *      level in core's `filter-source-merge.test.ts`, which pins what the server
  *      does with the old shape.
+ *   3. Even UNSPREAD, a `ViewFilterRule[]` was never AST: it reached `$filter`
+ *      as rule objects and the server answered `400 INVALID_FILTER`
+ *      (objectui#3431). This file is one of the two producers that feed the
+ *      shared `toFilterNode` sink — the other is `plugin-list`'s
+ *      `buildEffectiveFilter` — which is why the lowering lives there and not
+ *      in either caller.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -82,10 +88,17 @@ describe('ObjectView carries every filter source into the query', () => {
     expect(await queriedFilter(find)).toEqual(['status', '=', 'active']);
   });
 
-  it('keeps a ViewFilterRule[] table.defaultFilters', async () => {
+  it('LOWERS a ViewFilterRule[] table.defaultFilters into AST nodes', async () => {
+    // objectui#3431. This case used to assert `toEqual(rules)` — that the rule
+    // objects reached `$filter` VERBATIM — and it was green because that is
+    // what happened, not because it was right: the server refuses an array of
+    // rule objects with `400 INVALID_FILTER`, so this view queried nothing at
+    // all. `toFilterNode` now lowers the rules; `eq` canonicalises to `equals`
+    // through the spec's own `normalizeFilterOperator`, the same exit the
+    // write side uses.
     const rules = [{ field: 'stage', operator: 'eq', value: 'won' }];
     const find = renderCalendar({ table: { defaultFilters: rules } as any });
-    expect(await queriedFilter(find)).toEqual(rules);
+    expect(await queriedFilter(find)).toEqual([['stage', 'equals', 'won']]);
   });
 
   it('keeps an AST-shaped source', async () => {

@@ -1,0 +1,59 @@
+import { test, expect } from '@playwright/test';
+
+/**
+ * objectui#3431 — a saved view's `ViewFilterRule[]` must reach `$filter` as an
+ * ObjectQL AST, not as bare rule objects.
+ *
+ * This is the empirical pin for the defect, run against the REAL stack because
+ * only the server can answer the question the issue asked: does it accept a
+ * rule array in `$filter`? It does not. Measured on
+ * `@objectstack/*@17.0.0-rc.2` with the showcase app:
+ *
+ *   GET /api/v1/data/showcase_task
+ *     ?$filter=[{"field":"status","operator":"equals","value":"in_progress"}]
+ *   -> HTTP 400 {"error":"Request failed","code":"INVALID_FILTER",...}
+ *
+ *   GET /api/v1/data/showcase_task?$filter=[["status","equals","in_progress"]]
+ *   -> HTTP 200 {"total":2,...}
+ *
+ * `showcase_task.in_progress` is a SHIPPED saved view whose stored filter is
+ * exactly that rule array (`src/ui/views/task.view.ts`), so no fixture setup is
+ * needed — opening it is the reproduction. Before the fix the list renders no
+ * rows at all (the request 400s, so `record-count-bar` never mounts); after it,
+ * the 2 in-progress tasks out of 10.
+ *
+ * Prereqs: the usual live-e2e pair (see playwright.live.config.ts). Run:
+ *   pnpm test:e2e:live e2e/live/saved-view-filter.spec.ts
+ *
+ * NOT yet in the `test:e2e:live:ci` allowlist, on purpose: live-e2e.yml's own
+ * policy is that specs join it only after they have proven flake-free on the
+ * lane, and this one has no record yet. Promote it in a follow-up once the
+ * nightly has run it.
+ */
+const APP = process.env.SHOWCASE_APP_NAME || 'showcase_app';
+
+test('a saved view filter reaches $filter as AST, and the server answers 200', async ({ page }) => {
+  // Record every data response the page provokes, so a failure says WHICH
+  // request was refused and with what payload — not just "no rows".
+  const refused: string[] = [];
+  page.on('response', async (res) => {
+    const url = res.url();
+    if (!url.includes('/api/v1/data/showcase_task')) return;
+    if (res.status() < 400) return;
+    let code = '';
+    try {
+      code = ((await res.json()) as { code?: string }).code ?? '';
+    } catch {
+      /* non-JSON error body — the status alone is the signal */
+    }
+    refused.push(`${res.status()} ${code} ${decodeURIComponent(url)}`);
+  });
+
+  await page.goto(`/apps/${APP}/showcase_task/view/showcase_task.in_progress`);
+
+  // The filter applied: 2 of the 10 seeded tasks are in_progress.
+  await expect(page.getByTestId('record-count-bar')).toContainText(/^2 /, { timeout: 20000 });
+
+  // And it applied by being ACCEPTED, not by some later rescue.
+  expect(refused, `data requests the backend refused:\n${refused.join('\n')}`).toEqual([]);
+});

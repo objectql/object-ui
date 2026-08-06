@@ -8,10 +8,12 @@
 
 /**
  * Filter Converter Utilities
- * 
+ *
  * Shared utilities for converting MongoDB-like filter operators
  * to ObjectStack FilterNode AST format.
  */
+
+import { normalizeFilterOperator } from '@objectstack/spec/ui';
 
 /**
  * FilterNode AST type definition
@@ -179,6 +181,60 @@ export function convertFiltersToAST(filter: Record<string, any>): FilterNode | R
 }
 
 /**
+ * A spec `ViewFilterRule` as it arrives from stored view metadata.
+ *
+ * Structurally recognisable and NOT guessed at: every AST node is an ARRAY, a
+ * rule is a plain OBJECT. The two can never be confused, so this predicate is
+ * exact rather than heuristic.
+ *
+ * A blank `field` is deliberately NOT a rule — same predicate the write side
+ * uses to drop the row `Add filter` inserts before a column is picked. Lowering
+ * it would produce `['', op, value]`, which `isFilterAST` ACCEPTS and the
+ * server answers `200` with zero rows (measured) — a silently-empty list. Left
+ * unlowered it stays an object in AST position, which the server refuses with
+ * `400 INVALID_FILTER` naming the element. Loud beats silently-empty.
+ */
+interface ViewFilterRuleLike {
+  field: string;
+  operator?: unknown;
+  value?: unknown;
+}
+
+function isViewFilterRule(value: unknown): value is ViewFilterRuleLike {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const field = (value as { field?: unknown }).field;
+  return typeof field === 'string' && field !== '';
+}
+
+/**
+ * Lower ONE spec `ViewFilterRule` to an ObjectQL AST comparison node.
+ *
+ * The operator goes through the spec's OWN {@link normalizeFilterOperator} —
+ * the exact exit the WRITE side uses (`app-shell/views/viewFilterFold.ts`), so
+ * the two directions cannot drift into two dialects. No second canonical map is
+ * introduced, and none is needed: all 19 `VIEW_FILTER_OPERATORS` are already
+ * members of the wire's `VALID_AST_OPERATORS`, so the lowering is purely
+ * structural. An operator the spec does not know is passed through VERBATIM, so
+ * `isFilterAST` still refuses it and the server still answers `400
+ * INVALID_FILTER` — a misspelling must not be coerced into a valid one.
+ *
+ * `value` is emitted only when the rule carries one. A rule that omits it
+ * (`is_empty` / `is_null`, whose direction comes from the operator NAME) would
+ * otherwise gain an invented `null` the author never wrote — `JSON.stringify`
+ * turns a hole in an array into `null`, and `['x', 'equals', null]` is a real
+ * `{x: null}` predicate, i.e. a silently-wrong filter. Same rule the write side
+ * applies (`if (c.value !== undefined)`).
+ */
+function viewFilterRuleToNode(rule: ViewFilterRuleLike): FilterNode {
+  const operator = normalizeFilterOperator(rule.operator as string);
+  return (
+    rule.value === undefined
+      ? [rule.field, operator]
+      : [rule.field, operator, rule.value]
+  ) as FilterNode;
+}
+
+/**
  * Normalize ONE filter source into a single filter node.
  *
  * A "source" is whatever a view hands a renderer, and there are three shapes in
@@ -193,12 +249,52 @@ export function convertFiltersToAST(filter: Record<string, any>): FilterNode | R
  * `table.defaultFilters` (declared `Record<string, any>`) was DROPPED and the
  * view returned every record. Silently: no error, just a wider answer.
  *
+ * The FIRST never worked at all (objectui#3431). The array branch returned
+ * every array VERBATIM, so a saved view's `ViewFilterRule[]` travelled to
+ * `$filter` as bare rule objects — which the server refuses: `isFilterAST` is
+ * false for an array of objects, and the wire face answers `400
+ * INVALID_FILTER`. Verified against a real backend on the showcase's SHIPPED
+ * `showcase_task.in_progress` view (`filter: [{field:'status',
+ * operator:'equals', value:'in_progress'}]`): 400 as sent, 200 with its 2 rows
+ * once lowered to `[['status','equals','in_progress']]`. Every saved view
+ * carrying a filter was a failed list. `mergeFilterNodes` below has warned
+ * about exactly this hazard since it was written — the warning was accurate,
+ * and the sink it warns for never implemented the lowering it describes.
+ *
+ * **Why the fold lives HERE and not at the producer.** `ListViewSchema.filter`
+ * / `ViewTab.filter` are spec-declared `z.array(ViewFilterRuleSchema)`, and a
+ * view hands a renderer a `ListViewSchema` — so folding one hop earlier (in
+ * `app-shell`'s ObjectView, say) would write ObjectQL AST triples INTO a
+ * spec-declared rule-array slot: an off-spec value in a spec field, AGENTS.md
+ * #0.1 inverted. This function is the last hop before the wire, where the value
+ * legitimately leaves the spec's view vocabulary and becomes an ObjectQL AST.
+ * It is also the single sink both producers already share — `plugin-list`'s
+ * `buildEffectiveFilter` (which feeds the grid AND the export) and
+ * `plugin-view`'s ObjectView (calendar / kanban / gallery / timeline). One
+ * lowering, one place; the same reason the MongoDB-style shape is lowered here
+ * rather than at each of its callers.
+ *
+ * Mixed arrays fold ELEMENT-WISE, because that is what reaches this function in
+ * practice: `ObjectView` concatenates a saved view's rules with the
+ * `?filter[<field>]=<value>` URL triples into one array. Triples pass through
+ * untouched.
+ *
  * Returns `undefined` for an absent or empty source, so callers can skip
  * `$filter` rather than sending an empty array.
  */
 export function toFilterNode(source: unknown): FilterNode | Record<string, any> | undefined {
   if (source === null || source === undefined) return undefined;
-  if (Array.isArray(source)) return source.length > 0 ? (source as FilterNode) : undefined;
+  if (Array.isArray(source)) {
+    if (source.length === 0) return undefined;
+    // Spec `ViewFilterRule[]` (possibly mixed with AST nodes) → AST nodes. Left
+    // untouched when the array holds no rule objects, which is the common case:
+    // user-filter conditions and URL triples are already nodes.
+    return (
+      source.some(isViewFilterRule)
+        ? source.map((el) => (isViewFilterRule(el) ? viewFilterRuleToNode(el) : el))
+        : source
+    ) as FilterNode;
+  }
   if (typeof source !== 'object') return undefined;
   const obj = source as Record<string, any>;
   if (Object.keys(obj).length === 0) return undefined;
@@ -211,11 +307,15 @@ export function toFilterNode(source: unknown): FilterNode | Record<string, any> 
  *
  * Wrapping rather than spreading, on purpose. `['and', ...rules]` looks
  * equivalent and is not: spreading a `ViewFilterRule[]` puts bare rule OBJECTS
- * where the AST expects nodes, and the server neither understands nor rejects
- * that cleanly — `isFilterAST` says no (a 400 since objectstack#4121), while
- * `parseFilterAST` reads the rule as a Mongo condition and filters on columns
- * literally named `field` / `operator` / `value`. Spreading is only correct
- * when the source happens to be an array of nodes, which is why it survived.
+ * where the AST expects nodes, and the server does not accept that —
+ * `isFilterAST` says no and the wire face answers `400 INVALID_FILTER`
+ * (objectstack#4121). Spreading is only correct when the source happens to be
+ * an array of nodes, which is why it survived.
+ *
+ * Since objectui#3431 the rule objects never reach that position anyway:
+ * `toFilterNode` lowers a `ViewFilterRule[]` to AST nodes on the way in. The
+ * paragraph above is kept because it is why each source stays its own child —
+ * and because it correctly diagnosed the bug the sink itself was carrying.
  *
  * Sources that normalize to nothing are skipped; one surviving source is
  * returned as-is rather than wrapped in a pointless `and`.
