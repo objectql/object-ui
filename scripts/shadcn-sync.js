@@ -22,6 +22,7 @@
  */
 
 import fs from 'fs/promises';
+import { realpathSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import https from 'https';
@@ -55,7 +56,17 @@ const BACKUP_DIR = path.join(REPO_ROOT, 'packages/components/.backup');
  */
 const CACHE_DIR = path.join(REPO_ROOT, 'node_modules/.cache/shadcn-sync');
 const CACHE_TTL_MS = 60 * 60 * 1000;
-const cacheStats = { hits: 0, misses: 0 };
+/**
+ * `hits`     served from a valid cached entry
+ * `misses`   fetched live and the response came back
+ * `failures` fetched live and the request failed (non-2xx, unparseable, socket)
+ * `evicted`  cached entries dropped on read because they were not registry data
+ *
+ * `failures`/`evicted` exist so a poisoned or blocked run cannot look like a
+ * quiet success in the summary line — under an egress block the old counters
+ * printed "46 fetched" for 46 error pages (objectstack#5803).
+ */
+const cacheStats = { hits: 0, misses: 0, failures: 0, evicted: 0 };
 
 // ANSI color codes
 const colors = {
@@ -80,24 +91,98 @@ function logSection(title) {
   console.log('='.repeat(60) + '\n');
 }
 
-async function fetchUrl(url) {
+/**
+ * One-line excerpt of a response body, for an error message.
+ *
+ * Control characters are replaced by spaces (tested by code point, so this
+ * source file carries none itself): these strings end up in a terminal and in
+ * CI logs, and an error page carrying a stray NUL or an ANSI escape would
+ * otherwise be pasted straight through. The body is also sliced before the
+ * scan, so a multi-megabyte HTML error page costs nothing to summarise.
+ */
+function bodySnippet(body, max = 120) {
+  const flat = Array.from(String(body).slice(0, max * 8))
+    .map((ch) => (ch.codePointAt(0) < 0x20 || ch.codePointAt(0) === 0x7f ? ' ' : ch))
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return flat.length > max ? `${flat.slice(0, max)}…` : flat;
+}
+
+/**
+ * Fetch one registry URL and resolve its parsed JSON.
+ *
+ * Two failure modes used to resolve as if they had succeeded (objectstack#5803):
+ *
+ *  1. **A non-2xx response.** `https.get` emits `error` only for TRANSPORT
+ *     failures. A 403 from an egress allowlist, a 502 from a CDN, a 404 from a
+ *     moved endpoint — each arrives as a perfectly ordinary response whose
+ *     *body* is the error text. Never looking at `statusCode` meant that text
+ *     was handed back as though it were the component.
+ *  2. **A 2xx that is not JSON.** The old code caught the `JSON.parse` throw
+ *     and resolved the raw string instead, so an HTML interstitial flowed on to
+ *     consumers that all read `data.files?.[0]?.content` and quietly saw
+ *     `undefined` — the lenient read that hid the failure.
+ *
+ * Both now reject. Every caller already has an error path (`--check` marks the
+ * component `error`, `--update` refuses to write); what they did not have was
+ * anything telling them the fetch had failed at all.
+ *
+ * Redirects are deliberately NOT followed: a 3xx to a login or interstitial
+ * page is the same class of poison. The registry endpoints are direct JSON, so
+ * if upstream ever starts redirecting, this fails loudly with the status in the
+ * message instead of ingesting whatever the redirect target serves.
+ *
+ * `get` is injectable so the tests can drive a real fixture server over plain
+ * `http` — the status/parse logic under test is transport-independent.
+ */
+async function fetchUrl(url, { get = https.get } = {}) {
   return new Promise((resolve, reject) => {
-    https.get(url, (res) => {
+    const req = get(url, (res) => {
+      const status = res.statusCode ?? 0;
       let data = '';
+      // Decode as UTF-8 across chunk boundaries. Concatenating raw Buffers
+      // stringifies each chunk on its own, which corrupts any multi-byte
+      // character split across a boundary — harmless while a mangled body was
+      // silently tolerated, but now it would surface as a hard parse error.
+      res.setEncoding('utf-8');
       res.on('data', (chunk) => { data += chunk; });
+      res.on('error', reject);
       res.on('end', () => {
+        if (status < 200 || status >= 300) {
+          const where = res.statusMessage ? `HTTP ${status} ${res.statusMessage}` : `HTTP ${status}`;
+          reject(new Error(`${where} from ${url}${data ? ` — ${bodySnippet(data)}` : ''}`));
+          return;
+        }
         try {
           resolve(JSON.parse(data));
-        } catch (e) {
-          resolve(data);
+        } catch {
+          reject(new Error(`Malformed JSON (HTTP ${status}) from ${url} — ${bodySnippet(data)}`));
         }
       });
-    }).on('error', reject);
+    });
+    req.on('error', reject);
   });
 }
 
-function cacheFileFor(url) {
-  return path.join(CACHE_DIR, `${crypto.createHash('sha1').update(url).digest('hex').slice(0, 16)}.json`);
+/**
+ * Is this parsed response an actual registry entry we can act on?
+ *
+ * The bar is exactly what every consumer reads: a `files` array whose first
+ * entry carries non-empty `content`. A 200 that parses but carries an error
+ * envelope (`{"error":"…"}`), or an entry with no files, fails it.
+ *
+ * This is the *semantic* half of the defence, independent of the transport
+ * check in `fetchUrl`: a proxy that answers 200 with a JSON error object is
+ * still not something to write into the cache.
+ */
+function isRegistryEntry(data) {
+  const content = data?.files?.[0]?.content;
+  return Array.isArray(data?.files) && typeof content === 'string' && content.trim().length > 0;
+}
+
+function cacheFileFor(url, cacheDir = CACHE_DIR) {
+  return path.join(cacheDir, `${crypto.createHash('sha1').update(url).digest('hex').slice(0, 16)}.json`);
 }
 
 /**
@@ -111,30 +196,80 @@ function cacheFileFor(url) {
  * from a cached copy, but nothing that writes a component file ever does.
  * A stale `--check` is a mildly out-of-date status line; a stale `--update`
  * would put hour-old code on disk under a message saying it is current.
+ *
+ * ## Only registry data is ever cached (objectstack#5803)
+ *
+ * The cache used to store whatever `fetchUrl` resolved, which under an egress
+ * block was the string `Host not in allowlist: ui.shadcn.com…`. All 46 entries
+ * were written, and for the next hour every `--check` answered from them
+ * without retrying — one moment of network trouble degraded the command for an
+ * hour, while reporting "46 cached" as if all were well.
+ *
+ * So the entry is validated on BOTH sides of the disk:
+ *
+ * - **write**: only a response that passes `isRegistryEntry` is persisted. A
+ *   rejected fetch or a junk payload leaves the cache untouched, so the next
+ *   run retries for real.
+ * - **read**: an entry that does not pass is not served, and is deleted. Read
+ *   validation is what makes recovery immediate — a cache already poisoned by
+ *   an older build (or by any future write path) is dropped on first contact
+ *   instead of being trusted until its hour is up. Validating only on write
+ *   would leave every existing poisoned tree serving garbage for the rest of
+ *   its TTL, with no way to tell the user beyond "wait".
  */
-async function fetchRegistry(url, { allowCache = false } = {}) {
+async function fetchRegistry(url, { allowCache = false, cacheDir = CACHE_DIR, get } = {}) {
+  const cacheFile = cacheFileFor(url, cacheDir);
+
   if (allowCache) {
+    let entry;
     try {
-      const entry = JSON.parse(await fs.readFile(cacheFileFor(url), 'utf-8'));
-      if (typeof entry?.fetchedAt === 'number' && Date.now() - entry.fetchedAt < CACHE_TTL_MS) {
-        cacheStats.hits++;
-        return entry.data;
-      }
+      entry = JSON.parse(await fs.readFile(cacheFile, 'utf-8'));
     } catch {
       /* absent, unreadable or corrupt — fall through and refetch */
     }
+    if (entry !== undefined) {
+      if (isRegistryEntry(entry?.data)) {
+        // Well-formed but expired entries are left alone: they are simply
+        // refetched, and the write below replaces them.
+        if (typeof entry?.fetchedAt === 'number' && Date.now() - entry.fetchedAt < CACHE_TTL_MS) {
+          cacheStats.hits++;
+          return entry.data;
+        }
+      } else {
+        // Poison: an error page, an error envelope, or a shape we cannot use.
+        // Drop it now so a repeat run cannot be tempted by it again.
+        try {
+          await fs.rm(cacheFile, { force: true });
+          cacheStats.evicted++;
+        } catch {
+          /* read-only cache dir — the entry is ignored either way */
+        }
+      }
+    }
   }
 
-  const data = await fetchUrl(url);
+  let data;
+  try {
+    data = await fetchUrl(url, get ? { get } : undefined);
+  } catch (error) {
+    // Counted, then rethrown untouched: the caller decides what a failed fetch
+    // means (`--check` reports the component, `--update` refuses to write).
+    cacheStats.failures++;
+    throw error;
+  }
   cacheStats.misses++;
 
-  try {
-    await fs.mkdir(CACHE_DIR, { recursive: true });
-    await fs.writeFile(cacheFileFor(url), JSON.stringify({ url, fetchedAt: Date.now(), data }));
-  } catch {
-    /* the cache is an optimisation; never fail a run because it can't be written */
+  if (isRegistryEntry(data)) {
+    try {
+      await fs.mkdir(cacheDir, { recursive: true });
+      await fs.writeFile(cacheFile, JSON.stringify({ url, fetchedAt: Date.now(), data }));
+    } catch {
+      /* the cache is an optimisation; never fail a run because it can't be written */
+    }
   }
 
+  // Junk that parsed as JSON is still handed back — callers already report it
+  // ("Registry returned no usable file content"). It is only barred from disk.
   return data;
 }
 
@@ -452,11 +587,15 @@ async function checkAllComponents(options = {}) {
 
   // A run that returns in under a second is otherwise indistinguishable from
   // one that silently fetched nothing, so always say where the data came from.
-  if (cacheStats.hits > 0 || cacheStats.misses > 0) {
+  // Failed and evicted are reported separately and only when non-zero: a run
+  // whose fetches all failed must not read as "46 fetched" (objectstack#5803).
+  if (cacheStats.hits > 0 || cacheStats.misses > 0 || cacheStats.failures > 0 || cacheStats.evicted > 0) {
     const ttlMin = Math.round(CACHE_TTL_MS / 60000);
+    const parts = [`${cacheStats.hits} cached`, `${cacheStats.misses} fetched`];
+    if (cacheStats.failures > 0) parts.push(`${cacheStats.failures} FAILED`);
+    if (cacheStats.evicted > 0) parts.push(`${cacheStats.evicted} unusable entries evicted`);
     log(
-      `\nRegistry: ${cacheStats.hits} cached, ${cacheStats.misses} fetched ` +
-        `(cache TTL ${ttlMin}min — --no-cache to force live)`,
+      `\nRegistry: ${parts.join(', ')} ` + `(cache TTL ${ttlMin}min — --no-cache to force live)`,
       'dim',
     );
   }
@@ -859,8 +998,34 @@ async function main() {
   }
 }
 
-main().catch(error => {
-  log(`Fatal error: ${error.message}`, 'red');
-  console.error(error);
-  process.exit(1);
-});
+/**
+ * Is this file the process entry point?
+ *
+ * The CLI must keep running exactly as before when invoked as
+ * `node scripts/shadcn-sync.js …`, while an `import` of this module (the tests
+ * in `scripts/__tests__/shadcn-sync-fetch-cache.test.ts`) must NOT execute it.
+ * Compared through `realpathSync` because ESM resolves `import.meta.url` to the
+ * real path while `process.argv[1]` may still carry a symlink.
+ */
+function invokedAsCli() {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  const resolved = path.resolve(entry);
+  try {
+    return realpathSync(resolved) === __filename;
+  } catch {
+    return resolved === __filename;
+  }
+}
+
+if (invokedAsCli()) {
+  main().catch(error => {
+    log(`Fatal error: ${error.message}`, 'red');
+    console.error(error);
+    process.exit(1);
+  });
+}
+
+// Exported for scripts/__tests__/shadcn-sync-fetch-cache.test.ts. The CLI is
+// the only production consumer; nothing else imports this module.
+export { fetchUrl, fetchRegistry, isRegistryEntry, cacheFileFor, cacheStats, bodySnippet, CACHE_TTL_MS };
