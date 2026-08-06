@@ -522,7 +522,10 @@ async function checkAllComponents(options = {}) {
     }
   }
 
-  results.patchFailures = reverted.length + unappliable.length;
+  // Unique components, not the sum: one component can be in BOTH lists (its
+  // file lost the patch AND upstream moved the anchor), and reporting that as
+  // "2 components" would be wrong.
+  results.patchFailures = new Set([...reverted, ...unappliable].map((r) => r.name)).size;
   return results;
 }
 
