@@ -21,12 +21,34 @@ pnpm --filter @object-ui/site dev        # Docs site at http://localhost:3000
 
 ### Test
 
+Always run vitest **from the repo root**, with paths written relative to it and **no
+`--`** before them:
+
 ```bash
-pnpm test                                 # Run every vitest project
-pnpm --filter @object-ui/console test     # Run just the console tests
-pnpm --filter @object-ui/core test        # Run a single package's tests
-pnpm playwright test                      # End-to-end tests
+pnpm test                                              # Run every vitest project (CI runs this)
+pnpm exec vitest run packages/core/                    # Run a single package's tests
+pnpm exec vitest run packages/core/src/<file>.test.ts  # Run a single test file
+pnpm exec vitest run apps/console/                     # Run just the console tests
+pnpm playwright test                                   # End-to-end tests
 ```
+
+Not `pnpm --filter <pkg> test`, not `turbo run test`, not `cd packages/x && pnpm exec
+vitest`, and never a path behind `--`. Each of those moved vitest's root into a package,
+where the root `unit`/`dom`/`dom-heavy` projects match nothing and only `apps/console`
+resolves: 22 foreign files passed, your package never ran, output green
+(objectui#3378/#3288). A guard in `vitest.config.mts` now **exits non-zero** on all of
+them and prints the correct invocation:
+
+```
+vitest 调用被拒绝:从包目录跑 vitest 会静默跑错测试集 (objectui#3378)
+...
+正确跑法 —— 一律在【仓库根目录】执行,路径前【不要】加 `--`:
+  pnpm exec vitest run packages/<pkg>/src/<file>.test.ts   # 只跑一个文件
+  pnpm exec vitest run packages/<pkg>/   # 只跑一个包
+  pnpm test   # 全量(CI 跑的就是它)
+```
+
+Details in [AGENTS.md](./AGENTS.md) (“怎么跑测试”) and `scripts/vitest-invocation-guard.mjs`.
 
 ### Run Examples
 

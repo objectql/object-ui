@@ -306,8 +306,11 @@ pnpm type-check             # TypeScript check all
 
 # Scoped commands
 pnpm --filter @object-ui/core build       # Build single package
-pnpm --filter @object-ui/core test        # Test single package
 pnpm --filter "apps/*" dev                # Dev all apps
+
+# Scoped tests — always from the repo root, paths relative to it, no `--`
+pnpm exec vitest run packages/core/                  # Test single package
+pnpm exec vitest run packages/core/src/<file>.test.ts   # Test single file
 
 # Setup from clean clone
 ./scripts/setup.sh                        # Full automated setup
@@ -316,6 +319,28 @@ pnpm install
 pnpm build
 pnpm test
 ```
+
+Note that tests are scoped by a **path filter from the repo root**, not by
+`pnpm --filter <pkg> test`. The `--filter` form (and `turbo run test`, and
+`cd packages/x && pnpm exec vitest`) makes vitest treat the package directory as its
+root: the root-level `unit`/`dom`/`dom-heavy` projects declare their `include` globs
+relative to that root and match nothing, while the `apps/console` project — brought in
+by absolute path — still resolves. The run then executes console's 22 files, reports
+`Test Files 22 passed (22)`, and never touches the package you asked for. A guard in
+`vitest.config.mts` rejects those invocations with a non-zero exit and prints the
+correct form:
+
+```
+vitest 调用被拒绝:从包目录跑 vitest 会静默跑错测试集 (objectui#3378)
+...
+正确跑法 —— 一律在【仓库根目录】执行,路径前【不要】加 `--`:
+  pnpm exec vitest run packages/<pkg>/src/<file>.test.ts   # 只跑一个文件
+  pnpm exec vitest run packages/<pkg>/   # 只跑一个包
+  pnpm test   # 全量(CI 跑的就是它)
+```
+
+The same guard rejects a path placed behind `--` (`pnpm --filter <pkg> test --
+--run <path>`), which pnpm forwards verbatim and vitest's CLI parser discards.
 
 ### Adding a workspace package as dependency
 
