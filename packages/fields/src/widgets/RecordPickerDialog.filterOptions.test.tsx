@@ -39,6 +39,11 @@
  *   keep winning over the schema (including the `in`-operator options
  *   auto-derived from `lookupFilters`). They guard the precedence and the
  *   non-leniency the fix chose, not a defect it repaired.
+ *
+ * The second suite in this file covers #3422 — what the panel DOWNLOADS once an
+ * option is picked. Having the right options to choose from (#3336) and sending
+ * the right value for the chosen one are the two halves of the same control, so
+ * they are pinned side by side; see that suite's own header for its directions.
  */
 
 import React from 'react';
@@ -112,10 +117,14 @@ const phaseFilterColumn = { field: 'project_phase', label: 'Project Phase', type
  * `findBy…`: the filter bar only exists once the filter columns are resolved,
  * which in the LookupField path waits on the referenced object's schema fetch.
  */
-async function openFilterSelect(): Promise<Element> {
+async function openFilterPanel(): Promise<HTMLElement> {
   const bar = await screen.findByTestId('record-picker-filter-bar');
   fireEvent.click(bar.querySelector('button')!);
-  const panel = await screen.findByTestId('record-picker-filter-panel');
+  return (await screen.findByTestId('record-picker-filter-panel')) as HTMLElement;
+}
+
+async function openFilterSelect(): Promise<Element> {
+  const panel = await openFilterPanel();
   const trigger = panel.querySelector('[role="combobox"]');
   expect(trigger).toBeTruthy();
   await act(async () => {
@@ -329,6 +338,242 @@ describe('RecordPickerDialog filter panel — select options come from the schem
     expect(captured!.filterColumns[0].options).toEqual([
       { label: 'manufacturing', value: 'manufacturing' },
     ]);
+  });
+});
+
+/**
+ * Record Picker FILTER PANEL — the picked option keeps its AUTHORED type
+ * (#3422).
+ *
+ * Radix `Select` speaks strings: options render as `String(opt.value)` and
+ * `onValueChange` returns that string. The panel used to store the string
+ * as-is, and `filterValuesToRecord`'s `select` branch passes its value through
+ * untouched — so a `lookup_filters`-derived option whose authored value is a
+ * number or a boolean queried `{ level: "1" }` against records storing
+ * `level: 1`. The user picked an option that plainly has records and got an
+ * empty list.
+ *
+ * The fix maps the control's string back through `col.options` at the control
+ * boundary (`matchOptionValue`, the #3090 semantics from
+ * `packages/components/src/renderers/form/option-value.ts`) — NOT a coercion
+ * in `filterValuesToRecord`, which would have to guess whether `"1"` meant `1`
+ * or `"1"`.
+ *
+ * ## Directions, decided before the run
+ *
+ * - **The two reproducers are RED before / GREEN after**: `$filter.level` was
+ *   the string `"1"`, `$filter.active` the string `"false"`. They assert
+ *   `toBe(1)` / `toBe(false)` plus an explicit `typeof`, because `"1" == 1` and
+ *   a loose assertion would have passed on the broken build.
+ * - **Three cases are NO-OP pins, green before and after** (marked
+ *   individually): schema-derived options are already strings and must
+ *   round-trip byte-identical (the fix must not start morphing the path
+ *   #3336 just made work); and the `number` / `boolean` filter inputs, which
+ *   already converted explicitly, must keep doing exactly that — the
+ *   three-branch inconsistency the issue flagged is resolved by lifting
+ *   `select` up to them, not by touching them.
+ * - **The collision case documents a tie-break, not a repair.** Two options
+ *   whose `String()` forms collide (`1` and `'1'`) cannot both be addressed by
+ *   a string-speaking control — Radix sees two `SelectItem`s with the same
+ *   `value`. The first match wins; the case pins that so the resolution is a
+ *   stated rule rather than an accident of `Array.prototype.find`.
+ */
+describe('RecordPickerDialog filter panel — picked option keeps its authored type (#3422)', () => {
+  const tasks = [{ id: 't1', name: 'Recalibrate press', level: 1, active: false }];
+
+  function makeTaskDataSource() {
+    const find = vi.fn(async () => ({ data: tasks, total: tasks.length }));
+    const getObjectSchema = vi.fn(async () => ({
+      name: 'tasks',
+      fields: {
+        name: { type: 'text', label: 'Name' },
+        level: { type: 'number', label: 'Level' },
+        active: { type: 'boolean', label: 'Active' },
+      },
+      highlightFields: ['name'],
+    }));
+    return { find, getObjectSchema } as any;
+  }
+
+  /** The `$filter` of the most recent `find` call. */
+  function lastFilter(ds: any): Record<string, any> {
+    return ds.find.mock.calls[ds.find.mock.calls.length - 1][1].$filter;
+  }
+
+  /**
+   * REPRODUCER (red before the fix). `lookup_filters` with an `in` array of
+   * numbers derives a select whose option values are numbers
+   * (`LookupFilterDef.value` is `unknown`, so the author's type survives into
+   * `options`). Picking one must query the number.
+   */
+  it('sends the authored NUMBER for a lookupFilters-derived select option', async () => {
+    const ds = makeTaskDataSource();
+    render(
+      <RecordPickerDialog
+        open
+        onOpenChange={() => {}}
+        dataSource={ds}
+        objectName="tasks"
+        onSelect={() => {}}
+        cellRenderer={getCellRenderer}
+        lookupFilters={[{ field: 'level', operator: 'in', value: [1, 2, 3] }]}
+      />,
+    );
+
+    await waitFor(() => expect(ds.find).toHaveBeenCalled());
+    await openFilterSelect();
+
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('option', { name: '1' }));
+    });
+
+    // Pre-fix this was the string "1"; `toBe` distinguishes them, `==` would not.
+    await waitFor(() => expect(lastFilter(ds).level).toBe(1));
+    expect(typeof lastFilter(ds).level).toBe('number');
+  });
+
+  /** REPRODUCER (red before the fix) — the boolean half of the same morph. */
+  it('sends the authored BOOLEAN for a lookupFilters-derived select option', async () => {
+    const ds = makeTaskDataSource();
+    render(
+      <RecordPickerDialog
+        open
+        onOpenChange={() => {}}
+        dataSource={ds}
+        objectName="tasks"
+        onSelect={() => {}}
+        cellRenderer={getCellRenderer}
+        lookupFilters={[{ field: 'active', operator: 'in', value: [true, false] }]}
+      />,
+    );
+
+    await waitFor(() => expect(ds.find).toHaveBeenCalled());
+    await openFilterSelect();
+
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('option', { name: 'false' }));
+    });
+
+    // Pre-fix this was the string "false" — which is TRUTHY, so the query asked
+    // for the opposite of what the user picked wherever the backend coerces.
+    await waitFor(() => expect(lastFilter(ds).active).toBe(false));
+    expect(typeof lastFilter(ds).active).toBe('boolean');
+  });
+
+  /**
+   * NO-OP PIN (green before and after). Schema-derived options are strings by
+   * spec (`SelectOptionSchema.value` is `string`), so the #3336 path must come
+   * out of the round-trip byte-identical — the fix restores the authored type,
+   * it does not invent one.
+   */
+  it('round-trips a schema-derived string option unchanged', async () => {
+    const ds = makeDataSource();
+    render(
+      <RecordPickerDialog
+        open
+        onOpenChange={() => {}}
+        dataSource={ds}
+        objectName="projects"
+        columns={[{ field: 'project_phase', label: 'Project Phase', type: 'select' }]}
+        onSelect={() => {}}
+        cellRenderer={getCellRenderer}
+        fieldsMeta={projectFields}
+        filterColumns={[phaseFilterColumn]}
+      />,
+    );
+
+    await waitFor(() => expect(ds.find).toHaveBeenCalled());
+    await openFilterSelect();
+
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('option', { name: '03 Manufacturing' }));
+    });
+
+    await waitFor(() => expect(lastFilter(ds).project_phase).toBe('manufacturing'));
+    expect(typeof lastFilter(ds).project_phase).toBe('string');
+  });
+
+  /**
+   * TIE-BREAK PIN. `1` and `'1'` both render as the control string `"1"`, so
+   * the control cannot tell them apart — Radix receives two `SelectItem`s with
+   * the same `value` and React two children with the same key. The lookup
+   * resolves to the FIRST declared match, whichever entry was clicked. This
+   * documents the rule; it does not claim such an option list is usable.
+   */
+  it('resolves a String() collision to the first declared option', async () => {
+    const ds = makeTaskDataSource();
+    render(
+      <RecordPickerDialog
+        open
+        onOpenChange={() => {}}
+        dataSource={ds}
+        objectName="tasks"
+        onSelect={() => {}}
+        cellRenderer={getCellRenderer}
+        filterColumns={[
+          {
+            field: 'level',
+            label: 'Level',
+            type: 'select',
+            options: [
+              { label: 'Number one', value: 1 },
+              { label: 'String one', value: '1' },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    await waitFor(() => expect(ds.find).toHaveBeenCalled());
+    await openFilterSelect();
+
+    // Clicking the SECOND entry still yields the first match — that is the
+    // documented consequence of a collision, not a bug in this assertion.
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('option', { name: 'String one' }));
+    });
+
+    await waitFor(() => expect(lastFilter(ds).level).toBe(1));
+    expect(typeof lastFilter(ds).level).toBe('number');
+  });
+
+  /**
+   * NO-OP PIN (green before and after). The `number` and `boolean` filter
+   * inputs already converted explicitly (`Number(raw)` / `Boolean(checked)`);
+   * the issue flagged the three branches disagreeing, and the fix resolves that
+   * by lifting `select` to their standard — these two must be untouched.
+   */
+  it('leaves the number and boolean filter inputs converting as before', async () => {
+    const ds = makeTaskDataSource();
+    render(
+      <RecordPickerDialog
+        open
+        onOpenChange={() => {}}
+        dataSource={ds}
+        objectName="tasks"
+        onSelect={() => {}}
+        cellRenderer={getCellRenderer}
+        filterColumns={[
+          { field: 'level', label: 'Level', type: 'number' },
+          { field: 'active', label: 'Active', type: 'boolean' },
+        ]}
+      />,
+    );
+
+    await waitFor(() => expect(ds.find).toHaveBeenCalled());
+    const panel = await openFilterPanel();
+
+    await act(async () => {
+      fireEvent.change(panel.querySelector('input[type="number"]')!, { target: { value: '2' } });
+    });
+    await waitFor(() => expect(lastFilter(ds).level).toBe(2));
+    expect(typeof lastFilter(ds).level).toBe('number');
+
+    await act(async () => {
+      fireEvent.click(panel.querySelector('[role="checkbox"]')!);
+    });
+    await waitFor(() => expect(lastFilter(ds).active).toBe(true));
+    expect(typeof lastFilter(ds).active).toBe('boolean');
   });
 });
 

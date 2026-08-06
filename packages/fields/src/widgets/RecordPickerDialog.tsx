@@ -221,9 +221,71 @@ function resolveSchemaOptions(
 }
 
 /**
+ * Option-value round-trip helpers for the filter panel's `select` input
+ * (#3422).
+ *
+ * Radix `Select` speaks strings only: an option renders as
+ * `value={String(opt.value)}` and `onValueChange` hands that same string back.
+ * A filter option's value, however, is whatever the metadata author wrote —
+ * `lookup_filters: [{ field: 'level', operator: 'in', value: [1, 2, 3] }]`
+ * derives options with NUMBER values (`LookupFilterDef.value` is `unknown`) —
+ * so writing the control's string straight into `$filter` queried
+ * `{ level: "1" }` against records storing `level: 1`, and the panel returned
+ * nothing for an option that plainly has records.
+ *
+ * The remap therefore happens at the CONTROL boundary, not in
+ * `filterValuesToRecord`: the control speaks string, the payload keeps the
+ * authored type. Coercing downstream would mean guessing whether `"1"` meant
+ * `1` or `"1"` — a guess the option list already answers exactly.
+ *
+ * Replicated from `matchOptionValue` / `toControlValue` in
+ * `packages/components/src/renderers/form/option-value.ts` (#3090), which
+ * solved the identical morph for the standalone form's select. Those two are
+ * module-private to `@object-ui/components` (its public barrel does not export
+ * them and the package publishes no deep subpath), so `@object-ui/fields`
+ * keeps its own copy of the four lines rather than widening another package's
+ * API to share them.
+ */
+
+/**
+ * Stringify a value for a string-speaking control, preserving null/undefined
+ * (an absent value must stay absent, not become `"undefined"`).
+ */
+function toControlValue(value: unknown): string | undefined {
+  return value == null ? undefined : String(value);
+}
+
+/**
+ * Map a control's string back to the authored option value, so a numeric /
+ * boolean / object option round-trips with its type intact. Falls back to the
+ * raw string when nothing matches (a stale value, or a column that declares no
+ * options) — the pre-#3422 behaviour, so unmatched paths change nothing.
+ *
+ * When two options share a `String()` form — `1` and `'1'`, or two object
+ * values that both print `[object Object]` — the FIRST match wins. Such a list
+ * is already unrenderable as a dropdown (Radix would receive two `SelectItem`s
+ * with the same `value`, and React two children with the same key), so this
+ * tie-break exists to be deterministic, not to make an ambiguous option list
+ * work.
+ */
+function matchOptionValue(
+  options: ReadonlyArray<{ value: unknown }> | undefined,
+  raw: string,
+): unknown {
+  const hit = options?.find(o => String(o.value) === raw);
+  return hit ? hit.value : raw;
+}
+
+/**
  * Convert user-entered filter bar values into a $filter Record.
  * Each key is a field name, each value the user-entered value.
  * Empty/null values are ignored.
+ *
+ * Note the empty string is the "no filter on this field" sentinel here (and
+ * the `select` control's "nothing picked" value), so an option whose authored
+ * value is `''` cannot be expressed as an active filter. That predates #3422
+ * and is unchanged by it — the round-trip above restores an option's TYPE, it
+ * does not redefine what counts as an empty selection.
  */
 function filterValuesToRecord(
   values: Record<string, any>,
@@ -828,9 +890,11 @@ export function RecordPickerDialog({
           return (
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">{label}</Label>
+              {/* The control speaks string; the stored filter value keeps the
+                  authored option type (#3422 — see `matchOptionValue`). */}
               <Select
-                value={val !== undefined && val !== null ? String(val) : ''}
-                onValueChange={v => handleFilterChange(col.field, v)}
+                value={toControlValue(val) ?? ''}
+                onValueChange={v => handleFilterChange(col.field, matchOptionValue(col.options, v))}
               >
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder={t('lookup.filterPlaceholder', { label })} />
