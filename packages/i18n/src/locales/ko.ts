@@ -755,6 +755,7 @@ const ko = {
     reactionCount: "{{emoji}} 반응 {{count}}개",
     reactionCountOne: "{{emoji}} 반응 {{count}}개",
     recordDetail: "레코드 세부 정보",
+    recordDetailWithLabel: "{{label}} 세부 정보",
     openAsFullPage: "전체 페이지로 열기",
     recordDetailOverlay: "{{title}}의 레코드 세부 정보 오버레이입니다.",
     addToFavorites: "즐겨찾기에 추가",

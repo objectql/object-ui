@@ -755,6 +755,7 @@ const ja = {
     reactionCount: "{{emoji}} {{count}} 件のリアクション",
     reactionCountOne: "{{emoji}} {{count}} 件のリアクション",
     recordDetail: "レコード詳細",
+    recordDetailWithLabel: "{{label}}の詳細",
     openAsFullPage: "フルページで開く",
     recordDetailOverlay: "{{title}} のレコード詳細オーバーレイ。",
     addToFavorites: "お気に入りに追加",

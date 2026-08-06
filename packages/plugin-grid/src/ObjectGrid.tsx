@@ -131,6 +131,15 @@ const GRID_DEFAULT_TRANSLATIONS: Record<string, string> = {
   // Reused by the grouped-view pager (falls back here when no I18nProvider).
   'table.rowsPerPage': 'Rows per page',
   'table.pageInfo': 'Page {{current}} of {{total}}',
+  // Heading of the record-detail overlay this grid opens on row click
+  // (objectui#3426). Borrowed from the `detail.*` namespace rather than minted
+  // as `grid.recordDetail`: `NavigationOverlay` already resolves
+  // `detail.recordDetail` for hosts that pass no title, and one heading on one
+  // control should not get two translations that can drift apart. Both entries
+  // must exist HERE too — a provider-less host (a standalone grid, this
+  // package's own tests) never reaches the locale packs.
+  'detail.recordDetail': 'Record Detail',
+  'detail.recordDetailWithLabel': '{{label}} Detail',
 };
 
 /**
@@ -2277,12 +2286,27 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     })),
   });
 
-  // Build record detail title
+  // Build record detail title.
+  //
+  // Keyed, not string-built (objectui#3426). This value is handed to
+  // `NavigationOverlay`'s `title` prop, which means the overlay's own
+  // `detail.recordDetail` default never applies here — whatever this computes
+  // IS the visible heading of the drawer/modal/split/popover. Interpolating
+  // the label through `detail.recordDetailWithLabel` instead of splicing it
+  // into an English template lets each pack choose its own word order; the
+  // no-label branch reuses the overlay's own key rather than a twin.
+  //
+  // English output is unchanged in all three branches (`Contacts Detail` /
+  // `Contacts Detail` / `Record Detail`), including with no `I18nProvider`
+  // mounted — `createSafeTranslation`'s fallback interpolates `{{label}}` from
+  // `GRID_DEFAULT_TRANSLATIONS`.
   const detailTitle = schema.label
-    ? `${schema.label} Detail`
+    ? t('detail.recordDetailWithLabel', { label: schema.label })
     : schema.objectName
-      ? `${schema.objectName.charAt(0).toUpperCase() + schema.objectName.slice(1)} Detail`
-      : 'Record Detail';
+      ? t('detail.recordDetailWithLabel', {
+          label: schema.objectName.charAt(0).toUpperCase() + schema.objectName.slice(1),
+        })
+      : t('detail.recordDetail');
 
   // Form-based record detail renderer (replaces simple key-value dump).
   // Hoisted above the mobile card-view's early return (below) so both the

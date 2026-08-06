@@ -805,6 +805,7 @@ const zh = {
     reactionCount: '{{emoji}} {{count}} 个回应',
     reactionCountOne: '{{emoji}} {{count}} 个回应',
     recordDetail: '记录详情',
+    recordDetailWithLabel: '{{label}}详情',
     openAsFullPage: '以完整页面打开',
     recordDetailOverlay: '{{title}} 的记录详情浮层。',
     addToFavorites: '添加到收藏',

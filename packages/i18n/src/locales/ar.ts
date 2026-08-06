@@ -757,6 +757,7 @@ const ar = {
     reactionCount: "{{emoji}} {{count}} تفاعلات",
     reactionCountOne: "{{emoji}} {{count}} تفاعل",
     recordDetail: "تفاصيل السجل",
+    recordDetailWithLabel: "تفاصيل {{label}}",
     openAsFullPage: "فتح كصفحة كاملة",
     recordDetailOverlay: "طبقة تفاصيل السجل الخاصة بـ {{title}}.",
     addToFavorites: "إضافة إلى المفضلة",

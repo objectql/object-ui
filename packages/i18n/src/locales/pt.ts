@@ -757,6 +757,7 @@ const pt = {
     reactionCount: "{{emoji}} {{count}} reações",
     reactionCountOne: "{{emoji}} {{count}} reação",
     recordDetail: "Detalhe do registro",
+    recordDetailWithLabel: "Detalhe de {{label}}",
     openAsFullPage: "Abrir como página inteira",
     recordDetailOverlay: "Sobreposição de detalhe do registro para {{title}}.",
     addToFavorites: "Adicionar aos favoritos",
