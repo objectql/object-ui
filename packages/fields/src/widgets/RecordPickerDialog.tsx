@@ -186,6 +186,41 @@ export function lookupFiltersToRecord(
 }
 
 /**
+ * A select option as the object schema declares it — `{ value, label }` plus
+ * whatever the renderer also reads (`color`, …), which the i18n translation
+ * carries through untouched.
+ */
+type SchemaOption = { value: any; label: string; [key: string]: any };
+
+/**
+ * Resolve a field's select options from the referenced object's schema field
+ * definition (`fieldsMeta[field]`), translated through the shared i18n option
+ * path.
+ *
+ * This is the SINGLE source for both surfaces that need option labels: the
+ * table cells (#3333) and the filter panel's select inputs (#3336) — so a
+ * picker column and the filter input for that same column can never disagree
+ * about what an option is called.
+ *
+ * Returns `undefined` when the schema field declares no options: a select
+ * field with no authored options genuinely has nothing to offer, and
+ * synthesising entries from the loaded page's raw stored values would paper
+ * over the metadata gap with a list that changes per page.
+ */
+function resolveSchemaOptions(
+  meta: { options?: unknown } | undefined,
+  objectName: string,
+  fieldName: string,
+  translateOptions: (o: string, f: string, opts: SchemaOption[]) => SchemaOption[],
+): SchemaOption[] | undefined {
+  const raw = meta?.options;
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const options = raw as SchemaOption[];
+  if (!objectName) return options;
+  return translateOptions(objectName, fieldName, options);
+}
+
+/**
  * Convert user-entered filter bar values into a $filter Record.
  * Each key is a field name, each value the user-entered value.
  * Empty/null values are ignored.
@@ -288,6 +323,11 @@ export interface RecordPickerDialogProps {
    * title-casing the raw stored value instead of resolving the option label
    * (#3333: `manufacturing` rendered as "Manufacturing" instead of the
    * authored option label).
+   *
+   * The filter bar reads the same map: a `select` filter column with no
+   * authored `options` takes them from the schema field here, so the filter
+   * panel's dropdown offers exactly the options the table cells render
+   * (#3336 — it used to open empty, leaving the field unfilterable).
    */
   fieldsMeta?: Record<string, any>;
 
@@ -415,9 +455,8 @@ export function RecordPickerDialog({
       const descriptor: any = meta
         ? { ...meta, name: col.field, type }
         : { name: col.field, type };
-      if (Array.isArray(descriptor.options) && objectName) {
-        descriptor.options = translateOptions(objectName, col.field, descriptor.options);
-      }
+      const options = resolveSchemaOptions(meta, objectName, col.field, translateOptions);
+      if (options) descriptor.options = options;
       map[col.field] = descriptor;
     }
     return map;
@@ -425,7 +464,7 @@ export function RecordPickerDialog({
 
   // Auto-generate filter columns from lookupFilters when no explicit filterColumns given.
   // Each LookupFilterDef becomes a filterable field with inferred type.
-  const effectiveFilterColumns = useMemo<RecordPickerFilterColumn[] | undefined>(() => {
+  const baseFilterColumns = useMemo<RecordPickerFilterColumn[] | undefined>(() => {
     if (filterColumns && filterColumns.length > 0) return filterColumns;
     // Auto-derive from lookupFilters: each filter entry becomes a filterable field
     if (lookupFilters && lookupFilters.length > 0) {
@@ -462,6 +501,28 @@ export function RecordPickerDialog({
     }
     return undefined;
   }, [filterColumns, lookupFilters]);
+
+  // Filter columns as the filter bar consumes them: every `select` filter
+  // carries the options its schema field declares. The filter panel's Select reads
+  // `col.options` — a derived select column (LookupField turns each typed picker
+  // column into a filter column) carries none, so the dropdown opened empty and
+  // the field could not be filtered at all (#3336).
+  //
+  // The options come from `fieldsMeta` through `resolveSchemaOptions`, i.e. the
+  // SAME schema source + i18n translation the table cells use (#3333) — not a
+  // second derivation that could drift from the cells. An explicitly authored
+  // `options` list on the filter column always wins (it is the more specific
+  // statement), and a schema field with no options stays optionless: an empty
+  // dropdown for THAT field is the honest rendering of missing metadata.
+  const effectiveFilterColumns = useMemo<RecordPickerFilterColumn[] | undefined>(() => {
+    if (!baseFilterColumns) return undefined;
+    return baseFilterColumns.map(col => {
+      if (col.type !== 'select') return col;
+      if (col.options && col.options.length > 0) return col;
+      const options = resolveSchemaOptions(fieldsMeta?.[col.field], objectName, col.field, translateOptions);
+      return options ? { ...col, options } : col;
+    });
+  }, [baseFilterColumns, fieldsMeta, objectName, translateOptions]);
 
   // Merge base lookup_filters with user filter bar values. The hard
   // `baseFilter` constraint (dependent-lookup chain, #2215) is spread LAST so
