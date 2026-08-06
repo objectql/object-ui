@@ -755,6 +755,7 @@ const de = {
     reactionCount: "{{emoji}} {{count}} Reaktionen",
     reactionCountOne: "{{emoji}} {{count}} Reaktion",
     recordDetail: "Datensatzdetails",
+    recordDetailWithLabel: "{{label}}-Details",
     openAsFullPage: "Als ganze Seite öffnen",
     recordDetailOverlay: "Detail-Overlay des Datensatzes für {{title}}.",
     addToFavorites: "Zu Favoriten hinzufügen",

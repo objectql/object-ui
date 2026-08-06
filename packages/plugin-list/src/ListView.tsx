@@ -409,6 +409,15 @@ const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.toolbar.densityCycleShortHint': 'Click to cycle',
   'list.viewSettings': 'View settings',
   'list.viewSettingsHint': 'Grouping, color, density, and visible fields.',
+  // Heading of the record-detail overlay this view opens when a child view's
+  // row is clicked (objectui#3426). Borrowed from the `detail.*` namespace
+  // rather than minted as `list.recordDetail`: `NavigationOverlay` already
+  // resolves `detail.recordDetail` for hosts that pass no title, and one
+  // heading on one control should not get two translations that can drift
+  // apart. Both entries must exist HERE too — a provider-less host (a
+  // standalone list, this package's own tests) never reaches the locale packs.
+  'detail.recordDetail': 'Record Detail',
+  'detail.recordDetailWithLabel': '{{label}} Detail',
 };
 
 /**
@@ -1407,6 +1416,28 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     onNavigate: schema.onNavigate,
     onRowClick,
   });
+
+  // Heading of the record-detail overlay rendered at the bottom of this file.
+  //
+  // Keyed, not string-built (objectui#3426). This value is handed to
+  // `NavigationOverlay`'s `title` prop, which means the overlay's own
+  // `detail.recordDetail` default never applies here — whatever this computes
+  // IS the visible heading of the drawer/modal/split/popover. Interpolating
+  // the label through `detail.recordDetailWithLabel` instead of splicing it
+  // into an English template lets each pack choose its own word order; the
+  // no-label branch reuses the overlay's own key rather than a twin.
+  //
+  // English output is unchanged in all three branches (`Contacts Detail` /
+  // `Contacts Detail` / `Record Detail`), including with no `I18nProvider`
+  // mounted — `createSafeTranslation`'s fallback interpolates `{{label}}` from
+  // `LIST_DEFAULT_TRANSLATIONS`.
+  const detailTitle = schema.label
+    ? t('detail.recordDetailWithLabel', { label: schema.label })
+    : schema.objectName
+      ? t('detail.recordDetailWithLabel', {
+          label: schema.objectName.charAt(0).toUpperCase() + schema.objectName.slice(1),
+        })
+      : t('detail.recordDetail');
 
   // Field-level permission gate. Filter unreadable columns from the
   // field list BEFORE any downstream column construction so they also
@@ -2847,13 +2878,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       {navigation.isOverlay && (
         <NavigationOverlay
           {...navigation}
-          title={
-            schema.label
-              ? `${schema.label} Detail`
-              : schema.objectName
-                ? `${schema.objectName.charAt(0).toUpperCase() + schema.objectName.slice(1)} Detail`
-                : 'Record Detail'
-          }
+          title={detailTitle}
         >
           {(record) => (
             <div className="space-y-3">

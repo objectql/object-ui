@@ -831,6 +831,15 @@ const en = {
     // name; `recordDetailOverlay` is the sr-only description on the
     // Sheet/Dialog when the host supplies none.
     recordDetail: 'Record Detail',
+    // Same heading, but for the hosts that DO know which object they are
+    // showing (objectui#3426): `ListView` / `ObjectGrid` used to string-build
+    // `` `${label} Detail` `` in TypeScript and hand it to the overlay's
+    // `title` prop, so `recordDetail` above never got a chance to apply and a
+    // non-English session read one English heading. Interpolating keeps the
+    // object label in the heading without freezing English word order — a pack
+    // whose qualifier trails the noun (de: a hyphenated compound) or that needs
+    // a possessive particle (ja/zh) writes its own arrangement here.
+    recordDetailWithLabel: '{{label}} Detail',
     openAsFullPage: 'Open as full page',
     recordDetailOverlay: 'Record detail overlay for {{title}}.',
     addToFavorites: 'Add to favorites',

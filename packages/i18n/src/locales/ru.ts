@@ -757,6 +757,7 @@ const ru = {
     reactionCount: "{{emoji}} {{count}} реакций",
     reactionCountOne: "{{emoji}} {{count}} реакция",
     recordDetail: "Сведения о записи",
+    recordDetailWithLabel: "Сведения: {{label}}",
     openAsFullPage: "Открыть на всю страницу",
     recordDetailOverlay: "Наложение со сведениями о записи для {{title}}.",
     addToFavorites: "Добавить в избранное",

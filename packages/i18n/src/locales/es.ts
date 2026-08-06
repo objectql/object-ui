@@ -760,6 +760,7 @@ const es = {
     reactionCount: "{{emoji}} {{count}} reacciones",
     reactionCountOne: "{{emoji}} {{count}} reacción",
     recordDetail: "Detalle del registro",
+    recordDetailWithLabel: "Detalle de {{label}}",
     openAsFullPage: "Abrir como página completa",
     recordDetailOverlay: "Capa de detalle del registro para {{title}}.",
     addToFavorites: "Añadir a favoritos",

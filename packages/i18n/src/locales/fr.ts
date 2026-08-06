@@ -757,6 +757,7 @@ const fr = {
     reactionCount: "{{emoji}} {{count}} réactions",
     reactionCountOne: "{{emoji}} {{count}} réaction",
     recordDetail: "Détail de l'enregistrement",
+    recordDetailWithLabel: "Détail — {{label}}",
     openAsFullPage: "Ouvrir en pleine page",
     recordDetailOverlay: "Panneau de détail de l'enregistrement pour {{title}}.",
     addToFavorites: "Ajouter aux favoris",

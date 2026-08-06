@@ -69,16 +69,21 @@ afterEach(() => cleanup());
 /**
  * Addressing the drawer's close button: by `title`, NOT by role+name.
  *
- * The shadcn `Sheet` primitive auto-renders a close button of its own, whose
- * only accessible name is a hardcoded English `sr-only` span
- * (`packages/components/src/ui/sheet.tsx:80` — an upstream No-Touch zone,
- * AGENTS.md #7). `NavigationOverlay` CSS-hides it with
- * `[&>button:last-of-type]:hidden`, so a real browser drops it from the
- * accessibility tree — but jsdom does not apply Tailwind, so RTL still sees it
- * and `getByRole('button', { name: 'Close' })` matches two elements under `en`.
+ * The shadcn `Sheet` primitive auto-renders a close button of its own.
+ * `NavigationOverlay` CSS-hides it with `[&>button:last-of-type]:hidden`, so a
+ * real browser drops it from the accessibility tree — but jsdom does not apply
+ * Tailwind, so RTL still sees it and role+name queries match TWO elements.
  *
- * Ours is the only close carrying a `title`, so that is the precise handle. The
- * primitive's own untranslated label is a separate, out-of-scope finding.
+ * Ours is the only close carrying a `title`, so that is the precise handle.
+ *
+ * As of objectstack#5505 the primitive's own label is translated too (it
+ * renders `<CloseSrLabel />` rather than a hardcoded English span), so the
+ * duplicate now appears under EVERY locale rather than only under `en` — under
+ * `zh` both buttons are named 关闭. The bare `getByRole` assertions that used
+ * to work here therefore became "found multiple elements" errors, and are now
+ * written as `getAllByRole(...)` containment checks against our titled button.
+ * That keeps the original intent — our control is reachable by role + name —
+ * without asserting anything about how many close buttons jsdom can see.
  */
 describe('NavigationOverlay drawer close — accessible name (objectstack#5430)', () => {
   it('still reads English under an en session', () => {
@@ -90,18 +95,20 @@ describe('NavigationOverlay drawer close — accessible name (objectstack#5430)'
   it('reads the zh bundle value under a zh session', () => {
     renderDrawerIn('zh');
 
-    expect(screen.getByTitle('关闭').getAttribute('aria-label')).toBe('关闭');
-    expect(screen.getByRole('button', { name: '关闭' })).toBeTruthy();
+    const ours = screen.getByTitle('关闭');
+    expect(ours.getAttribute('aria-label')).toBe('关闭');
+    expect(screen.getAllByRole('button', { name: '关闭' })).toContain(ours);
     // The literal this replaced, scoped to OUR button via `title` so the
-    // primitive's hidden English one cannot mask a re-inlined string here.
+    // primitive's own close cannot mask a re-inlined string here.
     expect(screen.queryByTitle('Close')).toBeNull();
   });
 
   it('reads the de bundle value under a de session', () => {
     renderDrawerIn('de');
 
-    expect(screen.getByTitle('Schließen').getAttribute('aria-label')).toBe('Schließen');
-    expect(screen.getByRole('button', { name: 'Schließen' })).toBeTruthy();
+    const ours = screen.getByTitle('Schließen');
+    expect(ours.getAttribute('aria-label')).toBe('Schließen');
+    expect(screen.getAllByRole('button', { name: 'Schließen' })).toContain(ours);
     expect(screen.queryByTitle('Close')).toBeNull();
   });
 });
