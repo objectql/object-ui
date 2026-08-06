@@ -59,7 +59,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:live": "playwright test --config=playwright.live.config.ts",
-    "test:e2e:live:ci": "playwright test --config=playwright.live.config.ts screen-flow.spec.ts action-modal.spec.ts master-detail.spec.ts",
+    "test:e2e:live:ci": "playwright test --config=playwright.live.config.ts screen-flow.spec.ts action-modal.spec.ts master-detail.spec.ts saved-view-filter.spec.ts",
     "test:e2e:import-harness": "playwright test --config=playwright.import-harness.config.ts",
     "test:e2e:import-console": "playwright test --config=playwright.import-console.config.ts"
   },

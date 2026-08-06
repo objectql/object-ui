@@ -25,10 +25,10 @@ import { test, expect } from '@playwright/test';
  * Prereqs: the usual live-e2e pair (see playwright.live.config.ts). Run:
  *   pnpm test:e2e:live e2e/live/saved-view-filter.spec.ts
  *
- * NOT yet in the `test:e2e:live:ci` allowlist, on purpose: live-e2e.yml's own
- * policy is that specs join it only after they have proven flake-free on the
- * lane, and this one has no record yet. Promote it in a follow-up once the
- * nightly has run it.
+ * In the `test:e2e:live:ci` allowlist since objectui#3472, per live-e2e.yml's
+ * promotion policy (prove flake-free first, then admit): 3/3 consecutive green
+ * runs against the pinned live pair, plus a 5/5 run of the enlarged allowlist
+ * to show it does not disturb the incumbent specs.
  */
 const APP = process.env.SHOWCASE_APP_NAME || 'showcase_app';
 
