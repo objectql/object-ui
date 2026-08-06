@@ -132,6 +132,7 @@ const pt = {
     stepOf: "Etapa {{current}} de {{total}}",
     createTitle: "Criar {{object}}",
     editTitle: "Editar {{object}}",
+    viewTitle: "Ver {{object}}",
     saveRecord: "Salvar registro",
     create: "Criar",
     update: "Atualizar",

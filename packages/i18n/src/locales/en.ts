@@ -145,6 +145,7 @@ const en = {
     stepOf: 'Step {{current}} of {{total}}',
     createTitle: 'Create {{object}}',
     editTitle: 'Edit {{object}}',
+    viewTitle: 'View {{object}}',
     saveRecord: 'Save',
     create: 'Create',
     update: 'Update',

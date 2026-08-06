@@ -132,6 +132,7 @@ const ja = {
     stepOf: "ステップ {{current}} / {{total}}",
     createTitle: "{{object}}を作成",
     editTitle: "{{object}}を編集",
+    viewTitle: "{{object}}を表示",
     saveRecord: "レコードを保存",
     create: "作成",
     update: "更新",

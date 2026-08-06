@@ -85,23 +85,47 @@ function useCreateVerb(): string {
 }
 
 /**
- * English fallback for the split-mode record-detail heading (objectui#3459,
- * following #3426's shape).
+ * English fallbacks for the headings this view resolves through `t()`
+ * (objectui#3459 for the split-mode record-detail heading, objectui#3462 for
+ * the create/edit/view form titles — both following #3426's shape).
  *
- * Borrowed from the `detail.*` namespace rather than minted as
- * `view.recordDetail`: `NavigationOverlay` — the very component this heading is
- * handed to — already resolves that namespace, as do `ListView` / `ObjectGrid`
- * / `ObjectKanban` / `ObjectTree`, and one heading on one control should not
- * get several translations that can drift apart. The entry must exist HERE too
- * — a provider-less host never reaches the locale packs, and
- * `createSafeTranslation`'s fallback is what interpolates `{{label}}`.
+ * Every entry must exist HERE as well as in the locale packs: a provider-less
+ * host never reaches the packs, and `createSafeTranslation`'s fallback is what
+ * interpolates the placeholder.
  *
- * It doubles as the probe key: under a provider `t()` returns the pack's
- * template (≠ the key) so the real translator is used; with no provider the key
- * comes back unchanged and this map supplies the English.
+ * ── Why these keys, and not new ones ──────────────────────────────────────
+ * `detail.recordDetailWithLabel` is borrowed from the `detail.*` namespace
+ * rather than minted as `view.recordDetail`: `NavigationOverlay` — the very
+ * component that heading is handed to — already resolves that namespace, as do
+ * `ListView` / `ObjectGrid` / `ObjectKanban` / `ObjectTree`, and one heading on
+ * one control should not get several translations that can drift apart.
+ *
+ * `form.createTitle` / `form.editTitle` are reused for the same reason, and are
+ * not new: all ten packs already carry them, and `app-shell` already heads the
+ * PAGE-mode record form with exactly these (`RecordFormPage.tsx`,
+ * `AppContent.tsx`). The drawer / modal / popover titles below are the same
+ * heading on a different surface, so they resolve the same keys — minting a
+ * parallel `console.objectView.*` family would have guaranteed the two spellings
+ * drift (zh already distinguishes 新建 from 创建). Only the third verb,
+ * `form.viewTitle`, had no sibling; it was added to all ten packs.
+ *
+ * Note the placeholder is `{{object}}`, not `{{label}}` — that is the variable
+ * the existing `form.*Title` family declares, and the pack-vs-en placeholder
+ * parity guard compares placeholder sets per key.
+ *
+ * `detail.recordDetailWithLabel` doubles as the probe key: under a provider
+ * `t()` returns the pack's template (≠ the key) so the real translator is used;
+ * with no provider the key comes back unchanged and this map supplies the
+ * English.
  */
 const VIEW_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'detail.recordDetailWithLabel': '{{label}} Detail',
+  // Byte-for-byte the strings `getFormTitle` used to build with a template
+  // literal, so an English session and every e2e spec that addresses this
+  // chrome by name see no change at all.
+  'form.createTitle': 'Create {{object}}',
+  'form.editTitle': 'Edit {{object}}',
+  'form.viewTitle': 'View {{object}}',
 };
 
 const useObjectViewTranslation = createSafeTranslation(
@@ -271,10 +295,11 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   onViewAction,
 }) => {
   const createVerb = useCreateVerb();
-  // Heading of the split-mode record-detail panel (see the split branch far
-  // below). Declared with the other top-level hooks so it stays above every
-  // conditional return — rules-of-hooks.
-  const { t: tDetail } = useObjectViewTranslation();
+  // Headings this view owns: the split-mode record-detail panel (see the split
+  // branch far below) and the create/edit/view form titles (`getFormTitle`).
+  // Declared with the other top-level hooks so it stays above every conditional
+  // return — rules-of-hooks.
+  const { t: tView } = useObjectViewTranslation();
   const [objectSchema, setObjectSchema] = useState<Record<string, unknown> | null>(null);
   // Assigned in the render body (not in an effect) so the fetchData effect always
   // reads the latest objectSchema without needing it as a dependency. This matches
@@ -872,14 +897,26 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
     };
   };
 
-  // Get form title based on mode
+  // Get form title based on mode.
+  //
+  // objectui#3462: the three verbs used to be string-built (`` `View ${label}` ``),
+  // so a zh session reading a drawer opened by a row click was headed
+  // "View 联系人" — an English verb glued onto a localized label. They resolve
+  // `form.{create,edit,view}Title` now, which is the SAME key family `app-shell`
+  // already uses for the page-mode record form, so the four surfaces cannot
+  // drift. German compounds and ja/zh particle order all sit inside the
+  // template, which is why this is a key and not a verb lookup + concatenation.
+  //
+  // Two branches stay literal on purpose:
+  //   - `schema.form?.title` — the author wrote a title, so use the author's.
+  //   - `default` — returns the object label alone, no verb to translate.
   const getFormTitle = (): string => {
     if (schema.form?.title) return schema.form.title;
     const objectLabel = (objectSchema?.label as string) || schema.objectName;
     switch (formMode) {
-      case 'create': return `Create ${objectLabel}`;
-      case 'edit': return `Edit ${objectLabel}`;
-      case 'view': return `View ${objectLabel}`;
+      case 'create': return tView('form.createTitle', { object: objectLabel });
+      case 'edit': return tView('form.editTitle', { object: objectLabel });
+      case 'view': return tView('form.viewTitle', { object: objectLabel });
       default: return objectLabel;
     }
   };
@@ -1188,7 +1225,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
                  choose its own word order (de hyphenates, ja/zh need a
                  possessive particle). English output is byte-identical
                  (`Contacts Detail`), with or without an `I18nProvider`. */
-              title={tDetail('detail.recordDetailWithLabel', { label: objectLabel })}
+              title={tView('detail.recordDetailWithLabel', { label: objectLabel })}
               mainContent={<div className="h-full overflow-auto">{renderContent()}</div>}
             >
               {renderOverlayDetail}

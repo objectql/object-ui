@@ -137,6 +137,7 @@ const es = {
     stepOf: "Paso {{current}} de {{total}}",
     createTitle: "Crear {{object}}",
     editTitle: "Editar {{object}}",
+    viewTitle: "Ver {{object}}",
     saveRecord: "Guardar registro",
     create: "Crear",
     update: "Actualizar",

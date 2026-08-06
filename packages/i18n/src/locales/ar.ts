@@ -132,6 +132,7 @@ const ar = {
     stepOf: "الخطوة {{current}} من {{total}}",
     createTitle: "إنشاء {{object}}",
     editTitle: "تعديل {{object}}",
+    viewTitle: "عرض {{object}}",
     saveRecord: "حفظ السجل",
     create: "إنشاء",
     update: "تحديث",

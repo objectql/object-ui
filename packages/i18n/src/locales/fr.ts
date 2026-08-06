@@ -132,6 +132,7 @@ const fr = {
     stepOf: "Étape {{current}} sur {{total}}",
     createTitle: "Créer {{object}}",
     editTitle: "Modifier {{object}}",
+    viewTitle: "Afficher {{object}}",
     saveRecord: "Enregistrer",
     create: "Créer",
     update: "Mettre à jour",

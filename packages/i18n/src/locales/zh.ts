@@ -137,6 +137,7 @@ const zh = {
     stepOf: '第{{current}}步，共{{total}}步',
     createTitle: '新建{{object}}',
     editTitle: '编辑{{object}}',
+    viewTitle: '查看{{object}}',
     saveRecord: '保存',
     create: '创建',
     update: '更新',
