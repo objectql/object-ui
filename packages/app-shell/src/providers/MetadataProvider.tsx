@@ -119,11 +119,14 @@ function isNamedItem(item: unknown): item is { name: string } {
  * Merge `view` metadata into object definitions so that `objectDef.listViews`
  * is populated for the renderer (`@object-ui/plugin-view`) which expects it.
  *
- * Two view shapes coexist in the `view` metadata type (the backend returns
- * both for back-compat — see framework `objectql/engine.ts` registration):
+ * Two view shapes coexist in the `view` metadata type — **both deliberate, and
+ * neither one a leftover** (objectstack#4959 settled this end-to-end; see
+ * framework `objectql/engine.ts` registration). Each belongs to a different
+ * authoring gate, so this merge has to read both:
  *
- *  1. Independent **ViewItem** (ADR-0017, "Object has-many View") — the
- *     canonical first-class shape, one entry per named view:
+ *  1. Independent **ViewItem** — the RECORD gate (ADR-0017, "Object has-many
+ *     View"): one first-class metadata record per named view, as authored by
+ *     `defineViewItem` or written through the runtime `/meta` seam.
  *       { name: '<object>.<key>', object, viewKind: 'list' | 'form',
  *         label, isDefault?, config: { type, data, columns, … } }
  *     `viewKind` is the family discriminant and the view body lives under
@@ -131,11 +134,16 @@ function isNamedItem(item: unknown): item is { name: string } {
  *     `viewKind: 'form'` items into `formViews` — so FORM-family views never
  *     surface in the list-view switcher (which only reads `listViews`).
  *
- *  2. Legacy aggregated **container** `{ list?, form?, listViews?, formViews? }`
- *     keyed by the bare object name. Kept for adapters/fixtures that don't
- *     expand into ViewItems. When an object already has expanded ViewItems the
- *     container is skipped, since it restates the same views (and keying both
- *     would list every view twice — once under its short key, once under its
+ *  2. Aggregated **container** `{ list?, form?, listViews?, formViews? }` keyed
+ *     by the bare object name — the STACK gate's packaging shape: what
+ *     `defineView` emits and what a stack carries in
+ *     `defineStack({ views: [...] })`. The spec treats it as first class
+ *     (`isAggregatedViewContainer` / `expandViewContainer` in
+ *     `@objectstack/spec/ui`), so it is NOT legacy and this branch is NOT dead
+ *     code — delete it and stack-packaged views stop reaching the renderer.
+ *     When an object already has expanded ViewItems the container is skipped
+ *     for THAT object, since it restates the same views (and keying both would
+ *     list every view twice — once under its short key, once under its
  *     canonical `<object>.<key>` name).
  *
  * Existing `obj.listViews` / `obj.list_views` win to preserve overrides.
@@ -155,14 +163,15 @@ function isViewItem(view: any): boolean {
 export function mergeViewsIntoObjects(objects: any[], views: any[]): any[] {
   if (!objects.length || !views.length) return objects;
   const byObject: Record<string, ViewBucket> = {};
-  // Objects that received expanded ViewItems — their legacy aggregated
-  // container (also present in the `view` list) is superseded and skipped.
+  // Objects that received expanded ViewItems — the aggregated container for
+  // those objects (also present in the `view` list) restates the same views, so
+  // it is skipped per-object. Other objects still depend on it.
   const hasViewItems = new Set<string>();
   for (const view of views) {
     if (isViewItem(view)) hasViewItems.add(view.object);
   }
   for (const view of views) {
-    // ── New protocol: independent ViewItem ({ name, object, viewKind, config }) ──
+    // ── Record gate: independent ViewItem ({ name, object, viewKind, config }) ──
     if (isViewItem(view)) {
       const bucket = (byObject[view.object] ||= { listViews: {}, formViews: {} });
       // Canonical `<object>.<key>` name doubles as the view id, so `/view/<name>`
@@ -183,7 +192,7 @@ export function mergeViewsIntoObjects(objects: any[], views: any[]): any[] {
       }
       continue;
     }
-    // ── Legacy aggregated container ({ list, form, listViews, formViews }) ──
+    // ── Stack gate: aggregated container ({ list, form, listViews, formViews }) ──
     const objName = view?.name || view?.list?.data?.object || view?.form?.data?.object;
     if (!objName) continue;
     // Expanded ViewItems supersede the bare container for this object.
