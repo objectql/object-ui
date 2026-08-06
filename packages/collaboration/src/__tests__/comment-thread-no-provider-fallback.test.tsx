@@ -160,6 +160,57 @@ describe('CommentThread with no I18nProvider — English fallback (objectstack#5
   });
 
   /**
+   * objectui#3441 — the three emoji-only controls, named from the same map.
+   *
+   * `getByRole(… { name })` computes the accessible name rather than reading an
+   * attribute: for a `button`, name-from-content outranks `title`, so only an
+   * `aria-label` can displace the glyph. With no provider that label has to come
+   * out of `COLLAB_DEFAULT_TRANSLATIONS`, or a standalone host gets a control
+   * announced as `collaboration.reactThumbsUp`.
+   *
+   * Unlike the copy pins in this file these are RED before / GREEN after: the
+   * names did not exist in any language on `origin/main`.
+   */
+  it('names the emoji-only reaction and dismiss buttons in English', () => {
+    renderBare();
+
+    expect(screen.getAllByRole('button', { name: 'React with thumbs up' }).length).toBe(2);
+    expect(screen.getAllByRole('button', { name: 'React with heart' }).length).toBe(2);
+    expect(screen.queryAllByRole('button', { name: '👍' })).toHaveLength(0);
+
+    fireEvent.click(screen.getAllByText('Reply')[0]);
+    expect(screen.getByRole('button', { name: 'Cancel reply' })).toBeTruthy();
+    expect(screen.queryAllByRole('button', { name: '✕' })).toHaveLength(0);
+  });
+
+  /**
+   * objectui#3441 — with no provider the session language is whatever
+   * react-i18next reports (in practice `'en'`), and the >= 7d branch now hands
+   * that to `toLocaleDateString`. What must hold on this path is narrower than
+   * under a provider but is the part a standalone host would notice: a real
+   * formatted date, never the raw ISO string `formatTimestamp`'s outer catch
+   * would produce if a bad tag reached `Intl`.
+   */
+  it('formats a week-old comment as a date, not a raw ISO string', () => {
+    const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+    const { container } = renderBare({
+      comments: [
+        {
+          id: 'old',
+          author: alice,
+          content: 'From last week.',
+          mentions: [],
+          createdAt: eightDaysAgo.toISOString(),
+        },
+      ],
+    });
+
+    expect(container.textContent).not.toContain(eightDaysAgo.toISOString());
+    expect(container.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/);
+    expect(screen.getByText(eightDaysAgo.toLocaleDateString('en'))).toBeTruthy();
+  });
+
+  /**
    * The failure mode this whole file exists to catch: a key wired into the
    * component but absent from the defaults map renders as its own dotted name.
    */
@@ -201,5 +252,41 @@ describe('COLLAB_DEFAULT_TRANSLATIONS is the package-wide English source', () =>
   it('keeps the reaction tooltip free of an {{emoji}} placeholder', () => {
     expect(COLLAB_DEFAULT_TRANSLATIONS['collaboration.reactionCount']).toBe('{{count}} reactions');
     expect(COLLAB_DEFAULT_TRANSLATIONS['collaboration.reactionCountOne']).toBe('{{count}} reaction');
+  });
+
+  /**
+   * objectui#3441. `reactThumbsUp` and `addThumbsUp` dispatch the same reaction
+   * today but name two different controls that render side by side, so their
+   * copy must not collapse into one string — that is the thing a later
+   * "de-duplicate these two keys" cleanup would break, and this is where it
+   * fails.
+   */
+  it('gives the quick thumbs-up its own copy, distinct from the picker', () => {
+    expect(COLLAB_DEFAULT_TRANSLATIONS['collaboration.reactThumbsUp']).toBeTruthy();
+    expect(COLLAB_DEFAULT_TRANSLATIONS['collaboration.reactHeart']).toBeTruthy();
+    expect(COLLAB_DEFAULT_TRANSLATIONS['collaboration.cancelReply']).toBeTruthy();
+    expect(COLLAB_DEFAULT_TRANSLATIONS['collaboration.reactThumbsUp']).not.toBe(
+      COLLAB_DEFAULT_TRANSLATIONS['collaboration.addThumbsUp'],
+    );
+  });
+
+  /**
+   * An accessible name lives in an attribute, so `container.textContent` — what
+   * the "never renders a raw i18n key" case above scans — cannot see it. A
+   * missing default would surface as `aria-label="collaboration.reactHeart"`
+   * and nothing else in this file would notice.
+   */
+  it('never leaves a raw key or placeholder in an accessible name', () => {
+    const { container } = renderBare();
+    fireEvent.click(screen.getAllByText('Reply')[0]);
+
+    const names = Array.from(container.querySelectorAll('[aria-label]')).map((n) =>
+      n.getAttribute('aria-label'),
+    );
+    expect(names.length).toBeGreaterThan(0);
+    for (const name of names) {
+      expect(name).not.toMatch(/^(collaboration|common)\.\w+$/);
+      expect(name).not.toMatch(/\{\{\w+\}\}/);
+    }
   });
 });

@@ -52,22 +52,56 @@ export interface CommentThreadProps {
 }
 
 /**
+ * Absolute date for the >= 7d bucket, in the session language (objectui#3441).
+ *
+ * Has its OWN try/catch, deliberately not sharing `formatTimestamp`'s. The two
+ * catches recover from different things and must recover differently:
+ *
+ *  - `formatTimestamp`'s outer catch is for an input it cannot make sense of,
+ *    and its only honest fallback is to echo the raw `iso` back.
+ *  - a throw from here says nothing about the *date* — it says the LANGUAGE TAG
+ *    is malformed. `Date.prototype.toLocaleDateString(tag)` runs the tag through
+ *    `CanonicalizeLocaleList`, which raises `RangeError` for anything not
+ *    structurally well-formed per BCP 47 (`'en_US'`, `''`, `'zh CN'`). A
+ *    well-formed but unknown tag such as `'xx-YY'` does NOT throw — it resolves
+ *    to the runtime default — so only genuinely malformed tags reach the catch.
+ *
+ * Letting the tag's `RangeError` reach the outer catch is why this was left
+ * undone in objectui#3424: a bad tag would have turned a readable date into the
+ * raw `2026-08-01T09:30:00.000Z`, i.e. WORSE than the un-localized date it
+ * replaced. Falling back to the no-argument call restores exactly the previous
+ * behaviour (the runtime's own locale) for that path, so the worst case of
+ * following the session language is the status quo, never a regression.
+ *
+ * No date library, and no month/weekday copy in the locale packs: `Intl` is
+ * already in the runtime and owns the per-locale ordering and separators.
+ */
+function formatAbsoluteDate(date: Date, language: string): string {
+  try {
+    return date.toLocaleDateString(language);
+  } catch {
+    return date.toLocaleDateString();
+  }
+}
+
+/**
  * Relative age of a comment, in the session language.
  *
- * `t` is threaded in as a parameter rather than read from a hook: this runs
- * once per rendered comment from inside `renderComment`, and the buckets are
- * unchanged — only the words moved into the locale packs. Counts are
- * interpolated as STRINGS on purpose, so i18next skips its own plural
- * resolution (`needsPluralHandling` is false for a string `count`) and cannot
- * silently start looking for `_one`/`_other` variants this repo does not ship.
+ * `t` and `language` are threaded in as parameters rather than read from a
+ * hook: this runs once per rendered comment from inside `renderComment`, and
+ * the buckets are unchanged — only the words moved into the locale packs.
+ * Counts are interpolated as STRINGS on purpose, so i18next skips its own
+ * plural resolution (`needsPluralHandling` is false for a string `count`) and
+ * cannot silently start looking for `_one`/`_other` variants this repo does not
+ * ship.
  *
- * The >= 7d branch still uses the runtime's own `toLocaleDateString()`. That is
- * not a hardcoded English literal — it already follows the environment locale —
- * and pinning it to the session language is a separate change with its own
- * failure mode (an unrecognised tag throws `RangeError` straight into the
- * `catch` below, which would render the raw ISO string). Tracked separately.
+ * The >= 7d bucket follows the session language too (objectui#3441) — a `zh`
+ * session used to read "6 天前" for a six-day-old comment and `8/1/2026` for an
+ * eight-day-old one, because that branch called `toLocaleDateString()` with no
+ * argument and got the *runtime's* locale. See {@link formatAbsoluteDate} for
+ * why the tag gets its own guard instead of being handed straight in.
  */
-function formatTimestamp(iso: string, t: CollaborationTranslate): string {
+function formatTimestamp(iso: string, t: CollaborationTranslate, language: string): string {
   try {
     const date = new Date(iso);
     const now = new Date();
@@ -79,7 +113,7 @@ function formatTimestamp(iso: string, t: CollaborationTranslate): string {
     if (hours < 24) return t('collaboration.hoursAgo', { count: String(hours) });
     const days = Math.floor(hours / 24);
     if (days < 7) return t('collaboration.daysAgo', { count: String(days) });
-    return date.toLocaleDateString();
+    return formatAbsoluteDate(date, language);
   } catch {
     return iso;
   }
@@ -367,7 +401,7 @@ export function CommentThread({
   const [mentionIndex, setMentionIndex] = useState(0);
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('oldest');
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const { t } = useCollaborationTranslation();
+  const { t, language } = useCollaborationTranslation();
 
   const filteredMentions = useMemo(() => {
     if (mentionQuery === null) return [];
@@ -511,7 +545,7 @@ export function CommentThread({
         // Header
         React.createElement('div', { style: styles.commentHeader },
           React.createElement('span', { style: styles.authorName }, comment.author.name),
-          React.createElement('span', { style: styles.timestamp }, formatTimestamp(comment.createdAt, t)),
+          React.createElement('span', { style: styles.timestamp }, formatTimestamp(comment.createdAt, t, language)),
           comment.updatedAt
             ? React.createElement('span', { style: styles.timestamp }, t('collaboration.edited'))
             : null,
@@ -569,13 +603,29 @@ export function CommentThread({
             style: styles.actionBtn,
             onClick: () => setReplyTo(comment.id),
           }, t('collaboration.reply')),
+          // Quick reactions (objectui#3441). Their only content is the emoji,
+          // and for a `button` the accessible name comes from CONTENT before it
+          // ever reaches `title` (accname §2F outranks §2I) — so these two were
+          // announced as the bare glyph: "thumbs up" / "red heart" at best,
+          // nothing at all where the SR has no name for the codepoint. Hence
+          // `aria-label`, which overrides content, rather than the `title` the
+          // `+` picker above uses.
+          //
+          // Their own key pair, NOT a reuse of `collaboration.addThumbsUp`: the
+          // `+` above happens to fire the same `onReaction(id, '👍')` today, but
+          // it is the reaction PICKER's entry point (`styles.reactionPicker`)
+          // whose copy follows the picker if it ever picks. Sharing one key
+          // would also give a comment that already has reactions two visible
+          // controls answering to one name.
           onReaction && React.createElement('button', {
             style: styles.actionBtn,
             onClick: () => onReaction(comment.id, '👍'),
+            'aria-label': t('collaboration.reactThumbsUp'),
           }, '👍'),
           onReaction && React.createElement('button', {
             style: styles.actionBtn,
             onClick: () => onReaction(comment.id, '❤️'),
+            'aria-label': t('collaboration.reactHeart'),
           }, '❤️'),
           isOwner && onEditComment && React.createElement('button', {
             style: styles.actionBtn,
@@ -649,9 +699,16 @@ export function CommentThread({
           ? t('collaboration.replyingTo', { name: replyToName })
           : t('collaboration.replyingToComment');
       })()),
+      // Dismisses the banner and clears the reply target (objectui#3441). Its
+      // content is U+2715 MULTIPLICATION X — a math symbol, not an icon with a
+      // name — so name-from-content gave a screen reader either nothing or
+      // "multiplication x". `aria-label` overrides it; `cancelReply` rather
+      // than the generic `common.cancel` because an accessible name has to say
+      // WHAT is being cancelled (the composer keeps its text either way).
       React.createElement('button', {
         style: styles.actionBtn,
         onClick: () => setReplyTo(null),
+        'aria-label': t('collaboration.cancelReply'),
       }, '✕'),
     ),
     // Input area

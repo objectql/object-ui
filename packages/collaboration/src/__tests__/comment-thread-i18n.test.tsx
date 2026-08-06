@@ -292,6 +292,188 @@ describe('CommentThread per-comment actions (objectstack#5506)', () => {
   });
 });
 
+/**
+ * objectui#3441 — the three emoji-only controls objectstack#5506 left unnamed.
+ *
+ * These assert the computed ACCESSIBLE NAME (`getByRole('button', { name })`,
+ * which runs dom-accessibility-api's accname implementation), not the presence
+ * of an attribute. That distinction is the whole point of the fix: for a
+ * `button`, name-from-content (accname §2F) is consulted BEFORE the `title`
+ * tooltip (§2I), so hanging a `title` on `'👍'` the way the `+` picker does
+ * would have left the computed name as the glyph. `aria-label` is the only one
+ * of the three that outranks content.
+ *
+ * ── Direction ─────────────────────────────────────────────────────────────
+ * RED before / GREEN after in EVERY language, `en` included — unlike the
+ * copy-pin cases above, these names did not exist in any locale on
+ * `origin/main`, so there is no "English was already right" half here. The
+ * `queryAllByRole(… { name: '👍' })` assertions are the mirror image: they
+ * pass ONLY after the fix, because the glyph was the name until `aria-label`
+ * displaced it.
+ */
+describe('CommentThread emoji-only control names (objectui#3441)', () => {
+  it('names the two quick-reaction buttons in English', () => {
+    renderThread('en');
+
+    expect(screen.getAllByRole('button', { name: 'React with thumbs up' }).length).toBe(2);
+    expect(screen.getAllByRole('button', { name: 'React with heart' }).length).toBe(2);
+  });
+
+  it('names the two quick-reaction buttons in the session language', () => {
+    renderThread('zh');
+
+    expect(screen.getAllByRole('button', { name: '以点赞回应' }).length).toBe(2);
+    expect(screen.getAllByRole('button', { name: '以爱心回应' }).length).toBe(2);
+    expect(screen.queryAllByRole('button', { name: 'React with thumbs up' })).toHaveLength(0);
+  });
+
+  it('names them in German too, so the keys are really in the packs', () => {
+    renderThread('de');
+
+    expect(screen.getAllByRole('button', { name: 'Mit Daumen hoch reagieren' }).length).toBe(2);
+    expect(screen.getAllByRole('button', { name: 'Mit Herz reagieren' }).length).toBe(2);
+  });
+
+  /**
+   * The bug itself: with no `aria-label`, the button's only content IS its
+   * name. A screen reader announced "thumbs up button" / "red heart button" —
+   * the emoji's Unicode name, in English, whatever the session language.
+   */
+  it('no longer leaves a button whose accessible name is the bare emoji', () => {
+    renderThread('zh');
+
+    expect(screen.queryAllByRole('button', { name: '👍' })).toHaveLength(0);
+    expect(screen.queryAllByRole('button', { name: '❤️' })).toHaveLength(0);
+  });
+
+  /**
+   * `cancelReply`, not the generic `common.cancel`: an accessible name has to
+   * say WHAT is being cancelled. Only the reply target is dropped — anything
+   * already typed into the composer survives.
+   */
+  it('names the reply-banner dismiss button in the session language', () => {
+    renderThread('zh');
+
+    // The banner only exists once a reply target is picked.
+    fireEvent.click(screen.getAllByText('回复')[0]);
+
+    expect(screen.getByRole('button', { name: '取消回复' })).toBeTruthy();
+    // U+2715 MULTIPLICATION X — a math symbol with no reliable spoken name.
+    expect(screen.queryAllByRole('button', { name: '✕' })).toHaveLength(0);
+  });
+
+  it('names the reply-banner dismiss button in English', () => {
+    renderThread('en');
+
+    fireEvent.click(screen.getAllByText('Reply')[0]);
+
+    expect(screen.getByRole('button', { name: 'Cancel reply' })).toBeTruthy();
+  });
+
+  /**
+   * The `+` picker keeps `collaboration.addThumbsUp` (objectstack#5506) and the
+   * quick 👍 gets its own `reactThumbsUp`, even though both dispatch the same
+   * `onReaction(id, '👍')` today. This case is what pins the two apart: on a
+   * comment that already has reactions both controls are on screen at once, so
+   * sharing one key would put two visibly different controls under one name.
+   */
+  it('keeps the reaction-bar picker distinct from the quick thumbs-up', () => {
+    renderThread('en');
+
+    expect(screen.getByTitle('Add thumbs up')).toBeTruthy();
+    expect(screen.queryAllByRole('button', { name: 'Add thumbs up' })).toHaveLength(0);
+    expect(screen.getAllByRole('button', { name: 'React with thumbs up' }).length).toBe(2);
+  });
+});
+
+/**
+ * objectui#3441, part two — the >= 7d bucket follows the SESSION language.
+ *
+ * `formatTimestamp`'s last branch called `toLocaleDateString()` with no
+ * argument, i.e. the RUNTIME's locale. In a `zh` console a six-day-old comment
+ * read "6 天前" and a seven-day-old one read `8/1/2026`.
+ *
+ * ── Direction ─────────────────────────────────────────────────────────────
+ * The `zh` and `de` cases are RED before / GREEN after: on `origin/main` every
+ * session renders the same runtime-default string. The `en` case is green on
+ * both sides in a runtime whose default locale is already `en-US`, and it is
+ * kept as a copy pin, not offered as evidence.
+ */
+describe('CommentThread absolute timestamps (objectui#3441)', () => {
+  const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+  const oldComment: Comment = {
+    id: 'old',
+    author: alice,
+    content: 'From last week.',
+    mentions: [],
+    createdAt: eightDaysAgo.toISOString(),
+  };
+
+  const dateCell = () =>
+    Array.from(document.querySelectorAll('[data-comment-id="old"] span'))
+      .map((n) => n.textContent)
+      .filter((v): v is string => Boolean(v));
+
+  it('formats a week-old comment in the session language', () => {
+    renderThread('zh', { comments: [oldComment] });
+    expect(dateCell()).toContain(eightDaysAgo.toLocaleDateString('zh'));
+    cleanup();
+
+    renderThread('de', { comments: [oldComment] });
+    expect(dateCell()).toContain(eightDaysAgo.toLocaleDateString('de'));
+  });
+
+  /**
+   * Doubles as an ICU-availability assertion: on a runtime built without the
+   * full locale data every tag collapses to the same output, and the two
+   * assertions above would pass while proving nothing.
+   */
+  it('produces visibly different strings for zh and de', () => {
+    expect(eightDaysAgo.toLocaleDateString('zh')).not.toBe(
+      eightDaysAgo.toLocaleDateString('de'),
+    );
+  });
+
+  it('keeps the English form under an en session', () => {
+    renderThread('en', { comments: [oldComment] });
+    expect(dateCell()).toContain(eightDaysAgo.toLocaleDateString('en'));
+  });
+
+  /**
+   * The trap the issue was really about, and the reason objectstack#5506 left
+   * this branch alone.
+   *
+   * `toLocaleDateString(tag)` canonicalizes its argument and throws
+   * `RangeError` on anything not well-formed per BCP 47. `'en_US'` — the POSIX
+   * spelling, a plausible thing for a host to put in `defaultLanguage` — is
+   * exactly such a tag, and the session `language` reaches the component
+   * verbatim. Handed straight to `toLocaleDateString`, that `RangeError` lands
+   * in `formatTimestamp`'s OUTER catch, whose fallback is `return iso`: the
+   * comment's date would have been replaced by a raw
+   * `2026-07-29T…Z`, worse than the un-localized date it set out to fix.
+   *
+   * ── Direction, stated honestly ────────────────────────────────────────────
+   * This case is GREEN on BOTH sides of the change, and reverting
+   * `CommentThread.tsx` does NOT turn it red — `origin/main` never passed the
+   * tag anywhere, so it could not trip over a bad one. Its counterfactual is
+   * not the old code but the NAIVE fix, and that is what it was reverse-checked
+   * against: dropping the inner try/catch in `formatAbsoluteDate` (passing
+   * `language` straight through) turns this case red with the raw ISO string in
+   * the DOM. Recorded rather than dressed up as a red-before regression pin.
+   */
+  it('falls back to the runtime locale on a malformed session tag, never to raw ISO', () => {
+    const { container } = renderThread('en_US', { comments: [oldComment] });
+
+    expect(dateCell()).toContain(eightDaysAgo.toLocaleDateString());
+    expect(container.textContent).not.toContain(oldComment.createdAt);
+    // The shape of the raw value, in case the ISO string is ever reformatted.
+    expect(container.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/);
+    // The rest of the thread still speaks (fallbackLng) English — the guard is
+    // local to the date, it does not disable the session.
+    expect(screen.getByText('Send')).toBeTruthy();
+  });
+});
+
 describe('CommentThread composer (objectstack#5506)', () => {
   it('translates the placeholder and the send button', () => {
     renderThread('zh');

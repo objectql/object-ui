@@ -3212,6 +3212,20 @@ const en = {
     reactionCountOne: '{{count}} reaction',
     addThumbsUp: 'Add thumbs up',
     reply: 'Reply',
+    // Accessible names for the three emoji-only controls (objectui#3441).
+    // A `button`'s accessible name is computed from its CONTENT before `title`
+    // is ever consulted, so '👍' / '❤️' / '✕' named themselves — these keys are
+    // wired as `aria-label`, which overrides content.
+    //
+    // `reactThumbsUp` stays distinct from `addThumbsUp` above even though both
+    // dispatch the same reaction today: that one names the reaction-bar `+`
+    // picker, and the two render side by side on a comment that already has
+    // reactions.
+    reactThumbsUp: 'React with thumbs up',
+    reactHeart: 'React with heart',
+    // Not `common.cancel`: an accessible name has to say what is cancelled.
+    // Only the reply TARGET is dropped — the composer keeps whatever was typed.
+    cancelReply: 'Cancel reply',
     replyingTo: 'Replying to {{name}}...',
     // The no-author-found half of the reply banner, as a whole sentence:
     // languages that inflect around the addressee cannot build it by

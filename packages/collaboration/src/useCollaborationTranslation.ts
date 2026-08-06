@@ -70,6 +70,18 @@ export const COLLAB_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'collaboration.addThumbsUp': 'Add thumbs up',
   // Per-comment actions and the reply banner
   'collaboration.reply': 'Reply',
+  // Accessible names for the three emoji-only controls (objectui#3441). For a
+  // `button` the accessible name is computed from CONTENT before `title` is
+  // consulted, so an emoji button is named by its glyph until an `aria-label`
+  // overrides it — these three keys ARE those names, not decoration.
+  //
+  // `reactThumbsUp` is deliberately distinct from `addThumbsUp` above even
+  // though both currently dispatch `onReaction(id, '👍')`: `addThumbsUp` names
+  // the reaction-bar `+` picker, and the two render side by side on any comment
+  // that already has reactions.
+  'collaboration.reactThumbsUp': 'React with thumbs up',
+  'collaboration.reactHeart': 'React with heart',
+  'collaboration.cancelReply': 'Cancel reply',
   'collaboration.replyingTo': 'Replying to {{name}}...',
   'collaboration.replyingToComment': 'Replying to comment...',
   // Composer
