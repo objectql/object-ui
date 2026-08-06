@@ -27,6 +27,12 @@ import { fileURLToPath } from 'url';
 import https from 'https';
 import { spawnSync } from 'child_process';
 import crypto from 'crypto';
+import {
+  LOCAL_PATCHES,
+  applyLocalPatches,
+  verifyLocalPatches,
+  describePatchFailure,
+} from './shadcn-local-patches.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -294,7 +300,35 @@ async function checkComponent(name, manifest, options = {}) {
       const registryData = await fetchRegistry(componentInfo.source, { allowCache: options.allowCache });
       // Rewrite before comparing, so import-path style alone does not read as
       // a difference — the local file has already been through this transform.
-      const shadcnContent = rewriteRegistryImports(registryData.files?.[0]?.content || '');
+      const rawShadcnContent = rewriteRegistryImports(registryData.files?.[0]?.content || '');
+
+      // A registry response we could not parse (proxy error page, 403 from an
+      // egress allowlist, schema change) yields empty content. Treat that as a
+      // fetch error rather than letting it flow into the comparisons below:
+      // against empty upstream EVERY local line reads as local-only and EVERY
+      // declared patch reads as unappliable, which would fire the patch gate
+      // for a network problem. The gate must only ever accuse real drift.
+      if (!rawShadcnContent.trim()) {
+        return {
+          name,
+          status: 'error',
+          missingPatches: verifyLocalPatches(name, localContent),
+          unappliablePatches: [],
+          message: 'Registry returned no usable file content (offline, blocked, or schema change)',
+        };
+      }
+
+      // Preflight the declared patches against what upstream serves RIGHT NOW.
+      // This is the early-warning half of the contract: it answers "would the
+      // next `--update` still be able to re-apply our required edits?" before
+      // anyone runs one. A failure here means upstream moved the anchor, and
+      // the patch must be re-targeted.
+      const upstreamPatched = applyLocalPatches(name, rawShadcnContent);
+      // Compare against upstream WITH the declared patches applied, so a
+      // component whose only divergence is a declared, mechanically-reapplied
+      // patch reads as `synced` rather than as mystery drift. Undeclared local
+      // edits still show up exactly as before.
+      const shadcnContent = upstreamPatched.content;
       const shadcnLines = shadcnContent.split('\n').length;
 
       // `localOnlyLines` is directional — lines in the first argument that the
@@ -341,12 +375,20 @@ async function checkComponent(name, manifest, options = {}) {
         localOnly: localOnly.length,
         upstreamOnly: upstreamOnly.length,
         documented: Boolean(componentInfo.localEdits),
+        // Declared patches missing from the file ON DISK (offline signal).
+        missingPatches: verifyLocalPatches(name, localContent),
+        // Declared patches that would NOT re-apply to current upstream.
+        unappliablePatches: upstreamPatched.failed,
         message,
       };
     } catch (fetchError) {
       return {
         name,
         status: 'error',
+        // The local-patch check needs no network, so it still reports even
+        // when the registry is unreachable (offline CI, egress allowlist).
+        missingPatches: verifyLocalPatches(name, localContent),
+        unappliablePatches: [],
         message: `Error fetching from registry: ${fetchError.message}`,
       };
     }
@@ -428,6 +470,41 @@ async function checkAllComponents(options = {}) {
     }
   }
 
+  // ── Declared local patches ────────────────────────────────────────────────
+  // Two independent failures, both fatal. Everything above this point is
+  // advisory status reporting; this block is a gate, and `main()` turns a
+  // non-empty result into a non-zero exit. Silent reversion of a required edit
+  // is the failure mode the patch manifest exists to close, so it must never
+  // be reported as just another yellow line in a 46-component list.
+  const all = Object.values(results).flat();
+  const reverted = all.filter((r) => r.missingPatches?.length > 0);
+  const unappliable = all.filter((r) => r.unappliablePatches?.length > 0);
+
+  if (reverted.length > 0 || unappliable.length > 0) {
+    logSection('DECLARED LOCAL PATCHES — FAILED');
+  }
+
+  if (reverted.length > 0) {
+    log('✗ Required local patches are MISSING from the file on disk:', 'red');
+    reverted.forEach((r) =>
+      r.missingPatches.forEach((p) => describePatchFailure(r.name, p).forEach((l) => log(l, 'red'))),
+    );
+    log('\n  These edits are declared in scripts/shadcn-local-patches.mjs and are', 'yellow');
+    log('  supposed to be re-applied by every sync. Finding them absent means the', 'yellow');
+    log('  file was overwritten by `--force`, hand-edited, or mis-merged.', 'yellow');
+    log(`  Restore with: node scripts/shadcn-sync.js --update ${reverted[0].name}`, 'cyan');
+  }
+
+  if (unappliable.length > 0) {
+    log('\n✗ Required local patches NO LONGER APPLY to current upstream:', 'red');
+    unappliable.forEach((r) =>
+      r.unappliablePatches.forEach((p) => describePatchFailure(r.name, p).forEach((l) => log(l, 'red'))),
+    );
+    log('\n  The file on disk is still correct — but the next `--update` cannot', 'yellow');
+    log('  re-apply these, so it will refuse to write rather than drop them.', 'yellow');
+    log('  Re-target the anchors in scripts/shadcn-local-patches.mjs.', 'cyan');
+  }
+
   if (results.modified.length > 0) {
     const undocumented = results.modified.filter((r) => !r.documented);
     const documented = results.modified.filter((r) => r.documented);
@@ -445,6 +522,7 @@ async function checkAllComponents(options = {}) {
     }
   }
 
+  results.patchFailures = reverted.length + unappliable.length;
   return results;
 }
 
@@ -491,6 +569,31 @@ async function updateComponent(name, manifest, options = {}) {
 
     // Transform imports to match ObjectUI structure
     let content = rewriteRegistryImports(registryData.files[0].content);
+
+    // Re-apply the declared local patches (scripts/shadcn-local-patches.mjs).
+    //
+    // This is what makes a required edit survive regeneration instead of being
+    // something a human has to remember to re-do. It runs BEFORE the local-edit
+    // refusal below on purpose: with the patches re-applied, a component whose
+    // only divergence is a declared patch compares equal to upstream and syncs
+    // cleanly, so the refusal keeps signalling only UNDECLARED divergence.
+    const patched = applyLocalPatches(name, content);
+    if (patched.failed.length > 0) {
+      // The anchor a patch needs is gone (or ambiguous) — upstream restructured
+      // the code it depends on. Writing anyway would produce a file that
+      // compiles and looks fine while silently missing the fix, which is the
+      // exact regression the patch manifest exists to prevent. Refuse.
+      log(`✗ Refusing to write ${name}.tsx — ${patched.failed.length} declared local patch(es) no longer apply:`, 'red');
+      patched.failed.forEach((p) => describePatchFailure(name, p).forEach((l) => log(l, 'yellow')));
+      log(`  Upstream changed the code these patches anchor on. Re-target them in`, 'yellow');
+      log(`  scripts/shadcn-local-patches.mjs, then re-run. Do NOT --force past this:`, 'yellow');
+      log(`  --force writes upstream verbatim and the patched behaviour is lost.`, 'yellow');
+      return false;
+    }
+    content = patched.content;
+    if (patched.applied.length > 0) {
+      log(`  ↺ Re-applied ${patched.applied.length} declared local patch(es): ${patched.applied.map((p) => p.id).join(', ')}`, 'cyan');
+    }
 
     // Fail closed. An unmapped `@/…` specifier does not resolve from src/ui/,
     // so writing the file would swap working code for code that cannot
@@ -553,7 +656,18 @@ async function updateComponent(name, manifest, options = {}) {
     // Write updated component
     const targetPath = path.join(COMPONENTS_DIR, `${name}.tsx`);
     await fs.writeFile(targetPath, content, 'utf-8');
-    
+
+    // Post-write assertion. `applyLocalPatches` already guarantees this, so a
+    // hit here means the engine itself regressed — still worth saying out loud
+    // rather than trusting an invariant we never check.
+    const missingAfterWrite = verifyLocalPatches(name, content);
+    if (missingAfterWrite.length > 0) {
+      log(`✗ ${name}.tsx was written WITHOUT ${missingAfterWrite.length} declared patch(es):`, 'red');
+      missingAfterWrite.forEach((p) => describePatchFailure(name, p).forEach((l) => log(l, 'red')));
+      log(`  Roll back with: git checkout -- packages/components/src/ui/${name}.tsx`, 'cyan');
+      return false;
+    }
+
     log(`✓ Updated ${name}.tsx`, 'green');
     
     // Check and log dependencies
@@ -682,7 +796,16 @@ async function main() {
   const allowCache = !args.includes('--no-cache');
 
   if (args.length === 0 || args.includes('--check')) {
-    await checkAllComponents({ allowCache });
+    const results = await checkAllComponents({ allowCache });
+    // Exit non-zero on a declared-patch failure ONLY. Ordinary drift
+    // (outdated/modified/undocumented) stays exit 0: it is status, and making
+    // it fatal would turn this command into noise nobody runs. A required edit
+    // that vanished, or one that can no longer be re-applied, is different in
+    // kind — it is a broken contract, so it breaks the build.
+    if (results.patchFailures > 0) {
+      log(`\n✗ ${results.patchFailures} component(s) with declared local patch failures — see above.`, 'red');
+      process.exitCode = 1;
+    }
   } else if (args.includes('--update-all')) {
     const backup = args.includes('--backup');
     const verify = !args.includes('--no-verify');

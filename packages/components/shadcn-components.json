@@ -139,7 +139,8 @@
       "dependencies": [
         "radix-ui"
       ],
-      "registryDependencies": []
+      "registryDependencies": [],
+      "localEdits": "objectstack#5505 i18n close patch: `DialogContent` auto-renders an icon-only close button whose `sr-only` span IS its accessible name, and upstream hardcodes the English literal — so under zh/ja/es every modal in the console announced \"Close\" in English. The span is replaced by `<CloseSrLabel />` (`packages/components/src/lib/close-label.tsx`), which resolves `common.close` for the session locale and falls back to English with no I18nProvider mounted. The edit is DECLARED as data in `scripts/shadcn-local-patches.mjs` and re-applied on every `--update`, and `pnpm shadcn:check` exits non-zero if it is ever missing from the file or can no longer be re-applied to upstream."
     },
     "drawer": {
       "source": "https://ui.shadcn.com/r/styles/default/drawer.json",
@@ -268,7 +269,7 @@
         "radix-ui"
       ],
       "registryDependencies": [],
-      "localEdits": "Adds a `hideOverlay` prop that suppresses `<SheetOverlay />`, for sheets that must not dim the page behind them. Upstream renders the overlay unconditionally."
+      "localEdits": "Adds a `hideOverlay` prop that suppresses `<SheetOverlay />`, for sheets that must not dim the page behind them. Upstream renders the overlay unconditionally. Also carries the objectstack#5505 i18n close patch (see `dialog` for the full rationale): `SheetContent`'s auto-rendered close button renders `<CloseSrLabel />` instead of a hardcoded English `sr-only` span. Declared in `scripts/shadcn-local-patches.mjs` and RE-APPLIED automatically by every sync, so unlike the `hideOverlay` edit above it does not depend on anyone remembering it."
     },
     "sidebar": {
       "source": "https://ui.shadcn.com/r/styles/default/sidebar.json",
