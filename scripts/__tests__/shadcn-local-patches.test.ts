@@ -3,7 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// @ts-expect-error — plain-JS CI helper, intentionally untyped
+// Plain-JS CI helper. Its types are INFERRED from the .mjs source by
+// `tsconfig.scripts.json` (`allowJs`), so no `@ts-expect-error` here —
+// re-adding one is now itself an error (TS2578). See objectui#3494. (On a
+// multi-line import the directive never worked anyway: TS reports the missing
+// declaration at the SPECIFIER line, not at the `import {` the comment guards.)
 import {
   LOCAL_PATCHES,
   applyLocalPatches,

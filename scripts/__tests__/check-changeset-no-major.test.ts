@@ -3,7 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// @ts-expect-error — plain-JS CI helper, intentionally untyped
+// Plain-JS CI helper. Its types are INFERRED from the .mjs source by
+// `tsconfig.scripts.json` (`allowJs`), so no `@ts-expect-error` here —
+// re-adding one is now itself an error (TS2578). See objectui#3494.
 import { findMajorBumps, parseFrontmatterBumps } from '../check-changeset-no-major.mjs';
 
 /**

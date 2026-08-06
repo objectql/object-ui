@@ -5,7 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// @ts-expect-error — plain-JS CI helper, intentionally untyped
+// Plain-JS CI helper. Its types are INFERRED from the .mjs source by
+// `tsconfig.scripts.json` (`allowJs`), so no `@ts-expect-error` here —
+// re-adding one is now itself an error (TS2578). See objectui#3494.
 import { classify, scan, locate, SCANNED_BYTES, KNOWN_OFFENDERS } from '../check-control-bytes.mjs';
 
 /**

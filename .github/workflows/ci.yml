@@ -83,6 +83,24 @@ jobs:
       - name: Verify spec-named symbols are derived, not hand-written
         run: pnpm check:spec-symbols
 
+      # `scripts/` is not a workspace package, so `pnpm type-check` (i.e.
+      # `turbo run type-check`, which walks package.json `scripts`) structurally
+      # cannot reach it, and the coverage guard above decides coverage per
+      # PACKAGE so it could not see the gap either. Until objectui#3494 that
+      # left every file in `scripts/__tests__/` compiled by nothing — ten pin
+      # tests holding this workflow, `docs-links.yml`, `lint.yml` and the
+      # changeset guard in place, none of which the compiler had ever read. A
+      # pin test that `tsc` never reads can assert a contract that no longer
+      # type-checks and still print green (objectui#3181).
+      #
+      # Placed here, not further down: nothing in tsconfig.scripts.json's
+      # program imports an @object-ui/* package, so it needs the install but not
+      # the `^build` that `pnpm type-check` depends on — it is cheap and fails
+      # fast. `scripts/__tests__/scripts-type-check.test.ts` pins that premise,
+      # this step's presence, and its position after the install.
+      - name: Type-check scripts/
+        run: pnpm type-check:scripts
+
       - name: Turbo Cache
         uses: actions/cache@v6
         with:

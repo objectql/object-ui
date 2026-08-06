@@ -33,6 +33,7 @@
     "lint:coverage": "node scripts/check-lint-coverage.mjs",
     "type-check": "turbo run type-check",
     "type-check:coverage": "node scripts/check-type-check-coverage.mjs",
+    "type-check:scripts": "tsc -p tsconfig.scripts.json",
     "check:spec-symbols": "node scripts/check-spec-symbol-derivation.mjs",
     "check:control-bytes": "node scripts/check-control-bytes.mjs",
     "cli": "node packages/cli/dist/cli.js",
