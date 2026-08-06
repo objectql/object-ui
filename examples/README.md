@@ -15,18 +15,28 @@ Runnable examples that show how to consume ObjectUI in different scenarios. Pick
 > - Adding ObjectUI to an existing product / different backend → `byo-backend-console`.
 > - Standing up a brand-new ObjectStack console → fork `console-starter`.
 
+### Also under `examples/`
+
+| Directory | What it is |
+|---|---|
+| [`schema-catalog/`](./schema-catalog) | **Not a runnable app** — a data package (`@object-ui/example-schema-catalog`) holding the canonical JSON schemas consumed by the docs site (`<SchemaExample id="…" />`), by the smoke test that mounts every entry, and by AI agents as a few-shot corpus. See [its README](./schema-catalog/README.md) for how to add one. |
+
 ## Running an example
 
-From the monorepo root:
+`byo-backend-console` and `console-starter` are Vite apps. From the monorepo root:
 
 ```bash
 pnpm install
 pnpm -w build
-cd examples/<name>
+cd examples/console-starter   # or byo-backend-console
 pnpm dev
 ```
 
-Each example exposes its own dev server port (see its README).
+Each exposes its own dev server port (see its README).
+
+The other two directories are not dev servers: `hello-world` is a snippet to drop into
+your own Vite/Next.js app, and `schema-catalog` is a data package verified with
+`pnpm --filter @object-ui/example-schema-catalog test`.
 
 ## Adding a new example
 

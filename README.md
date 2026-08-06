@@ -54,34 +54,29 @@ One schema, many view types — dashboards, Gantt schedules, kanban boards, cale
 
 ## Examples
 
-ObjectStack examples that demonstrate different features and use cases:
+Everything under [`examples/`](examples) — in learning order. The
+[examples catalog](examples/README.md) has the full "which one should I use?" table.
 
-- **[examples/crm](examples/crm)** - Full-featured CRM application with dashboards, multiple views (Grid, Kanban, Map, Gantt), and custom server implementation.
-- **[examples/todo](examples/todo)** - Simple task management app demonstrating basic ObjectStack configuration and field types.
-- **[examples/kitchen-sink](examples/kitchen-sink)** - Comprehensive component catalog showing all available field types, dashboard widgets, and view types.
-- **[examples/msw-todo](examples/msw-todo)** - Frontend-first development example using MSW (Mock Service Worker) to run ObjectStack in the browser.
+- **[examples/hello-world](examples/hello-world)** - The smallest JSON → UI demo: one `schema.json` (a `Page` holding a `Card` with text and a button) rendered by `<SchemaRenderer>` from a single `App.tsx`. Start here to see how a `type` resolves against the component registry.
 - **[examples/byo-backend-console](examples/byo-backend-console)** ⭐ - Minimal custom console in ~100 lines showing third-party integration without full console infrastructure. Uses `@object-ui/app-shell` and `@object-ui/providers` with custom routing and a mock REST adapter (BYO backend).
 - **[examples/console-starter](examples/console-starter)** - Opinionated, fork-ready console template with the full plugin set (grid, kanban, dashboard, designer, charts, …) wired up against an ObjectStack backend. Use this as the starting point when you want a complete console rather than a minimal integration.
+- **[examples/schema-catalog](examples/schema-catalog)** - Not a runnable app — the canonical JSON schema catalog that is the single source of truth for the schemas shipped elsewhere: the docs site renders them via `<SchemaExample id="…" />`, a smoke test mounts every entry, and AI agents use it as a few-shot corpus.
 
-### Running Examples as API Servers
-
-All examples (except msw-todo) can be run as API servers using `@objectstack/cli`:
+### Running an example
 
 ```bash
 # From the monorepo root
-pnpm run serve:crm          # Start CRM example on http://localhost:3000
-pnpm run serve:todo         # Start Todo example on http://localhost:3000
-pnpm run serve:kitchen-sink # Start Kitchen Sink example on http://localhost:3000
+pnpm install
+pnpm -w build
 
-# Or from individual example directories
-cd examples/crm
-pnpm run serve
+# Vite dev server — byo-backend-console or console-starter
+cd examples/console-starter
+pnpm dev
 ```
 
-Each server provides:
-- GraphQL API endpoint: `http://localhost:3000/graphql`
-- REST API endpoints based on object definitions
-- Sample data loaded from the configuration manifest
+`hello-world` ships no dev server: copy its `App.tsx` and `schema.json` into your own
+Vite/Next.js app. `schema-catalog` is a data package — its smoke test mounts every
+schema in it (`pnpm --filter @object-ui/example-schema-catalog test`).
 
 ## 📦 For React Developers
 
