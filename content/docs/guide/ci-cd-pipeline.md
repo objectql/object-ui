@@ -23,7 +23,7 @@ one has its own section below.
 
 | Workflow file | Appears as | Runs on | Blocks a PR? |
 |---|---|---|---|
-| `ci.yml` | CI | Push / PR to `main`, `develop` | **Yes** — 6 of its 7 jobs run on PRs |
+| `ci.yml` | CI | Push / PR to `main`, `develop` | **Yes** — every job but `test-coverage` (push only) runs on PRs |
 | `lint.yml` | Lint | Push / PR to `main`, `develop`; manual | **Yes** — ESLint **errors** only |
 | `changeset-guard.yml` | Changeset Bump Policy | PR / push touching `.changeset/**` | **Yes** |
 | `control-bytes.yml` | Control Byte Scan | Push / PR to `main`, `develop` — **no path filter**; manual | **Yes** |
@@ -52,7 +52,12 @@ Two path-filter facts explain most "why did nothing run on my PR?" questions:
 **Triggers:** Push and PR to `main` and `develop`, unless the change touches only `**/*.md`,
 `content/**`, `docs/**`, `apps/site/**` or `.changeset/**` (`paths-ignore`).
 
-Seven jobs, all parallel — there are no `needs:` edges between them:
+Every job runs in parallel — there are no `needs:` edges between them. As with the workflow
+inventory above, this page states **no job count**: the table *is* the list, and
+`scripts/__tests__/ci-cd-pipeline-doc.test.ts` pins its first column against `ci.yml`'s `jobs:`
+keys in both directions, so a job added or removed without touching this table is a red test.
+(This section used to open with a hard-coded count and list a seventh job, `dev-server`, that had
+been deleted three months earlier — [#3451](https://github.com/objectstack-ai/objectui/issues/3451).)
 
 | Job key | Appears as | What it runs | When |
 |---|---|---|---|
@@ -62,20 +67,37 @@ Seven jobs, all parallel — there are no `needs:` edges between them:
 | `test-coverage` | Test (coverage) | One unsharded `pnpm test:coverage`, uploaded to Codecov. Nothing blocks on it, which is why it is not sharded. | **Push only** |
 | `e2e` | Build & E2E | Builds the console with `vite build` (`VITE_BASE_PATH=/console/`), verifies the artifact, then `pnpm test:e2e --project=chromium`. Uploads the Playwright report on failure. | Every run |
 | `docs` | Build Docs | `scripts/check-doc-links.mjs` (resolves every `/docs/...` markdown link against `content/docs/` — no install, no network), then `turbo run build --filter='@object-ui/site'`. On a PR it first diffs against the base and skips both when nothing under `apps/site/` or `content/` changed. | Every run (steps themselves conditional) |
-| `dev-server` | Dev-server fixture build | `pnpm --filter @object-ui/dev-server build` — guards `apps/dev-server`'s `objectstack.config.ts` against fixture / `@objectstack/spec` drift. | Every run |
 
 Uses: Node 22.x, pnpm via `corepack`, `actions/cache` over `.turbo/cache`.
 
 ### What is *not* in `ci.yml`
 
-Two jobs this page used to list have never existed under those names, and looking for them in
-`ci.yml` is a dead end:
+Three job names this page has carried at one time or another are absent from `ci.yml`, and looking
+for them there is a dead end:
 
-- **Lint** is not a `ci.yml` job. ESLint runs in its own workflow, `lint.yml` (next section), and
-  shows up as a separate **Lint** check on the PR.
-- **Build Core** does not exist. `ci.yml` builds only the console SPA that Playwright consumes;
-  building the packages and measuring their size belongs to the Bundle Analysis workflow
+- **Lint** is not a `ci.yml` job, and never was. ESLint runs in its own workflow, `lint.yml` (next
+  section), and shows up as a separate **Lint** check on the PR.
+- **Build Core** does not exist, and never did. `ci.yml` builds only the console SPA that Playwright
+  consumes; building the packages and measuring their size belongs to the Bundle Analysis workflow
   (`performance-budget.yml`), as the comment on the `e2e` job states.
+- **Dev-server fixture build** (`dev-server`) is the one that *did* exist, and it is the cautionary
+  tale behind the pin above. It was added on 2026-05-24 to run
+  `pnpm --filter @object-ui/dev-server build` against an in-repo `apps/dev-server`. That app was
+  removed two days later, on 2026-05-26 — after which the filter matched no package and the job
+  exited 0 without building anything. It stayed green by vacuity for over two months; was then
+  *documented in that state* by
+  [#3253](https://github.com/objectstack-ai/objectui/pull/3253) on 2026-08-03, whose table row
+  claimed a fixture-drift guard that had not run since May; and was finally deleted from `ci.yml`
+  by [#3325](https://github.com/objectstack-ai/objectui/pull/3325) on 2026-08-04, which left the
+  row behind ([#3451](https://github.com/objectstack-ai/objectui/issues/3451)). **Today there is no
+  `apps/dev-server` and no such job** — nothing in the repository is being left unguarded by its
+  absence. The intent it was meant to serve, proving this console still works against a real
+  `@objectstack` backend, is carried by `live-e2e.yml`, informationally.
+
+  Both halves of that history are the reason the job table is pinned. A row can be wrong because
+  the job was deleted under it, and a row can be wrong the day it is written, because the job it
+  describes was already doing nothing. Understating a gate is annoying; advertising a guardrail CI
+  does not have is worse than no doc, because people trust it and stop checking.
 
 ## Lint (`lint.yml`)
 

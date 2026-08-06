@@ -186,3 +186,192 @@ describe('ci-cd-pipeline.md — workflow inventory', () => {
     expect(workflowFiles).not.toContain('size-check.yml');
   });
 });
+
+/**
+ * objectui#3451: the same drift as #3197/#3212, one table lower down and pointing
+ * the dangerous way. The `## Core CI Workflow (ci.yml)` section opened with "Seven
+ * jobs, all parallel" and its table's seventh row described a `dev-server` job —
+ * "guards `apps/dev-server`'s `objectstack.config.ts` against fixture /
+ * `@objectstack/spec` drift", running "Every run".
+ *
+ * The history matters, because the row was wrong in two different ways and only the
+ * second is the one you would guess:
+ *
+ *   2026-05-24  `apps/dev-server` lands, and with it the `dev-server` job.
+ *   2026-05-26  `apps/dev-server` is removed. The job stays. `--filter
+ *               @object-ui/dev-server` now matches no package and exits 0 —
+ *               green by vacuity, for the next 69 days.
+ *   2026-08-03  #3253 (fixing #3212) rewrites this very table and *adds* the
+ *               `dev-server` row, describing a fixture-drift guard that had not
+ *               built anything since May. The row was false the day it was written.
+ *   2026-08-04  #3325 deletes the vacuous job from `ci.yml`, leaving the row.
+ *   2026-08-06  #3451.
+ *
+ * So this is not only "the YAML moved and the prose lagged". #3253 pinned the
+ * *workflow* inventory in both directions and left the *job* table unpinned, and the
+ * table drifted within a day. #3197's comment names the direction: understating a
+ * gate is annoying, advertising a guardrail the CI does not have is worse than no
+ * doc.
+ *
+ * The count and the table are pinned together because fixing either one alone fixes
+ * a snapshot, not the drift. Add or remove a job in `ci.yml` without editing this
+ * page and the first test below fails, naming the job in each direction.
+ *
+ * What this still cannot catch is the 2026-05-26 shape: a job that exists in YAML
+ * and does nothing. No amount of doc-to-YAML pinning sees that — only reading what
+ * the job runs does.
+ */
+describe('ci-cd-pipeline.md — ci.yml job table', () => {
+  const ciWorkflow = fs.readFileSync(path.join(workflowDir, 'ci.yml'), 'utf8');
+
+  /**
+   * Job keys from `ci.yml`, in file order.
+   *
+   * Scoped to the `jobs:` mapping, because top-level `on:` has two-space children
+   * of its own (`push:`, `pull_request:`) that a whole-file scan would read as
+   * jobs. Inside `jobs:` the only two-space lines are the job keys themselves:
+   * job-level keys sit at four, step bodies deeper still, and every block scalar
+   * (`run: |`) is indented past its key, so nothing else can reach column 2.
+   */
+  function ciJobKeys(): string[] {
+    const start = ciWorkflow.search(/^jobs:[ \t]*$/m);
+    expect(start, 'ci.yml must still have a top-level `jobs:` mapping').toBeGreaterThan(-1);
+    const body = ciWorkflow.slice(start + 'jobs:'.length);
+    // `jobs:` is the last top-level key today; stop at the next one regardless.
+    const end = body.search(/^[A-Za-z]/m);
+    const scoped = end === -1 ? body : body.slice(0, end);
+    return [...scoped.matchAll(/^ {2}([a-z0-9][a-z0-9-]*):[ \t]*$/gm)].map((m) => m[1]);
+  }
+
+  /** The `name:` each job reports itself under in the checks list, keyed by job key. */
+  function ciJobNames(): Map<string, string> {
+    const names = new Map<string, string>();
+    const start = ciWorkflow.search(/^jobs:[ \t]*$/m);
+    const body = ciWorkflow.slice(start);
+    for (const key of ciJobKeys()) {
+      const at = body.search(new RegExp(`^ {2}${key}:[ \\t]*$`, 'm'));
+      const after = body.slice(at);
+      const name = after.match(/^ {4}name:[ \t]*(.+?)[ \t]*$/m)?.[1];
+      if (name) names.set(key, name.replace(/^['"]|['"]$/g, ''));
+    }
+    return names;
+  }
+
+  /** The `## Core CI Workflow (ci.yml)` section, up to the next `##` heading. */
+  function coreCiSection(): string {
+    const start = doc.indexOf('## Core CI Workflow (`ci.yml`)');
+    expect(start, 'the page must still have a "## Core CI Workflow (`ci.yml`)" section').toBeGreaterThan(-1);
+    const rest = doc.slice(start + 2);
+    const next = rest.search(/^## /m);
+    return next === -1 ? rest : rest.slice(0, next);
+  }
+
+  const JOB_TABLE_HEADER = '| Job key | Appears as | What it runs | When |';
+
+  /** First column of the job table, in page order. */
+  function docJobRows(): { key: string; appearsAs: string }[] {
+    const section = coreCiSection();
+    const at = section.indexOf(JOB_TABLE_HEADER);
+    expect(at, `the job table must keep the header \`${JOB_TABLE_HEADER}\``).toBeGreaterThan(-1);
+    const lines = section.slice(at).split('\n').slice(1);
+    const rows: { key: string; appearsAs: string }[] = [];
+    for (const line of lines) {
+      if (!line.startsWith('|')) break;
+      if (/^\|[\s|:-]+\|$/.test(line)) continue; // separator
+      const cells = line.split('|').slice(1, -1).map((c) => c.trim());
+      rows.push({ key: cells[0].replace(/`/g, '').trim(), appearsAs: cells[1] ?? '' });
+    }
+    return rows;
+  }
+
+  it('lists exactly the jobs ci.yml defines — in both directions', () => {
+    const fromWorkflow = ciJobKeys();
+    // A parser that silently matched nothing would make this test vacuously green,
+    // which is the failure mode the removed `dev-server` job itself demonstrated.
+    expect(fromWorkflow.length, 'the ci.yml `jobs:` parse returned implausibly few keys').toBeGreaterThan(3);
+
+    const fromDoc = docJobRows().map((r) => r.key);
+    expect(fromDoc.length, 'the job table parse returned implausibly few rows').toBeGreaterThan(3);
+
+    const phantom = fromDoc.filter((k) => !fromWorkflow.includes(k));
+    const missing = fromWorkflow.filter((k) => !fromDoc.includes(k));
+
+    expect(
+      phantom,
+      `content/docs/guide/ci-cd-pipeline.md's job table has rows for jobs that are NOT in ` +
+        `.github/workflows/ci.yml:\n` +
+        phantom.map((k) => `  - ${k}`).join('\n') +
+        `\n\nDelete the row. A page that advertises a guard CI does not run is worse than no ` +
+        `page — objectui#3451: the \`dev-server\` row survived three months after #3325 deleted ` +
+        `the job, telling contributors their objectstack.config.ts had drift protection it did not.`,
+    ).toEqual([]);
+
+    expect(
+      missing,
+      `.github/workflows/ci.yml defines jobs with no row in the job table of ` +
+        `content/docs/guide/ci-cd-pipeline.md:\n` +
+        missing.map((k) => `  - ${k}`).join('\n') +
+        `\n\nAdd a row (job key, the \`name:\` it appears as in the checks list, what it runs, and ` +
+        `when) — an undocumented job is a check contributors get blocked by without knowing it exists.`,
+    ).toEqual([]);
+  });
+
+  it('quotes each job under the name ci.yml gives it', () => {
+    // `${{ ... }}` is left as a wildcard: `test` is a matrix job whose name is
+    // `Test (shard ${{ matrix.shard }}/4)` and the page sensibly writes `N` for the
+    // shard index. Everything outside the expressions must match literally.
+    const names = ciJobNames();
+    expect(names.size, 'every ci.yml job should declare a `name:`').toBe(ciJobKeys().length);
+
+    for (const { key, appearsAs } of docJobRows()) {
+      const declared = names.get(key);
+      if (!declared) continue; // key mismatch is the previous test's failure to report
+      const pattern = new RegExp(
+        `^${declared
+          .split(/\$\{\{[^}]*\}\}/)
+          .map((lit) => lit.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+          .join('.+')}$`,
+      );
+      expect(
+        appearsAs,
+        `the job table's "Appears as" for \`${key}\` must match ci.yml's \`name: ${declared}\``,
+      ).toMatch(pattern);
+    }
+  });
+
+  it('states no job count, so the number cannot drift away from the table', () => {
+    // The #3212 lesson applied one section down: a hand-maintained count drifts by
+    // construction and a stale one still reads as authoritative. "Seven jobs, all
+    // parallel" outlived the seventh job by three months.
+    const section = coreCiSection();
+    const counted = section.match(
+      /\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)[ \t]+(?:parallel[ \t]+)?jobs\b/i,
+    );
+    expect(
+      counted?.[0],
+      `the Core CI section must not hard-code how many jobs ci.yml has (found "${counted?.[0]}") — ` +
+        `the table is the list. See the same decision for the workflow count at the top of the page.`,
+    ).toBeUndefined();
+  });
+
+  it('is telling the truth: no CI job builds the retired dev-server fixture', () => {
+    // The inverse pin. The page now states outright that there is *no* guard on
+    // `objectstack.config.ts` / `@objectstack/spec` drift. If anyone restores such a
+    // job, this fails and points at the paragraph that denies it exists.
+    expect(ciJobKeys()).not.toContain('dev-server');
+    expect(
+      ciWorkflow,
+      'a dev-server fixture build is back in ci.yml — update the "What is not in `ci.yml`" ' +
+        'section, which currently tells readers no such guard exists',
+    ).not.toMatch(/@object-ui\/dev-server/);
+    // Reflow-tolerant, and asserted as a boolean so a failure prints the reason
+    // rather than diffing the entire page into the terminal.
+    expect(
+      /Today there is no `apps\/dev-server` and no such job/.test(doc.replace(/\s+/g, ' ')),
+      'the "What is not in `ci.yml`" section must keep stating outright that neither the ' +
+        '`dev-server` job nor `apps/dev-server` exists. The table pin above catches a restored ' +
+        'job with no row; this catches a restored job whose row was added while this paragraph ' +
+        'still denies it (objectui#3451).',
+    ).toBe(true);
+  });
+});
