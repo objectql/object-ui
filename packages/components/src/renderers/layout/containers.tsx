@@ -47,8 +47,31 @@ import {
   DropdownMenuItem,
 } from '../../ui';
 import { RecordTitleChip } from '../../custom/RecordTitleChip';
-import { useObjectLabel, useSafeFieldLabel, useObjectTranslation, useSafeTranslate, pickLocalized } from '@object-ui/i18n';
+import { useObjectLabel, useSafeFieldLabel, useObjectTranslation, useSafeTranslate, createSafeTranslation, pickLocalized } from '@object-ui/i18n';
 import { MoreHorizontal } from 'lucide-react';
+
+/**
+ * Copy for the `page:tabs` count badge (objectstack#5506).
+ *
+ * The badge renders digits only, so its `aria-label` IS the badge as far as a
+ * screen reader is concerned — and it used to be built by a template literal
+ * that hardcoded both the English word and English pluralization.
+ *
+ * Two keys, NOT an i18next `_one`/`_other` pair: zh/ja/ko have no separate
+ * singular form, so those packs would legitimately omit the `_one` half and
+ * `all-locales-key-parity` would read that as a missing key. Same convention as
+ * `detail.reactionCount`/`reactionCountOne` and `detail.relatedRecords`/
+ * `relatedRecordOne`.
+ *
+ * `createSafeTranslation` rather than the per-call `useSafeTranslate` used
+ * elsewhere in this file because these keys interpolate `{{count}}` and
+ * `useSafeTranslate` carries no options bag.
+ */
+const TABS_DEFAULT_TRANSLATIONS: Record<string, string> = {
+  'common.itemCount': '{{count}} items',
+  'common.itemCountOne': '{{count}} item',
+};
+const useTabsTranslation = createSafeTranslation(TABS_DEFAULT_TRANSLATIONS, 'common.itemCount');
 
 /**
  * Pull the standard designer-passthrough props off a renderer's `props`.
@@ -332,7 +355,10 @@ const containsAttachmentsNode = (nodes: any): boolean => {
 
 const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   const { designer } = splitDesignerProps(props);
-  const { language } = useObjectTranslation();
+  // `useTabsTranslation` surfaces `language` itself (it wraps
+  // `useObjectTranslation`), so the count-badge copy and the tab-label
+  // localization below read the same session locale from one hook.
+  const { t: tTabs, language } = useTabsTranslation();
   const rawItems: PageTabsItem[] = schema?.items || [];
   // Tab visual style lives at `properties.type` ('line'|'card'|'pill') — the
   // outer `schema.type` is always 'page:tabs' (the component dispatch key).
@@ -570,7 +596,16 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
               {item.count !== undefined && item.count !== null && item.count !== '' && Number(item.count) > 0 && (
                 <span
                   className="ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-muted px-1 text-[10px] font-medium leading-none text-muted-foreground"
-                  aria-label={`${formatTabCount(item.count)} items`}
+                  // Interpolate the FORMATTED count so the accessible name and
+                  // the visible digits never disagree (`1.2k`, not `1200`);
+                  // plurality is chosen from the raw numeric value. Passing a
+                  // STRING as `count` is deliberate: i18next only runs its own
+                  // plural resolution when `count` is not a string, so the
+                  // repo's two-key scheme stays in charge of the choice.
+                  aria-label={tTabs(
+                    Number(item.count) === 1 ? 'common.itemCountOne' : 'common.itemCount',
+                    { count: formatTabCount(item.count) },
+                  )}
                 >
                   {formatTabCount(item.count)}
                 </span>

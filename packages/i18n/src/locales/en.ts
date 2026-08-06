@@ -86,6 +86,11 @@ const en = {
     openChat: 'Open chat',
     closeChat: 'Close chat',
     closePanel: 'Close panel',
+    resizeDrawer: 'Resize drawer',
+    // Count badge on a tab / section header. Two keys, NOT an i18next
+    // `_one`/`_other` pair — see the `reactionCount` note under `detail`.
+    itemCount: '{{count}} items',
+    itemCountOne: '{{count}} item',
     toggleSidebar: 'Toggle sidebar',
     package: 'Package',
   },
@@ -820,6 +825,14 @@ const en = {
     emojiPicker: 'Emoji picker',
     reactionCount: '{{emoji}} {{count}} reactions',
     reactionCountOne: '{{emoji}} {{count}} reaction',
+    // Record-overlay chrome (objectstack#5506). `recordDetail` is the VISIBLE
+    // heading the overlay falls back to when the host passes no title;
+    // `openAsFullPage` is the icon-only expand button's default accessible
+    // name; `recordDetailOverlay` is the sr-only description on the
+    // Sheet/Dialog when the host supplies none.
+    recordDetail: 'Record Detail',
+    openAsFullPage: 'Open as full page',
+    recordDetailOverlay: 'Record detail overlay for {{title}}.',
     addToFavorites: 'Add to favorites',
     removeFromFavorites: 'Remove from favorites',
     previousRecord: 'Previous record',

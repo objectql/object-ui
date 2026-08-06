@@ -66,7 +66,45 @@ import {
   ResizableHandle,
 } from './resizable';
 import { usePopperAwareInteractOutside } from './mobile-dialog-content';
-import { useSafeTranslate } from '@object-ui/i18n';
+import { createSafeTranslation } from '@object-ui/i18n';
+
+/**
+ * English defaults for every string this overlay renders as chrome
+ * (objectstack#5430, objectstack#5506).
+ *
+ * `createSafeTranslation` — not the per-call `useSafeTranslate` this file used
+ * before — because two of these keys INTERPOLATE (`recordDetailOverlay` takes
+ * `{{title}}`) and `useSafeTranslate`'s signature carries no options bag. The
+ * defaults map is also what keeps the no-provider path English: `ObjectView`'s
+ * unit tests and `e2e/live/inline-edit-polish-2572.spec.ts` address these
+ * controls by their English accessible names with no `I18nProvider` mounted.
+ */
+const OVERLAY_DEFAULT_TRANSLATIONS: Record<string, string> = {
+  'common.close': 'Close',
+  'common.closePanel': 'Close panel',
+  // The drag handle is a bare `role="separator"` with no visible label, so
+  // this literal IS the control to a screen reader.
+  'common.resizeDrawer': 'Resize drawer',
+  // Default accessible name + tooltip of the icon-only expand button. Hosts
+  // may override it via the `expandLabel` prop; this is what ships otherwise.
+  'detail.openAsFullPage': 'Open as full page',
+  // VISIBLE overlay heading when the host passes no `title` — not merely an
+  // a11y name.
+  'detail.recordDetail': 'Record Detail',
+  // sr-only Sheet/Dialog description used when the host passes no
+  // `description`. Rendered in three places (drawer / modal / popover).
+  'detail.recordDetailOverlay': 'Record detail overlay for {{title}}.',
+};
+
+/**
+ * Probe key is `common.close`: present in all ten packs, so a mounted
+ * `I18nProvider` always resolves it and the real `t` is used; with no provider
+ * the probe fails and every key above falls back to its English default.
+ */
+const useOverlayTranslation = createSafeTranslation(
+  OVERLAY_DEFAULT_TRANSLATIONS,
+  'common.close',
+);
 
 /** Navigation mode type — matches ViewNavigationConfig.mode */
 export type NavigationOverlayMode =
@@ -130,7 +168,13 @@ export interface NavigationOverlayProps {
    * When omitted, the expand button is not rendered.
    */
   onExpand?: () => void;
-  /** Optional label for the expand button (accessible name & tooltip). */
+  /**
+   * Optional label for the expand button (accessible name & tooltip).
+   *
+   * When omitted the overlay resolves `detail.openAsFullPage` from the session
+   * locale (English when no `I18nProvider` is mounted) — it is no longer a
+   * hardcoded English literal (objectstack#5506).
+   */
   expandLabel?: string;
   /**
    * Optional storage key for persisting the user's manually-resized drawer
@@ -276,21 +320,27 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
   mainContent,
   popoverTrigger,
   onExpand,
-  expandLabel = 'Open as full page',
+  expandLabel,
   storageKey,
 }) => {
   const widthStyle = getWidthStyle(width);
-  const resolvedTitle = title || 'Record Detail';
+  // Every chrome string below is locale-driven (objectstack#5430 for the two
+  // close affordances, objectstack#5506 for the rest). Must stay above the
+  // conditional returns — rules-of-hooks.
+  const { t } = useOverlayTranslation();
+  const resolvedTitle = title || t('detail.recordDetail');
+  // `??` rather than a destructuring default so the semantics are unchanged
+  // for hosts that pass the prop: a default parameter also only fires on
+  // `undefined`, and `ObjectView` already supplies its own translated label.
+  const resolvedExpandLabel = expandLabel ?? t('detail.openAsFullPage');
+  // sr-only Sheet/Dialog description, used in three modes below.
+  const overlayDescription = t('detail.recordDetailOverlay', { title: resolvedTitle });
   // Keep hooks above all conditional returns. Opening a record changes
   // selectedRecord from null to an object, but hook order must stay stable.
   const resize = useDrawerResize(mode === 'drawer' ? storageKey : undefined);
   // Inline-edit dropdowns render in body-level poppers; without this guard the
   // click that closes an open dropdown also dismisses the drawer/modal (#2156).
   const handleInteractOutside = usePopperAwareInteractOutside();
-  // Both close affordances below are icon-only, so their accessible name IS
-  // the control to a screen reader and to the hover tooltip (objectstack#5430).
-  // Must stay above the conditional returns — rules-of-hooks.
-  const tt = useSafeTranslate();
 
   // Non-overlay modes don't render anything
   if (mode === 'page' || mode === 'new_window' || mode === 'none') {
@@ -354,7 +404,7 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
             <div
               role="separator"
               aria-orientation="vertical"
-              aria-label="Resize drawer"
+              aria-label={t('common.resizeDrawer')}
               onMouseDown={resize.handleMouseDown}
               onDoubleClick={resize.handleDoubleClick}
               className="hidden sm:block absolute left-0 top-0 bottom-0 z-30 w-1 cursor-col-resize touch-none bg-transparent hover:bg-primary/40 active:bg-primary/60 transition-colors"
@@ -374,7 +424,7 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
                 <SheetDescription className="truncate text-xs">{description}</SheetDescription>
               ) : (
                 <SheetDescription className="sr-only">
-                  Record detail overlay for {resolvedTitle}.
+                  {overlayDescription}
                 </SheetDescription>
               )}
             </div>
@@ -383,8 +433,8 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
                 <button
                   type="button"
                   onClick={onExpand}
-                  aria-label={expandLabel}
-                  title={expandLabel}
+                  aria-label={resolvedExpandLabel}
+                  title={resolvedExpandLabel}
                   className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <Maximize2 className="h-3.5 w-3.5" />
@@ -393,8 +443,8 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
               <SheetClose asChild>
                 <button
                   type="button"
-                  aria-label={tt('common.close', 'Close')}
-                  title={tt('common.close', 'Close')}
+                  aria-label={t('common.close')}
+                  title={t('common.close')}
                   className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -426,8 +476,8 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
             <button
               type="button"
               onClick={onExpand}
-              aria-label={expandLabel}
-              title={expandLabel}
+              aria-label={resolvedExpandLabel}
+              title={resolvedExpandLabel}
               className="absolute right-12 top-4 z-10 inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
             >
               <Maximize2 className="h-4 w-4" />
@@ -439,7 +489,7 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
               <DialogDescription>{description}</DialogDescription>
             ) : (
               <DialogDescription className="sr-only">
-                Record detail overlay for {resolvedTitle}.
+                {overlayDescription}
               </DialogDescription>
             )}
           </DialogHeader>
@@ -478,7 +528,7 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
               <button
                 onClick={close}
                 className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                aria-label={tt('common.closePanel', 'Close panel')}
+                aria-label={t('common.closePanel')}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -523,7 +573,7 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
                 <DialogDescription className="text-xs">{description}</DialogDescription>
               ) : (
                 <DialogDescription className="sr-only">
-                  Record detail overlay for {resolvedTitle}.
+                  {overlayDescription}
                 </DialogDescription>
               )}
             </DialogHeader>
