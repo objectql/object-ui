@@ -107,6 +107,14 @@ const SPEC_CLEAN = [
   'validation',
   'datasource',
   'app',
+  // Promoted from KNOWN_STALE by objectui#3446. The page's components carried
+  // their config under `props`, which `PageComponentSchema.strict()` rejects by
+  // name (ADR-0089 D3a) — the sole reason this row was quarantined. Fixed as
+  // part of making the sample's block types resolvable: the mis-layered bag and
+  // the unregistered `heading` type were one defect wearing two faces, since
+  // `page:header` reads its title off `schema`/`schema.properties` and a `props`
+  // bag would have rendered an empty header bar even with the type corrected.
+  'page',
 ] as const;
 
 /**
@@ -116,9 +124,10 @@ const SPEC_CLEAN = [
  * This list is a ledger, not an excuse: the reverse assertion below fails if an
  * entry starts passing, so it can only ever shrink. objectui#3266 emptied out
  * the mechanically-fixable half of it (`action`, `agent`, `skill`, `flow`,
- * `report`, `validation`, `datasource`, `app` — all now in SPEC_CLEAN above).
+ * `report`, `validation`, `datasource`, `app` — all now in SPEC_CLEAN above),
+ * and objectui#3446 took `page` the same way.
  *
- * What remains is NOT "not got to yet" — each of these four needs a decision
+ * What remains is NOT "not got to yet" — each of these three needs a decision
  * that does not belong in this file, and the reason is recorded with it. A
  * sample only leaves this ledger by being FIXED; relaxing the guard, exempting
  * a schema, or moving a row into NO_AUTHORING_SCHEMA to buy a green run would
@@ -133,7 +142,6 @@ const KNOWN_STALE: Record<string, string> = {
   // which is the actual question (AGENTS.md #0.1) — and it is an app-shell
   // question, not a preview-samples one.
   object: '`fields` is an array; ObjectSchema wants a record keyed by field name',
-  page: 'page components carry `props`, which PageComponentSchema rejects (ADR-0089 D3a)',
   dashboard: 'widgets miss `dataset`/`values` and use retired `value`/`format`; `chart` is not a widget type',
   translation:
     'the `translations` collection is Array< Record< locale, TranslationData > >, but this sample is the metadata-RECORD form (name/label/locale/data) the console edits — so this row is a mapping mismatch, not necessarily a stale sample. Settle which contract the sample targets before guarding it.',

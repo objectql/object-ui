@@ -19,6 +19,33 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
     ],
   },
 
+  // Every `type` here must resolve in the ComponentRegistry, and every config
+  // bag must be `properties` — both are guarded, and both were broken
+  // (objectui#3446). The page previously opened with `{ type: 'heading' }`,
+  // which has never been registered in this repo: the spec accepts it
+  // (`PageComponentSchema.type` is the enum OR any string, so plugins can
+  // contribute blocks), so it parsed clean while rendering as a
+  // ComponentRegistry fallback box — the gallery's example of a composed page
+  // was showing two placeholders where its title and section heading belong.
+  //
+  // The canonical spellings, all from `PageComponentType`:
+  //   • the page title is a `page:header` (not a level-1 text block) — it owns
+  //     the h1, the subtitle, the breadcrumb/action slots and the bottom rule;
+  //     `recordChrome: false` selects the bare non-record layout, since this is
+  //     a welcome page with no bound record.
+  //   • in-body headings are `element:text` with a variant — `subheading`
+  //     renders an h3, which is what the old `level: 3` asked for. (`heading`
+  //     is a VARIANT of element:text, never a type; that near-miss is how the
+  //     original went wrong.)
+  //   • the rule is `element:divider`. The old bare `separator` did resolve —
+  //     `ui:separator` claims the bare name — but it is not a page block type,
+  //     and the `element:*` family is what the designer palette offers.
+  //
+  // Config lives under `properties`, NOT `props`: PageComponentSchema is
+  // `.strict()` and rejects `props` by name (ADR-0089 D3a). That mis-layering
+  // is why `page` sat in this file's spec-conformance ledger; the two are one
+  // fix, because `page:header` reads `title` off `schema`/`schema.properties`
+  // and would have rendered an empty header bar from a `props` bag.
   page: {
     name: 'crm_welcome',
     label: 'CRM Welcome',
@@ -26,11 +53,11 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
       {
         name: 'main',
         components: [
-          { type: 'heading', props: { level: 1, text: 'Welcome to the CRM' } },
-          { type: 'text', props: { text: 'Track accounts, contacts, and deals in one place.' } },
-          { type: 'separator' },
-          { type: 'heading', props: { level: 3, text: 'Quick links' } },
-          { type: 'text', props: { text: 'Open the pipeline, review tasks, or create a new lead.' } },
+          { type: 'page:header', properties: { title: 'Welcome to the CRM', recordChrome: false } },
+          { type: 'element:text', properties: { content: 'Track accounts, contacts, and deals in one place.' } },
+          { type: 'element:divider' },
+          { type: 'element:text', properties: { content: 'Quick links', variant: 'subheading' } },
+          { type: 'element:text', properties: { content: 'Open the pipeline, review tasks, or create a new lead.' } },
         ],
       },
     ],
