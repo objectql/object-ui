@@ -862,6 +862,7 @@ const de = {
     approvalProgress: "Genehmigungen — {{got}} von {{need}}",
     approvalProgressGroups: "Freigabe — {{got}} von {{need}} Gruppen",
     approvalProgressLabel: "Genehmigungsfortschritt",
+    approvalsPanelTitle: "Genehmigungen",
     cancelApproval: "Genehmigung zurückziehen",
     cancelApprovalInFlight: "Zurückziehen…",
     cancelApprovalTooltip: "Ausstehende Genehmigungsanfrage zurückziehen, um den Datensatz zu entsperren",

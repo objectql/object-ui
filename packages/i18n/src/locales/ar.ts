@@ -864,6 +864,7 @@ const ar = {
     approvalProgress: "الموافقات — {{got}} من {{need}}",
     approvalProgressGroups: "التوقيعات — {{got}} من {{need}} مجموعات",
     approvalProgressLabel: "تقدّم الموافقة",
+    approvalsPanelTitle: "الموافقات",
     cancelApproval: "إلغاء الموافقة",
     cancelApprovalInFlight: "جارٍ الإلغاء…",
     cancelApprovalTooltip: "إلغاء طلب الموافقة المعلق لفتح قفل السجل",

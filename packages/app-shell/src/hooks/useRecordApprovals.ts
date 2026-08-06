@@ -79,6 +79,66 @@ export interface ApprovalRequestLite {
   pending_approver_groups?: Record<string, string[]> | null;
   /** Display names for the ids in `pending_approvers` (id → name). */
   pending_approver_names?: Record<string, string> | null;
+  /** Human label of the originating flow (e.g. "Project Budget Approval"). */
+  process_label?: string;
+  /** Human label of the pending approval step (e.g. "Manager Review"). */
+  step_label?: string;
+  /** Display name of the submitter (`sys_user.name`), when resolvable. */
+  submitter_name?: string;
+  /** Owning flow's approval steps for progress display (single reads only). */
+  flow_steps?: Array<{ id: string; label: string; state: 'done' | 'current' | 'upcoming' }>;
+  /**
+   * Server-computed capability of the current viewer (framework#3310), attached
+   * by `getRequest`. `is_submitter` gates the record page's remind affordance
+   * the same way the Approval Center gates its submitter levers — the server
+   * resolved the identity, so the panel never re-derives it client-side.
+   */
+  viewer?: {
+    can_act: boolean;
+    is_submitter: boolean;
+    can_override?: boolean;
+  };
+  /** ADR-0044 revision round on this (run, node): absent/1 = first round. */
+  round?: number;
+}
+
+/**
+ * A file attached to a decision action. The server resolves the
+ * `sys_approval_action.attachments` file field into rich descriptors, so a
+ * consumer has the display name without any `sys_file` lookup; opening one
+ * still goes through the signed-URL storage route.
+ */
+export interface ApprovalActionAttachmentLite {
+  id: string;
+  name?: string;
+  url?: string;
+  mimeType?: string;
+  size?: number;
+}
+
+/**
+ * One `sys_approval_action` row — a submit/approve/reject/… event on a
+ * request's thread, as `GET /approvals/requests/:id/actions` sends it.
+ * The approval timeline the Approval Center draws is made of these; the
+ * record page's approval panel reads the same rows (objectui#3461).
+ */
+export interface ApprovalActionLite {
+  id: string;
+  request_id: string;
+  step_index?: number | null;
+  step_name?: string | null;
+  actor_id?: string | null;
+  /** Display name of the actor, resolved server-side. */
+  actor_name?: string;
+  action: 'submit' | 'approve' | 'reject' | 'recall' | string;
+  comment?: string | null;
+  attachments?: ApprovalActionAttachmentLite[] | null;
+  created_at?: string;
+  /** Structured reassign hand-off parties (framework#4365), reassign rows only. */
+  reassign_from?: string;
+  reassign_to?: string;
+  reassign_from_name?: string;
+  reassign_to_name?: string;
 }
 
 /**
@@ -117,6 +177,14 @@ export function recordLockedByApproval(request: ApprovalRequestLite | null | und
 interface UseRecordApprovalsResult {
   loading: boolean;
   available: boolean;
+  /**
+   * Every approval request on the record, newest first — one per approval
+   * node the flow has reached (and per ADR-0044 revision round), so a
+   * multi-level flow accumulates several. The record page's approval panel
+   * renders them all (objectui#3461); `pendingRequest` / `latestRequest`
+   * remain the derived single-row reads the header actions consume.
+   */
+  requests: ApprovalRequestLite[];
   pendingRequest: ApprovalRequestLite | null;
   latestRequest: ApprovalRequestLite | null;
   /** The current user is among the pending approvers and may record a decision. */
@@ -195,6 +263,33 @@ async function fetchProgressEnrichment(
   }
 }
 
+/**
+ * Read a request's action thread (`sys_approval_action`) — who decided what,
+ * when, with which comment/attachments. Same rows the Approval Center's
+ * timeline draws; the record page's approval panel merges them across the
+ * record's requests (objectui#3461). Empty array on any shape mismatch.
+ */
+export async function listApprovalActions(requestId: string): Promise<ApprovalActionLite[]> {
+  const out = await fetchJson<{ data: ApprovalActionLite[] }>(
+    `/approvals/requests/${encodeURIComponent(requestId)}/actions`,
+  );
+  return Array.isArray(out?.data) ? out.data : [];
+}
+
+/**
+ * Submitter nudge — notifies the pending approvers (throttled server-side,
+ * 429/THROTTLED when sent too recently). `notified` is how many were pinged.
+ */
+export async function remindApprovalRequest(
+  requestId: string,
+): Promise<{ notified?: number }> {
+  const out = await fetchJson<{ notified?: number }>(
+    `/approvals/requests/${encodeURIComponent(requestId)}/remind`,
+    { method: 'POST', body: JSON.stringify({}) },
+  );
+  return out ?? {};
+}
+
 export function useRecordApprovals(
   objectName: string | undefined,
   recordId: string | undefined,
@@ -244,15 +339,17 @@ export function useRecordApprovals(
     [requests],
   );
 
-  const latestRequest = useMemo(() => {
-    if (requests.length === 0) return null;
-    const sorted = [...requests].sort((a, b) => {
-      const at = a.submitted_at || a.completed_at || '';
-      const bt = b.submitted_at || b.completed_at || '';
-      return bt.localeCompare(at);
-    });
-    return sorted[0] ?? null;
-  }, [requests]);
+  const sortedRequests = useMemo(
+    () =>
+      [...requests].sort((a, b) => {
+        const at = a.submitted_at || a.completed_at || '';
+        const bt = b.submitted_at || b.completed_at || '';
+        return bt.localeCompare(at);
+      }),
+    [requests],
+  );
+
+  const latestRequest = sortedRequests[0] ?? null;
 
   const canDecide = !!pendingRequest && !!currentUserId
     && (pendingRequest.pending_approvers ?? []).includes(currentUserId);
@@ -288,6 +385,7 @@ export function useRecordApprovals(
   return {
     loading,
     available,
+    requests: sortedRequests,
     pendingRequest,
     latestRequest,
     canDecide,

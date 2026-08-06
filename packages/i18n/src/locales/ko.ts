@@ -862,6 +862,7 @@ const ko = {
     approvalProgress: "승인 — {{need}}건 중 {{got}}건",
     approvalProgressGroups: "합의 — {{need}}개 그룹 중 {{got}}개",
     approvalProgressLabel: "승인 진행 상황",
+    approvalsPanelTitle: "승인",
     cancelApproval: "승인 취소",
     cancelApprovalInFlight: "취소 중…",
     cancelApprovalTooltip: "대기 중인 승인 요청을 취소하여 레코드 잠금 해제",

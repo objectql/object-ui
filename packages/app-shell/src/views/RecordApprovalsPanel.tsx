@@ -1,0 +1,526 @@
+/**
+ * ObjectUI
+ * Copyright (c) 2024-present ObjectStack Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import * as React from 'react';
+import { cn, Badge, Button } from '@object-ui/components';
+import { Stamp, Check, Circle, Paperclip, Loader2, Send } from 'lucide-react';
+import { toast } from 'sonner';
+import { createAuthenticatedFetch } from '@object-ui/auth';
+import { useObjectTranslation } from '@object-ui/react';
+import {
+  listApprovalActions,
+  remindApprovalRequest,
+  type ApprovalActionLite,
+  type ApprovalActionAttachmentLite,
+  type ApprovalRequestLite,
+} from '../hooks/useRecordApprovals';
+
+/**
+ * RecordApprovalsPanel — the record page's read-only approval surface
+ * (objectui#3461).
+ *
+ * Visibility is READ-gated, not approver-gated: anyone who can open the
+ * record sees which step its approval sits at, who it is waiting on, and
+ * what has been decided so far. Before this panel, the record page consumed
+ * the approvals API solely to decide whether the CURRENT user gets
+ * Approve/Reject buttons — the pending-approver list and the action thread
+ * existed only in the Approval Center, which business-app roles cannot even
+ * navigate to (its nav lives under the `setup` app), and granting them
+ * `sys_approval_request` list access would expose every tenant record's
+ * requests. "Who is my record waiting on" belongs on the record.
+ *
+ * Data comes from the SAME reads the header actions already use
+ * (`useRecordApprovals` — the hook's `requests` array), plus the per-request
+ * action thread (`GET /approvals/requests/:id/actions`, i.e.
+ * `sys_approval_action`) that the record's own audit history never sees:
+ * the engine writes business-field mirrors as `runAs:'system'`, so record
+ * history shows "System updated stage" and nothing else. Copy reuses the
+ * Approval Center's `approvalsInbox.*` i18n keys verbatim so the two
+ * surfaces cannot drift.
+ *
+ * A multi-level flow opens ONE request per approval node (and per ADR-0044
+ * revision round), so the timeline here merges the action threads of every
+ * request on the record into a single chronological story — the "who
+ * approved level 1 and when" a per-request drawer can't show at a glance.
+ *
+ * Renders nothing when the approvals plugin is absent or the record has no
+ * requests — a record that never entered an approval gets no empty chrome.
+ */
+
+export interface RecordApprovalsPanelProps {
+  /**
+   * The record's approval state, threaded from the host's ONE
+   * `useRecordApprovals()` call — the panel deliberately takes the hook's
+   * result instead of calling the hook itself so the record page keeps a
+   * single approvals read (the header decision buttons consume the same).
+   */
+  approvals: {
+    available: boolean;
+    requests: ApprovalRequestLite[];
+    pendingRequest: ApprovalRequestLite | null;
+  };
+  /** Signed-in user id — remind fallback gate for pre-`viewer` backends. */
+  currentUserId?: string | null;
+  className?: string;
+}
+
+/**
+ * Semantic status colors — mirrors the Approval Center's STATUS_CLASSES
+ * (green = approved, amber = waiting, red = rejected, slate = recalled,
+ * violet = returned for revision).
+ */
+const STATUS_CLASSES: Record<string, string> = {
+  pending:  'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400',
+  approved: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400',
+  rejected: 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400',
+  recalled: 'border-border bg-muted text-muted-foreground',
+  returned: 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-400',
+};
+
+/** Timeline dot color per action kind — same palette as the Approval Center. */
+const ACTION_DOT: Record<string, string> = {
+  approve: 'bg-emerald-500',
+  reject: 'bg-destructive',
+  submit: 'bg-blue-500',
+  reassign: 'bg-indigo-500',
+  remind: 'bg-amber-500',
+  request_info: 'bg-amber-500',
+  comment: 'bg-slate-400',
+  escalate: 'bg-red-500',
+  revise: 'bg-violet-500',
+  resubmit: 'bg-blue-500',
+};
+
+/**
+ * Render an actor/approver identifier in a friendly form (mirrors the
+ * Approval Center): emails as-is, `role:<name>` labeled, opaque 16+ char ids
+ * middle-truncated — a raw UUID wall is exactly what #3461 complains about.
+ */
+export function formatIdentity(id: string | null | undefined): string {
+  if (!id) return '—';
+  if (id.includes('@')) return id;
+  if (id.startsWith('role:')) return `Role: ${id.slice(5)}`;
+  if (id.length > 14) return `${id.slice(0, 6)}…${id.slice(-4)}`;
+  return id;
+}
+
+/** `manager_review` → "Manager Review" (display fallback for legacy rows). */
+function prettifyMachineName(raw: string | null | undefined): string {
+  if (!raw) return '—';
+  const base = String(raw).replace(/^flow:/, '').trim();
+  return base.split(/[_\-\s]+/).filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || '—';
+}
+
+/**
+ * Collapse the pending-approver chips, keyed by (name, group) so 会签
+ * comprehension survives: the same person filling two different groups stays
+ * two labeled chips, a person filling one group twice collapses to one chip
+ * with a count. Mirrors the Approval Center's `approverChips` (#2762 P1-2 /
+ * objectui#2807); the tooltip keeps the underlying ids inspectable.
+ */
+export function approverChips(
+  r: ApprovalRequestLite,
+): Array<{ label: string; group?: string; count: number; title: string }> {
+  const order: string[] = [];
+  const byKey = new Map<string, { label: string; group?: string; count: number; title: string }>();
+  for (const a of r.pending_approvers || []) {
+    const label = r.pending_approver_names?.[a] || formatIdentity(a);
+    const gs = r.pending_approver_groups?.[a];
+    const group = gs && gs.length ? gs.join(' / ') : undefined;
+    const key = group ? `${label} ${group}` : label;
+    const seen = byKey.get(key);
+    if (seen) {
+      seen.count += 1;
+      if (a && !seen.title.split(', ').includes(a)) seen.title += `, ${a}`;
+    } else {
+      byKey.set(key, { label, group, count: 1, title: a || label });
+      order.push(key);
+    }
+  }
+  return order.map((k) => byKey.get(k)!);
+}
+
+function formatDate(s: string | null | undefined): string {
+  if (!s) return '—';
+  try { return new Date(s).toLocaleString(); } catch { return s; }
+}
+
+/**
+ * Merge the per-request action threads into one chronological (oldest-first)
+ * timeline. Explicit sort — the panel must not depend on per-request server
+ * order once several requests' rows are concatenated.
+ */
+export function mergeActionTimelines(threads: ApprovalActionLite[][]): ApprovalActionLite[] {
+  return threads
+    .flat()
+    .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+}
+
+export const RecordApprovalsPanel: React.FC<RecordApprovalsPanelProps> = ({
+  approvals,
+  currentUserId,
+  className,
+}) => {
+  const { t } = useObjectTranslation();
+  const tr = React.useCallback(
+    (key: string, defaultValue: string, opts?: Record<string, unknown>) =>
+      String(t(`approvalsInbox.${key}`, { defaultValue, ...opts })),
+    [t],
+  );
+
+  const { available, requests, pendingRequest } = approvals;
+  // Newest-first from the hook; the pending row (at most one) leads the header.
+  const headline = pendingRequest ?? requests[0] ?? null;
+
+  const [actions, setActions] = React.useState<ApprovalActionLite[]>([]);
+  const [actionsLoading, setActionsLoading] = React.useState(false);
+  const [reminding, setReminding] = React.useState(false);
+
+  // Reload key: the id set plus each request's decision state, as a stable
+  // string — so the timeline refetches when a decision lands (the host's
+  // hook refresh flips `status` or bumps the enriched `decision_progress`
+  // tally), but NOT on every refresh returning identical data in new arrays.
+  const requestIdsKey = requests
+    .map((r) => `${r.id} ${r.status} ${r.decision_progress?.got ?? ''}`)
+    .join(',');
+
+  const reloadActions = React.useCallback(async () => {
+    const ids = requestIdsKey
+      ? requestIdsKey.split(',').map((k) => k.split(' ')[0])
+      : [];
+    if (ids.length === 0) {
+      setActions([]);
+      return;
+    }
+    setActionsLoading(true);
+    try {
+      const threads = await Promise.all(
+        ids.map((id) => listApprovalActions(id).catch(() => [] as ApprovalActionLite[])),
+      );
+      setActions(mergeActionTimelines(threads));
+    } finally {
+      setActionsLoading(false);
+    }
+  }, [requestIdsKey]);
+
+  React.useEffect(() => {
+    void reloadActions();
+  }, [reloadActions]);
+
+  /**
+   * Remind is the submitter's lever (server-authorized): prefer the
+   * server-resolved `viewer.is_submitter` from the enriched pending row and
+   * fall back to a plain id match for backends predating framework#3310.
+   */
+  const isSubmitter = pendingRequest
+    ? pendingRequest.viewer?.is_submitter
+      ?? (!!currentUserId && pendingRequest.submitter_id === currentUserId)
+    : false;
+
+  const handleRemind = React.useCallback(async () => {
+    if (!pendingRequest) return;
+    setReminding(true);
+    try {
+      const out = await remindApprovalRequest(pendingRequest.id);
+      toast.success(tr('remindSuccess', 'Reminder sent to {{count}} approver(s)', {
+        count: out?.notified ?? 0,
+      }));
+      await reloadActions();
+    } catch (err: any) {
+      toast.error(
+        err?.code === 'THROTTLED' || err?.status === 429
+          ? tr('remindThrottled', 'A reminder was sent recently — try again later.')
+          : err?.message || tr('loadFailed', 'Failed to load request'),
+      );
+    } finally {
+      setReminding(false);
+    }
+  }, [pendingRequest, reloadActions, tr]);
+
+  /**
+   * Open a timeline attachment via its short-lived signed URL — same
+   * user-gesture-preserving dance as the Approval Center (framework#3266
+   * follow-up): open the tab synchronously, then point it at the URL.
+   */
+  const authFetch = React.useMemo(() => createAuthenticatedFetch(), []);
+  const openAttachment = React.useCallback(async (att: ApprovalActionAttachmentLite) => {
+    const win = window.open('', '_blank', 'noopener');
+    try {
+      const base = String((import.meta as any).env?.VITE_SERVER_URL || '').replace(/\/$/, '');
+      const res = await authFetch(`${base}/api/v1/storage/files/${encodeURIComponent(att.id)}/url`);
+      if (!res.ok) throw new Error(`HTTP_${res.status}`);
+      const body = await res.json().catch(() => null);
+      const raw = body?.data?.url ?? body?.url;
+      if (!raw) throw new Error('NO_URL');
+      const url = /^https?:\/\//i.test(raw) ? raw : `${base}${raw}`;
+      if (win) win.location.href = url;
+      else window.open(url, '_blank', 'noopener');
+    } catch {
+      win?.close();
+      toast.error(tr('attachmentOpenFailed', 'Could not open the attachment — please try again'));
+    }
+  }, [authFetch, tr]);
+
+  // After all hooks: an unavailable plugin or a record with no requests
+  // renders no chrome at all.
+  if (!available || requests.length === 0 || !headline) return null;
+
+  const statusLabel = (status: string): string => {
+    switch (status) {
+      case 'pending': return tr('statusPending', 'Pending');
+      case 'approved': return tr('statusApproved', 'Approved');
+      case 'rejected': return tr('statusRejected', 'Rejected');
+      case 'recalled': return tr('statusRecalled', 'Recalled');
+      case 'returned': return tr('statusReturned', 'Returned for revision');
+      default: return status;
+    }
+  };
+
+  const actionText = (a: ApprovalActionLite): string =>
+    a.action === 'submit' ? tr('actSubmit', 'Submitted')
+      : a.action === 'approve' ? tr('actApprove', 'Approved')
+      : a.action === 'reject' ? tr('actReject', 'Rejected')
+      : a.action === 'recall' ? tr('actRecall', 'Recalled')
+      : a.action === 'reassign' ? tr('actReassign', 'Reassigned')
+      : a.action === 'remind' ? tr('actRemind', 'Reminder sent')
+      : a.action === 'request_info' ? tr('actRequestInfo', 'Requested more info')
+      : a.action === 'comment' ? tr('actComment', 'Commented')
+      : a.action === 'escalate' ? tr('actEscalate', 'SLA escalated')
+      : a.action === 'revise' ? tr('actRevise', 'Sent back for revision')
+      : a.action === 'resubmit' ? tr('actResubmit', 'Resubmitted')
+      : a.action;
+
+  const actorName = (a: ApprovalActionLite): string =>
+    a.actor_id === 'system:sla'
+      ? tr('systemSlaActor', 'System (SLA)')
+      : a.actor_name ?? formatIdentity(a.actor_id);
+
+  const dp = pendingRequest?.decision_progress;
+  const eligible = (pendingRequest?.pending_approvers || []).length;
+  const stepText = headline.status === 'pending'
+    ? (headline.step_label || (headline.current_step ? prettifyMachineName(headline.current_step) : null))
+    : null;
+
+  return (
+    <div className={cn('rounded-lg border bg-card', className)} data-testid="record-approvals-panel">
+      <div className="flex items-center justify-between gap-2 px-4 py-3 border-b">
+        <div className="flex items-center gap-2 min-w-0 text-sm font-medium">
+          <Stamp className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <span>{t('detail.approvalsPanelTitle', { defaultValue: 'Approvals' })}</span>
+          <span className="truncate text-xs font-normal text-muted-foreground">
+            {headline.process_label || prettifyMachineName(headline.process_name)}
+            {stepText ? ` · ${stepText}` : ''}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {(headline.round ?? 1) > 1 && (
+            <Badge variant="outline" className="text-[11px] text-muted-foreground">
+              {tr('roundChip', 'Round {{n}}', { n: headline.round })}
+            </Badge>
+          )}
+          <Badge variant="outline" className={cn('font-medium', STATUS_CLASSES[headline.status] ?? '')}>
+            {statusLabel(headline.status)}
+          </Badge>
+        </div>
+      </div>
+
+      <div className="px-4 py-3 space-y-3">
+        {/* Flow-level step strip — where in the multi-level flow this record
+            sits; present on the enriched pending row only (single reads). */}
+        {(pendingRequest?.flow_steps?.length ?? 0) > 1 && (
+          <div className="flex items-center overflow-x-auto" aria-label={tr('stepProgress', 'Approval steps')}>
+            {pendingRequest!.flow_steps!.map((s, i) => (
+              <React.Fragment key={s.id}>
+                {i > 0 && <div className={cn('h-px flex-1 min-w-4 mx-2', s.state === 'done' || s.state === 'current' ? 'bg-emerald-300 dark:bg-emerald-700' : 'bg-border')} />}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className={cn(
+                    'flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-semibold',
+                    s.state === 'done' && 'bg-emerald-500 text-white',
+                    s.state === 'current' && 'bg-amber-500 text-white ring-2 ring-amber-200 dark:ring-amber-500/30',
+                    s.state === 'upcoming' && 'bg-muted text-muted-foreground border',
+                  )}>
+                    {s.state === 'done' ? <Check className="h-3 w-3" /> : i + 1}
+                  </span>
+                  <span className={cn(
+                    'text-xs whitespace-nowrap',
+                    s.state === 'current' ? 'font-medium' : 'text-muted-foreground',
+                  )}>{s.label}</span>
+                </div>
+              </React.Fragment>
+            ))}
+          </div>
+        )}
+
+        {/* Aggregation progress — server-computed tally (quorum/unanimous
+            approvals, per-group 会签 groups), never re-derived client-side. */}
+        {dp && (
+          <div>
+            <div className="flex items-baseline justify-between gap-2 mb-1.5">
+              <span className="text-[11px] text-muted-foreground">
+                {dp.behavior === 'per_group'
+                  ? tr('progressGroups', 'Sign-off progress — {{got}} of {{need}} groups', { got: dp.got, need: dp.need })
+                  : tr('progressApprovals', 'Approvals — {{got}} of {{need}}', { got: dp.got, need: dp.need })}
+              </span>
+              {dp.behavior !== 'per_group' && eligible > 0 && (
+                <span className="text-[11px] text-muted-foreground">
+                  {tr('progressEligible', '{{count}} eligible approver(s)', { count: eligible })}
+                </span>
+              )}
+            </div>
+            <div
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={dp.need}
+              aria-valuenow={Math.min(dp.got, dp.need)}
+              aria-label={tr('progressBar', 'Decision progress')}
+              className="flex gap-1"
+            >
+              {dp.need > 0 && dp.need <= 12 ? (
+                Array.from({ length: dp.need }).map((_, i) => (
+                  <div
+                    key={i}
+                    className={cn('h-1.5 flex-1 rounded-full', i < dp.got ? 'bg-emerald-500' : 'bg-muted')}
+                  />
+                ))
+              ) : (
+                <div className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-emerald-500"
+                    style={{ width: `${dp.need > 0 ? Math.min(100, (dp.got / dp.need) * 100) : 0}%` }}
+                  />
+                </div>
+              )}
+            </div>
+            {dp.groups && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {dp.groups.map((g) => (
+                  <Badge
+                    key={g.group}
+                    variant="outline"
+                    className={cn(
+                      'text-[11px] gap-1',
+                      g.satisfied
+                        ? 'border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400'
+                        : 'text-muted-foreground',
+                    )}
+                    title={`${g.got}/${g.need}`}
+                  >
+                    {g.satisfied ? <Check className="h-3 w-3" /> : <Circle className="h-2.5 w-2.5" />}
+                    {g.group} {g.got}/{g.need}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Who the pending step waits on — THE read this panel exists for:
+            server-resolved names (group approvers labeled with their group),
+            visible to every record reader, not just approvers. */}
+        {pendingRequest && (pendingRequest.pending_approvers || []).length > 0 && (
+          <div>
+            <div className="text-[11px] text-muted-foreground mb-1">
+              {tr('waitingOn', 'Waiting on')}
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {approverChips(pendingRequest).map((chip, i) => (
+                <Badge key={`${chip.label}-${chip.group ?? ''}-${i}`} variant="outline" className="text-[11px]" title={chip.title}>
+                  {chip.label}
+                  {chip.group && <span className="ml-1 text-muted-foreground">· {chip.group}</span>}
+                  {chip.count > 1 && <span className="ml-1 text-muted-foreground">×{chip.count}</span>}
+                </Badge>
+              ))}
+              {isSubmitter && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 gap-1 px-2 text-[11px]"
+                  disabled={reminding}
+                  onClick={() => void handleRemind()}
+                >
+                  {reminding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                  {tr('remindBtn', 'Send reminder')}
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Merged action timeline — the approval story the record's own audit
+            history cannot tell (the engine mirrors fields as `runAs:'system'`,
+            and decisions live in sys_approval_action, not record history). */}
+        <div>
+          <div className="text-[11px] text-muted-foreground mb-2">
+            {tr('history', 'Activity')}
+          </div>
+          {actionsLoading && actions.length === 0 ? (
+            <div className="text-xs text-muted-foreground flex items-center gap-2">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              {tr('loadingMore', 'Loading…')}
+            </div>
+          ) : actions.length === 0 ? (
+            <div className="text-xs text-muted-foreground">{tr('noActions', 'No actions yet.')}</div>
+          ) : (
+            <ol className="relative space-y-3 pl-5 before:absolute before:left-[7px] before:top-1 before:bottom-1 before:w-px before:bg-border">
+              {actions.map((a) => (
+                <li key={a.id} className="relative text-xs">
+                  <span
+                    className={`absolute -left-[18px] top-1 h-3 w-3 rounded-full ring-2 ring-background ${ACTION_DOT[a.action] ?? 'bg-muted-foreground'}`}
+                    aria-hidden
+                  />
+                  <div className="flex items-baseline gap-1.5 flex-wrap">
+                    <span className="font-medium">{actionText(a)}</span>
+                    <span className="text-muted-foreground">·</span>
+                    <span title={a.actor_id || ''}>{actorName(a)}</span>
+                    {a.step_name && (
+                      <span className="text-muted-foreground">· {prettifyMachineName(a.step_name)}</span>
+                    )}
+                    <span className="ml-auto text-muted-foreground text-[10px]">
+                      {formatDate(a.created_at)}
+                    </span>
+                  </div>
+                  {a.action === 'reassign' && (a.reassign_from || a.reassign_to) && (
+                    <div className="text-muted-foreground mt-0.5">
+                      {tr('reassignFromTo', 'from {{from}} to {{to}}', {
+                        from: a.reassign_from_name ?? formatIdentity(a.reassign_from),
+                        to: a.reassign_to_name ?? formatIdentity(a.reassign_to),
+                      })}
+                    </div>
+                  )}
+                  {a.comment && (
+                    <div className="text-muted-foreground italic mt-0.5">"{a.comment}"</div>
+                  )}
+                  {Array.isArray(a.attachments) && a.attachments.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {a.attachments.map((att, i) => (
+                        <button
+                          key={att.id || i}
+                          type="button"
+                          onClick={() => void openAttachment(att)}
+                          className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                          title={att.name || att.id}
+                        >
+                          <Paperclip className="h-3 w-3" />
+                          {att.name
+                            || `${tr('attachmentChip', 'Attachment')}${a.attachments!.length > 1 ? ` ${i + 1}` : ''}`}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default RecordApprovalsPanel;

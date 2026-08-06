@@ -867,6 +867,7 @@ const es = {
     approvalProgress: "Aprobaciones — {{got}} de {{need}}",
     approvalProgressGroups: "Firmas — {{got}} de {{need}} grupos",
     approvalProgressLabel: "Progreso de la aprobación",
+    approvalsPanelTitle: "Aprobaciones",
     cancelApproval: "Cancelar aprobación",
     cancelApprovalInFlight: "Cancelando…",
     cancelApprovalTooltip: "Cancelar la solicitud de aprobación pendiente para desbloquear el registro",

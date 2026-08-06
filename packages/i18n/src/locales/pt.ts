@@ -864,6 +864,7 @@ const pt = {
     approvalProgress: "Aprovações — {{got}} de {{need}}",
     approvalProgressGroups: "Assinaturas — {{got}} de {{need}} grupos",
     approvalProgressLabel: "Progresso da aprovação",
+    approvalsPanelTitle: "Aprovações",
     cancelApproval: "Cancelar aprovação",
     cancelApprovalInFlight: "Cancelando…",
     cancelApprovalTooltip: "Cancelar a solicitação de aprovação pendente para desbloquear o registro",

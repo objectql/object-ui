@@ -873,6 +873,7 @@ const ja = {
     approvalProgress: "承認 — {{need}} 件中 {{got}} 件",
     approvalProgressGroups: "合議 — {{need}} グループ中 {{got}} グループ",
     approvalProgressLabel: "承認の進捗",
+    approvalsPanelTitle: "承認",
     cancelApproval: "承認を取り消す",
     cancelApprovalInFlight: "取り消し中…",
     cancelApprovalTooltip: "承認待ちリクエストを取り消してレコードのロックを解除する",

@@ -557,6 +557,28 @@ via the action runner, regardless of the object's `editMode`:
 See [`content/docs/guide/record-edit-modes.md`](../../content/docs/guide/record-edit-modes.md)
 for a longer walkthrough.
 
+## Record approval visibility (`RecordApprovalsPanel`)
+
+When a record has approval requests, `RecordDetailView` renders a
+**read-gated** approval panel below the record body (#3461): which step the
+approval sits at (with the flow's step strip), the server-computed decision
+progress (quorum tally, per-group 会签 ticks), the **waiting-on** approvers
+resolved to display names (group approvers labeled with their group), one
+chronological decision timeline merged across all of the record's requests
+(comments and attachments included), and an inline **Send reminder** button
+for the submitter.
+
+Visibility is gated by record READ access, not approver status — anyone who
+can open the record sees where its approval stands, without a trip to the
+Approval Center (a `setup`-app surface business roles typically cannot
+reach). Data comes from the same `useRecordApprovals` read that powers the
+header's Approve/Reject buttons, plus `GET /approvals/requests/:id/actions`
+per request; the submitter's remind posts the existing
+`POST /approvals/requests/:id/remind` (throttled server-side). The panel
+renders nothing when the approvals plugin is absent or the record has no
+requests, and its copy reuses the Approval Center's `approvalsInbox.*` i18n
+keys so the two surfaces never drift.
+
 ## User-scoped state (favorites, recent items)
 
 `<ConsoleShell>` includes `FavoritesProvider` and `RecentItemsProvider` —

@@ -864,6 +864,7 @@ const fr = {
     approvalProgress: "Approbations — {{got}} sur {{need}}",
     approvalProgressGroups: "Validation — {{got}} sur {{need}} groupes",
     approvalProgressLabel: "Progression de l'approbation",
+    approvalsPanelTitle: "Approbations",
     cancelApproval: "Annuler l'approbation",
     cancelApprovalInFlight: "Annulation…",
     cancelApprovalTooltip: "Annuler la demande d'approbation en attente pour déverrouiller l'enregistrement",

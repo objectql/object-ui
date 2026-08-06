@@ -45,6 +45,7 @@ import type { FeedItem } from '@object-ui/types';
 import type { ActionDef, ActionParamDef } from '@object-ui/core';
 import { useRecordApprovals, recordLockedByApproval } from '../hooks/useRecordApprovals';
 import { RecordAttachmentsPanel } from './RecordAttachmentsPanel';
+import { RecordApprovalsPanel } from './RecordApprovalsPanel';
 import { RecordPermissionAssignmentsRenderer } from './metadata-admin/RecordPermissionAssignmentsRenderer';
 import { getRecordDisplayName } from '../utils';
 import { parseAuditValue, collectAuditChanges, collectLookupIds, formatAuditValue } from '../utils/auditHistoryDisplay';
@@ -2144,6 +2145,19 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
               >
                 <SchemaRenderer schema={withPageTabsUrlSync(renderedPage, { defaultTab: activeTabParam, onTabChange: handleTabChange }) as any} />
               </RelatedRecordActionsBridge>
+              {/* Approval visibility block (objectui#3461) — READ-gated, not
+                  approver-gated: everyone who can open the record sees which
+                  step its approval sits at, who it waits on, and the decision
+                  timeline. Fed by the same `useRecordApprovals` read that
+                  already powers the header's decision buttons; renders
+                  nothing when the record has no approval requests. */}
+              {pureRecordId && (
+                <RecordApprovalsPanel
+                  className="mt-6"
+                  approvals={approvals}
+                  currentUserId={user?.id}
+                />
+              )}
               {/* ADR-0056 P1b — user assignment lives in Setup (the pure
                   model): the permission set's facets render read-only as
                   summary + Studio deep-link, and admins add/remove users

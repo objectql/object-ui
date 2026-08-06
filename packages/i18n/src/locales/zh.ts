@@ -771,6 +771,7 @@ const zh = {
     approvalProgress: '审批 — 已通过 {{got}} / 共需 {{need}}',
     approvalProgressGroups: '会签 — 已完成 {{got}} / 共 {{need}} 个组',
     approvalProgressLabel: '审批进度',
+    approvalsPanelTitle: '审批',
     cancelApproval: '撤回审批',
     cancelApprovalInFlight: '撤回中…',
     cancelApprovalTooltip: '撤回当前的待审批请求以解除记录锁定',

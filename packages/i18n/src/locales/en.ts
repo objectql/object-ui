@@ -792,6 +792,7 @@ const en = {
     approvalProgress: 'Approvals — {{got}} of {{need}}',
     approvalProgressGroups: 'Sign-off — {{got}} of {{need}} groups',
     approvalProgressLabel: 'Approval progress',
+    approvalsPanelTitle: 'Approvals',
     cancelApproval: 'Recall approval',
     cancelApprovalInFlight: 'Recalling…',
     cancelApprovalTooltip: 'Recall the pending approval request to unlock this record',
