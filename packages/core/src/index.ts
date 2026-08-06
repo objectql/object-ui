@@ -53,6 +53,10 @@ export * from './utils/merge-filters.js';
 export * from './utils/compare-to.js';
 export * from './utils/chart-series.js';
 export * from './utils/dataset-format.js';
+// Pivot lookup-key encoders, shared by every cross-tab renderer so the
+// dashboard widget and the report renderer key their buckets identically
+// (objectstack#5473 / objectstack#5665).
+export * from './utils/dataset-pivot.js';
 export * from './utils/record-title.js';
 export * from './utils/export-filename.js';
 export * from './utils/reference-keys.js';

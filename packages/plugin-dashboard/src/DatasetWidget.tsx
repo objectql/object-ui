@@ -39,6 +39,15 @@ import {
   formatDimensionValue,
   buildDatasetFieldHelpers,
   buildDatasetDrillFilter,
+  // The pivot key encoders now live in `@object-ui/core` so this widget and the
+  // report renderer's cross-tab share ONE implementation — each having written
+  // its own is why the same collision had to be fixed twice (objectstack#5473,
+  // objectstack#5665). Aliased to the local name: `pivotRowId` reads right here
+  // (this widget only ever encodes DOWN buckets — its across axis is a single
+  // dimension), while the shared helper is axis-neutral because the report's
+  // cross-tab keys multi-dimension ACROSS buckets with it too.
+  pivotBucketId as pivotRowId,
+  pivotCellKey,
   type DatasetResultField,
   type DatasetDrillRange,
 } from '@object-ui/core';
@@ -64,36 +73,17 @@ interface DatasetCapableSource {
 export const buildDrillFilter = buildDatasetDrillFilter;
 
 /**
- * Encode a pivot ROW bucket id from its dimension values.
- *
- * `JSON.stringify` of the value array — not a delimiter character — carries the
- * boundary between two values, so the id is unambiguous for ANY value a
- * dimension can hold. The previous encodings both relied on a character the
- * values were assumed never to contain, which is exactly how two different
- * rows collapsed into one bucket (objectstack#5473; same treatment as the
- * include key in objectui#3388 and the warning-dedupe key in objectstack#5450).
+ * The pivot key encoders, re-exported for back-compat; the implementations now
+ * live in `@object-ui/core` (`pivotBucketId` / `pivotCellKey`) so this widget
+ * and the report renderer's cross-tab key their buckets identically. See that
+ * module for why both are `JSON.stringify` rather than a delimiter character,
+ * and for the null-placeholder residual tracked in objectstack#5666.
  *
  * Every consumer of a row id — the cell index below AND the row-total lookup in
- * the cross-tab renderer — must build its key with this function; a second,
- * hand-rolled encoding of the same id is what made the old bug invisible.
- *
- * Known residual, tracked separately in objectstack#5666: a null/undefined
- * dimension value is encoded as the placeholder character below, so it still
- * collides with a value that literally equals that placeholder.
+ * the cross-tab renderer — must build its key with these; a second, hand-rolled
+ * encoding of the same id is what made the old bug invisible.
  */
-export const pivotRowId = (dimensionValues: string[]): string => JSON.stringify(dimensionValues);
-
-/**
- * Encode the `cellIndex` key for a (row bucket, column bucket) pair.
- *
- * Was `${rowId} ${colId}` — a plain space, while dimension values contain
- * spaces all the time ("New York", "In Progress"). Two rows whose ids met at a
- * different point of the same string ("New" + "York Q1" vs "New York" + "Q1")
- * produced ONE key: the later row silently overwrote the earlier one, the cell
- * showed another row's measure, and drill-through followed the same wrong
- * index. `JSON.stringify` of the pair has no such boundary (objectstack#5473).
- */
-export const pivotCellKey = (rowId: string, colId: string): string => JSON.stringify([rowId, colId]);
+export { pivotRowId, pivotCellKey };
 
 /**
  * Pivot flat dataset rows into a cross-tab: `rowDims` go DOWN, `colDim` spreads

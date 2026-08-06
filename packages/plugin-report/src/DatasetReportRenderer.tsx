@@ -64,6 +64,8 @@ import {
   formatDimensionValue,
   buildDatasetFieldHelpers,
   buildDatasetDrillFilter,
+  pivotBucketId,
+  pivotCellKey,
   type DatasetResultField,
   type DatasetDrillRange,
 } from '@object-ui/core';
@@ -738,9 +740,19 @@ function DatasetReportChart({
   );
 }
 
-/** Stable bucket id for a dimension-value tuple. */
+/**
+ * Stable bucket id for a dimension-value tuple — the id every lookup in the
+ * cross-tab below is keyed by (row headers, column headers, and both subtotal
+ * maps), so they all agree by construction.
+ *
+ * The values go through `pivotBucketId` (shared with the dashboard's pivot)
+ * rather than being concatenated: this used to `join('')`, which left NO
+ * boundary at all between adjacent values, so `'x'` + `'yz'` and `'xy'` + `'z'`
+ * were one bucket and the later row overwrote the earlier one
+ * (objectstack#5665; objectstack#5473 is the same defect in the dashboard).
+ */
 function bucketId(dims: string[], row: Row): string {
-  return dims.map((d) => String(row[d] ?? '∅')).join('');
+  return pivotBucketId(dims.map((d) => String(row[d] ?? '∅')));
 }
 
 function bucketLabel(dims: string[], row: Row): string {
@@ -816,7 +828,11 @@ function DatasetMatrixTable({
         for (const d of columnsAcross) key[d] = r[d];
         colHeaders.push({ id: cid, label: bucketLabel(columnsAcross, r), key });
       }
-      cells.set(`${rid} ${cid}`, { row: r, index });
+      // Keyed by pivotCellKey, not `${rid} ${cid}`: a plain space is a boundary
+      // only while no dimension value contains one, and they do constantly
+      // ("New York", "In Progress"). `index` is also what drill-through reads
+      // `drillRawRows` by, so a merged key drilled to the wrong records too.
+      cells.set(pivotCellKey(rid, cid), { row: r, index });
     });
     return { rowHeaders, colHeaders, cells };
   }, [state, rows, columnsAcross]);
@@ -903,7 +919,7 @@ function DatasetMatrixTable({
                 </td>
               ))}
               {cellCols.map((cc) => {
-                const entry = pivot.cells.get(`${rh.id} ${cc.col.id}`);
+                const entry = pivot.cells.get(pivotCellKey(rh.id, cc.col.id));
                 const value = entry?.row[cc.measure];
                 const clickable = canDrill && entry != null;
                 return (

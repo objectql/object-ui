@@ -787,3 +787,171 @@ describe('DatasetReportRenderer', () => {
     expect(screen.getByText(/does not support dataset queries/i)).toBeInTheDocument();
   });
 });
+
+/**
+ * Matrix bucket / cell-key encoding (objectstack#5665).
+ *
+ * The cross-tab keys three lookups off dimension-value tuples: the DOWN bucket,
+ * the ACROSS bucket, and the (row, column) cell that meets them. All three were
+ * spelled by concatenation — the bucket id joined its values with the EMPTY
+ * string, the cell key joined the two bucket ids with a PLAIN SPACE — so a
+ * boundary existed only where the data happened not to reach across it. Two
+ * different buckets then produced ONE key: the later row silently overwrote the
+ * earlier one, the cell showed another row's measure, the overwritten row was
+ * unreachable, and drill-through followed the same wrong index into the wrong
+ * records. Same defect as the dashboard widget's (objectstack#5473).
+ *
+ * These cases assert BEHAVIOUR — which bucket renders which measure, which raw
+ * record a cell drills to — not key spelling. The pre-existing pivot cases use
+ * one row dimension and space-free values, where an empty separator is
+ * indistinguishable from a correct one, which is why they stayed green
+ * throughout.
+ */
+describe('DatasetReportRenderer — matrix bucket encoding (objectstack#5665)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  /** Data rows of the rendered cross-tab, as text — the totals row excluded. */
+  const matrixBodyRows = (): string[][] =>
+    [...screen.getByTestId('dataset-matrix').querySelectorAll('tbody tr')]
+      .filter((tr) => tr.getAttribute('data-testid') !== 'matrix-total-row')
+      .map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent ?? ''));
+
+  it('keeps two DOWN buckets whose values concatenate identically apart ("x"+"yz" vs "xy"+"z")', async () => {
+    // The empty join gave these two rows one id, "xyz". Nothing about the values
+    // is exotic — any two adjacent dimensions can spell each other's boundary.
+    const src = makeSource({
+      sales: [
+        { region: 'x', segment: 'yz', priority: 'High', amount: 1 },
+        { region: 'xy', segment: 'z', priority: 'High', amount: 2 },
+      ],
+    });
+    render(
+      <DatasetReportRenderer
+        report={{ name: 'm', type: 'matrix', dataset: 'sales', rows: ['region', 'segment'], columns: ['priority'], values: ['amount'] }}
+        dataSource={src}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('dataset-matrix')).toBeInTheDocument());
+    expect(matrixBodyRows()).toEqual([
+      ['x', 'yz', '1'],
+      ['xy', 'z', '2'],
+    ]);
+  });
+
+  it('keeps two ACROSS buckets whose values concatenate identically apart', async () => {
+    // The across axis runs through the same encoder, so it collides the same
+    // way: "Q"+"1x" and "Q1"+"x" both spelled "Q1x", collapsing two columns into
+    // one and making the first bucket's measure unreachable.
+    const src = makeSource({
+      sales: {
+        rows: [
+          { region: 'East', quarter: 'Q', channel: '1x', amount: 1 },
+          { region: 'East', quarter: 'Q1', channel: 'x', amount: 2 },
+        ],
+        totals: [
+          { dimensions: ['quarter', 'channel'], rows: [{ quarter: 'Q', channel: '1x', amount: 10 }, { quarter: 'Q1', channel: 'x', amount: 20 }] },
+        ],
+      },
+    });
+    render(
+      <DatasetReportRenderer
+        report={{ name: 'm', type: 'matrix', dataset: 'sales', rows: ['region'], columns: ['quarter', 'channel'], values: ['amount'] }}
+        dataSource={src}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('dataset-matrix')).toBeInTheDocument());
+    expect(screen.getByRole('columnheader', { name: 'Q / 1x' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Q1 / x' })).toBeInTheDocument();
+    expect(matrixBodyRows()).toEqual([['East', '1', '2']]);
+    // Column subtotals key the across buckets with the SAME encoder, so they
+    // must land under their own column rather than share one.
+    expect(screen.getByTestId('matrix-total-row').textContent).toContain('10');
+    expect(screen.getByTestId('matrix-total-row').textContent).toContain('20');
+  });
+
+  it('does not merge cells when a dimension value contains a space ("New" × "York Q1" vs "New York" × "Q1")', async () => {
+    // The space-joined cell key spelled both pairs "New York Q1" — and values
+    // with spaces are the norm, not the exception ("New York", "In Progress").
+    const src = makeSource({
+      sales: [
+        { region: 'New', quarter: 'York Q1', amount: 111 },
+        { region: 'New York', quarter: 'Q1', amount: 222 },
+      ],
+    });
+    render(
+      <DatasetReportRenderer
+        report={{ name: 'm', type: 'matrix', dataset: 'sales', rows: ['region'], columns: ['quarter'], values: ['amount'] }}
+        dataSource={src}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('dataset-matrix')).toBeInTheDocument());
+    // Each bucket pair holds its own measure; the two absent pairs render '—'.
+    expect(matrixBodyRows()).toEqual([
+      ['New', '111', '—'],
+      ['New York', '—', '222'],
+    ]);
+  });
+
+  it('drills a colliding cell to ITS raw record, not the one that overwrote it', async () => {
+    // The cell entry carries the flat row INDEX that drill-through reads
+    // `drillRawRows` by, so a merged key drilled to another row's records with
+    // no error — the quiet half of the same bug.
+    const src = makeSource({
+      sales: {
+        rows: [
+          { region: 'New', quarter: 'York Q1', amount: 111 },
+          { region: 'New York', quarter: 'Q1', amount: 222 },
+        ],
+        object: 'opportunity',
+        dimensionFields: { region: 'billing_state', quarter: 'close_quarter' },
+        drillRawRows: [
+          { region: 'NEW', quarter: 'YORK-Q1' },
+          { region: 'NEW-YORK', quarter: 'Q1' },
+        ],
+      },
+    });
+    const onDrill = vi.fn();
+    render(
+      <DatasetReportRenderer
+        report={{ name: 'm', type: 'matrix', dataset: 'sales', rows: ['region'], columns: ['quarter'], values: ['amount'] }}
+        dataSource={src}
+        onDrill={onDrill}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('dataset-matrix')).toBeInTheDocument());
+    // First clickable cell = row "New" × column "York Q1" (flat row 0).
+    fireEvent.click(screen.getAllByTestId('dataset-drill-cell')[0]);
+    expect(onDrill).toHaveBeenCalledWith(expect.objectContaining({
+      groupKey: { region: 'New', quarter: 'York Q1' },
+      objectFilter: { billing_state: 'NEW', close_quarter: 'YORK-Q1' },
+    }));
+  });
+
+  it('matches per-row subtotals to multi-dimension row buckets', async () => {
+    // `rowTotalById` keys the server's subtotal rows with the same encoder as
+    // the row headers, so the collision reached the Total column too: two
+    // subtotals under one id, one of them unreachable.
+    const src = makeSource({
+      sales: {
+        rows: [
+          { region: 'x', segment: 'yz', priority: 'High', amount: 1 },
+          { region: 'xy', segment: 'z', priority: 'High', amount: 2 },
+        ],
+        totals: [
+          { dimensions: ['region', 'segment'], rows: [{ region: 'x', segment: 'yz', amount: 1 }, { region: 'xy', segment: 'z', amount: 2 }] },
+          { dimensions: ['priority'], rows: [{ priority: 'High', amount: 3 }] },
+          { dimensions: [], rows: [{ amount: 3 }] },
+        ],
+      },
+    });
+    render(
+      <DatasetReportRenderer
+        report={{ name: 'm', type: 'matrix', dataset: 'sales', rows: ['region', 'segment'], columns: ['priority'], values: ['amount'] }}
+        dataSource={src}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('dataset-matrix')).toBeInTheDocument());
+    expect(screen.getAllByTestId('matrix-row-total').map((el) => el.textContent)).toEqual(['1', '2']);
+    expect(screen.getByTestId('matrix-grand-total')).toHaveTextContent('3');
+  });
+});
