@@ -3164,6 +3164,52 @@ const en = {
     addSort: 'Add sort',
     removeSort: 'Remove sort',
   },
+  // `@object-ui/collaboration` — the comment thread's copy (objectstack#5506,
+  // objectui#3424). The package used to carry every one of these as an English
+  // literal, so a zh session read a Chinese console with an English comment
+  // thread inside it. `COLLAB_DEFAULT_TRANSLATIONS` in that package mirrors
+  // this namespace verbatim as its no-provider fallback; keep the two in step.
+  //
+  // The generic action words (Save / Cancel / Edit / Delete) are NOT repeated
+  // here — the thread reads them from `common`.
+  collaboration: {
+    // Thread header. `commentCount`/`commentCountOne` are two keys, NOT an
+    // i18next `_one`/`_other` pair — see the `reactionCount` note under
+    // `detail`: zh/ja/ko have no separate singular form, so those packs would
+    // legitimately omit the `_one` half and `all-locales-key-parity` reads a
+    // legitimately-absent half as a lost key.
+    commentCount: '{{count}} comments',
+    commentCountOne: '{{count}} comment',
+    // Appended to the count, separator included, so a translator owns the
+    // whole phrase rather than inheriting an English-shaped ` · ` glue.
+    resolvedSuffix: ' · Resolved',
+    sortComments: 'Sort comments',
+    sortOldest: 'Oldest',
+    sortNewest: 'Newest',
+    resolve: 'Resolve',
+    reopen: 'Reopen',
+    // Relative comment age. Word-level entries only — the component keeps its
+    // existing minute/hour/day buckets and no date library was introduced.
+    justNow: 'just now',
+    minutesAgo: '{{count}}m ago',
+    hoursAgo: '{{count}}h ago',
+    daysAgo: '{{count}}d ago',
+    edited: '(edited)',
+    // Reaction-chip tooltip. A DEDICATED pair rather than `detail.reactionCount`:
+    // that one interpolates `{{emoji}}`, and here the emoji is the chip's
+    // visible label with nothing to hand the placeholder.
+    reactionCount: '{{count}} reactions',
+    reactionCountOne: '{{count}} reaction',
+    addThumbsUp: 'Add thumbs up',
+    reply: 'Reply',
+    replyingTo: 'Replying to {{name}}...',
+    // The no-author-found half of the reply banner, as a whole sentence:
+    // languages that inflect around the addressee cannot build it by
+    // substituting a noun into the `{{name}}` form.
+    replyingToComment: 'Replying to comment...',
+    commentPlaceholder: 'Add a comment... (use @ to mention)',
+    send: 'Send',
+  },
 } as const;
 
 export default en;

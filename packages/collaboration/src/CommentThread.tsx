@@ -7,6 +7,10 @@
  */
 
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import {
+  useCollaborationTranslation,
+  type CollaborationTranslate,
+} from './useCollaborationTranslation';
 
 export interface Comment {
   id: string;
@@ -47,18 +51,34 @@ export interface CommentThreadProps {
   className?: string;
 }
 
-function formatTimestamp(iso: string): string {
+/**
+ * Relative age of a comment, in the session language.
+ *
+ * `t` is threaded in as a parameter rather than read from a hook: this runs
+ * once per rendered comment from inside `renderComment`, and the buckets are
+ * unchanged — only the words moved into the locale packs. Counts are
+ * interpolated as STRINGS on purpose, so i18next skips its own plural
+ * resolution (`needsPluralHandling` is false for a string `count`) and cannot
+ * silently start looking for `_one`/`_other` variants this repo does not ship.
+ *
+ * The >= 7d branch still uses the runtime's own `toLocaleDateString()`. That is
+ * not a hardcoded English literal — it already follows the environment locale —
+ * and pinning it to the session language is a separate change with its own
+ * failure mode (an unrecognised tag throws `RangeError` straight into the
+ * `catch` below, which would render the raw ISO string). Tracked separately.
+ */
+function formatTimestamp(iso: string, t: CollaborationTranslate): string {
   try {
     const date = new Date(iso);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const minutes = Math.floor(diff / 60000);
-    if (minutes < 1) return 'just now';
-    if (minutes < 60) return `${minutes}m ago`;
+    if (minutes < 1) return t('collaboration.justNow');
+    if (minutes < 60) return t('collaboration.minutesAgo', { count: String(minutes) });
     const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
+    if (hours < 24) return t('collaboration.hoursAgo', { count: String(hours) });
     const days = Math.floor(hours / 24);
-    if (days < 7) return `${days}d ago`;
+    if (days < 7) return t('collaboration.daysAgo', { count: String(days) });
     return date.toLocaleDateString();
   } catch {
     return iso;
@@ -317,6 +337,13 @@ function renderContent(content: string): React.ReactNode {
  *
  * Renders a list of comments with author avatars, timestamps,
  * reply functionality, and an @mention suggestions popup.
+ *
+ * Every user-visible string resolves through `useCollaborationTranslation`
+ * (objectstack#5506): the session locale under an `I18nProvider`, and the
+ * English `COLLAB_DEFAULT_TRANSLATIONS` map with no provider mounted. There is
+ * deliberately no `formatter`/label prop escape hatch — a host that wants
+ * different copy overrides the locale keys, so one thread cannot end up half
+ * translated by the bundle and half by props.
  */
 export function CommentThread({
   threadId,
@@ -340,6 +367,7 @@ export function CommentThread({
   const [mentionIndex, setMentionIndex] = useState(0);
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('oldest');
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const { t } = useCollaborationTranslation();
 
   const filteredMentions = useMemo(() => {
     if (mentionQuery === null) return [];
@@ -483,9 +511,9 @@ export function CommentThread({
         // Header
         React.createElement('div', { style: styles.commentHeader },
           React.createElement('span', { style: styles.authorName }, comment.author.name),
-          React.createElement('span', { style: styles.timestamp }, formatTimestamp(comment.createdAt)),
+          React.createElement('span', { style: styles.timestamp }, formatTimestamp(comment.createdAt, t)),
           comment.updatedAt
-            ? React.createElement('span', { style: styles.timestamp }, '(edited)')
+            ? React.createElement('span', { style: styles.timestamp }, t('collaboration.edited'))
             : null,
         ),
         // Content or edit input
@@ -500,11 +528,11 @@ export function CommentThread({
               React.createElement('button', {
                 onClick: handleEditSave,
                 style: { ...styles.submitBtn, padding: '4px 10px', fontSize: '12px' },
-              }, 'Save'),
+              }, t('common.save')),
               React.createElement('button', {
                 onClick: () => { setEditingId(null); setEditValue(''); },
                 style: { ...styles.actionBtn },
-              }, 'Cancel'),
+              }, t('common.cancel')),
             )
           : React.createElement('div', { style: styles.content }, renderContent(comment.content)),
         // Reactions display
@@ -517,13 +545,22 @@ export function CommentThread({
                 ...(userIds.includes(currentUser.id) ? styles.reactionBtnActive : {}),
               },
               onClick: () => onReaction?.(comment.id, emoji),
-              title: userIds.length === 1 ? '1 reaction' : `${userIds.length} reactions`,
+              // Dedicated key pair — `detail.reactionCount` interpolates an
+              // `{{emoji}}` this tooltip has no value for (the emoji is the
+              // button's visible label), so reusing it would leave a literal
+              // `{{emoji}}` in the accessible name under every locale.
+              title: t(
+                userIds.length === 1
+                  ? 'collaboration.reactionCountOne'
+                  : 'collaboration.reactionCount',
+                { count: String(userIds.length) },
+              ),
             }, `${emoji} ${userIds.length}`),
           ),
           onReaction && React.createElement('button', {
             style: styles.reactionPicker,
             onClick: () => onReaction(comment.id, '👍'),
-            title: 'Add thumbs up',
+            title: t('collaboration.addThumbsUp'),
           }, '+'),
         ),
         // Actions
@@ -531,7 +568,7 @@ export function CommentThread({
           React.createElement('button', {
             style: styles.actionBtn,
             onClick: () => setReplyTo(comment.id),
-          }, 'Reply'),
+          }, t('collaboration.reply')),
           onReaction && React.createElement('button', {
             style: styles.actionBtn,
             onClick: () => onReaction(comment.id, '👍'),
@@ -543,11 +580,11 @@ export function CommentThread({
           isOwner && onEditComment && React.createElement('button', {
             style: styles.actionBtn,
             onClick: () => handleEdit(comment.id),
-          }, 'Edit'),
+          }, t('common.edit')),
           isOwner && onDeleteComment && React.createElement('button', {
             style: styles.actionBtn,
             onClick: () => onDeleteComment(comment.id),
-          }, 'Delete'),
+          }, t('common.delete')),
         ),
       ),
     );
@@ -561,23 +598,33 @@ export function CommentThread({
     // Header
     React.createElement('div', { style: styles.header },
       React.createElement('span', null,
-        `${comments.length} comment${comments.length !== 1 ? 's' : ''}`,
-        resolved ? ' · Resolved' : '',
+        // Two keys instead of an English `s` glued on at render time. The old
+        // `` `${n} comment${n !== 1 ? 's' : ''}` `` produced correct *English*
+        // — the bug is that the plural RULE was compiled into the component,
+        // so no locale could apply its own (ru needs three forms, ja needs
+        // none, and neither could ever be expressed).
+        t(
+          comments.length === 1
+            ? 'collaboration.commentCountOne'
+            : 'collaboration.commentCount',
+          { count: String(comments.length) },
+        ),
+        resolved ? t('collaboration.resolvedSuffix') : '',
       ),
       React.createElement('div', { style: { display: 'flex', gap: '6px', alignItems: 'center' } },
         React.createElement('select', {
           value: sortOrder,
           onChange: (e: React.ChangeEvent<HTMLSelectElement>) => setSortOrder(e.target.value as 'newest' | 'oldest'),
           style: styles.sortSelect,
-          'aria-label': 'Sort comments',
+          'aria-label': t('collaboration.sortComments'),
         },
-          React.createElement('option', { value: 'oldest' }, 'Oldest'),
-          React.createElement('option', { value: 'newest' }, 'Newest'),
+          React.createElement('option', { value: 'oldest' }, t('collaboration.sortOldest')),
+          React.createElement('option', { value: 'newest' }, t('collaboration.sortNewest')),
         ),
         onResolve && React.createElement('button', {
           style: styles.resolveBtn,
           onClick: () => onResolve(!resolved),
-        }, resolved ? 'Reopen' : 'Resolve'),
+        }, resolved ? t('collaboration.reopen') : t('collaboration.resolve')),
       ),
     ),
     // Comments list
@@ -593,7 +640,15 @@ export function CommentThread({
     replyTo && React.createElement('div', {
       style: { padding: '4px 12px', fontSize: '12px', color: '#64748b', backgroundColor: '#f8fafc', display: 'flex', justifyContent: 'space-between' },
     },
-      React.createElement('span', null, `Replying to ${comments.find(c => c.id === replyTo)?.author.name ?? 'comment'}...`),
+      // Two whole sentences rather than one sentence plus a translatable word
+      // standing in for a name: languages that inflect around the addressee
+      // cannot build the no-author case out of the `{{name}}` form.
+      React.createElement('span', null, (() => {
+        const replyToName = comments.find(c => c.id === replyTo)?.author.name;
+        return replyToName
+          ? t('collaboration.replyingTo', { name: replyToName })
+          : t('collaboration.replyingToComment');
+      })()),
       React.createElement('button', {
         style: styles.actionBtn,
         onClick: () => setReplyTo(null),
@@ -631,7 +686,7 @@ export function CommentThread({
         value: inputValue,
         onChange: handleInputChange,
         onKeyDown: handleKeyDown,
-        placeholder: 'Add a comment... (use @ to mention)',
+        placeholder: t('collaboration.commentPlaceholder'),
         style: styles.textarea,
         rows: 1,
       }),
@@ -642,7 +697,7 @@ export function CommentThread({
           ...styles.submitBtn,
           ...(!inputValue.trim() ? styles.submitBtnDisabled : {}),
         },
-      }, 'Send'),
+      }, t('collaboration.send')),
     ),
   );
 }

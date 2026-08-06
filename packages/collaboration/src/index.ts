@@ -49,6 +49,16 @@ export {
   type CommentThreadProps,
 } from './CommentThread';
 
+// This package's i18n seam. Exported like `plugin-detail`'s
+// `useDetailTranslation` / `DETAIL_DEFAULT_TRANSLATIONS` so a host can read the
+// English defaults (e.g. to seed its own bundle) and so anything added to this
+// package later translates through the same map instead of a second one.
+export {
+  useCollaborationTranslation,
+  COLLAB_DEFAULT_TRANSLATIONS,
+  type CollaborationTranslate,
+} from './useCollaborationTranslation';
+
 export {
   useMentionNotifications,
   type MentionNotificationsConfig,

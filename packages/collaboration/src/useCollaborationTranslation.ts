@@ -1,0 +1,105 @@
+/**
+ * ObjectUI
+ * Copyright (c) 2024-present ObjectStack Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+/**
+ * i18n entry point for `@object-ui/collaboration` (objectstack#5506, objectui#3424).
+ *
+ * The package shipped every user-visible string as an English literal, so a
+ * `zh` session read a Chinese console with an English comment thread inside it.
+ * This is the package's single translation seam: components call
+ * {@link useCollaborationTranslation} and never hold a literal.
+ *
+ * `createSafeTranslation` (the same factory `data-table`, `form` and
+ * `filter-builder` use) does two things at once:
+ *
+ *  1. under an `I18nProvider` it resolves against the session locale, and
+ *  2. with **no** provider it resolves against {@link COLLAB_DEFAULT_TRANSLATIONS}.
+ *
+ * (2) is not a nicety — it is the contract. `CommentThread` is exported for
+ * standalone use with no ObjectUI shell around it, and its host may mount no
+ * provider at all. Routing a literal through `t()` without a working default
+ * would turn every label into a raw dotted key on that path. The defaults map
+ * below is therefore the authoritative English copy of this package, and it
+ * must stay byte-identical to the `en` locale pack's `collaboration` namespace.
+ *
+ * Plural keys come in PAIRS (`…Count` / `…CountOne`) rather than i18next
+ * `_one`/`_other` suffixes: zh/ja/ko have no separate singular form, so those
+ * packs would legitimately omit the `_one` half and `all-locales-key-parity`
+ * reads a legitimately-absent half as a lost key. Same convention as
+ * `detail.reactionCount` / `common.itemCount`.
+ */
+import { createSafeTranslation } from '@object-ui/i18n';
+
+/**
+ * English fallback copy for everything this package renders.
+ *
+ * Four entries are borrowed from the shared `common` namespace rather than
+ * duplicated under `collaboration`: `Save` / `Cancel` / `Edit` / `Delete` are
+ * the generic action words, already translated in all ten packs, and a second
+ * spelling of them would only be a second thing to keep in sync.
+ */
+export const COLLAB_DEFAULT_TRANSLATIONS: Record<string, string> = {
+  // Thread header
+  'collaboration.commentCount': '{{count}} comments',
+  'collaboration.commentCountOne': '{{count}} comment',
+  'collaboration.resolvedSuffix': ' · Resolved',
+  'collaboration.sortComments': 'Sort comments',
+  'collaboration.sortOldest': 'Oldest',
+  'collaboration.sortNewest': 'Newest',
+  'collaboration.resolve': 'Resolve',
+  'collaboration.reopen': 'Reopen',
+  // Relative timestamps. Word-level entries, not a date-formatting layer — the
+  // buckets stay exactly where the component already put them and no date
+  // library is introduced.
+  'collaboration.justNow': 'just now',
+  'collaboration.minutesAgo': '{{count}}m ago',
+  'collaboration.hoursAgo': '{{count}}h ago',
+  'collaboration.daysAgo': '{{count}}d ago',
+  'collaboration.edited': '(edited)',
+  // Reactions. A DEDICATED pair, deliberately not `detail.reactionCount` —
+  // that one interpolates `{{emoji}}` and this tooltip has no emoji to hand it
+  // (the emoji is the button's visible content), so reuse would render a
+  // stray `{{emoji}}` under every locale.
+  'collaboration.reactionCount': '{{count}} reactions',
+  'collaboration.reactionCountOne': '{{count}} reaction',
+  'collaboration.addThumbsUp': 'Add thumbs up',
+  // Per-comment actions and the reply banner
+  'collaboration.reply': 'Reply',
+  'collaboration.replyingTo': 'Replying to {{name}}...',
+  'collaboration.replyingToComment': 'Replying to comment...',
+  // Composer
+  'collaboration.commentPlaceholder': 'Add a comment... (use @ to mention)',
+  'collaboration.send': 'Send',
+  // Shared action words — see the note above.
+  'common.save': 'Save',
+  'common.cancel': 'Cancel',
+  'common.edit': 'Edit',
+  'common.delete': 'Delete',
+};
+
+/**
+ * Session-locale translation for this package, with the English map above as
+ * the no-provider fallback.
+ *
+ * The probe key must be one this package owns: a shared `common.*` key would
+ * also resolve under an unrelated bundle and report "i18n is configured" for a
+ * host that never loaded the collaboration namespace.
+ */
+export const useCollaborationTranslation = createSafeTranslation(
+  COLLAB_DEFAULT_TRANSLATIONS,
+  'collaboration.commentPlaceholder',
+);
+
+/**
+ * The translate function `useCollaborationTranslation` hands back.
+ *
+ * Derived from the hook rather than hand-written so module-level helpers that
+ * take `t` as a parameter (see `formatTimestamp`) cannot drift from whichever
+ * half of the union — real i18next `t` or the English fallback — is live.
+ */
+export type CollaborationTranslate = ReturnType<typeof useCollaborationTranslation>['t'];
