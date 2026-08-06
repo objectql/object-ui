@@ -187,12 +187,12 @@ export const RecordApprovalsPanel: React.FC<RecordApprovalsPanelProps> = ({
   // hook refresh flips `status` or bumps the enriched `decision_progress`
   // tally), but NOT on every refresh returning identical data in new arrays.
   const requestIdsKey = requests
-    .map((r) => `${r.id} ${r.status} ${r.decision_progress?.got ?? ''}`)
+    .map((r) => `${r.id} ${r.status} ${r.decision_progress?.got ?? ''}`)
     .join(',');
 
   const reloadActions = React.useCallback(async () => {
     const ids = requestIdsKey
-      ? requestIdsKey.split(',').map((k) => k.split(' ')[0])
+      ? requestIdsKey.split(',').map((k) => k.split(' ')[0])
       : [];
     if (ids.length === 0) {
       setActions([]);
