@@ -84,6 +84,85 @@ function getRemainingRegions(regions: PageNodeRegion[] | undefined, exclude: str
 }
 
 // ---------------------------------------------------------------------------
+// "One page, one h1" — who owns the page heading (objectui#3434)
+// ---------------------------------------------------------------------------
+
+/**
+ * `page:header` is registered `skipFallback: true`, so this is the ONLY node
+ * type that resolves to PageHeaderRenderer — no bare `header` alias to match.
+ */
+const PAGE_HEADER_TYPE = 'page:header';
+
+/** Text a header title contributes once `{token}` interpolation is stripped. */
+function literalTitleText(value: unknown): string {
+  if (value == null) return '';
+  if (typeof value === 'string') {
+    // `interpolate()` (containers.tsx) replaces `{field}` with the record value
+    // and blanks it when there is none, so only the literal remainder is text
+    // we can promise will be on screen.
+    return value.replace(/\{[a-zA-Z0-9_.]+\}/g, '').replace(/\s+/g, ' ').trim();
+  }
+  if (typeof value === 'object') {
+    // Inline translation map (`pickLocalized`): any non-empty translation
+    // means the header will render a heading in some language.
+    return Object.values(value as Record<string, unknown>)
+      .map((v) => literalTitleText(v))
+      .find((s) => s !== '') ?? '';
+  }
+  return String(value);
+}
+
+/** Does this node render a `page:header` heading of its own? */
+function isTitledPageHeader(node: any): boolean {
+  if (node?.type !== PAGE_HEADER_TYPE) return false;
+  // Spec bridge may inline `properties.*` onto the node or preserve the bag —
+  // PageHeaderRenderer reads both, so this must too.
+  return literalTitleText(node?.title ?? node?.properties?.title) !== '';
+}
+
+/** Depth-bounded walk over the component shapes a page can nest. */
+function containsTitledPageHeader(nodes: unknown, depth = 0): boolean {
+  if (!Array.isArray(nodes) || depth > 6) return false;
+  return nodes.some(
+    (n: any) =>
+      !!n &&
+      typeof n === 'object' &&
+      (isTitledPageHeader(n) ||
+        containsTitledPageHeader(n.components, depth + 1) ||
+        containsTitledPageHeader(n.children, depth + 1) ||
+        containsTitledPageHeader(n.body, depth + 1)),
+  );
+}
+
+/**
+ * Does the page delegate its `<h1>` to an authored `page:header`?
+ *
+ * A document has exactly ONE `h1`. When an author drops a `page:header` into a
+ * region, THAT component is the page's title renderer — the record chip on
+ * record pages, a bare `<h1>` everywhere else — so PageRenderer must not emit a
+ * second one. It used to, for every non-record page type: the showcase
+ * master-detail page rendered its `label` as an `h1` AND its `page:header`
+ * title as another `h1` with the same name, which is a broken document outline,
+ * a title a screen reader announces twice, and a visible duplicate on screen
+ * (objectui#3434 — a live e2e `getByRole('heading', { name })` resolved to 2
+ * elements). Record pages already delegated the whole title block; this is the
+ * same rule stated for every page type.
+ *
+ * Deliberately conservative — only a header whose title renders literal text
+ * counts. `page:header` drops an empty title (and one that interpolates to
+ * nothing, e.g. `title: '{name}'` with no record in scope), so suppressing ours
+ * against a header that renders no heading would leave the page with NO `h1`.
+ */
+function pageHeaderOwnsTitle(schema: PageNodeSchema): boolean {
+  const regionNodes = (schema.regions ?? []).flatMap((r: any) => r?.components ?? []);
+  return (
+    containsTitledPageHeader(regionNodes) ||
+    containsTitledPageHeader((schema as any).body) ||
+    containsTitledPageHeader((schema as any).children)
+  );
+}
+
+// ---------------------------------------------------------------------------
 // RegionContent — renders all components inside a single region
 // ---------------------------------------------------------------------------
 
@@ -513,6 +592,18 @@ export const PageRenderer: React.FC<{
   );
   const maxWidthClass = fullBleed ? 'max-w-none' : getPageMaxWidth(pageType);
 
+  // Who renders the page's single `<h1>` (objectui#3434). Record pages always
+  // delegate to `page:header`; every other page type delegates too as soon as
+  // the author put a titled `page:header` in a region.
+  const headerOwnsTitle = React.useMemo(
+    () => pageType === 'record' || pageHeaderOwnsTitle(schema),
+    [schema, pageType],
+  );
+  const showPageTitle = !!pageTitle && !headerOwnsTitle;
+  // The description is the page's own prose, not a duplicate of the header's
+  // `subtitle`, so delegating the heading does not delete it.
+  const showPageDescription = !!schema.description && pageType !== 'record';
+
   const pageContent = (
     <div
       className={cn(
@@ -526,19 +617,21 @@ export const PageRenderer: React.FC<{
       {...pageProps}
     >
       <div className={cn(fullBleed ? 'space-y-6' : 'mx-auto space-y-6', maxWidthClass)}>
-        {/* Page header — suppressed on record pages (the page:header component
-            in the header region renders the record-bound title instead).
+        {/* Implicit page title — the fallback heading for a page that does NOT
+            author its own `page:header`. Suppressed whenever that component
+            owns the h1 (always on record pages, and on any page carrying a
+            titled `page:header`), so the document never has two `h1`.
             `title` is the objectui spelling; the spec's PageNodeSchema declares
             `label` (required), so dual-read it — mirrors the fallback
             DashboardRenderer already uses (framework#1878 §3 recheck). */}
-        {pageType !== 'record' && (pageTitle || schema.description) && (
+        {(showPageTitle || showPageDescription) && (
           <div className="space-y-2">
-            {pageTitle && (
+            {showPageTitle && (
               <h1 className="text-3xl font-bold tracking-tight text-foreground">
                 {pageTitle}
               </h1>
             )}
-            {schema.description && (
+            {showPageDescription && (
               <p className="text-muted-foreground">{schema.description}</p>
             )}
           </div>
