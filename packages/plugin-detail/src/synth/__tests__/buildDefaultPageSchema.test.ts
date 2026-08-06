@@ -781,6 +781,61 @@ describe('buildDefaultPageSchema', () => {
       expect(tabs.items[0].children[0].id).toBe('custom-details');
     });
   });
+
+  // objectui#3461 — records with approval requests get a peer Approvals tab
+  // wrapping `record:approvals`, fed the host's LIVE approvals read through
+  // the node payload so the tab and the header decision buttons can never
+  // disagree. No requests → no option passed → no dead tab.
+  describe('approvals tab (objectui#3461)', () => {
+    const nodePayload = {
+      approvals: { available: true, requests: [{ id: 'req_1' }], pendingRequest: null },
+      currentUserId: 'u_1',
+    };
+
+    it('no approvals option → no record:approvals anywhere', () => {
+      const page = buildDefaultPageSchema(leadDef);
+      expect(JSON.stringify(page)).not.toContain('record:approvals');
+    });
+
+    it('approvals option → tabs carry an Approvals tab wrapping record:approvals with the payload', () => {
+      const page = buildDefaultPageSchema(leadDef, {
+        approvals: { count: 2, node: nodePayload },
+      });
+      const tabs = page.regions[0].components.find((c: any) => c.type === 'page:tabs');
+      const tab = tabs.items.find((t: any) => t.value === 'approvals');
+      expect(tab).toBeDefined();
+      expect(tab.label).toBe('Approvals');
+      expect(tab.count).toBe(2);
+      expect(tab.children).toEqual([{ type: 'record:approvals', ...nodePayload }]);
+    });
+
+    it('the Approvals tab sits after Related and before Attachments/Activity/History', () => {
+      const tabs = buildDefaultTabs({ ...leadDef, enable: { files: true } }, {
+        related: [{ objectName: 'task', relationshipField: 'lead_id' }],
+        showActivity: true,
+        history: { entries: [], loading: false },
+        approvals: { node: nodePayload },
+      });
+      expect(tabs.items.map((t: any) => t.value)).toEqual([
+        'details',
+        'related',
+        'approvals',
+        'attachments',
+        'activity',
+        'history',
+      ]);
+    });
+
+    it('a details slot override keeps the Approvals tab', () => {
+      const page = buildDefaultPageSchema(leadDef, {
+        approvals: { node: nodePayload },
+        slots: { details: { type: 'div', id: 'custom-details' } },
+      });
+      const tabs = page.regions[0].components.find((c: any) => c.type === 'page:tabs');
+      expect(tabs.items.some((t: any) => t.value === 'approvals')).toBe(true);
+      expect(tabs.items[0].children[0].id).toBe('custom-details');
+    });
+  });
 });
 
 // ADR-0085 — top-level semantic roles (stageField / highlightFields).

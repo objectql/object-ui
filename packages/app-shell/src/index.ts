@@ -239,6 +239,9 @@ import './console/diagnostics/CloudAiModelStatus';
 // `record:attachments` — schema-addressable Attachments panel referenced by
 // synthesized record pages when `enable.files: true` (objectstack#4358).
 import './views/record-attachments-renderer';
+// `record:approvals` — schema-addressable approval panel referenced by
+// synthesized record pages when the record has approval requests (#3461).
+import './views/record-approvals-renderer';
 
 // Phase 3c — generic metadata admin engine. Re-exported so plugins
 // can call `registerMetadataResource()` to override the per-type

@@ -200,6 +200,17 @@ export interface BuildPageOptions {
    */
   history?: { entries: any[]; loading?: boolean; emptyText?: string; unknownUserText?: string };
   /**
+   * When provided, emit an Approvals tab containing a `record:approvals`
+   * renderer (objectui#3461). `node` is spread verbatim onto the node — the
+   * host threads its LIVE approvals read (the same one driving the header's
+   * decision buttons) through it so the tab and the header can never
+   * disagree; the renderer self-fetches only when an authored page places
+   * the node without this payload. `count` badges the tab (number of
+   * approval requests on the record), same affordance as the auto-derived
+   * related-list counts.
+   */
+  approvals?: { count?: number; node?: Record<string, any> };
+  /**
    * Slot override map. When a slot is provided, the synthesizer emits
    * the override verbatim at the slot's position instead of computing
    * the default. Each slot accepts a single SchemaNode or an array
@@ -563,7 +574,7 @@ export function buildDefaultDetails(
 export function buildDefaultTabs(
   def: ObjectDefLike | undefined,
   options: Pick<BuildPageOptions,
-    'sections' | 'related' | 'showActivity' | 'history' | 'highlightFields' | 'statusField' | 'hideRelatedTab' | 'relatedLayout' | 'hideAttachments'
+    'sections' | 'related' | 'showActivity' | 'history' | 'highlightFields' | 'statusField' | 'hideRelatedTab' | 'relatedLayout' | 'hideAttachments' | 'approvals'
   > = {},
 ): any {
   const statusField = options.statusField ?? detectStatusField(def);
@@ -615,6 +626,20 @@ export function buildDefaultTabs(
         items.push({ label: 'Related', value: 'related', children: rest.map(relatedNode) });
       }
     }
+  }
+  // Approvals tab (objectui#3461) — emitted only when the host reports the
+  // record actually HAS approval requests, so approval-free records carry no
+  // dead tab. A peer of Details/Related for the same reason as Attachments
+  // below: footer placement buried the one thing a submitter opens the
+  // record to learn ("who is this waiting on"). The English label localizes
+  // through the tab strip's KNOWN_LABEL_DICT (→ 审批 etc.).
+  if (options.approvals) {
+    items.push({
+      label: 'Approvals',
+      value: 'approvals',
+      ...(options.approvals.count != null ? { count: options.approvals.count } : {}),
+      children: [{ type: 'record:approvals', ...(options.approvals.node || {}) }],
+    });
   }
   // Attachments tab (objectstack#4358) — emitted for `enable.files: true`
   // objects so the panel is a peer of Details/Related instead of a footer
@@ -762,6 +787,7 @@ export function buildDefaultPageSchema(
       related: options.related,
       showActivity: options.showActivity,
       history: options.history,
+      approvals: options.approvals,
       highlightFields: options.highlightFields,
       statusField: options.statusField,
       hideRelatedTab,
@@ -779,6 +805,7 @@ export function buildDefaultPageSchema(
       related: options.related,
       showActivity: options.showActivity,
       history: options.history,
+      approvals: options.approvals,
       highlightFields: options.highlightFields,
       statusField: options.statusField,
       hideRelatedTab,

@@ -24,7 +24,7 @@ import { SkeletonDetail } from '../skeletons';
 import { ManagedByBadge } from '../components/ManagedByBadge';
 import { resolveEffectiveCrudAffordances } from '../utils/crudAffordances';
 import { deriveRelatedLists } from '../utils/deriveRelatedLists';
-import { hasExplicitDiscussion, hasExplicitAttachments } from '../utils/pageSchemaIntrospect';
+import { hasExplicitDiscussion, hasExplicitAttachments, hasExplicitApprovals } from '../utils/pageSchemaIntrospect';
 import { ActionConfirmDialog, type ConfirmDialogState } from './ActionConfirmDialog';
 import { ActionParamDialog, type ParamDialogState } from './ActionParamDialog';
 import { ActionResultDialog, type ResultDialogState } from './ActionResultDialog';
@@ -46,6 +46,11 @@ import type { ActionDef, ActionParamDef } from '@object-ui/core';
 import { useRecordApprovals, recordLockedByApproval } from '../hooks/useRecordApprovals';
 import { RecordAttachmentsPanel } from './RecordAttachmentsPanel';
 import { RecordApprovalsPanel } from './RecordApprovalsPanel';
+// Side-effect registration of `record:approvals` — synthesized record pages
+// reference the node whenever the record has approval requests (#3461), so
+// the type must resolve wherever this view renders, not only under hosts
+// that import the app-shell barrel.
+import './record-approvals-renderer';
 import { RecordPermissionAssignmentsRenderer } from './metadata-admin/RecordPermissionAssignmentsRenderer';
 import { getRecordDisplayName } from '../utils';
 import { parseAuditValue, collectAuditChanges, collectLookupIds, formatAuditValue } from '../utils/auditHistoryDisplay';
@@ -1664,6 +1669,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         headerActions?: ActionDef[];
         related?: Array<{ title?: string; objectName: string; relationshipField: string; columns?: any[]; icon?: string; isPrimary?: boolean }>;
         history?: { entries: any[]; loading: boolean; unknownUserText?: string };
+        approvals?: { count?: number; node?: Record<string, any> };
       };
     }
 
@@ -1855,13 +1861,33 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           unknownUserText: t('detail.unknownUser', { defaultValue: 'Unknown user' }),
         },
       }),
+      // Approvals tab (#3461) — only when the record actually has requests,
+      // so approval-free records carry no dead tab. The node carries the
+      // LIVE hook result this view already holds (the same read behind the
+      // header decision buttons); like `history`, data flows through the
+      // synthesized schema, and the deps below rebuild the page when a
+      // decision changes the request set or its tally.
+      ...(approvals.available && approvals.requests.length > 0 && {
+        approvals: {
+          count: approvals.requests.length,
+          node: {
+            approvals: {
+              available: approvals.available,
+              requests: approvals.requests,
+              pendingRequest: approvals.pendingRequest,
+            },
+            currentUserId: user?.id,
+          },
+        },
+      }),
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   // `approvals.pendingRequest` is in the deps for its `decision_output_defs`:
   // the header's decision params are synthesized from the pending node's
   // declaration, so they must be rebuilt when the request (and therefore the
-  // node) changes (objectui#2955).
-  }, [objectDef?.name, childRelations, t, objectLabel, objects, historyEnabled, historyEntries, historyLoading, approvals.available, approvals.canDecide, approvals.pendingRequest]);
+  // node) changes (objectui#2955). `approvals.requests` rides along for the
+  // Approvals tab payload (#3461).
+  }, [objectDef?.name, childRelations, t, objectLabel, objects, historyEnabled, historyEntries, historyLoading, approvals.available, approvals.canDecide, approvals.pendingRequest, approvals.requests, user?.id]);
 
   if (isLoading) {
     return <SkeletonDetail />;
@@ -2049,6 +2075,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         headerActions: synthParts.headerActions,
         related: synthParts.related,
         history: synthParts.history,
+        approvals: synthParts.approvals,
         // ADR-0085 removed the per-object `detail.*` presentation
         // toggles (show/hideReferenceRail, hideRelatedTab, relatedLayout)
         // — the synth defaults apply; per-page layout goes through an
@@ -2056,6 +2083,13 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         // there as a renderer capability).
         ...(assignedSlots ? { slots: assignedSlots } : {}),
       });
+
+  // Same split as attachments, but introspected on `renderedPage` — the tree
+  // actually rendered — NOT `effectivePage` (#3461): the Approvals tab exists
+  // only in the synthParts-aware rebuild above (it depends on runtime request
+  // data), so the early `effectivePage` synth never contains it and checking
+  // that tree would double-render the panel (tab + bottom fallback).
+  const hasApprovalsNode = hasExplicitApprovals(renderedPage as any);
 
   return (
     <div className="h-full bg-background overflow-hidden flex flex-col relative">
@@ -2145,13 +2179,13 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
               >
                 <SchemaRenderer schema={withPageTabsUrlSync(renderedPage, { defaultTab: activeTabParam, onTabChange: handleTabChange }) as any} />
               </RelatedRecordActionsBridge>
-              {/* Approval visibility block (objectui#3461) — READ-gated, not
-                  approver-gated: everyone who can open the record sees which
-                  step its approval sits at, who it waits on, and the decision
-                  timeline. Fed by the same `useRecordApprovals` read that
-                  already powers the header's decision buttons; renders
-                  nothing when the record has no approval requests. */}
-              {pureRecordId && (
+              {/* Approval visibility fallback (objectui#3461) — synthesized
+                  pages surface approvals as a TAB (`record:approvals` via
+                  buildDefaultTabs); this bottom append fires only for
+                  AUTHORED pages that don't place the node, so the read-gated
+                  approval story is never lost to a custom layout. Renders
+                  nothing when the record has no requests. */}
+              {pureRecordId && !hasApprovalsNode && (
                 <RecordApprovalsPanel
                   className="mt-6"
                   approvals={approvals}

@@ -9,6 +9,7 @@
 
 const DISCUSSION_TYPES = new Set(['record:discussion', 'record:chatter']);
 const ATTACHMENT_TYPES = new Set(['record:attachments']);
+const APPROVAL_TYPES = new Set(['record:approvals']);
 
 /**
  * Walks a page schema tree and returns true if any node's `type` is in
@@ -65,4 +66,14 @@ export function hasExplicitDiscussion(root: unknown): boolean {
  */
 export function hasExplicitAttachments(root: unknown): boolean {
   return hasNodeOfType(root, ATTACHMENT_TYPES);
+}
+
+/**
+ * True when the page schema already places a `record:approvals` node — the
+ * synthesized default does whenever the record has approval requests
+ * (objectui#3461, an Approvals tab). The host must then skip its bottom
+ * fallback append.
+ */
+export function hasExplicitApprovals(root: unknown): boolean {
+  return hasNodeOfType(root, APPROVAL_TYPES);
 }
