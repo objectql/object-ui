@@ -17,6 +17,18 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
+    /* `vite.config.ts` imports `../../scripts/vite-*.ts` with explicit `.ts`
+       extensions, because Vite's `configLoader: 'native'` hands the config to
+       Node's ESM loader, which does no extension guessing (objectui#3384).
+       TypeScript needs `allowImportingTsExtensions` to accept that spelling —
+       `moduleResolution: bundler` takes `./x` and `./x.js`, but NOT `./x.ts`.
+       That option demands one of `noEmit` / `emitDeclarationOnly` /
+       `rewriteRelativeImportExtensions`. `noEmit` is barred here for the reason
+       spelled out above (TS6310, referenced by `tsconfig.json`), and rewriting
+       extensions in output nobody reads would be pointless — so declarations
+       only. They still land in the cache `outDir`; the `.js` was never used. */
+    "allowImportingTsExtensions": true,
+    "emitDeclarationOnly": true,
     "strict": true
   },
   /* `../../scripts/vite-*.ts` are the repo-level Vite plugins vite.config.ts
