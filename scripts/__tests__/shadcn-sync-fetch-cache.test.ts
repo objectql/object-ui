@@ -7,7 +7,6 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-// @ts-expect-error — plain-JS CI helper, intentionally untyped
 import { fetchUrl, fetchRegistry, isRegistryEntry, cacheFileFor, cacheStats } from '../shadcn-sync.js';
 
 /**

@@ -216,8 +216,15 @@ function cacheFileFor(url, cacheDir = CACHE_DIR) {
  *   instead of being trusted until its hour is up. Validating only on write
  *   would leave every existing poisoned tree serving garbage for the rest of
  *   its TTL, with no way to tell the user beyond "wait".
+ *
+ * `cacheDir` and `get` exist for the tests (a throwaway directory and a local
+ * fixture server). Both carry real defaults rather than being left undeclared:
+ * once `scripts/` is type-checked with `allowJs` (objectui#3494), a destructured
+ * option with no default is absent from this function's INFERRED signature, so
+ * passing it from a `.ts` caller is a hard error. Declaring the injection point
+ * is the fix; suppressing it at the call site would not be.
  */
-async function fetchRegistry(url, { allowCache = false, cacheDir = CACHE_DIR, get } = {}) {
+async function fetchRegistry(url, { allowCache = false, cacheDir = CACHE_DIR, get = https.get } = {}) {
   const cacheFile = cacheFileFor(url, cacheDir);
 
   if (allowCache) {
@@ -250,7 +257,7 @@ async function fetchRegistry(url, { allowCache = false, cacheDir = CACHE_DIR, ge
 
   let data;
   try {
-    data = await fetchUrl(url, get ? { get } : undefined);
+    data = await fetchUrl(url, { get });
   } catch (error) {
     // Counted, then rethrown untouched: the caller decides what a failed fetch
     // means (`--check` reports the component, `--update` refuses to write).
