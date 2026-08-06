@@ -78,6 +78,7 @@ function counterStatusThreshold(maxLength: number): number {
     COUNTER_STATUS_MIN_REMAINING,
   );
 }
+
 export function TextAreaField({ value, onChange, field, readonly, error, ...props }: FieldWidgetComponentProps<string>) {
   // Everything from here to the `readonly` early return is hook-order
   // territory: a hook may not sit behind a conditional return. The readonly
