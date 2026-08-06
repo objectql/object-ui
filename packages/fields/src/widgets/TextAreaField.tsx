@@ -1,9 +1,9 @@
-import React, { useEffect, useId, useState } from 'react';
+import React, { useId } from 'react';
 import { Textarea, EmptyValue } from '@object-ui/components';
+import { CharacterCount } from './CharacterCount';
 import { FullscreenFieldEditor } from './FullscreenFieldEditor';
 import { FieldWidgetComponentProps } from './types';
 import { toDomProps } from './toDomProps';
-import { useFieldTranslation } from './useFieldTranslation';
 
 /**
  * TextAreaField - Multi-line text input widget
@@ -36,134 +36,49 @@ import { useFieldTranslation } from './useFieldTranslation';
  * silently-ignored prop, so the reads are gone (objectui#3232). If a host
  * override is ever genuinely needed, declare ONE key on
  * `FieldWidgetComponentProps`, stop stripping it, and have a host pass it.
- */
-
-/**
- * How long the typist must pause before the counter's status region is allowed
- * to change (objectui#3408). The GOV.UK Design System character-count component
- * uses the same shape and the same order of magnitude.
  *
- * The number this replaces was effectively 0: the counter WAS the live region,
- * so every keystroke re-rendered it and every re-render was an announcement.
- * Measured on `origin/main`, zh session, `maxLength: 500`, typing a 52-character
- * sentence one character at a time: 52 keystrokes produced 52 distinct
- * announcements totalling 979 spoken characters — ~19x the text the user was
- * trying to write, each one interrupting the screen reader's echo of what they
- * had just typed.
- */
-const COUNTER_STATUS_DEBOUNCE_MS = 1000;
-
-/** Announce inside the last 10% of the cap … */
-const COUNTER_STATUS_REMAINING_RATIO = 0.1;
-/** … or the last 20 characters — whichever the typist reaches FIRST. */
-const COUNTER_STATUS_MIN_REMAINING = 20;
-
-/**
- * The remaining-character count at or below which the status region speaks.
+ * ## The character counter (objectui#3408, shared across surfaces in #3417)
  *
- * "10% remaining OR 20 characters remaining, whichever comes first" is a
- * disjunction, and because `remaining` only ever counts DOWN as the user types,
- * the branch that fires first is simply the LARGER of the two — hence `max`.
- * A 500-character cap starts warning at 50 remaining; a 100-character cap at 20
- * (10% of it would be 10, which the typist would reach later, not sooner).
+ * Both editing surfaces below — the inline `<Textarea>` and the fullscreen
+ * dialog's — render the SAME `CharacterCount`, which owns the three-node
+ * GOV.UK shape (decorative digits / accessible description / gated status
+ * region) and the debounce and threshold behind it. Until #3417 the fullscreen
+ * footer had its own hand-written copy that was digits and nothing else, which
+ * is what a second copy of a UI always costs: it drifts, and nothing reports
+ * the drift.
  *
- * A cap smaller than {@link COUNTER_STATUS_MIN_REMAINING} is therefore "near
- * the limit" from the first keystroke, which is correct: on a 10-character
- * field every character genuinely is one of the last few. The debounce still
- * bounds it to one announcement per pause.
+ * This widget's remaining job is the part only it can do — mint the two
+ * description ids and name each one in the `aria-describedby` of the control
+ * it describes. The surfaces differ in exactly one behaviour, and it is
+ * declared rather than implied: `announceNearLimit`. Inline announces
+ * (unchanged since #3408); the fullscreen dialog does not.
  */
-function counterStatusThreshold(maxLength: number): number {
-  return Math.max(
-    Math.ceil(maxLength * COUNTER_STATUS_REMAINING_RATIO),
-    COUNTER_STATUS_MIN_REMAINING,
-  );
-}
 
 export function TextAreaField({ value, onChange, field, readonly, error, ...props }: FieldWidgetComponentProps<string>) {
-  // Everything from here to the `readonly` early return is hook-order
-  // territory: a hook may not sit behind a conditional return. The readonly
-  // branch renders no counter, so these are no-ops there — but moving them
-  // down would desync hook order the moment a field toggles readonly. The
-  // derivations they read (`maxLength`, `length`) sit up here for the same
-  // reason, not because the readonly branch wants them.
-  const { t } = useFieldTranslation();
-
+  // `useId` sits above the `readonly` early return because a hook may not sit
+  // behind a conditional return: the readonly branch renders no counter, so
+  // the ids go unused there, but moving the call down would desync hook order
+  // the moment a field toggles readonly. `maxLength` is derived here for the
+  // same reason the ids are — proximity to the hook, not because the readonly
+  // branch wants it.
   const textareaField = field as any;
   // Spec FieldSchema declares camelCase `maxLength`; `max_length` is the legacy
   // objectui spelling. Dual-read (framework#1878 §3 recheck) — without this a
   // spec-authored maxLength gave neither the textarea cap nor the counter.
   const maxLength = textareaField?.maxLength ?? textareaField?.max_length;
-  const length = (value || '').length;
 
-  // Two ids off one `useId()`: the description a screen reader reads ONCE on
-  // focus, and the status region it hears only near the cap. Both derive from
-  // the widget instance, so two textareas on one form never collide.
+  /**
+   * Two description ids off one `useId()` — one per editing surface.
+   *
+   * They cannot be a single id. The dialog edits a LOCAL draft (see
+   * `FullscreenFieldEditor`), so the moment the user types in it the two
+   * surfaces are counting different strings; one shared id would point both
+   * textareas at whichever sentence rendered last. Both derive from the widget
+   * instance, so two textareas on one form never collide either.
+   */
   const instanceId = useId();
   const descriptionId = `${instanceId}-charcount`;
-
-  /**
-   * The counter sentence as a DESCRIPTION (objectui#3408). Reached through the
-   * textarea's `aria-describedby`, so focusing the field says "12 characters,
-   * 500 max" once and then shuts up. Before this the cap was announced only as
-   * a side effect of typing — focus told a screen reader user nothing at all
-   * that a sighted user could read off the corner of the box.
-   *
-   * Same key the visible counter's `aria-label` used to carry (objectui#3406,
-   * ten packs); it moved from a live region onto a description, it was not
-   * duplicated.
-   */
-  const description = maxLength
-    ? t('fields.textarea.characterCount', { count: length, max: maxLength })
-    : '';
-
-  /**
-   * The near-limit warning, gated. Silent for the whole comfortable middle of
-   * the field — a count nobody is close to is not news — and phrased as what
-   * is LEFT rather than what has been typed, because that is the number the
-   * user is about to act on. Over-long values (a cap lowered after the record
-   * was saved) clamp to 0: the textarea's own `maxLength` blocks further
-   * input, so "0 left" is the true actionable state, and the description above
-   * still carries the honest `503 of 500`.
-   */
-  const pendingStatus =
-    !readonly && maxLength && maxLength - length <= counterStatusThreshold(maxLength)
-      ? t('fields.textarea.charactersRemaining', { count: Math.max(maxLength - length, 0) })
-      : '';
-
-  /**
-   * The last sentence a PAUSE settled on. Only ever written by the timer —
-   * never cleared synchronously — so this effect adds no cascading render on
-   * the keystrokes it is busy staying quiet through
-   * (`react-hooks/set-state-in-effect`).
-   */
-  const [settledStatus, setSettledStatus] = useState('');
-
-  useEffect(() => {
-    if (!pendingStatus) return;
-    const timer = setTimeout(() => setSettledStatus(pendingStatus), COUNTER_STATUS_DEBOUNCE_MS);
-    // Every keystroke cancels the previous pending announcement, so a typist
-    // who never pauses is never interrupted. The dependency is the SENTENCE,
-    // not the length: re-typing back to the same count produces the same string
-    // and therefore no DOM change and no second announcement.
-    return () => clearTimeout(timer);
-  }, [pendingStatus]);
-
-  /**
-   * Speak the settled sentence only while it is still TRUE — i.e. while it is
-   * the one the current value would produce. Everything else renders empty,
-   * which costs no speech (emptying a live region announces nothing), and that
-   * is what makes leaving the warning band silent IMMEDIATELY rather than a
-   * second later.
-   *
-   * The obvious alternative, `pendingStatus ? settledStatus : ''`, is wrong in
-   * one specific way: delete back out of the band and type into it again, and
-   * the region re-announces the STALE count from before the excursion a full
-   * second before the timer corrects it. Announcing a wrong number is worse
-   * than announcing a right one twice, which is the bounded, sub-second,
-   * correct-content cost of the comparison below. Pinned by `never
-   * re-announces the STALE count when the user types back into the band`.
-   */
-  const status = settledStatus === pendingStatus ? pendingStatus : '';
+  const fullscreenDescriptionId = `${instanceId}-fullscreen-charcount`;
 
   if (readonly) {
     return (
@@ -213,45 +128,21 @@ export function TextAreaField({ value, onChange, field, readonly, error, ...prop
         className={domProps.className}
       />
       {maxLength && (
-        <>
-          {/*
-            The VISIBLE counter, and now visible ONLY (objectui#3408). It used
-            to be three things at once: the digits a sighted user glances at,
-            the carrier of the translated sentence (objectui#3406), and the
-            live region itself — so the sentence was re-announced on every
-            single keystroke. Split into the three nodes below, this one is
-            decorative: `aria-hidden` keeps a screen reader from reading
-            "5 slash 200" on top of the description that says it properly.
-          */}
-          <div
-            className="absolute bottom-2 right-2 text-xs text-gray-400"
-            aria-hidden="true"
-            data-testid="textarea-character-count"
-          >
-            {length}/{maxLength}
-          </div>
-
-          {/*
-            The DESCRIPTION. Referenced by the textarea's `aria-describedby`,
-            never announced on its own — a screen reader reads it when focus
-            lands on the field and not again. Visually hidden because the
-            digits above already say it to the eye.
-          */}
-          <span id={descriptionId} className="sr-only">
-            {description}
-          </span>
-
-          {/*
-            The STATUS region. Rendered unconditionally (whenever there is a
-            cap) and starting EMPTY on purpose: a live region has to be in the
-            DOM before its content changes or the first change is not announced
-            at all. `aria-atomic` so the whole sentence is spoken rather than
-            the digits that differ from last time.
-          */}
-          <span className="sr-only" aria-live="polite" aria-atomic="true">
-            {status}
-          </span>
-        </>
+        /*
+          The INLINE surface's counter. `announceNearLimit` because this is the
+          surface the user types into with the rest of the form around them —
+          the near-limit warning is the one thing worth interrupting for, and
+          it is threshold-gated and debounced so it interrupts about five times
+          over a run that fills a 500-character cap rather than 52.
+        */
+        <CharacterCount
+          length={(value || '').length}
+          maxLength={maxLength}
+          descriptionId={descriptionId}
+          announceNearLimit
+          className="absolute bottom-2 right-2 text-xs text-gray-400"
+          testId="textarea-character-count"
+        />
       )}
 
       {showFullscreenButton && (
@@ -261,11 +152,32 @@ export function TextAreaField({ value, onChange, field, readonly, error, ...prop
           label={textareaField?.label}
           testIdPrefix="textarea"
           disabled={disabled}
+          /*
+            The FULLSCREEN surface's counter (objectui#3417). This slot used to
+            render a bare `{n}/{max}` span: no accessible name, no association
+            with the dialog's textarea, nothing `aria-live`. A screen reader
+            heard "5 slash 500" if browse mode happened to sweep it and not one
+            word while the input had focus — the same field, the same cap, and
+            the inline surface three nodes richer since objectui#3408.
+
+            `announceNearLimit={false}` is the ruling on #3417, and it is a
+            choice about this SURFACE rather than a saving on effort: a
+            fullscreen modal is opened deliberately to write at length, the
+            description below already delivers the cap on focus, and the
+            dialog's textarea carries the same native `maxLength` stop. Adding
+            a second live region inside a modal would also put two of them in
+            one document, since the inline one stays mounted behind the overlay.
+          */
           footer={(draft) =>
             maxLength ? (
-              <span className="text-xs text-muted-foreground self-center">
-                {draft.length}/{maxLength}
-              </span>
+              <CharacterCount
+                length={draft.length}
+                maxLength={maxLength}
+                descriptionId={fullscreenDescriptionId}
+                announceNearLimit={false}
+                className="text-xs text-muted-foreground self-center"
+                testId="textarea-fullscreen-character-count"
+              />
             ) : null
           }
         >
@@ -277,6 +189,19 @@ export function TextAreaField({ value, onChange, field, readonly, error, ...prop
               disabled={editorDisabled}
               maxLength={maxLength}
               placeholder={textareaField?.placeholder}
+              /*
+                Assigned, not appended — and that is a statement about THIS
+                element, not a relaxation of the rule above. The inline control
+                composes because `<FormControl>` hands it an `aria-describedby`
+                through `domProps`; this one is constructed here from scratch,
+                `domProps` never reaches it, and the ids the host would have
+                supplied name nodes OUTSIDE the dialog, which Radix `aria-hidden`s
+                while the modal is open. There is nothing to preserve. Should
+                this editor ever be given host-supplied ids, compose them the
+                way `describedBy` above does rather than adding a second
+                assignment.
+              */
+              aria-describedby={maxLength ? fullscreenDescriptionId : undefined}
               className="h-full min-h-full resize-none text-base"
               data-testid="textarea-fullscreen-input"
             />
