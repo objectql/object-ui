@@ -150,6 +150,38 @@ export const SchemaRenderer = ({ schema }: { schema: UIComponent }) => {
 - 任务结束:停**自己起的**后台服务(见下方"服务纪律";别按端口杀别人的)、清 `.playwright-mcp/`。
 - 改完代码提交时:功能改进(feature)需写 changeset(`pnpm changeset`);纯 bug 修复不需要。
 
+### 怎么跑测试(有两种写法会静默假绿 —— 现已机械拦截)
+
+**唯一正确的跑法:在【仓库根目录】执行,路径相对仓根书写,前面不要加 `--`。**
+
+```bash
+pnpm exec vitest run packages/<pkg>/src/<file>.test.ts   # 只跑一个文件
+pnpm exec vitest run packages/<pkg>/                     # 只跑一个包
+pnpm test                                                # 全量(CI 就是它,可加 --shard=1/4)
+```
+
+AGENTS.md 的「只跑受影响的包」指的是**用上面的路径过滤缩小范围**,不是 `cd` 进包里、也不是
+`pnpm --filter <pkg> test` —— 那两条恰好就是下面的陷阱。
+
+- **陷阱一:让 vitest 的 cwd 落在包目录里(objectui#3378)。** `pnpm --filter <pkg> test`、
+  `turbo run test`、`cd packages/x && pnpm exec vitest` 都属于这类。vitest 把 root 定成该
+  目录,根级 projects(`unit`/`dom`/`dom-heavy`)的 include(`packages/**`、`examples/**`、
+  `scripts/**`)相对它匹配不到任何文件;只有以**绝对路径**引入的 `apps/console` project 仍解析
+  成功。于是跑的是 `@object-ui/console` 的 22 个文件、报 `Test Files 22 passed (22)`,而本包
+  (app-shell 有 281 个)一个都没跑。**没有 "0 tests matched" 信号** —— 计数是 22 不是 0,
+  `passWithNoTests` 根本不参与,按包级约定验证的 agent 会据此报「整包绿」。
+- **陷阱二:把路径挂在 `--` 后面(objectui#3288)。** `pnpm --filter <pkg> test -- --run <paths>`:
+  pnpm 把 `--` **原样**转发进脚本,vitest 的 CLI 解析在 `--` 处停止,后面的一切(包括你的路径)
+  在 vitest 看到之前就没了 —— 不是「被忽略并警告」,是压根不存在。于是退回默认集合(叠加陷阱一
+  就是别人的包),新加的测试文件零执行、输出全绿。
+- **两条现在都会直接失败**,由 `scripts/vitest-invocation-guard.mjs` 在 `vitest.config.mts` 顶部
+  拦下:vitest root 不是仓根 → 拒绝;`--` 后面还有参数 → 拒绝。报错正文会指出机制并给出上面的
+  正确命令。包级 `test` 脚本的存废是 objectui#3240;在那之前它们只失败,不撒谎。
+- **路径过滤零匹配也不再是绿的**:一旦命令行点名了文件,`passWithNoTests` 自动关闭 ——
+  写错的路径 / 相对错目录的路径 → 非零退出,而不是「跑了 0 个文件然后绿」。
+- 确需从包目录启动,把 root 显式指回仓根:`pnpm exec vitest run --root ../.. packages/<pkg>/`。
+  真要临时绕过 guard(自担风险):`OBJECTUI_VITEST_GUARD=off`。
+
 ### 测试纪律(flaky 测试:先找竞态,别调超时)
 
 单跑稳定绿、全量并行下偶发红的测试,**根因几乎总是同一个**:一段**无界的模块加载被计入了一个有界的窗口**。满并行下 Vite 的 transform 管线是饱和的(单 `dom-heavy` 项目就 ~60s transform),实测一次首包 `import()` 可达 **976ms** —— 已吃掉 RTL `findBy`/`waitFor` 默认 **1000ms** 预算的 97.6%。于是断言在和模块加载器抢时间,红绿取决于机器负载而不是被测代码。

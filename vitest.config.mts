@@ -1,9 +1,20 @@
 import { defineConfig } from 'vitest/config';
 import path from 'path';
 import { fileURLToPath } from 'url';
+// @ts-expect-error — plain-JS CI helper, intentionally untyped (`allowJs: false`)
+import { assertCanonicalVitestInvocation, cliHasTestFilters } from './scripts/vitest-invocation-guard.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Refuse the two invocations that pass while running none of the tests the
+// caller asked for — a package-cwd run (objectui#3378) and a path filter that
+// never reaches Vitest (objectui#3288). Every per-package `vitest.config.ts`
+// re-exports this file, and a package without one resolves upward to it, so
+// this is the single choke point for both. Mechanism, message and the one
+// canonical invocation: scripts/vitest-invocation-guard.mjs (and AGENTS.md
+// §测试纪律, which spells the same three commands out).
+assertCanonicalVitestInvocation({ repoRoot: __dirname });
 
 // Shared exclude list for the root-level projects below. (Project-level
 // `exclude` replaces — does not merge with — the inherited one, so each
@@ -183,7 +194,13 @@ export default defineConfig({
       },
       path.resolve(__dirname, './apps/console/vitest.config.ts'),
     ],
-    passWithNoTests: true,
+    // Tolerate an empty collection ONLY for unfiltered runs (a `--project`
+    // slice, or a shard whose projects hold no files, is legitimately empty).
+    // The moment the CLI names files, "zero matched" is the defect being
+    // reported: a mis-spelled path, or one spelled relative to the wrong
+    // directory, used to exit 0 here and read as a green run over coverage that
+    // never executed (objectui#3288).
+    passWithNoTests: !cliHasTestFilters(process.argv),
     // Performance: use threads (lighter than forks). Isolation is enabled to
     // prevent module-graph and DOM state leakage across files (which previously
     // caused thousands of order-dependent failures).
