@@ -941,7 +941,12 @@ export function LookupField({ value, onChange, field, readonly, error: fieldErro
       {...triggerDomProps}
       variant="outline"
       className={cn(
-        'min-w-0 flex-1 justify-start text-left font-normal',
+        // max-w-full: in a BLOCK parent (detail-section inline edit) the
+        // inline-flex button is content-sized — a long selected label pushed
+        // it past the card edge; bounding it lets the inner `truncate` span
+        // clip instead (objectui#3466). flex-1/min-w-0 keep handling the
+        // flex-parent (form row) case.
+        'min-w-0 max-w-full flex-1 justify-start text-left font-normal',
         compact && 'h-8 rounded-none border-0 bg-transparent px-2 shadow-none focus-visible:ring-1 focus-visible:ring-ring/60',
       )}
       type="button"

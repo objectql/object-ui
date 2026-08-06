@@ -591,12 +591,41 @@ export function formatDateTime(value: string | Date | number): string {
 }
 
 /**
+ * Single-line cell value with a working ellipsis and a full-text fallback.
+ *
+ * `truncate` on a bare inline `<span>` never clips — an inline box has no
+ * width box for `overflow:hidden` / `text-overflow:ellipsis` to act on, so
+ * the value renders at full content width and the tail is silently cut by
+ * whatever ancestor happens to clip (the detail card edge), with no ellipsis
+ * (objectui#3466; same mechanism as the JSON cell in objectui#2578).
+ * Block-level + `max-w-full` gives the span its parent's width to truncate
+ * against, and as a flex item its `overflow:hidden` zeroes the automatic
+ * min-size so it can shrink below the text width. The `title` keeps the full
+ * text reachable on hover — host rows (detail sections) put their inline-edit
+ * hint in *their* `title`, so the value's full text must live on the value
+ * element itself, where it takes precedence under the cursor.
+ */
+function TruncatedText({
+  text,
+  className,
+}: {
+  text: string;
+  className?: string;
+}): React.ReactElement {
+  return (
+    <span className={cn('block max-w-full truncate', className)} title={text}>
+      {text}
+    </span>
+  );
+}
+
+/**
  * Text field cell renderer
  */
 export function TextCellRenderer({ value }: CellRendererProps): React.ReactElement {
   const safe = coerceToSafeValue(value);
   if (safe == null || safe === '') return <EmptyValue />;
-  return <span className="truncate">{String(safe)}</span>;
+  return <TruncatedText text={String(safe)} />;
 }
 
 /**
@@ -1090,10 +1119,13 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
         || SEMANTIC_COLOR_MAP[String(val).toLowerCase().replace(/[\s-]/g, '_')]
         || hashToColor(String(val).toLowerCase().replace(/[\s-]/g, '_'));
       const dotClass = DOT_COLOR_MAP[colorName] || DOT_COLOR_MAP.gray;
+      // max-w-full bounds the (otherwise content-sized) inline-flex box so the
+      // inner truncate can engage; title keeps the full label on hover
+      // (objectui#3466, same class of bug as the badge branch below).
       return (
-        <span key={key} className="inline-flex items-center gap-1.5 text-sm">
+        <span key={key} className="inline-flex max-w-full items-center gap-1.5 text-sm" title={label}>
           <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', dotClass)} aria-hidden="true" />
-          <span className="truncate">{label}</span>
+          <span className="min-w-0 truncate">{label}</span>
         </span>
       );
     }
@@ -1267,7 +1299,7 @@ export function FileCellRenderer({ value, field }: CellRendererProps): React.Rea
   }
   
   const fileName = value.name || value.original_name || 'File';
-  return <span className="text-sm truncate">{fileName}</span>;
+  return <TruncatedText text={String(fileName)} className="text-sm" />;
 }
 
 /**
@@ -1436,7 +1468,7 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
             String(parsed.externalId ?? parsed.id ?? parsed._id ?? '');
         }
       } catch { /* not JSON — fall through to normal resolution */ }
-      if (parsedDisplay) return <span className="truncate">{parsedDisplay}</span>;
+      if (parsedDisplay) return <TruncatedText text={parsedDisplay} />;
     }
   }
 
@@ -1447,7 +1479,7 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
     const display =
       resolveLookupRecordName(obj, refSchema, displayField) || String(obj.id || obj._id || '');
     if (display) {
-      return <span className="truncate">{display}</span>;
+      return <TruncatedText text={display} />;
     }
   }
 
@@ -1507,12 +1539,12 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
     const label =
       resolveLookupRecordName(value as Record<string, unknown>, refSchema, displayField) ||
       String((value as any).id || (value as any)._id || '[Object]');
-    return <span className="truncate">{label}</span>;
+    return <TruncatedText text={label} />;
   }
 
   // Primitive value (e.g. raw ID): try options → resolver → opaque-ID placeholder → raw
   const { text, muted } = resolveLabel(value);
-  return <span className={cn('truncate', muted && 'text-muted-foreground')}>{text}</span>;
+  return <TruncatedText text={text} className={muted ? 'text-muted-foreground' : undefined} />;
 }
 
 /**
@@ -1536,7 +1568,7 @@ export function UserCellRenderer({ value }: CellRendererProps): React.ReactEleme
 
   // Primitive value: just display the ID/username as text
   if (typeof value !== 'object') {
-    return <span className="truncate">{String(value)}</span>;
+    return <TruncatedText text={String(value)} />;
   }
   
   if (Array.isArray(value)) {
@@ -1545,11 +1577,7 @@ export function UserCellRenderer({ value }: CellRendererProps): React.ReactEleme
         {value.slice(0, 3).map((user, idx) => {
           // Primitive user in array
           if (typeof user !== 'object' || user === null) {
-            return (
-              <span key={idx} className="truncate text-sm">
-                {String(user)}
-              </span>
-            );
+            return <TruncatedText key={idx} text={String(user)} className="text-sm" />;
           }
           const name = user.name || user.username || 'User';
           const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
@@ -1589,7 +1617,7 @@ export function UserCellRenderer({ value }: CellRendererProps): React.ReactEleme
           {initials}
         </AvatarFallback>
       </Avatar>
-      <span className="truncate">{name}</span>
+      <TruncatedText text={String(name)} />
     </div>
   );
 }
@@ -1671,13 +1699,10 @@ export function JsonCellRenderer({ value }: CellRendererProps): React.ReactEleme
   } else {
     text = String(value);
   }
-  // inline-block + max-w-full so `truncate` (overflow-hidden/ellipsis/nowrap)
-  // actually clamps to the cell width. On a bare inline <span> truncate never
-  // clips — there is no width box — and its `white-space:nowrap` also defeats
-  // the parent cell's `break-words`, so a long name-keyed map / address JSON
-  // spills into the neighbouring column (objectui#2578). The title keeps the
-  // full value on hover.
-  return <span className="block max-w-full font-mono text-xs text-gray-600 truncate" title={text}>{text}</span>;
+  // The original site of the block-level+max-w-full+title pattern
+  // (objectui#2578) — now shared with every single-line value renderer via
+  // TruncatedText (objectui#3466).
+  return <TruncatedText text={text} className="font-mono text-xs text-gray-600" />;
 }
 
 /**
