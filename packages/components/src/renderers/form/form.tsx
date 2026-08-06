@@ -506,6 +506,10 @@ ComponentRegistry.register('form',
     const { t } = useSafeFormTranslation();
     const {
       defaultValues: authoredDefaultValues = {},
+      // The persisted record being edited (absent ⇒ this is an insert). Binds
+      // `previous` for field-rule CEL and gates the read-only submit strip —
+      // see FormSchema.previousValues and the two memos below (objectui#3484).
+      previousValues,
       fields: rawFields = [],
       // No English default here — objectui#3272. A literal default made the
       // absence of an authored label indistinguishable from an author who
@@ -635,6 +639,25 @@ ComponentRegistry.register('form',
     // rather than faulting — mirroring the server, which evaluates over the
     // full merged record.
     const watched = form.watch() as Record<string, unknown>;
+
+    // The `previous` binding — the persisted record, seeded the same way as
+    // `ruleRecord` so a predicate naming a column the read didn't return
+    // compares against `null` instead of faulting (objectui#3484). `undefined`
+    // when the host supplied no `previousValues`, which is how an INSERT is
+    // told apart from an UPDATE: the server exempts inserts from the
+    // `readonlyWhen` strip entirely, so the renderer must not invent a
+    // `previous` for them.
+    const previousRecord = React.useMemo(() => {
+      if (!previousValues || typeof previousValues !== 'object') return undefined;
+      const out: Record<string, unknown> = {};
+      for (const f of fields) if (f?.name) out[f.name] = null;
+      for (const k of Object.keys(previousValues)) {
+        if (previousValues[k] !== undefined) out[k] = previousValues[k];
+      }
+      return out;
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fields, previousValues]);
+
     const ruleRecord = React.useMemo(() => {
       // Seed every declared field to `null` so a predicate referencing a field
       // that's absent / not-yet-registered evaluates against a present-null
@@ -644,10 +667,56 @@ ComponentRegistry.register('form',
       // field (value `undefined`) doesn't clobber its null seed back to missing.
       const out: Record<string, unknown> = {};
       for (const f of fields) if (f?.name) out[f.name] = null;
+      // The persisted record sits UNDER the live values, exactly as the server
+      // builds its own scope (`merged = { ...previous, ...data }` in objectql's
+      // `stripReadonlyWhenFields`). Without it a predicate that names a record
+      // column this form does not render evaluates against the `null` seed —
+      // or nothing at all — and reaches a different verdict than the server.
+      if (previousRecord) {
+        for (const k of Object.keys(previousRecord)) out[k] = previousRecord[k];
+      }
       for (const k of Object.keys(watched)) if (watched[k] !== undefined) out[k] = watched[k];
       return out;
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [fields, JSON.stringify(watched)]);
+    }, [fields, previousRecord, JSON.stringify(watched)]);
+
+    // Fields this form has resolved to READ-ONLY for the record as it now
+    // stands — the exact set an UPDATE must not carry (objectui#3484).
+    //
+    // react-hook-form keeps a value for every registered field, so an edit form
+    // seeded from a full record round-trips the WHOLE record on save, including
+    // the fields it just rendered as read-only plain text. The user could not
+    // have touched them and the value is the one already in the database, yet
+    // the server dutifully strips them (`stripReadonlyWhenFields`) and reports
+    // `droppedFields` — which the shell turned into "some fields were not
+    // saved" on a save where nothing was even changed. Not sending them is the
+    // fix; the warning channel then only fires for a write that really did lose
+    // something.
+    //
+    // Gated on `previousRecord` because the strip this mirrors is UPDATE-ONLY:
+    // objectql exempts INSERT from `readonlyWhen` entirely, so dropping keys on
+    // create would make the client stricter than the server and silently lose
+    // authored defaults.
+    const readonlyFieldNames = React.useMemo(() => {
+      const locked = new Set<string>();
+      if (!previousRecord) return locked;
+      for (const f of fields as FormFieldConfig[]) {
+        const name = f?.name;
+        if (!name) continue;
+        const st = resolveFieldRuleState(
+          {
+            visibleWhen: (f as any).visibleWhen,
+            readonlyWhen: (f as any).readonlyWhen,
+            requiredWhen: (f as any).requiredWhen,
+          },
+          ruleRecord,
+          { required: !!f.required, readonly: (f as any).readonly === true },
+          previousRecord,
+        );
+        if (st.readonly) locked.add(name);
+      }
+      return locked;
+    }, [fields, ruleRecord, previousRecord]);
 
     // When a field's CEL rule relaxes — it becomes hidden (visibleWhen FALSE) or
     // no longer required (requiredWhen FALSE) — clear any stale validation error
@@ -668,12 +737,13 @@ ComponentRegistry.register('form',
           },
           ruleRecord,
           { required: !!f.required, readonly: (f as any).readonly === true },
+          previousRecord,
         );
         // View-level FormField.visibleOn hides the field the same way a
         // field-level visibleWhen does (#2212) — fold it into the verdict.
         const viewVisible =
           (f as any).visibleOn == null ||
-          evalFieldPredicate((f as any).visibleOn, ruleRecord, true);
+          evalFieldPredicate((f as any).visibleOn, ruleRecord, true, previousRecord);
         // A hidden field shows no errors at all; an un-required field clears
         // only its *required* error (keep legitimate format/min/etc. errors).
         const errType = (errs[name] as { type?: string } | undefined)?.type;
@@ -1060,6 +1130,18 @@ ComponentRegistry.register('form',
         }
       }
 
+      // Drop the keys this form itself resolved to read-only. See
+      // `readonlyFieldNames`: they are values the user had no way to change,
+      // and re-sending them only earns a server-side strip plus a "some fields
+      // were not saved" warning on a save that changed none of them.
+      if (readonlyFieldNames.size > 0 && formData && typeof formData === 'object') {
+        const kept: Record<string, unknown> = {};
+        for (const k of Object.keys(formData)) {
+          if (!readonlyFieldNames.has(k)) kept[k] = (formData as Record<string, unknown>)[k];
+        }
+        formData = kept as typeof formData;
+      }
+
       try {
         if (onAction) {
           const result = await onAction({
@@ -1233,6 +1315,7 @@ ComponentRegistry.register('form',
         { visibleWhen, readonlyWhen, requiredWhen },
         ruleRecord,
         { required: staticRequired, readonly: staticReadonly === true },
+        previousRecord,
       );
       if (!ruleState.visible) return null;
 
@@ -1241,7 +1324,7 @@ ComponentRegistry.register('form',
       // canonical CEL engine and record scope as visibleWhen; both
       // the bare-string and `{ dialect, source }` wire shapes are
       // accepted, and a broken predicate fails open (#2212).
-      if (visibleOn != null && !evalFieldPredicate(visibleOn, ruleRecord, true)) {
+      if (visibleOn != null && !evalFieldPredicate(visibleOn, ruleRecord, true, previousRecord)) {
         return null;
       }
       const required = ruleState.required;

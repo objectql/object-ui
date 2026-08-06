@@ -536,6 +536,11 @@ export const ModalForm: React.FC<ModalFormProps> = ({
     objectName: schema.objectName,
     layout: formLayout,
     defaultValues: formData,
+    // The persisted record, for `previous`-scoped field rules and the
+    // read-only submit strip (objectui#3484). Edit mode only: `formData` is
+    // the raw `findOne` read there, while in create mode it is authored
+    // seed values and there is no prior row to speak of.
+    previousValues: schema.mode === 'edit' && schema.recordId ? formData : undefined,
     submitLabel,
     cancelLabel,
     showSubmit,

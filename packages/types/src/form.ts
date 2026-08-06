@@ -1068,6 +1068,25 @@ export interface FormSchema extends BaseSchema {
    */
   defaultValues?: Record<string, any>;
   /**
+   * The PERSISTED record this form is editing, as read before the user
+   * touched it. Set by an edit-mode host only — its ABSENCE is what tells the
+   * renderer "this is an insert" (objectui#3484).
+   *
+   * Two things depend on it, both to keep the client's verdict identical to
+   * the server's (`@objectstack/objectql` `stripReadonlyWhenFields`):
+   *
+   *  1. It binds `previous` for field-rule CEL predicates, so a
+   *     `readonlyWhen: previous.status != 'draft'` locks the field in the form
+   *     instead of faulting on an unbound root and failing OPEN — which let a
+   *     user edit a locked field and have the change silently dropped on save.
+   *  2. It is overlaid UNDER the live form values to form the `record`
+   *     binding, mirroring the server's `merged = { ...previous, ...data }`, so
+   *     a predicate may reference a record field this form does not render.
+   *
+   * Never send it anywhere: it is evaluation context, not form state.
+   */
+  previousValues?: Record<string, any>;
+  /**
    * Submit button label
    * @default 'Submit'
    */

@@ -772,8 +772,67 @@ function stableStringify(value: unknown): string {
 }
 
 /**
+ * Whether two values are the SAME as far as the wire is concerned — used to
+ * tell a write-strip that lost something from one that lost nothing
+ * (objectui#3484).
+ *
+ * Deliberately strict: `1` and `'1'` are NOT the same here. A false "these are
+ * equal" silently swallows a warning about a value the user really did lose,
+ * which is the worse of the two errors; a false "these differ" only warns
+ * about a no-op. `null` and `undefined` both mean "empty" and do match.
+ */
+function sameWireValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  const aEmpty = a === null || a === undefined;
+  const bEmpty = b === null || b === undefined;
+  if (aEmpty || bEmpty) return aEmpty && bEmpty;
+  return stableStringify(a) === stableStringify(b);
+}
+
+/**
+ * Drop the fields whose strip changed nothing — the caller supplied exactly
+ * the value the record already holds (objectui#3484).
+ *
+ * The server is not wrong to report those: the client DID send the key and the
+ * engine DID refuse to write it, so `droppedFields` is an accurate account of
+ * the request. But "was not saved" is only news when something was actually
+ * lost, and the console's edit form used to round-trip the whole record —
+ * including fields it had itself rendered as read-only text — so every save of
+ * a state-locked record raised a warning listing fields the user never touched
+ * and whose values never changed.
+ *
+ * A field is kept (still warned about) whenever the no-op cannot be PROVEN:
+ * the response echoed no record, or that record does not carry the key.
+ *
+ * Returns entries with empty `fields` removed; an all-no-op event list comes
+ * back empty, which suppresses the warning entirely.
+ */
+function withoutNoOpDrops(
+  droppedFields: DroppedFieldsEvent[],
+  sent: Record<string, unknown> | undefined | null,
+  stored: Record<string, unknown> | undefined | null,
+): DroppedFieldsEvent[] {
+  if (!sent || !stored || typeof sent !== 'object' || typeof stored !== 'object') {
+    return droppedFields;
+  }
+  const out: DroppedFieldsEvent[] = [];
+  for (const e of droppedFields) {
+    const kept = e.fields.filter((f) => {
+      if (!Object.prototype.hasOwnProperty.call(sent, f)) return true;
+      if (!Object.prototype.hasOwnProperty.call(stored, f)) return true;
+      return !sameWireValue(
+        (sent as Record<string, unknown>)[f],
+        (stored as Record<string, unknown>)[f],
+      );
+    });
+    if (kept.length > 0) out.push({ ...e, fields: kept });
+  }
+  return out;
+}
+
+/**
  * ObjectStack Data Source Adapter
- * 
+ *
  * Bridges the ObjectStack Client SDK with the ObjectUI DataSource interface.
  * This allows Object UI applications to seamlessly integrate with ObjectStack
  * backends while maintaining the universal DataSource abstraction.
@@ -1309,13 +1368,17 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     resource: string,
     result: unknown,
     id?: string | number,
+    sent?: Record<string, unknown> | null,
   ): void {
     const dropped = (result as { droppedFields?: unknown } | null | undefined)?.droppedFields;
     if (!Array.isArray(dropped) || dropped.length === 0) return;
-    const droppedFields = dropped.filter(
+    const valid = dropped.filter(
       (e): e is DroppedFieldsEvent =>
         !!e && typeof e === 'object' && Array.isArray((e as DroppedFieldsEvent).fields) && (e as DroppedFieldsEvent).fields.length > 0,
     );
+    // A strip that changed nothing is not news — see withoutNoOpDrops (#3484).
+    const stored = (result as { record?: Record<string, unknown> } | null | undefined)?.record;
+    const droppedFields = withoutNoOpDrops(valid, sent, stored);
     if (droppedFields.length === 0) return;
     this.emitWriteWarning({ operation, resource, ...(id !== undefined ? { id } : {}), droppedFields });
   }
@@ -1338,11 +1401,25 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   ): void {
     const dropped = (payload as { droppedFields?: unknown } | null | undefined)?.droppedFields;
     if (!Array.isArray(dropped) || dropped.length === 0) return;
+    const results = (payload as { results?: unknown[] } | null | undefined)?.results;
     for (const entry of dropped) {
       if (!entry || typeof entry !== 'object') continue;
       const e = entry as DroppedFieldsEvent & { index?: number };
       if (!Array.isArray(e.fields) || e.fields.length === 0) continue;
       const op = typeof e.index === 'number' ? operations[e.index] : undefined;
+      // Same no-op suppression as the single-record path (#3484). The echoed
+      // row for the originating op is the "stored" side; when the batch echoed
+      // nothing usable, `withoutNoOpDrops` keeps every field.
+      const stored =
+        typeof e.index === 'number' && Array.isArray(results)
+          ? (results[e.index] as Record<string, unknown> | undefined)
+          : undefined;
+      const [live] = withoutNoOpDrops(
+        [{ object: e.object, fields: e.fields, reason: e.reason }],
+        op?.data as Record<string, unknown> | undefined,
+        stored,
+      );
+      if (!live) continue;
       // `delete` never drops fields; anything unexpected reads as an update,
       // which is the truthful default for a batch that echoed a strip.
       const operation: 'create' | 'update' = (op?.action ?? 'create') === 'create' ? 'create' : 'update';
@@ -1350,7 +1427,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         operation,
         resource: e.object ?? op?.object ?? '',
         ...(op?.id !== undefined && op?.id !== null ? { id: op.id } : {}),
-        droppedFields: [{ object: e.object, fields: e.fields, reason: e.reason }],
+        droppedFields: [live],
       });
     }
   }
@@ -1372,7 +1449,13 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     try {
       const result = await this.client.data.create<T>(resource, data);
       this.emitMutation({ type: 'create', resource, record: { ...result.record } });
-      this.notifyDroppedFields('create', resource, result, (result.record as { id?: string | number } | undefined)?.id);
+      this.notifyDroppedFields(
+        'create',
+        resource,
+        result,
+        (result.record as { id?: string | number } | undefined)?.id,
+        data as Record<string, unknown>,
+      );
       return result.record;
     } catch (err) {
       // `update` has always normalised; `create` did not, so a rejected insert
@@ -1409,7 +1492,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         opts?.ifMatch ? { ifMatch: opts.ifMatch } : undefined,
       );
       this.emitMutation({ type: 'update', resource, id, record: { ...result.record } });
-      this.notifyDroppedFields('update', resource, result, id);
+      this.notifyDroppedFields('update', resource, result, id, data as Record<string, unknown>);
       return result.record;
     } catch (err) {
       throw normaliseClientError(err);

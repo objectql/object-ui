@@ -459,6 +459,8 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
     objectName: schema.objectName,
     layout: formLayout,
     defaultValues: formData,
+    // Persisted record → `previous` binding + read-only submit strip (#3484).
+    previousValues: schema.mode === 'edit' && schema.recordId ? formData : undefined,
     submitLabel,
     cancelLabel,
     showSubmit,

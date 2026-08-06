@@ -454,6 +454,10 @@ export const FormSchema = BaseSchema.extend({
   objectName: z.string().optional().describe('Owning object name (drives field locators)'),
   fields: z.array(FormFieldSchema).describe('Form fields'),
   defaultValues: z.record(z.string(), z.any()).optional().describe('Default form values'),
+  previousValues: z
+    .record(z.string(), z.any())
+    .optional()
+    .describe('Persisted record being edited — binds `previous` for field-rule CEL predicates'),
   submitLabel: z.string().optional().describe('Submit button label'),
   cancelLabel: z.string().optional().describe('Cancel button label'),
   showCancel: z.boolean().optional().describe('Show cancel button'),

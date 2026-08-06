@@ -215,6 +215,11 @@ export const WizardForm: React.FC<WizardFormProps> = ({
   const { t } = useWizardTranslation();
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
+  // The persisted record as READ, kept apart from `formData` — the wizard
+  // merges each step's answers into `formData`, so it stops being the prior
+  // row after step one. Field-rule `previous` and the read-only submit strip
+  // need the untouched read (objectui#3484).
+  const [persistedRecord, setPersistedRecord] = useState<Record<string, any> | undefined>(undefined);
   // OCC-guarded edit save + its conflict dialog (see occSave.tsx).
   const { saveWithOcc, conflictDialog } = useOccSave();
   const [loading, setLoading] = useState(true);
@@ -289,6 +294,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
       try {
         const data = await dataSource.findOne(schema.objectName, schema.recordId);
         setFormData(data || {});
+        setPersistedRecord(data || {});
       } catch (err) {
         setError(err as Error);
       } finally {
@@ -690,6 +696,10 @@ export const WizardForm: React.FC<WizardFormProps> = ({
                   ...(stepFieldContainerClass ? { fieldContainerClass: stepFieldContainerClass } : {}),
                   layout: 'vertical' as const,
                   defaultValues: formData,
+                  // Persisted record → `previous` binding + read-only submit
+                  // strip (#3484). Never `formData`: that already carries the
+                  // answers from earlier steps.
+                  previousValues: schema.mode === 'edit' ? persistedRecord : undefined,
                   showSubmit: false,
                   showCancel: false,
                   onSubmit: handleStepSubmit,

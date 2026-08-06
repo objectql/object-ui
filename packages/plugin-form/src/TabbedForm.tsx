@@ -401,6 +401,8 @@ export const TabbedForm: React.FC<TabbedFormProps> = ({
           ...(containerFieldClass ? { fieldContainerClass: containerFieldClass } : {}),
           layout: 'vertical' as const,
           defaultValues: formData,
+          // Persisted record → `previous` binding + read-only submit strip (#3484).
+          previousValues: schema.mode === 'edit' && schema.recordId ? formData : undefined,
           submitLabel: schema.submitText || (schema.mode === 'create' ? 'Create' : 'Update'),
           cancelLabel: schema.cancelText,
           showSubmit: schema.showSubmit !== false && schema.mode !== 'view',

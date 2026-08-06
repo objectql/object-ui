@@ -830,6 +830,15 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
      ...initialData
   };
 
+  // The persisted record, for `previous`-scoped field rules and the read-only
+  // submit strip (objectui#3484). Edit mode only, and WITHOUT the schema
+  // defaults folded in above: `previous` must be the row as the server last
+  // stored it, not "the row plus what a blank column would default to".
+  const previousValues =
+    schema.mode === 'edit' && schema.recordId && initialData && typeof initialData === 'object'
+      ? (initialData as Record<string, any>)
+      : undefined;
+
   // Auto-layout parity with the flat path (which runs these inside
   // applyAutoLayout): drop platform-managed system fields — and, in create
   // mode, server-computed fields — BEFORE deriving field-group sections, so a
@@ -1017,6 +1026,7 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
             columns: formColumns,
             ...(fieldContainerClass ? { fieldContainerClass } : {}),
             defaultValues: finalDefaultValues,
+            previousValues,
             showSubmit: schema.showSubmit !== false && schema.mode !== 'view',
             showCancel: schema.showCancel !== false,
             submitLabel: schema.submitText || (schema.mode === 'create' ? 'Create' : 'Update'),
@@ -1140,6 +1150,7 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
       || schema.submitBehavior?.kind === 'continue'
       || (!schema.submitBehavior && schema.resetOnSuccess && schema.mode === 'create'),
     defaultValues: finalDefaultValues,
+    previousValues,
     onSubmit: handleSubmit,
     onCancel: handleCancel,
     className: schema.className,

@@ -157,6 +157,107 @@ describe('ObjectStackAdapter.onWriteWarning', () => {
     expect(events).toHaveLength(1);
   });
 
+  // ── no-op strips are not news (objectui#3484) ─────────────────────────────
+  //
+  // The server is right to report a strip — the client DID send the key. But
+  // "was not saved" is only worth a toast when something was LOST. The console
+  // edit form used to round-trip the whole record, so every save of a
+  // state-locked record warned about fields the user never touched whose values
+  // never changed. When the echoed record proves the stripped value equals what
+  // was sent, stay quiet.
+
+  it('suppresses the warning when every stripped value equals what the record already holds', async () => {
+    const update = vi.fn().mockResolvedValue({
+      record: { id: 'r1', type: 'quality_abnormal', source_method: 'qc_judgment', title: 'B' },
+      droppedFields: [
+        { object: 'andon', fields: ['type', 'source_method'], reason: 'readonly_when' },
+      ],
+    });
+    const ds = makeDS({ update });
+    const events: WriteWarningEvent[] = [];
+    ds.onWriteWarning((e: WriteWarningEvent) => events.push(e));
+
+    await ds.update('andon', 'r1', {
+      title: 'B',
+      type: 'quality_abnormal',
+      source_method: 'qc_judgment',
+    });
+
+    expect(events).toEqual([]);
+  });
+
+  it('still warns about the fields that really did change, and only those', async () => {
+    const update = vi.fn().mockResolvedValue({
+      record: { id: 'r1', type: 'quality_abnormal', source_method: 'qc_judgment' },
+      droppedFields: [
+        { object: 'andon', fields: ['type', 'source_method'], reason: 'readonly_when' },
+      ],
+    });
+    const ds = makeDS({ update });
+    const events: WriteWarningEvent[] = [];
+    ds.onWriteWarning((e: WriteWarningEvent) => events.push(e));
+
+    // The user really did try to change `type`; `source_method` round-tripped.
+    await ds.update('andon', 'r1', { type: 'equipment_fault', source_method: 'qc_judgment' });
+
+    expect(events).toEqual([
+      {
+        operation: 'update',
+        resource: 'andon',
+        id: 'r1',
+        droppedFields: [{ object: 'andon', fields: ['type'], reason: 'readonly_when' }],
+      },
+    ]);
+  });
+
+  it('keeps the warning when the no-op cannot be PROVEN (record echo lacks the key)', async () => {
+    const update = vi.fn().mockResolvedValue({
+      record: { id: 'r1' },
+      droppedFields: [{ object: 'andon', fields: ['type'], reason: 'readonly_when' }],
+    });
+    const ds = makeDS({ update });
+    const events: WriteWarningEvent[] = [];
+    ds.onWriteWarning((e: WriteWarningEvent) => events.push(e));
+
+    await ds.update('andon', 'r1', { type: 'quality_abnormal' });
+
+    expect(events).toHaveLength(1);
+  });
+
+  it('does not treat a type change as a no-op (1 is not "1")', async () => {
+    const update = vi.fn().mockResolvedValue({
+      record: { id: 'r1', tax_rate: '9' },
+      droppedFields: [{ object: 'invoice', fields: ['tax_rate'], reason: 'readonly_when' }],
+    });
+    const ds = makeDS({ update });
+    const events: WriteWarningEvent[] = [];
+    ds.onWriteWarning((e: WriteWarningEvent) => events.push(e));
+
+    await ds.update('invoice', 'r1', { tax_rate: 9 });
+
+    expect(events).toHaveLength(1);
+  });
+
+  it('suppresses a no-op strip on the cross-object batch path too', async () => {
+    const batchTransaction = vi.fn().mockResolvedValue({
+      results: [{ id: 'acc1' }, { id: 'inv1', tax_rate: 9 }],
+      droppedFields: [
+        { object: 'invoice', fields: ['tax_rate'], reason: 'readonly_when', index: 1 },
+      ],
+    });
+    const ds = makeDS({ batchTransaction });
+    ds.atomicBatchCapability = true;
+    const events: WriteWarningEvent[] = [];
+    ds.onWriteWarning((e: WriteWarningEvent) => events.push(e));
+
+    await ds.batchTransaction([
+      { object: 'account', action: 'create', data: { name: 'Acme' } },
+      { object: 'invoice', action: 'update', id: 'inv1', data: { status: 'paid', tax_rate: 9 } },
+    ]);
+
+    expect(events).toEqual([]);
+  });
+
   it('isolates a throwing listener so the write still resolves and other listeners fire', async () => {
     const update = vi.fn().mockResolvedValue({ record: { id: 'r1' }, droppedFields: ONE_DROP });
     const ds = makeDS({ update });
