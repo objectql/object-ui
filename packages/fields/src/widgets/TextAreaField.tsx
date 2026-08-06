@@ -129,23 +129,40 @@ export function TextAreaField({ value, onChange, field, readonly, error, ...prop
       ? t('fields.textarea.charactersRemaining', { count: Math.max(maxLength - length, 0) })
       : '';
 
-  const [status, setStatus] = useState('');
+  /**
+   * The last sentence a PAUSE settled on. Only ever written by the timer —
+   * never cleared synchronously — so this effect adds no cascading render on
+   * the keystrokes it is busy staying quiet through
+   * (`react-hooks/set-state-in-effect`).
+   */
+  const [settledStatus, setSettledStatus] = useState('');
 
   useEffect(() => {
-    // Leaving the threshold (or the field going readonly) silences the region
-    // immediately — emptying a live region announces nothing, so this costs no
-    // speech. Only ENTERING it is debounced.
-    if (!pendingStatus) {
-      setStatus('');
-      return;
-    }
-    const timer = setTimeout(() => setStatus(pendingStatus), COUNTER_STATUS_DEBOUNCE_MS);
+    if (!pendingStatus) return;
+    const timer = setTimeout(() => setSettledStatus(pendingStatus), COUNTER_STATUS_DEBOUNCE_MS);
     // Every keystroke cancels the previous pending announcement, so a typist
     // who never pauses is never interrupted. The dependency is the SENTENCE,
     // not the length: re-typing back to the same count produces the same string
     // and therefore no DOM change and no second announcement.
     return () => clearTimeout(timer);
   }, [pendingStatus]);
+
+  /**
+   * Speak the settled sentence only while it is still TRUE — i.e. while it is
+   * the one the current value would produce. Everything else renders empty,
+   * which costs no speech (emptying a live region announces nothing), and that
+   * is what makes leaving the warning band silent IMMEDIATELY rather than a
+   * second later.
+   *
+   * The obvious alternative, `pendingStatus ? settledStatus : ''`, is wrong in
+   * one specific way: delete back out of the band and type into it again, and
+   * the region re-announces the STALE count from before the excursion a full
+   * second before the timer corrects it. Announcing a wrong number is worse
+   * than announcing a right one twice, which is the bounded, sub-second,
+   * correct-content cost of the comparison below. Pinned by `never
+   * re-announces the STALE count when the user types back into the band`.
+   */
+  const status = settledStatus === pendingStatus ? pendingStatus : '';
 
   if (readonly) {
     return (

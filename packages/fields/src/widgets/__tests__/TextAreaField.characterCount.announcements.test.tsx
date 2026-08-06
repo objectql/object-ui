@@ -277,6 +277,26 @@ describe('the status region is threshold-gated (objectui#3408)', () => {
     expect(statusText()).toBe('');
   });
 
+  it('never re-announces the STALE count when the user types back into the band', () => {
+    // The excursion case. Reach the band, be announced, delete far out of it,
+    // then type back in at a different length. The naive "show the last settled
+    // sentence whenever we are in the band" renders the count from BEFORE the
+    // excursion for a full second before the timer corrects it — a wrong
+    // number, spoken, which is worse than the silence it replaces.
+    renderIn('en', <Host maxLength={500} initial={'x'.repeat(460)} />);
+    pause();
+    expect(statusText()).toBe('Characters remaining: 40');
+
+    fireEvent.change(textarea(), { target: { value: 'x'.repeat(300) } });
+    expect(statusText()).toBe('');
+
+    fireEvent.change(textarea(), { target: { value: 'x'.repeat(455) } });
+    // The moment of the bug: 45 is the truth, 40 is what was cached.
+    expect(statusText()).toBe('');
+    pause();
+    expect(statusText()).toBe('Characters remaining: 45');
+  });
+
   it('clamps an over-long value to zero remaining rather than counting backwards', () => {
     // Reachable when a cap is lowered after the record was saved. "-3 remaining"
     // is not a sentence, and the textarea's own maxLength blocks further input,
