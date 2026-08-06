@@ -39,6 +39,13 @@
 # reason on stderr. Anything this cannot parse fails OPEN — a guard that blocks work it
 # does not understand gets disabled, and then it guards nothing.
 #
+# Known boundary, stated so nobody has to rediscover it: the check reads the FIRST WORD of
+# each shell segment, so a wrapped invocation (bash -c '…', xargs, ssh host '…') is not
+# caught. That is the deliberate trade — the target is the reflexive `git stash push` an
+# agent reaches for mid-task, not a determined evader, and OS_ALLOW_STASH=1 already exists
+# for anyone who means it. Widening it to string-match anywhere in the command would block
+# every `grep "git stash"` run against this very file.
+#
 # Self-test (26 cases, no network, no build): .claude/hooks/guard-shared-stash.selftest.sh
 
 set -uo pipefail
