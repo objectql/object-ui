@@ -320,30 +320,18 @@ jobs:
           node-version: '22.x'
           cache: 'pnpm'
 
-      # `scripts/check-doc-links.mjs` existed and worked, but nothing under
-      # `.github/` ever called it, so it had never run in CI — it exited 1 on an
-      # untouched `main` for a broken link that had been sitting there (#3213,
-      # #3292). It resolves every `/docs/...` markdown link against
-      # `content/docs/` on the filesystem: no install and no network, so it runs
-      # here — after Node is set up, before the expensive install + site build —
-      # and a bad link fails in seconds instead of after a full Next.js build.
-      #
-      # KNOWN GAP — read before assuming docs links are fully gated: `ci.yml`
-      # lists `content/**` and `'**/*.md'` under `paths-ignore`, and GitHub has
-      # no per-job path filter, so a docs-ONLY pull request never starts this
-      # workflow and is never link-checked. This step therefore covers pull
-      # requests that touch docs alongside code, plus pushes to `main` — not the
-      # pure-docs pull request, which is the likeliest way to break a link.
-      #
-      # `control-bytes.yml` hit this same wall and answered it by being its own
-      # workflow with no path filters, for a gate that likewise needs no install
-      # and no network; its header explains the reasoning, and
-      # `scripts/__tests__/check-control-bytes.test.ts` pins it. Moving this
-      # check to that shape is the known fix, but it changes CI triggering
-      # policy, so it is left to the maintainer — tracked in #3448.
-      - name: Check docs links
-        if: steps.docs-changes.outputs.should_run == 'true'
-        run: node scripts/check-doc-links.mjs
+      # The docs *link* check is deliberately NOT here any more — do not add it
+      # back. `node scripts/check-doc-links.mjs` ran in this job from #3213 /
+      # #3292 (PR #3450) until #3448 promoted it to its own workflow,
+      # `docs-links.yml`, with no path filters. The reason is this workflow's own
+      # `paths-ignore`: it lists `content/**` and `'**/*.md'`, and GitHub has no
+      # per-job path filter, so a docs-ONLY pull request never started `ci.yml`
+      # at all and the link check never saw the class of PR most likely to break
+      # a link. It is removed rather than kept in both places: the standalone
+      # workflow's trigger set is a strict superset of this job's, so a copy here
+      # could only ever add a second red check for the same broken link, and a
+      # second place to forget. `scripts/__tests__/docs-links-workflow.test.ts`
+      # pins the gate to exactly one home.
 
       - name: Turbo Cache
         if: steps.docs-changes.outputs.should_run == 'true'

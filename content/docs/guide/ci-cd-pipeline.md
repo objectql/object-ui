@@ -27,6 +27,7 @@ one has its own section below.
 | `lint.yml` | Lint | Push / PR to `main`, `develop`; manual | **Yes** — ESLint **errors** only |
 | `changeset-guard.yml` | Changeset Bump Policy | PR / push touching `.changeset/**` | **Yes** |
 | `control-bytes.yml` | Control Byte Scan | Push / PR to `main`, `develop` — **no path filter**; manual | **Yes** |
+| `docs-links.yml` | Internal Docs Link Check | Push / PR to `main`, `develop` — **no path filter**; manual | **Yes** |
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
 | `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane, `continue-on-error` |
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
@@ -39,13 +40,16 @@ one has its own section below.
 | `shadcn-check.yml` | Check Shadcn Components | Weekly cron `0 9 * * 1`; manual | n/a |
 | `check-links.yml` | Check Links | Manual dispatch only | n/a |
 
-Two path-filter facts explain most "why did nothing run on my PR?" questions:
+The path filters explain most "why did nothing run on my PR?" questions:
 
 - `ci.yml` and `lint.yml` both list `**/*.md`, `content/**`, `docs/**` and `.changeset/**` under
   `paths-ignore` (`ci.yml` also ignores `apps/site/**`). A docs-only or changeset-only PR starts
   neither of them.
 - `changeset-guard.yml` carries the inverse filter — it runs *only* when `.changeset/**` changes,
   which is precisely why it is a separate workflow instead of a job inside `ci.yml`.
+- `control-bytes.yml` and `docs-links.yml` carry **no** filter of any kind, which is equally
+  deliberate: both guard markdown, and a gate that a markdown-only PR cannot start is no gate on
+  the change most likely to trip it. Both cost a checkout plus one `node` call.
 
 ## Core CI Workflow (`ci.yml`)
 
@@ -61,7 +65,7 @@ Seven jobs, all parallel — there are no `needs:` edges between them:
 | `test` | Test (shard N/4) | `pnpm test --shard=N/4` across a 4-runner matrix with `fail-fast: false`, so every shard reports its own failures. No coverage instrumentation — v8 adds 40–100% overhead. | **Pull requests only** |
 | `test-coverage` | Test (coverage) | One unsharded `pnpm test:coverage`, uploaded to Codecov. Nothing blocks on it, which is why it is not sharded. | **Push only** |
 | `e2e` | Build & E2E | Builds the console with `vite build` (`VITE_BASE_PATH=/console/`), verifies the artifact, then `pnpm test:e2e --project=chromium`. Uploads the Playwright report on failure. | Every run |
-| `docs` | Build Docs | `scripts/check-doc-links.mjs` (resolves every `/docs/...` markdown link against `content/docs/` — no install, no network), then `turbo run build --filter='@object-ui/site'`. On a PR it first diffs against the base and skips both when nothing under `apps/site/` or `content/` changed. | Every run (steps themselves conditional) |
+| `docs` | Build Docs | `turbo run build --filter='@object-ui/site'`. On a PR it first diffs against the base and skips the build when nothing under `apps/site/` or `content/` changed. It does **not** check docs links any more — that moved to `docs-links.yml` (#3448), because this workflow's `paths-ignore` hides exactly the docs-only PRs a link check needs to see. | Every run (build itself conditional) |
 | `dev-server` | Dev-server fixture build | `pnpm --filter @object-ui/dev-server build` — guards `apps/dev-server`'s `objectstack.config.ts` against fixture / `@objectstack/spec` drift. | Every run |
 
 Uses: Node 22.x, pnpm via `corepack`, `actions/cache` over `.turbo/cache`.
@@ -213,6 +217,45 @@ Playwright report and job summary.
 Backend pins live in `e2e/live/ci/backend.env` and must match the `@objectstack/spec` version in
 `pnpm-lock.yaml` — bump both in the same PR, or the run proves nothing.
 
+## Internal Docs Links (`docs-links.yml`)
+
+**Triggers:** Push and PR to `main`/`develop`, plus manual dispatch — with **no path filter at
+all**, which is the point of the workflow. It appears in the checks list as **Internal Docs Link
+Check**.
+
+Runs `scripts/check-doc-links.mjs`, which walks every `.md` / `.mdx` file under `content/docs/` and
+resolves each internal markdown link against the files actually on disk (`/docs/foo` must have a
+`foo.md`, `foo.mdx` or `foo/index.md*` under `content/docs/`). External `http(s)` and `mailto:`
+links and bare `#anchors` are skipped — those belong to Lychee, below. No install, no build, no
+network: a checkout and one `node` call.
+
+**Why it blocks a merge.** A broken internal link is a 404 on the published site, and nothing else
+in CI sees it: the site build succeeds with a dead link in it. The script itself is older than its
+gate — it existed, worked, and was wired to nothing under `.github/`, so it had never run in CI at
+all, and `main` sat with a broken link it would have caught (objectui#3213, objectui#3292).
+
+**Why it is a separate workflow.** This is the second instance of the lesson `control-bytes.yml`
+records, and it was found by the PR that first put this check into CI. That PR added it as a step
+in `ci.yml`'s `docs` job — where it could never see the PRs that matter. `ci.yml` lists
+`'**/*.md'`, `content/**`, `docs/**` and `apps/site/**` under `paths-ignore`, GitHub's
+`paths-ignore` skips the *whole workflow* when every changed file matches, and GitHub has no
+per-job path filter. So a **docs-only** PR — the likeliest way an internal link breaks — started no
+workflow at all, and the check only ever ran on PRs that touched docs alongside code, plus pushes
+to `main`. A bad link could merge through a pure-docs PR and turn `main` red later under an
+unrelated author (objectui#3448).
+
+The step was **removed** from `ci.yml` in the same change rather than left in place. This
+workflow's trigger set is a strict superset of that job's, so keeping both would only add a second
+red check for one broken link, and a second place to forget.
+`scripts/__tests__/docs-links-workflow.test.ts` pins all of it: the workflow must exist, must gate
+pull requests, must carry neither `paths` nor `paths-ignore`, and must remain the only workflow
+that runs the script.
+
+**If it fails:** it prints every offending `file -> href`. Either the link is misspelled, or the
+page it points at has moved or been renamed — fix the link, or restore the target. Links are
+checked as *routes*, so `/docs/guide/foo` is what belongs in the markdown, not
+`content/docs/guide/foo.md`. Run it locally with `pnpm docs:check-links`.
+
 ## Link Checking (`check-links.yml`)
 
 **Trigger:** Manual workflow dispatch (`workflow_dispatch`).
@@ -221,17 +264,17 @@ There are **two** link checkers, and they cover different things (objectui#3213)
 
 | | Covers | Network | Runs |
 |---|---|---|---|
-| `scripts/check-doc-links.mjs` | **Internal** `/docs/...` routes, resolved against `content/docs/` | No | In `ci.yml`'s `docs` job — see the job table above |
+| `scripts/check-doc-links.mjs` | **Internal** `/docs/...` routes, resolved against `content/docs/` | No | `docs-links.yml` — every push and PR, no path filter (previous section) |
 | Lychee (this workflow) | **External** URLs in `docs/` and `README.md` | Yes | Manual dispatch only |
 
 Note the asymmetry in what Lychee scans: `docs/` holds internal material (ADRs, audits,
 architecture notes), while the published site is built from `content/docs/`. Lychee therefore does
 not currently see the site's own pages.
 
-Two known gaps are tracked rather than silently lived with: `ci.yml` lists `content/**` under
-`paths-ignore` and GitHub has no per-job path filter, so a **docs-only** PR does not start `ci.yml`
-and is not link-checked (objectui#3448); and Lychee's scan scope predates the move to
-`content/docs/` (objectui#3449).
+One known gap remains tracked rather than silently lived with: Lychee's scan scope predates the
+move to `content/docs/` (objectui#3449), so **external** URLs on the published site's own pages are
+checked by nothing. The gap that used to sit beside it — docs-only PRs never being link-checked,
+because `ci.yml` ignores `content/**` — is closed: that check is now `docs-links.yml` (objectui#3448).
 
 Uses [Lychee](https://github.com/lycheeverse/lychee) with configuration from `lychee.toml`:
 - Scans markdown files in `docs/` and `README.md`
