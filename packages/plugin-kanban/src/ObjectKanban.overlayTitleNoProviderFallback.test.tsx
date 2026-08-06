@@ -46,6 +46,12 @@ import '@testing-library/jest-dom';
 import { registerAllFields } from '@object-ui/fields';
 import { ObjectKanban } from './ObjectKanban';
 
+// Same reason as the sibling i18n file: the board's `KanbanImpl` chunk is
+// `React.lazy`-loaded behind Suspense and every assertion here is after that
+// boundary, so the cost is paid at import time rather than raced against a
+// `findBy` timeout (AGENTS.md §测试纪律). Specifier byte-identical to `./index`'s.
+import './KanbanImpl';
+
 registerAllFields();
 
 const cards = [

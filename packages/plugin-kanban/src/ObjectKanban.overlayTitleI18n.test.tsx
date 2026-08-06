@@ -68,6 +68,17 @@ import { I18nProvider } from '@object-ui/i18n';
 import { registerAllFields } from '@object-ui/fields';
 import { ObjectKanban } from './ObjectKanban';
 
+// Pay the board's lazy chunk at import time, not inside a `findBy` budget
+// (AGENTS.md §测试纪律). `KanbanRenderer` renders
+// `React.lazy(() => import('./KanbanImpl'))` behind a Suspense boundary, and
+// every assertion below sits AFTER that boundary — a card has to be on screen
+// before it can be clicked. Under full CI parallelism a first `import()` has
+// been measured at ~976ms against RTL's 1000ms default, so without this the
+// suite would race the module loader. The specifier must stay byte-identical to
+// the one in `./index` — ESM caches by resolved specifier, which is what makes
+// the component's own lazy factory resolve immediately.
+import './KanbanImpl';
+
 registerAllFields();
 
 const cards = [
