@@ -42,11 +42,14 @@ import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { usePermissions, useFieldPermissions } from '@object-ui/permissions';
 import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
 import { resolveFilterPlaceholders } from '@object-ui/core';
+import { normalizeFilterOperator, ViewFilterRuleSchema } from '@objectstack/spec/ui';
+import type { ViewFilterRule } from '@objectstack/spec/ui';
 import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState';
 import {
   parseUrlFilterTriples,
   groupFilterChips,
   deleteFieldFilterParams,
+  URL_FILTER_OPS,
   type FilterTriple,
 } from './drillUrlFilters';
 import {
@@ -71,6 +74,112 @@ import { useTenancyPosture } from '../hooks/useTenancyPosture';
 /** Field types the auto-derived user-filter bar offers as dropdowns. */
 const USER_FILTER_TYPES = new Set(['select', 'multiselect', 'radio', 'enum', 'boolean']);
 const MAX_USER_FILTERS = 4;
+
+/**
+ * URL drill triple operator → the spec's OWN alias spelling.
+ *
+ * `parseUrlFilterTriples` speaks ObjectQL **symbols** (`=`, `>=`, `<=`, `>`,
+ * `<`) because a triple is what the runtime filter AST consumes.
+ * `ViewFilterRuleSchema.operator` enumerates a different vocabulary — the
+ * canonical words (`equals`, `greater_than_or_equal`, …). `normalizeFilterOperator`,
+ * the single canonicaliser this repo is allowed to use (it is also
+ * `viewFilterFold`'s exit), knows the spec's *word* aliases (`eq`, `gte`, `lt`,
+ * …) but not the symbols: hand it `'='` and it returns `'='` verbatim, which the
+ * enum then rejects.
+ *
+ * So this table is a **symbol → alias bridge, not a second canonical map**.
+ * The range half is derived by inverting `URL_FILTER_OPS`, whose suffixes
+ * (`gte`/`lte`/`gt`/`lt`) are already spec alias keys — a range operator added
+ * to the URL contract is therefore bridged here automatically. `'='` is the one
+ * hand-written entry, because equality has no `[op]` suffix form to invert.
+ * Canonicalisation itself stays in `normalizeFilterOperator`, exactly once.
+ */
+const TRIPLE_OP_TO_SPEC_ALIAS: Record<string, string> = {
+  '=': 'eq',
+  ...Object.fromEntries(
+    Object.entries(URL_FILTER_OPS).map(([suffix, symbol]) => [symbol, suffix]),
+  ),
+};
+
+/**
+ * Fold URL drill triples into the spec's `ViewFilterRule[]` (objectui#3419).
+ *
+ * "Save as view" persists a **ViewItem**, and `ListViewSchema.filter` declares
+ * `z.array(ViewFilterRuleSchema)` — a flat list of `{ field, operator, value }`
+ * over the canonical operator vocabulary. The drill triples this page renders
+ * from the URL are the *runtime AST* shape; writing them into the view body
+ * verbatim produced an off-spec ViewItem (`config.filter.0` → "expected object,
+ * received array").
+ *
+ * Contract-first (AGENTS.md #0.1): the fold happens **here, at the producer**.
+ * The alternative — teaching `ViewItemSchema`'s consumers to also accept
+ * triples — would put two filter dialects at rest, the exact debt this repo
+ * keeps paying down. Same reasoning, and the same `normalizeFilterOperator`
+ * exit, as `viewFilterFold.foldFilterGroupToSpecRules` (the FilterBuilder's
+ * half of this problem, objectstack#5159).
+ *
+ * `field` and `value` are carried verbatim. A triple whose operator has no
+ * canonical spelling — or whose value the rule schema refuses — is **dropped**
+ * from the persisted view with a debug-level note, never written off-spec:
+ * declared = enforced, and a view body that fails the record gate is rejected
+ * whole at publish time, which would lose the user's other conditions too.
+ * (`parseUrlFilterTriples` only ever emits the five operators bridged above, so
+ * the drop path is defence in depth against the URL contract growing an
+ * operator the spec has no word for.)
+ */
+function foldUrlFilterTriplesToSpecRules(triples: FilterTriple[]): ViewFilterRule[] {
+  const rules: ViewFilterRule[] = [];
+  for (const [field, op, value] of triples) {
+    const rule: Record<string, unknown> = {
+      field,
+      operator: normalizeFilterOperator(TRIPLE_OP_TO_SPEC_ALIAS[op] ?? op),
+    };
+    // `viewFilterFold` carries `''` through as a real value; only a genuinely
+    // absent one is omitted (unary operators take none).
+    if (value !== undefined) rule.value = value;
+    const parsed = ViewFilterRuleSchema.safeParse(rule);
+    if (!parsed.success) {
+      console.debug(
+        `[ObjectDataPage] Dropped URL filter on "${field}" from the saved view:` +
+          ` operator "${op}" has no canonical ViewFilterRule form.`,
+      );
+      continue;
+    }
+    rules.push(parsed.data);
+  }
+  return rules;
+}
+
+/**
+ * Assemble the list-view `spec` that "Save as view" hands to `viewEnvelope`.
+ *
+ * The whole producer step lives here rather than inline in the callback so it
+ * can be pinned against the real record gate (`ViewItemSchema`) without
+ * mounting the page and its provider stack — the fold above is only worth
+ * having if the code that PERSISTS actually goes through it, and a test on the
+ * fold alone would stay green if the call site went back to raw triples.
+ *
+ * `config` is the CreateViewDialog payload (`{ type, label, name, [type]:
+ * subConfig }`); `fallbackColumns` is this page's auto-derived, field-security
+ * trimmed column list, used only when the dialog carried none.
+ *
+ * Exported for `ObjectDataPage.saveAsViewFilterFold.test.ts`. @internal
+ */
+export function buildSaveAsViewSpec(
+  config: Record<string, any>,
+  fallbackColumns: string[],
+  urlFilters: FilterTriple[],
+): Record<string, any> {
+  const filterRules = foldUrlFilterTriplesToSpecRules(urlFilters);
+  return {
+    ...config,
+    columns:
+      Array.isArray(config.columns) && config.columns.length > 0 ? config.columns : fallbackColumns,
+    // An all-dropped fold writes no `filter` key at all, byte-identical to a
+    // save with no drill conditions active.
+    ...(filterRules.length ? { filter: filterRules } : {}),
+  };
+}
 
 export function ObjectDataPage({ dataSource, objects }: any) {
   const { appName, objectName } = useParams();
@@ -247,11 +356,10 @@ export function ObjectDataPage({ dataSource, objects }: any) {
   const handleSaveAsView = React.useCallback(
     async (config: Record<string, any> & { type: string; label: string }) => {
       try {
-        const spec: Record<string, any> = {
-          ...config,
-          columns: Array.isArray(config.columns) && config.columns.length > 0 ? config.columns : columns,
-          ...(urlFilters.length ? { filter: urlFilters } : {}),
-        };
+        // The URL conditions are folded into spec `ViewFilterRule`s on the way
+        // out (#3419). What renders this page is a runtime filter AST (triples);
+        // what gets PERSISTED must satisfy `ListViewSchema.filter`.
+        const spec: Record<string, any> = buildSaveAsViewSpec(config, columns, urlFilters);
         // #2767 P1: unified identity — the qualified `<object>.<key>` name is the
         // URL segment AND the body identity. #2767 P4: land on the new draft in
         // preview mode so it's visible and one click from Publish.
