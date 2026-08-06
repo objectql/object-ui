@@ -61,7 +61,7 @@ Seven jobs, all parallel — there are no `needs:` edges between them:
 | `test` | Test (shard N/4) | `pnpm test --shard=N/4` across a 4-runner matrix with `fail-fast: false`, so every shard reports its own failures. No coverage instrumentation — v8 adds 40–100% overhead. | **Pull requests only** |
 | `test-coverage` | Test (coverage) | One unsharded `pnpm test:coverage`, uploaded to Codecov. Nothing blocks on it, which is why it is not sharded. | **Push only** |
 | `e2e` | Build & E2E | Builds the console with `vite build` (`VITE_BASE_PATH=/console/`), verifies the artifact, then `pnpm test:e2e --project=chromium`. Uploads the Playwright report on failure. | Every run |
-| `docs` | Build Docs | `turbo run build --filter='@object-ui/site'`. On a PR it first diffs against the base and skips the build when nothing under `apps/site/` or `content/` changed. | Every run (build itself conditional) |
+| `docs` | Build Docs | `scripts/check-doc-links.mjs` (resolves every `/docs/...` markdown link against `content/docs/` — no install, no network), then `turbo run build --filter='@object-ui/site'`. On a PR it first diffs against the base and skips both when nothing under `apps/site/` or `content/` changed. | Every run (steps themselves conditional) |
 | `dev-server` | Dev-server fixture build | `pnpm --filter @object-ui/dev-server build` — guards `apps/dev-server`'s `objectstack.config.ts` against fixture / `@objectstack/spec` drift. | Every run |
 
 Uses: Node 22.x, pnpm via `corepack`, `actions/cache` over `.turbo/cache`.
@@ -216,6 +216,22 @@ Backend pins live in `e2e/live/ci/backend.env` and must match the `@objectstack/
 ## Link Checking (`check-links.yml`)
 
 **Trigger:** Manual workflow dispatch (`workflow_dispatch`).
+
+There are **two** link checkers, and they cover different things (objectui#3213):
+
+| | Covers | Network | Runs |
+|---|---|---|---|
+| `scripts/check-doc-links.mjs` | **Internal** `/docs/...` routes, resolved against `content/docs/` | No | In `ci.yml`'s `docs` job — see the job table above |
+| Lychee (this workflow) | **External** URLs in `docs/` and `README.md` | Yes | Manual dispatch only |
+
+Note the asymmetry in what Lychee scans: `docs/` holds internal material (ADRs, audits,
+architecture notes), while the published site is built from `content/docs/`. Lychee therefore does
+not currently see the site's own pages.
+
+Two known gaps are tracked rather than silently lived with: `ci.yml` lists `content/**` under
+`paths-ignore` and GitHub has no per-job path filter, so a **docs-only** PR does not start `ci.yml`
+and is not link-checked (objectui#3448); and Lychee's scan scope predates the move to
+`content/docs/` (objectui#3449).
 
 Uses [Lychee](https://github.com/lycheeverse/lychee) with configuration from `lychee.toml`:
 - Scans markdown files in `docs/` and `README.md`
