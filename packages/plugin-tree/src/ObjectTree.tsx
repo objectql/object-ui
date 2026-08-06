@@ -23,8 +23,33 @@ import React, { useEffect, useMemo, useState } from 'react';
 import type { DataSource, ViewData } from '@object-ui/types';
 import { useNavigationOverlay, useSafeFieldLabel } from '@object-ui/react';
 import { NavigationOverlay, cn } from '@object-ui/components';
+import { createSafeTranslation } from '@object-ui/i18n';
 import { extractRecords, buildExpandFields, columnIdentity } from '@object-ui/core';
 import { ChevronRight, ChevronDown } from 'lucide-react';
+
+/**
+ * English fallback for the record-detail overlay heading this tree opens on row
+ * click (objectui#3459, following #3426's shape).
+ *
+ * Borrowed from the `detail.*` namespace rather than minted as
+ * `tree.recordDetail`: `NavigationOverlay` already resolves
+ * `detail.recordDetail` for hosts that pass no title, and one heading on one
+ * control should not get two translations that can drift apart. The entry must
+ * exist HERE too — a provider-less host (a standalone tree, this package's own
+ * tests) never reaches the locale packs.
+ *
+ * It doubles as the `createSafeTranslation` probe key: with a provider mounted
+ * it resolves to a real pack value, without one it comes back as the key and
+ * the map below supplies the English.
+ */
+const TREE_DEFAULT_TRANSLATIONS: Record<string, string> = {
+  'detail.recordDetail': 'Record Detail',
+};
+
+const useTreeTranslation = createSafeTranslation(
+  TREE_DEFAULT_TRANSLATIONS,
+  'detail.recordDetail',
+);
 
 export interface ObjectTreeProps {
   schema: any;
@@ -356,6 +381,10 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
     onRowClick,
   });
 
+  // Heading of the record-detail overlay rendered at the bottom of this file.
+  // Must stay above the conditional returns below — rules-of-hooks.
+  const { t } = useTreeTranslation();
+
   if (error) {
     return (
       <div className={cn('flex items-center justify-center h-40 text-destructive', className)}>
@@ -450,7 +479,15 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
       </table>
 
       {navigation.isOverlay && (
-        <NavigationOverlay {...navigation} title="Record Details">
+        /* Keyed, not a bare literal (objectui#3459). This value is handed to
+           `NavigationOverlay`'s `title` prop, so the overlay's own
+           `detail.recordDetail` default never applies here — whatever this
+           resolves to IS the visible heading of the drawer/modal/split/popover.
+           Reusing that very key rather than minting a twin keeps one control on
+           one translation. Visible English changes `Record Details` →
+           `Record Detail` (the singular the whole `detail.*` family already
+           spells); nothing in `e2e/` or the unit suites addressed the plural. */
+        <NavigationOverlay {...navigation} title={t('detail.recordDetail')}>
           {(record) => (
             <div className="space-y-3">
               {Object.entries(record).map(([key, value]) => (

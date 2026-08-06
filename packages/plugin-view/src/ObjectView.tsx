@@ -55,7 +55,7 @@ import {
   useIsMobile,
 } from '@object-ui/components';
 import { Plus } from 'lucide-react';
-import { useObjectTranslation } from '@object-ui/i18n';
+import { useObjectTranslation, createSafeTranslation } from '@object-ui/i18n';
 import { buildExpandFields, normalizeListViewSchema, mergeFilterNodes } from '@object-ui/core';
 import { SchemaRenderer as ImportedSchemaRenderer } from '@object-ui/react';
 import { ViewSwitcher } from './ViewSwitcher';
@@ -83,6 +83,31 @@ function useCreateVerb(): string {
   const value = t('console.objectView.new');
   return value === 'console.objectView.new' ? 'New' : value;
 }
+
+/**
+ * English fallback for the split-mode record-detail heading (objectui#3459,
+ * following #3426's shape).
+ *
+ * Borrowed from the `detail.*` namespace rather than minted as
+ * `view.recordDetail`: `NavigationOverlay` — the very component this heading is
+ * handed to — already resolves that namespace, as do `ListView` / `ObjectGrid`
+ * / `ObjectKanban` / `ObjectTree`, and one heading on one control should not
+ * get several translations that can drift apart. The entry must exist HERE too
+ * — a provider-less host never reaches the locale packs, and
+ * `createSafeTranslation`'s fallback is what interpolates `{{label}}`.
+ *
+ * It doubles as the probe key: under a provider `t()` returns the pack's
+ * template (≠ the key) so the real translator is used; with no provider the key
+ * comes back unchanged and this map supplies the English.
+ */
+const VIEW_DEFAULT_TRANSLATIONS: Record<string, string> = {
+  'detail.recordDetailWithLabel': '{{label}} Detail',
+};
+
+const useObjectViewTranslation = createSafeTranslation(
+  VIEW_DEFAULT_TRANSLATIONS,
+  'detail.recordDetailWithLabel',
+);
 
 export interface ObjectViewProps {
   /**
@@ -246,6 +271,10 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   onViewAction,
 }) => {
   const createVerb = useCreateVerb();
+  // Heading of the split-mode record-detail panel (see the split branch far
+  // below). Declared with the other top-level hooks so it stays above every
+  // conditional return — rules-of-hooks.
+  const { t: tDetail } = useObjectViewTranslation();
   const [objectSchema, setObjectSchema] = useState<Record<string, unknown> | null>(null);
   // Assigned in the render body (not in an effect) so the fetchData effect always
   // reads the latest objectSchema without needing it as a dependency. This matches
@@ -1150,7 +1179,16 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
               setIsOpen={handleOverlayOpenChange}
               width={navigationConfig?.width}
               isOverlay={true}
-              title={`${objectLabel} Detail`}
+              /* Keyed, not string-built (objectui#3459). This value is handed
+                 to `NavigationOverlay`'s `title` prop, so the overlay's own
+                 `detail.recordDetail` default never applies — whatever this
+                 resolves to IS the visible `h3` heading of the split panel.
+                 Interpolating through `detail.recordDetailWithLabel` instead of
+                 splicing the label into an English template lets each pack
+                 choose its own word order (de hyphenates, ja/zh need a
+                 possessive particle). English output is byte-identical
+                 (`Contacts Detail`), with or without an `I18nProvider`. */
+              title={tDetail('detail.recordDetailWithLabel', { label: objectLabel })}
               mainContent={<div className="h-full overflow-auto">{renderContent()}</div>}
             >
               {renderOverlayDetail}

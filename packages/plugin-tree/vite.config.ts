@@ -47,6 +47,7 @@ export default defineConfig({
           'react-dom': 'ReactDOM',
           '@object-ui/components': 'ObjectUIComponents',
           '@object-ui/core': 'ObjectUICore',
+          '@object-ui/i18n': 'ObjectUII18n',
           '@object-ui/react': 'ObjectUIReact',
           '@object-ui/types': 'ObjectUITypes',
           'lucide-react': 'LucideReact',

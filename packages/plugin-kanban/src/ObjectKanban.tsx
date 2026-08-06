@@ -17,11 +17,43 @@ import {
   isPermissionError,
 } from '@object-ui/react';
 import { toast } from '@object-ui/components';
+import { createSafeTranslation } from '@object-ui/i18n';
 import { RecordDetailDrawer, deriveRecordPageHref } from '@object-ui/plugin-detail';
 import { extractRecords, buildExpandFields, getRecordDisplayName } from '@object-ui/core';
 import { getBadgeColorClasses, getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
 import { KanbanRenderer, KANBAN_UNCOLUMNED_ID } from './index';
 import { KanbanSchema } from './types';
+
+/**
+ * English fallbacks for the record-detail drawer heading this board opens on
+ * card click (objectui#3459, following #3426's shape).
+ *
+ * The two entries are borrowed from the `detail.*` namespace rather than minted
+ * as `kanban.recordDetail`: `NavigationOverlay` and `ListView`/`ObjectGrid`
+ * already resolve exactly these, and one heading on one control should not get
+ * several translations that can drift apart. They must exist HERE too — a
+ * provider-less host (a standalone board, this package's own tests) never
+ * reaches the locale packs, and `createSafeTranslation`'s fallback interpolates
+ * `{{label}}` from this map.
+ *
+ * `useSafeTranslate` (the `tt` used elsewhere in this file) cannot serve the
+ * labelled branch: its `tt(key, fallback)` signature has no options argument,
+ * so `{{label}}` would reach the DOM un-interpolated.
+ */
+const KANBAN_DEFAULT_TRANSLATIONS: Record<string, string> = {
+  'detail.recordDetail': 'Record Detail',
+  'detail.recordDetailWithLabel': '{{label}} Detail',
+};
+
+/**
+ * Safe wrapper for useObjectTranslation that falls back to the English defaults
+ * above when no `I18nProvider` is mounted (standalone board, tests).
+ * Delegates to `@object-ui/i18n`'s `createSafeTranslation`.
+ */
+const useKanbanTranslation = createSafeTranslation(
+  KANBAN_DEFAULT_TRANSLATIONS,
+  'detail.recordDetail',
+);
 
 /**
  * Minimal shape of the object definition this module reads. `objectDef` is
@@ -91,6 +123,9 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
   void _props;
   const { translateOptions, fieldLabel } = useSafeFieldLabel();
   const tt = useSafeTranslate();
+  // Separate from `tt` because the record-detail heading interpolates a label —
+  // see KANBAN_DEFAULT_TRANSLATIONS above.
+  const { t } = useKanbanTranslation();
   // When a parent (e.g. ListView) pre-fetches data and passes it via the `data` prop,
   // we must not trigger a second fetch. Detect external data by checking if externalData
   // is an array (undefined when not provided by parent).
@@ -500,10 +535,31 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
     onRowClick: externalClick,
   });
 
-  // Pass through to the renderer
+  // Fallback heading of the record-detail drawer opened on card click, used
+  // when the board declares no card-title field (or the record's is empty).
+  //
+  // Keyed, not string-built (objectui#3459, same shape as #3426). The value is
+  // handed to `RecordDetailDrawer`'s required `title` prop, which renders it as
+  // the drawer's `SheetTitle`. That heading is `sr-only` — DetailView's own
+  // HeaderHighlight draws the visible one — so this string IS the drawer's
+  // accessible name to a screen reader, and it was the one English phrase left
+  // in an otherwise fully localized zh/ja/de drawer.
+  //
+  // English output of the first branch is byte-identical (`Tasks Detail`),
+  // including with no `I18nProvider` mounted.
+  //
+  // The second branch is currently UNREACHABLE and deliberately has no test:
+  // it fires only when `schema.objectName` is falsy, but the drawer below bails
+  // on the very same condition (`if (!objectName || recordId == null) return
+  // null`), so nothing renders. It is keyed anyway rather than left as a
+  // literal — `'Card Details'` would be an English leak the day that guard
+  // relaxes, and reusing `detail.recordDetail` (the key NavigationOverlay
+  // itself defaults to) costs nothing and normalizes the stray plural.
   const detailTitle = schema.objectName
-    ? `${schema.objectName.charAt(0).toUpperCase() + schema.objectName.slice(1).replace(/_/g, ' ')} Detail`
-    : 'Card Details';
+    ? t('detail.recordDetailWithLabel', {
+        label: schema.objectName.charAt(0).toUpperCase() + schema.objectName.slice(1).replace(/_/g, ' '),
+      })
+    : t('detail.recordDetail');
 
   // Persist cross-column drags by writing the new column id back to the
   // record's `groupBy` field. Local state is updated optimistically so the
