@@ -1,7 +1,46 @@
 name: Check Links
 
+# Lychee is the EXTERNAL link checker. It makes real network requests and is
+# flaky by nature. Site-internal routes (`/docs/...`) are a different problem
+# with a different tool — `scripts/check-doc-links.mjs`, run by
+# `docs-links.yml`, which reads the checkout and nothing else and is therefore
+# the one that gates pull requests. The two are complementary, not redundant;
+# do not move either one's job onto the other.
+#
+# The scan scope below (`args`) was wrong until #3449: it listed only the
+# repo-root `docs/**`, which holds 15 INTERNAL documents (ADRs, audits), while
+# the 183 files the published site is built from live in `content/docs/**`
+# (`apps/site/source.config.ts`: `dir: '../../content/docs'`, baseUrl `/docs`).
+# This workflow had therefore never scanned a single published page — it was
+# green because of what it was not looking at.
+# `scripts/__tests__/check-links-workflow.test.ts` pins the scope to the
+# directory the site config itself declares: if the content tree moves again
+# that test turns red, instead of this workflow silently going blind a second
+# time.
+
 on:
   workflow_dispatch:
+
+  # Weekly sweep, Sundays at 04:17 UTC.
+  #
+  # The PR that fixed #3213 deliberately did NOT add a cron, and it was right to
+  # hold off: with the scope pointed at the wrong tree, a schedule only turns
+  # one false-green report into a periodically produced false-green report. Now
+  # that the scope is correct, #3213's ruling-B intent — a periodic sweep — is
+  # real, so the schedule lands in the same change that makes it meaningful.
+  #
+  # Timing: off the top of the hour, because GitHub's scheduled-workflow queue
+  # is most congested (and most delayed) at :00; Sunday because that is when the
+  # repo contends least for runners.
+  schedule:
+    - cron: '17 4 * * 0'
+
+  # ⛔ Do NOT enable the two triggers below — #3213's ruling B still stands.
+  # An external link check goes over the network: one 502, rate-limit or
+  # anti-scraping response from a third-party site turns an unrelated pull
+  # request red, and its author can do nothing about it. `schedule` +
+  # `workflow_dispatch` do not have that problem: this workflow blocks nobody,
+  # so flakiness costs a second look and nothing else.
   # push:
   #   branches:
   #     - main
@@ -17,11 +56,20 @@ jobs:
       - name: Check links with Lychee
         uses: lycheeverse/lychee-action@v2
         with:
-          # Scan all markdown files in docs directory and README
+          # Both trees:
+          #   content/docs/** — the published site's documentation (the fumadocs
+          #     content source). Never scanned before #3449; the whole point.
+          #   docs/**, README.md — the repo-root internal material (ADRs,
+          #     audits). Their external links are worth sweeping too and cost
+          #     nothing extra, so they stay.
+          # Site-absolute routes (`/docs/...`) are NOT judged here — see the
+          # `root_dir` section of lychee.toml.
           args: |
             --verbose
             --no-progress
             --config lychee.toml
+            'content/docs/**/*.md'
+            'content/docs/**/*.mdx'
             'docs/**/*.md'
             'docs/**/*.mdx'
             'README.md'

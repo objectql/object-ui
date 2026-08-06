@@ -38,7 +38,7 @@ one has its own section below.
 | `changelog.yml` | Auto Changelog | GitHub Release published; manual | n/a |
 | `stale.yml` | Stale Issues & PRs | Daily cron `0 0 * * *`; manual | n/a |
 | `shadcn-check.yml` | Check Shadcn Components | Weekly cron `0 9 * * 1`; manual | n/a |
-| `check-links.yml` | Check Links | Manual dispatch only | n/a |
+| `check-links.yml` | Check Links | Weekly cron `17 4 * * 0`; manual | n/a — reports, never gates |
 
 The path filters explain most "why did nothing run on my PR?" questions:
 
@@ -280,29 +280,38 @@ checked as *routes*, so `/docs/guide/foo` is what belongs in the markdown, not
 
 ## Link Checking (`check-links.yml`)
 
-**Trigger:** Manual workflow dispatch (`workflow_dispatch`).
+**Trigger:** Weekly cron (`17 4 * * 0` — Sundays, off the top of the hour, when the scheduled-run
+queue is shortest) plus manual workflow dispatch.
 
 There are **two** link checkers, and they cover different things (objectui#3213):
 
 | | Covers | Network | Runs |
 |---|---|---|---|
 | `scripts/check-doc-links.mjs` | **Internal** `/docs/...` routes, resolved against `content/docs/` | No | `docs-links.yml` — every push and PR, no path filter (previous section) |
-| Lychee (this workflow) | **External** URLs in `docs/` and `README.md` | Yes | Manual dispatch only |
+| Lychee (this workflow) | **External** URLs, plus **relative** in-repo file links, in `content/docs/`, `docs/` and `README.md` | Yes | Weekly cron and manual dispatch |
 
-Note the asymmetry in what Lychee scans: `docs/` holds internal material (ADRs, audits,
-architecture notes), while the published site is built from `content/docs/`. Lychee therefore does
-not currently see the site's own pages.
+Lychee sweeps **both** documentation trees: `content/docs/` (the 183 pages the site publishes) and
+the repo-root `docs/` (15 files of internal material — ADRs, audits, architecture notes) plus
+`README.md`. Until objectui#3449 it scanned only the latter, so no published page had ever been
+link-checked; the workflow was green about a tree almost nobody reads.
+`scripts/__tests__/check-links-workflow.test.ts` now derives the expected scope from
+`apps/site/source.config.ts`, so moving the content tree turns that test red instead of quietly
+blinding the sweep again.
 
-One known gap remains tracked rather than silently lived with: Lychee's scan scope predates the
-move to `content/docs/` (objectui#3449), so **external** URLs on the published site's own pages are
-checked by nothing. The gap that used to sit beside it — docs-only PRs never being link-checked,
-because `ci.yml` ignores `content/**` — is closed: that check is now `docs-links.yml` (objectui#3448).
+It is deliberately **not** a PR gate (objectui#3213). External link checking goes over the network,
+and one 502 or rate-limit from a third-party site would redden a pull request whose author can do
+nothing about it. The cron was added only once the scope was correct: a schedule pointed at the
+wrong tree just produces a false-green report on a timer.
 
 Uses [Lychee](https://github.com/lycheeverse/lychee) with configuration from `lychee.toml`:
-- Scans markdown files in `docs/` and `README.md`
+- Scans `content/docs/**/*.{md,mdx}`, `docs/**/*.{md,mdx}` and `README.md`
 - Max concurrency: 10, timeout: 20s, retries: 3
 - Excludes: localhost, example.com, Twitter/X, GitHub compare/commit URLs
-- Remaps internal `/docs/*` paths to `file://./docs/*` for local resolution
+- Skips **site-absolute** routes (`/docs/...`, `/api/...`): Lychee cannot resolve extensionless
+  fumadocs routes, and without handling it fails them while building the URI — before `exclude` is
+  even consulted. `root_dir` therefore resolves them into a sentinel namespace that is then
+  excluded wholesale. Judging those routes is `check-doc-links.mjs`'s job, and duplicating its
+  route-to-file mapping here would only create a second copy free to drift.
 
 ## Release Workflows
 

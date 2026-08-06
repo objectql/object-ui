@@ -1,6 +1,11 @@
 # Lychee configuration file for ObjectUI documentation link checking
-# This configuration enables checking internal fumadocs links by mapping
-# Next.js routes (e.g., /docs/guide) to filesystem paths (e.g., docs/guide.mdx)
+# (used by `.github/workflows/check-links.yml` — schedule + workflow_dispatch).
+#
+# Lychee checks two classes of link here: EXTERNAL URLs, and RELATIVE in-repo
+# file links (`docs/**` links into `../../packages/**` source files rely on
+# that). Site-ABSOLUTE routes — `/docs/...`, `/api/...`, `/protocol/...` — are
+# not its job; those belong to `scripts/check-doc-links.mjs`, run by
+# `docs-links.yml`. See the `root_dir` section below.
 
 # Maximum number of concurrent requests
 max_concurrency = 10
@@ -19,28 +24,60 @@ exclude = [
     # Local development URLs
     "http://localhost*",
     "https://localhost*",
-    
+
     # Example and placeholder URLs
     "https://example.com",
     "http://example.com",
-    
+
     # Social media (anti-scraping)
     "https://twitter.com*",
     "https://x.com*",
-    
+
     # GitHub specific patterns that may cause false positives
     "https://github.com/.*/compare/*",
     "https://github.com/.*/commit/*",
+
+    # Site-absolute routes, resolved into the sentinel namespace by `root_dir`
+    # below and skipped wholesale here. Rationale: see `root_dir`.
+    "^file:///__site-routes-not-on-disk__/",
 ]
 
-# Path remapping for fumadocs internal links
-# Maps Next.js routes to actual file paths
-# Format: ["pattern to match", "replacement"]
-remap = [
-    # Map /docs/* links to docs/ filesystem paths
-    # The file:// prefix tells lychee to check local files
-    "^/docs/(.*)$ file://./docs/$1"
-]
+# Why site-absolute routes (`/docs/...`) are handled this way
+#
+# When a local file contains an absolute-path link, Lychee without a `root_dir`
+# reports a HARD error:
+#   [ERROR] Cannot resolve root-relative link '/docs/plugins':
+#           To resolve root-relative links in local files, provide a root dir
+# and that failure happens while the URI is being constructed, BEFORE the
+# exclude filter runs — adding `^/docs` or `^/` to `exclude` is measurably a
+# no-op: the errors are still reported and the exit code is still 2.
+# `content/docs/**` contains 297 such links, so once #3449 widened the scan to
+# `content/docs`, leaving them unhandled would make this workflow red from its
+# very first run — trading a false-green report on the wrong tree for a
+# false-red one on the right tree, which is no better.
+#
+# So: `root_dir` resolves site-absolute routes into a sentinel namespace that
+# does not exist on disk, and the exclude entry above skips that namespace
+# entirely. `root_dir` must be an absolute path, and the repository's absolute
+# path differs between a local checkout and a runner, so it can only be a
+# repo-independent constant — the sentinel is forced by that constraint, not
+# chosen for cuteness. Expect one line of output per run:
+#   [WARN] Root dir '/__site-routes-not-on-disk__' does not exist
+# That is intended; the directory is not supposed to exist, and its name is the
+# explanation.
+#
+# Why not have Lychee resolve these routes properly instead: fumadocs routes
+# carry no extension (`/docs/guide/data-source` -> `content/docs/guide/
+# data-source.md`), so judging them needs a real route-to-file mapping. That
+# mapping already exists — `scripts/check-doc-links.mjs` — and a second copy
+# here would only be a second copy free to drift from the first.
+#
+# (This section replaced `remap = ["^/docs/(.*)$ file://./docs/$1"]`, which had
+#  never once fired: `remap` operates on an already-parsed URL, and `/docs/x`
+#  fails to parse before it ever reaches remapping. Its replacement target was
+#  wrong twice over anyway — no extension, and pointing at the internal `docs/`
+#  rather than the site's `content/docs/`.)
+root_dir = "/__site-routes-not-on-disk__"
 
 # Cache configuration
 # Don't use cache to ensure fresh results
