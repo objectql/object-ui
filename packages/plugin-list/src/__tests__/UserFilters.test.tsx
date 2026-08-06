@@ -114,8 +114,12 @@ describe('UserFilters — selection persistence (ADR-0047)', () => {
       />,
     );
 
-    // Restored tab wins over the isDefault tab and emits its preset filter
-    expect(onFilterChange).toHaveBeenCalledWith([['priority', '=', 'urgent']]);
+    // Restored tab wins over the isDefault tab and emits its preset filter.
+    // The operator stays the spec's canonical `equals` — lowering a rule to an
+    // AST node is structural and translates nothing (#3470); `equals` is itself
+    // a `VALID_AST_OPERATORS` member, measured 200 on a live backend. Operator
+    // coverage proper lives in `UserFilters.tabPresetOperators.test.tsx`.
+    expect(onFilterChange).toHaveBeenCalledWith([['priority', 'equals', 'urgent']]);
   });
 
   it('reports tab switches through onSelectionsChange', () => {

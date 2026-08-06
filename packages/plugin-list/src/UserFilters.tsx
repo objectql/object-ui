@@ -10,6 +10,7 @@ import * as React from 'react';
 import { cn, Button, Popover, PopoverContent, PopoverTrigger, LookupValuePicker } from '@object-ui/components';
 import { ChevronDown, X, Plus } from 'lucide-react';
 import type { ListViewSchema } from '@object-ui/types';
+import { normalizeFilterOperator } from '@objectstack/spec/ui';
 import { useSafeFieldLabel, useObjectTranslation } from '@object-ui/i18n';
 
 function useMoreLabel(): string {
@@ -97,30 +98,51 @@ export interface UserFiltersProps {
 }
 
 /**
- * Map @objectstack/spec ViewFilterRule operators to ObjectQL AST operators.
- * Accepts the canonical vocabulary (`greater_than`, `not_equals`, `before`, …)
- * that the Studio filter builder now writes, plus legacy shorthand spellings
- * (`gt`, `eq`, `nin`) still present in already-stored view metadata.
- */
-function specOperatorToAst(op: string | undefined): string {
-  switch (op) {
-    case undefined: case 'equals': case 'eq': return '=';
-    case 'not_equals': case 'ne': case 'neq': return '!=';
-    case 'greater_than_or_equal': case 'gte': return '>=';
-    case 'less_than_or_equal': case 'lte': return '<=';
-    case 'greater_than': case 'gt': case 'after': return '>';
-    case 'less_than': case 'lt': case 'before': return '<';
-    case 'not_contains': return 'notcontains';
-    case 'starts_with': return 'startswith';
-    case 'not_in': case 'nin': return 'not in';
-    default: return op;
-  }
-}
-
-/**
  * Normalize tab presets to the client shape. Accepts both:
  * - @objectstack/spec ViewTab: `{ name, label, filter: ViewFilterRule[], isDefault }`
  * - legacy client shape: `{ id, label, filters: triplet[], default }`
+ *
+ * **The spec rule → AST lowering is purely structural**, and deliberately owns
+ * NO operator table of its own (#3470). All 19 `VIEW_FILTER_OPERATORS` are
+ * already members of the wire's `VALID_AST_OPERATORS`, so nothing needs
+ * translating; only the legacy spellings stored view metadata still carries
+ * (`gt`, `eq`, `nin`, `notEquals`, …) need folding onto the canonical word, and
+ * that is exactly what the spec's OWN {@link normalizeFilterOperator} does —
+ * the same single exit the WRITE side uses (`app-shell/views/viewFilterFold.ts`)
+ * and the same one `@object-ui/core`'s `viewFilterRuleToNode` uses for a saved
+ * view's `filter` (#3431). One exit, so the directions cannot drift apart.
+ *
+ * The private table this replaced was the second hand-kept operator map in this
+ * package, and it had drifted: it lowered `not_in`/`nin` to the SPACED
+ * `'not in'`, which is in no spec vocabulary — `isFilterAST()` refuses it and
+ * the wire answers `400 INVALID_FILTER`. Measured against a real backend
+ * (published `@objectstack/*@17.0.0-rc.2` + app-showcase, `showcase_task`):
+ * `[["status","not in",["done"]]]` → **400 INVALID_FILTER**;
+ * `[["status","not_in",["done"]]]` → **200, 8 rows** (same rows as the
+ * `["status","!=","done"]` baseline). Every other operator the old table
+ * rewrote was measured to be a no-op on the answer — see below.
+ *
+ * **`before`/`after` are passed through, not mapped** (the one judgement call
+ * this change had to make: the old table rewrote them to `<`/`>`, and both
+ * words are themselves `VALID_AST_OPERATORS` members). Measured on the same
+ * backend, on a `date` field and a `datetime` field, both directions —
+ * identical status AND identical record ids:
+ *
+ *   `["due_date","before","2026-08-01"]`               → 200, 2 rows
+ *   `["due_date","<","2026-08-01"]`                    → 200, the SAME 2 rows
+ *   `["due_date","after","2026-08-01"]`                → 200, 8 rows
+ *   `["due_date",">","2026-08-01"]`                    → 200, the SAME 8 rows
+ *   `["created_at","before","2026-08-01T00:00:00.000Z"]` → 200, 6 rows  (`<` idem)
+ *   `["created_at","after","2026-08-01T00:00:00.000Z"]`  → 200, 3 rows  (`>` idem)
+ *
+ * So dropping that rewrite is a pure fix, not a behaviour change. (The spec
+ * agrees independently: `canonicalAstOperator('before')` is `'<'`.)
+ *
+ * An operator the spec does not know is passed through **verbatim**, so
+ * `isFilterAST()` still refuses it and the server still answers a loud `400`.
+ * A misspelling must never be coerced into a valid operator (AGENTS.md #0.1):
+ * silently reading `bfore` as `before` would return a plausible-looking wrong
+ * record set instead of an error the author can see.
  */
 function normalizeTabPresets(tabs: any[]): Array<{ id: string; label: string; filters: any[]; default?: boolean }> {
   return (tabs || [])
@@ -133,7 +155,7 @@ function normalizeTabPresets(tabs: any[]): Array<{ id: string; label: string; fi
         : (Array.isArray(t.filter)
             ? t.filter
                 .filter((r: any) => r && typeof r.field === 'string')
-                .map((r: any) => [r.field, specOperatorToAst(r.operator), r.value])
+                .map((r: any) => [r.field, normalizeFilterOperator(r.operator), r.value])
             : []),
       default: t.default ?? t.isDefault,
     }));
