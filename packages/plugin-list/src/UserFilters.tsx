@@ -143,6 +143,17 @@ export interface UserFiltersProps {
  * A misspelling must never be coerced into a valid operator (AGENTS.md #0.1):
  * silently reading `bfore` as `before` would return a plausible-looking wrong
  * record set instead of an error the author can see.
+ *
+ * That applies to a rule which OMITS the operator too, and it is the one place
+ * this is a deliberate behaviour change rather than a pure fix. The deleted
+ * table opened with `case undefined: … return '='`, inventing an equality
+ * predicate for a rule that has no operator at all. `ViewFilterRuleSchema`
+ * REQUIRES `operator` (it is a bare `z.enum`, no default — an operator-less rule
+ * fails `safeParse` with `invalid_value`), so such a rule is off-spec metadata
+ * that publish validation refuses; silently answering it with `field = value`
+ * was a lenient consumer standing in for the contract. It now lowers to
+ * `[field, undefined, value]`, which `isFilterAST()` refuses — the same loud
+ * `400` every other off-spec spelling gets.
  */
 function normalizeTabPresets(tabs: any[]): Array<{ id: string; label: string; filters: any[]; default?: boolean }> {
   return (tabs || [])

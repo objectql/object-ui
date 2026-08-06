@@ -38,6 +38,7 @@ import { isFilterAST, VALID_AST_OPERATORS } from '@objectstack/spec/data';
 import {
   VIEW_FILTER_OPERATORS,
   VIEW_FILTER_OPERATOR_ALIASES,
+  ViewFilterRuleSchema,
   normalizeFilterOperator,
 } from '@objectstack/spec/ui';
 import { UserFilters } from '../UserFilters';
@@ -155,6 +156,27 @@ describe('UserFilters tab presets — lowering is structural, not translated', (
     const node = emitFor({ field: 'due_date', operator: 'bfore', value: '2026-08-01' });
     expect(node).toEqual([['due_date', 'bfore', '2026-08-01']]);
     expect(isFilterAST(node)).toBe(false);
+  });
+
+  it('refuses to invent `=` for a rule that omits the operator', () => {
+    // The ONE deliberate behaviour change in #3470, and the only assertion here
+    // whose "before" was a passing 200 rather than a 400. The deleted table
+    // opened with `case undefined: … return '='`, so `{field, value}` with no
+    // operator lowered to `['status','=','x']` — accepted by isFilterAST, and
+    // answered by the server as a real equality predicate.
+    //
+    // `ViewFilterRuleSchema` REQUIRES `operator` (bare z.enum, no default), so
+    // that rule is off-spec metadata publish validation refuses. Inventing an
+    // answer for it was a lenient consumer standing in for the contract
+    // (AGENTS.md #0.1); it now earns the same loud 400 as any other off-spec
+    // spelling.
+    expect(ViewFilterRuleSchema.safeParse({ field: 'status', value: 'x' }).success).toBe(false);
+
+    const node = emitFor({ field: 'status', value: 'x' });
+    expect(isFilterAST(node)).toBe(false);
+    // What the old table would have produced, for contrast — accepted, and so
+    // silently answered as `status = 'x'`.
+    expect(isFilterAST([['status', '=', 'x']])).toBe(true);
   });
 
   it('leaves an already-lowered legacy `filters` triplet list untouched', () => {
