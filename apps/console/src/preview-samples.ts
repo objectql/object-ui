@@ -49,6 +49,18 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
   page: {
     name: 'crm_welcome',
     label: 'CRM Welcome',
+    // Declared, NOT defaulted (objectui#3454). `PageSchema.type` is
+    // `PageTypeSchema.default('record')`, so omitting it does not mean
+    // "unspecified" — it materialises this welcome screen as a RECORD page
+    // bound to no object (`object` is optional, so nothing complains). The app
+    // sample below routes this very page as the CRM's landing entry
+    // (`navigation[0]` = `{ id: 'home', type: 'page', pageName: 'crm_welcome' }`),
+    // so `home` is the kind it is actually used as. Spelling it out is what
+    // makes the sample mean what it demonstrates: the gallery renders the
+    // unparsed draft and would never have shown the difference, but these
+    // samples are copied — increasingly by models generating metadata — and a
+    // landing page that silently defaults to `record` propagates as such.
+    type: 'home',
     regions: [
       {
         name: 'main',

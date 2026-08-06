@@ -224,6 +224,18 @@ function issuesFor(type: string): { path: string; message: string }[] {
     .map((issue) => ({ path: issue.path.join('.'), message: issue.message }));
 }
 
+/**
+ * The `page` sample as the spec actually MATERIALISES it — i.e. after defaults
+ * are applied, not as authored. Parsing is the only way to see a defaulted key:
+ * reading `SAMPLES.page.type` shows what the author wrote, which is precisely
+ * the blind spot objectui#3454 was filed for.
+ */
+function parsedPage(): Record<string, unknown> {
+  const result = ObjectStackSchema.safeParse({ pages: [SAMPLES.page] });
+  if (!result.success) throw new Error('page sample no longer parses');
+  return (result.data as { pages: Record<string, unknown>[] }).pages[0];
+}
+
 describe('preview-samples conform to @objectstack/spec', () => {
   // Without this, a sample added to the gallery tomorrow would be validated by
   // nothing and no test would notice — the exact failure mode this file exists
@@ -240,6 +252,33 @@ describe('preview-samples conform to @objectstack/spec', () => {
 
   it.each(SPEC_CLEAN)('%s sample is valid metadata', (type) => {
     expect(issuesFor(type)).toEqual([]);
+  });
+
+  /**
+   * objectui#3454 — the page sample must declare the page KIND it is used as.
+   *
+   * Being valid is not the same as meaning what it says. `PageSchema.type` is
+   * `PageTypeSchema.default('record')`, so a page that omits `type` parses
+   * clean and MATERIALISES as a record page — one bound to no object, since
+   * `object` is optional. This sample is not a record page: the `app` sample in
+   * the same file routes it as the CRM's landing entry
+   * (`navigation[0] = { id: 'home', type: 'page', pageName: 'crm_welcome' }`),
+   * and its content is a welcome header with quick links.
+   *
+   * The mismatch is invisible in the gallery, which renders the UNPARSED draft
+   * — so nothing would ever have gone red over it. It matters because these
+   * samples are the worked example an author (increasingly, a model generating
+   * metadata) copies: a landing page silently defaulting to `record` is wrong
+   * semantics propagating from the file that exists to demonstrate right ones.
+   *
+   * Asserted on the PARSED value, not the authored literal, because the defect
+   * lives in the default: only the parse distinguishes "declared `home`" from
+   * "omitted, therefore `record`". Deleting the sample's `type` line turns this
+   * red with the received value `'record'`.
+   */
+  it('page sample declares `home`, the kind the app sample routes it as', () => {
+    expect(parsedPage().type).toBe('home');
+    expect(SAMPLES.page.type).toBe('home');
   });
 
   // Reverse assertion (same shape as objectui#3212): a ledger nobody re-checks
