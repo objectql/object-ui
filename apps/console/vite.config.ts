@@ -7,8 +7,14 @@ import type { Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import fs from 'fs';
-import { viteCryptoStub } from '../../scripts/vite-crypto-stub';
-import { viteMaplibreWorker } from '../../scripts/vite-maplibre-worker';
+// Relative specifiers carry their real file extension, and `__dirname` is
+// spelled `import.meta.dirname` throughout this file, so the config stays
+// loadable by Vite's `configLoader: 'native'` — which imports this file with
+// Node's own ESM loader. Node does no extension guessing and defines no
+// `__dirname` in ESM, so the pre-Vite-8 spellings would fail outright the day
+// `native` becomes the default loader (objectui#3384).
+import { viteCryptoStub } from '../../scripts/vite-crypto-stub.ts';
+import { viteMaplibreWorker } from '../../scripts/vite-maplibre-worker.ts';
 import { compression } from 'vite-plugin-compression2';
 import { visualizer } from 'rollup-plugin-visualizer';
 
@@ -53,7 +59,7 @@ function preloadCriticalChunks(): Plugin {
  * Non-blocking — silently skips when the directory doesn't exist.
  */
 function serveRuntimeAssets(): Plugin {
-  const ASSETS_DIR = path.resolve(__dirname, '../../../../runtime/assets');
+  const ASSETS_DIR = path.resolve(import.meta.dirname, '../../../../runtime/assets');
   const MIME: Record<string, string> = {
     '.png': 'image/png', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg',
     '.jpeg': 'image/jpeg', '.ico': 'image/x-icon', '.webp': 'image/webp',
@@ -108,42 +114,42 @@ const isCI = !!(process.env.VERCEL || process.env.CI);
 // Workspace src/ aliases — gives instant HMR in dev and ensures correct
 // side-effect resolution (plugin registrations) in production builds.
 const workspaceAliases: Record<string, string> = {
-  '@object-ui/components': path.resolve(__dirname, '../../packages/components/src'),
-  '@object-ui/core': path.resolve(__dirname, '../../packages/core/src'),
-  '@object-ui/react-runtime': path.resolve(__dirname, '../../packages/react-runtime/src'),
-  '@object-ui/sdui-parser': path.resolve(__dirname, '../../packages/sdui-parser/src'),
-  '@object-ui/fields': path.resolve(__dirname, '../../packages/fields/src'),
-  '@object-ui/layout': path.resolve(__dirname, '../../packages/layout/src'),
-  '@object-ui/plugin-dashboard': path.resolve(__dirname, '../../packages/plugin-dashboard/src'),
-  '@object-ui/plugin-report': path.resolve(__dirname, '../../packages/plugin-report/src'),
-  '@object-ui/plugin-form': path.resolve(__dirname, '../../packages/plugin-form/src'),
-  '@object-ui/plugin-grid': path.resolve(__dirname, '../../packages/plugin-grid/src'),
-  '@object-ui/react': path.resolve(__dirname, '../../packages/react/src'),
-  '@object-ui/types': path.resolve(__dirname, '../../packages/types/src'),
-  '@object-ui/data-objectstack': path.resolve(__dirname, '../../packages/data-objectstack/src'),
-  '@object-ui/auth': path.resolve(__dirname, '../../packages/auth/src'),
-  '@object-ui/permissions': path.resolve(__dirname, '../../packages/permissions/src'),
-  '@object-ui/providers': path.resolve(__dirname, '../../packages/providers/src'),
-  '@object-ui/collaboration': path.resolve(__dirname, '../../packages/collaboration/src'),
-  '@object-ui/i18n': path.resolve(__dirname, '../../packages/i18n/src'),
-  '@object-ui/mobile': path.resolve(__dirname, '../../packages/mobile/src'),
-  '@object-ui/app-shell': path.resolve(__dirname, '../../packages/app-shell/src'),
+  '@object-ui/components': path.resolve(import.meta.dirname, '../../packages/components/src'),
+  '@object-ui/core': path.resolve(import.meta.dirname, '../../packages/core/src'),
+  '@object-ui/react-runtime': path.resolve(import.meta.dirname, '../../packages/react-runtime/src'),
+  '@object-ui/sdui-parser': path.resolve(import.meta.dirname, '../../packages/sdui-parser/src'),
+  '@object-ui/fields': path.resolve(import.meta.dirname, '../../packages/fields/src'),
+  '@object-ui/layout': path.resolve(import.meta.dirname, '../../packages/layout/src'),
+  '@object-ui/plugin-dashboard': path.resolve(import.meta.dirname, '../../packages/plugin-dashboard/src'),
+  '@object-ui/plugin-report': path.resolve(import.meta.dirname, '../../packages/plugin-report/src'),
+  '@object-ui/plugin-form': path.resolve(import.meta.dirname, '../../packages/plugin-form/src'),
+  '@object-ui/plugin-grid': path.resolve(import.meta.dirname, '../../packages/plugin-grid/src'),
+  '@object-ui/react': path.resolve(import.meta.dirname, '../../packages/react/src'),
+  '@object-ui/types': path.resolve(import.meta.dirname, '../../packages/types/src'),
+  '@object-ui/data-objectstack': path.resolve(import.meta.dirname, '../../packages/data-objectstack/src'),
+  '@object-ui/auth': path.resolve(import.meta.dirname, '../../packages/auth/src'),
+  '@object-ui/permissions': path.resolve(import.meta.dirname, '../../packages/permissions/src'),
+  '@object-ui/providers': path.resolve(import.meta.dirname, '../../packages/providers/src'),
+  '@object-ui/collaboration': path.resolve(import.meta.dirname, '../../packages/collaboration/src'),
+  '@object-ui/i18n': path.resolve(import.meta.dirname, '../../packages/i18n/src'),
+  '@object-ui/mobile': path.resolve(import.meta.dirname, '../../packages/mobile/src'),
+  '@object-ui/app-shell': path.resolve(import.meta.dirname, '../../packages/app-shell/src'),
 
   // Plugin Aliases
-  '@object-ui/plugin-calendar': path.resolve(__dirname, '../../packages/plugin-calendar/src'),
-  '@object-ui/plugin-charts': path.resolve(__dirname, '../../packages/plugin-charts/src'),
-  '@object-ui/plugin-chatbot': path.resolve(__dirname, '../../packages/plugin-chatbot/src'),
-  '@object-ui/plugin-detail': path.resolve(__dirname, '../../packages/plugin-detail/src'),
-  '@object-ui/plugin-editor': path.resolve(__dirname, '../../packages/plugin-editor/src'),
-  '@object-ui/plugin-gantt': path.resolve(__dirname, '../../packages/plugin-gantt/src'),
-  '@object-ui/plugin-kanban': path.resolve(__dirname, '../../packages/plugin-kanban/src'),
-  '@object-ui/plugin-list': path.resolve(__dirname, '../../packages/plugin-list/src'),
-  '@object-ui/plugin-map': path.resolve(__dirname, '../../packages/plugin-map/src'),
-  '@object-ui/plugin-markdown': path.resolve(__dirname, '../../packages/plugin-markdown/src'),
-  '@object-ui/plugin-timeline': path.resolve(__dirname, '../../packages/plugin-timeline/src'),
-  '@object-ui/plugin-tree': path.resolve(__dirname, '../../packages/plugin-tree/src'),
-  '@object-ui/plugin-view': path.resolve(__dirname, '../../packages/plugin-view/src'),
-  '@object-ui/plugin-designer': path.resolve(__dirname, '../../packages/plugin-designer/src'),
+  '@object-ui/plugin-calendar': path.resolve(import.meta.dirname, '../../packages/plugin-calendar/src'),
+  '@object-ui/plugin-charts': path.resolve(import.meta.dirname, '../../packages/plugin-charts/src'),
+  '@object-ui/plugin-chatbot': path.resolve(import.meta.dirname, '../../packages/plugin-chatbot/src'),
+  '@object-ui/plugin-detail': path.resolve(import.meta.dirname, '../../packages/plugin-detail/src'),
+  '@object-ui/plugin-editor': path.resolve(import.meta.dirname, '../../packages/plugin-editor/src'),
+  '@object-ui/plugin-gantt': path.resolve(import.meta.dirname, '../../packages/plugin-gantt/src'),
+  '@object-ui/plugin-kanban': path.resolve(import.meta.dirname, '../../packages/plugin-kanban/src'),
+  '@object-ui/plugin-list': path.resolve(import.meta.dirname, '../../packages/plugin-list/src'),
+  '@object-ui/plugin-map': path.resolve(import.meta.dirname, '../../packages/plugin-map/src'),
+  '@object-ui/plugin-markdown': path.resolve(import.meta.dirname, '../../packages/plugin-markdown/src'),
+  '@object-ui/plugin-timeline': path.resolve(import.meta.dirname, '../../packages/plugin-timeline/src'),
+  '@object-ui/plugin-tree': path.resolve(import.meta.dirname, '../../packages/plugin-tree/src'),
+  '@object-ui/plugin-view': path.resolve(import.meta.dirname, '../../packages/plugin-view/src'),
+  '@object-ui/plugin-designer': path.resolve(import.meta.dirname, '../../packages/plugin-designer/src'),
 };
 
 // Opt-in override of the installed `@objectstack/client`. The published client
@@ -314,7 +320,7 @@ export default defineConfig({
     port: 5180,
     // Widen the fs allow-list only when an out-of-tree client override is set
     // (see OBJECTSTACK_CLIENT_DIST above); otherwise keep Vite's defaults.
-    ...(clientFsAllow.length ? { fs: { allow: [path.resolve(__dirname, '../..'), ...clientFsAllow] } } : {}),
+    ...(clientFsAllow.length ? { fs: { allow: [path.resolve(import.meta.dirname, '../..'), ...clientFsAllow] } } : {}),
     proxy: {
       '/api': { target: process.env.DEV_PROXY_TARGET || 'http://localhost:3000', changeOrigin: true },
     },
