@@ -3073,6 +3073,14 @@ const ru = {
     replyingToComment: "Ответ на комментарий…",
     commentPlaceholder: "Добавьте комментарий… (@ — упоминание)",
     send: "Отправить",
+    presentUserCount: "Присутствует пользователей: {{count}}",
+    presentUserCountOne: "Присутствует {{count}} пользователь",
+    moreUserCount: "Ещё пользователей: {{count}}",
+    moreUserCountOne: "Ещё {{count}} пользователь",
+    userStatusTitle: "{{name}} ({{status}})",
+    statusActive: "активен",
+    statusIdle: "бездействует",
+    statusAway: "отошёл",
   },
 };
 

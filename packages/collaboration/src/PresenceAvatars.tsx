@@ -8,6 +8,10 @@
 
 import React, { useMemo } from 'react';
 import type { PresenceUser } from './usePresence';
+import {
+  useCollaborationTranslation,
+  type CollaborationTranslate,
+} from './useCollaborationTranslation';
 
 export interface PresenceAvatarsProps {
   /** Present users */
@@ -34,6 +38,41 @@ const statusColors: Record<PresenceUser['status'], string> = {
   away: '#94a3b8',
 };
 
+/**
+ * Display-layer translation key per presence status (objectui#3440).
+ *
+ * The status enum is DATA: `'active' | 'idle' | 'away'` is what
+ * {@link PresenceUser} carries, what the transport pushes and what
+ * `statusColors` above keys off. Nothing about that changes — this map exists
+ * only at the render exit, the one place the value stops being an identifier
+ * and becomes copy inside a tooltip.
+ *
+ * Typed `Record< string, string >` rather than
+ * `Record< PresenceUser['status'], string >` on purpose. Presence users arrive
+ * from a host-supplied `PresenceSource` (a WebSocket/SSE transport the package
+ * does not own — see `PresenceProvider`), so a status outside the union is
+ * reachable at runtime however strict the type is. An unmapped value renders
+ * as ITSELF, the raw string: no invented label, and no empty parenthesis where
+ * a status used to be.
+ */
+const statusLabelKeys: Record<string, string> = {
+  active: 'collaboration.statusActive',
+  idle: 'collaboration.statusIdle',
+  away: 'collaboration.statusAway',
+};
+
+/**
+ * Resolve a status value to its display copy, falling back to the raw value.
+ *
+ * Takes `t` as a parameter (same shape as `CommentThread`'s `formatTimestamp`)
+ * so this helper cannot drift from whichever half of the union — real i18next
+ * `t` or the English defaults map — the component is running under.
+ */
+function statusLabel(status: string, t: CollaborationTranslate): string {
+  const key = statusLabelKeys[status];
+  return key ? t(key) : status;
+}
+
 function getInitials(name: string): string {
   return name
     .split(' ')
@@ -48,6 +87,11 @@ function getInitials(name: string): string {
  *
  * Displays user avatars (or initials) in an overlapping stack,
  * with optional status indicators and a "+N" overflow badge.
+ *
+ * Every user-visible string resolves through `useCollaborationTranslation`
+ * (objectui#3440). The stack is images and initials only, so its `aria-label`
+ * is the entire control as far as a screen reader is concerned — leaving it in
+ * English left a `zh` console announcing its avatar group in English.
  */
 export function PresenceAvatars({
   users,
@@ -56,6 +100,7 @@ export function PresenceAvatars({
   showStatus = true,
   className,
 }: PresenceAvatarsProps): React.ReactElement {
+  const { t } = useCollaborationTranslation();
   const px = sizeMap[size];
   const overlapOffset = Math.round(px * 0.3);
   const fontSize = Math.round(px * 0.35);
@@ -113,13 +158,29 @@ export function PresenceAvatars({
     style: containerStyle,
     className,
     role: 'group',
-    'aria-label': `${users.length} user${users.length !== 1 ? 's' : ''} present`,
+    // Two keys instead of an English `s` glued on at render time. The old
+    // `` `${n} user${n !== 1 ? 's' : ''} present` `` produced correct *English*
+    // — the defect is that the plural RULE was compiled into the component, so
+    // no locale could apply its own (ru needs three forms, ja needs none, and
+    // neither could ever be expressed). Same treatment as the comment count in
+    // objectui#3424.
+    'aria-label': t(
+      users.length === 1
+        ? 'collaboration.presentUserCountOne'
+        : 'collaboration.presentUserCount',
+      { count: String(users.length) },
+    ),
   },
     // Overflow badge (rendered first because of row-reverse)
     overflowCount > 0 && React.createElement('div', {
       key: 'overflow',
       style: overflowStyle,
-      title: `${overflowCount} more user${overflowCount !== 1 ? 's' : ''}`,
+      title: t(
+        overflowCount === 1
+          ? 'collaboration.moreUserCountOne'
+          : 'collaboration.moreUserCount',
+        { count: String(overflowCount) },
+      ),
     }, `+${overflowCount}`),
     // Avatars
     reversedVisible.map((user, idx) =>
@@ -130,7 +191,14 @@ export function PresenceAvatars({
           backgroundColor: user.color,
           marginLeft: idx > 0 || overflowCount > 0 ? `-${overlapOffset}px` : '0',
         },
-        title: `${user.userName} (${user.status})`,
+        // The parentheses live in the translation, not in the component, so a
+        // translator owns the whole shape — spacing included: the CJK packs
+        // drop the space English puts before `(`, which a component-side
+        // `` `${name} (${status})` `` could never let them do.
+        title: t('collaboration.userStatusTitle', {
+          name: user.userName,
+          status: statusLabel(user.status, t),
+        }),
       },
         user.avatar
           ? React.createElement('img', {

@@ -3209,6 +3209,23 @@ const en = {
     replyingToComment: 'Replying to comment...',
     commentPlaceholder: 'Add a comment... (use @ to mention)',
     send: 'Send',
+    // Presence avatar stack (objectui#3440). `presentUserCount*` is the avatar
+    // group's `aria-label` — with only images and initials inside, that label
+    // IS the control for a screen reader. Two keys, same reason as
+    // `commentCount` above.
+    presentUserCount: '{{count}} users present',
+    presentUserCountOne: '{{count}} user present',
+    moreUserCount: '{{count}} more users',
+    moreUserCountOne: '{{count}} more user',
+    // Avatar tooltip. The parentheses are part of the translation, spacing
+    // included, so the CJK packs can drop the space English puts before `(`.
+    userStatusTitle: '{{name}} ({{status}})',
+    // Display copy for the `PresenceUser['status']` enum. The enum value
+    // itself stays raw data — it is translated at the render exit only, and a
+    // status outside the union falls back to the raw string.
+    statusActive: 'active',
+    statusIdle: 'idle',
+    statusAway: 'away',
   },
 } as const;
 

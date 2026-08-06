@@ -3073,6 +3073,14 @@ const de = {
     replyingToComment: "Antwort auf Kommentar …",
     commentPlaceholder: "Kommentar hinzufügen … (@ für Erwähnungen)",
     send: "Senden",
+    presentUserCount: "{{count}} anwesende Benutzer",
+    presentUserCountOne: "{{count}} anwesender Benutzer",
+    moreUserCount: "{{count}} weitere Benutzer",
+    moreUserCountOne: "{{count}} weiterer Benutzer",
+    userStatusTitle: "{{name}} ({{status}})",
+    statusActive: "aktiv",
+    statusIdle: "inaktiv",
+    statusAway: "abwesend",
   },
 };
 

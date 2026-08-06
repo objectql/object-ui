@@ -75,6 +75,22 @@ export const COLLAB_DEFAULT_TRANSLATIONS: Record<string, string> = {
   // Composer
   'collaboration.commentPlaceholder': 'Add a comment... (use @ to mention)',
   'collaboration.send': 'Send',
+  // Presence avatar stack (objectui#3440). The group's `aria-label` IS the
+  // control for a screen reader — the stack itself is images and initials —
+  // so this pair is not decoration.
+  'collaboration.presentUserCount': '{{count}} users present',
+  'collaboration.presentUserCountOne': '{{count}} user present',
+  'collaboration.moreUserCount': '{{count}} more users',
+  'collaboration.moreUserCountOne': '{{count}} more user',
+  // Avatar tooltip. The parentheses belong to the translation so a translator
+  // owns the whole shape rather than inheriting English-shaped glue.
+  'collaboration.userStatusTitle': '{{name}} ({{status}})',
+  // Display copy for the `PresenceUser['status']` enum. The enum VALUE stays
+  // raw data everywhere else — these three exist only for the tooltip above,
+  // and a status outside the union falls back to the raw string.
+  'collaboration.statusActive': 'active',
+  'collaboration.statusIdle': 'idle',
+  'collaboration.statusAway': 'away',
   // Shared action words — see the note above.
   'common.save': 'Save',
   'common.cancel': 'Cancel',

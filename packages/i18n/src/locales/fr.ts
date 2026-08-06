@@ -3073,6 +3073,14 @@ const fr = {
     replyingToComment: "Réponse au commentaire…",
     commentPlaceholder: "Ajouter un commentaire… (utilisez @ pour mentionner)",
     send: "Envoyer",
+    presentUserCount: "{{count}} utilisateurs présents",
+    presentUserCountOne: "{{count}} utilisateur présent",
+    moreUserCount: "{{count}} autres utilisateurs",
+    moreUserCountOne: "{{count}} autre utilisateur",
+    userStatusTitle: "{{name}} ({{status}})",
+    statusActive: "actif",
+    statusIdle: "inactif",
+    statusAway: "absent",
   },
 };
 

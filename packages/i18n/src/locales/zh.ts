@@ -3127,6 +3127,14 @@ const zh = {
     replyingToComment: '正在回复该评论…',
     commentPlaceholder: '添加评论…(输入 @ 提及他人)',
     send: '发送',
+    presentUserCount: '{{count}} 人在线',
+    presentUserCountOne: '{{count}} 人在线',
+    moreUserCount: '另有 {{count}} 人',
+    moreUserCountOne: '另有 {{count}} 人',
+    userStatusTitle: '{{name}}({{status}})',
+    statusActive: '活跃',
+    statusIdle: '空闲',
+    statusAway: '离开',
   },
 } as const;
 

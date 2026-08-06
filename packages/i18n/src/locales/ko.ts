@@ -3073,6 +3073,14 @@ const ko = {
     replyingToComment: "이 댓글에 답글 작성 중…",
     commentPlaceholder: "댓글 추가…(@로 멘션)",
     send: "보내기",
+    presentUserCount: "{{count}}명 접속 중",
+    presentUserCountOne: "{{count}}명 접속 중",
+    moreUserCount: "외 {{count}}명",
+    moreUserCountOne: "외 {{count}}명",
+    userStatusTitle: "{{name}}({{status}})",
+    statusActive: "활성",
+    statusIdle: "유휴",
+    statusAway: "자리 비움",
   },
 };
 

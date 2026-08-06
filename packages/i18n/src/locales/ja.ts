@@ -3073,6 +3073,14 @@ const ja = {
     replyingToComment: "このコメントに返信中…",
     commentPlaceholder: "コメントを追加…(@ でメンション)",
     send: "送信",
+    presentUserCount: "オンライン {{count}} 人",
+    presentUserCountOne: "オンライン {{count}} 人",
+    moreUserCount: "他 {{count}} 人",
+    moreUserCountOne: "他 {{count}} 人",
+    userStatusTitle: "{{name}}({{status}})",
+    statusActive: "アクティブ",
+    statusIdle: "アイドル",
+    statusAway: "離席中",
   },
 };
 

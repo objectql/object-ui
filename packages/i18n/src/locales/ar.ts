@@ -3073,6 +3073,14 @@ const ar = {
     replyingToComment: "الرد على التعليق…",
     commentPlaceholder: "أضف تعليقًا… (استخدم @ للإشارة)",
     send: "إرسال",
+    presentUserCount: "{{count}} مستخدمين متواجدين",
+    presentUserCountOne: "{{count}} مستخدم متواجد",
+    moreUserCount: "{{count}} مستخدمين آخرين",
+    moreUserCountOne: "{{count}} مستخدم آخر",
+    userStatusTitle: "{{name}} ({{status}})",
+    statusActive: "نشط",
+    statusIdle: "خامل",
+    statusAway: "غائب",
   },
 };
 

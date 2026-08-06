@@ -3073,6 +3073,14 @@ const pt = {
     replyingToComment: "Respondendo ao comentário…",
     commentPlaceholder: "Adicionar um comentário… (use @ para mencionar)",
     send: "Enviar",
+    presentUserCount: "{{count}} usuários presentes",
+    presentUserCountOne: "{{count}} usuário presente",
+    moreUserCount: "mais {{count}} usuários",
+    moreUserCountOne: "mais {{count}} usuário",
+    userStatusTitle: "{{name}} ({{status}})",
+    statusActive: "ativo",
+    statusIdle: "inativo",
+    statusAway: "ausente",
   },
 };
 
