@@ -57,8 +57,16 @@ jobs:
     # Non-blocking by construction — see the header comment before touching.
     continue-on-error: true
 
+    # ⚠️ Do NOT add a `runner.*` expression to this job-level `env:` block.
+    # The `runner` context does not exist yet when job-level env is evaluated
+    # (GitHub's "contexts availability" table allows only github / needs /
+    # strategy / matrix / vars / secrets / inputs here). One `${{ runner.temp }}`
+    # in this block fails the whole FILE at validation time — 0 jobs, 0s,
+    # "startup failure" — and `continue-on-error` cannot soften it because no
+    # job is ever created. Need a runner path? Use the `$RUNNER_TEMP`
+    # environment variable inside a `run:` step, or a step-level `env:` /
+    # `with:` (both may read `runner`). See the LIVE_BACKEND_DIR step below.
     env:
-      LIVE_BACKEND_DIR: ${{ runner.temp }}/live-backend
       LIVE_BACKEND_PORT: '4010'
       LIVE_API_URL: http://localhost:4010
       LIVE_APP_URL: http://localhost:5190
@@ -91,6 +99,12 @@ jobs:
           key: live-backend-${{ runner.os }}-${{ hashFiles('e2e/live/ci/backend.env') }}
 
       - name: Start ObjectStack backend (published packages)
+        # Step-level env — `runner` IS available here (unlike job-level env).
+        # Must resolve to the same path as the cache step's `path:` above and
+        # the artifact upload's `path:` below, or the cache silently stops
+        # hitting; keep the three in sync.
+        env:
+          LIVE_BACKEND_DIR: ${{ runner.temp }}/live-backend
         run: bash e2e/live/ci/start-backend.sh
 
       - name: Build console
