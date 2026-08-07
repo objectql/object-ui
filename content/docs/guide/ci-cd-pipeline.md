@@ -246,10 +246,24 @@ all**, which is the point of the workflow. It appears in the checks list as **In
 Check**.
 
 Runs `scripts/check-doc-links.mjs`, which walks every `.md` / `.mdx` file under `content/docs/` and
-resolves each internal markdown link against the files actually on disk (`/docs/foo` must have a
-`foo.md`, `foo.mdx` or `foo/index.md*` under `content/docs/`). External `http(s)` and `mailto:`
-links and bare `#anchors` are skipped — those belong to Lychee, below. No install, no build, no
-network: a checkout and one `node` call.
+asks of each internal markdown link the only question a reader cares about — **does the site serve
+this URL?** Four checks, by href shape:
+
+| Href shape | Resolved against | Rejected when |
+|---|---|---|
+| relative (`../plugins/plugin-charts.mdx`) | the linking file's directory | the target file is missing… |
+| relative escaping the collection (`../../../packages/x/README.md`) | — | …**or** it resolves outside `content/docs/` (fumadocs can only resolve inside its page index, so the href reaches the browser verbatim — a 404 even though the file exists) |
+| absolute `/docs/...` | `content/docs/` as a **route** | no `foo.md`, `foo.mdx` or `foo/index.md*` backs it — a `.md`/`.mdx` suffix always fails, since that URL 404s whatever is on disk |
+| any other absolute (`/spec/...`, `/img/...`) | the **site itself**: route segments enumerated from `apps/site/app`, plus static files under `apps/site/public` | no route pattern or static file matches |
+
+External `http(s)` and `mailto:` links and bare `#anchors` are skipped — those belong to Lychee,
+below. No install, no build, no network: a checkout and one `node` call.
+
+The last two rows are objectui#3490. Reading `apps/site` widens the script's responsibility, and
+that is the deliberate purchase: it is the only way to catch a link to a route that does not exist,
+and 18 such 404s had accumulated while the check waved every non-`/docs` absolute href through. The
+cost is that a docs PR can now go red because `apps/site` moved under it — correct, but real. The
+header of the script argues the trade-off in full.
 
 **Why it blocks a merge.** A broken internal link is a 404 on the published site, and nothing else
 in CI sees it: the site build succeeds with a dead link in it. The script itself is older than its
@@ -287,7 +301,7 @@ There are **two** link checkers, and they cover different things (objectui#3213)
 
 | | Covers | Network | Runs |
 |---|---|---|---|
-| `scripts/check-doc-links.mjs` | **Internal** `/docs/...` routes, resolved against `content/docs/` | No | `docs-links.yml` — every push and PR, no path filter (previous section) |
+| `scripts/check-doc-links.mjs` | **Internal** links in `content/docs/`: relative hrefs, `/docs/...` routes, and every other site-absolute href (against `apps/site`) | No | `docs-links.yml` — every push and PR, no path filter (previous section) |
 | Lychee (this workflow) | **External** URLs, plus **relative** in-repo file links, in `content/docs/`, `docs/` and `README.md` | Yes | Weekly cron and manual dispatch |
 
 Lychee sweeps **both** documentation trees: `content/docs/` (the 183 pages the site publishes) and

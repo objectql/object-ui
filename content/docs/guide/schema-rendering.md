@@ -411,11 +411,11 @@ Always type your schemas for better IDE support and fewer runtime errors.
 
 - [Component Registry](./component-registry.md) - Learn about component registration
 - [Expression System](./expressions.md) - Master expressions
-- [Protocol Overview](/protocol/overview) - Explore all available schemas
+- [Schema Overview](/docs/guide/schema-overview) - Explore all available schemas
 
 ## Related Documentation
 
-- [Schema Specification](/spec/schema-rendering) - Technical specification
-- [Architecture](/spec/architecture) - System architecture
-- [Core API](/api/core) - Core package API reference
-- [React API](/api/react) - React package API reference
+- [SchemaRenderer](/docs/core/schema-renderer) - Technical reference for the renderer
+- [Architecture Overview](/docs/guide/architecture) - System architecture
+- [`@object-ui/core` README](https://github.com/objectstack-ai/objectui/tree/main/packages/core) - Core package API reference
+- [`@object-ui/react` README](https://github.com/objectstack-ai/objectui/tree/main/packages/react) - React package API reference
