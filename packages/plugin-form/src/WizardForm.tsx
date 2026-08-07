@@ -354,6 +354,9 @@ export const WizardForm: React.FC<WizardFormProps> = ({
             },
             record,
             { required: !!field.required, readonly: (field as any).readonly === true },
+            undefined,
+            undefined,
+            `field '${name}'`,
           );
           // View-level FormField.visibleOn hides the field the same way a
           // field-level visibleWhen does — fold it into the verdict exactly
@@ -362,7 +365,9 @@ export const WizardForm: React.FC<WizardFormProps> = ({
           // receives the ADR-0089 canonical view-level `visibleWhen` spelling.
           const viewVisible =
             (field as any).visibleOn == null ||
-            evalFieldPredicate((field as any).visibleOn, record, true);
+            evalFieldPredicate((field as any).visibleOn, record, true, undefined, undefined, {
+              context: `visibleOn of field '${name}'`,
+            });
           // A hidden or read-only field is not the user's to fill in.
           if (!viewVisible || !state.visible || state.readonly || !state.required) continue;
           if (!isEmptyValue(record[name])) continue;

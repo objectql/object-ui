@@ -155,6 +155,17 @@ result type** (only a proven-Number formula is offered as a dataset
 measure), while the draft-wide pass surfaces a broken formula on any field
 under its `fields.<field>.expression` path.
 
+A predicate that slips past authoring is still not silent at **runtime**:
+when a conditional rule (`visibleWhen` / `readonlyWhen` / `requiredWhen`,
+view-level `visibleOn`, per-option `visibleWhen`, list conditional
+formatting) fails to evaluate, the renderer applies the rule's safe default
+(fail-open — a broken predicate never hides a field or blocks a submit) and
+logs **one `console.warn` per predicate** with the predicate source, the
+engine's failure reason, and the field it was attached to. A rule that never
+fires while its field stays visible is the classic symptom — open the
+browser console and the broken predicate identifies itself (most often a
+bare field name where `record.<field>` was meant).
+
 ### 4. Governance overview page
 
 `/apps/<app>/metadata/_diagnostics` — a single sortable table of every

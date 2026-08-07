@@ -108,8 +108,11 @@ function evalCel(
   // fallback for BOTH `true` and `false`, the predicate faulted (a genuine
   // verdict is independent of the fallback). This reuses the canonical helper
   // verbatim — no second engine — so CEL semantics never drift from B2.
-  const asTrue = evalFieldPredicate(pred, record, true, undefined, scope);
-  const asFalse = evalFieldPredicate(pred, record, false, undefined, scope);
+  // `warn: false`: this caller reports the fault itself (the labelled
+  // `warnEvalError` in `evalRowPredicate`) — one warning per broken predicate,
+  // not two (#5149).
+  const asTrue = evalFieldPredicate(pred, record, true, undefined, scope, { warn: false });
+  const asFalse = evalFieldPredicate(pred, record, false, undefined, scope, { warn: false });
   if (asTrue !== asFalse) return { ok: false, value: false };
   return { ok: true, value: asTrue };
 }
@@ -166,10 +169,13 @@ export function evalRowPredicate(
   }
 
   // CEL path. The fault-aware `evalCel` costs two evaluations (to tell a fault
-  // from a genuine `false`), so only pay it when a caller wants the warning —
-  // the formatting hot path takes the single-eval fast route.
+  // from a genuine `false`), so only pay it when a caller wants the labelled
+  // fail-closed warning — the formatting hot path takes the single-eval fast
+  // route. Since #5149 the fast route is no longer silent either: the
+  // canonical helper itself warns once per broken predicate (with `opts.label`
+  // as the locator when given).
   if (!opts.warnOnError) {
-    return evalFieldPredicate(pred, rowObj, fallback, undefined, scope);
+    return evalFieldPredicate(pred, rowObj, fallback, undefined, scope, { context: opts.label });
   }
   const verdict = evalCel(pred, rowObj, scope);
   if (!verdict.ok) {

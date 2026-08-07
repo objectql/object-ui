@@ -668,12 +668,17 @@ ComponentRegistry.register('form',
           },
           ruleRecord,
           { required: !!f.required, readonly: (f as any).readonly === true },
+          undefined,
+          undefined,
+          `field '${name}'`,
         );
         // View-level FormField.visibleOn hides the field the same way a
         // field-level visibleWhen does (#2212) — fold it into the verdict.
         const viewVisible =
           (f as any).visibleOn == null ||
-          evalFieldPredicate((f as any).visibleOn, ruleRecord, true);
+          evalFieldPredicate((f as any).visibleOn, ruleRecord, true, undefined, undefined, {
+            context: `visibleOn of field '${name}'`,
+          });
         // A hidden field shows no errors at all; an un-required field clears
         // only its *required* error (keep legitimate format/min/etc. errors).
         const errType = (errs[name] as { type?: string } | undefined)?.type;
@@ -1220,7 +1225,12 @@ ComponentRegistry.register('form',
       // the server. Fail-open (a broken predicate shows the field),
       // matching the CEL rules below.
       const legacyConditionCel = legacyConditionToCel(condition);
-      if (legacyConditionCel && !evalFieldPredicate(legacyConditionCel, ruleRecord, true)) {
+      if (
+        legacyConditionCel &&
+        !evalFieldPredicate(legacyConditionCel, ruleRecord, true, undefined, undefined, {
+          context: `condition of field '${name}'`,
+        })
+      ) {
         return null;
       }
 
@@ -1233,6 +1243,9 @@ ComponentRegistry.register('form',
         { visibleWhen, readonlyWhen, requiredWhen },
         ruleRecord,
         { required: staticRequired, readonly: staticReadonly === true },
+        undefined,
+        undefined,
+        `field '${name}'`,
       );
       if (!ruleState.visible) return null;
 
@@ -1240,8 +1253,14 @@ ComponentRegistry.register('form',
       // authored on the form view (not the object field). Same
       // canonical CEL engine and record scope as visibleWhen; both
       // the bare-string and `{ dialect, source }` wire shapes are
-      // accepted, and a broken predicate fails open (#2212).
-      if (visibleOn != null && !evalFieldPredicate(visibleOn, ruleRecord, true)) {
+      // accepted, and a broken predicate fails open — loudly since
+      // #5149 (#2212).
+      if (
+        visibleOn != null &&
+        !evalFieldPredicate(visibleOn, ruleRecord, true, undefined, undefined, {
+          context: `visibleOn of field '${name}'`,
+        })
+      ) {
         return null;
       }
       const required = ruleState.required;

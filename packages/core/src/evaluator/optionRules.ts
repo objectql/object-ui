@@ -98,7 +98,11 @@ export function resolveVisibleOptions<T extends OptionLike>(
 ): T[] {
   if (!options || options.length === 0) return [];
   return options.filter((o) =>
-    o?.visibleWhen == null ? true : evalFieldPredicate(o.visibleWhen, record, true, undefined, scope),
+    o?.visibleWhen == null
+      ? true
+      : evalFieldPredicate(o.visibleWhen, record, true, undefined, scope, {
+          context: `visibleWhen of option '${String(o.value)}'`,
+        }),
   );
 }
 

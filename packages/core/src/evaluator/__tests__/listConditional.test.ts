@@ -66,9 +66,18 @@ describe('evalRowPredicate', () => {
     expect(evalRowPredicate('   ', { a: 1 }, { fallback: true })).toBe(true);
   });
 
-  it('fails to the fallback on a broken predicate', () => {
-    expect(evalRowPredicate('record.status ==', { status: 'x' }, { fallback: false })).toBe(false);
-    expect(evalRowPredicate('record.status ==', { status: 'x' }, { fallback: true })).toBe(true);
+  it('fails to the fallback on a broken predicate — loudly, once (#5149)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(evalRowPredicate('record.status ==', { status: 'x' }, { fallback: false })).toBe(false);
+      expect(evalRowPredicate('record.status ==', { status: 'x' }, { fallback: true })).toBe(true);
+      // The single-eval fast path is no longer silent: the canonical helper
+      // itself warned — once, despite two evaluations of the same text.
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0][0])).toContain('failed to evaluate');
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   describe('legacy-dialect routing', () => {
@@ -217,11 +226,20 @@ describe('resolveConditionalFormatting', () => {
     ).toEqual({ backgroundColor: 'override', fontWeight: 'bold', color: 'blue' });
   });
 
-  it('a rule whose field is missing from the record fails soft (no style)', () => {
-    expect(
-      resolveConditionalFormatting({ other: 1 }, [
-        { field: 'status', operator: 'equals', value: 'active', backgroundColor: 'x' },
-      ]),
-    ).toEqual({});
+  it('a rule whose field is missing from the record fails soft (no style) — warning once with the rule locator (#5149)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(
+        resolveConditionalFormatting({ other: 1 }, [
+          { field: 'status', operator: 'equals', value: 'active', backgroundColor: 'x' },
+        ]),
+      ).toEqual({});
+      // The formatting fast path threads its label into the canonical
+      // helper's one-time warning, so the broken rule is locatable.
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0][0])).toContain('(conditionalFormatting[0])');
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

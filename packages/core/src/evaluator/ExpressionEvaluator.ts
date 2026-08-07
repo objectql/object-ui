@@ -293,8 +293,10 @@ export class ExpressionEvaluator {
     // Fail-closed callers need to tell a genuine `false` from a fault. The
     // canonical helper fails soft to the fallback, so a value that tracks the
     // fallback in BOTH runs means the predicate faulted — then we throw.
-    const asTrue = evalFieldPredicate(source, record, true, undefined, bag);
-    const asFalse = evalFieldPredicate(source, record, false, undefined, bag);
+    // `warn: false`: the throw below IS this path's diagnostic; without it one
+    // broken predicate would log AND throw (#5149).
+    const asTrue = evalFieldPredicate(source, record, true, undefined, bag, { warn: false });
+    const asFalse = evalFieldPredicate(source, record, false, undefined, bag, { warn: false });
     if (asTrue !== asFalse) {
       throw new Error(`CEL predicate failed to evaluate: ${source}`);
     }
