@@ -10,17 +10,22 @@ Universal Object UI Application Runner - A standalone development server and run
 - **Development Ready** - Built-in Vite development server
 - **Production Build** - Optimized build for deployment
 
-## Installation
+## Running the Runner
+
+The runner is an application, not a library: `package.json` declares no `main`,
+`module`, `exports` or `types`, so there is nothing to `import` from
+`@object-ui/runner`. You run it from a checkout of this repository:
 
 ```bash
-pnpm add @object-ui/runner
+git clone https://github.com/objectstack-ai/objectui.git
+cd objectui
+pnpm install
+
+# Start the dev server on http://localhost:5173
+pnpm --filter @object-ui/runner dev
 ```
 
-## Usage
-
-### As a Development Tool
-
-The runner is primarily used for schema development and testing:
+Inside `packages/runner`, the same scripts are available directly:
 
 ```bash
 # Start development server
@@ -31,22 +36,6 @@ pnpm build
 
 # Preview production build
 pnpm preview
-```
-
-### Programmatic Usage
-
-You can also use the runner as a library in your projects:
-
-```typescript
-import { createRunner } from '@object-ui/runner';
-
-const runner = createRunner({
-  schema: mySchema,
-  plugins: ['kanban', 'charts'],
-  theme: 'light'
-});
-
-runner.mount('#app');
 ```
 
 ## Pre-installed Plugins
@@ -97,19 +86,14 @@ section of the docs.
 
 ## Configuration
 
-Create a `runner.config.js` file to customize the runner:
+There is no runner config file and no runner environment variables. The two surfaces
+that do configure it are:
 
-```javascript
-export default {
-  port: 3000,
-  host: 'localhost',
-  plugins: ['kanban', 'charts'],
-  theme: {
-    primaryColor: '#3b82f6',
-    darkMode: true
-  }
-};
-```
+- **`vite.config.ts`** — build options and the workspace alias table that lets the runner
+  boot straight from the monorepo sources. The dev server takes Vite's own defaults
+  (port 5173); change them with Vite's flags, e.g. `pnpm dev --port 3000`.
+- **The `api` query parameter** — the metadata base URL, described under
+  [Metadata Loading](#metadata-loading) above.
 
 ## Development Workflow
 
@@ -162,9 +146,9 @@ export default {
 }
 ```
 
-## API Reference
+## Documentation
 
-For detailed documentation, visit the [Object UI Documentation](https://www.objectui.org/docs/runner).
+For detailed documentation, visit the [Object UI Documentation](https://www.objectui.org/docs/utilities/runner).
 
 <!-- release-metadata:v3.3.0 -->
 
