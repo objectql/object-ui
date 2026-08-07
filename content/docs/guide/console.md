@@ -97,29 +97,11 @@ export default defineStack({
    Leave it empty (`VITE_SERVER_URL=`) to use the same origin — the right setting when an ObjectStack server serves the console itself.
 2. The console will use the ObjectStack client to discover metadata and perform CRUD operations against the server.
 
-## Folder Structure
+## Where the Code Lives
 
-```
-apps/console/
-  src/
-    App.tsx                    # Root component + routing
-    dataSource.ts              # ObjectStackAdapter wrapper
-    components/
-      AppHeader.tsx            # Top navbar (breadcrumbs, connection status)
-      AppSidebar.tsx           # Left sidebar (app switcher, navigation tree)
-      CommandPalette.tsx       # ⌘+K command bar
-      ConsoleLayout.tsx        # AppShell wrapper
-      ObjectView.tsx           # Object list view (wraps plugin-view)
-      RecordDetailView.tsx     # Single-record detail view
-    pages/
-      CreateAppPage.tsx        # App creation wizard page
-      EditAppPage.tsx          # Edit existing app page
-    context/
-      ExpressionProvider.tsx   # Expression evaluation context
-    hooks/
-      useBranding.ts           # Delegates to @object-ui/layout
-      useObjectActions.ts      # CRUD action handlers
-```
+Most of what you see in the console does not live in `apps/console`. The shell and layout, sidebar, header, command palette, object list and record detail views all ship from **`packages/app-shell`** (`@object-ui/app-shell`), so any host application can mount the same experience; the heavier view surfaces (grid, kanban, calendar, charts, designer) come from the `@object-ui/plugin-*` packages.
+
+`apps/console` is the assembly layer on top: it owns the route tree, registers the plugin set, wires the backend connection, and adds the surfaces specific to this app (auth pages, the docs portal, system and settings pages). So when you want to change something you *see* in the console, look in `packages/app-shell` first.
 
 ## See Also
 
