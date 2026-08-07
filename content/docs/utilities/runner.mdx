@@ -56,17 +56,14 @@ The Runner includes these plugins by default:
 - **@object-ui/plugin-kanban** - Kanban board with drag-and-drop
 - **@object-ui/plugin-charts** - Data visualization charts
 
-### Example Schemas
+### Metadata — Supplied by You
 
-The Runner includes example schemas demonstrating:
-
-- Dashboard layouts
-- Data tables and grids
-- Form validation
-- Kanban boards
-- Chart visualizations
-- Calendar views
-- Timeline displays
+The Runner ships **no** metadata of its own: the package contains no `.json` schema
+files, so a fresh checkout renders nothing until you give it something to render. The
+two ways to do that are covered under [Metadata Loading](#metadata-loading) — drop JSON
+into `src/app-data/` (git-ignored, yours to create), or point the Runner at a backend
+with `?api=<base>`. With neither in place, `/` shows the built-in `No index page found.`
+placeholder.
 
 ### Development Tools
 
@@ -75,22 +72,19 @@ The Runner includes example schemas demonstrating:
 - **React DevTools** - Inspect component tree
 - **Network Inspector** - Monitor API calls
 
-## Directory Structure
+## Where the Code Lives
 
-```
-packages/runner/
-├── src/
-│   ├── App.tsx              # Main application
-│   ├── main.tsx             # Entry point
-│   ├── schemas/             # Example schemas
-│   │   ├── dashboard.json
-│   │   ├── kanban.json
-│   │   └── charts.json
-│   └── components/          # Custom components
-├── public/                  # Static assets
-├── package.json
-└── vite.config.ts
-```
+`packages/runner/src` is small and holds no metadata. `main.tsx` mounts the root
+component; `App.tsx` is that root — it picks the metadata loader from the `api` query
+parameter, imports the pre-installed plugins, handles routing, and hands the loaded page
+to `<SchemaRenderer>`. `lib/MetadataLoader.ts` holds both loaders (`LocalBundleLoader`
+and `NetworkLoader`), and `LayoutRenderer.tsx` draws the app chrome around the page.
+Everything you actually see rendered comes from `@object-ui/react`, `@object-ui/components`
+and the `@object-ui/plugin-*` packages, not from this one.
+
+The one directory worth knowing about is **`src/app-data/`** — the metadata the Runner
+renders. It is git-ignored and absent from a fresh checkout; you create it. See
+[Metadata Loading](#metadata-loading) for its layout and resolution order.
 
 ## Configuration
 
@@ -222,10 +216,13 @@ Test new plugins in a full application context:
 // src/main.tsx
 import '@object-ui/plugin-myplugin'
 
-// src/schemas/test.json
+// src/app-data/pages/index.json — the page served at "/"
 {
-  "type": "my-component",
-  "message": "Testing my plugin"
+  "type": "page",
+  "title": "Plugin test",
+  "body": [
+    { "type": "my-component", "message": "Testing my plugin" }
+  ]
 }
 ```
 
@@ -234,7 +231,7 @@ import '@object-ui/plugin-myplugin'
 Experiment with complex schemas:
 
 ```bash
-# Edit schemas in src/schemas/
+# Edit the JSON under src/app-data/
 # Changes are reflected immediately
 ```
 
@@ -265,7 +262,11 @@ pnpm dev --host
 # http://your-ip:5173
 ```
 
-## Example Schemas
+## Schemas to Start From
+
+These live here in the docs, not in the package — copy one, wrap it in a page document
+(`{ "type": "page", "body": [ … ] }`), and save it as `src/app-data/pages/index.json`, or
+serve it from your own backend and load it with `?api=<base>`.
 
 ### Dashboard Example
 
@@ -385,9 +386,11 @@ pnpm test
 
 ## Package Information
 
-**Package Name:** `@object-ui/runner`  
-**Version:** 0.3.1  
-**Type:** Application (not published to npm)  
+**Package Name:** `@object-ui/runner` — published on npm, see the
+[npm page](https://www.npmjs.com/package/@object-ui/runner) for the current version  
+**Type:** Application, not a library. `package.json` declares no `main`, `module`,
+`exports` or `types`, so there is nothing to `import` from it — you run it from a
+checkout of this repository, as shown above.  
 **License:** MIT
 
 ## Dependencies
@@ -425,7 +428,8 @@ function App() {
 
 ### Add Custom Components
 
-Create in `src/components/`:
+The package ships no components of its own, so create the file wherever you like under
+`src/` — this example uses a `components/` directory you add yourself:
 
 ```typescript
 // src/components/MyComponent.tsx
@@ -445,16 +449,23 @@ ComponentRegistry.register('my-component', MyComponent)
 
 ### Add Custom Schemas
 
-Add to `src/schemas/`:
+Add a page document to `src/app-data/pages/`. The file name is the route: this one is
+served at `/my-page`.
 
 ```json
-// src/schemas/my-page.json
+// src/app-data/pages/my-page.json
 {
-  "type": "div",
-  "className": "p-8",
-  "children": [
+  "type": "page",
+  "title": "My Page",
+  "body": [
     {
-      "type": "my-component"
+      "type": "div",
+      "className": "p-8",
+      "children": [
+        {
+          "type": "my-component"
+        }
+      ]
     }
   ]
 }
@@ -462,16 +473,19 @@ Add to `src/schemas/`:
 
 ## Best Practices
 
-### 1. Modular Schemas
+### 1. One File per Page
 
-Keep schemas in separate files:
+The loader globs `src/app-data/`, so a page is a file and nested routes are nested
+directories — no index or barrel file to maintain:
 
 ```
-src/schemas/
-├── dashboard.json
-├── kanban.json
-├── charts.json
-└── index.ts
+src/app-data/
+├── app.json                 # app document: branding, navigation
+└── pages/
+    ├── index.json           # route "/"
+    ├── customers.json       # route "/customers"
+    └── crm/
+        └── accounts.json    # route "/crm/accounts"
 ```
 
 ### 2. Environment Configuration
