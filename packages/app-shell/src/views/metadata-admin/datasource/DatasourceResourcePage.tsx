@@ -3,8 +3,13 @@
 /**
  * DatasourceResourcePage — the `datasource` metadata type's custom ListPage,
  * registered into the metadata-admin engine (`registerMetadataResource`) and
- * reached via the engine route `…/component/metadata/resource?type=datasource`
- * (and the setup left-nav "Datasources" item → `system/metadata/datasource`).
+ * reached via the engine route `…/metadata/datasource`.
+ *
+ * Two legacy spellings still arrive here, both as redirects onto that engine
+ * route rather than routes of their own (objectui#3639): the setup left-nav
+ * "Datasources" item points at `…/component/metadata/resource?type=datasource`
+ * (rewritten by `LegacyMetadataRedirect`), and the console host forwards
+ * `…/system/metadata/datasource` (rewritten by its own `MetadataRedirect`).
  *
  * datasource is a *side-effectful* metadata type: its records are managed by
  * the framework `datasource-admin` service (secret encryption + connection-pool

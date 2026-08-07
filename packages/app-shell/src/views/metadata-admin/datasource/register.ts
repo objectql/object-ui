@@ -5,9 +5,13 @@
  * metadata-admin engine. datasource is a *side-effectful* type (secret +
  * connection pool + introspection), so it ships a bespoke ListPage that talks
  * to the framework `datasource-admin` REST — but it lives inside the engine
- * (engine route + registry slot + shell), reachable from the setup left-nav
- * "Datasources" item and the `…/component/metadata/resource?type=datasource`
- * route, instead of a separate hand-written System page.
+ * (engine route + registry slot + shell), reachable at the engine route
+ * `…/metadata/datasource`, instead of a separate hand-written System page.
+ *
+ * The setup left-nav "Datasources" item still points at the older
+ * `…/component/metadata/resource?type=datasource` spelling. That is a legacy
+ * *alias*, not this engine route: it renders `LegacyMetadataRedirect`, which
+ * 302s onto `…/metadata/datasource` (objectui#3639).
  */
 
 import { registerMetadataResource } from '../registry';
