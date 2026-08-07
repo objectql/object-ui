@@ -24,10 +24,30 @@ import type { SchemaFormIssue } from './SchemaForm';
 import { lintCelPredicate } from './celAuthoring';
 import { readFields } from './previews/object-fields-io';
 
+/**
+ * The structural slice of a Zod issue this module reads.
+ *
+ * `code` and `errors` are optional so the `ZodLikeSchema` contract stays
+ * satisfiable by anything shaped like a Zod schema; every real Zod 4 issue
+ * carries `code`, and only `invalid_union` carries `errors`.
+ */
+type ZodLikeIssue = {
+  path?: Array<string | number>;
+  message: string;
+  /** Zod 4 issue discriminator (`invalid_type`, `invalid_union`, …). */
+  code?: string;
+  /**
+   * Present only on `invalid_union`: ONE issue group per union member, in the
+   * union's own member order. Zod reports a union failure as a single root
+   * issue and buries every member's real diagnostics here.
+   */
+  errors?: ZodLikeIssue[][];
+};
+
 type ZodLikeSchema = {
   safeParse: (value: unknown) => {
     success: boolean;
-    error?: { issues: Array<{ path: Array<string | number>; message: string }> };
+    error?: { issues: ZodLikeIssue[] };
   };
 };
 
@@ -77,14 +97,100 @@ type SchemaLoader = (mode: DraftMode) => Promise<ZodLikeSchema | undefined>;
  * strictly against its own schema. Which of the two should be the single
  * authorable shape is a real open question, tracked in objectui#3312.
  */
+/**
+ * The `view` discriminant, in ONE place: `viewKind` is what makes a record a
+ * ViewItem rather than the aggregated container, and it is the same test
+ * `MetadataProvider.isViewItem()` applies on the read side.
+ *
+ * Both the create gate's schema dispatch (`viewSchemaForDraft`) and the edit
+ * gate's union-diagnostic selection (`viewUnionMemberIndex`) read it here, so
+ * the two can never drift apart into two different notions of "is a ViewItem".
+ */
+function isViewItemDraft(value: unknown): boolean {
+  return !!value && typeof value === 'object' && 'viewKind' in (value as object);
+}
+
 function viewSchemaForDraft(item: ZodLikeSchema, container: ZodLikeSchema): ZodLikeSchema {
   return {
-    safeParse: (value: unknown) => {
-      const isViewItem =
-        !!value && typeof value === 'object' && 'viewKind' in (value as object);
-      return (isViewItem ? item : container).safeParse(value);
-    },
+    safeParse: (value: unknown) => (isViewItemDraft(value) ? item : container).safeParse(value),
   };
+}
+
+/**
+ * ── Union-failure diagnostics for the `view` EDIT gate (objectui#3606) ──
+ *
+ * PRESENTATION ONLY. Nothing below can change a verdict: it runs strictly
+ * inside the final issue→`SchemaFormIssue` mapping, after `ok` has already been
+ * decided by the one gate (`ViewMetadataSchema`) and after every issue filter
+ * has run. Same input set, same `ok`; only the rendered `path`/`message` move.
+ *
+ * The edit gate is `z.preprocess(stripViewConsoleDecorations, z.union([…]))`.
+ * Zod reports a union failure as a SINGLE root issue — `code: 'invalid_union'`,
+ * `path: []`, `message: 'Invalid input'` — and buries each member's real
+ * diagnostics in `issue.errors`, one group per member, in member order. Mapping
+ * that root issue literally is what collapsed every field-level diagnostic on
+ * the edit path into one un-addressable "Invalid input": `SchemaForm` highlights
+ * by `path` and Monaco locates by `path`, so an empty path points at nothing,
+ * and the guided messages the spec wrote for these rejections (#4001) never
+ * reached the user.
+ *
+ * Selection is by the draft's OWN discriminant — the same `isViewItemDraft` the
+ * create gate dispatches on — never by a heuristic over the groups. "Fewest
+ * issues / deepest path" was measured and picks wrong: for a container carrying
+ * an unknown key, the ViewItem group reports a deeper `viewKind` discriminator
+ * error that is the wrong message entirely. We show ONLY the selected member's
+ * issues; showing all four would put "this is not a container" in front of
+ * someone editing a ViewItem.
+ *
+ * Measured member layout of `ViewMetadataSchema`'s union (@objectstack/spec
+ * 17.0.0-rc.5):
+ *
+ *   [0] `ViewItemWireSchema`  — the stored ViewItem record (itself a
+ *       discriminated union on `viewKind`; a valid discriminator resolves
+ *       straight through, so its issues arrive flat and field-addressed).
+ *   [1] the aggregated container — same shape as the exported `ViewSchema`.
+ *   [2] flattened list-view overlay.
+ *   [3] flattened form-view overlay.
+ *
+ * This indexes members POSITIONALLY, which couples to a spec-internal detail.
+ * That coupling is deliberate and it is guarded, not hoped for: reading the
+ * groups the failing gate itself produced is the only way the diagnostics
+ * cannot describe a schema other than the one that judged. The alternative —
+ * re-parsing with the exported member schemas — was measured and rejected: the
+ * container member is NOT the exported `ViewSchema` object (equal shape today,
+ * a resemblance maintained by hand), and a re-parse would also have to
+ * re-apply `stripViewConsoleDecorations` itself, reconstructing the spec's
+ * pipeline composition in a second place that can drift. The positional read
+ * is pinned by the CANARY tests in `clientValidation.viewDiagnostics.test.ts`:
+ * they assert the selected member's exact `path` + `message` for known bodies,
+ * so reordering, adding or removing a union member turns them red instead of
+ * silently mis-selecting.
+ */
+const VIEW_UNION_MEMBERS = { wireItem: 0, container: 1 } as const;
+
+function viewUnionMemberIndex(draft: unknown): number {
+  return isViewItemDraft(draft) ? VIEW_UNION_MEMBERS.wireItem : VIEW_UNION_MEMBERS.container;
+}
+
+/**
+ * Expand a ROOT union failure into the selected member's own issues, or return
+ * `null` to say "nothing better to show" — in which case the caller renders the
+ * root issue unchanged, exactly as before. It can never return an empty list,
+ * so a rejected draft always renders at least one issue.
+ *
+ * Root-only by design: a member issue's `path` is relative to the union node,
+ * and only at the root is that the same as the draft-absolute path `SchemaForm`
+ * needs. A union nested deeper (e.g. `config.columns`) keeps Zod's own message;
+ * it still carries a real path, so it is addressable — unlike the root case.
+ */
+function expandViewUnionIssue(issue: ZodLikeIssue, draft: unknown): ZodLikeIssue[] | null {
+  if (issue.code !== 'invalid_union') return null;
+  if ((issue.path ?? []).length !== 0) return null;
+  const groups = issue.errors;
+  if (!Array.isArray(groups)) return null;
+  const group = groups[viewUnionMemberIndex(draft)];
+  if (!Array.isArray(group) || group.length === 0) return null;
+  return group;
 }
 
 // Map metadata-type name → loader for that type's root Zod schema.
@@ -411,11 +517,18 @@ export async function validateMetadataDraft(
   }
   if (rawIssues.length === 0 && celIssues.length === 0) return { ok: true, issues: [] };
 
+  // Presentation only — see `expandViewUnionIssue`. `ok` is already `false`
+  // here and `rawIssues` is already final; this only decides what gets RENDERED
+  // for each of them, so the verdict cannot move (pinned by the parity test in
+  // `clientValidation.viewDiagnostics.test.ts`).
   const issues: SchemaFormIssue[] = [
-    ...rawIssues.map((i) => ({
-      path: (i.path ?? []).map((seg) => String(seg)).join('.'),
-      message: i.message,
-    })),
+    ...rawIssues.flatMap((i) => {
+      const expanded = type === 'view' ? expandViewUnionIssue(i, draft) : null;
+      return (expanded ?? [i]).map((issue) => ({
+        path: (issue.path ?? []).map((seg) => String(seg)).join('.'),
+        message: issue.message,
+      }));
+    }),
     ...celIssues,
   ];
   return { ok: false, issues };
