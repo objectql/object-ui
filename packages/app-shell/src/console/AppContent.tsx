@@ -573,7 +573,24 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
           {t('empty.noAppsConfiguredDescription')}
         </EmptyDescription>
         <div className="mt-4 flex flex-col sm:flex-row items-center gap-3">
-          <Button onClick={() => navigate('/create-app')} data-testid="create-first-app-btn">
+          {/* #3573 — target the APP-SCOPED route, not the host root. `create-app`
+              is declared by THIS component (the no-active-app branch just below,
+              and the with-app router further down), i.e. inside the
+              `/apps/:appName/*` subtree — never at the root. The former absolute
+              `/create-app` resolved against the HOST's root route tree, which
+              declares no such path, so the host's trailing catch-all silently
+              bounced the user back to the landing page: a dead first-screen CTA.
+              A plain relative `navigate('create-app')` does NOT fix it either —
+              react-router 7 resolves a relative `to` against the LEAF match's
+              FULL pathname, splat INCLUDED (`getResolveToMatches`), so from
+              `/apps/setup/<anything>` it builds `/apps/setup/<anything>/create-app`,
+              which matches no route and renders a blank screen. `/apps/<segment>`
+              is the platform's canonical app URL (ADR-0048) and is what every
+              other navigation in this file — and AppSidebar's own add-app entry —
+              builds, so build it here too. (This branch is only reachable under
+              `/apps/setup…`: it requires `isSetupRoute`, the one pseudo-route the
+              guard above does not exclude — so `appName` is always present here.) */}
+          <Button onClick={() => navigate(`/apps/${appName}/create-app`)} data-testid="create-first-app-btn">
             {t('empty.createFirstApp')}
           </Button>
           <Button variant="outline" onClick={() => navigate('/apps/setup')} data-testid="go-to-settings-btn">
