@@ -35,9 +35,9 @@
  * redirect in the no-app branch that the with-app branch already declares, and
  * the alias lands on a route the no-app branch has had all along. No navigation
  * URL changes, and the alias keeps its single canonical destination. The
- * assertions below pin the resulting *pathname*, so a future change that made
- * `component/metadata/resource` render a second copy of the page instead of
- * redirecting would turn this file red.
+ * assertions below pin the resulting *pathname* AND the redirect chain that
+ * produced it, so both a `component/metadata/resource` that grew a second copy
+ * of the page and a silently changed number of hops turn this file red.
  *
  * ## Scope of the stubs
  *
@@ -47,11 +47,30 @@
  *
  * `systemRoutesStub` below transcribes the host fragment from
  * `apps/console/src/AppContent.tsx` (`systemRoutes` + its `MetadataRedirect`).
- * app-shell cannot import from `apps/` — different Vitest project, and the
- * redirect is a module-private function — so the rewrite is copied verbatim,
- * including its `prefix` regex, and this comment is the pointer back to the
- * original. It is the `sys-objects` leg of the chain: without it that URL's
- * two-hop route to the same dead end is invisible here.
+ * app-shell cannot import from `apps/` — a different Vitest project — so the
+ * rewrite is copied verbatim, including its `prefix` regex, and this comment is
+ * the pointer back to the original. It is the `sys-objects` leg of the chain:
+ * without it that URL's route into this branch is invisible here.
+ *
+ * ## Why the chain, not just the endpoint (objectui#3661)
+ *
+ * A transcription can go stale, and this one did. objectui#3658 re-pointed the
+ * host straight at the canonical routes; the copy here kept emitting the
+ * deprecated alias, so the `sys-objects` case went on measuring a two-hop chain
+ * that production had stopped producing. Nothing went red — the assertions
+ * pinned only the final pathname, and that is identical either way. Green, for
+ * a reason that no longer had anything to do with the code under test.
+ *
+ * So `renderConsoleAt` now returns every location the router settles on, and
+ * all four redirect cases assert that list exactly. A stub that drifts back
+ * onto the alias grows a third entry and fails, naming the alias in the diff.
+ * That is the only mechanism in this file capable of noticing.
+ *
+ * Measured, both directions. Re-pointing the stub at the alias fails exactly
+ * the two host-rewrite cases, and each diff adds exactly one line — the alias,
+ * in the middle, with the first and last entries untouched. That is the drift's
+ * whole signature, and precisely why an endpoint-only assertion could not see
+ * it.
  */
 
 import '@testing-library/jest-dom/vitest';
@@ -150,28 +169,52 @@ vi.mock('@object-ui/react', async (importOriginal) => ({
 
 import { AppContent } from '../AppContent';
 
-/** Reports the live URL so a redirect chain is visible as a URL, not just a screen. */
-function LocationProbe() {
+/**
+ * Reports the live URL so a redirect chain is visible as a URL, not just a
+ * screen, and records every distinct location the router settles on.
+ * `<Navigate replace>` re-renders the tree once per hop, so a one-hop rewrite
+ * shows up as two entries and a two-hop one as three — the difference this
+ * file's `sys-objects` case is about (objectui#3661).
+ */
+function LocationProbe({ sink }: { sink: string[] }) {
   const location = useLocation();
+  const here = `${location.pathname}${location.search}`;
+  if (sink[sink.length - 1] !== here) sink.push(here);
   return <div data-testid="pathname">{location.pathname}</div>;
 }
 
 /**
- * VERBATIM transcription of `apps/console/src/AppContent.tsx`'s `MetadataRedirect`
- * (the `system/metadata/*` legs of its `systemRoutes` fragment). Keep the regex
- * and the target construction identical to the original — this stub is what makes
- * the `sys-objects` hop measurable from inside app-shell.
+ * VERBATIM transcription of `apps/console/src/AppContent.tsx`'s
+ * `MetadataRedirect` (the `system/metadata/*` legs of its `systemRoutes`
+ * fragment), as it stands after objectui#3658 landed in `7883c0250`. Keep the
+ * regex and the target construction identical to the original — this stub is
+ * what makes the `sys-objects` hop measurable from inside app-shell.
+ *
+ * "Identical to the original" is a claim this file has to keep earning. Between
+ * `7883c0250` and objectui#3661 it was false: the host had been re-pointed at
+ * the canonical `…/metadata/:type` and this copy still built the deprecated
+ * `…/component/metadata/resource?type=:type`, so the `sys-objects` case
+ * measured a chain production no longer had. Re-syncing the copy is only half
+ * the repair; the other half is that the chain assertions below can now catch
+ * the next drift instead of staying green through it.
+ *
+ * Transcribed rather than imported because app-shell and `apps/console` are
+ * separate Vitest projects. objectui#3658 did `export` the host's `systemRoutes`
+ * (its own test imports the real fragment), so the module-private half of the
+ * original reason is gone — but the cross-project half stands, and whether the
+ * import is feasible at all is unmeasured. Until someone measures it, this stays
+ * a copy, and the copy stays pinned by the chain.
  */
 function MetadataRedirectStub() {
   const { metadataType, itemName } = useParams<{ metadataType?: string; itemName?: string }>();
   const location = useLocation();
   const prefix = location.pathname.replace(/\/(system\/)?metadata(\/.*)?$/, '');
-  const base = `${prefix}/component/metadata/resource`;
+  const base = `${prefix}/metadata`;
   const target = !metadataType
-    ? `${prefix}/component/metadata/directory`
+    ? base
     : itemName
-      ? `${base}/${itemName}?type=${metadataType}`
-      : `${base}?type=${metadataType}`;
+      ? `${base}/${encodeURIComponent(metadataType)}/${itemName}`
+      : `${base}/${encodeURIComponent(metadataType)}`;
   return <Navigate to={target} replace />;
 }
 
@@ -193,11 +236,17 @@ const systemRoutesStub = (
 /**
  * The reference host's route tree, reduced to the parts that decide this
  * question. Mirrors `apps/console/src/App.tsx`.
+ *
+ * Returns the redirect chain (see `LocationProbe`). It fills as the router
+ * navigates, so read it AFTER the `await findBy…` that lets the hops settle —
+ * the metadata-admin pages sit behind `React.lazy`, so nothing is final on the
+ * synchronous return.
  */
 function renderConsoleAt(initialUrl: string) {
-  return render(
+  const chain: string[] = [];
+  render(
     <MemoryRouter initialEntries={[initialUrl]}>
-      <LocationProbe />
+      <LocationProbe sink={chain} />
       <Routes>
         <Route path="/apps/:appName/*" element={<AppContent extraRoutesNoApp={systemRoutesStub} />} />
         <Route path="/" element={<div data-testid="root-landing">landing</div>} />
@@ -206,6 +255,7 @@ function renderConsoleAt(initialUrl: string) {
       </Routes>
     </MemoryRouter>,
   );
+  return chain;
 }
 
 const pathname = () => screen.getByTestId('pathname').textContent;
@@ -219,7 +269,12 @@ describe('AppContent — zero-app component/metadata destinations (objectui#3610
     // The white screen this issue is about. The URL passes `isMetadataRoute`
     // (substring `/metadata`) and so enters the no-`activeApp` branch, which
     // used to declare nothing matching `component/…` and had no catch-all.
-    renderConsoleAt('/apps/setup/component/metadata/resource?type=datasource');
+    //
+    // Unlike the two host-rewrite cases below, the alias here is the ENTRY, not
+    // an intermediate stop — the zero-app fallback sidebar's `sys-datasources`
+    // item still points straight at this spelling, so this chain is one this
+    // deployment really produces.
+    const chain = renderConsoleAt('/apps/setup/component/metadata/resource?type=datasource');
 
     const page = await screen.findByTestId('metadata-resource-list-page');
     expect(page).toBeInTheDocument();
@@ -229,34 +284,73 @@ describe('AppContent — zero-app component/metadata destinations (objectui#3610
     // The direction of the hop — `component/metadata/resource` is the ALIAS,
     // `metadata/:type` is canonical. Asserting the screen alone would stay
     // green if the alias grew a second copy of the page.
+    expect(chain).toEqual([
+      '/apps/setup/component/metadata/resource?type=datasource',
+      '/apps/setup/metadata/datasource',
+    ]);
     expect(pathname()).toBe('/apps/setup/metadata/datasource');
     // Not the "no apps configured" screen, and not bounced to the host landing.
     expect(screen.queryByTestId('create-first-app-btn')).not.toBeInTheDocument();
     expect(screen.queryByTestId('root-landing')).not.toBeInTheDocument();
   });
 
-  it('sys-objects: the /apps/setup/system/metadata/object detour reaches the same resource page', async () => {
+  it('sys-objects: /apps/setup/system/metadata/object reaches this branch\'s metadata/:type in ONE hop', async () => {
     // The non-obvious half, pinned on its own because it would regress
     // silently: this URL is rewritten by the HOST (`MetadataRedirect`) onto the
-    // legacy alias, which the shell then rewrites onto the canonical route.
-    // Three route tables, two redirects, zero apps.
-    renderConsoleAt('/apps/setup/system/metadata/object');
+    // canonical route, which the zero-app branch declares itself. Two route
+    // tables, one redirect, zero apps.
+    //
+    // It used to be two redirects — the host aimed at the legacy alias and the
+    // shell forwarded that on. objectui#3658 removed the middle stop; this case
+    // now measures what production actually does, and objectui#3661 is what it
+    // cost to notice that it had stopped doing so (the endpoint never moved, so
+    // nothing failed).
+    const chain = renderConsoleAt('/apps/setup/system/metadata/object');
 
     const page = await screen.findByTestId('metadata-resource-list-page');
     expect(page).toBeInTheDocument();
     expect(page).toHaveTextContent('object');
+    // Two entries, i.e. a single `<Navigate>`. The alias is not merely absent
+    // from the end of the chain — it is absent from the chain.
+    expect(chain).toEqual(['/apps/setup/system/metadata/object', '/apps/setup/metadata/object']);
+    expect(chain.some((entry) => entry.includes('component/metadata'))).toBe(false);
     expect(pathname()).toBe('/apps/setup/metadata/object');
     expect(screen.queryByTestId('root-landing')).not.toBeInTheDocument();
   });
 
-  it('the typeless legacy directory alias reaches the metadata directory', async () => {
+  it('the typeless host arm reaches the metadata directory in ONE hop', async () => {
     // `system/metadata` with no `:metadataType` takes `MetadataRedirect`'s other
-    // arm, onto `component/metadata/directory` — the second alias the with-app
-    // branch declares, and the second blank screen without it.
-    renderConsoleAt('/apps/setup/system/metadata');
+    // arm. That arm used to aim at `component/metadata/directory` — the second
+    // alias, and the second blank screen without it — and since objectui#3658
+    // aims at the canonical directory route directly.
+    const chain = renderConsoleAt('/apps/setup/system/metadata');
 
     expect(await screen.findByTestId('metadata-directory-page')).toBeInTheDocument();
+    expect(chain).toEqual(['/apps/setup/system/metadata', '/apps/setup/metadata']);
+    expect(chain.some((entry) => entry.includes('component/metadata'))).toBe(false);
     expect(pathname()).toBe('/apps/setup/metadata');
+  });
+
+  it('the legacy directory alias still resolves when entered directly', async () => {
+    // Coverage this file would otherwise have LOST to objectui#3661. The
+    // zero-app branch declares `component/metadata/directory` (objectui#3610);
+    // until #3658 the only thing that ever exercised it was the host stub's
+    // typeless arm, hopping through it on the way to `metadata`. Now that the
+    // host goes direct, that route has no other visitor: `pseudoRouteSegments`
+    // enters the directory alias only under `/apps/ghost/…`, which resolves to
+    // the DEFAULT app and therefore exercises the with-app branch's copy of the
+    // declaration, not this one.
+    //
+    // Bookmarks and `SystemHubPage`'s "Metadata" card still emit this URL, so
+    // the alias is live input, not a museum piece — entered directly here,
+    // exactly as `sys-datasources` above enters the resource alias.
+    const chain = renderConsoleAt('/apps/setup/component/metadata/directory');
+
+    expect(await screen.findByTestId('metadata-directory-page')).toBeInTheDocument();
+    expect(chain).toEqual(['/apps/setup/component/metadata/directory', '/apps/setup/metadata']);
+    expect(pathname()).toBe('/apps/setup/metadata');
+    expect(screen.queryByTestId('create-first-app-btn')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('root-landing')).not.toBeInTheDocument();
   });
 
   it('an unmatched URL inside this branch renders "not found" instead of a blank screen', async () => {
