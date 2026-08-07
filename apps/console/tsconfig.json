@@ -24,6 +24,6 @@
     /* Testing */
     "types": ["vitest/globals", "@testing-library/jest-dom"]
   },
-  "include": ["src", "dev", "objectstack.config.ts"],
+  "include": ["src", "dev"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
