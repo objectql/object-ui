@@ -273,16 +273,19 @@
  * closes the comment. It is described in prose here and written out only in the
  * table below, which is code.)
  *
- * The price was **11 more** dead links, none of them among #3603's 9 — they sit
- * in seven packages, five of which that card never opened, and the other two on
- * lines it did not touch: `/api/core`, `/api/react`,
- * `/api/components` (no such routes — the class #3490 swept), `/docs/core`,
- * `/docs/fields`, `/docs/layout` (real directories with no index page, so no
- * route), `/docs/types` and `/examples` (neither exists), plus two disk paths
- * that were simply absent (a `docs/SHADCN_SYNC.md` that has never existed, and
- * a per-package `LICENSE` that `packages/vscode-extension` does not have).
- * Each was resolved to a real page, or dropped where none exists, in the same
- * PR as this row — so the row arrives on a green tree, the #3572 shape.
+ * The price was **11 more** dead links, none of them among #3603's 9. They sit
+ * in seven packages: five that card never opened, plus two where it had already
+ * fixed a different line. `/api/core`, `/api/react` and `/api/components` (no
+ * such routes — the class #3490 swept); `/docs/core`, `/docs/fields` and
+ * `/docs/layout`, twice (real directories with no index page, so no route);
+ * `/docs/types` and `/examples` (neither exists); and two disk paths that were
+ * simply absent (a `docs/SHADCN_SYNC.md` that has never existed, and a
+ * per-package `LICENSE` that `packages/vscode-extension` does not have).
+ *
+ * All eleven were repointed at a page or path that does exist, in the same PR as
+ * this row — none had to be dropped, unlike #3603's 9, where 6 assumed a whole
+ * `/docs/packages/...` namespace that was never written. So the row arrives on a
+ * green tree, the #3572 shape.
  *
  * Three of those deserve naming, because objectui#3603's own verification
  * script scored them GREEN: it accepted a bare DIRECTORY as a fumadocs
