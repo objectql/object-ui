@@ -54,7 +54,11 @@ import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 // i18n lookup — `{ns}.apps.{name}.label` resolves to the translated label
 // loaded from /api/v1/i18n/translations/:locale.
 import { useNavigationContext } from '../context/NavigationContext';
-import { useAppContextSelectors } from './ContextSelectors';
+import {
+  useAppContextSelectors,
+  contextSelectorQueryKey,
+  STUDIO_PACKAGE_SELECTOR_ID,
+} from './ContextSelectors';
 import { LocalizedSidebarTrigger } from './LocalizedSidebarTrigger';
 
 // ---------------------------------------------------------------------------
@@ -340,11 +344,18 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
   const navigationItems = context === 'home' ? homeNavigation : appNavigation;
   const basePath = context === 'app' && activeApp ? `/apps/${appRouteSegment(activeApp)}` : '';
   const isStudioApp = context === 'app' && activeApp?.name === 'studio';
+  // Studio's home link carries the active package scope. Read (and re-emit)
+  // it through the SAME per-selector key derivation the selector writes with,
+  // instead of assuming the literal `package` key — for `active_package` the
+  // derivation resolves to `package`, so existing links are byte-identical,
+  // and the two halves can no longer drift apart (objectui#3500).
+  const studioScopeKey = contextSelectorQueryKey(STUDIO_PACKAGE_SELECTOR_ID);
+  const studioScopeValue = contextValues[STUDIO_PACKAGE_SELECTOR_ID];
   const studioHomeSearch = React.useMemo(() => {
     if (!isStudioApp) return '';
-    const packageId = new URLSearchParams(location.search).get('package') || contextValues.active_package;
-    return packageId ? `?package=${encodeURIComponent(packageId)}` : '';
-  }, [contextValues.active_package, isStudioApp, location.search]);
+    const packageId = new URLSearchParams(location.search).get(studioScopeKey) || studioScopeValue;
+    return packageId ? `?${studioScopeKey}=${encodeURIComponent(packageId)}` : '';
+  }, [studioScopeValue, isStudioApp, location.search, studioScopeKey]);
 
   const studioNavigationItems = React.useMemo(() => {
     if (context !== 'app' || activeApp?.name !== 'studio') return navigationItems;
