@@ -97,9 +97,21 @@ that do configure it are:
 
 ## Development Workflow
 
-1. Create a schema file (JSON or TypeScript)
+1. Author the metadata as JSON — both loaders resolve fixed `.json` paths, and JSON is
+   the only shape either of them can load. Pick one of the two routes described under
+   [Metadata Loading](#metadata-loading):
+   - **Bundled** — create `packages/runner/src/app-data/` and put `app.json` plus one
+     `pages/<route>.json` per route in it (route `/` is `pages/index.json`). That
+     directory is git-ignored, absent from a fresh checkout, and no script in this repo
+     creates it, so making it is a step you do by hand — until it exists, every load
+     returns nothing and the page renders as a 404.
+   - **Served** — run a backend that answers `<base>/app.json` and
+     `<base>/pages/<route>.json`, then open the runner with `?api=<base>`.
 2. Start the runner with `pnpm dev`
-3. Edit the schema - changes reload automatically
+3. Edit the metadata. Under `src/app-data/` the dev server picks the change up without a
+   restart, because that JSON is part of Vite's module graph; behind `?api=` it cannot,
+   because Vite never sees your backend. Reload the page if the view still shows the
+   previous document.
 4. Test your UI in the browser
 5. Build for production with `pnpm build`
 
