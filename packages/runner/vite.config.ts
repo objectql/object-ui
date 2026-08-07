@@ -99,4 +99,25 @@ export default defineConfig({
       "@object-ui/data-objectstack": path.resolve(__dirname, "../../packages/data-objectstack/src"),
     },
   },
+  build: {
+    // The alias table above is NOT scoped by `command`, so it applies to
+    // `vite build` too. That is deliberate and matches apps/console: resolving
+    // the plugin packages to src keeps the ComponentRegistry singleton
+    // single-instanced, which importing their prebuilt dist/ bundles does not
+    // guarantee (duplicate registries surface as "Unknown component type").
+    //
+    // Measured consequence of completing the table (objectui#3575): once
+    // `@object-ui/fields` & co. are bundled from src, the per-icon chunks that
+    // `components/src/lib/lazy-icon.tsx` creates via `lucide-react/dynamic.mjs`
+    // stop being inlined — this build goes from 10 assets to 1776, ~1761 of
+    // them sub-2KB icon micro-chunks. That is exactly the shape apps/console
+    // has ("1700+ icon chunks", see its build config).
+    //
+    // Vite's default `modulePreload: true` then emits a preload link for every
+    // one of them: index.html measured 546 B -> 145 KB with 1765
+    // `rel="modulepreload"` links, so the browser eagerly fetches all the icon
+    // chunks on first paint and the lazy split becomes a pessimisation.
+    // apps/console disables it for this exact reason; runner needs the same.
+    modulePreload: false,
+  },
 })
