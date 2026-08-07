@@ -102,6 +102,18 @@ export function SystemHubPage() {
   // Metadata: single entry point to the server-driven metadata-admin engine.
   // Per-type cards were removed when the engine started auto-listing every
   // type registered with the framework (`/api/v1/meta`).
+  //
+  // The two metadata cards below name the engine's CANONICAL routes —
+  // `…/metadata` (directory) and `…/metadata/:type` (one type's list), declared
+  // by `DefaultAppContent` in `@object-ui/app-shell`. NOT the older
+  // `…/component/metadata/{directory,resource?type=}` spelling they used to
+  // carry (objectui#3660): app-shell declares that as a legacy *alias* whose
+  // route element is `LegacyMetadataRedirect`, i.e. a bare `<Navigate>` onto
+  // precisely the targets below. Aiming a card at it bought a redundant hop and
+  // a re-render on every click. The alias routes themselves stay declared —
+  // bookmarks and external links still land on them — this only stops the hub
+  // feeding its own traffic through them (same disposition as objectui#3639,
+  // which corrected the console host's two redirects).
   const metadataTypeCards: HubCard[] = [
     {
       title: 'Applications',
@@ -115,7 +127,7 @@ export function SystemHubPage() {
       title: 'Metadata',
       description: 'Browse and edit every metadata type the platform exposes',
       icon: Database,
-      href: `${basePath}/component/metadata/directory`,
+      href: `${basePath}/metadata`,
       countLabel: '',
       count: null,
     },
@@ -123,7 +135,7 @@ export function SystemHubPage() {
       title: 'Datasources',
       description: 'Connect external databases and sync their tables in as objects',
       icon: Boxes,
-      href: `${basePath}/component/metadata/resource?type=datasource`,
+      href: `${basePath}/metadata/datasource`,
       countLabel: '',
       count: null,
     },

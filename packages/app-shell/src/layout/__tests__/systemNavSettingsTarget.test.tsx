@@ -45,6 +45,17 @@
  * `NavigationRenderer` the app arm uses. The pin is therefore GONE, not
  * duplicated: it is replaced below by the real assertions it was standing in
  * for, so the repo pins the fix instead of pinning both the bug and the fix.
+ *
+ * ## The `Datasources` entry (objectui#3660)
+ *
+ * `ADMINISTRATION_ENTRIES` used to spell that entry
+ * `/apps/setup/component/metadata/resource?type=datasource` — a legacy *alias*,
+ * not a page, whose route element `<Navigate>`s straight on to
+ * `/apps/setup/metadata/datasource`. Both sidebars now name that destination
+ * directly, and this file's expectation is REWRITTEN to match (same discipline
+ * as above: replace the old shape, do not keep it alongside). The AppSidebar
+ * test below gained the matching assertion at the same time — that sidebar
+ * carries its own copy of the literal and had none.
  */
 
 import '@testing-library/jest-dom/vitest';
@@ -149,6 +160,19 @@ import { UnifiedSidebar } from '../UnifiedSidebar';
 const SYSTEM_HUB = '/apps/setup/system';
 
 /**
+ * `Datasources` names the metadata-admin engine's canonical route
+ * (objectui#3660). This entry used to read
+ * `/apps/setup/component/metadata/resource?type=datasource` — the legacy alias,
+ * whose route element is `LegacyMetadataRedirect`, a bare `<Navigate>` onto the
+ * URL below. That old spelling is REPLACED here, not kept alongside: the repo
+ * pins the fix, never both the bug and the fix (the #3609 discipline this file
+ * already applied once, when the #3590 measurement pin was deleted rather than
+ * duplicated). Whether this URL then resolves in one hop is a different
+ * question, measured in `systemNavDatasourcesHop.test.tsx`.
+ */
+const DATASOURCES_TARGET = '/apps/setup/metadata/datasource';
+
+/**
  * Every entry of the `/home` Administration cluster, in declaration order.
  * Asserted whole rather than by sample: the defect was that the group's
  * children were never visited at all, so "some of them render" is not the
@@ -159,7 +183,7 @@ const ADMINISTRATION_ENTRIES: ReadonlyArray<readonly [string, string]> = [
   ['Applications', `${SYSTEM_HUB}/apps`],
   ['App Marketplace', `${SYSTEM_HUB}/marketplace`],
   ['Object Manager', `${SYSTEM_HUB}/metadata/object`],
-  ['Datasources', '/apps/setup/component/metadata/resource?type=datasource'],
+  ['Datasources', DATASOURCES_TARGET],
   ['Users', `${SYSTEM_HUB}/users`],
   ['Organizations', `${SYSTEM_HUB}/organizations`],
   ['Roles', `${SYSTEM_HUB}/roles`],
@@ -210,6 +234,16 @@ describe('sidebar system-settings target (objectui#3590)', () => {
     expect(screen.getByRole('link', { name: 'Applications' })).toHaveAttribute(
       'href',
       `${SYSTEM_HUB}/apps`,
+    );
+
+    // objectui#3660 — `sys-datasources`. AppSidebar and UnifiedSidebar each hold
+    // their OWN literal for this entry, and only UnifiedSidebar's was pinned
+    // (in ADMINISTRATION_ENTRIES); this half of the twin could drift back to the
+    // alias with every test in the repo still green. Pinned here now, in the
+    // same shape, so both copies are covered.
+    expect(screen.getByRole('link', { name: 'Datasources' })).toHaveAttribute(
+      'href',
+      DATASOURCES_TARGET,
     );
   });
 

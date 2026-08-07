@@ -327,7 +327,16 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
     }
     items.push(
       { id: 'sys-objects', label: t('layout.systemNav.objectManager', { defaultValue: 'Object Manager' }), type: 'url' as const, url: '/apps/setup/system/metadata/object', icon: 'database' },
-      { id: 'sys-datasources', label: t('layout.systemNav.datasources', { defaultValue: 'Datasources' }), type: 'url' as const, url: '/apps/setup/component/metadata/resource?type=datasource', icon: 'database' },
+      // #3660 — `sys-datasources` names the metadata-admin engine's CANONICAL
+      // route `/apps/setup/metadata/datasource`, not the legacy
+      // `…/component/metadata/resource?type=datasource` alias it used to carry.
+      // That alias is not a page: its route element is `LegacyMetadataRedirect`,
+      // which `<Navigate>`s onto exactly the URL spelled here, so every click
+      // paid a redundant hop plus a re-render. The alias route stays declared in
+      // BOTH `AppContent` branches (bookmarks and external links still arrive on
+      // it, and #3610 added it to the zero-app branch precisely because this
+      // entry fed it) — we simply stop aiming our own navigation at it.
+      { id: 'sys-datasources', label: t('layout.systemNav.datasources', { defaultValue: 'Datasources' }), type: 'url' as const, url: '/apps/setup/metadata/datasource', icon: 'database' },
       { id: 'sys-users', label: t('layout.systemNav.users', { defaultValue: 'Users' }), type: 'url' as const, url: '/apps/setup/system/users', icon: 'users' },
       { id: 'sys-orgs', label: t('layout.systemNav.organizations', { defaultValue: 'Organizations' }), type: 'url' as const, url: '/apps/setup/system/organizations', icon: 'building-2' },
       { id: 'sys-roles', label: t('layout.systemNav.roles', { defaultValue: 'Roles' }), type: 'url' as const, url: '/apps/setup/system/roles', icon: 'shield' },
