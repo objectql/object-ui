@@ -228,8 +228,8 @@ function viewUnionMemberIndex(draft: unknown): number {
  *
  * Like the root rule this indexes members POSITIONALLY and is pinned the same
  * way: the CANARY tests assert the exact `path` + `message` of the selected
- * member, so a spec-side reorder of `ColumnsSchema` goes red instead of
- * silently reporting the other variant's complaint.
+ * member, so a spec-side reorder of the `columns` union's two members goes red
+ * instead of silently reporting the other variant's complaint.
  */
 const ARRAY_VARIANT_MEMBERS = { ofStrings: 0, ofObjects: 1 } as const;
 
