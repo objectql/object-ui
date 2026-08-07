@@ -123,8 +123,11 @@
     //     `tsconfig.scripts.json` documents.
     //
     //   Mapping them to the PACKAGE DIRECTORY, below -> 0 errors, 4.5s, and the
-    //     only files this program checks are the four subject files (everything
-    //     the mapping drags in is `.d.ts`, skipped). TypeScript reads each
+    //     only workspace files this program checks are the four subject files.
+    //     What the mapping drags in is declarations, which `skipLibCheck` skips —
+    //     with exactly one measured exception, `@reduxjs/toolkit`'s vendored
+    //     `dist/uncheckedindexed.ts`, which a dependency declaration references
+    //     and which is therefore checked (cleanly today). TypeScript reads each
     //     package's own package.json and follows its `exports.types`, so the
     //     mapping tracks the package's declared entry point instead of hardcoding
     //     `dist/index.d.ts`.
