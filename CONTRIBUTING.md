@@ -81,14 +81,16 @@ git checkout -b feature/your-feature-name
 ### Running Development Servers
 
 ```bash
-# Run the visual designer demo
-pnpm designer
+# Run the console app — the main dev playground (app shell + the full plugin set,
+# including the visual designer, which mounts here rather than in a demo of its own)
+pnpm dev
 
-# Run the prototype example
-pnpm prototype
+# Run an example app (console-starter and byo-backend-console are the two that ship
+# a dev server; hello-world has none, and schema-catalog is a data package)
+pnpm --filter @object-ui/example-console-starter dev
 
-# Run documentation site
-pnpm docs:dev
+# Run the documentation site
+pnpm site:dev
 ```
 
 ### Building
