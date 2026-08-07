@@ -315,7 +315,8 @@ describe('package.json `files` entries exist on disk (objectui#3663)', () => {
     // from the verdict it explains.
     const causeOf = (relPath: string): string => {
       const entry = declared.find((d) => d.relPath === relPath);
-      if (!entry) return 'the `files` entry that declared it is gone (deleted, or its package left the workspace)';
+      if (!entry)
+        return 'no `files` entry declares it: the declaration was deleted, its package left the workspace, or this baseline key never matched one';
       if (entry.onDisk) return 'the path now exists on disk';
       return 'still declared and still absent, but now excused as build output (git-ignored, untracked, package has a `build` script)';
     };
