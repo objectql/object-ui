@@ -593,7 +593,19 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
           <Button onClick={() => navigate(`/apps/${appName}/create-app`)} data-testid="create-first-app-btn">
             {t('empty.createFirstApp')}
           </Button>
-          <Button variant="outline" onClick={() => navigate('/apps/setup')} data-testid="go-to-settings-btn">
+          {/* #3590 — the system hub lives at `/apps/setup/system`, NOT at the
+              bare `/apps/setup`. Being inside the `/apps/:appName/*` subtree is
+              necessary but NOT sufficient: `isSystemRoute` keys on a `/system`
+              segment, so bare `/apps/setup` fails every pseudo-route test above
+              except `isSetupRoute` and falls straight back into THIS guard —
+              i.e. it is this empty state's own URL, and the click was a no-op
+              loop. `/apps/setup/system` flips `isSystemRoute`, which is exactly
+              the switch that mounts `extraRoutesNoApp` (the branch just below)
+              where the host declares `system` → SystemHubPage. Spelled the same
+              absolute way as the sidebar's whole `sys-*` cluster
+              (`/apps/setup/system/...`); `appName` is provably `setup` here, so
+              the two forms coincide. */}
+          <Button variant="outline" onClick={() => navigate('/apps/setup/system')} data-testid="go-to-settings-btn">
             {t('empty.systemSettings')}
           </Button>
         </div>

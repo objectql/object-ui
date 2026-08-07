@@ -18,9 +18,13 @@
  *     /apps/setup                 and   /apps/setup/<anything not
  *                                       system|metadata|create-app>
  *
- * which is precisely where the sidebar's no-active-app system navigation and
- * the empty state's own `go-to-settings-btn` send a zero-app user
- * (`layout/AppSidebar.tsx` systemFallbackNavigation → `/apps/setup`).
+ * which is where a zero-app user still arrives from the remaining bare
+ * `/apps/setup` senders (`layout/AppSidebar.tsx`'s no-app sidebar header and
+ * user-menu "Settings", `console/ConsoleShell.tsx`'s legacy `/system` redirect)
+ * and from bookmarks. Note both CTA-shaped senders that used to point here have
+ * since been retargeted at the system hub: the empty state's own
+ * `go-to-settings-btn` and both sidebars' `sys-settings` entry (objectui#3590) —
+ * the ENTRY family below is unchanged, only who points at it.
  *
  * `/` is NOT such a URL: with zero apps `RootLandingRedirect` resolves to
  * `/home` and `AppContent` never mounts. So the empty state always renders
@@ -139,6 +143,19 @@ function LocationProbe() {
 }
 
 /**
+ * The host's system routes, reduced to the one entry this file asserts on.
+ * `apps/console/src/AppContent.tsx` builds a `systemRoutes` fragment whose FIRST
+ * entry is `<Route path="system" element={<SystemHubPage />} />`, and passes the
+ * SAME fragment to both `extraRoutes` and `extraRoutesNoApp`. With zero apps only
+ * the `extraRoutesNoApp` branch is reachable, so that is the one wired below —
+ * and it is what makes `/apps/setup/system` a real destination rather than
+ * another URL that renders nothing (objectui#3590).
+ */
+const systemRoutesStub = (
+  <Route path="system" element={<div data-testid="system-hub-page">system hub</div>} />
+);
+
+/**
  * The reference host's route tree, reduced to the parts that decide this
  * question: the `/apps/:appName/*` subtree, the landing route, and the
  * trailing catch-all that used to swallow `/create-app`.
@@ -149,7 +166,7 @@ function renderConsoleAt(initialUrl: string) {
     <MemoryRouter initialEntries={[initialUrl]}>
       <LocationProbe />
       <Routes>
-        <Route path="/apps/:appName/*" element={<AppContent />} />
+        <Route path="/apps/:appName/*" element={<AppContent extraRoutesNoApp={systemRoutesStub} />} />
         <Route path="/" element={<div data-testid="root-landing">landing</div>} />
         <Route path="/home" element={<div data-testid="home-launcher">home</div>} />
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -199,18 +216,38 @@ describe('AppContent — no-apps empty state CTA (objectui#3573)', () => {
     expect(screen.queryByTestId('root-landing')).not.toBeInTheDocument();
   });
 
-  it('leaves the sibling go-to-settings CTA on its absolute /apps/setup target', async () => {
+  it('sibling go-to-settings CTA opens the system hub instead of looping onto this same empty state', async () => {
+    // objectui#3590 — this REPLACES the pin that used to sit here (*"leaves the
+    // sibling go-to-settings CTA on its absolute /apps/setup target"*: pathname
+    // `/apps/setup`, `create-first-app-btn` still present). That pin recorded
+    // current behaviour to prove #3573 had not touched this button; it explicitly
+    // did not bless the target. The target was wrong: bare `/apps/setup` is this
+    // empty state's OWN url, so the click re-rendered the same screen.
+    renderConsoleAt('/apps/setup');
+    fireEvent.click(await screen.findByTestId('go-to-settings-btn'));
+
+    expect(await screen.findByTestId('system-hub-page')).toBeInTheDocument();
+    expect(pathname()).toBe('/apps/setup/system');
+    // The loop this pins: the empty state must be GONE. Asserting only the URL
+    // would stay green for a target that merely renders nothing, and asserting
+    // only the hub would miss a screen that rendered both.
+    expect(screen.queryByTestId('create-first-app-btn')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('root-landing')).not.toBeInTheDocument();
+  });
+
+  it('reaches the SAME system hub from a deeper splat URL (absolute target, depth-independent)', async () => {
+    // The depth the replaced pin used. The `/system` segment is what flips
+    // `isSystemRoute`, i.e. the switch that mounts `extraRoutesNoApp` — so the
+    // splat segment must not leak into the target either (a relative `system`
+    // would build `/apps/setup/sys_inbox_message/system` here: still
+    // `isSystemRoute`, but matching no route inside that branch — which has no
+    // catch-all — and therefore rendering blank).
     renderConsoleAt('/apps/setup/sys_inbox_message');
     fireEvent.click(await screen.findByTestId('go-to-settings-btn'));
 
-    expect(pathname()).toBe('/apps/setup');
-    expect(screen.queryByTestId('root-landing')).not.toBeInTheDocument();
-    // NB: this asserts CURRENT behaviour, it does not bless it. `/apps/setup`
-    // bare IS this empty state's own URL (`isSystemRoute` needs a `/system`
-    // segment), so on a zero-app deployment this sibling CTA is a no-op loop —
-    // filed separately as #3590. Kept here only to prove the #3573 fix did not
-    // touch it; update this expectation together with #3590.
-    expect(await screen.findByTestId('create-first-app-btn')).toBeInTheDocument();
+    expect(await screen.findByTestId('system-hub-page')).toBeInTheDocument();
+    expect(pathname()).toBe('/apps/setup/system');
+    expect(screen.queryByTestId('create-first-app-btn')).not.toBeInTheDocument();
   });
 
   it('MEASUREMENT: a non-pseudo /apps/:appName URL never reaches this empty state', async () => {

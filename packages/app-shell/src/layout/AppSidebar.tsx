@@ -308,9 +308,18 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
   // Fallback system navigation when no active app exists — routes into the Setup app.
   // The marketplace entry is hidden from non-admin members (install is gated to
   // owner/admin on the server, so non-admins have no reason to see it).
+  //
+  // #3590 — `sys-settings` targets `/apps/setup/system` (the system hub), not the
+  // bare `/apps/setup`. This whole cluster renders ONLY when `activeApp` is falsy,
+  // and `activeApp` (above) is `matched || activeApps[0]` — falsy only when the
+  // deployment has zero active+visible apps. In exactly that case bare
+  // `/apps/setup` renders `AppContent`'s "No Apps Configured" empty state (its
+  // `isSystemRoute` guard needs a `/system` segment), so the cluster's head entry
+  // was a dead link in the one situation the cluster exists for. Every sibling
+  // below already spells `/apps/setup/system/...`.
   const systemFallbackNavigation: NavigationItem[] = React.useMemo(() => {
     const items: NavigationItem[] = [
-      { id: 'sys-settings', label: t('layout.systemNav.systemSettings', { defaultValue: 'System Settings' }), type: 'url' as const, url: '/apps/setup', icon: 'settings' },
+      { id: 'sys-settings', label: t('layout.systemNav.systemSettings', { defaultValue: 'System Settings' }), type: 'url' as const, url: '/apps/setup/system', icon: 'settings' },
       { id: 'sys-apps', label: t('layout.systemNav.applications', { defaultValue: 'Applications' }), type: 'url' as const, url: '/apps/setup/system/apps', icon: 'layout-grid' },
     ];
     if (isWorkspaceAdmin) {

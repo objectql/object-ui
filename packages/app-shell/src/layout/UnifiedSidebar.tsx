@@ -318,8 +318,18 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
       { id: 'docs', label: t('layout.systemNav.documentation', { defaultValue: 'Documentation' }), type: 'url' as const, url: '/docs', icon: 'book-open' },
     ];
     if (isWorkspaceAdmin) {
+      // #3590 — `sys-settings` targets the system hub `/apps/setup/system`, not
+      // the bare `/apps/setup`. This cluster exists FOR the fresh env described
+      // above (no apps yet), and that is precisely where bare `/apps/setup` is a
+      // dead link: with zero apps it renders `AppContent`'s "No Apps Configured"
+      // empty state (`isSystemRoute` keys on a `/system` segment), so an admin
+      // landing on `/home` — `resolveLandingPath([])` — had no way through. The
+      // `/system` form resolves in BOTH branches (`extraRoutesNoApp` with no
+      // active app, `extraRoutes` once one exists), so an app-bearing deployment
+      // now reaches the hub here instead of whatever app `/apps/setup` fell back
+      // to. Every sibling below already spells `/apps/setup/system/...`.
       const adminItems: NavigationItem[] = [
-        { id: 'sys-settings', label: t('layout.systemNav.systemSettings', { defaultValue: 'System Settings' }), type: 'url' as const, url: '/apps/setup', icon: 'settings' },
+        { id: 'sys-settings', label: t('layout.systemNav.systemSettings', { defaultValue: 'System Settings' }), type: 'url' as const, url: '/apps/setup/system', icon: 'settings' },
         { id: 'sys-apps', label: t('layout.systemNav.applications', { defaultValue: 'Applications' }), type: 'url' as const, url: '/apps/setup/system/apps', icon: 'layout-grid' },
         { id: 'sys-marketplace', label: t('layout.systemNav.appMarketplace', { defaultValue: 'App Marketplace' }), type: 'url' as const, url: '/apps/setup/system/marketplace', icon: 'store' },
         { id: 'sys-objects', label: t('layout.systemNav.objectManager', { defaultValue: 'Object Manager' }), type: 'url' as const, url: '/apps/setup/system/metadata/object', icon: 'database' },
