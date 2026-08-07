@@ -101,6 +101,56 @@ function MetadataRedirect() {
   return <Navigate to={target} replace />;
 }
 
+/**
+ * Forwards the retired `system/{users,organizations,roles,positions}` console
+ * pages onto the canonical object routes served by the generic
+ * `…/:objectName` route in `@object-ui/app-shell` (objectui#3655).
+ *
+ * These four were real routes until `apps/console` was slimmed for third-party
+ * customisation (cccdf84d7): "Delete bespoke /system/* wrapper pages
+ * (User/Role/Permission/Audit/Org) … these objects are now contributed by
+ * framework plugins (plugin-auth, -security, -audit) into the Setup app
+ * navigation and resolved via the generic /apps/setup/<object_name> route."
+ * The pages went; the URLs did not — `SystemHubPage`'s cards and both sidebars'
+ * `sys-*` cluster still emit them, and so do bookmarks. Nothing declared them
+ * afterwards, so they fell through to app-shell's tail and produced TWO
+ * different failures depending on the word's length (`looksLikeRecordId`
+ * requires 6+ chars): `users` / `roles` reached `RouteNotFound`, while
+ * `organizations` / `positions` were rewritten to
+ * `…/system/record/<word>` and rendered `RecordDetailView` for an
+ * object literally named `system`. Both landings are measured in
+ * `__tests__/AppContent.systemHubRoutes.test.tsx`.
+ *
+ * The object names are the framework's, not this repo's — read off
+ * `platform-objects`' Setup-app navigation contributions and plugin-security's:
+ *
+ *   users         -> sys_user          (`nav_users`)
+ *   organizations -> sys_organization  (`nav_organizations`, the LIST — the
+ *                                       record-scoped `nav_organization`
+ *                                       needs a runtime `{current_org_id}`
+ *                                       that a static redirect cannot resolve)
+ *   roles         -> sys_position      (ADR-0090 D3 renamed `sys_role` ->
+ *                                       `sys_position`; the sidebar's "Roles"
+ *                                       and the hub's "Positions" are the same
+ *                                       surface under old/new vocabulary)
+ *   positions     -> sys_position      (`nav_positions`)
+ *
+ * `system/permissions` is deliberately NOT redirected here — see the route
+ * block below.
+ *
+ * Same shape as `ObjectRedirect` / `MetadataRedirect` above (a legacy URL is
+ * translated, the page is not resurrected), including their treatment of
+ * `location.search` / `location.hash`: neither is forwarded. None of these
+ * URLs has ever carried one.
+ */
+function SystemObjectRedirect({ objectName }: { objectName: string }) {
+  const location = useLocation();
+  // The matched path is always `<prefix>/system/<one segment>`; anchoring at
+  // the end keeps an app segment that happens to be spelled `system` intact.
+  const prefix = location.pathname.replace(/\/system\/[^/]+\/?$/, '');
+  return <Navigate to={`${prefix}/${objectName}`} replace />;
+}
+
 // Exported for `__tests__/AppContent.legacyRedirects.test.tsx`, which mounts
 // this exact fragment in a bare `MemoryRouter` to measure the redirect chain.
 // Transcribing the routes into the test instead would let the copy drift from
@@ -137,6 +187,23 @@ export const systemRoutes = (
     <Route path="system/metadata" element={<MetadataRedirect />} />
     <Route path="system/metadata/:metadataType" element={<MetadataRedirect />} />
     <Route path="system/metadata/:metadataType/:itemName" element={<MetadataRedirect />} />
+    {/* Legacy URL redirects → the framework-owned system objects (objectui#3655).
+        `system/permissions` is absent on purpose: unlike the four above it has
+        no single measured equivalent. The framework splits what this console
+        calls "Permissions" into TWO Setup entries — `sys_capability`
+        (Capabilities: the definition registry, and the object whose own
+        docblock says it is what the ADR "loosely floats" as `sys_permission`,
+        which is the name the retired page and `SystemHubPage`'s count query
+        both use) and `sys_permission_set` (Permission Sets: the grant
+        container, which is what "Manage permission rules and assignments" and
+        admin CRUD describe). Picking one silently sends every future click and
+        bookmark to a surface the maintainer never chose, so it is left to be
+        decided rather than guessed; the test file pins its unchanged landing so
+        the gap stays visible instead of reading as an oversight. */}
+    <Route path="system/users" element={<SystemObjectRedirect objectName="sys_user" />} />
+    <Route path="system/organizations" element={<SystemObjectRedirect objectName="sys_organization" />} />
+    <Route path="system/roles" element={<SystemObjectRedirect objectName="sys_position" />} />
+    <Route path="system/positions" element={<SystemObjectRedirect objectName="sys_position" />} />
   </>
 );
 
