@@ -325,6 +325,6 @@ class AuthenticatedDataSource extends RestDataSource {
 ## Next Steps
 
 - Explore the [Schema Overview](/docs/guide/schema-overview) for advanced schema features
-- Add a Kanban board view using `@object-ui/plugin-kanban` (see the [Todo example](https://github.com/objectstack-ai/objectui/tree/main/examples/todo))
+- Add a Kanban board view using `@object-ui/plugin-kanban` (see the [Kanban Plugin](/docs/plugins/plugin-kanban) reference for runnable board schemas)
 - Connect to a production backend with the [Data Connectivity](/docs/guide/data-source) guide
-- Build multi-object apps with relationships (see the [CRM example](https://github.com/objectstack-ai/objectui/tree/main/examples/crm))
+- Build multi-object apps with relationships using `lookup` / `master_detail` fields (see the [Lookup Field](/docs/fields/lookup) reference)
