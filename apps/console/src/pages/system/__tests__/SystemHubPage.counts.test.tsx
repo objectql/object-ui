@@ -31,11 +31,22 @@
  * `SystemHubPage` itself is the real component, as in the sibling
  * `SystemHubPage.metadataCards.test.tsx` — a transcribed copy of the card list
  * is precisely how a wrong name survives.
+ *
+ * ── objectui#3679 ──────────────────────────────────────────────────────────
+ * A second describe block was added below for the other half of the same
+ * pixel. The names above decide WHICH object is counted; the error handling
+ * decides whether a count that never arrived is allowed to be spelled `0`. It
+ * no longer is: a non-404 rejection (500 / 401 / 403 / offline — the only
+ * class the adapter does not absorb) leaves that card's count `null`, and the
+ * badge's existing `count !== null` branch drops the badge. The MEASUREMENT
+ * case that pinned the old collapse-into-0 was rewritten there, as its own
+ * comment asked for; the other two MEASUREMENTs still pin objectui#3655's gap
+ * and are untouched.
  */
 
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, within, cleanup } from '@testing-library/react';
+import { render, screen, within, cleanup, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 
 // Hoisted so the vi.mock factories below can close over them, and so the
@@ -143,6 +154,54 @@ async function badge(cardTestId: string, text: string) {
   return within(card).findByText(text);
 }
 
+/**
+ * A card's count badge, or `null` when the card shows none — which is how this
+ * page says "unknown" (the badge renders only on `count !== null`).
+ *
+ * Anchored `^…$` on purpose: the card's title and description carry the same
+ * label word ("Manage system users and accounts"), so an unanchored match
+ * would find text on a card that has no badge at all.
+ */
+function countBadge(cardTestId: string, label: string) {
+  return within(screen.getByTestId(cardTestId)).queryByText(
+    new RegExp(`^\\d+\\s+${label}$`),
+  );
+}
+
+/**
+ * Settles the fetch when NO badge is expected to appear, so awaiting one is not
+ * an option. `fetchCounts` clears `loading` in its `finally`, so the spinner
+ * going away is the single anchor that holds whether the calls resolved,
+ * rejected, or threw synchronously.
+ */
+async function settleWithoutBadges() {
+  await waitFor(() =>
+    expect(screen.queryByText('Loading statistics...')).not.toBeInTheDocument(),
+  );
+}
+
+/** Every card that carries a count, as [testid, countLabel]. */
+const COUNTED_CARDS: ReadonlyArray<readonly [string, string]> = [
+  ['hub-card-users', 'users'],
+  ['hub-card-organizations', 'organizations'],
+  ['hub-card-positions', 'positions'],
+  ['hub-card-permissions', 'permissions'],
+  ['hub-card-audit-log', 'entries'],
+];
+
+/**
+ * The object names the page asks for, in call order — including
+ * `sys_permission`, which the framework does not register (objectui#3655) and
+ * so is absent from the fixture registry above.
+ */
+const QUERIED_OBJECT_NAMES = [
+  'sys_user',
+  'sys_organization',
+  'sys_position',
+  'sys_permission',
+  'sys_audit_log',
+];
+
 describe('System Hub card counts — object names (objectui#3670)', () => {
   it('counts Organizations through sys_organization, the name the framework registers', async () => {
     renderHub();
@@ -183,10 +242,16 @@ describe('System Hub card counts — object names (objectui#3670)', () => {
   });
 
   // ── MEASUREMENT ────────────────────────────────────────────────────────────
-  // The three cases below pin the CURRENT behaviour, not the desired one. They
+  // The two cases below pin the CURRENT behaviour, not the desired one. They
   // exist so the remaining gap is visible in the suite instead of being read as
   // a missed line, and so whoever resolves objectui#3655 has a failing anchor
   // to rewrite rather than a silent pass.
+  //
+  // There were three. The third — "a non-404 failure is collapsed into 0 as
+  // well, with no error affordance" — named objectui#3679 as the work that
+  // would rewrite it, and that work is done: it now lives in the next describe
+  // block with its expectation inverted. These two stay measurements because
+  // objectui#3655 is still open.
 
   it('MEASUREMENT: Permissions still reads 0 while both candidate objects hold rows', async () => {
     renderHub();
@@ -216,20 +281,96 @@ describe('System Hub card counts — object names (objectui#3670)', () => {
     expect(within(screen.getByTestId('hub-card-permissions')).getByText('0 permissions')).toBeInTheDocument();
   });
 
-  it('MEASUREMENT: a non-404 failure is collapsed into 0 as well, with no error affordance', async () => {
-    // The 404 never reaches the page's `.catch` — the adapter ate it upstream.
-    // What that `.catch` really covers is this: a 500 (or 401 / 403 / offline)
-    // on ONE object, rendered as a confident `0` on that card while its
-    // neighbours show real numbers. Recorded here only; changing the error
-    // handling is a separate class of work, filed as objectui#3679.
+});
+
+describe('System Hub card counts — a lookup that failed is not a `0` (objectui#3679)', () => {
+  it('a 500 on one object blanks that card instead of collapsing it into 0', async () => {
+    // This is the rewrite of PR #3680's third MEASUREMENT ("a non-404 failure
+    // is collapsed into 0 as well, with no error affordance") — same fixture,
+    // inverted expectation. The 404 never reaches the page's `.catch`; the
+    // adapter ate it upstream. What that `.catch` really covers is this.
     state.failures.sys_user = Object.assign(new Error('Internal Server Error'), {
       status: 500,
     });
     renderHub();
 
-    expect(await badge('hub-card-users', '0 users')).toBeInTheDocument();
-    // The per-call `.catch` also keeps `Promise.all` from rejecting, so the
-    // other four cards still resolve — including the one this PR fixed.
-    expect(within(screen.getByTestId('hub-card-organizations')).getByText('2 organizations')).toBeInTheDocument();
+    // Organizations answered, so the whole wall has settled once its badge is
+    // up — all five counts land in one `setCounts`.
+    expect(await badge('hub-card-organizations', '2 organizations')).toBeInTheDocument();
+    expect(countBadge('hub-card-users', 'users')).toBeNull();
+    // Spelled out, because `0 users` is the exact string this issue is about.
+    expect(screen.queryByText('0 users')).not.toBeInTheDocument();
   });
+
+  it('blanks only the card that failed and leaves its neighbours their real counts', async () => {
+    // The issue's most reachable scenario, and the one an administrator is
+    // most likely to act on: someone who may open the hub but has no read
+    // permission on `sys_audit_log`. The backend answers 403, the adapter
+    // rethrows (it absorbs 404s only), and this card used to read "0 entries"
+    // — an audit log that looks empty to the person auditing it.
+    state.failures.sys_audit_log = Object.assign(new Error('Forbidden'), {
+      status: 403,
+    });
+    renderHub();
+
+    await badge('hub-card-users', '3 users');
+    expect(countBadge('hub-card-audit-log', 'entries')).toBeNull();
+    // Single-card isolation — the reason the `.catch` stayed on each call
+    // instead of moving out around the `Promise.all`. The other four answered,
+    // so they still show their numbers.
+    expect(countBadge('hub-card-users', 'users')).toHaveTextContent('3 users');
+    expect(countBadge('hub-card-organizations', 'organizations')).toHaveTextContent(
+      '2 organizations',
+    );
+    expect(countBadge('hub-card-positions', 'positions')).toHaveTextContent('4 positions');
+    expect(countBadge('hub-card-permissions', 'permissions')).toHaveTextContent(
+      '0 permissions',
+    );
+  });
+
+  it('keeps `0` for the two things that really are zero, and blanks only the failure', async () => {
+    // All three rows of the issue's behaviour matrix in one render. Only the
+    // third moves; the first two are the adapter's contract and stay as they
+    // are (whether Permissions should be riding on row two at all is
+    // objectui#3655, not this change):
+    //   sys_audit_log   registered, genuinely empty  -> `0 entries`
+    //   sys_permission  unregistered, adapter resolves empty -> `0 permissions`
+    //   sys_position    403, adapter rethrows        -> no badge
+    state.registry.sys_audit_log = [];
+    state.failures.sys_position = Object.assign(new Error('Forbidden'), { status: 403 });
+    renderHub();
+
+    await badge('hub-card-users', '3 users');
+    expect(countBadge('hub-card-audit-log', 'entries')).toHaveTextContent('0 entries');
+    expect(countBadge('hub-card-permissions', 'permissions')).toHaveTextContent(
+      '0 permissions',
+    );
+    expect(countBadge('hub-card-positions', 'positions')).toBeNull();
+  });
+
+  it('shows no counts at all when every lookup fails, and still renders the hub', async () => {
+    // Offline, or the backend down. Every counted card loses its badge rather
+    // than reporting a system with nothing in it; the cards that never carried
+    // a count are unaffected and every link still works.
+    for (const objectName of QUERIED_OBJECT_NAMES) {
+      state.failures[objectName] = Object.assign(new Error('Failed to fetch'), {
+        status: 0,
+      });
+    }
+    renderHub();
+
+    await settleWithoutBadges();
+    for (const [testId, label] of COUNTED_CARDS) {
+      expect(countBadge(testId, label)).toBeNull();
+    }
+    expect(screen.getByTestId('hub-card-settings')).toBeInTheDocument();
+  });
+
+  // No case is written for `fetchCounts`'s OUTER `catch`. It is reachable only
+  // by a synchronous throw from `dataSource.find` (the per-call `.catch`es keep
+  // `Promise.all` from ever rejecting), and on that path the counts are still
+  // at their initial `null` — so an assertion that "no card shows a number"
+  // would pass whatever the outer catch did, including nothing. It would be
+  // green for an empty reason rather than because the page is right, so the
+  // fix stayed where the outcome is actually written, and so did the tests.
 });

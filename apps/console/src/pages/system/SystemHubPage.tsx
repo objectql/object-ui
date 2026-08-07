@@ -55,6 +55,21 @@ interface HubCard {
   adminOnly?: boolean;
 }
 
+/**
+ * One card's count from one `find` result: the row count when the lookup
+ * succeeded, `null` when it did not.
+ *
+ * `null` is not a formatting preference — it is the only shape this page has
+ * for "we do not know". The badge renders on `count !== null`, so an unknown
+ * count shows no badge at all, while `0` is a claim: the backend answered, and
+ * the answer was none. Collapsing a failed lookup into `0` prints a number
+ * nothing ever confirmed, and a 500 / 401 / 403 / offline then looks exactly
+ * like an empty table (objectui#3679).
+ */
+function countOrUnknown(result: { data?: unknown[] } | null): number | null {
+  return result === null ? null : (result.data?.length ?? 0);
+}
+
 export function SystemHubPage() {
   const navigate = useNavigate();
   const { appName } = useParams();
@@ -104,22 +119,46 @@ export function SystemHubPage() {
       // MEASUREMENT case in this page's test rather than quietly re-aimed.
       //
       // TODO: Replace with count-specific API endpoint when available
+      //
+      // Each `.catch` resolves to `null`, NOT to an empty page. What these
+      // catches actually cover is the class the adapter does NOT absorb: it
+      // rethrows everything that is not a 404, so a 500 / 401 / 403 / offline
+      // / timeout lands here. Answering that with `{ data: [] }` used to print
+      // a confident `0` — the same pixel as "there really are none", with no
+      // error, no retry and no way for an administrator to tell the two apart
+      // (objectui#3679). `null` flows into `counts` and the badge's existing
+      // `count !== null` branch simply omits the badge.
+      //
+      // Per call rather than once around the `Promise.all`, because the most
+      // reachable failure is a permission denial on ONE object — an admin who
+      // may open this hub but cannot read `sys_audit_log` should lose that
+      // card's number only, not the four beside it that answered fine.
+      //
+      // A 404 still does not reach here and still renders `0`: the adapter
+      // resolves unregistered objects as an empty page on purpose (see above).
+      // That is its contract, not a failure — the one card still riding on it
+      // is Permissions, which is objectui#3655's decision to close.
       const [usersRes, orgsRes, positionsRes, permsRes, logsRes] = await Promise.all([
-        dataSource.find('sys_user').catch(() => ({ data: [] })),
-        dataSource.find('sys_organization').catch(() => ({ data: [] })),
-        dataSource.find('sys_position').catch(() => ({ data: [] })),
-        dataSource.find('sys_permission').catch(() => ({ data: [] })),
-        dataSource.find('sys_audit_log').catch(() => ({ data: [] })),
+        dataSource.find('sys_user').catch(() => null),
+        dataSource.find('sys_organization').catch(() => null),
+        dataSource.find('sys_position').catch(() => null),
+        dataSource.find('sys_permission').catch(() => null),
+        dataSource.find('sys_audit_log').catch(() => null),
       ]);
       setCounts({
-        users: usersRes.data?.length ?? 0,
-        orgs: orgsRes.data?.length ?? 0,
-        positions: positionsRes.data?.length ?? 0,
-        permissions: permsRes.data?.length ?? 0,
-        auditLogs: logsRes.data?.length ?? 0,
+        users: countOrUnknown(usersRes),
+        orgs: countOrUnknown(orgsRes),
+        positions: countOrUnknown(positionsRes),
+        permissions: countOrUnknown(permsRes),
+        auditLogs: countOrUnknown(logsRes),
       });
     } catch {
-      // Keep nulls on failure
+      // Keep nulls on failure. Only a SYNCHRONOUS throw from `dataSource.find`
+      // can arrive here: the `.catch`es above are attached to the returned
+      // promises, so nothing makes `Promise.all` reject. That is why this
+      // branch is not where the fix went — leaving the counts untouched only
+      // says "unknown" because they are still `null`, and `setCounts` above is
+      // the only place a lookup's outcome is ever written.
     } finally {
       setLoading(false);
     }
