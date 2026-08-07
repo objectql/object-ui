@@ -70,11 +70,19 @@ export type EvaluatorPredicateInput =
  * action was surfaced by `ActionEngine.getActionsForLocation` or rendered
  * standalone (#3314).
  *
- * This is the canonical, engine-side helper — `@object-ui/core` is the common
- * dependency of every consumer, so renderer-side code (`@object-ui/react`'s
- * `toPredicateInput`, which has identical semantics and is pinned to this one
- * by a parity test) and engine-side code can share one normalization instead
- * of hand-rolling envelope unwrapping per call site.
+ * This is THE implementation, not one of two — `@object-ui/core` is the common
+ * dependency of every consumer, so engine-side code and renderer-side code
+ * share one normalization instead of hand-rolling envelope unwrapping per call
+ * site. `@object-ui/react`'s `toPredicateInput` is a re-export of this function
+ * (since #3367; it used to be an independent twin held in step by a 14-shape
+ * normalization parity table, which is exactly the arrangement the paragraph
+ * above describes the failure mode of). What pins that now is the identity
+ * assertion in
+ * `packages/react/src/hooks/__tests__/actionPredicate.parity.test.tsx` — the
+ * react export must BE this function object — alongside the engine-path vs
+ * renderer-path verdict parity suite in the same file, which is a separate
+ * claim and still earns its keep: sharing a normalizer does not by itself
+ * prove the two call paths reach the same verdict.
  */
 export function toPredicateInput(value: unknown): EvaluatorPredicateInput {
   if (value === null || value === undefined || value === '') return undefined;
