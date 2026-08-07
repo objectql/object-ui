@@ -54,6 +54,15 @@ jobs:
         uses: actions/checkout@v7
         with:
           submodules: true
+          # `pnpm check:i18n-drift` (below) compares the locale packs on this
+          # branch against the packs at its MERGE BASE with the target branch,
+          # so it needs history — and checkout's default is a depth-1 clone,
+          # where `git merge-base` has nothing to find. The gate treats an
+          # unresolvable base as a hard failure rather than a skip, so getting
+          # this wrong is a red build rather than a silent pass; it is spelled
+          # out here so it stays that way. Pinned by
+          # `scripts/__tests__/check-i18n-en-drift.test.ts`.
+          fetch-depth: 0
 
       - name: Enable Corepack
         run: corepack enable
@@ -92,6 +101,18 @@ jobs:
       # needs the install, but nothing built.
       - name: Verify t() call-site keys exist in the en locale pack
         run: pnpm check:i18n-keys
+
+      # The step above and `all-locales-key-parity.test.ts` both read KEYS. When
+      # an `en` VALUE changes and the nine translations do not, every key-shaped
+      # gate stays green — objectui#3582 and objectui#3625 were eight packs each
+      # serving a retired sentence, the second one as idiomatic native-script
+      # translations that no mechanical judgement can distinguish from healthy.
+      # This gate judges the event instead of the state: `en` changed here, the
+      # translations must change here too. Needs the install (it parses the
+      # packs with `typescript`) and the `fetch-depth: 0` above (it diffs
+      # against the merge base), but nothing built.
+      - name: Verify changed en strings were followed by the nine translations
+        run: pnpm check:i18n-drift
 
       # `scripts/` is not a workspace package, so `pnpm type-check` (i.e.
       # `turbo run type-check`, which walks package.json `scripts`) structurally

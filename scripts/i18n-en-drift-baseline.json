@@ -1,0 +1,26 @@
+{
+  "note": [
+    "Waivers for scripts/check-i18n-en-drift.mjs (objectui#3650): an en string changed and one",
+    "or more of the nine translation packs deliberately did not follow it.",
+    "",
+    "Shape:  \"<dotted key>\": { \"en\": \"<the NEW en text, verbatim>\", \"reason\": \"…\", \"issue\": \"objectui#1234\" }",
+    "",
+    "This file ships EMPTY and holds no backlog, unlike scripts/i18n-call-site-key-baseline.json.",
+    "That gate measures a STATE (keys missing from en today), so it could inventory the debt. This",
+    "one judges an EVENT in a diff (en changed, the packs did not), and 'is ja's sentence still",
+    "what en's now means?' is the semantic question no gate can answer -- objectui#3625 was eight",
+    "idiomatic, native-script, mutually distinct translations of a retired sentence, green under",
+    "every mechanical judgement there is. So there is nothing to write down here at landing.",
+    "",
+    "An entry must transcribe the new en text, which is what makes it reviewable and what makes it",
+    "expire: the gate re-checks that text against the en pack on every run, so the waiver covers",
+    "that one sentence and stops applying the moment the key changes again. A waiver that fires",
+    "nothing is fine (every run after its PR merges sees an empty diff); a waiver whose text is",
+    "gone fails the build until it is deleted or renewed.",
+    "",
+    "Adding an entry also means raising WAIVER_CEILING in scripts/__tests__/check-i18n-en-drift.test.ts.",
+    "That is the ratchet: the ceiling is free to fall and costs a reviewed test edit to rise."
+  ],
+
+  "waivers": {}
+}
