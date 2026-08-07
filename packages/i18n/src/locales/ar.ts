@@ -730,7 +730,7 @@ const ar = {
     defaultBadge: "افتراضي",
     tabActionsFor: "إجراءات العرض لـ {{name}}",
     readonlyAriaLabel: "عرض للقراءة فقط",
-    readonlyTooltip: "عرض النظام — انسخ للتخصيص.",
+    readonlyTooltip: "عرض النظام — معرَّف في الكود، للقراءة فقط.",
   },
   designer: {
     undo: 'Undo',

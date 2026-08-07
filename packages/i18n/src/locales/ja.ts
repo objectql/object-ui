@@ -730,7 +730,7 @@ const ja = {
     defaultBadge: "デフォルト",
     tabActionsFor: "{{name}} のビュー操作",
     readonlyAriaLabel: "読み取り専用ビュー",
-    readonlyTooltip: "システムビュー — 複製してカスタマイズしてください。",
+    readonlyTooltip: "システムビュー — コードで定義され、読み取り専用です。",
   },
   designer: {
     undo: 'Undo',

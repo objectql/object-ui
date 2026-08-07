@@ -730,7 +730,7 @@ const ru = {
     defaultBadge: "по умолчанию",
     tabActionsFor: "Действия с представлением {{name}}",
     readonlyAriaLabel: "Представление только для чтения",
-    readonlyTooltip: "Системное представление — скопируйте для настройки.",
+    readonlyTooltip: "Системное представление — определено в коде, только для чтения.",
   },
   designer: {
     undo: 'Undo',

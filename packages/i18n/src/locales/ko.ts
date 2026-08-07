@@ -730,7 +730,7 @@ const ko = {
     defaultBadge: "기본",
     tabActionsFor: "{{name}}의 보기 작업",
     readonlyAriaLabel: "읽기 전용 보기",
-    readonlyTooltip: "시스템 보기 — 사용자 지정하려면 복제하세요.",
+    readonlyTooltip: "시스템 보기 — 코드에 정의되어 있으며 읽기 전용입니다.",
   },
   designer: {
     undo: 'Undo',

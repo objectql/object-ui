@@ -735,7 +735,7 @@ const es = {
     defaultBadge: "predeterminada",
     tabActionsFor: "Acciones de vista para {{name}}",
     readonlyAriaLabel: "Vista de solo lectura",
-    readonlyTooltip: "Vista del sistema — duplique para personalizar.",
+    readonlyTooltip: "Vista del sistema — definida en el código, solo lectura.",
   },
   designer: {
     undo: 'Undo',

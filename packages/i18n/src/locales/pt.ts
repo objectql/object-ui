@@ -730,7 +730,7 @@ const pt = {
     defaultBadge: "padrão",
     tabActionsFor: "Ações de exibição para {{name}}",
     readonlyAriaLabel: "Exibição somente leitura",
-    readonlyTooltip: "Exibição do sistema — duplique para personalizar.",
+    readonlyTooltip: "Exibição do sistema — definida no código, somente leitura.",
   },
   designer: {
     undo: 'Undo',

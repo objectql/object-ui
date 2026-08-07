@@ -730,7 +730,7 @@ const de = {
     defaultBadge: "Standard",
     tabActionsFor: "Ansichtsaktionen für {{name}}",
     readonlyAriaLabel: "Schreibgeschützte Ansicht",
-    readonlyTooltip: "Systemansicht — zum Anpassen duplizieren.",
+    readonlyTooltip: "Systemansicht — im Code definiert, schreibgeschützt.",
   },
   designer: {
     undo: 'Undo',

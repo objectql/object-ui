@@ -730,7 +730,7 @@ const fr = {
     defaultBadge: "par défaut",
     tabActionsFor: "Actions de vue pour {{name}}",
     readonlyAriaLabel: "Vue en lecture seule",
-    readonlyTooltip: "Vue système — dupliquer pour personnaliser.",
+    readonlyTooltip: "Vue système — définie dans le code, en lecture seule.",
   },
   designer: {
     undo: 'Undo',
