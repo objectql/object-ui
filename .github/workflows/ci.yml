@@ -115,6 +115,32 @@ jobs:
       - name: Run type-check
         run: pnpm type-check
 
+      # The four repo-root `vitest.setup.*` files were in ZERO tsc programs
+      # (objectui#3515) — the same shape as `scripts/` before objectui#3494, one
+      # directory over. They live outside every workspace package, so
+      # `pnpm type-check` above cannot reach them; the root `tsconfig.json`
+      # includes only packages/examples/apps; and no consumer IMPORTS them (every
+      # one names them as a Vitest `setupFiles` runtime path string), so no gated
+      # program pulls them in transitively either.
+      #
+      # Placed after `pnpm type-check`, NOT next to `pnpm type-check:scripts`
+      # above, and the difference is load-bearing. `tsconfig.scripts.json`'s
+      # program imports no workspace package, so it can run straight after the
+      # install; this one must, because `vitest.setup.dom.tsx` side-effect-imports
+      # @object-ui/components, /fields, /plugin-dashboard and /plugin-grid for
+      # their registrations. `tsconfig.vitest-setup.json` resolves those through
+      # each package's own `exports.types`, i.e. its built declarations — which
+      # exist only after the `^build` that `pnpm type-check` depends on.
+      # `scripts/__tests__/vitest-setup-type-check.test.ts` pins that ordering.
+      #
+      # A direct step, deliberately: this is not a turbo task, so no cache key
+      # decides its verdict. `pnpm type-check` is cached by turbo and its `inputs`
+      # would have to hash every root file a program reads (the objectui#3513
+      # lesson); running this one directly sidesteps that class of half-armed
+      # gate entirely, exactly as `type-check:scripts` does.
+      - name: Type-check repo-root vitest setup files
+        run: pnpm type-check:vitest-setup
+
   # PRs run the suite split across 4 runners. The suite is dominated by fixed
   # per-file cost rather than by the assertions: a PR run reported 495s wall
   # clock of which only 178s was `tests` — the rest was `setup` (831s

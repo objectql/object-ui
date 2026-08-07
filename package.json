@@ -34,6 +34,7 @@
     "type-check": "turbo run type-check",
     "type-check:coverage": "node scripts/check-type-check-coverage.mjs",
     "type-check:scripts": "tsc -p tsconfig.scripts.json",
+    "type-check:vitest-setup": "tsc -p tsconfig.vitest-setup.json",
     "check:spec-symbols": "node scripts/check-spec-symbol-derivation.mjs",
     "check:control-bytes": "node scripts/check-control-bytes.mjs",
     "cli": "node packages/cli/dist/cli.js",
