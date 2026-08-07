@@ -815,3 +815,199 @@ describe('view verdict parity — sole-candidate bodies (objectui#3678)', () => 
     });
   }
 });
+
+/**
+ * ── What `invalid_value` at a member's own root means (objectui#3694) ──
+ *
+ * The categorical test both nested rules stand on counts only `invalid_type`.
+ * #3694 asked whether that is the rule's meaning or an implementation detail:
+ * Zod answers `invalid_value` whenever an ENUM or a LITERAL rejects, whatever
+ * the input's type, so an enum member handed an object is counted as a
+ * candidate even though it never looked inside either.
+ *
+ * Measured over 51 shapes, the whole `view` family produces `invalid_value` at
+ * a member's own root at exactly TWO union sites — `columns[].summary`
+ * (`enum | {type, field}`) and `sections[].columns` (`enum | 1 | 2 | 3 | 4`) —
+ * and re-qualifying it is a TRADE on the first of them, not an improvement:
+ * the object-valued shapes gain a named `…summary.type`, the scalar-valued
+ * shapes lose the enum's option list and collapse to `Invalid input`. #3694
+ * therefore changed no behaviour. This block is the measurement made durable.
+ *
+ * These pins are green today and are meant to STAY green — they are the
+ * regression half, not the red-before/green-after half. Their job is that the
+ * next attempt to widen the predicate goes red on the shapes it would damage.
+ * Verified by perturbation, results in the PR body: widening to
+ * `invalid_type || invalid_value` reddens 4 tests, and the type-aware variant
+ * reddens 2 — and WITHOUT this block four of the damaged shapes
+ * (`summary: 42 | true | null | ['count']`) were pinned nowhere at all.
+ *
+ * Pinning the currently-collapsed shapes too is deliberate and is NOT an
+ * endorsement of the collapse: it is what makes adopting any future relaxation
+ * a visible, deliberate replacement of these expectations rather than a quiet
+ * drift. The contract-first fix stays spec-side (objectstack#6391).
+ */
+describe('view nested union — the `invalid_value` qualification, measured (objectui#3694)', () => {
+  const AUTHORABLE_ITEM: Record<string, unknown> = { ...STORED_ITEM };
+  delete AUTHORABLE_ITEM.isPinned;
+
+  const withConfig = (extra: Record<string, unknown>) => ({
+    ...AUTHORABLE_ITEM,
+    config: { ...(AUTHORABLE_ITEM.config as Record<string, unknown>), ...extra },
+  });
+  const withSummary = (summary: unknown) => withConfig({ columns: [{ field: 'a', summary }] });
+
+  const bothGates = async (body: unknown) => {
+    const created = await validateMetadataDraft('view', body, undefined, { mode: 'create' });
+    const edited = await validateMetadataDraft('view', body, undefined, EDIT);
+    expect(created.ok).toBe(false);
+    expect(edited.ok).toBe(false);
+    expect(edited.issues).toEqual(created.issues);
+    return created.issues;
+  };
+
+  // ── The shapes a widened predicate would SILENCE ─────────────────────────
+
+  it('an enum member left standing survives every non-enum value, not just a string', async () => {
+    // `summary: 'bogus'` — the one shape #3678 pinned — is not special. For a
+    // number, a boolean, `null` and an array alike the OBJECT member answers
+    // `invalid_type` at its own root while the ENUM answers `invalid_value`, so
+    // k stays 1 and the enum's option list is what the author is shown.
+    //
+    // Count `invalid_value` as a node-level rejection and every one of these
+    // goes to k=0 and collapses. Four of them are pinned in no other test, so
+    // this assertion is the only thing standing between that change and four
+    // silent regressions.
+    for (const value of [42, true, null, [], ['count'], [{ type: 'count' }]]) {
+      const label = JSON.stringify(value);
+      const issues = await bothGates(withSummary(value));
+      expect(issues.map((i) => i.path), label).toEqual(['config.columns.0.summary']);
+      // Positive anchor FIRST: a collapsed `Invalid input` satisfies no
+      // `toContain`, so the negative alone would pass vacuously.
+      expect(issues[0].message, label).toContain('Invalid option');
+      expect(issues[0].message, label).toContain('"count_unique"');
+      expect(issues[0].message, label).not.toBe('Invalid input');
+    }
+  });
+
+  it('the same holds on the container and `listViews` routes', async () => {
+    // Prefix composition is a different route on each gate; the census must not
+    // be route-dependent.
+    const viaContainer = await bothGates({
+      ...CONTAINER,
+      list: { type: 'grid', columns: [{ field: 'a', summary: 42 }] },
+    });
+    expect(viaContainer.map((i) => i.path)).toEqual(['list.columns.0.summary']);
+    expect(viaContainer[0].message).toContain('Invalid option');
+
+    const viaListViews = await bothGates({
+      ...CONTAINER,
+      listViews: { v1: { type: 'grid', columns: [{ field: 'a', summary: 'bogus' }] } },
+    });
+    expect(viaListViews.map((i) => i.path)).toEqual(['listViews.v1.columns.0.summary']);
+    expect(viaListViews[0].message).toContain('Invalid option');
+  });
+
+  // ── The shapes a widened predicate would IMPROVE (pinned as they stand) ──
+
+  it('an OBJECT summary keeps TWO candidates, so the node stays collapsed', async () => {
+    // These are the shapes #3694 was filed on and the ones any relaxation
+    // would gain: the enum answers `invalid_value` at the root (counted as a
+    // candidate) and the object member reports at `['type']`, so k=2 and no
+    // cell claims the node. `{type:'bogus'}` is already pinned by #3626's
+    // descent-boundary test; the other two were pinned nowhere.
+    for (const value of [{}, { type: 'bogus', field: 'x' }]) {
+      const label = JSON.stringify(value);
+      expect(await bothGates(withSummary(value)), label).toEqual([
+        { path: 'config.columns.0.summary', message: 'Invalid input' },
+      ]);
+    }
+  });
+
+  it('the object-summary collapse is the same on the container and `listViews` routes', async () => {
+    expect(
+      await bothGates({
+        ...CONTAINER,
+        list: { type: 'grid', columns: [{ field: 'a', summary: { type: 'bogus' } }] },
+      }),
+    ).toEqual([{ path: 'list.columns.0.summary', message: 'Invalid input' }]);
+
+    expect(
+      await bothGates({
+        ...CONTAINER,
+        listViews: { v1: { type: 'grid', columns: [{ field: 'a', summary: { type: 'bogus' } }] } },
+      }),
+    ).toEqual([{ path: 'listViews.v1.columns.0.summary', message: 'Invalid input' }]);
+  });
+
+  // ── The OTHER `invalid_value` site, and why it never moves ───────────────
+
+  it('`sections[].columns` — all five members answer `invalid_value`, and no cell claims it either way', async () => {
+    // `enum('1'|'2'|'3'|'4') | 1 | 2 | 3 | 4`. Every member rejects the value
+    // as a whole, so today k=5 (the content rule's cell, which declines a
+    // five-member union) and under a widened predicate k=0 (the empty cell).
+    // Different cell, same silence — which is why the second `invalid_value`
+    // site contributes nothing to the trade above. Measured, not assumed.
+    for (const value of ['bogus', 7, {}, null]) {
+      const label = JSON.stringify(value);
+      expect(
+        await bothGates({
+          ...AUTHORABLE_ITEM,
+          viewKind: 'form',
+          config: { type: 'simple', sections: [{ fields: ['a'], columns: value }] },
+        }),
+        label,
+      ).toEqual([{ path: 'config.sections.0.columns', message: 'Invalid input' }]);
+    }
+  });
+
+  // ── The content rule cannot be reached by this question ──────────────────
+
+  it('the CONTENT rule’s reach cannot move — its one candidate shape still declines', async () => {
+    // #3694 worried that re-qualifying the shared predicate would move BOTH
+    // rules. Measured: it cannot. The content rule needs exactly two members
+    // AND a non-empty array value, and `summary: ['count']` is the only shape
+    // in the family meeting both at an `invalid_value` site. There the OBJECT
+    // member answers `invalid_type`, so the narrowing guard is already true and
+    // a widened predicate can only keep it true. The node is answered by the
+    // sole-candidate rule (the enum), never by the content rule — which would
+    // have reported the OBJECT member's "expected object, received array".
+    const issues = await bothGates(withSummary(['count']));
+    expect(issues.map((i) => i.path)).toEqual(['config.columns.0.summary']);
+    expect(issues[0].message).toContain('Invalid option');
+    expect(issues.map((i) => i.message).join('\n')).not.toContain('received array');
+  });
+});
+
+/**
+ * PARITY, #3694 layer. #3694 changed no behaviour at all, so this is doubly a
+ * regression pin — but the bodies above are new to this file and the verdict
+ * they produce is worth stating outright rather than leaving implied.
+ */
+describe('view verdict parity — `invalid_value` bodies (objectui#3694)', () => {
+  const withSummary = (summary: unknown) => ({
+    ...STORED_ITEM,
+    config: {
+      ...(STORED_ITEM.config as Record<string, unknown>),
+      columns: [{ field: 'a', summary }],
+    },
+  });
+
+  const CASES: Array<{ label: string; body: unknown; ok: boolean }> = [
+    { label: 'summary as a valid enum', body: withSummary('count'), ok: true },
+    { label: 'summary as a valid object', body: withSummary({ type: 'sum' }), ok: true },
+    { label: 'summary as a number', body: withSummary(42), ok: false },
+    { label: 'summary as a boolean', body: withSummary(true), ok: false },
+    { label: 'summary as null', body: withSummary(null), ok: false },
+    { label: 'summary as an array', body: withSummary(['count']), ok: false },
+    { label: 'summary as an empty object', body: withSummary({}), ok: false },
+    { label: 'summary as an object with a bad type', body: withSummary({ type: 'bogus', field: 'x' }), ok: false },
+  ];
+
+  for (const c of CASES) {
+    it(`${c.label}: edit=${c.ok ? 'ok' : 'not ok'}`, async () => {
+      const edited = await validateMetadataDraft('view', c.body, undefined, EDIT);
+      expect(edited.ok, `edit: ${JSON.stringify(edited.issues)}`).toBe(c.ok);
+      expect(edited.issues.length === 0).toBe(c.ok);
+    });
+  }
+});

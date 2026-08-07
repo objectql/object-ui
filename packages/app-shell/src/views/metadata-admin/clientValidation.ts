@@ -251,11 +251,40 @@ const ARRAY_VARIANT_MEMBERS = { ofStrings: 0, ofObjects: 1 } as const;
  * candidate. A member that answers `true` here never read the value, so nothing
  * about the value can be evidence for or against it.
  *
- * Measured caveat, deliberately kept: only `invalid_type` counts. An enum
- * member handed an object answers `invalid_value`, not `invalid_type` — so
- * `columns[0].summary` (`enum | {type, field}`) reads as TWO candidates for an
- * object value and stays in the content rule's cell, which declines it. That is
- * why the `summary` descent boundary #3626 pinned is unchanged by #3678.
+ * Only `invalid_type` counts, and objectui#3694 MEASURED that this is the right
+ * line rather than an implementation detail that leaked into the semantics.
+ *
+ * Zod answers `invalid_value` — not `invalid_type` — whenever an enum or a
+ * literal rejects, whatever the input's type. Across the whole `view` family
+ * exactly two union sites ever produce `invalid_value` at a member's own root:
+ * `columns[].summary` (`enum | {type, field}`) and `sections[].columns`
+ * (`enum | 1 | 2 | 3 | 4`). Widening this predicate to count `invalid_value`
+ * as a node-level rejection was measured over 51 shapes and is NOT an
+ * improvement — it is a TRADE on one union:
+ *
+ *   summary is an OBJECT (`{type:'bogus'}`, `{}`, `{type,field}`)
+ *     today k=2 → collapsed `…summary` / `Invalid input`
+ *     widened k=1 → `…summary.type` / the option list          ← 5 shapes GAINED
+ *   summary is a non-enum SCALAR (`42`, `true`, `null`, `[]`, `['count']`, …)
+ *     today k=1 → the enum is the sole candidate, `…summary` / the option list
+ *     widened k=0 → `…summary` / `Invalid input`               ← 8 shapes LOST
+ *
+ * The loss includes the #3678 CANARY `summary: 'bogus'`. A type-aware variant
+ * (categorical only when no allowed literal shares the value's `typeof`) was
+ * measured too and merely re-cuts the same trade: 6 gained, 6 lost. So neither
+ * qualification of `invalid_value` dominates, and #3694 declined both. Both
+ * directions are pinned in the test file's #3694 block, so an attempt to widen
+ * this predicate goes red on the shapes it would damage instead of shipping
+ * them silently — four of them are pinned nowhere else.
+ *
+ * Measured with the same run: widening cannot move the CONTENT rule's reach at
+ * all. That rule needs two members AND a non-empty array value, and at the one
+ * shape satisfying both (`summary: ['count']`) the object member answers
+ * `invalid_type`, so `groups.some(memberRejectedNodeType)` is already true and
+ * stays true. The whole question lives in the sole-candidate rule.
+ *
+ * The contract-first fix remains spec-side (objectstack#6391): a union that
+ * declares its own discriminant needs none of this census.
  */
 function memberRejectedNodeType(group: ZodLikeIssue[]): boolean {
   return group.some((i) => i.code === 'invalid_type' && (i.path ?? []).length === 0);
