@@ -1070,7 +1070,7 @@ describe("this site's own absolute URLs are resolved as internal routes — obje
     ).toEqual(['https://www.objectui.org/examples']);
   });
 
-  it('checks the shape in the disk surfaces too, not only content/docs', () => {
+  it('checks site URLs in the disk surfaces too, not only content/docs', () => {
     // One rejection from EACH tree, for the reason the fence test spells out:
     // an expectation naming only the content/docs one would hold just as well
     // if the check never ran on the disk rule, and would prove nothing.
@@ -1103,7 +1103,7 @@ describe("this site's own absolute URLs are resolved as internal routes — obje
     ).toEqual([]);
   });
 
-  it('ignores the fragment and the query — anchors are out of scope', () => {
+  it('ignores the fragment and the query on a site URL — anchors are out of scope', () => {
     expect(
       brokenHrefs({
         'guide/a.md': [
