@@ -51,38 +51,36 @@ export function usePredicateScope(): Record<string, any> {
 
 /**
  * Normalize a schema-supplied predicate (`visible` / `enabled` / `disabled` /
- * `hidden`) into the `${expr}` template form expected by `useCondition`.
+ * `hidden`) into the form `useCondition` expects — the canonical helper to use
+ * in renderers so we never end up with `${[object Object]}` after JS
+ * template-literal interpolation.
  *
- * Accepts:
- *   - `boolean` → returned as-is (predicate hooks short-circuit on booleans).
- *   - `string`  → wrapped as `${string}` (legacy DX shorthand).
- *   - `Expression` envelope `{ dialect, source }` (new format from
- *     `@objectstack/spec`'s normalized predicate inputs) → unwrapped, then
- *     wrapped as `${source}`. Both `cel` and `template` dialects already use
- *     compatible variable syntax (`record.x`, etc.).
- *   - `null` / `undefined` / empty → `undefined` (default visible/enabled).
+ * **Re-exported from `@object-ui/core`, not reimplemented here.** There is
+ * exactly ONE implementation — `packages/core/src/evaluator/predicateInput.ts`
+ * — shared by the engine path (`ActionEngine.getActionsForLocation`) and the
+ * renderer path (`action-button` / `action-menu` / `action-bar` / …). See that
+ * file for the accepted input shapes and for why a `cel` envelope must survive
+ * normalization (#2661 / #3314).
  *
- * This is the canonical helper to use in renderers so we never end up with
- * `${[object Object]}` after JS template-literal interpolation.
+ * ## Why a re-export and not a twin (#3367)
+ *
+ * This module used to carry an independent renderer-side implementation with
+ * item-for-item identical semantics, held in step with the canonical one by a
+ * 14-shape normalization parity table. That table was a *guardrail against
+ * drift*, not a single source of truth — and #3314 is the record of what two
+ * normalizations do when left alone: they drift, and the same `visible:`
+ * predicate reaches different verdicts depending on which path surfaced the
+ * action. A re-export cannot drift, so the parity suite now pins identity
+ * (`react`'s export IS `core`'s function) instead of enumerating shapes, and
+ * keeps pinning the two PATHS verdict-for-verdict.
+ *
+ * Routing hook code through the `@object-ui/core` barrel is not a new coupling:
+ * this module already imports `ExpressionEvaluator` / `evalRowPredicate` from
+ * it, and `@object-ui/core` is a declared dependency of `@object-ui/react`
+ * (the reverse direction is the forbidden one — core declares "Zero React
+ * dependencies").
  */
-export function toPredicateInput(
-  value: unknown,
-): string | boolean | { dialect: 'cel'; source: string } | undefined {
-  if (value === null || value === undefined || value === '') return undefined;
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'string') return `\${${value}}`;
-  if (typeof value === 'object' && typeof (value as any).source === 'string') {
-    const src = (value as any).source as string;
-    if (!src) return undefined;
-    // #2661 — preserve a CEL-dialect envelope so `useCondition` routes it to the
-    // canonical `@objectstack/formula` engine (identical verdict to the server),
-    // instead of collapsing it to a `${source}` string on the legacy JS path.
-    // Every other dialect (template / unset) keeps the legacy `${…}` behavior.
-    if ((value as any).dialect === 'cel') return { dialect: 'cel', source: src };
-    return `\${${src}}`;
-  }
-  return undefined;
-}
+export { toPredicateInput } from '@object-ui/core';
 
 /**
  * Hook for evaluating expressions with dynamic context
