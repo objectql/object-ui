@@ -452,9 +452,11 @@ function staticHead(argument) {
 export function analyze(root) {
   const { leaves, branches } = collectEnKeys(root);
   const resolvesLeaf = (key) => leaves.has(key) || PLURAL_SUFFIXES.some((suffix) => leaves.has(key + suffix));
-  const sortedLeaves = [...leaves];
-  const headMatches = (head) =>
-    sortedLeaves.some((key) => key.startsWith(head)) || [...branches].some((key) => key.startsWith(head));
+  // Materialised once, not inside the predicate: spreading a 2.6k-entry Set per
+  // candidate head is the shape that made `all-locales-key-parity` quadratic
+  // (7.51s -> 25ms once hoisted; see AGENTS.md 测试纪律).
+  const everyPath = [...leaves, ...branches];
+  const headMatches = (head) => everyPath.some((key) => key.startsWith(head));
 
   const registeredModules = new Set(EXCLUDED_TRANSLATORS.map((entry) => entry.module));
   const localScopes = EXCLUDED_TRANSLATORS.flatMap((entry) => entry.forwardedScope ?? []);
