@@ -412,15 +412,37 @@ describe('view nested union — `config.columns` diagnostics (objectui#3626)', (
     // received array" — true, and the wrong thing to tell someone who correctly
     // wrote an array. A member that rejected the node's TYPE outright never
     // looked at the contents, so the contents are not evidence for it, and the
-    // union is left alone. Remove that guard and this goes red.
+    // CONTENT rule is left out of it. Remove that guard and this goes red.
+    //
+    // RE-PINNED BY #3678, and the claim above is unchanged: what this test
+    // guards is that the plain-`string` member is never the one selected. The
+    // expected value moved because a DIFFERENT rule — the sole-candidate rule —
+    // now speaks here, and it selects the OTHER member, the one that actually
+    // read the array. The forbidden mis-selection is asserted directly below so
+    // the guard cannot pass vacuously: if #3626's narrowing guard is deleted,
+    // the content rule elects `string[]` first and both assertions go red.
     const issues = await bothGates({
       ...AUTHORABLE_ITEM,
       config: { ...(AUTHORABLE_ITEM.config as Record<string, unknown>), sort: ['name'] },
     });
-    expect(issues).toEqual([{ path: 'config.sort', message: 'Invalid input' }]);
+    expect(issues).toEqual([
+      { path: 'config.sort.0', message: 'Invalid input: expected object, received string' },
+    ]);
+    expect(issues.map((i) => i.message).join('\n')).not.toContain(
+      'expected string, received array',
+    );
   });
 
   it('does NOT answer for a filter value union (five members, not two)', async () => {
+    // The CONTENT rule needs exactly two members, and this union has five, so
+    // it still declines — the claim this test was written for.
+    //
+    // RE-PINNED BY #3678: for an ARRAY value, four of the five members reject
+    // the type outright and the array member is the sole candidate, so the
+    // sole-candidate rule descends one level to the offending element. It then
+    // STOPS: the element's own union (`string | number`) is rejected by every
+    // member, nothing distinguishes them, and Zod's message is kept. The result
+    // is a nearer path with the same message — `…value.0` rather than `…value`.
     const issues = await bothGates({
       ...AUTHORABLE_ITEM,
       config: {
@@ -428,7 +450,7 @@ describe('view nested union — `config.columns` diagnostics (objectui#3626)', (
         filter: [{ field: 'f', operator: 'in', value: [{}] }],
       },
     });
-    expect(issues).toEqual([{ path: 'config.filter.0.value', message: 'Invalid input' }]);
+    expect(issues).toEqual([{ path: 'config.filter.0.value.0', message: 'Invalid input' }]);
   });
 
   // ── Boundaries: what the content cannot elect ────────────────────────────
@@ -498,6 +520,291 @@ describe('view verdict parity — `columns` bodies (objectui#3626)', () => {
     { label: 'mixed list', body: withColumns([{ field: 'a' }, 'b']), ok: false },
     { label: 'columns elected by nothing', body: withColumns([42]), ok: false },
     { label: 'columns not an array', body: withColumns('nope'), ok: false },
+  ];
+
+  for (const c of CASES) {
+    it(`${c.label}: edit=${c.ok ? 'ok' : 'not ok'}`, async () => {
+      const edited = await validateMetadataDraft('view', c.body, undefined, EDIT);
+      expect(edited.ok, `edit: ${JSON.stringify(edited.issues)}`).toBe(c.ok);
+      expect(edited.issues.length === 0).toBe(c.ok);
+    });
+  }
+});
+
+/**
+ * ── NESTED union diagnostics: the SOLE-CANDIDATE rule (objectui#3678) ──
+ *
+ * #3626 narrowed its content rule so it could not speak for `config.sort`, and
+ * said what that left behind: when a union's members are censused by the
+ * categorical test — did this member reject the value's TYPE at the node
+ * itself, without ever reading it? — and EXACTLY ONE member is left standing,
+ * naming that member is not a guess. It is the only member that read the value,
+ * so it is the only one whose complaint can be about what the author wrote.
+ *
+ * Measured before implementing, on @objectstack/spec 17.0.0-rc.5:
+ *
+ *   sort: [{field:'n', order:'bogus'}]  member[0] `string`        rejected the type
+ *                                       member[1] `ColumnSort[]`  [0].order Invalid option
+ *
+ * so the diagnostic that reached the user was `config.sort` / `Invalid input`
+ * while the spec's own guided message sat one level down, unread.
+ *
+ * ── How this rule relates to #3626's content rule ────────────────────────────
+ *
+ * They are DISJOINT, not layered, and the dispatch for #3678 asked for that to
+ * be measured rather than asserted. Let `k` be how many members accepted the
+ * value's type. `k` partitions every nested union:
+ *
+ *   k === 1                → #3678 names the sole candidate.
+ *   k === members.length   → every member read the value, so the value's own
+ *                            CONTENT decides (#3626), which further declines
+ *                            unless the union is `array<A> | array<B>`.
+ *   otherwise              → no rule; the union keeps Zod's message.
+ *
+ * `k === 1` and `k === members.length` can only coincide at a one-member union,
+ * which this schema does not produce — and #3626's rule requires exactly two
+ * members anyway. The census below walks every nested-union shape the `view`
+ * family produces and pins that no shape lands in two cells, so there is no
+ * priority question to answer.
+ *
+ * Three kinds of claim are pinned here:
+ *
+ *  - CANARY — the sole candidate's exact `path` + `message`. This rule does not
+ *    index members positionally, so a reorder cannot hurt it; what CAN hurt it
+ *    is a spec change to the member SET (a third `sort` member that also accepts
+ *    arrays would take `k` from 1 to 2 and collapse the node back). These turn
+ *    red on that instead of quietly reverting to `Invalid input`.
+ *  - DISJOINTNESS — the two rules never both select, asserted over the census.
+ *  - MAINTAINED — the cells where this rule must stay silent (`k === 0`, and
+ *    `k >= 2` where the content rule declines) still read exactly as #3626 left
+ *    them.
+ */
+describe('view nested union — the sole-candidate rule (objectui#3678)', () => {
+  const AUTHORABLE_ITEM: Record<string, unknown> = { ...STORED_ITEM };
+  delete AUTHORABLE_ITEM.isPinned;
+
+  const withConfig = (extra: Record<string, unknown>) => ({
+    ...AUTHORABLE_ITEM,
+    config: { ...(AUTHORABLE_ITEM.config as Record<string, unknown>), ...extra },
+  });
+
+  /** Every case here must read identically through both gates. */
+  const bothGates = async (body: unknown) => {
+    const created = await validateMetadataDraft('view', body, undefined, { mode: 'create' });
+    const edited = await validateMetadataDraft('view', body, undefined, EDIT);
+    expect(created.ok).toBe(false);
+    expect(edited.ok).toBe(false);
+    expect(edited.issues).toEqual(created.issues);
+    return created.issues;
+  };
+
+  // ── CANARY ───────────────────────────────────────────────────────────────
+
+  it('CANARY: a bad `order` on a sort row reports the key and the allowed options', async () => {
+    // THE case #3678 was filed on. Before: `config.sort` / `Invalid input`.
+    const issues = await bothGates(withConfig({ sort: [{ field: 'n', order: 'bogus' }] }));
+    expect(issues).toHaveLength(1);
+    expect(issues[0].path).toBe('config.sort.0.order');
+    expect(issues[0].message).toContain('Invalid option');
+    expect(issues[0].message).toContain('"asc"');
+    expect(issues[0].message).toContain('"desc"');
+  });
+
+  it('CANARY: a non-object element in a sort list is addressed to that element', async () => {
+    // The `string` member rejected the array outright, so `ColumnSort[]` is the
+    // sole candidate and index 0 is where it broke. Measured, against the
+    // dispatch's guess that BOTH members would reject `[42]`: they do not — the
+    // array member accepts the type and complains about the element.
+    const issues = await bothGates(withConfig({ sort: [42] }));
+    expect(issues).toEqual([
+      { path: 'config.sort.0', message: 'Invalid input: expected object, received number' },
+    ]);
+  });
+
+  it('CANARY: every issue of the sole candidate is shown, and only that member’s', async () => {
+    // `sort: [{}]` is missing `field` AND has no valid `order`. Both belong to
+    // the selected member; the rejected member's "expected string, received
+    // array" is not among them.
+    const issues = await bothGates(withConfig({ sort: [{}] }));
+    expect(issues.map((i) => i.path)).toEqual(['config.sort.0.field', 'config.sort.0.order']);
+    const messages = issues.map((i) => i.message).join('\n');
+    // Positive anchor FIRST — a collapsed `Invalid input` contains no forbidden
+    // substring either, so the negative alone would pass vacuously (#3606's
+    // lesson, and #3626 hit the same trap).
+    expect(messages).toContain('expected string, received undefined');
+    expect(messages).not.toContain('expected string, received array');
+  });
+
+  it('CANARY: the same union under the aggregated container reports `list.sort.…`', async () => {
+    // Prefix composition on the other route: top-level on create, one level
+    // down inside the selected root member on edit.
+    const issues = await bothGates({
+      ...CONTAINER,
+      list: { type: 'grid', columns: ['name'], sort: [{ field: 'n', order: 'bogus' }] },
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0].path).toBe('list.sort.0.order');
+    expect(issues[0].message).toContain('Invalid option');
+  });
+
+  it('CANARY: a scalar union member left standing names the options it wanted', async () => {
+    // `columns[0].summary` is `enum | {type, field}`. Handed a STRING the object
+    // member rejects the type, leaving the enum as sole candidate — so the path
+    // is unchanged and the MESSAGE stops being `Invalid input`. (Handed an
+    // OBJECT, k is 2 and this stays collapsed — pinned in the #3626 block.)
+    const issues = await bothGates(withConfig({ columns: [{ field: 'a', summary: 'bogus' }] }));
+    expect(issues).toHaveLength(1);
+    expect(issues[0].path).toBe('config.columns.0.summary');
+    expect(issues[0].message).toContain('Invalid option');
+    expect(issues[0].message).toContain('"count"');
+  });
+
+  it('descends more than one level when each level has a sole candidate', async () => {
+    // `sections[].fields[]` is `string | FormField`. This is the reach #3678's
+    // own scope paragraph did not expect: it read this union as rejecting
+    // wholesale, which it does for a scalar element but not for an object one.
+    const issues = await bothGates({
+      ...AUTHORABLE_ITEM,
+      viewKind: 'form',
+      config: { type: 'simple', sections: [{ fields: [{}] }] },
+    });
+    expect(issues).toEqual([
+      {
+        path: 'config.sections.0.fields.0.field',
+        message: 'Invalid input: expected string, received undefined',
+      },
+    ]);
+  });
+
+  // ── MAINTAINED: the cells this rule must stay out of ─────────────────────
+
+  it('k === 0 — every member rejected the type, so the collapse is kept', async () => {
+    // `sort: 42` is neither a string nor an array. Nothing distinguishes the
+    // members, and #3626 already ruled that inventing a preference is not ours.
+    expect(await bothGates(withConfig({ sort: 42 }))).toEqual([
+      { path: 'config.sort', message: 'Invalid input' },
+    ]);
+  });
+
+  it('k >= 2 — two members read the value, so this rule stays silent', async () => {
+    // `columns: [42]` — BOTH members accepted the array type, so there is no
+    // sole candidate; the content rule then declines because `42` elects
+    // neither variant, and the node keeps its own message. This is the
+    // uniqueness requirement doing its job: drop it and take "the first member
+    // that accepted" instead, and this reports `config.columns.0` /
+    // "expected string, received number" — a preference nobody expressed.
+    expect(await bothGates(withConfig({ columns: [42] }))).toEqual([
+      { path: 'config.columns', message: 'Invalid input' },
+    ]);
+  });
+
+  it('every nested union shape lands in exactly ONE rule’s cell — census', async () => {
+    // The `k` partition is an argument about the code; this is the measurement
+    // that stands behind it. For each shape: the nested union under test
+    // (`unionAt`), where the diagnostic actually lands (`reportedAt`), and which
+    // cell that implies.
+    //
+    // The cells are observable from outside, but NOT — as this test first
+    // assumed and was corrected by running it — through the path alone. A rule
+    // that spoke shows up as a nearer path OR as a named message, and each can
+    // happen without the other:
+    //
+    //   selected member's issue is DEEPER  → path moves   (`sort` → `…sort.0.order`)
+    //   selected member's issue is AT the  → path stays, message stops being
+    //     union node (a scalar member)       `Invalid input` (`summary: 'bogus'`)
+    //   descent ends in a `none` cell      → path moves, message stays
+    //     one level further down             (`filter[].value: [{}]`)
+    //
+    // So the honest test of "did a rule speak" is the disjunction, and `none`
+    // is exactly its negation: the address is still the union node AND the
+    // message is still the node's own `Invalid input`.
+    //
+    // What makes this a disjointness measurement rather than a list: the two
+    // rules would collide only if a k=2 union were also selected as a sole
+    // candidate. The `columns` rows are the k=2 population — three of them, two
+    // where the content rule speaks and one where nothing does — and none of
+    // them reports the "first member that accepted" address (`config.columns.0`
+    // / "expected string, received number" for `[42]`) that a collision would
+    // produce. The `k >= 2` test above pins that single case directly.
+    const CENSUS: Array<{
+      label: string;
+      body: unknown;
+      unionAt: string;
+      reportedAt: string;
+      cell: 'sole' | 'content' | 'none';
+      collapsedMessage: boolean;
+    }> = [
+      { label: 'sort: bad order', body: withConfig({ sort: [{ field: 'n', order: 'bogus' }] }), unionAt: 'config.sort', reportedAt: 'config.sort.0.order', cell: 'sole', collapsedMessage: false },
+      { label: 'sort: of field names', body: withConfig({ sort: ['name'] }), unionAt: 'config.sort', reportedAt: 'config.sort.0', cell: 'sole', collapsedMessage: false },
+      { label: 'sort: of numbers', body: withConfig({ sort: [42] }), unionAt: 'config.sort', reportedAt: 'config.sort.0', cell: 'sole', collapsedMessage: false },
+      { label: 'sort: a bare number', body: withConfig({ sort: 42 }), unionAt: 'config.sort', reportedAt: 'config.sort', cell: 'none', collapsedMessage: true },
+      { label: 'columns: bad key type', body: withConfig({ columns: [{ field: 123 }] }), unionAt: 'config.columns', reportedAt: 'config.columns.0.field', cell: 'content', collapsedMessage: false },
+      { label: 'columns: stray element', body: withConfig({ columns: ['a', 42] }), unionAt: 'config.columns', reportedAt: 'config.columns.1', cell: 'content', collapsedMessage: false },
+      { label: 'columns: elected by nothing', body: withConfig({ columns: [42] }), unionAt: 'config.columns', reportedAt: 'config.columns', cell: 'none', collapsedMessage: true },
+      { label: 'columns: not an array', body: withConfig({ columns: 'nope' }), unionAt: 'config.columns', reportedAt: 'config.columns', cell: 'none', collapsedMessage: true },
+      { label: 'summary: a bad enum string', body: withConfig({ columns: [{ field: 'a', summary: 'bogus' }] }), unionAt: 'config.columns.0.summary', reportedAt: 'config.columns.0.summary', cell: 'sole', collapsedMessage: false },
+      { label: 'summary: an object', body: withConfig({ columns: [{ field: 'a', summary: { type: 'bogus' } }] }), unionAt: 'config.columns.0.summary', reportedAt: 'config.columns.0.summary', cell: 'none', collapsedMessage: true },
+      { label: 'filter value: an array', body: withConfig({ filter: [{ field: 'f', operator: 'in', value: [{}] }] }), unionAt: 'config.filter.0.value', reportedAt: 'config.filter.0.value.0', cell: 'sole', collapsedMessage: true },
+      { label: 'filter value: an object', body: withConfig({ filter: [{ field: 'f', operator: 'equals', value: {} }] }), unionAt: 'config.filter.0.value', reportedAt: 'config.filter.0.value', cell: 'none', collapsedMessage: true },
+    ];
+    for (const c of CENSUS) {
+      const issues = await bothGates(c.body);
+      expect(issues.map((i) => i.path), c.label).toEqual([c.reportedAt]);
+      expect(issues[0].message === 'Invalid input', c.label).toBe(c.collapsedMessage);
+      // The address never leaves the union node's subtree, whatever spoke.
+      expect(
+        c.reportedAt === c.unionAt || c.reportedAt.startsWith(`${c.unionAt}.`),
+        c.label,
+      ).toBe(true);
+      const spoke = c.reportedAt !== c.unionAt || issues[0].message !== 'Invalid input';
+      expect(spoke, c.label).toBe(c.cell !== 'none');
+    }
+  });
+
+  it('a rule speaking is NOT the same as the message improving — both directions', async () => {
+    // Two rows of the census move in only one of the two observables each, and
+    // asserting the wrong one is how a pin passes for a reason that is not the
+    // reason it claims. Written out so the next reader does not re-derive it.
+
+    // Path moves, message does NOT. The sole-candidate rule named the element
+    // that broke the list, but the element's own union is rejected by every
+    // member, so the descent ends in a `none` cell and `Invalid input` is all
+    // there is left to show.
+    expect(
+      await bothGates(withConfig({ filter: [{ field: 'f', operator: 'in', value: [{}] }] })),
+    ).toEqual([{ path: 'config.filter.0.value.0', message: 'Invalid input' }]);
+
+    // Message moves, path does NOT. The sole candidate is the ENUM member,
+    // whose issue sits AT the union node, so the address is unchanged and the
+    // entire gain is that the user is told which options exist.
+    const summary = await bothGates(withConfig({ columns: [{ field: 'a', summary: 'bogus' }] }));
+    expect(summary.map((i) => i.path)).toEqual(['config.columns.0.summary']);
+    expect(summary[0].message).not.toBe('Invalid input');
+    expect(summary[0].message).toContain('Invalid option');
+  });
+});
+
+/**
+ * PARITY, sole-candidate layer — the verdict cannot move, for the structural
+ * reason #3606 and #3626 already pinned: the expansion runs inside the
+ * issue→form-issue mapping, downstream of `ok`. Green before this change and
+ * green after; that is the point of it, not a weakness of it.
+ */
+describe('view verdict parity — sole-candidate bodies (objectui#3678)', () => {
+  const withConfig = (extra: Record<string, unknown>) => ({
+    ...STORED_ITEM,
+    config: { ...(STORED_ITEM.config as Record<string, unknown>), ...extra },
+  });
+
+  const CASES: Array<{ label: string; body: unknown; ok: boolean }> = [
+    { label: 'sort as a field name', body: withConfig({ sort: 'name' }), ok: true },
+    { label: 'sort as an empty array', body: withConfig({ sort: [] }), ok: true },
+    { label: 'sort as column sorts', body: withConfig({ sort: [{ field: 'n', order: 'asc' }] }), ok: true },
+    { label: 'sort with a bad order', body: withConfig({ sort: [{ field: 'n', order: 'bogus' }] }), ok: false },
+    { label: 'sort of field names', body: withConfig({ sort: ['name'] }), ok: false },
+    { label: 'sort of numbers', body: withConfig({ sort: [42] }), ok: false },
+    { label: 'sort as a number', body: withConfig({ sort: 42 }), ok: false },
+    { label: 'summary as a bad enum', body: withConfig({ columns: [{ field: 'a', summary: 'bogus' }] }), ok: false },
   ];
 
   for (const c of CASES) {

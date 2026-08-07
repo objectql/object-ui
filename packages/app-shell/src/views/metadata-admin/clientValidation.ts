@@ -117,7 +117,7 @@ function viewSchemaForDraft(item: ZodLikeSchema, container: ZodLikeSchema): ZodL
 }
 
 /**
- * ── Union-failure diagnostics for the `view` gates (objectui#3606, #3626) ──
+ * ── Union-failure diagnostics for the `view` gates (objectui#3606, #3626, #3678) ──
  *
  * PRESENTATION ONLY. Nothing below can change a verdict: it runs strictly
  * inside the final issue→`SchemaFormIssue` mapping, after `ok` has already been
@@ -125,9 +125,11 @@ function viewSchemaForDraft(item: ZodLikeSchema, container: ZodLikeSchema): ZodL
  * on create) and after every issue filter has run. Same input set, same `ok`;
  * only the rendered `path`/`message` move.
  *
- * Two rules live here, one per union depth. This first block is the ROOT rule
- * (#3606, edit gate only — neither authoring schema has a union at its root);
- * the NESTED rule for `config.columns` follows below (#3626, both gates).
+ * Three rules live here. This first block is the ROOT rule (#3606, edit gate
+ * only — neither authoring schema has a union at its root); the two NESTED
+ * rules follow below — the content rule for `config.columns` (#3626) and the
+ * sole-candidate rule (#3678). The two nested rules read disjoint cells of one
+ * partition; `nestedUnionMemberIndex` states and proves that.
  *
  * The edit gate is `z.preprocess(stripViewConsoleDecorations, z.union([…]))`.
  * Zod reports a union failure as a SINGLE root issue — `code: 'invalid_union'`,
@@ -207,7 +209,12 @@ function viewUnionMemberIndex(draft: unknown): number {
  * its own relative root) is not a candidate: it never looked at the contents,
  * so contents cannot be evidence for it. That single categorical test — asked
  * of each group on its own, never group-vs-group — is what keeps `sort`,
- * `filter[].value`, `gantt.tooltipFields[]` and the rest untouched.
+ * `filter[].value`, `gantt.tooltipFields[]` and the rest out of THIS rule.
+ * (It kept them collapsed entirely until #3678, which reads the same test as a
+ * census and answers the unions where it leaves exactly one member standing.
+ * The narrowing above is unchanged and still load-bearing: delete the
+ * `groups.some(memberRejectedNodeType)` line and the content rule elects the
+ * plain-`string` member for `sort: ['name']` again.)
  *
  * Boundaries, all measured rather than assumed:
  *
@@ -235,8 +242,20 @@ const ARRAY_VARIANT_MEMBERS = { ofStrings: 0, ofObjects: 1 } as const;
 
 /**
  * Did this member reject the value's TYPE at the union node itself, without
- * ever looking at its contents? Asked of one group in isolation — it filters
- * which unions the content rule may speak about, it does not pick a winner.
+ * ever looking at its contents? Asked of one group in isolation — never
+ * group-vs-group — so it is a categorical fact about one member, not a ranking.
+ *
+ * This single test is the basis of BOTH nested rules (see
+ * `nestedUnionMemberIndex`): #3626 uses it to decide which unions the content
+ * rule may speak about, #3678 counts it to find a union with exactly one
+ * candidate. A member that answers `true` here never read the value, so nothing
+ * about the value can be evidence for or against it.
+ *
+ * Measured caveat, deliberately kept: only `invalid_type` counts. An enum
+ * member handed an object answers `invalid_value`, not `invalid_type` — so
+ * `columns[0].summary` (`enum | {type, field}`) reads as TWO candidates for an
+ * object value and stays in the content rule's cell, which declines it. That is
+ * why the `summary` descent boundary #3626 pinned is unchanged by #3678.
  */
 function memberRejectedNodeType(group: ZodLikeIssue[]): boolean {
   return group.some((i) => i.code === 'invalid_type' && (i.path ?? []).length === 0);
@@ -275,6 +294,97 @@ function arrayVariantMemberIndex(groups: ZodLikeIssue[][], value: unknown): numb
 }
 
 /**
+ * ── NESTED unions: the sole-candidate rule (objectui#3678) ──
+ *
+ * #3626's narrowing left a gap, and #3678 is that gap: when the categorical
+ * test above leaves EXACTLY ONE member standing, naming it is not a heuristic
+ * and not a preference — it is the only member that ever read the value, so it
+ * is the only member whose complaint can be about what the author wrote. The
+ * other members objected to the value's TYPE and stopped there; showing their
+ * complaints would describe a shape the author never chose.
+ *
+ * `config.sort` (`string | ColumnSort[]`) is the case that motivated it. For
+ * `sort: [{field: 'n', order: 'bogus'}]` the plain-`string` member rejects the
+ * array outright and the `ColumnSort[]` member reports
+ * `[0].order` / `Invalid option: expected one of "asc"|"desc"` — the spec's own
+ * guided message (#4001), which until now was thrown away and rendered as
+ * `config.sort` / `Invalid input`.
+ *
+ * This rule does NOT index members positionally: the index is derived from the
+ * census of the groups the failing gate itself produced, so a spec-side reorder
+ * of a union's members cannot mis-select. What a spec change CAN do is move a
+ * union between cells — adding a third `sort` member that also accepts arrays
+ * would take the census from one candidate to two and collapse the node back to
+ * `Invalid input`. That is why the #3678 anchors pin exact paths + messages:
+ * the loss shows up as a red test rather than as a quietly worse message.
+ *
+ * Reach, measured over the `view` family rather than assumed — this is WIDER
+ * than issue #3678 estimated. #3678's "范围" paragraph expected only
+ * scalar-or-array two-member unions such as `sort` to be reachable, and read
+ * `filter[].value` / `sections[].fields[]` as rejecting wholesale. They do
+ * reject wholesale for a scalar value, but not for an ARRAY value, where the
+ * array member is the sole candidate:
+ *
+ *   `filter[0].value: [{}]`        → `config.filter.0.value.0` (was `…value`)
+ *   `sections[0].fields: [{}]`     → `config.sections.0.fields.0.field`
+ *   `columns[0].summary: 'bogus'`  → same path, now the enum's option list
+ *
+ * All three are strict improvements — a nearer path, or a named expectation
+ * instead of `Invalid input` — and each is pinned below. Two of them supersede
+ * NARROWING pins #3626 wrote (see the test file's #3678 block); those pins were
+ * asserting that no rule spoke there, which is exactly what this rule changes.
+ */
+function soleTypeAcceptingMember(groups: ZodLikeIssue[][]): number | null {
+  let sole: number | null = null;
+  for (let i = 0; i < groups.length; i++) {
+    if (memberRejectedNodeType(groups[i])) continue;
+    if (sole !== null) return null; // two or more candidates — ambiguous, not ours
+    sole = i;
+  }
+  return sole; // stays `null` when every member rejected the type
+}
+
+/**
+ * The two NESTED rules, and the relationship between them.
+ *
+ * Census the members with `memberRejectedNodeType` and let `k` be how many
+ * ACCEPTED the value's type. That single number partitions every nested union
+ * into three cells, and the two rules live in different ones:
+ *
+ *   k === 1                 → #3678 names the sole candidate.
+ *   k === groups.length      → every member read the value, so the value's own
+ *     (i.e. k === 0 rejected)  CONTENT decides — #3626's `array<A> | array<B>`
+ *                              rule, which declines unless the union really is
+ *                              of that shape.
+ *   otherwise (k === 0, or  → no rule. Nothing about the value distinguishes
+ *    0 < k < groups.length     the members, and #3626 already ruled that
+ *    with k !== 1)             inventing a preference is not ours to do.
+ *
+ * So they cannot both want to select: `k === 1` and `k === groups.length`
+ * coincide only at `groups.length === 1`, a one-member "union" the schema does
+ * not produce — and even there both rules agree on index 0, since #3626's rule
+ * requires `groups.length === 2` and returns `null`. The content rule is NOT a
+ * special case of the sole-candidate rule and the sole-candidate rule is NOT a
+ * fallback for it; they answer different questions in disjoint cells. #3678's
+ * dispatch asked for this to be measured before implementing, and it was: the
+ * census in the test block below covers every nested union shape the `view`
+ * family produces, and no shape lands in two cells.
+ *
+ * Order below is therefore unobservable while both guards hold — and it is
+ * written content-first ON PURPOSE, so that #3626's narrowing guard stays the
+ * thing that fails when it is removed. Deleting
+ * `if (groups.some(memberRejectedNodeType)) return null;` from
+ * `arrayVariantMemberIndex` still resurrects the exact `sort` mis-selection
+ * #3626 measured, and the #3678 sort anchor goes red on it. Hoisting that guard
+ * into this function would have made it dead code.
+ */
+function nestedUnionMemberIndex(groups: ZodLikeIssue[][], value: unknown): number | null {
+  const byContent = arrayVariantMemberIndex(groups, value);
+  if (byContent !== null) return byContent;
+  return soleTypeAcceptingMember(groups);
+}
+
+/**
  * Pick the union member whose issues should be shown for one `invalid_union`,
  * or `null` for "nothing better than the union node's own message".
  *
@@ -294,7 +404,7 @@ function selectViewUnionGroup(
   const index =
     absPath.length === 0
       ? viewUnionMemberIndex(draft)
-      : arrayVariantMemberIndex(groups, valueAtPath(draft, absPath));
+      : nestedUnionMemberIndex(groups, valueAtPath(draft, absPath));
   if (index === null) return null;
   const group = groups[index];
   if (!Array.isArray(group) || group.length === 0) return null;
@@ -312,12 +422,20 @@ function selectViewUnionGroup(
  * finite tree and only ever yields a non-empty group, so this terminates and a
  * rejected draft always renders at least one issue.
  *
- * There is no depth counter: the array-variant rule declines every union whose
- * node value is not an array, which is what actually bounds the descent. In the
- * measured schema that is exactly one nested level — e.g. a bad
- * `columns[0].summary` (`enum | {type, field}`, an object value) stops there and
- * keeps its own message, now correctly addressed to `config.columns.0.summary`
- * rather than to `config.columns`.
+ * There is no depth counter, and #3678 is why there must not be one: the
+ * descent is bounded by the rules having nothing to say, not by a level count.
+ * A union whose members ALL rejected the value's type ends it — nothing
+ * distinguishes them — and so does one where two or more members read the value
+ * but the content rule declines. Measured examples of each bound:
+ *
+ *  - `columns[0].summary` (`enum | {type, field}`) handed an OBJECT: both
+ *    members read it, the content rule declines a non-array, descent stops with
+ *    Zod's own message now addressed to `config.columns.0.summary`.
+ *  - `filter[0].value: [{}]` descends TWO levels — the array member is the sole
+ *    candidate, and the element union beneath it is rejected by every member —
+ *    ending at `config.filter.0.value.0`. Before #3678 the claim here was "in
+ *    the measured schema that is exactly one nested level"; that was true only
+ *    while the content rule was the only nested rule, and it is now false.
  */
 function expandViewIssues(
   issues: ZodLikeIssue[],
