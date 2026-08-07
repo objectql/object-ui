@@ -25,13 +25,26 @@
  * - `UnifiedSidebar.homeNavigation`'s Administration cluster is the `/home`
  *   admin nav added so a fresh env (no apps yet) still has a real menu —
  *   `resolveLandingPath([])` sends exactly that user to `/home`. Same head entry,
- *   same bare URL. Its entry is corrected too, but is DORMANT: the second test
- *   measures why (the home arm renders groups flat, so no child of the cluster
- *   reaches the DOM at all) rather than asserting an href that never renders.
+ *   same bare URL.
  *
  * These assert the URL the entry CARRIES, not a navigation: what the URL then
  * resolves to is `AppContent`'s question, and is pinned end-to-end (click →
  * mounted hub) in `console/__tests__/AppContent.noAppsCta.test.tsx`.
+ *
+ * ## The measurement this file used to carry, and what replaced it (objectui#3609)
+ *
+ * When #3590 corrected `UnifiedSidebar`'s entry, that entry was not reachable:
+ * the home arm hand-rolled `homeNavigation.map(item => <Link to={item.url ||
+ * '/home'}>)` with no recursion, so the whole `type: 'group'` cluster collapsed
+ * into one row pointing at `/home` and no child reached the DOM. Rather than
+ * assert an href that never rendered, #3590 left a MEASUREMENT pin asserting the
+ * broken shape — `Administration` carrying `href="/home"`, `System Settings`
+ * absent — designed to go red the moment the group rendered its children.
+ *
+ * #3609 made it red by routing the home arm through the same
+ * `NavigationRenderer` the app arm uses. The pin is therefore GONE, not
+ * duplicated: it is replaced below by the real assertions it was standing in
+ * for, so the repo pins the fix instead of pinning both the bug and the fix.
  */
 
 import '@testing-library/jest-dom/vitest';
@@ -60,10 +73,14 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
 }));
 
 // Both clusters below are admin surfaces — UnifiedSidebar's Administration group
-// is gated on `useIsWorkspaceAdmin`.
+// is gated on `useIsWorkspaceAdmin`. Mutable so the gate can be exercised in
+// BOTH directions (see the non-admin test): the cluster is built behind an
+// `if (isWorkspaceAdmin)` at construction, and reusing NavigationRenderer must
+// not have introduced a path that renders it for anyone else.
+let isWorkspaceAdmin = true;
 vi.mock('@object-ui/auth', () => ({
   useAuth: () => ({ user: null, signOut: vi.fn(), isAuthEnabled: false, activeOrganization: null }),
-  useIsWorkspaceAdmin: () => true,
+  useIsWorkspaceAdmin: () => isWorkspaceAdmin,
   getUserInitials: () => 'U',
 }));
 
@@ -88,9 +105,18 @@ vi.mock('../../utils', () => ({
   appRouteSegment: (app: { name?: string }) => app?.name,
 }));
 
-// Lazy lucide DynamicIcon would suspend mid-test; a null icon keeps each link's
-// accessible name equal to its label text.
+// Lazy lucide DynamicIcon fires an async `import()` from a `useEffect` and then
+// setStates; a null icon keeps each link's accessible name equal to its label
+// text and keeps the render synchronous. `AppSidebar`'s hand-written fallback
+// cluster resolves icons through app-shell's own `getIcon`, while
+// `NavigationRenderer` (now the home arm's renderer too) uses `getLazyIcon` from
+// `@object-ui/components` — both entry points need stubbing, and the components
+// package must otherwise stay REAL because the Sidebar primitives come from it.
 vi.mock('../../utils/getIcon', () => ({ getIcon: () => () => null }));
+vi.mock('@object-ui/components', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  getLazyIcon: () => () => null,
+}));
 
 vi.mock('../../hooks/useRecentItems', () => ({ useRecentItems: () => ({ recentItems: [] }) }));
 vi.mock('../../hooks/useFavorites', () => ({
@@ -122,8 +148,37 @@ import { UnifiedSidebar } from '../UnifiedSidebar';
 /** The system hub — the reachable target, and what every sibling entry prefixes. */
 const SYSTEM_HUB = '/apps/setup/system';
 
+/**
+ * Every entry of the `/home` Administration cluster, in declaration order.
+ * Asserted whole rather than by sample: the defect was that the group's
+ * children were never visited at all, so "some of them render" is not the
+ * property worth pinning — "all nine, at the URLs they declare" is.
+ */
+const ADMINISTRATION_ENTRIES: ReadonlyArray<readonly [string, string]> = [
+  ['System Settings', SYSTEM_HUB],
+  ['Applications', `${SYSTEM_HUB}/apps`],
+  ['App Marketplace', `${SYSTEM_HUB}/marketplace`],
+  ['Object Manager', `${SYSTEM_HUB}/metadata/object`],
+  ['Datasources', '/apps/setup/component/metadata/resource?type=datasource'],
+  ['Users', `${SYSTEM_HUB}/users`],
+  ['Organizations', `${SYSTEM_HUB}/organizations`],
+  ['Roles', `${SYSTEM_HUB}/roles`],
+  ['Configuration', `${SYSTEM_HUB}/settings`],
+];
+
+function renderHomeSidebar() {
+  return render(
+    <MemoryRouter initialEntries={['/home']}>
+      <SidebarProvider>
+        <UnifiedSidebar activeAppName="" />
+      </SidebarProvider>
+    </MemoryRouter>,
+  );
+}
+
 beforeEach(() => {
   localStorage.clear();
+  isWorkspaceAdmin = true;
 });
 
 describe('sidebar system-settings target (objectui#3590)', () => {
@@ -158,33 +213,60 @@ describe('sidebar system-settings target (objectui#3590)', () => {
     );
   });
 
-  it('MEASUREMENT: UnifiedSidebar renders the /home Administration cluster FLAT, so its retargeted entry is dormant', () => {
-    // Measured while retargeting `UnifiedSidebar`'s `sys-settings` entry: that
-    // entry is not reachable today, so the corrected URL is dormant rather than
-    // user-visible, and this file cannot honestly assert a navigation for it.
-    //
-    // Why: `UnifiedSidebar` runs ONE ternary on `context === 'app' && activeApp`
-    // (line ~437). Only the APP arm renders `<NavigationRenderer>`, which is what
-    // descends into `type: 'group'` children. The HOME arm hand-rolls
-    // `homeNavigation.map(item => <Link to={item.url || '/home'}>)` — no
-    // recursion — so the whole 9-item Administration group collapses into a
-    // single link, and a group carries no `url`, so it falls back to `/home`:
-    // the page the admin is already on.
-    //
-    // The URL constant was corrected anyway (objectui#3590), so whoever fixes
-    // the flattening does not ship a dead `/apps/setup` link behind it. This pin
-    // records the measurement, and goes red the moment the group renders its
-    // children — which is the signal to replace it with the real href assertion.
-    render(
-      <MemoryRouter initialEntries={['/home']}>
-        <SidebarProvider>
-          <UnifiedSidebar activeAppName="" />
-        </SidebarProvider>
-      </MemoryRouter>,
+  it('UnifiedSidebar: /home renders the Administration cluster as a GROUP, with all nine entries reachable (objectui#3609)', () => {
+    // Replaces the #3590 MEASUREMENT pin. Its two halves invert exactly:
+    //   before → `Administration` IS a link, href `/home`; children absent.
+    //   after  → `Administration` is a disclosure, not a link; children present.
+    renderHomeSidebar();
+
+    // The group is a Collapsible trigger now, not a leaf link. The old shape is
+    // asserted gone by name, not merely "different href": a group carries no
+    // `url` of its own, so any future arm that renders it as a link can only
+    // reach the `|| '/home'` fallback and re-create the dead link.
+    expect(screen.queryByRole('link', { name: 'Administration' })).not.toBeInTheDocument();
+    const trigger = screen.getByRole('button', { name: 'Administration' });
+    // Opened by default. `NavigationRenderer` auto-collapses groups with >= 8
+    // children unless the item states `expanded`; this cluster has nine and IS
+    // the admin's `/home` navigation, so `expanded: true` is stated on it. Left
+    // to the heuristic, Radix would unmount `CollapsibleContent` and the nine
+    // entries would be back out of the DOM — a different spelling of the bug.
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+
+    for (const [label, href] of ADMINISTRATION_ENTRIES) {
+      expect(screen.getByRole('link', { name: label })).toHaveAttribute('href', href);
+    }
+
+    // The head entry, called out because #3590 is what corrected it: it must
+    // not have regressed to the bare setup URL that re-renders the empty state.
+    expect(screen.getByRole('link', { name: 'System Settings' })).not.toHaveAttribute(
+      'href',
+      '/apps/setup',
     );
 
-    expect(screen.getByRole('link', { name: 'Administration' })).toHaveAttribute('href', '/home');
-    expect(screen.queryByRole('link', { name: 'System Settings' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Applications' })).not.toBeInTheDocument();
+    // The flat part of the home nav is unchanged — the two ungrouped entries
+    // still render, with the same hrefs, above the group.
+    expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/home');
+    expect(screen.getByRole('link', { name: 'Documentation' })).toHaveAttribute('href', '/docs');
+  });
+
+  it('UnifiedSidebar: a non-admin on /home gets none of the Administration cluster', () => {
+    // The gate is `if (isWorkspaceAdmin)` where `homeNavigation` is built, so
+    // the cluster is absent from the item tree rather than hidden by the
+    // renderer. Pinned in the negative direction because the fix above changed
+    // WHO renders these items: had the reuse accidentally sourced them from
+    // somewhere ungated, only this assertion would notice.
+    isWorkspaceAdmin = false;
+    renderHomeSidebar();
+
+    expect(screen.queryByRole('button', { name: 'Administration' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Administration' })).not.toBeInTheDocument();
+    for (const [label] of ADMINISTRATION_ENTRIES) {
+      expect(screen.queryByRole('link', { name: label })).not.toBeInTheDocument();
+    }
+
+    // …while the entries every user gets are still there — otherwise this test
+    // would pass on a sidebar that rendered nothing at all.
+    expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/home');
+    expect(screen.getByRole('link', { name: 'Documentation' })).toHaveAttribute('href', '/docs');
   });
 });

@@ -344,6 +344,15 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
         label: t('layout.systemNav.administration', { defaultValue: 'Administration' }),
         type: 'group' as const,
         icon: 'shield',
+        // Opened by default (objectui#3609). `NavigationRenderer`'s unauthored
+        // default auto-collapses groups with >= 8 children, a heuristic meant
+        // for one long section among many inside an app's navigation. Here the
+        // group is not one section among many — on `/home` it IS the admin's
+        // navigation, and this cluster exists for the zero-app deployment whose
+        // whole complaint was "no way through". Nine entries behind a closed
+        // disclosure would re-create that, so the spec's `expanded` is stated
+        // explicitly rather than left to the count heuristic.
+        expanded: true,
         children: adminItems,
       });
     }
@@ -594,26 +603,61 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
          ) : (
            /* Home Navigation */
            <>
-           <SidebarGroup>
-             <SidebarGroupContent>
-               <SidebarMenu>
-                 {homeNavigation.map((item) => {
-                   const NavIcon = getIcon(item.icon);
-                   const isActive = location.pathname === item.url;
-                   return (
-                     <SidebarMenuItem key={item.id}>
-                       <SidebarMenuButton asChild tooltip={item.label as string} isActive={isActive}>
-                         <Link to={item.url || '/home'}>
-                           <NavIcon className="h-4 w-4" />
-                           <span>{item.label as string}</span>
-                         </Link>
-                       </SidebarMenuButton>
-                     </SidebarMenuItem>
-                   );
-                 })}
-               </SidebarMenu>
-             </SidebarGroupContent>
-           </SidebarGroup>
+           {/* ONE navigation renderer, both arms (objectui#3609).
+
+               This arm used to hand-roll
+               `homeNavigation.map(item => <Link to={item.url || '/home'}>)`.
+               That map does not recurse, so `type: 'group'` was simply
+               unsupported here — and home navigation is the only navigation
+               that groups. The nine-entry Administration cluster collapsed into
+               a single row; a group carries no `url` of its own, so
+               `|| '/home'` pointed that row back at the page the user was
+               already standing on, and not one child ever reached the DOM.
+               `resolveLandingPath([])` sends a fresh-deployment admin to
+               exactly this screen, and `HomePage` deliberately dropped its own
+               System card because "the system entries are already in the nav" —
+               so the net effect was an admin with no route into system
+               administration at all.
+
+               Routing this arm through the SAME `NavigationRenderer` the app
+               arm uses (above) removes the divergence instead of teaching a
+               second renderer to recurse: groups render as Collapsibles, and
+               every entry passes the same item-level `visible` /
+               `requiredPermissions` / runtime-capability guards. The component
+               takes `basePath` as a prop and reads only `useLocation()` — it
+               has no `activeApp` coupling — so nothing had to be loosened to
+               reuse it here.
+
+               `basePath=""` is what this arm's `basePath` already computes to
+               (`context === 'app' && activeApp ? … : ''`), and every home entry
+               is `type: 'url'`, whose href resolution is verbatim — so the two
+               surviving top-level links keep byte-identical hrefs.
+
+               Deliberately NOT forwarded from the app arm:
+               - `enablePinning` / `enableReorder` — both persist under
+                 `useNavOrder(activeApp?.name || 'home')`, and in the home
+                 context `activeApp` resolves to the FIRST app rather than to
+                 home, so home navigation would adopt that app's saved root
+                 order. A pinned section would also land directly above this
+                 arm's own "Starred" group. Separate product decisions, not part
+                 of unflattening a group.
+               - `resolveGroupLabel` / `resolveItemLabel` — keyed on
+                 `activeApp.name`, which does not denote this context. Home
+                 labels are already resolved through `t()` where the items are
+                 constructed. */}
+           <NavigationRenderer
+             items={homeNavigation}
+             basePath=""
+             evaluateVisibility={evalVis}
+             checkPermission={checkPerm}
+             checkCapability={checkCap}
+             resolveObjectLabel={(objectName, fallback) => resolveNavObjectLabel({ name: objectName, label: fallback })}
+             resolveDashboardLabel={(dashboardName, fallback) => resolveNavDashboardLabel({ name: dashboardName, label: fallback })}
+             resolveViewLabel={(objectName, viewName, fallback) => resolveNavViewLabel(objectName, viewName, fallback)}
+             onAction={dispatchNavAction}
+             t={t}
+             templateContext={{ currentUserId: user?.id ?? null, currentOrgId: activeOrganization?.id ?? null, contextValues }}
+           />
 
            {/* Starred Apps */}
            {favorites.filter(f => f.type === 'object' || f.type === 'dashboard' || f.type === 'page').length > 0 && (
