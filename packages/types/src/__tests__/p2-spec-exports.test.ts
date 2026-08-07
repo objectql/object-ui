@@ -35,7 +35,6 @@ import type { z } from 'zod';
 // prescribes.
 import type {
   SharingConfig,
-  EmbedConfig,
   AddRecordConfig,
   AppearanceConfig,
   UserActionsConfig,
@@ -52,7 +51,6 @@ import type {
  */
 type _ReexportedValueTypes = [
   SharingConfig,
-  EmbedConfig,
   AddRecordConfig,
   AppearanceConfig,
   UserActionsConfig,
@@ -64,7 +62,6 @@ void 0 as unknown as _ReexportedValueTypes;
 // Runtime Zod schemas are imported directly from the spec package
 import {
   SharingConfigSchema as SharingConfigZod,
-  EmbedConfigSchema as EmbedConfigZod,
   AddRecordConfigSchema as AddRecordConfigZod,
   AppearanceConfigSchema as AppearanceConfigZod,
   UserActionsConfigSchema as UserActionsConfigZod,
@@ -104,33 +101,19 @@ describe('P2.3 Spec Protocol Type Re-exports — Sharing & Embedding', () => {
     });
   });
 
-  describe('EmbedConfigSchema', () => {
-    it('should be a valid Zod schema with parse method', () => {
-      expect(EmbedConfigZod).toBeDefined();
-      expect(typeof EmbedConfigZod.parse).toBe('function');
-      expect(typeof EmbedConfigZod.safeParse).toBe('function');
-    });
-
-    it('should validate a minimal EmbedConfig', () => {
-      const config: z.input<typeof EmbedConfigZod> = { enabled: true };
-      const result = EmbedConfigZod.safeParse(config);
-      expect(result.success).toBe(true);
-    });
-
-    it('should validate a full EmbedConfig', () => {
-      const config: EmbedConfig = {
-        enabled: true,
-        allowedOrigins: ['https://example.com'],
-        width: '100%',
-        height: '600px',
-        showHeader: false,
-        showNavigation: false,
-        responsive: true,
-      };
-      const result = EmbedConfigZod.safeParse(config);
-      expect(result.success).toBe(true);
-    });
-  });
+  // `EmbedConfigSchema` block REMOVED: `EmbedConfig` / `EmbedConfigSchema` were
+  // retired in @objectstack/spec 17.0.0-rc.3 (objectstack#5015, PR
+  // objectstack#5300) — published `ui` vocabulary with NO AUTHORING DOOR, and
+  // no iframe route ever read an embed config, so nothing ran to regress.
+  // objectui#3362 pre-declared this file as one of the three that would go red
+  // on the dependency refresh that brought the retirement in.
+  //
+  // The SURVIVOR half above is the load-bearing one and is deliberately kept:
+  // `SharingConfigSchema` must still be exported and must still parse, because
+  // a retirement that deleted the whole `ui/sharing` module would satisfy the
+  // absence half of this contract while destroying working surface. Public form
+  // sharing is unaffected — `FormView.sharing` still gates the anonymous
+  // endpoints on `allowAnonymous` + `publicLink`.
 });
 
 // ============================================================================
@@ -285,12 +268,12 @@ describe('Type re-exports from @object-ui/types index', () => {
     expect(typeof types.defineStack).toBe('function');
   });
 
-  it('should allow type annotations with P2.3 Sharing & Embedding types', () => {
-    // Compile-time check: these lines would fail to compile if types were not re-exported
+  it('should allow type annotations with P2.3 Sharing types', () => {
+    // Compile-time check: this line would fail to compile if the type were not
+    // re-exported. The `EmbedConfigZod` half is gone with objectstack#5015 —
+    // see the `EmbedConfigSchema` note above.
     const sharing: z.input<typeof SharingConfigZod> = { enabled: true };
-    const embed: z.input<typeof EmbedConfigZod> = { enabled: false };
     expect(sharing.enabled).toBe(true);
-    expect(embed.enabled).toBe(false);
   });
 
   it('should allow type annotations with P2.4 View Configuration types', () => {

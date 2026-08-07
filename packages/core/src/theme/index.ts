@@ -13,8 +13,11 @@ export {
   generateTypographyVars,
   generateBorderRadiusVars,
   generateShadowVars,
-  generateAnimationVars,
-  generateZIndexVars,
+  // `generateAnimationVars` / `generateZIndexVars` removed with the
+  // `theme.animation` / `theme.zIndex` tombstones in @objectstack/spec
+  // 17.0.0-rc.3 (objectstack#5021) — see ThemeEngine's RETIRED THEME BLOCKS
+  // note. `theme.customVars` is the declared door for a `--duration-*` or
+  // `--z-*` now.
   generateThemeVars,
   mergeThemes,
   resolveThemeInheritance,

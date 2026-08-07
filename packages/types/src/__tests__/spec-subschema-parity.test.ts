@@ -27,7 +27,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  HttpMethodSchema as SpecHttpMethodSchema,
+  HttpMethodSubsetSchema as SpecHttpMethodSubsetSchema,
   HttpRequestSchema as SpecHttpRequestSchema,
   ViewDataSchema as SpecViewDataSchema,
   ListColumnSchema as SpecListColumnSchema,
@@ -38,8 +38,6 @@ import {
   TypographySchema as SpecTypographySchema,
   BorderRadiusSchema as SpecBorderRadiusSchema,
   ShadowSchema as SpecShadowSchema,
-  AnimationSchema as SpecAnimationSchema,
-  ZIndexSchema as SpecZIndexSchema,
   ThemeModeSchema as SpecThemeModeSchema,
   ChartTypeSchema as SpecChartTypeSchema,
   PageTypeSchema as SpecPageTypeSchema,
@@ -58,8 +56,6 @@ import {
   TypographySchema,
   BorderRadiusSchema,
   ShadowSchema,
-  AnimationSchema,
-  ZIndexSchema,
   ThemeModeSchema,
   ThemeDefinitionSchema,
 } from '../zod/theme.zod.js';
@@ -68,7 +64,13 @@ import { PageTypeSchema } from '../zod/layout.zod.js';
 
 describe('spec sub-schema re-exports are the spec objects (by reference)', () => {
   const pairs: Array<[string, unknown, unknown]> = [
-    ['HttpMethodSchema', HttpMethodSchema, SpecHttpMethodSchema],
+    // The spec renamed the 5-value subset to `HttpMethodSubsetSchema` in
+    // 17.0.0-rc.5 (objectstack#5832) so it stops colliding with the 7-value
+    // `HttpMethod` in the published JSON Schema. This repo still exports it as
+    // `HttpMethodSchema`; the pin is what proves the two are still the SAME
+    // object, i.e. that following the rename did not quietly widen the type to
+    // the 7-value enum (objectui#3499).
+    ['HttpMethodSchema', HttpMethodSchema, SpecHttpMethodSubsetSchema],
     ['HttpRequestSchema', HttpRequestSchema, SpecHttpRequestSchema],
     ['ViewDataSchema', ViewDataSchema, SpecViewDataSchema],
     ['SelectionConfigSchema', SelectionConfigSchema, SpecSelectionConfigSchema],
@@ -77,8 +79,11 @@ describe('spec sub-schema re-exports are the spec objects (by reference)', () =>
     ['TypographySchema', TypographySchema, SpecTypographySchema],
     ['BorderRadiusSchema', BorderRadiusSchema, SpecBorderRadiusSchema],
     ['ShadowSchema', ShadowSchema, SpecShadowSchema],
-    ['AnimationSchema', AnimationSchema, SpecAnimationSchema],
-    ['ZIndexSchema', ZIndexSchema, SpecZIndexSchema],
+    // `AnimationSchema` / `ZIndexSchema` pairs REMOVED, not re-pointed: the
+    // spec deleted both value schemas outright with the `theme.animation` /
+    // `theme.zIndex` tombstones (objectstack#5021, PR objectstack#5289), and
+    // this package's re-exports went with them. There is no longer a pair to
+    // compare on either side — `theme.customVars` is the declared door now.
     ['ThemeModeSchema', ThemeModeSchema, SpecThemeModeSchema],
     ['ThemeDefinitionSchema', ThemeDefinitionSchema, SpecThemeSchema],
     // #2944 — these two were forks that had already drifted, re-exported under

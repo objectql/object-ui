@@ -22,8 +22,6 @@ import {
   TypographySchema as SpecTypographySchema,
   BorderRadiusSchema as SpecBorderRadiusSchema,
   ShadowSchema as SpecShadowSchema,
-  AnimationSchema as SpecAnimationSchema,
-  ZIndexSchema as SpecZIndexSchema,
   ThemeModeSchema as SpecThemeModeSchema,
   ThemeSchema as SpecThemeSchema,
 } from '@objectstack/spec/ui';
@@ -53,19 +51,10 @@ export const BorderRadiusSchema = SpecBorderRadiusSchema;
  */
 export const ShadowSchema = SpecShadowSchema;
 
-/**
- * Animation Schema — `@objectstack/spec/ui` schema re-exported by reference
- * (issue #2231; formerly a hand-written mirror). The mirror's `timing` keys had
- * drifted to camelCase (`easeIn`); the spec — and the runtime consumer
- * (`usePageTransition`) — use snake_case (`ease_in`), which now applies here too.
- */
-export const AnimationSchema = SpecAnimationSchema;
-
-/**
- * Z-Index Schema — `@objectstack/spec/ui` schema re-exported by reference
- * (issue #2231; formerly a hand-written mirror).
- */
-export const ZIndexSchema = SpecZIndexSchema;
+// `AnimationSchema` / `ZIndexSchema` RETIRED in @objectstack/spec 17.0.0-rc.3
+// (objectstack#5021 option 2, PR objectstack#5289). `theme.animation` and
+// `theme.zIndex` are tombstones now and the spec deleted both value schemas
+// outright; `theme.customVars` is the declared door. See `../theme.ts`.
 
 /**
  * Theme Mode Schema — `@objectstack/spec/ui` schema re-exported by reference
@@ -139,8 +128,6 @@ export type ColorPaletteSchemaType = z.infer<typeof ColorPaletteSchema>;
 export type TypographySchemaType = z.infer<typeof TypographySchema>;
 export type BorderRadiusSchemaType = z.infer<typeof BorderRadiusSchema>;
 export type ShadowSchemaType = z.infer<typeof ShadowSchema>;
-export type AnimationSchemaType = z.infer<typeof AnimationSchema>;
-export type ZIndexSchemaType = z.infer<typeof ZIndexSchema>;
 export type ThemeModeSchemaType = z.infer<typeof ThemeModeSchema>;
 export type ThemeDefinitionSchemaType = z.infer<typeof ThemeDefinitionSchema>;
 export type ThemeComponentSchemaType = z.infer<typeof ThemeComponentSchema>;

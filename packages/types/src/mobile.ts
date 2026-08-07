@@ -272,3 +272,107 @@ export interface MobileComponentConfig {
     loadMore?: string;
   };
 }
+
+// ============================================================================
+// Spec Touch Vocabulary (formerly `@objectstack/spec/ui`)
+// ============================================================================
+// `@objectstack/spec` 17.0.0-rc.3 deleted the whole `ui/touch` module along
+// with the four other interaction-config modules (objectstack#4988, PR
+// objectstack#5321). None of them had an authoring door — no metadata document
+// could ever carry a touch block — so the platform stopped publishing
+// vocabulary nothing could author, and a stack that parsed before the
+// retirement parses byte-for-byte the same after it.
+//
+// The declarations below are that vocabulary moved here verbatim: same keys,
+// same members, same optionality as the retired `z.infer` types this file's
+// consumers used to reach through the `@objectstack/spec/ui` re-export block in
+// `index.ts`. `@object-ui/mobile`'s `useSpecGesture` / `useTouchTarget` are the
+// only implementations of these semantics in the repo, so this package is now
+// their owner. Nothing about either hook's behaviour changes.
+//
+// The `Spec…` prefix on {@link SpecGestureConfig} is kept deliberately. It
+// still distinguishes this shape from the sibling {@link TouchGestureConfig}
+// dialect above — a DIFFERENT contract with different members (`swipe-left` vs
+// `swipe` + a direction array). objectui#3363 records reclaiming the natural
+// names as an unlock now that the spec has vacated them; that is a rename with
+// its own blast radius and stays on that card, not on a dependency bump.
+
+/**
+ * Gesture kinds the retired `ui/touch` vocabulary recognised.
+ *
+ * Declared as a runtime `as const` tuple, not a bare union, and that is
+ * deliberate. `@object-ui/mobile`'s `gesture-spec-parity.test.tsx` pinned
+ * `SPEC_GESTURE_TYPE_MAP` against `GestureTypeSchema.options` — a RUNTIME read
+ * of the spec's enum — in both directions: every declared type maps to a
+ * recogniser, and no renderer-local dialect sneaks in. A type-only union would
+ * have left that pin with nothing to read and it would have had to be deleted,
+ * which is how a retirement quietly takes working coverage with it. The tuple
+ * keeps the pin executable against the vocabulary's new owner.
+ */
+export const SPEC_GESTURE_TYPES = [
+  'swipe',
+  'pinch',
+  'long_press',
+  'double_tap',
+  'drag',
+  'rotate',
+  'pan',
+] as const;
+
+/** Gesture kinds the retired `ui/touch` vocabulary recognised. */
+export type SpecGestureType = (typeof SPEC_GESTURE_TYPES)[number];
+
+/** Swipe direction. */
+export type SpecSwipeDirection = 'left' | 'right' | 'up' | 'down';
+
+/** Swipe recogniser tuning. */
+export interface SwipeGestureConfig {
+  direction: SpecSwipeDirection[];
+  threshold?: number;
+  velocity?: number;
+}
+
+/** Pinch recogniser bounds. */
+export interface PinchGestureConfig {
+  minScale?: number;
+  maxScale?: number;
+}
+
+/** Long-press recogniser tuning. */
+export interface LongPressGestureConfig {
+  duration: number;
+  moveTolerance?: number;
+}
+
+/** A single gesture declaration. */
+export interface SpecGestureConfig {
+  type: SpecGestureType;
+  label?: string;
+  enabled: boolean;
+  swipe?: SwipeGestureConfig;
+  pinch?: PinchGestureConfig;
+  longPress?: LongPressGestureConfig;
+}
+
+/** Minimum touch target sizing (WCAG 2.5.5). */
+export interface TouchTargetConfig {
+  minWidth: number;
+  minHeight: number;
+  padding?: number;
+  hitSlop?: {
+    top?: number;
+    right?: number;
+    bottom?: number;
+    left?: number;
+  };
+}
+
+/** A component's whole touch-interaction declaration. */
+export interface TouchInteraction {
+  gestures?: SpecGestureConfig[];
+  touchTarget?: TouchTargetConfig;
+  hapticFeedback?: boolean;
+  ariaLabel?: string;
+  ariaDescribedBy?: string;
+  role?: string;
+}

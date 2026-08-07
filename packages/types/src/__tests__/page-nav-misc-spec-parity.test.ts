@@ -551,9 +551,6 @@ describe('renamed local dialects do not collide with a spec export (objectui#307
 
   it.each([
     ['FileMetadata', 'UploadedFileMetadata'],
-    ['GestureType', 'TouchGestureType'],
-    ['GestureConfig', 'TouchGestureConfig'],
-    ['OfflineConfig', 'PWAOfflineConfig'],
     ['PageRegion', 'PageNodeRegion'],
     ['PageRegionSchema', 'PageNodeRegionSchema'],
     ['ResponsiveConfig', 'MobileResponsiveConfig'],
@@ -565,6 +562,36 @@ describe('renamed local dialects do not collide with a spec export (objectui#307
     // outlive its reason (objectui#3169).
     expect(names, `spec no longer owns '${owned}' — re-run the triage`).toContain(owned);
   });
+
+  /**
+   * THE TRIPWIRE FIRED, exactly as designed. `@objectstack/spec` 17.0.0-rc.3
+   * deleted the whole `ui/touch` and `ui/offline` modules (objectstack#4988,
+   * PR objectstack#5321), so `GestureType`, `GestureConfig` and `OfflineConfig`
+   * moved from the first list to this one: the spec no longer owns them, and
+   * the three local dialects are free to take their natural names back.
+   *
+   * The rename itself is objectui#3363's unlock item and is deliberately NOT
+   * done here — this is a dependency bump, and `TouchGestureType` →
+   * `GestureType` is a public-surface rename across `@object-ui/types`,
+   * `@object-ui/mobile` and every consumer, which deserves its own PR and its
+   * own changeset. What this block does is record that the reason for the
+   * workaround has expired, so the next reader finds the unlock rather than a
+   * deleted assertion.
+   */
+  it.each([
+    ['GestureType', 'TouchGestureType'],
+    ['GestureConfig', 'TouchGestureConfig'],
+    ['OfflineConfig', 'PWAOfflineConfig'],
+  ])(
+    'the spec has VACATED `%s` — `%s` may reclaim it (objectui#3363)',
+    (vacated) => {
+      expect(
+        names,
+        `spec owns '${vacated}' again — the local dialect rename is load-bearing once more, ` +
+          `move this row back to the list above and close objectui#3363's unlock item.`,
+      ).not.toContain(vacated);
+    },
+  );
 
   it.each([
     ['UploadedFileMetadata', 'file-field VALUE payload, not the storage file record'],

@@ -394,17 +394,15 @@ describe('P1.3 Dashboard Spec Alignment', () => {
     expect(dashboard.header?.actions).toHaveLength(2);
   });
 
-  it('should accept widget ARIA properties', () => {
-    const widget: DashboardWidgetSchema = {
-      type: 'metric',
-      title: 'Revenue',
-      aria: {
-        ariaLabel: 'Total Revenue Widget',
-        role: 'figure',
-      },
-    };
-    expect(widget.aria?.ariaLabel).toBe('Total Revenue Widget');
-  });
+  // `should accept widget ARIA properties` REMOVED: `dashboard.widgets[].aria`
+  // was retired in @objectstack/spec 17.0.0-rc.3 (objectstack#5010, ADR-0049
+  // D2). No renderer ever applied it, so ARIA attributes declared on a widget
+  // silently did not reach the DOM — the key promised accessibility compliance
+  // it did not deliver, which is exactly why it was removed rather than wired
+  // up. This is the same removal the dashboard-level `aria` got at #3896. The
+  // dashboard renderer emits its own `aria-*` attributes for the widget grid,
+  // so nothing regresses; asserting the key is ACCEPTED would now assert the
+  // opposite of the contract.
 });
 
 // ============================================================================

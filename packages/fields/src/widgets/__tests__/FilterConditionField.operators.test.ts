@@ -93,13 +93,37 @@ describe('every spec field operator is reachable from the builder (#2942)', () =
     // emits the bare `{ field: value }` shape, never an explicit `$eq`.
     // `$between` stays covered by the `$gte`+`$lte` pair `between` emits
     // (kvToCondition reads that pair back as `between`).
+    //
+    // `$icontains` is a GENUINE GAP, not a modelling nuance, and is excluded
+    // here rather than silently dropped from the vocabulary. `FieldOperatorsSchema`
+    // gained it between @objectstack/spec 17.0.0-rc.2 and rc.5 (it folds ASCII
+    // case, i.e. case-insensitive contains): the server accepts the token, and no
+    // builder operator can author it, so the capability is unreachable from the
+    // filter UI. Closing it needs a new builder operator with a user-visible
+    // label — a new key in all ten locale packs — which is feature work and
+    // deliberately NOT carried by the dependency bump that surfaced it
+    // (objectui#3560). Tracked as objectui#3567; delete this exclusion when it
+    // lands, and the assertion below will hold it honest.
+    const KNOWN_UNREACHABLE = new Set(['$eq', '$between', '$icontains']);
     const unreachable = [...SPEC_OPERATORS].filter(
-      (op) => op !== '$eq' && op !== '$between' && !emitted.has(op),
+      (op) => !KNOWN_UNREACHABLE.has(op) && !emitted.has(op),
     );
     expect(
       unreachable,
       'FieldOperatorsSchema accepts these but no builder operator can author them',
     ).toEqual([]);
+  });
+
+  it('every KNOWN_UNREACHABLE token is still a spec operator (the exclusion ratchet)', () => {
+    // A stale exclusion is how a parity test rots into a tautology: if the spec
+    // ever drops one of these, the entry must go too rather than sit there
+    // excusing a token nobody ships. `$eq` / `$between` / `$icontains` are all
+    // real `FieldOperatorsSchema` keys today.
+    for (const op of ['$eq', '$between', '$icontains']) {
+      expect(SPEC_OPERATORS.has(op), `'${op}' is excluded but no longer a spec operator`).toBe(
+        true,
+      );
+    }
   });
 });
 

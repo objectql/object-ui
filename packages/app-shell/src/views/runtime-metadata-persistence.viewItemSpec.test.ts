@@ -118,13 +118,31 @@ describe('viewEnvelope output conforms to the spec ViewItem gate (objectui#3375)
     expectSpecValid(env);
   });
 
-  it('stamps a spec-valid config.data binding while preserving caller data keys', () => {
+  it('stamps a spec-valid config.data binding', () => {
+    // The `object` arm of `ViewDataSchema` declares exactly `provider` + `object`
+    // and is strict since objectstack#4001, so this fixture no longer carries the
+    // `pageSize: 25` it used to. That key was never part of the contract — it was
+    // being DROPPED silently, and the assertion that it survived `viewEnvelope`
+    // was pinning the leniency rather than a behaviour: the view rendered without
+    // whatever the key was meant to configure, and nothing said so.
+    //
+    // `viewEnvelope` still spreads caller `data` keys through, and that is
+    // deliberately left alone — no production caller supplies an extra one, and
+    // the spec refusing an undeclared key by name is the loud failure the strict
+    // arm exists to produce. What is pinned here is the part that IS the
+    // function's job: stamping `provider` and `object` onto whatever it is given.
     const env = viewEnvelope(
       'acct',
-      { type: 'grid', columns: [], data: { pageSize: 25 } },
+      { type: 'grid', columns: [], data: {} },
       { name: 'big', label: 'Big' },
     );
-    expect(env.config.data).toEqual({ provider: 'object', pageSize: 25, object: 'acct' });
+    expect(env.config.data).toEqual({ provider: 'object', object: 'acct' });
+    expectSpecValid(env);
+  });
+
+  it('stamps the binding even when the caller passes no data at all', () => {
+    const env = viewEnvelope('acct', { type: 'grid', columns: [] }, { name: 'nodata', label: 'No data' });
+    expect(env.config.data).toEqual({ provider: 'object', object: 'acct' });
     expectSpecValid(env);
   });
 

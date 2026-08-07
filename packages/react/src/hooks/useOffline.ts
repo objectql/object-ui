@@ -8,45 +8,52 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
-import type {
-  OfflineStrategy,
-  ConflictResolution,
-  PersistStorage,
-  EvictionPolicy,
-  OfflineCacheConfigSchema,
-  OfflineConfigSchema,
-  SyncConfigSchema,
-} from '@objectstack/spec/ui';
-import type { SpecAuthoredInput } from '../spec-input';
-
 // ---------------------------------------------------------------------------
-// The offline vocabulary is the spec's (`OfflineConfigSchema` and friends in
-// `@objectstack/spec/ui`), so these are its bindings rather than the hand
-// copies that used to sit here under the same names (objectstack#4115). The
-// header comment claimed alignment with "spec v2.0.7"; the installed spec is
-// 17.0.0-rc.1, and a claim that stale is exactly what an import replaces.
+// The offline vocabulary used to be the spec's (`OfflineConfigSchema` and
+// friends in `@objectstack/spec/ui`), and these were its bindings rather than
+// hand copies (objectstack#4115). `@objectstack/spec` 17.0.0-rc.3 DELETED the
+// whole `ui/offline` module (objectstack#4988, PR objectstack#5321): none of it
+// had an authoring door — no metadata document could ever carry an offline
+// block — so the platform stopped publishing vocabulary nothing could author.
+//
+// The declarations below are that vocabulary, moved here verbatim (same keys,
+// same members, same optionality). This is the remediation the spec's own
+// retirement ledger prescribes by name: "If you consumed the bare
+// `ConflictResolution` from `@objectstack/spec/ui` as a TYPE for your own
+// offline code, declare that union locally — it is your client's policy, not
+// the platform's." This hook IS that client, and it is the only implementation
+// of these semantics in the repo. Nothing about `useOffline`'s behaviour
+// changes; only the provenance of its types (objectui#3363).
+//
+// Do NOT re-point any of these at a same-named spec export that survived:
+// `@objectstack/spec/integration`'s `ConnectorConflictResolution` (connector
+// sync) and `@objectstack/spec/api`'s `ConflictResolutionStrategy` (route merge
+// policy) are DIFFERENT concepts with different members.
 // ---------------------------------------------------------------------------
 
 /** Offline strategy determines how data is fetched when connectivity is limited. */
-export type { OfflineStrategy };
+export type OfflineStrategy =
+  | 'cache_first'
+  | 'network_first'
+  | 'stale_while_revalidate'
+  | 'network_only'
+  | 'cache_only';
 
 /**
  * Conflict resolution strategy for sync operations.
  *
- * Renamed from `ConflictResolutionStrategy` — that name belongs to a DIFFERENT
- * spec export (`@objectstack/spec/api`: `error | priority | first-wins |
- * last-wins`, the metadata-merge policy). The spec's name for the union this
- * hook actually uses is `ConflictResolution`, so the fix was to take the spec's
- * own name and its binding at once, the same move `FieldGroup` →
- * `ObjectFieldGroup` made in objectui#3169.
+ * Deliberately NOT named `ConflictResolutionStrategy` — that name belongs to a
+ * different contract (`@objectstack/spec/api`: `error | priority | first-wins |
+ * last-wins`, the metadata-merge policy), and the confusion between the two is
+ * what objectui#3169 / objectstack#4115 cost.
  */
-export type { ConflictResolution };
+export type ConflictResolution = 'manual' | 'client_wins' | 'server_wins' | 'last_write_wins';
 
 /** Persist storage backend. */
-export type PersistStorageType = PersistStorage;
+export type PersistStorageType = 'sqlite' | 'indexeddb' | 'localstorage';
 
 /** Eviction policy for cache management. */
-export type EvictionPolicyType = EvictionPolicy;
+export type EvictionPolicyType = 'lru' | 'lfu' | 'fifo';
 
 /** Sync state of the offline system. */
 export type SyncState = 'idle' | 'syncing' | 'error' | 'offline';
@@ -61,39 +68,69 @@ export interface QueuedMutation {
 }
 
 /**
- * Cache configuration — the AUTHORING side of the spec's
- * `OfflineCacheConfigSchema`.
+ * Cache configuration.
  *
- * `persistStorage` and `evictionPolicy` carry `.default()`s, so they are
- * optional to write and present after a parse. This hook is handed what an app
- * author wrote, hence the input side; see {@link SpecAuthoredInput}.
+ * `persistStorage` and `evictionPolicy` used to carry schema `.default()`s, so
+ * they stay optional to WRITE — this hook is handed what an app author wrote,
+ * which is why every key here is optional (the former `SpecAuthoredInput` /
+ * input-side reading of the retired schema).
  */
-export type OfflineCacheConfig = SpecAuthoredInput<typeof OfflineCacheConfigSchema>;
+export interface OfflineCacheConfig {
+  /** Maximum cache size. */
+  maxSize?: number;
+  /** Time-to-live for cached entries. */
+  ttl?: number;
+  /** Storage backend. Defaults to `indexeddb` when a cache is used. */
+  persistStorage?: PersistStorageType;
+  /** Eviction policy once `maxSize` is reached. Defaults to `lru`. */
+  evictionPolicy?: EvictionPolicyType;
+}
+
+/** Sync configuration — controls how queued mutations reach the server. */
+export interface OfflineSyncConfig {
+  /** Fetch strategy for sync requests. */
+  strategy?: OfflineStrategy;
+  /** How to resolve a server/client conflict. */
+  conflictResolution?: ConflictResolution;
+  /** Delay between retry attempts, in ms. */
+  retryInterval?: number;
+  /** Maximum retry attempts before giving up. */
+  maxRetries?: number;
+  /** Mutations flushed per sync batch. */
+  batchSize?: number;
+}
 
 /**
- * Sync configuration — the AUTHORING side of the spec's `SyncConfigSchema`.
- *
- * `strategy` and `conflictResolution` carry `.default()`s, so the output type
- * makes them required; this hook is handed what an app author wrote.
- */
-export type OfflineSyncConfig = SpecAuthoredInput<typeof SyncConfigSchema>;
-
-/**
- * Top-level offline configuration — the AUTHORING side of the spec's
- * `OfflineConfigSchema`.
+ * Top-level offline configuration.
  *
  * This name stays with `@object-ui/react` (objectui#3156 / objectui#3159): the
  * `OfflineConfig` that used to sit in `@object-ui/types` was a service-worker
  * ROUTE cache and has been renamed `PWAOfflineConfig`, so there is no
- * cross-package clash left — this hook's config is the spec's concept, key for
- * key, and takes the spec's binding.
+ * cross-package clash.
  *
- * Input side, not `z.infer`, and here the reason is visible in the signature:
- * `useOffline(config: OfflineConfig = {})` defaults to the empty object, which
- * the output type — where `enabled`, `strategy` and `offlineIndicator` are all
- * required once their `.default()`s have run — would reject outright.
+ * Every key is optional, and that is load-bearing rather than incidental:
+ * `useOffline(config: OfflineConfig = {})` defaults to the empty object, so a
+ * shape that made `enabled` / `strategy` / `offlineIndicator` required — as the
+ * retired schema's OUTPUT side did, once its `.default()`s had run — would
+ * reject the hook's own default argument. {@link DEFAULTS} below applies the
+ * same values the schema defaults used to.
  */
-export type OfflineConfig = SpecAuthoredInput<typeof OfflineConfigSchema>;
+export interface OfflineConfig {
+  /** Whether offline mode is active. Defaults to `true`. */
+  enabled?: boolean;
+  /** Fetch strategy. Defaults to `network_first`. */
+  strategy?: OfflineStrategy;
+  /** Client-side cache configuration. */
+  cache?: OfflineCacheConfig;
+  /** Sync behaviour for queued mutations. */
+  sync?: OfflineSyncConfig;
+  /** Whether to surface the offline indicator UI. Defaults to `true`. */
+  offlineIndicator?: boolean;
+  /** Message shown while offline. */
+  offlineMessage?: string;
+  /** Maximum queued mutations retained. Defaults to `100`. */
+  queueMaxSize?: number;
+}
 
 /** Result returned by the useOffline hook. */
 export interface OfflineResult {
@@ -188,8 +225,8 @@ const DEFAULTS: Required<
 
 /**
  * Hook for offline mode detection and sync queue management. Its config types
- * ARE the spec's `OfflineConfigSchema` / `SyncConfigSchema` / `ConflictResolution`
- * (authoring side) — see {@link OfflineConfig}.
+ * are declared locally — see {@link OfflineConfig} for why they stopped being
+ * the spec's.
  *
  * @example
  * ```tsx

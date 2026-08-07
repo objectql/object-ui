@@ -15,8 +15,6 @@ import {
   generateTypographyVars,
   generateBorderRadiusVars,
   generateShadowVars,
-  generateAnimationVars,
-  generateZIndexVars,
   generateThemeVars,
   mergeThemes,
   resolveThemeInheritance,
@@ -48,36 +46,14 @@ const baseTheme: Theme = {
     border: '#E2E8F0',
     disabled: '#94A3B8',
   },
+  // Only `fontFamily.base` survives. `fontFamily.heading` / `.mono`, `fontSize`,
+  // `fontWeight`, `lineHeight` and `letterSpacing` were retired in
+  // @objectstack/spec 17.0.0-rc.3 (objectstack#5021) — the schema rejects them
+  // by name now, so a fixture carrying them would be asserting against metadata
+  // no author can write. `customVars` below is the declared door they point at.
   typography: {
     fontFamily: {
       base: 'Inter, sans-serif',
-      heading: 'Inter, sans-serif',
-      mono: 'JetBrains Mono, monospace',
-    },
-    fontSize: {
-      xs: '0.75rem',
-      sm: '0.875rem',
-      base: '1rem',
-      lg: '1.125rem',
-      xl: '1.25rem',
-      '2xl': '1.5rem',
-    },
-    fontWeight: {
-      light: 300,
-      normal: 400,
-      medium: 500,
-      semibold: 600,
-      bold: 700,
-    },
-    lineHeight: {
-      tight: '1.25',
-      normal: '1.5',
-      relaxed: '1.75',
-    },
-    letterSpacing: {
-      tight: '-0.025em',
-      normal: '0',
-      wide: '0.025em',
     },
   },
   borderRadius: {
@@ -98,20 +74,6 @@ const baseTheme: Theme = {
     lg: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
     xl: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
     inner: 'inset 0 2px 4px 0 rgb(0 0 0 / 0.05)',
-  },
-  animation: {
-    duration: { fast: '150ms', base: '300ms', slow: '500ms' },
-    timing: { ease: 'cubic-bezier(0.4, 0, 0.2, 1)', linear: 'linear' },
-  },
-  zIndex: {
-    base: 0,
-    dropdown: 1000,
-    sticky: 1100,
-    fixed: 1200,
-    modalBackdrop: 1300,
-    modal: 1400,
-    popover: 1500,
-    tooltip: 1600,
   },
 };
 
@@ -226,52 +188,31 @@ describe('generateTypographyVars', () => {
     expect(vars['--font-sans']).toBe('Inter');
   });
 
-  it('should generate --font-heading', () => {
-    const vars = generateTypographyVars({ fontFamily: { heading: 'Georgia' } });
-    expect(vars['--font-heading']).toBe('Georgia');
-  });
-
-  it('should generate --font-mono', () => {
-    const vars = generateTypographyVars({ fontFamily: { mono: 'Fira Code' } });
-    expect(vars['--font-mono']).toBe('Fira Code');
-  });
-
-  it('should generate font size vars', () => {
-    const vars = generateTypographyVars({
-      fontSize: { xs: '0.75rem', base: '1rem', '2xl': '1.5rem' },
-    });
-    expect(vars['--font-size-xs']).toBe('0.75rem');
-    expect(vars['--font-size-base']).toBe('1rem');
-    expect(vars['--font-size-2xl']).toBe('1.5rem');
-  });
-
-  it('should generate font weight vars as strings', () => {
-    const vars = generateTypographyVars({
-      fontWeight: { bold: 700, normal: 400 },
-    });
-    expect(vars['--font-weight-bold']).toBe('700');
-    expect(vars['--font-weight-normal']).toBe('400');
-  });
-
-  it('should generate line height vars', () => {
-    const vars = generateTypographyVars({
-      lineHeight: { tight: '1.25', normal: '1.5' },
-    });
-    expect(vars['--line-height-tight']).toBe('1.25');
-    expect(vars['--line-height-normal']).toBe('1.5');
-  });
-
-  it('should generate letter spacing vars', () => {
-    const vars = generateTypographyVars({
-      letterSpacing: { tight: '-0.025em', wide: '0.025em' },
-    });
-    expect(vars['--letter-spacing-tight']).toBe('-0.025em');
-    expect(vars['--letter-spacing-wide']).toBe('0.025em');
-  });
-
   it('should handle complete typography config', () => {
     const vars = generateTypographyVars(baseTheme.typography!);
-    expect(Object.keys(vars).length).toBeGreaterThanOrEqual(10);
+    expect(vars).toEqual({ '--font-sans': 'Inter, sans-serif' });
+  });
+
+  // NEGATIVE CONTROL for objectstack#5021 / objectui#3361. The six retired
+  // typography groups must not be emitted even when a stale theme still carries
+  // them — an author cannot write them any more, and an engine that kept
+  // emitting them would be serving a contract the platform has withdrawn. Fed
+  // through a cast because the type no longer admits these keys at all, which
+  // is the point: this asserts the RUNTIME behaviour behind the type.
+  it('emits nothing for the retired typography groups (objectstack#5021)', () => {
+    const stale = {
+      fontFamily: { base: 'Inter', heading: 'Georgia', mono: 'Fira Code' },
+      fontSize: { xs: '0.75rem', base: '1rem' },
+      fontWeight: { bold: 700 },
+      lineHeight: { tight: '1.25' },
+      letterSpacing: { wide: '0.025em' },
+    } as unknown as NonNullable<Theme['typography']>;
+    const vars = generateTypographyVars(stale);
+
+    // Positive control in the same run: the surviving key still emits, so an
+    // accidental gutting of this function cannot pass as a clean retirement.
+    expect(vars['--font-sans']).toBe('Inter');
+    expect(vars).toEqual({ '--font-sans': 'Inter' });
   });
 });
 
@@ -319,51 +260,6 @@ describe('generateShadowVars', () => {
 });
 
 // ============================================================================
-// generateAnimationVars
-// ============================================================================
-
-describe('generateAnimationVars', () => {
-  it('should generate duration vars', () => {
-    const vars = generateAnimationVars({
-      duration: { fast: '150ms', base: '300ms', slow: '500ms' },
-    });
-    expect(vars['--duration-fast']).toBe('150ms');
-    expect(vars['--duration-base']).toBe('300ms');
-    expect(vars['--duration-slow']).toBe('500ms');
-  });
-
-  it('should generate timing vars', () => {
-    const vars = generateAnimationVars({
-      timing: { ease: 'cubic-bezier(0.4, 0, 0.2, 1)', linear: 'linear' },
-    });
-    expect(vars['--timing-ease']).toBe('cubic-bezier(0.4, 0, 0.2, 1)');
-    expect(vars['--timing-linear']).toBe('linear');
-  });
-});
-
-// ============================================================================
-// generateZIndexVars
-// ============================================================================
-
-describe('generateZIndexVars', () => {
-  it('should generate z-index vars as strings', () => {
-    const vars = generateZIndexVars({
-      base: 0,
-      modal: 1400,
-      tooltip: 1600,
-    });
-    expect(vars['--z-base']).toBe('0');
-    expect(vars['--z-modal']).toBe('1400');
-    expect(vars['--z-tooltip']).toBe('1600');
-  });
-
-  it('should handle all z-index keys', () => {
-    const vars = generateZIndexVars(baseTheme.zIndex!);
-    expect(Object.keys(vars)).toHaveLength(8);
-  });
-});
-
-// ============================================================================
 // generateThemeVars (integration)
 // ============================================================================
 
@@ -381,8 +277,50 @@ describe('generateThemeVars', () => {
 
   it('should generate vars from a complete theme', () => {
     const vars = generateThemeVars(baseTheme);
-    // Colors + Typography + BorderRadius + Shadows + Animation + ZIndex
-    expect(Object.keys(vars).length).toBeGreaterThan(40);
+    // Colors + Typography(fontFamily.base) + BorderRadius + Shadows.
+    // Animation and ZIndex are gone with objectstack#5021 — see the RETIRED
+    // THEME BLOCKS note in ThemeEngine.ts.
+    expect(Object.keys(vars).length).toBeGreaterThan(20);
+  });
+
+  // NEGATIVE CONTROL for objectstack#5021 / objectui#3361: a stale theme that
+  // still carries `animation` / `zIndex` must contribute NO variable. Before
+  // the retirement these produced `--duration-*`, `--timing-*` and `--z-*`.
+  it('emits no --duration-*, --timing-* or --z-* for a stale theme', () => {
+    const stale = {
+      name: 'stale',
+      label: 'Stale',
+      colors: { primary: '#000' },
+      animation: {
+        duration: { fast: '150ms' },
+        timing: { ease: 'linear' },
+      },
+      zIndex: { base: 0, modal: 1400 },
+    } as unknown as Theme;
+    const vars = generateThemeVars(stale);
+
+    const retired = Object.keys(vars).filter(
+      (k) => k.startsWith('--duration-') || k.startsWith('--timing-') || k.startsWith('--z-'),
+    );
+    expect(retired).toEqual([]);
+
+    // Positive control in the same run: the live half still emits, so this
+    // cannot pass merely because nothing was generated at all.
+    expect(vars['--primary']).toBeTruthy();
+  });
+
+  // The retirement's own prescription: `customVars` is the declared door for a
+  // `--z-modal` or a `--duration-fast` now, and it still works.
+  it('customVars carries what the retired blocks used to (the prescribed door)', () => {
+    const theme = {
+      name: 'via_custom_vars',
+      label: 'Via customVars',
+      colors: { primary: '#000' },
+      customVars: { 'z-modal': '1400', '--duration-fast': '150ms' },
+    } as Theme;
+    const vars = generateThemeVars(theme);
+    expect(vars['--z-modal']).toBe('1400');
+    expect(vars['--duration-fast']).toBe('150ms');
   });
 
   it('should include customVars with -- prefix', () => {
@@ -412,10 +350,8 @@ describe('mergeThemes', () => {
     colors: { primary: '#000', secondary: '#111' },
     typography: {
       fontFamily: { base: 'Arial' },
-      fontSize: { base: '1rem', lg: '1.125rem' },
     },
     borderRadius: { sm: '2px', lg: '8px' },
-    zIndex: { base: 0, modal: 1400 },
   };
 
   it('should override top-level scalar fields', () => {
@@ -434,26 +370,25 @@ describe('mergeThemes', () => {
     expect(merged.colors.accent).toBe('#F00'); // from child
   });
 
+  // `fontFamily.heading` was the child override here until objectstack#5021
+  // retired it; `base` is the surviving key, so the deep-merge is exercised
+  // through an override of it instead of through a key no author can write.
   it('should deep-merge typography.fontFamily', () => {
     const merged = mergeThemes(parent, {
       typography: {
-        fontFamily: { heading: 'Georgia' },
+        fontFamily: { base: 'Georgia' },
       },
     } as Partial<Theme>);
-    expect(merged.typography?.fontFamily?.base).toBe('Arial'); // from parent
-    expect(merged.typography?.fontFamily?.heading).toBe('Georgia'); // from child
+    expect(merged.typography?.fontFamily?.base).toBe('Georgia'); // from child
   });
 
-  it('should deep-merge typography.fontSize', () => {
-    const merged = mergeThemes(parent, {
-      typography: {
-        fontSize: { base: '1.125rem', xl: '1.5rem' },
-      },
-    } as Partial<Theme>);
-    expect(merged.typography?.fontSize?.base).toBe('1.125rem'); // overridden
-    expect(merged.typography?.fontSize?.lg).toBe('1.125rem'); // from parent
-    expect(merged.typography?.fontSize?.xl).toBe('1.5rem'); // from child
+  it('should preserve the parent fontFamily when the child omits typography', () => {
+    const merged = mergeThemes(parent, { colors: { primary: '#FFF' } } as Partial<Theme>);
+    expect(merged.typography?.fontFamily?.base).toBe('Arial');
   });
+
+  // `should deep-merge typography.fontSize` REMOVED with the `fontSize` group
+  // (objectstack#5021). `mergeThemes` no longer has a `fontSize` limb to merge.
 
   it('should deep-merge borderRadius', () => {
     const merged = mergeThemes(parent, {
@@ -464,13 +399,18 @@ describe('mergeThemes', () => {
     expect(merged.borderRadius?.xl).toBe('16px'); // new
   });
 
-  it('should deep-merge zIndex', () => {
-    const merged = mergeThemes(parent, {
-      zIndex: { tooltip: 9999 },
+  // `should deep-merge zIndex` REMOVED with the `zIndex` block
+  // (objectstack#5021). `mergeThemes` no longer carries a `zIndex` limb, and a
+  // theme that still declares one is rejected by the schema before it could
+  // reach a merge. `customVars` merges in its place and is covered below.
+  it('should deep-merge customVars — the door the retired blocks point at', () => {
+    const withVars = { ...parent, customVars: { 'z-base': '0', 'z-modal': '1400' } } as Theme;
+    const merged = mergeThemes(withVars, {
+      customVars: { 'z-tooltip': '9999', 'z-modal': '1500' },
     } as Partial<Theme>);
-    expect(merged.zIndex?.base).toBe(0);
-    expect(merged.zIndex?.modal).toBe(1400);
-    expect(merged.zIndex?.tooltip).toBe(9999);
+    expect(merged.customVars?.['z-base']).toBe('0'); // from parent
+    expect(merged.customVars?.['z-modal']).toBe('1500'); // overridden
+    expect(merged.customVars?.['z-tooltip']).toBe('9999'); // from child
   });
 
   it('should preserve parent when child has no field', () => {

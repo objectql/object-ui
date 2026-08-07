@@ -1518,10 +1518,21 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         String(id),
         opts?.ifMatch ? { ifMatch: opts.ifMatch } : undefined,
       );
-      if (result.deleted) {
+      // `success`, not `deleted` (objectstack#5638). `DeleteDataResult.deleted`
+      // was a key no schema ever declared and no server path ever returned on
+      // `DELETE /data/:object/:id` — the client's interface was a wrong CLAIM
+      // about the response body, and `@objectstack/client` 17.0.0-rc.5
+      // corrected it to the schema's `success`.
+      //
+      // This was live here, not cosmetic: `result.deleted` compiled and read
+      // `undefined` at runtime, so the guard below never fired — a successful
+      // delete emitted NO mutation event, leaving every subscriber's cache
+      // stale — and this method, declared `Promise<boolean>`, actually resolved
+      // `undefined`. Following the rename is what restores both.
+      if (result.success) {
         this.emitMutation({ type: 'delete', resource, id });
       }
-      return result.deleted;
+      return result.success;
     } catch (err) {
       throw normaliseClientError(err);
     }

@@ -286,8 +286,6 @@ export {
   TypographySchema,
   BorderRadiusSchema,
   ShadowSchema,
-  AnimationSchema,
-  ZIndexSchema,
   ThemeModeSchema,
   ThemeDefinitionSchema,
   ThemeComponentSchema,
