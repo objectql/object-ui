@@ -434,17 +434,18 @@ const withoutLicenseText = owingPackages.filter((p) => licenseTextFiles(p).lengt
  * without consulting this map, and an entry here that is no longer offending
  * fails too, so it can only shrink.
  *
- * `apps/console` (`@object-ui/console`) is the one entry. It is published for
- * real — `publishConfig.access: "public"`, versioned 17.3.0 with the rest, in
- * the `.changeset/config.json` `fixed` group — and it has the identical defect
- * to the two packages objectui#3696 fixed. It is baselined rather than fixed
- * because objectui#3696 scoped itself to `packages/*` by name; objectui#3702
- * carries it, and fixing it means copying the root LICENSE and deleting the
- * line below.
+ * Currently empty, which is the intended resting state — the ratchet still
+ * fails on any NEW offender. It was written carrying one entry,
+ * `apps/console` (`@object-ui/console`): published for real
+ * (`publishConfig.access: "public"`, versioned 17.3.0 with the rest, in the
+ * `.changeset/config.json` `fixed` group) with the identical defect to the two
+ * packages objectui#3696 fixed, but outside that issue's `packages/*` scope, so
+ * it was booked to objectui#3702 instead of fixed silently. Triage folded
+ * objectui#3702 into the same PR, the root LICENSE was copied to
+ * `apps/console/LICENSE`, and the entry was banked — the ratchet reported it
+ * stale first, naming the cause (`it now ships license text (LICENSE)`).
  */
-const KNOWN_LICENSE_TEXT_MISSING: Record<string, { issue: string }> = {
-  'apps/console': { issue: 'objectui#3702' },
-};
+const KNOWN_LICENSE_TEXT_MISSING: Record<string, { issue: string }> = {};
 
 describe('published packages that declare a license ship its text (objectui#3696)', () => {
   it('discovers the packages that owe license text (guard cannot pass by finding nothing)', () => {
@@ -530,17 +531,25 @@ describe('published packages that declare a license ship its text (objectui#3696
     ).toEqual([]);
   });
 
-  it('pins the two packages fixed in objectui#3696', () => {
+  it('pins the three packages fixed in objectui#3696 / objectui#3702', () => {
     // The general assertion covers these, but naming them means a revert points
     // straight at the issue that explains why the files have to be there —
     // and, unlike the general assertion, this cannot be satisfied by adding a
     // baseline line.
-    for (const dir of ['packages/react-runtime', 'packages/sdui-parser']) {
+    const fixed: Record<string, string> = {
+      'packages/react-runtime': 'objectui#3696',
+      'packages/sdui-parser': 'objectui#3696',
+      // Found by re-running objectui#3696's census over ALL FOUR workspace
+      // roots instead of `packages/*` alone, which is how it was missed twice.
+      'apps/console': 'objectui#3702',
+    };
+
+    for (const [dir, issue] of Object.entries(fixed)) {
       expect(
         fs.existsSync(path.join(repoRoot, dir, 'LICENSE')),
         `${dir}/LICENSE is required: the package declares "license": "MIT" and npm packs the file ` +
           'regardless of `files`, so deleting it silently resumes publishing MIT-labelled tarballs ' +
-          'with no MIT text (objectui#3696).',
+          `with no MIT text (${issue}).`,
       ).toBe(true);
     }
   });
