@@ -213,8 +213,27 @@ AGENTS.md 的「只跑受影响的包」指的是**用上面的路径过滤缩�
 - **绝不 `git push --force`/`--force-with-lease`,绝不推 `main`**(会覆盖并行 agent 的工作;`main` 共享,一律走 PR)。
 - **每次 commit/push 前先确认当前分支**(`git rev-parse --abbrev-ref HEAD`);HEAD 可能被别的 agent 切走 —— 不是你的分支就停下重新 checkout。
 - 改**共享文件**(barrel/注册表):编辑→`git add`→commit 一气呵成,并核验提交确实含你的改动(`git show HEAD:<file> | grep <你的改动>`);真冲突只重加*你自己*那几行,其余交给 PR 合并。
-- **合并前必须等远端 CI 全绿,绝不 `gh pr merge --auto`** —— auto-merge 可能把还红着的 PR 落到共享 `main` 上,弄脏所有并行 agent 的基线。串行合并;合下一个前先 rebase 其他在途分支。注意 path-filter 跳过的检查(显示 `skipping`)配合 `mergeStateStatus:CLEAN` 即算全绿,不是失败。
-- **CI 全绿即自行合并,不必等维护者确认** —— 修改完成后**只提交你任务改动的文件**(逐路径 `git add <file>`,绝不 `git add -A` 扫入无关 diff),开 PR;待测试/CI 全部通过后直接 `gh pr merge --squash --delete-branch`。测试通过就是合并门槛。
+- **本仓由 ruleset 强制走合并队列(merge queue):直接合并会被 405 拒绝。** 实测(objectui#3243,对 15/15 全绿、`mergeable_state: clean`、非 draft 的 PR #3241):
+
+  ```
+  PUT /repos/objectstack-ai/objectui/pulls/3241/merge
+  → 405 Repository rule violations found
+     Changes must be made through the merge queue
+  ```
+
+  不带 `--auto` 的 `gh pr merge --squash --delete-branch` 打的是同一个 REST 端点,同样 405。**撞上这个 405 不是你权限不够** —— 别去试更强的手段、也别以为要等人工审批,换成下面的入队路径就行。
+- **CI 全绿即自行合并,不必等维护者确认**(授权语义没变,变的只是动作)—— 修改完成后**只提交你任务改动的文件**(逐路径 `git add <file>`,绝不 `git add -A` 扫入无关 diff),开 **draft** PR;等远端 CI 全绿后:
+
+  ```bash
+  gh pr ready <n>                                    # 退出 draft
+  gh pr merge <n> --squash --auto --delete-branch    # 挂 auto-merge = 入合并队列
+  # MCP 等价物:pull request update(draft: false) + enable_pr_auto_merge
+  ```
+
+  队列会把 PR **在当前 `main` 上重建**后再落地,重建不绿就把它踢出队列,而不是把红的落到共享 `main` 上。所以旧版那条「绝不 `gh pr merge --auto`」的前提已经反转:它防的正是队列现在替你防住的事,而在强制队列的仓库里 **enable auto-merge 就是入队的标准手段**,也是本仓实际走得通的唯一通路(仓内佐证:`.github/workflows/dependabot-auto-merge.yml` 对 Dependabot PR 用的就是 `gh pr merge --auto --squash`)。注意 path-filter 跳过的检查(显示 `skipping`)不是失败,配合 `mergeStateStatus: CLEAN` 即算全绿。
+- **auto-merge 会在「合并冲突」和「draft」窗口里被静默丢弃 —— 事后必须复查并重挂。** 已两次踩实(先例 PR #3458):PR 一旦变成 conflicting、或被(重新)标记为 draft,已挂上的 auto-merge 就没了,**且不会有任何通知**。解完冲突或 `gh pr ready` 之后若不重新挂一次,PR 会一直停在那里 —— 看着"全绿待合",实际谁也没在等它。收工前复查一次:`gh pr view <n> --json isDraft,mergeStateStatus,autoMergeRequest`,`autoMergeRequest` 为 `null` 就是掉了,重挂。
+- **不必为了合并去 rebase 其他在途分支** —— 队列自己会在当前 `main` 上重建,旧版「串行合并、合下一个前先 rebase 在途分支」那套编排已是历史。**但队列只拦得住文本冲突和 CI 看得见的破坏**:两个各自全绿的 PR 仍可能**语义冲突**(改了同一约定的两端;一边删掉了另一边刚开始用的导出)。所以动**共享面**(barrel/注册表/公共类型/跨包约定)时,合并前扫一眼在途 PR(`gh pr list`),有交叠就在 PR 正文里写清交叠点与取并集的办法(先例:PR #3458 对 #3456 同文件交叠的说明)。
+- ruleset 的**具体配置**(谁可绕过、required checks 清单)本文不写 —— 从仓内读不到,别照抄任何推断。上面几条写的都是实测到的可观测行为。
 
 ### 服务纪律(本仓库与 `../objectstack` 多 agent 并行开发)
 
