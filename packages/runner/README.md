@@ -57,27 +57,41 @@ The runner comes with these plugins pre-configured:
 - **@object-ui/plugin-charts** - Chart visualization components
 - **Additional plugins can be added as needed**
 
-## Schema Loading
+## Metadata Loading
 
-The runner can load schemas from various sources:
+The runner picks its metadata loader when it mounts, from the `api` query parameter of
+the page URL (`src/App.tsx`). This is its only API base URL setting — it reads no
+environment variables and no config file:
 
-```typescript
-// From JSON file
-const schema = await import('./my-schema.json');
+| URL | Loader | Where metadata comes from |
+| --- | --- | --- |
+| `http://localhost:5173/` | `LocalBundleLoader` | JSON bundled from `src/app-data/` at build time |
+| `http://localhost:5173/?api=/api` | `NetworkLoader` | `fetch`ed from the base URL you passed |
 
-// From JavaScript/TypeScript
-const schema = {
-  type: 'page',
-  title: 'My App',
-  body: {
-    type: 'card',
-    content: 'Hello World'
-  }
-};
+With `?api=<base>`, the value is used verbatim as a base URL and fixed paths are
+appended to it, so a backend only has to serve two kinds of JSON document:
 
-// From API endpoint
-const schema = await fetch('/api/schema').then(r => r.json());
+```text
+GET <base>/app.json                 # the app document, loaded once at startup
+GET <base>/pages/index.json         # route "/"
+GET <base>/pages/customers.json     # route "/customers"
+GET <base>/pages/crm/accounts.json  # route "/crm/accounts"
 ```
+
+A relative base (`?api=/api`) keeps the requests same-origin; an absolute one needs
+CORS on the backend. `fetch` is called with no options, so no credentials or custom
+headers are sent, and any non-2xx status or network error becomes `null` — which the
+runner renders as a 404 rather than surfacing the status.
+
+Without the parameter, `LocalBundleLoader` resolves `src/app-data/app.json` and
+`src/app-data/pages/**/*.json` through Vite's `import.meta.glob`. That directory is
+git-ignored and absent from a fresh checkout, so every load returns `null` until you
+copy or symlink your own metadata directory into it.
+
+Full details — route resolution order, error handling, and the caveat that in-app
+navigation drops `?api=` from the address bar — are in the
+[Metadata Loading](https://www.objectui.org/docs/utilities/runner#metadata-loading)
+section of the docs.
 
 ## Configuration
 

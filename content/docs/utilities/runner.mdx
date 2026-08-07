@@ -94,6 +94,72 @@ packages/runner/
 
 ## Configuration
 
+### Metadata Loading
+
+The Runner picks one of two metadata loaders when it mounts, from the `api` query
+parameter of the page URL (`src/App.tsx`). This is the Runner's only API base URL
+setting — it reads no environment variables and no config file:
+
+| URL | Loader | Where metadata comes from |
+| --- | --- | --- |
+| `http://localhost:5173/` | `LocalBundleLoader` | JSON bundled from `src/app-data/` at build time |
+| `http://localhost:5173/?api=/api` | `NetworkLoader` | `fetch`ed from the base URL you passed |
+
+The branch is `params.get('api')`, so an empty value (`?api=`) is falsy and still
+selects the local loader. Which strategy won is logged to the browser console —
+`📦 Using Local Bundle Loader` or `🔌 Using Network Loader: <base>`.
+
+#### Serving metadata over HTTP (`?api=<base>`)
+
+`NetworkLoader` uses the parameter value verbatim as a base URL and appends fixed
+paths to it, so a backend needs to serve exactly two kinds of JSON document:
+
+| Runner route | Request | Response |
+| --- | --- | --- |
+| _(any, once at startup)_ | `GET <base>/app.json` | the app document (`AppComponentSchema`) |
+| `/` | `GET <base>/pages/index.json` | the page document (`PageNodeSchema`) |
+| `/customers` | `GET <base>/pages/customers.json` | the page document |
+| `/crm/accounts` | `GET <base>/pages/crm/accounts.json` | the page document |
+
+Nested routes map straight through — the request path is `<base>/pages` plus the
+browser path plus `.json`, with `/` rewritten to `/index` first.
+
+- **Relative or absolute base.** `?api=/api` keeps the requests same-origin (pair it
+  with a dev-server proxy or a reverse proxy in front of the built bundle);
+  `?api=https://metadata.example.com/api` goes cross-origin, which needs CORS on the
+  backend. The loader calls `fetch` with no second argument, so it sends no
+  credentials and no custom headers — an endpoint behind cookie or bearer auth will
+  not work as-is.
+- **Failures are silent.** Any non-2xx status, or a network/parse error, is turned
+  into `null`. The Runner then shows `Page not found: <path>` for a page, and for a
+  failed `app.json` it drops the app chrome (header/sidebar) and renders the page on
+  its own. The HTTP status never reaches the UI — read it from the Network tab.
+- **Read once, at mount.** The parameter is captured in a `useMemo` with an empty
+  dependency list. In-app navigation calls `history.pushState` with the bare path, so
+  the address bar loses `?api=…` after the first click; the loader already created
+  keeps serving that session, but reloading or sharing the resulting URL falls back to
+  the local bundle.
+- `NetworkLoader`'s own default base is `/api` (`constructor(baseUrl: string = '/api')`).
+  That default only applies when the class is constructed directly in code — the
+  Runner always passes it the query-parameter value.
+
+#### Running from bundled JSON (no `api` parameter)
+
+`LocalBundleLoader` resolves metadata from `packages/runner/src/app-data/` through
+Vite's `import.meta.glob` — at build time, not over the network. It globs
+`app-data/app.json`, `app-data/pages/**/*.json` and `app-data/*.json`, and resolves a
+route by trying, in order:
+
+| Runner route | Files tried, in order |
+| --- | --- |
+| `/` | `pages/index.json`, `pages/index/index.json`, `index.json` |
+| `/customers` | `pages/customers.json`, `pages/customers/index.json` |
+
+`src/app-data/` is git-ignored (see `packages/runner/.gitignore`) and is **not** part
+of a fresh checkout — you supply it, by copying or symlinking your own metadata
+directory there. With that directory absent, the three globs compile to `{}`, every
+load returns `null`, and `/` renders the built-in `No index page found.` placeholder.
+
 ### `vite.config.ts`
 
 The Runner uses Vite for development and building:
