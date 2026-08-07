@@ -251,8 +251,9 @@ all**, which is the point of the workflow. It appears in the checks list as **In
 Check**.
 
 Runs `scripts/check-doc-links.mjs`, which walks every `.md` / `.mdx` file in the surfaces listed in
-its `SCAN_ROOTS` — `content/docs/`, `examples/` and the root `README.md` — and asks of each internal
-markdown link whether its target is really there.
+its `SCAN_ROOTS` — `content/docs/`, `examples/`, the root `README.md`, `CONTRIBUTING.md`,
+`ROADMAP.md` and the internal `docs/` tree — and asks of each internal markdown link whether its
+target is really there.
 
 **Two rules, because the two groups are read through different machinery** (objectui#3536). For
 `content/docs/` the question is the one a site reader cares about, **does the site serve this URL?**
@@ -265,12 +266,23 @@ Four checks, by href shape:
 | absolute `/docs/...` | `content/docs/` as a **route** | no `foo.md`, `foo.mdx` or `foo/index.md*` backs it — a `.md`/`.mdx` suffix always fails, since that URL 404s whatever is on disk |
 | any other absolute (`/spec/...`, `/img/...`) | the **site itself**: route segments enumerated from `apps/site/app`, plus static files under `apps/site/public` | no route pattern or static file matches |
 
-`examples/` and the root `README.md` are read on **GitHub**, not served by the site, so a relative
-href there names a path on disk and is checked for existence only — a directory (`./packages/core`)
-or a non-markdown file (`./vite.config.ts`) is a perfectly good target, and there is no collection
-to escape. A leading `/` is rejected outright: GitHub resolves it against `github.com`, not against
-this repository. Applying the `content/docs/` rules to these files instead would reject 61 links
-that render correctly today.
+Every other surface — `examples/`, `README.md`, `CONTRIBUTING.md`, `ROADMAP.md`, `docs/` — is read
+on **GitHub**, not served by the site, so a relative href there names a path on disk and is checked
+for existence only: a directory (`./packages/core`) or a non-markdown file (`./vite.config.ts`) is a
+perfectly good target, and there is no collection to escape. A leading `/` is rejected outright:
+GitHub resolves it against `github.com`, not against this repository. Applying the `content/docs/`
+rules to these files instead would reject 111 links that render correctly today.
+
+The last three surfaces are objectui#3572. They cost one `SCAN_ROOTS` row each and no new rule,
+because "read on GitHub" already had one; their own backlog — three dead links — was cleared first
+and separately (objectui#3545), so the rows landed on a green tree.
+
+**One boundary, stated because it is easy to mistake for coverage:** links written inside a code
+fence are invisible to this check. `stripCode()` blanks fenced blocks and inline spans before
+scanning — required, since fenced code legitimately contains `[…](…)` that is not a link — so a
+dead route in an illustrative snippet is not reported. `CONTRIBUTING.md` carries 10 such links
+today against 15 outside fences, of which the gate judges one. Prose *about* links stays a human
+review item.
 
 One href shape is checked in **every** surface: a
 `https://github.com/objectstack-ai/objectui/(blob|tree)/main/<path>` URL points back into this
@@ -322,7 +334,7 @@ There are **two** link checkers, and they cover different things (objectui#3213)
 
 | | Covers | Network | Runs |
 |---|---|---|---|
-| `scripts/check-doc-links.mjs` | **Internal** links in `content/docs/` (relative hrefs, `/docs/...` routes, every other site-absolute href against `apps/site`), in `examples/` and the root `README.md` (as paths on disk), plus this repo's own `blob/main/` and `tree/main/` GitHub URLs everywhere | No | `docs-links.yml` — every push and PR, no path filter (previous section) |
+| `scripts/check-doc-links.mjs` | **Internal** links in `content/docs/` (relative hrefs, `/docs/...` routes, every other site-absolute href against `apps/site`), in `examples/`, `README.md`, `CONTRIBUTING.md`, `ROADMAP.md` and `docs/` (as paths on disk), plus this repo's own `blob/main/` and `tree/main/` GitHub URLs everywhere — **except** anything inside a code fence | No | `docs-links.yml` — every push and PR, no path filter (previous section) |
 | Lychee (this workflow) | **External** URLs, plus **relative** in-repo file links, in `content/docs/`, `docs/` and `README.md` | Yes | Weekly cron and manual dispatch |
 
 Lychee sweeps **both** documentation trees: `content/docs/` (the 183 pages the site publishes) and

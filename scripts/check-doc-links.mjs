@@ -177,14 +177,57 @@
  *     and the `workflows/<name>/badge.svg` badge URLs in the root README are
  *     github.com web routes, not paths in this tree, and stay skipped.
  *
+ * ## Why this file changed again (objectui#3572)
+ *
+ * The section that stood here, "Still not bought", named the next surface and
+ * its entry price: `CONTRIBUTING.md`, `ROADMAP.md` and the internal `docs/`
+ * tree were unscanned, and adding them was "one `SCAN_ROOTS` row each — plus
+ * fixing what that turns red". Both halves came due, in that order.
+ *
+ * The red was paid first and separately (#3545 / PR #3571): three dead links,
+ * two in `CONTRIBUTING.md` and one in `ROADMAP.md`. So this change is the three
+ * rows and nothing else — measured at 70 links across the three surfaces, of
+ * which 52 are decidable here, and **zero** dead the day it landed. That is the
+ * shape an extension should have; contrast #3479 (16 dead targets) and #3490
+ * (18), where the gate and its own backlog arrived together.
+ *
+ * `docs/**` is the one of the three nothing had ever measured. Lychee's scope
+ * does list it, but that workflow is `schedule` + `workflow_dispatch` only —
+ * `push` and `pull_request` are commented out on purpose (#3213 ruling B: an
+ * external link check goes over the network and would redden PRs their authors
+ * cannot fix), so it blocks nobody. 47 of its 49 links had therefore never been
+ * resolved by anything that could fail a build.
+ *
+ * All three take the `disk` rule, and correctly: they are read on GitHub, like
+ * `examples/**` and the root `README.md`. No new rule class, no new reason
+ * string, no new hint.
+ *
+ * ### The boundary this does NOT cover: links inside code fences
+ *
+ * Stated because the alternative is implying total coverage. `stripCode()`
+ * blanks fenced blocks and inline spans before the scan (see the section below
+ * — it is what makes the relative-link check safe at all), so **a link written
+ * inside a fence is invisible to this gate, dead or not**.
+ *
+ * That is not hypothetical on the very surface being added. `CONTRIBUTING.md`
+ * carries 25 markdown links; 10 sit inside fences, and this gate judges exactly
+ * **one** of the remaining 15 (the other 14 are `#anchors` and external URLs).
+ * Those 10 are objectui#3570's instance class — a fenced block illustrating
+ * docs-link conventions whose "correct example" routes (`/guide/quick-start`,
+ * `/api/core`, `/spec/component`, …) are themselves dead. A reader copies them;
+ * this script never sees them. Fixing that text is #3570's job; noticing that
+ * no gate can reach it is this comment's.
+ *
+ * Widening `stripCode()` is not the repair, and the two false positives it was
+ * built for are why: fenced code legitimately contains `[…](…)` that is not a
+ * link. A gate for prose *about* links inside fences would need to tell an
+ * illustrative route from an executable one, which is a different gate.
+ *
  * ### Still not bought
  *
- * The other root-level markdown (`CONTRIBUTING.md`, `ROADMAP.md`,
- * `QUICK_REFERENCE.md`, `AGENTS.md`) and the internal `docs/` tree remain
- * unscanned. That is a surface, not an oversight: the scan found real dead
- * links in two of those files while this was being written, filed separately
- * rather than folded in. Adding them is a matter of one `SCAN_ROOTS` row each
- * — plus fixing what that turns red.
+ * `QUICK_REFERENCE.md`, `AGENTS.md`, `CLAUDE.md` and `CHANGELOG.md` remain
+ * unscanned. Same one-row price, same caveat — measure the surface first, pay
+ * its backlog separately, then add the row.
  *
  * ## Code spans are stripped before scanning
  *
@@ -233,12 +276,20 @@ const UNSCANNED_DIRS = new Set(['node_modules', 'dist', 'build', '.next', '.turb
  * `disk` — files read on GitHub: an href names a PATH in this repository.
  *
  * The split is the point (objectui#3536). See the header for why applying the
- * docs rules to the second group would reject links that render perfectly well.
+ * docs rules to the second group would reject links that render perfectly well:
+ * over today's `disk` surface it would reject 111 links that all render.
+ *
+ * Adding a surface is one row. Adding one that is read on GitHub needs no new
+ * rule class at all — which is why objectui#3572 could take the last three for
+ * the price of the table entry.
  */
 export const SCAN_ROOTS = [
   { path: 'content/docs', rule: 'docs' },
   { path: 'examples', rule: 'disk' },
   { path: 'README.md', rule: 'disk' },
+  { path: 'CONTRIBUTING.md', rule: 'disk' },
+  { path: 'ROADMAP.md', rule: 'disk' },
+  { path: 'docs', rule: 'disk' },
 ];
 
 const blank = (text) => text.replace(/[^\n]/g, ' ');
@@ -615,7 +666,8 @@ const HINTS = {
     ' `https://github.com/objectstack-ai/objectui/blob/main/...` URL instead' +
     ' (the "Package README" form used throughout content/docs/plugins/).',
   'example-relative':
-    'Outside content/docs (examples/**, the root README) a relative link is a' +
+    'Outside content/docs (examples/**, README.md, CONTRIBUTING.md, ROADMAP.md,' +
+    ' docs/**) a relative link is a' +
     ' PATH IN THIS REPO, resolved by GitHub against the linking file — so it' +
     ' must name something that exists and lives inside the repository. A' +
     ' directory or a non-markdown file is fine; an extensionless spelling of a' +
