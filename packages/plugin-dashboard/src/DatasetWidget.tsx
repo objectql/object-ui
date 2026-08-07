@@ -48,15 +48,16 @@ import {
   // cross-tab keys multi-dimension ACROSS buckets with it too.
   pivotBucketId as pivotRowId,
   pivotCellKey,
+  compareToTrendLabelKey,
   type CompareToConfig,
   type DatasetResultField,
   type DatasetDrillRange,
 } from '@object-ui/core';
 import { cn, Skeleton, ChartSkeleton, GridSkeleton } from '@object-ui/components';
 import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
-import { BarChart3, AlertTriangle, Download } from 'lucide-react';
+import { BarChart3, AlertTriangle, Download, ArrowUpIcon, ArrowDownIcon, MinusIcon } from 'lucide-react';
 import { useFilterScope } from '@object-ui/react';
-import { resolveFilterPlaceholders } from './utils';
+import { resolveFilterPlaceholders, computeMetricDelta } from './utils';
 import { DrillDownDrawer } from './DrillDownDrawer';
 
 type Row = Record<string, unknown>;
@@ -150,6 +151,150 @@ function downloadCsv(filename: string, rows: Array<Array<string | number | null 
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+/** Column the executor attaches a comparison window's value under. */
+const COMPARE_SUFFIX = '__compare';
+const compareColumn = (measure: string) => `${measure}${COMPARE_SUFFIX}`;
+
+/**
+ * English fallbacks for the `dashboard.trend.*` keys — the SAME vocabulary the
+ * inline `MetricWidget` / `ObjectMetricWidget` label their trend with, so a
+ * dataset-bound and an inline KPI comparing the same window read identically.
+ * No new key is introduced here.
+ */
+const TREND_LABEL_DEFAULTS: Record<string, string> = {
+  vsLastQuarter: 'vs last quarter',
+  vsLastMonth: 'vs last month',
+  vsLastWeek: 'vs last week',
+  vsLastYear: 'vs last year',
+  vsYesterday: 'vs yesterday',
+  vsPreviousPeriod: 'vs previous period',
+};
+
+/**
+ * ISO calendar date, optionally carrying a time part — `2026-01-15`,
+ * `2026-01-15T08:30:00Z`. Deliberately narrower than `Date.parse` (which also
+ * accepts `2026` and `March 5, 2026`); the same shape the dashboard filter
+ * layer already holds date values to (`core/utils/dashboard-filters.ts`).
+ */
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(?:[T ][\d:.]+(?:Z|[+-]\d{2}:?\d{2})?)?$/;
+
+/** A `DatasetSelection.timeDimensions` entry stating a bounded window. */
+export interface DatasetTimeWindow {
+  dimension: string;
+  dateRange: [string, string];
+}
+
+/**
+ * A **bounded, closed** date window, or null. Exactly `{ $gte, $lte }` with two
+ * ISO-date bounds qualifies, and nothing else:
+ *
+ *  - `{ $gte: 1000 }` on an amount is a numeric range, not a window;
+ *  - `$gt` / `$lt` are EXCLUSIVE, and `dateRange` has no exclusive bound —
+ *    converting one would silently widen the window by a day;
+ *  - a half-open `{ $gte }` alone has no end to shift. A period-over-period
+ *    comparison is only defined against a bounded window, so leaving it in the
+ *    filter is what makes the executor say so out loud.
+ */
+function boundedDateWindow(value: unknown): [string, string] | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const keys = Object.keys(value as object);
+  if (keys.length !== 2 || !keys.includes('$gte') || !keys.includes('$lte')) return null;
+  const { $gte: from, $lte: to } = value as { $gte: unknown; $lte: unknown };
+  if (typeof from !== 'string' || typeof to !== 'string') return null;
+  if (!ISO_DATE_RE.test(from) || !ISO_DATE_RE.test(to)) return null;
+  return [from, to];
+}
+
+/**
+ * Split a RESOLVED runtime filter into the bounded date windows it states and
+ * the rest of the filter (objectui#3337 point 5).
+ *
+ * The executor shifts exactly one thing for a `compareTo`: a `timeDimensions`
+ * entry carrying a `dateRange`. A widget states its window in its own `filter`
+ * instead (a date macro, or the dashboard's date-range filter merged in by
+ * `DashboardRenderer`), which is why forwarding a structured `compareTo` alone
+ * still came back "compareTo needs a dated window to shift".
+ *
+ * Windows are **moved, not copied**: the comparison pass re-runs with the
+ * shifted `timeDimensions` but the SAME `runtimeFilter`, so a copy left behind
+ * would intersect the shifted window with the current one and every
+ * `<measure>__compare` column would come back empty.
+ *
+ * Only CONJUNCTIVE positions are walked — the top level and `$and` members. A
+ * window inside `$or` / `$not` is not a window the whole query runs in, so it
+ * stays in the filter untouched.
+ *
+ * **Which dimension gets shifted is not decided here.** Every window found is
+ * lowered under the name the author wrote. Zero of them, or two, is the
+ * executor's error to raise — it names the candidates (`resolveCompareDimension`).
+ * Guessing one renderer-side would trade a loud error for a quietly wrong
+ * window, which is the failure class objectstack#5011 set out to end.
+ */
+export function extractDateWindows(filter: unknown): {
+  windows: DatasetTimeWindow[];
+  rest: Record<string, unknown> | undefined;
+} {
+  // Insertion-ordered so the lowered windows (and any executor message listing
+  // them) are deterministic.
+  const ranges = new Map<string, [string, string]>();
+
+  const walk = (node: unknown): unknown => {
+    if (!node || typeof node !== 'object' || Array.isArray(node)) return node;
+    const out: Record<string, unknown> = {};
+    let conjuncts: Record<string, unknown>[] | null = null;
+    for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+      if (key === '$and' && Array.isArray(value)) {
+        conjuncts = value
+          .map(walk)
+          .filter(
+            (c): c is Record<string, unknown> =>
+              !!c && typeof c === 'object' && !Array.isArray(c) && Object.keys(c).length > 0,
+          );
+        continue;
+      }
+      // Any other operator ($or, $not, …) is left whole, contents included.
+      if (key.startsWith('$')) {
+        out[key] = value;
+        continue;
+      }
+      const range = boundedDateWindow(value);
+      if (!range) {
+        out[key] = value;
+        continue;
+      }
+      const prev = ranges.get(key);
+      // Two conjunctive windows on ONE dimension are their intersection — plain
+      // arithmetic on the AND, not a heuristic. (The realistic pair: a widget
+      // that dates its own filter under a dashboard date-range filter bound to
+      // the same field.) Lexicographic comparison is chronological for ISO
+      // dates, whose fixed-width prefix orders bare dates and timestamps alike.
+      ranges.set(
+        key,
+        prev
+          ? [prev[0] > range[0] ? prev[0] : range[0], prev[1] < range[1] ? prev[1] : range[1]]
+          : range,
+      );
+    }
+    if (conjuncts && conjuncts.length > 0) out.$and = conjuncts;
+    return out;
+  };
+
+  const walked = walk(filter) as Record<string, unknown> | undefined;
+  let rest = walked && Object.keys(walked).length > 0 ? walked : undefined;
+  // `{ $and: [x] }` — a one-member conjunction left after its sibling was
+  // lowered — is just `x`. Unwrapped only at the top level and only when it is
+  // the sole key, so no sibling condition can be overwritten by the merge.
+  const only = rest && Object.keys(rest).length === 1 && Array.isArray(rest.$and) && rest.$and.length === 1
+    ? (rest.$and[0] as Record<string, unknown>)
+    : undefined;
+  if (only) rest = only;
+
+  return {
+    windows: Array.from(ranges, ([dimension, dateRange]) => ({ dimension, dateRange })),
+    rest,
+  };
 }
 
 /** Single-value KPI widget types — rendered as a number, not a chart. */
@@ -259,6 +404,21 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     [rawFilter, filterScope],
   );
 
+  // ── The comparison window (objectui#3337 point 5) ────────────────────────
+  // Lower the widget's already-resolved date window into the one place the
+  // executor can shift it — `selection.timeDimensions[].dateRange` — and only
+  // when a comparison is actually asked for. Without a comparison the window
+  // says exactly the same thing in `runtimeFilter`, and leaving every other
+  // widget's query byte-identical keeps this change to the path it is about.
+  // See `extractDateWindows` for why the windows are MOVED and why the choice
+  // of dimension is left to the executor.
+  const { windows: compareWindows, rest: selectionFilter } = useMemo(
+    () => (compareTo
+      ? extractDateWindows(runtimeFilter)
+      : { windows: [] as DatasetTimeWindow[], rest: runtimeFilter }),
+    [compareTo, runtimeFilter],
+  );
+
   const [state, setState] = useState<{ status: 'idle' | 'loading' | 'ok' | 'error'; rows: Row[]; fields?: DatasetResultField[]; object?: string; dimensionFields?: Record<string, string>; drillRawRows?: Array<Record<string, unknown>>; drillRanges?: Array<Record<string, DatasetDrillRange>>; totals?: DatasetTotals[]; error?: string }>({ status: 'idle', rows: [] });
   // Drill-through (ADR-0021 D2): the clicked bucket's record-list filter + title.
   const [drill, setDrill] = useState<{ filter: Record<string, unknown>; title: string } | null>(null);
@@ -299,7 +459,8 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     src.queryDataset(datasetName, {
       dimensions,
       measures: values,
-      ...(runtimeFilter ? { runtimeFilter } : {}),
+      ...(selectionFilter ? { runtimeFilter: selectionFilter } : {}),
+      ...(compareWindows.length > 0 ? { timeDimensions: compareWindows } : {}),
       ...(compareTo ? { compareTo } : {}),
       ...(totalsGroupings ? { totals: { groupings: totalsGroupings } } : {}),
       ...(dateGranularity ? { dateGranularity } : {}),
@@ -401,6 +562,25 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // shared with the report renderer via @object-ui/core.
   const { measureField, headerLabel } = buildDatasetFieldHelpers(state.fields, state.object, fieldLabel);
 
+  // --- Comparison overlay (objectui#3337) ---------------------------------
+  // The executor attaches a `<measure>__compare` column per measure once it has
+  // a window to shift. Showing it is the visible half of the comparison:
+  // forwarding `compareTo` and lowering the window only get the numbers INTO
+  // the result, and a widget that then drops them renders the very "silently no
+  // comparison" this issue is about. The comparison values carry the base
+  // measure's own format (they are the same measure over an earlier window).
+  const comparedValues = compareTo
+    ? values.filter((m) => state.rows.some((r) => r[compareColumn(m)] != null))
+    : [];
+  // Window label from the SAME `dashboard.trend.*` vocabulary the inline metric
+  // widget uses. `compareToTrendLabelKey` reads `compareTo.kind` and — for
+  // `previousPeriod` — the RAW filter's macro tokens, so "vs last quarter"
+  // survives the resolution that turned those tokens into dates.
+  const compareTrendKey = compareTo ? compareToTrendLabelKey(compareTo, rawFilter) : '';
+  const compareLabel = compareTo
+    ? tt(`dashboard.trend.${compareTrendKey}`, TREND_LABEL_DEFAULTS[compareTrendKey] ?? 'vs previous period')
+    : '';
+
   // --- Drill-through (shared by table/pivot AND chart) -------------------
   // Available when the server returned the dataset's base object + at least one
   // drillable dimension this widget groups by. Tables/pivots drill by row index;
@@ -431,9 +611,34 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   if (isMetric) {
     const f = measureField(values[0]);
     const value = state.rows[0]?.[values[0]] ?? 0;
+    // Period-over-period delta, computed from the SAME `computeMetricDelta` the
+    // inline KPI uses so both surfaces round and sign it identically.
+    const previous = state.rows[0]?.[compareColumn(values[0])];
+    const delta = comparedValues.includes(values[0])
+      ? computeMetricDelta(
+          typeof value === 'number' ? value : null,
+          typeof previous === 'number' ? previous : null,
+        )
+      : null;
     return (
       <div className="flex h-full w-full flex-col items-start justify-center gap-1 p-2">
         <span className="text-2xl font-semibold tabular-nums">{formatMeasure(value, f?.format, f?.currency, f?.percentScale)}</span>
+        {delta && (
+          <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground" data-testid="dataset-compare-trend">
+            <span className={cn(
+              'flex shrink-0 items-center font-medium',
+              delta.direction === 'up' && 'text-emerald-600 dark:text-emerald-400',
+              delta.direction === 'down' && 'text-rose-600 dark:text-rose-400',
+              delta.direction === 'neutral' && 'text-muted-foreground',
+            )}>
+              {delta.direction === 'up' && <ArrowUpIcon className="mr-1 h-3 w-3" />}
+              {delta.direction === 'down' && <ArrowDownIcon className="mr-1 h-3 w-3" />}
+              {delta.direction === 'neutral' && <MinusIcon className="mr-1 h-3 w-3" />}
+              {delta.value}%
+            </span>
+            <span className="min-w-0 truncate">{compareLabel}</span>
+          </div>
+        )}
         <span className="text-xs text-muted-foreground">{headerLabel(values[0])}</span>
       </div>
     );
@@ -447,9 +652,28 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     // CSV export — display-label headers + the underlying grouped rows (measures
     // kept numeric so the data round-trips into a spreadsheet). Shared by the flat
     // table and the cross-tab.
-    const exportColumns = [...dimensions, ...values];
+    // Measure columns, each followed by its comparison column when the executor
+    // attached one. `compareOf` names the base measure a comparison column
+    // belongs to — its format, and the label it is qualified with, both come
+    // from that measure (a comparison is the same measure over an earlier
+    // window). A measure literally named `<x>__compare` is still itself.
+    const compareOf = (column: string): string | undefined => {
+      if (values.includes(column) || !column.endsWith(COMPARE_SUFFIX)) return undefined;
+      const base = column.slice(0, -COMPARE_SUFFIX.length);
+      return values.includes(base) ? base : undefined;
+    };
+    const columnLabel = (column: string): string => {
+      const base = compareOf(column);
+      return base ? `${headerLabel(base)} · ${compareLabel}` : headerLabel(column);
+    };
+    const measureColumns = values.flatMap((m) =>
+      comparedValues.includes(m) ? [m, compareColumn(m)] : [m],
+    );
+    // The cross-tab does not spread comparison columns (that would key every
+    // cell by bucket × measure × window); its export stays the plain grid.
+    const exportColumns = [...dimensions, ...(isMatrix ? values : measureColumns)];
     const exportCsv = () => downloadCsv(String(widget?.title ?? datasetName ?? 'export'), [
-      exportColumns.map((c) => headerLabel(c)),
+      exportColumns.map((c) => columnLabel(c)),
       ...state.rows.map((r) => exportColumns.map((c) => {
         const v = r[c];
         return v == null ? '' : (typeof v === 'number' ? v : String(v));
@@ -566,14 +790,20 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     }
 
     // table (and a 1-dimension pivot) → a flat grouped table.
-    const columns = [...dimensions, ...values];
+    const columns = [...dimensions, ...measureColumns];
     return (
       <div className="relative h-full w-full overflow-auto p-1">{exportBtn}
         <table className="w-full text-xs">
           <thead className="bg-muted/40">
             <tr>
               {columns.map((c) => (
-                <th key={c} className="px-2 py-1.5 text-left font-medium whitespace-nowrap">{headerLabel(c)}</th>
+                <th
+                  key={c}
+                  className="px-2 py-1.5 text-left font-medium whitespace-nowrap"
+                  data-testid={compareOf(c) ? 'dataset-compare-column' : undefined}
+                >
+                  {columnLabel(c)}
+                </th>
               ))}
             </tr>
           </thead>
@@ -585,11 +815,17 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
                 data-testid={canDrill ? 'dataset-drill-row' : undefined}
                 onClick={canDrill ? () => openDrill(i, drillDims.map((d) => formatDimensionValue(row[d])).filter(Boolean).join(' / ')) : undefined}
               >
-                {columns.map((c) => (
-                  <td key={c} className="px-2 py-1 whitespace-nowrap tabular-nums">
-                    {values.includes(c) ? formatMeasure(row[c], measureField(c)?.format, measureField(c)?.currency, measureField(c)?.percentScale) : formatDimensionValue(row[c])}
-                  </td>
-                ))}
+                {columns.map((c) => {
+                  // A comparison column formats as the measure it compares.
+                  const measure = compareOf(c) ?? (values.includes(c) ? c : undefined);
+                  return (
+                    <td key={c} className="px-2 py-1 whitespace-nowrap tabular-nums">
+                      {measure
+                        ? formatMeasure(row[c], measureField(measure)?.format, measureField(measure)?.currency, measureField(measure)?.percentScale)
+                        : formatDimensionValue(row[c])}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>
@@ -611,6 +847,25 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // ADR-0021 (#1759): shared helper — pivots a second dimension into grouped
   // series so multi-dimension dataset widgets match the chart-view renderer.
   const { data: chartData, xAxisKey, series } = buildChartSeries(chartRows, dimensions, values, state.fields);
+
+  // Comparison overlay — one extra series per compared measure, carrying the
+  // same `variant: 'comparison'` the inline chart's overlay uses (ObjectChart's
+  // augmentedSeries), so AdvancedChartImpl draws it muted/dashed here too.
+  // Skipped when buildChartSeries PIVOTED a second dimension into the series:
+  // those series are dimension VALUES, not measures, so there is no per-measure
+  // series a comparison could pair with (the `__compare` columns are still in
+  // the rows — nothing is lost, it just isn't drawn as an overlay).
+  const pivotedSeries = dimensions.length >= 2 && values.length === 1;
+  const comparisonSeries = pivotedSeries
+    ? []
+    : comparedValues.map((m) => ({
+        dataKey: compareColumn(m),
+        label: `${headerLabel(m)} · ${compareLabel}`,
+        variant: 'comparison' as const,
+      }));
+  const chartSeries = comparisonSeries.length > 0
+    ? [...series.map((s) => ({ ...s, variant: (s as { variant?: string }).variant ?? 'current' })), ...comparisonSeries]
+    : series;
 
   // Ordered-sequence charts (funnel/pyramid) need a DEFINED stage order.
   // `options.stageOrder` wins when the author states one explicitly; otherwise
@@ -662,7 +917,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
         // measurement churn, can freeze there — bars never draw until an unrelated
         // re-render (#2756, follow-up to #2727's ineffective settle re-mount).
         // Turning the tween off makes the first paint deterministic.
-        schema={{ type: 'chart', chartType, data: chartData, xAxisKey, series, isAnimationActive: false, ...(showLegend != null ? { showLegend } : {}), ...(categoryColors ? { categoryColors } : {}), ...(effectiveCategoryOrder ? { categoryOrder: effectiveCategoryOrder } : {}) } as any}
+        schema={{ type: 'chart', chartType, data: chartData, xAxisKey, series: chartSeries, isAnimationActive: false, ...(showLegend != null ? { showLegend } : {}), ...(categoryColors ? { categoryColors } : {}), ...(effectiveCategoryOrder ? { categoryOrder: effectiveCategoryOrder } : {}) } as any}
         onChartClick={chartDrill}
         onSegmentClick={chartDrill}
       />
