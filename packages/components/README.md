@@ -27,7 +27,7 @@ pnpm shadcn:check
 pnpm shadcn:update button --backup
 ```
 
-**📚 See [SHADCN_SYNC.md](../../docs/SHADCN_SYNC.md) for the complete guide.**
+**📚 See [README_SHADCN_SYNC.md](./README_SHADCN_SYNC.md) for the complete guide.**
 
 ## Installation
 
@@ -209,7 +209,7 @@ registerRenderer('custom-button', CustomButton)
 
 ## API Reference
 
-See [full documentation](https://objectui.org/api/components) for detailed API reference.
+See [full documentation](https://objectui.org/docs/components) for detailed API reference.
 
 <!-- release-metadata:v3.3.0 -->
 

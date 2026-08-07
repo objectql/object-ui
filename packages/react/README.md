@@ -225,7 +225,7 @@ leaves the surface on its own anchor), `visibleNotificationStack` (`maxVisible` 
 
 ## API Reference
 
-See [full documentation](https://objectui.org/api/react) for detailed API reference.
+See [full documentation](https://objectui.org/docs/core/schema-renderer) for detailed API reference.
 
 <!-- release-metadata:v3.3.0 -->
 

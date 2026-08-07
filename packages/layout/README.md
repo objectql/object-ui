@@ -119,7 +119,7 @@ All components accept `className` prop for Tailwind customization:
 
 ## API Reference
 
-For detailed API documentation, visit the [Object UI Documentation](https://www.objectui.org/docs/layout).
+For detailed API documentation, visit the [Object UI Documentation](https://www.objectui.org/docs/layout/app-shell).
 
 <!-- release-metadata:v3.3.0 -->
 
@@ -134,7 +134,7 @@ For detailed API documentation, visit the [Object UI Documentation](https://www.
 
 ## Links
 
-- 📚 [Documentation](https://www.objectui.org/docs/layout)
+- 📚 [Documentation](https://www.objectui.org/docs/guide/layout)
 - 📦 [npm package](https://www.npmjs.com/package/@object-ui/layout)
 - 📝 [Changelog](./CHANGELOG.md)
 - 🐛 [Report an issue](https://github.com/objectstack-ai/objectui/issues)

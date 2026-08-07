@@ -128,7 +128,7 @@ server too. See
 
 ## Links
 
-- 📚 [Documentation](https://www.objectui.org/docs/fields)
+- 📚 [Documentation](https://www.objectui.org/docs/guide/fields)
 - 📦 [npm package](https://www.npmjs.com/package/@object-ui/fields)
 - 📝 [Changelog](./CHANGELOG.md)
 - 🐛 [Report an issue](https://github.com/objectstack-ai/objectui/issues)

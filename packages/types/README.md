@@ -326,6 +326,6 @@ MIT
 
 ## Links
 
-- [Documentation](https://objectui.org/docs/types)
+- [Documentation](https://objectui.org/docs/api/schema-reference)
 - [GitHub](https://github.com/objectstack-ai/objectui)
 - [NPM](https://www.npmjs.com/package/@object-ui/types)

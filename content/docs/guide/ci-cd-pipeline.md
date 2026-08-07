@@ -252,8 +252,8 @@ Check**.
 
 Runs `scripts/check-doc-links.mjs`, which walks every `.md` / `.mdx` file in the surfaces listed in
 its `SCAN_ROOTS` — `content/docs/`, `examples/`, the root `README.md`, `CONTRIBUTING.md`,
-`ROADMAP.md` and the internal `docs/` tree — and asks of each internal markdown link whether its
-target is really there.
+`ROADMAP.md`, the internal `docs/` tree and every package `README.md` — and asks of each internal
+markdown link whether its target is really there.
 
 **Two rules, because the two groups are read through different machinery** (objectui#3536). For
 `content/docs/` the question is the one a site reader cares about, **does the site serve this URL?**
@@ -282,16 +282,31 @@ rather than special-casing any surface. Measured before landing: 11 across the s
 dead. Prefer the origin-less form (`/docs/guide/plugins`) in new prose: it survives a domain change,
 and both spellings are now checked identically.
 
-Every other surface — `examples/`, `README.md`, `CONTRIBUTING.md`, `ROADMAP.md`, `docs/` — is read
-on **GitHub**, not served by the site, so a relative href there names a path on disk and is checked
-for existence only: a directory (`./packages/core`) or a non-markdown file (`./vite.config.ts`) is a
-perfectly good target, and there is no collection to escape. A leading `/` is rejected outright:
-GitHub resolves it against `github.com`, not against this repository. Applying the `content/docs/`
-rules to these files instead would reject 111 links that render correctly today.
+Every other surface — `examples/`, `README.md`, `CONTRIBUTING.md`, `ROADMAP.md`, `docs/` and the
+package READMEs — is read on **GitHub** (and, for the package READMEs, on **npm**), not served by
+the site, so a relative href there names a path on disk and is checked for existence only: a
+directory (`./packages/core`) or a non-markdown file (`./vite.config.ts`) is a perfectly good
+target, and there is no collection to escape. A leading `/` is rejected outright: GitHub resolves it
+against `github.com`, not against this repository. Applying the `content/docs/` rules to these files
+instead would reject 186 links that render correctly today.
 
-The last three surfaces are objectui#3572. They cost one `SCAN_ROOTS` row each and no new rule,
-because "read on GitHub" already had one; their own backlog — three dead links — was cleared first
-and separately (objectui#3545), so the rows landed on a green tree.
+`CONTRIBUTING.md`, `ROADMAP.md` and `docs/` are objectui#3572. They cost one `SCAN_ROOTS` row each
+and no new rule, because "read on GitHub" already had one; their own backlog — three dead links —
+was cleared first and separately (objectui#3545), so the rows landed on a green tree.
+
+The package READMEs are objectui#3622, and the same shape: **one row, its backlog paid first**. That
+backlog was 11 dead links in seven packages — three `/api/<pkg>` routes the site has never served,
+four site URLs naming three `content/docs/` directories that have no index page (so fumadocs
+generates no route for them), a `/docs/types` tree that does not exist, an `/examples` route that
+does not either, and two disk paths that were simply absent. Each was repointed at a real page, or
+replaced with the repository URL that does exist, before the row went in. The row is also the table's only wildcard: `packages/*/README.md` stands for
+one file per package directory (38 of the 39 today), and only the README — a package's
+`CHANGELOG.md`, `TESTING.md` and its own `docs/` tree stay unscanned.
+
+**Package READMEs must keep the origin on site links.** Inside `content/docs/` the origin-less
+`/docs/guide/plugins` is preferred; in a README it would be wrong, because GitHub and npm both
+resolve a leading `/` against their own host, not against this site. Write
+`https://www.objectui.org/docs/guide/plugins` there — it is checked exactly as strictly.
 
 **One boundary, stated because it is easy to mistake for coverage:** links written inside a code
 fence are invisible to this check. `stripCode()` blanks fenced blocks and inline spans before
@@ -350,7 +365,7 @@ There are **two** link checkers, and they cover different things (objectui#3213)
 
 | | Covers | Network | Runs |
 |---|---|---|---|
-| `scripts/check-doc-links.mjs` | **Internal** links in `content/docs/` (relative hrefs, `/docs/...` routes, every other site-absolute href against `apps/site`), in `examples/`, `README.md`, `CONTRIBUTING.md`, `ROADMAP.md` and `docs/` (as paths on disk), plus this repo's own `blob/main/` and `tree/main/` GitHub URLs and this site's own `objectui.org` URLs everywhere — **except** anything inside a code fence | No | `docs-links.yml` — every push and PR, no path filter (previous section) |
+| `scripts/check-doc-links.mjs` | **Internal** links in `content/docs/` (relative hrefs, `/docs/...` routes, every other site-absolute href against `apps/site`), in `examples/`, `README.md`, `CONTRIBUTING.md`, `ROADMAP.md`, `docs/` and every package `README.md` (as paths on disk), plus this repo's own `blob/main/` and `tree/main/` GitHub URLs and this site's own `objectui.org` URLs everywhere — **except** anything inside a code fence | No | `docs-links.yml` — every push and PR, no path filter (previous section) |
 | Lychee (this workflow) | **External** URLs, plus **relative** in-repo file links, in `content/docs/`, `docs/` and `README.md` | Yes | Weekly cron and manual dispatch |
 
 Lychee sweeps **both** documentation trees: `content/docs/` (the 183 pages the site publishes) and

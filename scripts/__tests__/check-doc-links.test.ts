@@ -81,10 +81,15 @@ import {
  * fail if either is.
  *
  * That card's OTHER half — adding the package READMEs to SCAN_ROOTS — was
- * deliberately not bought, because measuring it first turned up 11 more dead
- * links in packages the card never touched (objectui#3622). Nothing here pins
- * a `packages/**` row for that reason; when its backlog is paid, the SCAN_ROOTS
- * assertions below are what will need extending.
+ * deliberately not bought at the time, because measuring it first turned up 11
+ * more dead links in packages the card never touched. objectui#3622 paid those
+ * 11 and added the row, and the last describe pins it. Two things there are
+ * worth reading before editing it: the scan root carries the table's only
+ * wildcard segment, so `collectFiles` has an expansion step whose failure mode
+ * is a surface that silently expands to nothing — which is why the row's floor
+ * is pinned on DECIDABLE HREFS and not only on file count — and the fixture
+ * pair that keeps the row on the `disk` rule, since a package README is read on
+ * npm and GitHub and never served by the site.
  */
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -386,6 +391,7 @@ describe('the repo it guards', () => {
       'CONTRIBUTING.md',
       'ROADMAP.md',
       'docs',
+      'packages/*/README.md',
     ]);
     expect(scanned['README.md']).toBe(1);
     expect(scanned['CONTRIBUTING.md']).toBe(1);
@@ -393,6 +399,11 @@ describe('the repo it guards', () => {
     expect(scanned['examples']).toBeGreaterThanOrEqual(4);
     expect(scanned['docs']).toBeGreaterThanOrEqual(15);
     expect(scanned['content/docs']).toBeGreaterThanOrEqual(100);
+    // objectui#3622. 38 of the 39 package directories carry a README today
+    // (`sdui-parser` does not), and this row is the only one whose path needs
+    // expanding before anything is opened — so a floor here is also the floor
+    // under `expandWildcard()`.
+    expect(scanned['packages/*/README.md']).toBeGreaterThanOrEqual(35);
   });
 
   it('pairs each scan root with the link semantics that root actually has', () => {
@@ -403,6 +414,10 @@ describe('the repo it guards', () => {
     // objectui#3572 added the last three, all `disk` — they are read on GitHub
     // like the first two. The table is the whole configuration surface, so it
     // is pinned whole: a row silently changing rule would re-judge a tree.
+    //
+    // objectui#3622 added the package READMEs, `disk` for the same reason and
+    // one more: they are read on **npm** as well, where a leading `/` is no
+    // more this repo's root than it is on github.com.
     expect(SCAN_ROOTS).toEqual([
       { path: 'content/docs', rule: 'docs' },
       { path: 'examples', rule: 'disk' },
@@ -410,6 +425,7 @@ describe('the repo it guards', () => {
       { path: 'CONTRIBUTING.md', rule: 'disk' },
       { path: 'ROADMAP.md', rule: 'disk' },
       { path: 'docs', rule: 'disk' },
+      { path: 'packages/*/README.md', rule: 'disk' },
     ]);
   });
 
@@ -1136,10 +1152,14 @@ describe("this site's own absolute URLs are resolved as internal routes — obje
     // `siteAbsoluteRoute()` returned null for everything. This pins that the
     // URLs are really there and really reaching the check.
     //
-    // Measured on main: 11 of them, of which 6 sit inside `content/docs`
-    // itself — the fact that makes this a general fix rather than a package
-    // README one — and 3 carry a `/docs/...` path, so the strict branch above
-    // is genuinely exercised by real content and not only by fixtures.
+    // Measured on main when #3603 landed: 11 of them, of which 6 sit inside
+    // `content/docs` itself — the fact that makes this a general fix rather
+    // than a package README one — and 3 carry a `/docs/...` path, so the strict
+    // branch above is genuinely exercised by real content and not only by
+    // fixtures. objectui#3622 took the total to 58 by adding a surface that
+    // writes 47 of them; the floors below stay at #3603's measurement, since
+    // they exist to pin THAT card's minimum and the new root has its own floor
+    // in the last describe.
     const seen: { root: string; route: string }[] = [];
     for (const root of SCAN_ROOTS as { path: string }[]) {
       for (const file of collectFiles(path.join(repoRoot, root.path)) as string[]) {
@@ -1153,5 +1173,141 @@ describe("this site's own absolute URLs are resolved as internal routes — obje
     expect(seen.length).toBeGreaterThanOrEqual(11);
     expect(seen.filter((item) => item.root === 'content/docs').length).toBeGreaterThanOrEqual(6);
     expect(seen.filter((item) => item.route.startsWith('/docs')).length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('packages/*/README.md joined the disk surface — objectui#3622', () => {
+  it('reports the four shapes the 11 dead links really had', () => {
+    // One fixture carrying all four, each next to a live control of the same
+    // shape — so no verdict here can be right for the wrong reason:
+    //
+    //   /api/core            a route prefix the router has never had (#3490's class)
+    //   /docs/core           a REAL directory with no index page, so not a route
+    //   ../../docs/SHA…      a disk path that has never existed
+    //   ./LICENSE            a disk path this package really does not have
+    //
+    // The middle one is the one objectui#3603's own verification script scored
+    // green, by accepting a bare directory as a fumadocs candidate. The fixture
+    // materialises `content/docs/core/schema-renderer.mdx` so the directory is
+    // genuinely there and only the missing index decides the verdict.
+    expect(
+      rejections({
+        ...SITE_FIXTURE,
+        'content/docs/core/schema-renderer.mdx': '# SchemaRenderer',
+        'packages/core/README.md': [
+          '[api](https://objectui.org/api/core)',
+          '[group](https://www.objectui.org/docs/core)',
+          '[renderer](https://www.objectui.org/docs/core/schema-renderer)',
+          '[sync](../../docs/SHADCN_SYNC.md)',
+          '[changelog](./CHANGELOG.md)',
+          '[licence](./LICENSE)',
+        ].join('\n\n'),
+        'packages/core/CHANGELOG.md': '# Changelog',
+      }),
+    ).toEqual([
+      ['https://objectui.org/api/core', 'site-absolute-url'],
+      ['https://www.objectui.org/docs/core', 'site-absolute-url'],
+      ['../../docs/SHADCN_SYNC.md', 'example-relative'],
+      ['./LICENSE', 'example-relative'],
+    ]);
+  });
+
+  it('expands the wildcard to one path per package directory, sorted', () => {
+    // The row is the table's only wildcard, so this is where `expandWildcard()`
+    // is pinned: one path per directory, a package without a README dropped
+    // (`sdui-parser` on main), and a stable order so the report does not depend
+    // on the filesystem's.
+    const repo = repoWith({
+      'packages/gamma/README.md': '# Gamma',
+      'packages/alpha/README.md': '# Alpha',
+      'packages/beta/index.ts': 'export {}',
+    });
+
+    expect(
+      collectFiles(path.join(repo, 'packages/*/README.md')).map((file: string) => path.relative(repo, file)),
+    ).toEqual([path.join('packages', 'alpha', 'README.md'), path.join('packages', 'gamma', 'README.md')]);
+  });
+
+  it('takes only the README — a package CHANGELOG or TESTING.md stays unscanned', () => {
+    // The boundary this row deliberately stops at, pinned as a decision rather
+    // than left to be discovered as coverage that was never there. The README's
+    // OWN dead link is the control: an expectation of "nothing from the other
+    // two files" would hold just as well if the row had been dropped entirely.
+    expect(
+      rejections({
+        'packages/core/README.md': '[fine](./CHANGELOG.md) and [gone](./NOWHERE.md)',
+        'packages/core/CHANGELOG.md': '[also gone](./NOWHERE.md)',
+        'packages/core/TESTING.md': '[also gone](./NOWHERE.md)',
+        'packages/core/docs/FilterBuilder.md': '[also gone](./NOWHERE.md)',
+      }),
+    ).toEqual([['./NOWHERE.md', 'example-relative']]);
+  });
+
+  it('does not treat a dependency tree under packages/ as a package', () => {
+    // `packages/node_modules` is a directory like any other to a wildcard, and
+    // its READMEs are not ours. Same exclusion the tree walk already applies.
+    expect(
+      rejections({
+        'packages/core/README.md': '[gone](./NOWHERE.md)',
+        'packages/node_modules/README.md': '[gone](./NOWHERE.md)',
+      }),
+    ).toEqual([['./NOWHERE.md', 'example-relative']]);
+  });
+
+  it('keeps the docs rules off package READMEs — the contrast pair', () => {
+    // A package README is read on npm and on GitHub, never served by the site,
+    // so it takes the `disk` rule. Two hrefs make that visible in both
+    // directions: a link INTO content/docs is fine from a README (there is no
+    // collection to escape) and rejected from inside content/docs, while the
+    // extensionless spelling the docs rule accepts is a 404 on GitHub.
+    const repo = repoWith({
+      ...SITE_FIXTURE,
+      'content/docs/guide/a.md': '[readme](../../../packages/core/README.md)',
+      'content/docs/fields/lookup.mdx': '# Lookup',
+      'packages/core/README.md': '[lookup](../../content/docs/fields/lookup.mdx) and [bare](../../content/docs/fields/lookup)',
+    });
+
+    expect(scan(repo).map((item) => [path.relative(repo, item.file), item.href, item.reason])).toEqual([
+      [path.join('content', 'docs', 'guide', 'a.md'), '../../../packages/core/README.md', 'escapes-collection'],
+      [path.join('packages', 'core', 'README.md'), '../../content/docs/fields/lookup', 'example-relative'],
+    ]);
+  });
+
+  it('refuses a wildcard that is not a whole path segment, rather than matching nothing', () => {
+    // The failure mode a glob row has and a plain path does not: a pattern that
+    // expands to zero paths is a surface silently dropped, and every test above
+    // stays green about a tree nobody opened. Loud beats quiet, as with the
+    // missing route table in `routeExists()`.
+    const repo = repoWith({ 'packages/plugin-charts/README.md': '# Charts' });
+
+    expect(() => collectFiles(path.join(repo, 'packages/plugin-*/README.md'))).toThrow(/whole path segment/);
+  });
+
+  it('really judges the links these READMEs carry — the floor under the green', () => {
+    // The anti-vacuous-green floor for this row, and the reason it counts HREFS
+    // rather than files: the file count above proves the wildcard expanded, but
+    // a surface of 38 files carrying nothing this gate can decide would still
+    // leave the repo-wide green meaning "checked nothing". Measured when the row
+    // landed: 200 decidable hrefs across the 38 READMEs, 47 of them site-absolute
+    // URLs — the shape 9 of the 11 dead links had.
+    // The root is read out of SCAN_ROOTS rather than spelled again here, so
+    // deleting the row takes this floor with it instead of leaving a green test
+    // measuring a surface the gate no longer scans.
+    const root = (SCAN_ROOTS as { path: string }[]).find((item) => item.path.startsWith('packages/'));
+    expect(root).toBeDefined();
+
+    const decidable: string[] = [];
+    const siteAbsolute: string[] = [];
+    for (const file of collectFiles(path.join(repoRoot, root!.path)) as string[]) {
+      for (const match of stripCode(fs.readFileSync(file, 'utf8')).matchAll(/\[[^\]]+\]\(([^)]+)\)/g)) {
+        const href = match[1].trim();
+        const decidableScheme = siteAbsoluteRoute(href) !== null || selfRepoPath(href) !== null;
+        if (siteAbsoluteRoute(href) !== null) siteAbsolute.push(href);
+        if (decidableScheme || !/^(?:#|[a-zA-Z][a-zA-Z0-9+.-]*:)/.test(href)) decidable.push(href);
+      }
+    }
+
+    expect(decidable.length).toBeGreaterThanOrEqual(150);
+    expect(siteAbsolute.length).toBeGreaterThanOrEqual(40);
   });
 });

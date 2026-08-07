@@ -187,7 +187,7 @@ pnpm publish
 - [Object UI Documentation](https://www.objectui.org)
 - [Schema Reference](https://www.objectui.org/docs/api/schema-reference)
 - [Component Library](https://www.objectui.org/docs/components)
-- [Examples](https://www.objectui.org/examples)
+- [Examples](https://github.com/objectstack-ai/objectui/tree/main/examples)
 
 ## 🤝 Contributing
 
@@ -239,4 +239,4 @@ Built with:
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+MIT — see [LICENSE](https://github.com/objectstack-ai/objectui/blob/main/LICENSE).

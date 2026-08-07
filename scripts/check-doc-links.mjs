@@ -223,11 +223,10 @@
  * link. A gate for prose *about* links inside fences would need to tell an
  * illustrative route from an executable one, which is a different gate.
  *
- * ### Still not bought
- *
- * `QUICK_REFERENCE.md`, `AGENTS.md`, `CLAUDE.md` and `CHANGELOG.md` remain
- * unscanned. Same one-row price, same caveat — measure the surface first, pay
- * its backlog separately, then add the row.
+ * (A "Still not bought" list closed this section, naming `QUICK_REFERENCE.md`,
+ * `AGENTS.md`, `CLAUDE.md` and `CHANGELOG.md`. It has moved to the end of the
+ * objectui#3622 section below, which is the current one; those four are still
+ * on it.)
  *
  * ## Why this file changed again (objectui#3603)
  *
@@ -261,33 +260,58 @@
  * dead. The #3572 shape again — the check arrives green, its backlog already
  * paid.
  *
- * ### Measured and NOT bought: the package READMEs (objectui#3622)
+ * ## Why this file changed again (objectui#3622): the package READMEs, bought
  *
- * objectui#3603 asked for a second half: growing the scan surface by the 38
- * package READMEs, which is where the 9 dead links that prompted it lived.
- * Those 9 are fixed by hand in the same PR. The scan row is **not** added, and
- * the reason is this file's own rule from #3572 — measure the surface, pay its
- * backlog separately, then add the row.
+ * The section that stood here was headed "Measured and NOT bought". It recorded
+ * the price of objectui#3603's other half — growing the scan surface by the 38
+ * package READMEs, which is where the 9 dead links that prompted that card lived
+ * — and refused to add the row until that price was paid, per this file's rule
+ * from #3572. It is paid, so the row is in the table above.
  *
- * (Note for whoever writes that row: a glob naming each package README cannot
- * be spelled inside this block comment, because the star-slash in it closes the
- * comment. Say it in prose here, or move the note outside.)
+ * (Note kept for whoever edits that row: a glob naming each package README
+ * cannot be spelled inside this block comment, because the star-slash in it
+ * closes the comment. It is described in prose here and written out only in the
+ * table below, which is code.)
  *
- * The surface was measured, and its backlog is not the 9. With the resolution
- * above in place, a `disk`-rule row covering those 38 files
- * reports **11 more** dead links in five packages that card never touched:
- * `/api/core`, `/api/react`, `/api/components` (no such routes — the class
- * #3490 swept), `/docs/core`, `/docs/fields`, `/docs/layout` (real directories
- * with no index page, so no route), `/docs/types` and `/examples` (neither
- * exists), plus two disk paths that are simply absent
- * (`../../docs/SHADCN_SYNC.md`, `./LICENSE`).
+ * The price was **11 more** dead links, none of them among #3603's 9 — they sit
+ * in seven packages, five of which that card never opened, and the other two on
+ * lines it did not touch: `/api/core`, `/api/react`,
+ * `/api/components` (no such routes — the class #3490 swept), `/docs/core`,
+ * `/docs/fields`, `/docs/layout` (real directories with no index page, so no
+ * route), `/docs/types` and `/examples` (neither exists), plus two disk paths
+ * that were simply absent (a `docs/SHADCN_SYNC.md` that has never existed, and
+ * a per-package `LICENSE` that `packages/vscode-extension` does not have).
+ * Each was resolved to a real page, or dropped where none exists, in the same
+ * PR as this row — so the row arrives on a green tree, the #3572 shape.
  *
  * Three of those deserve naming, because objectui#3603's own verification
  * script scored them GREEN: it accepted a bare DIRECTORY as a fumadocs
  * candidate. This gate does not, and is right not to — `routeCandidates()` has
  * no such spelling, and the pinned test "rejects a relative link to a directory
  * that has no index page" is that decision. `content/docs/core/` really has no
- * index page, so `/docs/core` really does 404. The class is 20 links, not 9.
+ * index page, so `/docs/core` really does 404. The class was 20 links, not 9.
+ *
+ * **The rule is `disk`, and that is not a coin toss.** A package README is read
+ * on npm and on GitHub, never served by the site, so its relative hrefs are
+ * paths on disk exactly like `examples/`, the root `README.md`,
+ * `CONTRIBUTING.md`, `ROADMAP.md` and `docs/`: `./CHANGELOG.md` is a file next
+ * to it, not a route. The same reading forbids the origin-less `/docs/...`
+ * spelling this file prefers inside `content/docs` — GitHub and npm resolve a
+ * leading `/` against their own host — which is why the site links repaired
+ * above all keep the `https://[www.]objectui.org/...` origin, and are still
+ * checked as strictly as the origin-less form (see the section above).
+ *
+ * The one thing the row does need is a wildcard segment in the scan-root path,
+ * since the surface is one file per package directory rather than a tree.
+ * `expandWildcard()` is that, and no more than that.
+ *
+ * ### Still not bought
+ *
+ * `QUICK_REFERENCE.md`, `AGENTS.md`, `CLAUDE.md` and `CHANGELOG.md` remain
+ * unscanned, along with the non-README markdown inside packages (`CHANGELOG.md`,
+ * `TESTING.md`, `MIGRATION.md`, per-package `docs/` trees). Same one-row price,
+ * same caveat — measure the surface first, pay its backlog separately, then add
+ * the row.
  *
  * ## Code spans are stripped before scanning
  *
@@ -346,11 +370,17 @@ const UNSCANNED_DIRS = new Set(['node_modules', 'dist', 'build', '.next', '.turb
  *
  * The split is the point (objectui#3536). See the header for why applying the
  * docs rules to the second group would reject links that render perfectly well:
- * over today's `disk` surface it would reject 111 links that all render.
+ * over today's `disk` surface it would reject 186 links that all render — 111
+ * of them before objectui#3622 widened that surface, 75 in the package READMEs
+ * it added.
  *
  * Adding a surface is one row. Adding one that is read on GitHub needs no new
  * rule class at all — which is why objectui#3572 could take the last three for
- * the price of the table entry.
+ * the price of the table entry, and objectui#3622 the package READMEs.
+ *
+ * A row's `path` is a directory to walk, a single markdown file, or a pattern
+ * whose one wildcard SEGMENT stands for every directory at that level — see
+ * `expandWildcard()` below, which is all the glob syntax this table has.
  */
 export const SCAN_ROOTS = [
   { path: 'content/docs', rule: 'docs' },
@@ -359,6 +389,7 @@ export const SCAN_ROOTS = [
   { path: 'CONTRIBUTING.md', rule: 'disk' },
   { path: 'ROADMAP.md', rule: 'disk' },
   { path: 'docs', rule: 'disk' },
+  { path: 'packages/*/README.md', rule: 'disk' },
 ];
 
 const blank = (text) => text.replace(/[^\n]/g, ' ');
@@ -383,8 +414,49 @@ export function walk(dir, files = []) {
   return files;
 }
 
-/** One scan root, which may be a directory to walk or a single markdown file. */
+/**
+ * Expands the leftmost wildcard segment of a scan root into one path per
+ * directory at that level, sorted so the scan order — and therefore the report
+ * order — does not depend on the filesystem's (objectui#3622). `collectFiles`
+ * recurses, so a later wildcard segment expands on the next pass.
+ *
+ * Deliberately not a glob library: a whole segment that is exactly `*`, and
+ * nothing else. Anything richer THROWS rather than quietly matching nothing,
+ * because a scan root that expands to zero paths is a surface silently dropped
+ * — the one failure mode this gate must not have (same stance as the missing
+ * route table in `routeExists()`).
+ */
+function expandWildcard(pattern) {
+  const segments = pattern.split(path.sep);
+  const index = segments.findIndex((segment) => segment.includes('*'));
+  if (segments[index] !== '*') {
+    throw new Error(
+      `A SCAN_ROOTS path may only use a wildcard as a whole path segment, and got "${pattern}". ` +
+        'Widen the row to the directory above, or add the paths one row each.',
+    );
+  }
+
+  const parent = segments.slice(0, index).join(path.sep);
+  const rest = segments.slice(index + 1);
+  let entries;
+  try {
+    entries = readdirSync(parent, { withFileTypes: true });
+  } catch {
+    return []; // the parent is not here — same contract as a missing scan root
+  }
+
+  return entries
+    .filter((entry) => entry.isDirectory() && !UNSCANNED_DIRS.has(entry.name))
+    .map((entry) => [parent, entry.name, ...rest].join(path.sep))
+    .sort();
+}
+
+/**
+ * One scan root, which may be a directory to walk, a single markdown file, or a
+ * wildcard pattern standing for one path per directory at that level.
+ */
 export function collectFiles(root) {
+  if (root.includes('*')) return expandWildcard(root).flatMap((expanded) => collectFiles(expanded));
   try {
     if (statSync(root).isFile()) return /\.(md|mdx)$/.test(root) ? [root] : [];
   } catch {
@@ -765,7 +837,7 @@ const HINTS = {
     ' (the "Package README" form used throughout content/docs/plugins/).',
   'example-relative':
     'Outside content/docs (examples/**, README.md, CONTRIBUTING.md, ROADMAP.md,' +
-    ' docs/**) a relative link is a' +
+    ' docs/** and each package README) a relative link is a' +
     ' PATH IN THIS REPO, resolved by GitHub against the linking file — so it' +
     ' must name something that exists and lives inside the repository. A' +
     ' directory or a non-markdown file is fine; an extensionless spelling of a' +
