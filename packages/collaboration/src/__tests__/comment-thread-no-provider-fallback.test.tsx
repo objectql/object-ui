@@ -184,6 +184,27 @@ describe('CommentThread with no I18nProvider — English fallback (objectstack#5
   });
 
   /**
+   * objectui#3478 — the fourth glyph-only control, the reaction-bar `+`.
+   *
+   * It already had `title: t('collaboration.addThumbsUp')`, which is why the
+   * defect survived #3441: the key WAS wired up and the English WAS in the
+   * defaults map, so every copy pin in this file passed. What no assertion
+   * covered until now is that `title` on a `button` never becomes the name —
+   * content (accname §2F) wins, and the content is `'+'`.
+   *
+   * RED before / GREEN after on the two `role`-based assertions; the
+   * `getByTitle` above (in the reaction-tooltip case) is green on both sides
+   * and stays there, because the tooltip is kept, not replaced.
+   */
+  it('names the reaction-bar picker in English, tooltip and all', () => {
+    renderBare();
+
+    expect(screen.getAllByRole('button', { name: 'Add thumbs up' }).length).toBe(1);
+    expect(screen.queryAllByRole('button', { name: '+' })).toHaveLength(0);
+    expect(screen.getByTitle('Add thumbs up')).toBeTruthy();
+  });
+
+  /**
    * objectui#3441 — with no provider the session language is whatever
    * react-i18next reports (in practice `'en'`), and the >= 7d branch now hands
    * that to `toLocaleDateString`. What must hold on this path is narrower than

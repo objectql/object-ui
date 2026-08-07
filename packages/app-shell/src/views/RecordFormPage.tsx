@@ -126,22 +126,27 @@ export function RecordFormPage({ mode }: RecordFormPageProps) {
   }, [navigate, recordDetailUrl]);
 
   const label = objectDef ? objectLabel(objectDef as any) : objectName ?? '';
+  // No inline `defaultValue` on these lookups: every key below is defined in
+  // all ten locale packs and `all-locales-key-parity.test.ts` pins that
+  // permanently, so i18next always resolves the pack value and a fallback
+  // could never render. Worse, an inline default is a SECOND English spelling
+  // that drifts unwatched — `form.createTitle`'s was `New {object}` while the
+  // pack says `Create {{object}}`, so the day the key was renamed the title
+  // would have silently changed verb with every test still green (#3469).
+  // Declared = enforced: the packs are the single source of this copy, and a
+  // missing key must surface (raw key + dev missing-key warning), not be
+  // papered over at the call site. The one deliberate exception in this file
+  // is `form.createTargetOrg` below — see the note there.
   const pageTitle =
     mode === 'create'
-      ? t('form.createTitle', { object: label, defaultValue: `New ${label}` })
-      : t('form.editTitle', { object: label, defaultValue: `Edit ${label}` });
+      ? t('form.createTitle', { object: label })
+      : t('form.editTitle', { object: label });
 
   const handleSuccess = useCallback(() => {
     toast.success(
       mode === 'create'
-        ? t('form.createSuccess', {
-            object: label,
-            defaultValue: `${label} created successfully`,
-          })
-        : t('form.updateSuccess', {
-            object: label,
-            defaultValue: `${label} updated successfully`,
-          }),
+        ? t('form.createSuccess', { object: label })
+        : t('form.updateSuccess', { object: label }),
     );
     goBack();
   }, [mode, t, label, goBack]);
@@ -273,7 +278,7 @@ export function RecordFormPage({ mode }: RecordFormPageProps) {
             size="sm"
             onClick={goBack}
             data-testid="record-form-page-back"
-            aria-label={t('common.back', { defaultValue: 'Back' })}
+            aria-label={t('common.back')}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -309,6 +314,14 @@ export function RecordFormPage({ mode }: RecordFormPageProps) {
                 data-testid="record-form-write-target-org"
               >
                 <Building2 className="h-3.5 w-3.5 shrink-0" />
+                {/* The one LOAD-BEARING `defaultValue` in this file (#3469):
+                    unlike every other key here, `form.createTargetOrg` is
+                    defined in NO locale pack — not even `en` — so i18next
+                    genuinely misses and this default is what renders. Removing
+                    it would put the raw key on screen. It is also why the badge
+                    is English-only in all ten locales. Backfilling the key into
+                    `en` (the parity test then carries it to the other nine) is
+                    the real fix; delete this default in the same change. */}
                 {t('form.createTargetOrg', {
                   org: activeOrganization.name,
                   defaultValue: `Creates in ${activeOrganization.name}`,
@@ -347,8 +360,8 @@ export function RecordFormPage({ mode }: RecordFormPageProps) {
                 onCancel: handleCancel,
                 showSubmit: true,
                 showCancel: true,
-                submitText: t('form.saveRecord', { defaultValue: 'Save' }),
-                cancelText: t('common.cancel', { defaultValue: 'Cancel' }),
+                submitText: t('form.saveRecord'),
+                cancelText: t('common.cancel'),
               }}
               dataSource={dataSource ?? undefined}
             />

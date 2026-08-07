@@ -1,12 +1,14 @@
 # Live E2E — the console driven against a REAL ObjectStack backend (#2835).
 #
-# What runs: an allowlist of e2e/live specs (screen-flow, action-modal,
-# master-detail — `pnpm test:e2e:live:ci`) against `objectstack dev` booted
-# from PUBLISHED @objectstack/* packages serving the showcase app. Every PR
-# therefore smoke-tests "this console x the released backend" — the class of
-# bug only a real browser against a real backend can catch (framework#3528:
-# a lazily-loaded widget's suspension unwound to the host's route boundary
-# and tore down the flow dialog; zero unit test could see it).
+# What runs: an allowlist of e2e/live specs (the list is whatever the
+# `test:e2e:live:ci` script in package.json names — that script is the single
+# source of truth; do not re-enumerate the specs here, a hand-copied list
+# drifts on every promotion) against `objectstack dev` booted from PUBLISHED
+# @objectstack/* packages serving the showcase app. Every PR therefore
+# smoke-tests "this console x the released backend" — the class of bug only
+# a real browser against a real backend can catch (framework#3528: a
+# lazily-loaded widget's suspension unwound to the host's route boundary and
+# tore down the flow dialog; zero unit test could see it).
 #
 # ⚠️ INFORMATIONAL, NON-REQUIRED lane — `continue-on-error: true` keeps a
 # failure here from failing the workflow run, so it never blocks a merge and
