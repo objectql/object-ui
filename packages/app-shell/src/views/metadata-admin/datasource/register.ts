@@ -8,10 +8,11 @@
  * (engine route + registry slot + shell), reachable at the engine route
  * `…/metadata/datasource`, instead of a separate hand-written System page.
  *
- * The setup left-nav "Datasources" item still points at the older
- * `…/component/metadata/resource?type=datasource` spelling. That is a legacy
- * *alias*, not this engine route: it renders `LegacyMetadataRedirect`, which
- * 302s onto `…/metadata/datasource` (objectui#3639).
+ * The setup left-nav "Datasources" item names that engine route directly
+ * (objectui#3660). The older alias spellings `AppContent` still declares are
+ * redirects onto it rather than routes of their own — kept so bookmarks and
+ * external links keep resolving — but no navigation in this repo is routed
+ * through them any more.
  */
 
 import { registerMetadataResource } from '../registry';

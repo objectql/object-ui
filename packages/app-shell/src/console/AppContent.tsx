@@ -646,16 +646,19 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
               branch below. They are NOT a second copy of the page: both render
               `LegacyMetadataRedirect`, which forwards onto the canonical
               `metadata/:type…` routes declared just above. Declaring them here
-              is what makes the zero-app console's own fallback navigation work:
-              `sys-datasources` points straight at
-              `…/component/metadata/resource?type=datasource`, and `sys-objects`
-              arrives via the host's `system/metadata/:type` → same alias
-              rewrite. Both pass `isMetadataRoute` (a `metadata` path segment —
-              a substring test until #3638) and so land in THIS branch, which declared no
-              `component/…` route at all — every one of them rendered a blank
-              screen. Kept as a mirror rather than re-pointed navigation because
-              the alias already has exactly one canonical destination; adding a
-              zero-app-only spelling would create a second. */}
+              is what stopped the zero-app console rendering a blank screen: the
+              fallback navigation then aimed `sys-datasources` at an alias, and
+              carried `sys-objects` onto one via the host's
+              `system/metadata/:type` rewrite. Both pass `isMetadataRoute` (a
+              `metadata` path segment — a substring test until #3638) and so land
+              in THIS branch, which declared no `component/…` route at all —
+              every one of them rendered a blank screen. #3610 mirrored the
+              routes rather than re-point that navigation, because inventing a
+              zero-app-only spelling would have given the alias a second
+              canonical destination. #3660 re-pointed it anyway — at the shared
+              `metadata/:type` routes above, so no second spelling was created —
+              which leaves these two serving bookmarks and external links, the
+              arrivals that can never be re-pointed. */}
           <Route path="component/metadata/directory" element={<LegacyMetadataRedirect mode="directory" />} />
           <Route path="component/metadata/resource/*" element={<LegacyMetadataRedirect mode="resource" />} />
           {extraRoutesNoApp}

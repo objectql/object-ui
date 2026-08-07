@@ -5,11 +5,12 @@
  * registered into the metadata-admin engine (`registerMetadataResource`) and
  * reached via the engine route `…/metadata/datasource`.
  *
- * Two legacy spellings still arrive here, both as redirects onto that engine
- * route rather than routes of their own (objectui#3639): the setup left-nav
- * "Datasources" item points at `…/component/metadata/resource?type=datasource`
- * (rewritten by `LegacyMetadataRedirect`), and the console host forwards
- * `…/system/metadata/datasource` (rewritten by its own `MetadataRedirect`).
+ * The setup left-nav "Datasources" item names that engine route directly
+ * (objectui#3660). Two legacy spellings still arrive here as well, both as
+ * redirects onto the same engine route rather than routes of their own: the
+ * console host forwards `…/system/metadata/datasource` (rewritten by its own
+ * `MetadataRedirect`), and the older aliases `AppContent` declares for
+ * bookmarks and external links are rewritten by `LegacyMetadataRedirect`.
  *
  * datasource is a *side-effectful* metadata type: its records are managed by
  * the framework `datasource-admin` service (secret encryption + connection-pool
