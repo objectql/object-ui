@@ -85,6 +85,8 @@ interface WorkspacePackage {
   private: boolean;
   files: string[] | undefined;
   hasBuildScript: boolean;
+  /** The `license` field verbatim, or undefined when the manifest omits it. */
+  license: string | undefined;
 }
 
 /**
@@ -147,6 +149,7 @@ function readWorkspacePackages(): WorkspacePackage[] {
         private: Boolean(json.private),
         files: Array.isArray(json.files) ? json.files : undefined,
         hasBuildScript: Boolean(json.scripts?.build),
+        license: typeof json.license === 'string' ? json.license : undefined,
       });
     }
   }
@@ -346,5 +349,213 @@ describe('package.json `files` entries exist on disk (objectui#3663)', () => {
       '@object-ui/plugin-tree lists "LICENSE" in `files`; PR #3662 added packages/plugin-tree/LICENSE ' +
         'because every published tarball had been shipping without it. npm will not complain if it goes missing again.',
     ).toBe(true);
+  });
+});
+
+/**
+ * objectui#3696: the guard above can only ask whether a path a package
+ * PROMISED in `files` is real. A package that never made the promise is
+ * invisible to it — and the license text is exactly the file nobody promises,
+ * because npm ships it whether you list it or not.
+ *
+ * ## Why `files` is the wrong place to look for this one
+ *
+ * npm keeps a small set of paths it packs REGARDLESS of `files`:
+ * `package.json`, `README*`, `LICENSE*`/`LICENCE*`, `COPYING*`, and the `main`
+ * entry. Measured on `packages/sdui-parser` (which declares `files: ["dist"]`)
+ * by renaming one file and re-running `npm pack --dry-run`:
+ *
+ *   LICENSE / License / LICENCE / LICENSE.md / LICENSE.txt -> packed
+ *   copying                                                -> packed
+ *   NOTICE / CHANGELOG.md / NOTALICENSE                     -> NOT packed
+ *
+ * So `files: ["dist"]` never excluded the license text, and adding `"LICENSE"`
+ * to `files` would not have included it. `@object-ui/react-runtime` and
+ * `@object-ui/sdui-parser` shipped every version of themselves declaring
+ * `"license": "MIT"` with no MIT text and no copyright notice in the tarball,
+ * for one reason only: the file was not on disk. That is what this guard reads.
+ *
+ * ## The predicate
+ *
+ * `!private && license` — the two conditions that together turn "MIT" from a
+ * label into an obligation. A private package makes no distribution and owes no
+ * text (`object-ui`, the vscode-extension, is exactly that case and is excluded
+ * on purpose). A package declaring no license at all is a different defect that
+ * this guard deliberately does not invent a verdict about.
+ *
+ * The population is DERIVED from the same workspace scan as the guard above, so
+ * a 40th package is covered the day it is added rather than the day someone
+ * repeats the by-hand census. objectui#3647 and objectui#3696 were both found
+ * by a human diffing every package by hand; twice in one week is the argument
+ * for a gate, not for more care.
+ */
+
+/**
+ * Spellings that count as license text. The `licen[cs]e` family from npm's
+ * always-packed set above, with an optional extension.
+ *
+ * `COPYING` is packed by npm too but is deliberately NOT accepted: every one of
+ * this repo's 38 license files is spelled `LICENSE`, and a guard that silently
+ * blesses a spelling the repo does not use would report success over a
+ * convention drift. Landing a `COPYING` should turn this red and be widened
+ * here on purpose.
+ */
+const LICENSE_TEXT_RE = /^licen[cs]e(\.[^.]+)?$/i;
+
+/** Every license-text file in a package directory, by name. */
+function licenseTextFiles(pkg: WorkspacePackage): string[] {
+  const dir = path.join(repoRoot, pkg.dir);
+  if (!fs.existsSync(dir)) return [];
+  return fs
+    .readdirSync(dir)
+    .filter((name) => LICENSE_TEXT_RE.test(name))
+    .sort();
+}
+
+/**
+ * Whether a package owes license text. Split out from the filter below so the
+ * truth table can be asserted directly: two of its four cases have no specimen
+ * in the tree today, and an unexercised predicate limb is how objectui#4984's
+ * family of dead rules started.
+ */
+function owesLicenseText(pkg: Pick<WorkspacePackage, 'private' | 'license'>): boolean {
+  return !pkg.private && pkg.license !== undefined && pkg.license.trim() !== '';
+}
+
+const owingPackages = packages.filter(owesLicenseText);
+const withoutLicenseText = owingPackages.filter((p) => licenseTextFiles(p).length === 0);
+
+/**
+ * Packages that owed license text and did not have it when this guard landed,
+ * measured on main@3e601773e.
+ *
+ * A RATCHET in the same shape as {@link KNOWN_MISSING}: a NEW offender fails
+ * without consulting this map, and an entry here that is no longer offending
+ * fails too, so it can only shrink.
+ *
+ * `apps/console` (`@object-ui/console`) is the one entry. It is published for
+ * real — `publishConfig.access: "public"`, versioned 17.3.0 with the rest, in
+ * the `.changeset/config.json` `fixed` group — and it has the identical defect
+ * to the two packages objectui#3696 fixed. It is baselined rather than fixed
+ * because objectui#3696 scoped itself to `packages/*` by name; objectui#3702
+ * carries it, and fixing it means copying the root LICENSE and deleting the
+ * line below.
+ */
+const KNOWN_LICENSE_TEXT_MISSING: Record<string, { issue: string }> = {
+  'apps/console': { issue: 'objectui#3702' },
+};
+
+describe('published packages that declare a license ship its text (objectui#3696)', () => {
+  it('discovers the packages that owe license text (guard cannot pass by finding nothing)', () => {
+    // Same anti-vacuity floor as the guard above, sitting just under the 39
+    // measured on main@3e601773e. A predicate that quietly matches nothing —
+    // a renamed `license` field, a lost workspace root, a `private` default
+    // flipped — would otherwise report success over an empty set.
+    expect(owingPackages.length).toBeGreaterThanOrEqual(38);
+
+    // The two packages objectui#3696 fixed must be in scope BY NAME. If either
+    // drops out of the population, this guard has stopped watching the exact
+    // spot that motivated it, and the pin below would pass on a package nobody
+    // is checking any more.
+    const names = owingPackages.map((p) => p.name);
+    expect(names, '@object-ui/react-runtime must still be required to ship license text').toContain(
+      '@object-ui/react-runtime',
+    );
+    expect(names, '@object-ui/sdui-parser must still be required to ship license text').toContain(
+      '@object-ui/sdui-parser',
+    );
+  });
+
+  it('every package that declares a license has the text on disk', () => {
+    const violations = withoutLicenseText
+      .filter((p) => !Object.hasOwn(KNOWN_LICENSE_TEXT_MISSING, p.dir))
+      .map((p) => `${p.name} (${p.dir}) declares "license": "${p.license}" but has no LICENSE file`);
+
+    expect(
+      violations,
+      [
+        'A published package claims a license in package.json and ships no license text.',
+        'The MIT terms require the licence and copyright notice to travel WITH the distribution,',
+        'so the published tarball does not actually grant what its own manifest advertises',
+        '(objectui#3647/#3696).',
+        '',
+        'npm packs LICENSE regardless of `files`, so the fix is the file itself, never a `files` entry:',
+        '  cp LICENSE <package-dir>/LICENSE      # all 38 are byte-identical, blob cf2ca285',
+        '',
+        'If the package should NOT be published, mark it `"private": true` instead — that is the',
+        'other true direction, and it is why `object-ui` (the vscode-extension) is not listed here.',
+        '',
+        ...violations,
+      ].join('\n'),
+    ).toEqual([]);
+  });
+
+  it('the objectui#3696 license baseline only shrinks', () => {
+    // The other half of the ratchet, kept separate from the objectui#3663 one
+    // above so a stale entry names its own defect class.
+    const stillMissing = new Set(withoutLicenseText.map((p) => p.dir));
+    const stale = Object.keys(KNOWN_LICENSE_TEXT_MISSING).filter((dir) => !stillMissing.has(dir));
+
+    expect(
+      stale,
+      [
+        'A KNOWN_LICENSE_TEXT_MISSING entry is stale: the package now ships license text, or it',
+        'stopped owing any (it went `private`, or dropped its `license` field). Either way the',
+        'defect is gone — delete its line from KNOWN_LICENSE_TEXT_MISSING to bank the progress.',
+        '',
+        ...stale.map((dir) => `${dir} (${KNOWN_LICENSE_TEXT_MISSING[dir].issue})`),
+      ].join('\n'),
+    ).toEqual([]);
+  });
+
+  it('pins the two packages fixed in objectui#3696', () => {
+    // The general assertion covers these, but naming them means a revert points
+    // straight at the issue that explains why the files have to be there —
+    // and, unlike the general assertion, this cannot be satisfied by adding a
+    // baseline line.
+    for (const dir of ['packages/react-runtime', 'packages/sdui-parser']) {
+      expect(
+        fs.existsSync(path.join(repoRoot, dir, 'LICENSE')),
+        `${dir}/LICENSE is required: the package declares "license": "MIT" and npm packs the file ` +
+          'regardless of `files`, so deleting it silently resumes publishing MIT-labelled tarballs ' +
+          'with no MIT text (objectui#3696).',
+      ).toBe(true);
+    }
+  });
+
+  it('requires license text only from packages that publish AND declare a license', () => {
+    // The predicate's truth table, asserted directly. Two of these four rows
+    // have no specimen in the tree today — every non-private package declares a
+    // license — so without this they would be untested logic that a later edit
+    // could invert with nothing turning red.
+    expect(owesLicenseText({ private: false, license: 'MIT' }), 'published + declared -> owes').toBe(true);
+    expect(owesLicenseText({ private: true, license: 'MIT' }), 'private -> makes no distribution').toBe(false);
+    expect(owesLicenseText({ private: false, license: undefined }), 'no claim -> nothing to honour').toBe(false);
+    expect(owesLicenseText({ private: false, license: '  ' }), 'blank claim is not a claim').toBe(false);
+  });
+
+  it('excludes private packages, and that exclusion is not vacuous', () => {
+    // The `private` limb only means something while some private package would
+    // otherwise be reported. Asserting the specimen set is NON-EMPTY first is
+    // what keeps this from becoming a test that passes because it examines
+    // nothing — today it is `object-ui` (packages/vscode-extension), which
+    // declares "MIT" and has no LICENSE file.
+    const privateOwingIfPublished = packages.filter(
+      (p) => p.private && p.license !== undefined && licenseTextFiles(p).length === 0,
+    );
+
+    expect(
+      privateOwingIfPublished.map((p) => p.name),
+      'No private package declares a license without shipping its text any more, so this boundary ' +
+        'case now proves nothing. Either pick a live specimen or delete this test — do not leave it ' +
+        'green over an empty set.',
+    ).not.toEqual([]);
+
+    const reported = new Set(withoutLicenseText.map((p) => p.name));
+    for (const pkg of privateOwingIfPublished) {
+      expect(reported.has(pkg.name), `${pkg.name} is private and must not be required to ship license text`).toBe(
+        false,
+      );
+    }
   });
 });
