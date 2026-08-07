@@ -440,23 +440,25 @@ pnpm site:build
 <!-- Correct - internal documentation links MUST include /docs/ prefix -->
 [Quick Start](/docs/guide/quick-start)
 [Components](/docs/components)
-[API Reference](/docs/reference/api/core)
-[Protocol Specs](/docs/reference/protocol/overview)
-[Architecture](/docs/architecture/component)
+[API Reference](/docs/api/schema-reference)
+[App Schema](/docs/core/app-schema)
+[Architecture](/docs/guide/architecture)
 ```
 
 #### ❌ Incorrect Link Patterns
 
 ```markdown
 <!-- Wrong - missing /docs/ prefix -->
-[Quick Start](/guide/quick-start)       <!-- ❌ Should be /docs/guide/quick-start -->
-[Components](/components)               <!-- ❌ Should be /docs/components -->
+[Quick Start](/guide/quick-start)          <!-- ❌ Should be /docs/guide/quick-start -->
+[Components](/components)                  <!-- ❌ Should be /docs/components -->
 
-<!-- Wrong - incorrect paths -->
-[API Reference](/api/core)              <!-- ❌ Should be /docs/reference/api/core -->
-[Spec](/spec/component)                 <!-- ❌ Should be /docs/architecture/component -->
-[Protocol](/protocol/form)              <!-- ❌ Should be /docs/reference/protocol/form -->
+<!-- Wrong - top-level section that does not exist under content/docs/ -->
+[API Reference](/reference/api/core)       <!-- ❌ No /reference/ section - use /docs/api/schema-reference -->
+[Architecture](/architecture/component)    <!-- ❌ No /architecture/ section - use /docs/guide/architecture -->
+[Spec](/spec/app)                          <!-- ❌ No /spec/ section - use /docs/core/app-schema -->
 ```
+
+The example links in the two fenced blocks above are invisible to the link gate — `check-doc-links.mjs` blanks fenced code and inline code spans before it scans (it has to: markdown link syntax quoted inside code is not a link), so whenever you edit these examples, verify each route by hand against the pages actually present in `content/docs/`.
 
 #### Why?
 
@@ -464,7 +466,17 @@ Fumadocs is configured with `baseUrl: '/docs'`, which means all documentation pa
 
 #### Validating Links
 
-Link validation runs automatically via GitHub Actions on all PRs using lychee-action. This checks for broken internal and external links.
+Two separate checks with two different jobs — knowing which is which saves a wasted debugging round:
+
+- **Internal links are the PR gate.** `scripts/check-doc-links.mjs`, run by `.github/workflows/docs-links.yml` on every pull request to `main` / `develop` (and on pushes to them). It resolves each `/docs/...` route and each relative path against the files in the checkout — reading the tree and nothing else, no network — so it is deterministic, and a failure blocks the merge. The workflow deliberately carries no `paths` filter, so a docs-only PR is checked too. Run the same script locally before you push:
+
+  ```bash
+  pnpm docs:check-links
+  ```
+
+- **External URLs are swept out of band, and gate nothing.** lychee, run by `.github/workflows/check-links.yml`, makes real network requests and is wired to a weekly cron plus manual `workflow_dispatch` only — never to `pull_request`. That is a deliberate tradeoff (#3213): one third-party 502, rate-limit or anti-scraping response would otherwise turn an unrelated PR red with nothing its author could do about it. The job does fail its own scheduled run on a broken external link; it just never fails yours.
+
+Which files each check reads is declared in the tools themselves — the `SCAN_ROOTS` table at the top of `scripts/check-doc-links.mjs`, and the `args` list in `check-links.yml`. Both surfaces get extended over time, so read them there instead of trusting a list copied into prose.
 
 ## Versioning and Releases
 
