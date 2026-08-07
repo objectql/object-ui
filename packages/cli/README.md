@@ -132,14 +132,6 @@ await serve('app.json', { port: '3000', host: 'localhost' });
 await init('my-app', { template: 'dashboard' });
 ```
 
-## Compatibility
-
-- **Node.js** ≥ 18
-- **TypeScript** ≥ 5.0 (strict mode)
-- **`@objectstack/spec`** ^3.3.0
-- **`@objectstack/client`** ^3.3.0
-- **Tailwind CSS** ≥ 3.4
-
 ## Links
 
 - 📚 [Documentation](https://www.objectui.org/docs/utilities/cli)

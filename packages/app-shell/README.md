@@ -613,8 +613,6 @@ pins (20) each have an independent cap. See the guide below for details.
 See [User-Scoped State Persistence](../../content/docs/guide/user-state-persistence.md)
 for the adapter contract, backend schema, and how to plug in your own backend.
 
-<!-- release-metadata:v3.3.0 -->
-
 ## Command palette (⌘K)
 
 `<ConsoleShell>` mounts a global ⌘K command palette for cross-app navigation and
@@ -770,15 +768,6 @@ import { PreviewBadge, getPlatformStage } from '@object-ui/app-shell';
 ```
 
 Labels are localized under `topbar.stage.*` (`@object-ui/i18n`).
-
-## Compatibility
-
-- **React:** 18.x or 19.x
-- **Node.js:** ≥ 18
-- **TypeScript:** ≥ 5.0 (strict mode)
-- **`@objectstack/spec`:** ^3.3.0
-- **`@objectstack/client`:** ^3.3.0
-- **Tailwind CSS:** ≥ 3.4 (for packages with UI)
 
 ## Links
 

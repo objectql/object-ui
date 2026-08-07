@@ -344,17 +344,6 @@ const userView: ObjectViewSchema = {
 };
 ```
 
-<!-- release-metadata:v3.3.0 -->
-
-## Compatibility
-
-- **React:** 18.x or 19.x
-- **Node.js:** ≥ 18
-- **TypeScript:** ≥ 5.0 (strict mode)
-- **`@objectstack/spec`:** ^3.3.0
-- **`@objectstack/client`:** ^3.3.0
-- **Tailwind CSS:** ≥ 3.4 (for packages with UI)
-
 ## Links
 
 - 📚 [Documentation](https://www.objectui.org/docs/plugins/plugin-view)

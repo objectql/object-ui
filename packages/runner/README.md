@@ -169,16 +169,6 @@ that do configure it are:
 
 For detailed documentation, visit the [Object UI Documentation](https://www.objectui.org/docs/utilities/runner).
 
-<!-- release-metadata:v3.3.0 -->
-
-## Compatibility
-
-- **Node.js:** ≥ 18
-- **TypeScript:** ≥ 5.0 (strict mode)
-- **`@objectstack/spec`:** ^3.3.0
-- **`@objectstack/client`:** ^3.3.0
-- **Tailwind CSS:** ≥ 3.4 (for packages with UI)
-
 ## Links
 
 - 📚 [Documentation](https://www.objectui.org/docs/utilities/runner)
