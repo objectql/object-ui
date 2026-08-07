@@ -117,12 +117,17 @@ function viewSchemaForDraft(item: ZodLikeSchema, container: ZodLikeSchema): ZodL
 }
 
 /**
- * ── Union-failure diagnostics for the `view` EDIT gate (objectui#3606) ──
+ * ── Union-failure diagnostics for the `view` gates (objectui#3606, #3626) ──
  *
  * PRESENTATION ONLY. Nothing below can change a verdict: it runs strictly
  * inside the final issue→`SchemaFormIssue` mapping, after `ok` has already been
- * decided by the one gate (`ViewMetadataSchema`) and after every issue filter
- * has run. Same input set, same `ok`; only the rendered `path`/`message` move.
+ * decided by the one gate (`ViewMetadataSchema` on edit, the authoring schemas
+ * on create) and after every issue filter has run. Same input set, same `ok`;
+ * only the rendered `path`/`message` move.
+ *
+ * Two rules live here, one per union depth. This first block is the ROOT rule
+ * (#3606, edit gate only — neither authoring schema has a union at its root);
+ * the NESTED rule for `config.columns` follows below (#3626, both gates).
  *
  * The edit gate is `z.preprocess(stripViewConsoleDecorations, z.union([…]))`.
  * Zod reports a union failure as a SINGLE root issue — `code: 'invalid_union'`,
@@ -173,24 +178,158 @@ function viewUnionMemberIndex(draft: unknown): number {
 }
 
 /**
- * Expand a ROOT union failure into the selected member's own issues, or return
- * `null` to say "nothing better to show" — in which case the caller renders the
- * root issue unchanged, exactly as before. It can never return an empty list,
- * so a rejected draft always renders at least one issue.
+ * ── NESTED unions: the array-variant rule (objectui#3626) ──
  *
- * Root-only by design: a member issue's `path` is relative to the union node,
- * and only at the root is that the same as the draft-absolute path `SchemaForm`
- * needs. A union nested deeper (e.g. `config.columns`) keeps Zod's own message;
- * it still carries a real path, so it is addressable — unlike the root case.
+ * #3606 expanded the union at the ROOT only. `config.columns` is a union too —
+ * `string[] | ColumnDef[]`, no discriminant — and it collapsed the same way, on
+ * BOTH gates: create reported `config.columns` / `Invalid input` as a top-level
+ * issue, edit reported it one level down inside the selected root member. The
+ * user was taken to the right field and told nothing about it: not which
+ * column, not which key, not what was expected.
+ *
+ * The discriminant here is the value's OWN CONTENT, which is the same class of
+ * rule as the root's `viewKind` — a fact about what the author wrote, not a
+ * comparison across error groups. A `columns` array is a list of field NAMES or
+ * a list of column OBJECTS, and its first element says which. ("Fewest issues /
+ * deepest path" remains banned: it ranks the groups against each other, and
+ * #3606 measured it picking wrong.)
+ *
+ * Applying that naively to every nested union would mis-select, so the rule is
+ * narrowed to unions that really are "an array of A or an array of B". Measured
+ * over the whole `view` family (@objectstack/spec 17.0.0-rc.5), 16 nested
+ * discriminant-less unions exist and `columns` is the only one whose members
+ * are BOTH arrays. The neighbour that would break a naive rule is `config.sort`
+ * (`string | ColumnSort[]`): for `sort: ['name']` the first element is a string,
+ * so first-element-typeof alone would select the plain-`string` member and
+ * report "expected string, received array" — technically true, and the wrong
+ * thing to say to someone who correctly wrote an array. So a member that
+ * rejected the value's TYPE at the union node itself (a bare `invalid_type` at
+ * its own relative root) is not a candidate: it never looked at the contents,
+ * so contents cannot be evidence for it. That single categorical test — asked
+ * of each group on its own, never group-vs-group — is what keeps `sort`,
+ * `filter[].value`, `gantt.tooltipFields[]` and the rest untouched.
+ *
+ * Boundaries, all measured rather than assumed:
+ *
+ *  - `columns: []` is VALID under both members, so the empty array never
+ *    reaches this code — the union succeeds and there is no issue to expand.
+ *    The "what do we do with an empty array" question is structurally moot.
+ *  - `columns: [42]` / `[null]` — the first element names neither variant, so
+ *    nothing is selected and the node keeps Zod's own message. Both members
+ *    reject it identically anyway; picking one would be inventing a preference.
+ *  - `columns: 'nope'` — not an array, nothing to discriminate on. (Both
+ *    members do agree here, but "all members said the same thing so promote it"
+ *    is a different mechanism — issue #3626's direction 1 — not this one.)
+ *  - Mixed arrays are the interesting case and they come out right: for
+ *    `['name', {field: 1}]` the first element elects `string[]`, which reports
+ *    `config.columns.1` — the element that actually broke the list the author
+ *    was writing — instead of the object member's two rejections of the shape
+ *    they never chose.
+ *
+ * Like the root rule this indexes members POSITIONALLY and is pinned the same
+ * way: the CANARY tests assert the exact `path` + `message` of the selected
+ * member, so a spec-side reorder of `ColumnsSchema` goes red instead of
+ * silently reporting the other variant's complaint.
  */
-function expandViewUnionIssue(issue: ZodLikeIssue, draft: unknown): ZodLikeIssue[] | null {
+const ARRAY_VARIANT_MEMBERS = { ofStrings: 0, ofObjects: 1 } as const;
+
+/**
+ * Did this member reject the value's TYPE at the union node itself, without
+ * ever looking at its contents? Asked of one group in isolation — it filters
+ * which unions the content rule may speak about, it does not pick a winner.
+ */
+function memberRejectedNodeType(group: ZodLikeIssue[]): boolean {
+  return group.some((i) => i.code === 'invalid_type' && (i.path ?? []).length === 0);
+}
+
+/** Read the draft value a union node's absolute path addresses, or `undefined`. */
+function valueAtPath(draft: unknown, path: Array<string | number>): unknown {
+  let cursor: unknown = draft;
+  for (const seg of path) {
+    if (cursor === null || typeof cursor !== 'object') return undefined;
+    cursor = (cursor as Record<string | number, unknown>)[seg];
+  }
+  return cursor;
+}
+
+/**
+ * The `array<A> | array<B>` rule described above. Returns the member index the
+ * value's first element elects, or `null` when this union is not of that shape
+ * or the content elects nothing.
+ *
+ * The value is read from the ORIGINAL draft while the paths come from a parse
+ * of the PREPROCESSED one. That is exact for this purpose, measured rather than
+ * assumed: `stripViewConsoleDecorations` only deletes `id` keys from `filter` /
+ * `sort` rows — it maps arrays element-wise and never reorders or drops one, so
+ * no index a path carries can shift.
+ */
+function arrayVariantMemberIndex(groups: ZodLikeIssue[][], value: unknown): number | null {
+  if (groups.length !== 2) return null;
+  if (!Array.isArray(value) || value.length === 0) return null;
+  if (groups.some(memberRejectedNodeType)) return null;
+  const first = value[0];
+  if (typeof first === 'string') return ARRAY_VARIANT_MEMBERS.ofStrings;
+  if (first !== null && typeof first === 'object' && !Array.isArray(first))
+    return ARRAY_VARIANT_MEMBERS.ofObjects;
+  return null;
+}
+
+/**
+ * Pick the union member whose issues should be shown for one `invalid_union`,
+ * or `null` for "nothing better than the union node's own message".
+ *
+ * `absPath` is the union node's DRAFT-ABSOLUTE path — the root union's is `[]`,
+ * which is what selects between the two rules. A member issue's own `path` is
+ * relative to its union node, which is why the caller composes prefixes on the
+ * way down instead of trusting `issue.path` to be absolute below the root.
+ */
+function selectViewUnionGroup(
+  issue: ZodLikeIssue,
+  absPath: Array<string | number>,
+  draft: unknown,
+): ZodLikeIssue[] | null {
   if (issue.code !== 'invalid_union') return null;
-  if ((issue.path ?? []).length !== 0) return null;
   const groups = issue.errors;
   if (!Array.isArray(groups)) return null;
-  const group = groups[viewUnionMemberIndex(draft)];
+  const index =
+    absPath.length === 0
+      ? viewUnionMemberIndex(draft)
+      : arrayVariantMemberIndex(groups, valueAtPath(draft, absPath));
+  if (index === null) return null;
+  const group = groups[index];
   if (!Array.isArray(group) || group.length === 0) return null;
   return group;
+}
+
+/**
+ * Rewrite a `view` gate's issues into draft-absolute, field-addressed ones.
+ *
+ * Every issue is emitted with `prefix ++ issue.path`; a union whose member the
+ * rules above can name is replaced by that member's issues, recursively, with
+ * the union node's own path becoming their prefix. A union no rule can speak
+ * for is emitted unchanged — which is the pre-#3606 behaviour, so nothing can
+ * be lost. Each expansion descends into strictly-contained sub-issues of a
+ * finite tree and only ever yields a non-empty group, so this terminates and a
+ * rejected draft always renders at least one issue.
+ *
+ * There is no depth counter: the array-variant rule declines every union whose
+ * node value is not an array, which is what actually bounds the descent. In the
+ * measured schema that is exactly one nested level — e.g. a bad
+ * `columns[0].summary` (`enum | {type, field}`, an object value) stops there and
+ * keeps its own message, now correctly addressed to `config.columns.0.summary`
+ * rather than to `config.columns`.
+ */
+function expandViewIssues(
+  issues: ZodLikeIssue[],
+  prefix: Array<string | number>,
+  draft: unknown,
+): ZodLikeIssue[] {
+  return issues.flatMap((issue) => {
+    const absPath = [...prefix, ...(issue.path ?? [])];
+    const group = selectViewUnionGroup(issue, absPath, draft);
+    if (!group) return [{ ...issue, path: absPath }];
+    return expandViewIssues(group, absPath, draft);
+  });
 }
 
 // Map metadata-type name → loader for that type's root Zod schema.
@@ -517,18 +656,16 @@ export async function validateMetadataDraft(
   }
   if (rawIssues.length === 0 && celIssues.length === 0) return { ok: true, issues: [] };
 
-  // Presentation only — see `expandViewUnionIssue`. `ok` is already `false`
-  // here and `rawIssues` is already final; this only decides what gets RENDERED
-  // for each of them, so the verdict cannot move (pinned by the parity test in
+  // Presentation only — see `expandViewIssues`. `ok` is already `false` here
+  // and `rawIssues` is already final; this only decides what gets RENDERED for
+  // each of them, so the verdict cannot move (pinned by the parity test in
   // `clientValidation.viewDiagnostics.test.ts`).
+  const renderable = type === 'view' ? expandViewIssues(rawIssues, [], draft) : rawIssues;
   const issues: SchemaFormIssue[] = [
-    ...rawIssues.flatMap((i) => {
-      const expanded = type === 'view' ? expandViewUnionIssue(i, draft) : null;
-      return (expanded ?? [i]).map((issue) => ({
-        path: (issue.path ?? []).map((seg) => String(seg)).join('.'),
-        message: issue.message,
-      }));
-    }),
+    ...renderable.map((issue) => ({
+      path: (issue.path ?? []).map((seg) => String(seg)).join('.'),
+      message: issue.message,
+    })),
     ...celIssues,
   ];
   return { ok: false, issues };
