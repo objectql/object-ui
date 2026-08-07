@@ -629,7 +629,29 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
           <Route path="metadata/:type/new" element={<MetadataResourceEditPage createMode />} />
           <Route path="metadata/:type/:name" element={<MetadataResourceEditPage />} />
           <Route path="metadata/:type/:name/history" element={<MetadataResourceHistoryPage />} />
+          {/* #3610 — the legacy metadata aliases, mirrored from the with-app
+              branch below. They are NOT a second copy of the page: both render
+              `LegacyMetadataRedirect`, which forwards onto the canonical
+              `metadata/:type…` routes declared just above. Declaring them here
+              is what makes the zero-app console's own fallback navigation work:
+              `sys-datasources` points straight at
+              `…/component/metadata/resource?type=datasource`, and `sys-objects`
+              arrives via the host's `system/metadata/:type` → same alias
+              rewrite. Both pass `isMetadataRoute` (a substring test on
+              `/metadata`) and so land in THIS branch, which declared no
+              `component/…` route at all — every one of them rendered a blank
+              screen. Kept as a mirror rather than re-pointed navigation because
+              the alias already has exactly one canonical destination; adding a
+              zero-app-only spelling would create a second. */}
+          <Route path="component/metadata/directory" element={<LegacyMetadataRedirect mode="directory" />} />
+          <Route path="component/metadata/resource/*" element={<LegacyMetadataRedirect mode="resource" />} />
           {extraRoutesNoApp}
+          {/* #3610 — same catch-all the with-app branch has carried all along.
+              A `<Routes>` with no match renders `null`, i.e. a blank page that
+              is indistinguishable from a crash: no 404, no error, nothing to
+              report. This branch is the one a zero-app deployment lives in, so
+              it is precisely where an unresolved URL most needs to say so. */}
+          <Route path="*" element={<RouteNotFound />} />
         </Routes>
       </Suspense>
     );

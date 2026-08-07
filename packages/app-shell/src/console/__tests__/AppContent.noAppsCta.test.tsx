@@ -46,8 +46,10 @@
  * relative form is depth-dependent: right at `/apps/setup`, but from
  * `/apps/setup/sys_inbox_message` it builds
  * `/apps/setup/sys_inbox_message/create-app`, which matches no route inside the
- * no-active-app `<Routes>` and renders a BLANK screen. The two CTA tests below
- * cover both depths precisely so that trap stays pinned.
+ * no-active-app `<Routes>` — a BLANK screen when this was written, and since
+ * objectui#3610 gave that branch a catch-all, a "page not found" screen. Either
+ * way it is not the designer. The two CTA tests below cover both depths
+ * precisely so that trap stays pinned.
  *
  * The fix therefore builds the app-scoped URL `/apps/<segment>/create-app` —
  * the platform's canonical app URL contract (ADR-0048, `utils/appRoute.ts`),
@@ -240,8 +242,9 @@ describe('AppContent — no-apps empty state CTA (objectui#3573)', () => {
     // `isSystemRoute`, i.e. the switch that mounts `extraRoutesNoApp` — so the
     // splat segment must not leak into the target either (a relative `system`
     // would build `/apps/setup/sys_inbox_message/system` here: still
-    // `isSystemRoute`, but matching no route inside that branch — which has no
-    // catch-all — and therefore rendering blank).
+    // `isSystemRoute`, but matching no route inside that branch — blank before
+    // objectui#3610, "page not found" after it, and the system hub in neither
+    // case, which is what the assertion below actually distinguishes).
     renderConsoleAt('/apps/setup/sys_inbox_message');
     fireEvent.click(await screen.findByTestId('go-to-settings-btn'));
 
