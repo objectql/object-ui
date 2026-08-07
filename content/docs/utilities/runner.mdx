@@ -488,20 +488,7 @@ src/app-data/
         └── accounts.json    # route "/crm/accounts"
 ```
 
-### 2. Environment Configuration
-
-Use environment variables for configuration:
-
-```typescript
-const config = {
-  apiUrl: import.meta.env.VITE_API_URL,
-  features: {
-    analytics: import.meta.env.VITE_ENABLE_ANALYTICS === 'true',
-  },
-}
-```
-
-### 3. Error Boundaries
+### 2. Error Boundaries
 
 Wrap components in error boundaries:
 
