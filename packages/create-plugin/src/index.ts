@@ -12,10 +12,6 @@ import chalk from 'chalk';
 import prompts from 'prompts';
 import * as path from 'path';
 import fs from 'fs-extra';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const program = new Command();
 
@@ -110,9 +106,6 @@ async function createPlugin(pluginName?: string, options: PluginOptions = {}) {
   // Create directory structure
   fs.mkdirpSync(targetDir);
   fs.mkdirpSync(path.join(targetDir, 'src'));
-
-  // Get template directory
-  const templateDir = path.join(__dirname, '..', 'templates', 'plugin');
 
   // Template variables
   const vars = {

@@ -67,22 +67,17 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
  * can only shrink. Fix one by deleting the stale `files` entry from the
  * package's `package.json` and deleting its line here.
  *
- * Both current entries are vestigial declarations, measured on
- * main@dae1ac41e: neither `templates` directory exists on disk, neither has
- * EVER existed in this repo's git history (an all-branch `git log
- * --diff-filter=A` over both paths returns nothing), and no build step or
- * workflow creates one. Both packages inline their templates instead —
- * `@object-ui/cli` as an
- * object literal in `src/commands/init.ts`, and `@object-ui/create-plugin` by
- * constructing the generated `package.json` in code, leaving
- * `src/index.ts`'s `templateDir` assigned and never read. So nothing is broken
- * for a user today; the manifests simply state something untrue, which is the
- * defect objectui#3663 is about.
+ * Currently empty, which is the intended resting state — the ratchet still
+ * fails on any NEW violation. It landed carrying two entries measured on
+ * main@dae1ac41e, `packages/cli/templates` and
+ * `packages/create-plugin/templates`: vestigial declarations for directories
+ * that never existed on disk, never existed anywhere in this repo's git
+ * history, and that no build step or workflow creates. Both packages inline
+ * their templates instead. objectui#3665 banked both by deleting the two
+ * `files` entries, and deleting a declaration retires a baseline line exactly
+ * as creating the file would.
  */
-const KNOWN_MISSING: Record<string, { issue: string }> = {
-  'packages/cli/templates': { issue: 'objectui#3665' },
-  'packages/create-plugin/templates': { issue: 'objectui#3665' },
-};
+const KNOWN_MISSING: Record<string, { issue: string }> = {};
 
 interface WorkspacePackage {
   name: string;
