@@ -25,6 +25,17 @@
  * block submit) and *fail-open* for readonly (a broken predicate leaves the
  * field editable) — matching the server, which logs and allows the change
  * through.
+ *
+ * Fail-open is **loud**, not silent (objectstack#5149): a predicate that
+ * cannot be evaluated — parse error, unbound identifier, engine fault — logs
+ * one `console.warn` per predicate text with the source and the failure
+ * reason, then still returns the caller's fallback. Without the warning a
+ * broken predicate is indistinguishable from an absent one, so
+ * conditional-visibility bugs survive inspection indefinitely. This is the
+ * client half of the server's "log and allow" convention (`readonlyWhen for
+ * 'x' failed to evaluate — change allowed through`). The *default* stays
+ * fail-open on purpose — flipping it is a shipped-behavior change tracked
+ * separately in objectstack#5149 (appeal 1, undecided).
  */
 import { ExpressionEngine } from '@objectstack/formula';
 import type { Expression } from '@objectstack/spec';
@@ -36,6 +47,50 @@ export type FieldRulePredicate = string | { dialect?: string; source: string };
 function toExpression(pred: FieldRulePredicate): Expression {
   if (typeof pred === 'string') return { dialect: 'cel', source: pred };
   return { dialect: (pred.dialect ?? 'cel') as Expression['dialect'], source: pred.source };
+}
+
+/** Diagnostic options for {@link evalFieldPredicate} evaluation failures. */
+export interface FieldPredicateDiagnostic {
+  /**
+   * Human-readable locator included in the one-time failure warning — e.g.
+   * `"visibleWhen of field 'amount'"`. Pass whatever the call site knows; the
+   * predicate source text and failure reason are always included.
+   */
+  context?: string;
+  /**
+   * Set `false` when the caller deliberately probes for faults (evaluating
+   * twice with both fallbacks) and surfaces its own diagnostic — prevents two
+   * warnings for one broken predicate. Defaults to `true`.
+   */
+  warn?: boolean;
+}
+
+const warnedPredicates = new Set<string>();
+
+/**
+ * One-time warning for a predicate that could not be evaluated. Deduped per
+ * predicate TEXT (dialect + source): a broken predicate is re-evaluated on
+ * every render/keystroke, and the point is one loud line, not a scrolling
+ * wall. The dedupe key is JSON-encoded — never a control-character separator
+ * (objectstack#5450 made a sibling of this file binary to grep that way).
+ */
+function warnPredicateFailure(
+  expr: Expression,
+  fallback: boolean,
+  reason: string,
+  context?: string,
+): void {
+  const key = JSON.stringify([expr.dialect, expr.source]);
+  if (warnedPredicates.has(key)) return;
+  warnedPredicates.add(key);
+  console.warn(
+    '[object-ui] A conditional predicate failed to evaluate' +
+      (context ? ` (${context})` : '') +
+      ` and was treated as its safe default (${String(fallback)}): ` +
+      JSON.stringify(expr.source) +
+      `. Reason: ${reason}. ` +
+      "Values are bound under 'record.' (e.g. record.status) — check the field names and CEL syntax.",
+  );
 }
 
 /**
@@ -52,6 +107,10 @@ function toExpression(pred: FieldRulePredicate): Expression {
  *                  e.g. `{ parent }` so an inline line-item cell can reference
  *                  its header (`parent.status == 'paid'`) as well as its own
  *                  row (`record.quantity`). Bound via the engine's `extra`.
+ * @param diagnostic  Failure-warning options: a `context` locator for the
+ *                  one-time warning, and `warn: false` for callers that probe
+ *                  for faults and report them themselves. The returned value
+ *                  is unaffected either way.
  */
 export function evalFieldPredicate(
   pred: FieldRulePredicate | undefined | null,
@@ -59,17 +118,41 @@ export function evalFieldPredicate(
   fallback: boolean,
   previous?: Record<string, unknown>,
   scope?: Record<string, unknown>,
+  diagnostic?: FieldPredicateDiagnostic,
 ): boolean {
   if (pred == null || (typeof pred === 'string' && !pred.trim())) return fallback;
+  const expr = toExpression(pred);
   try {
-    const res = ExpressionEngine.evaluate<boolean>(toExpression(pred), {
+    const res = ExpressionEngine.evaluate<boolean>(expr, {
       record,
       previous,
       ...(scope ? { extra: scope } : {}),
     });
-    if (!res.ok) return fallback;
+    if (!res.ok) {
+      // Parse error, type error, unbound identifier, engine fault … — every
+      // not-ok verdict resolves to the fallback, but never silently (#5149).
+      if (diagnostic?.warn !== false) {
+        warnPredicateFailure(
+          expr,
+          fallback,
+          `[${res.error.kind}] ${res.error.message}`,
+          diagnostic?.context,
+        );
+      }
+      return fallback;
+    }
     return res.value === true;
-  } catch {
+  } catch (err) {
+    // The engine contract is "never throws"; this guard is for anything that
+    // slips past it. Same loud fail-open as the not-ok branch.
+    if (diagnostic?.warn !== false) {
+      warnPredicateFailure(
+        expr,
+        fallback,
+        `[throw] ${err instanceof Error ? err.message : String(err)}`,
+        diagnostic?.context,
+      );
+    }
     return fallback;
   }
 }
@@ -80,6 +163,11 @@ export function evalFieldPredicate(
  * present, *overrides* the static flag. A static `true` is never weakened by a
  * `false` predicate result for required/readonly — but `visibleWhen` is
  * authoritative when present (so a field can be conditionally shown/hidden).
+ *
+ * @param fieldContext  Optional locator for failure warnings — e.g.
+ *                      `"field 'amount'"`. The warning then reads
+ *                      `visibleWhen of field 'amount' …`; without it, the rule
+ *                      kind alone is reported.
  */
 export function resolveFieldRuleState(
   rules: {
@@ -91,22 +179,27 @@ export function resolveFieldRuleState(
   statics: { required?: boolean; readonly?: boolean },
   previous?: Record<string, unknown>,
   scope?: Record<string, unknown>,
+  fieldContext?: string,
 ): { visible: boolean; readonly: boolean; required: boolean } {
+  const diag = (rule: string): FieldPredicateDiagnostic => ({
+    context: fieldContext ? `${rule} of ${fieldContext}` : rule,
+  });
+
   const visible =
     rules.visibleWhen != null
-      ? evalFieldPredicate(rules.visibleWhen, record, true, previous, scope)
+      ? evalFieldPredicate(rules.visibleWhen, record, true, previous, scope, diag('visibleWhen'))
       : true;
 
   const readonly =
     statics.readonly === true ||
     (rules.readonlyWhen != null
-      ? evalFieldPredicate(rules.readonlyWhen, record, false, previous, scope)
+      ? evalFieldPredicate(rules.readonlyWhen, record, false, previous, scope, diag('readonlyWhen'))
       : false);
 
   const required =
     statics.required === true ||
     (rules.requiredWhen != null
-      ? evalFieldPredicate(rules.requiredWhen, record, false, previous, scope)
+      ? evalFieldPredicate(rules.requiredWhen, record, false, previous, scope, diag('requiredWhen'))
       : false);
 
   return { visible, readonly, required };

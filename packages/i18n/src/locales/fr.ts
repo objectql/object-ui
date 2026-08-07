@@ -133,6 +133,7 @@ const fr = {
     createTitle: "Créer {{object}}",
     editTitle: "Modifier {{object}}",
     viewTitle: "Afficher {{object}}",
+    createTargetOrg: "Création dans {{org}}",
     saveRecord: "Enregistrer",
     create: "Créer",
     update: "Mettre à jour",

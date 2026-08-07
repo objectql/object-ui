@@ -133,6 +133,7 @@ const ru = {
     createTitle: "Создать {{object}}",
     editTitle: "Редактировать {{object}}",
     viewTitle: "Просмотреть {{object}}",
+    createTargetOrg: "Создаётся в {{org}}",
     saveRecord: "Сохранить запись",
     create: "Создать",
     update: "Обновить",

@@ -12,6 +12,10 @@
  * Selecting an option therefore transparently scopes every child nav
  * item — no per-item wiring required.
  *
+ * The active value also lives in the URL query string, under a key derived
+ * per selector by {@link contextSelectorQueryKey} — see that helper for the
+ * one grandfathered key (`active_package` → `?package=`) and its sunset.
+ *
  * @module
  */
 
@@ -45,6 +49,57 @@ export interface ContextSelectorDef {
 interface Option { value: string; label: string }
 
 const ALL_SENTINEL = '__all__';
+
+/** Selector id used by the built-in Studio app's package scope. */
+export const STUDIO_PACKAGE_SELECTOR_ID = 'active_package';
+
+/**
+ * URL scope keys that shipped BEFORE the key was derived per selector
+ * (objectui#3500). Grandfathered by selector id, read and write alike.
+ *
+ * Exactly one entry, and it must stay that way: Studio's `active_package`
+ * selector keeps owning `?package=`. That key is a live contract with three
+ * parties this file does not own —
+ *
+ *  1. bookmarked / shared Studio URLs already carrying `?package=…`;
+ *  2. six Studio surfaces that read `?package` straight off the query string
+ *     (`StudioHomePage`, `DirectoryPage`, `ResourceListPage`,
+ *     `ResourceEditPage` ×2, `AiChatPage`);
+ *  3. Studio's own nav metadata in `@objectstack/platform-objects`, which
+ *     declares `params: { package: '{active_package}' }` on ~15 nav items —
+ *     i.e. the destination query key is chosen by the APP metadata, not by
+ *     this renderer, and renaming here alone would desync the two halves.
+ *
+ * So this is a migration, not a rename: the pre-existing selector keeps its
+ * key, while every NEWLY declared selector gets `?<id>=` from day one — which
+ * is the whole point of the fix (a second selector no longer mirrors the
+ * first). Do not add entries here; a new selector that "wants" a shorter key
+ * is asking for a spec-side `queryKey`, not a renderer-side alias.
+ *
+ * Sunset: delete the entry (and this table) once either
+ *  (a) `AppContextSelectorSchema` gains an explicit query-key field so the app
+ *      author declares it, or
+ *  (b) Studio's nav metadata and the six reader surfaces above move to
+ *      `?active_package=`,
+ * at which point the plain `id` derivation needs no exception.
+ */
+// A Map, not an object literal: selector ids are snake_case identifiers, and
+// `constructor` / `valueOf` are legal snake_case — an object lookup would walk
+// the prototype and hand back a function as the "query key".
+const LEGACY_SCOPE_QUERY_KEYS: ReadonlyMap<string, string> = new Map([
+  [STUDIO_PACKAGE_SELECTOR_ID, 'package'],
+]);
+
+/**
+ * The URL query key that carries a context selector's active value.
+ *
+ * Derived from the selector's `id`, so each selector owns an independent
+ * key — `AppContextSelectorSchema` promises the selected value is exposed
+ * per `id`, and a shared key made every declared selector mirror the first.
+ */
+export function contextSelectorQueryKey(selectorId: string): string {
+  return LEGACY_SCOPE_QUERY_KEYS.get(selectorId) ?? selectorId;
+}
 
 /** Read a (possibly dotted) property path off a row, e.g. `manifest.id`. */
 function getByPath(row: any, key: string): unknown {
@@ -160,10 +215,11 @@ export function useAppContextSelectors(
     let changed = false;
     for (const sel of list) {
       if (sel.persist === 'none') continue;
-      if (p.get('package')) continue;
+      const key = contextSelectorQueryKey(sel.id);
+      if (p.get(key)) continue;
       try {
         const saved = sessionStorage.getItem(`objectui-ctx-${appName}-${sel.id}`);
-        if (saved) { p.set('package', saved); changed = true; }
+        if (saved) { p.set(key, saved); changed = true; }
       } catch { /* storage disabled */ }
     }
     if (changed) {
@@ -179,14 +235,38 @@ export function useAppContextSelectors(
       else sessionStorage.removeItem(key);
     } catch { /* storage disabled */ }
 
-    // Reflect the scope onto the current page immediately. Metadata
-    // surfaces read the `package` query param as the conventional filter
-    // key; nav links pick it up via the `{active_package}` template var.
+    // Reflect the scope onto the current page immediately, under THIS
+    // selector's own query key — writing a shared key made a second selector
+    // clobber the first's scope. Studio's `active_package` still resolves to
+    // `package`, the key its metadata surfaces and nav links already use.
     const next = new URLSearchParams(location.search);
-    if (value) next.set('package', value);
-    else next.delete('package');
+    const key = contextSelectorQueryKey(sel.id);
+    if (value) next.set(key, value);
+    else next.delete(key);
     navigate({ pathname: location.pathname, search: next.toString() }, { replace: true });
   }, [appName, location.pathname, location.search, navigate]);
+
+  // Two selectors resolving to the same query key would silently reintroduce
+  // the mirroring this fix removes, and the symptom (both template vars hold
+  // one value) reads as a data bug rather than an authoring one. Say so out
+  // loud in dev — the renderer cannot reject metadata, only complain.
+  React.useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return;
+    const owners = new Map<string, string>();
+    for (const sel of list) {
+      const key = contextSelectorQueryKey(sel.id);
+      const owner = owners.get(key);
+      if (owner) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[ObjectUI] contextSelectors "${owner}" and "${sel.id}" both map to the URL `
+          + `scope key "?${key}=" — their values will mirror each other. Rename one id.`,
+        );
+      } else {
+        owners.set(key, sel.id);
+      }
+    }
+  }, [list]);
 
   const contextValues: Record<string, string> = {};
   for (const sel of list) {
@@ -194,7 +274,7 @@ export function useAppContextSelectors(
     try {
       saved = sessionStorage.getItem(`objectui-ctx-${appName}-${sel.id}`) ?? '';
     } catch { /* storage disabled */ }
-    contextValues[sel.id] = (params.get('package') ?? saved) || (sel.allValue ?? '');
+    contextValues[sel.id] = (params.get(contextSelectorQueryKey(sel.id)) ?? saved) || (sel.allValue ?? '');
   }
 
   const element = list.length === 0 ? null : (

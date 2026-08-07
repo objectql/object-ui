@@ -133,6 +133,7 @@ const ko = {
     createTitle: "{{object}} 생성",
     editTitle: "{{object}} 편집",
     viewTitle: "{{object}} 보기",
+    createTargetOrg: "{{org}}에 생성",
     saveRecord: "레코드 저장",
     create: "생성",
     update: "업데이트",

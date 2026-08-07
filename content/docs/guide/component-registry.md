@@ -459,10 +459,10 @@ export { RatingComponent }
 
 - [Expression System](./expressions.md) - Learn about dynamic expressions
 - [Schema Rendering](./schema-rendering.md) - Understand the rendering engine
-- [Creating Custom Components](/spec/component-package.md) - Deep dive into component creation
+- [Custom Plugin Development](/docs/guide/plugin-development) - Deep dive into component creation
 
 ## Related Documentation
 
-- [Core API](/api/core) - Component registry API
-- [React API](/api/react) - React integration
-- [Component Specification](/spec/component.md) - Component metadata spec
+- [`@object-ui/core` README](https://github.com/objectstack-ai/objectui/tree/main/packages/core) - Component registry API
+- [`@object-ui/react` README](https://github.com/objectstack-ai/objectui/tree/main/packages/react) - React integration
+- [Schema Type Reference](/docs/api/schema-reference) - Component metadata reference

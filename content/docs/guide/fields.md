@@ -66,7 +66,7 @@ Once registered, you can simply use the new type in your JSON schema.
 
 ## Standard Fields
 
-Object UI comes with built-in support for the standard [ObjectStack Protocol](/protocol) types:
+Object UI comes with built-in support for the standard [ObjectStack Protocol](https://github.com/objectstack-ai/objectstack/tree/main/packages/spec) types:
 
 | Type | Description |
 |---|---|

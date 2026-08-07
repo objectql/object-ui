@@ -94,8 +94,13 @@ vi.mock('../../hooks/useNavActionDispatch', () => ({
 vi.mock('../../context/NavigationContext', () => ({
   useNavigationContext: () => ({ context: 'app', currentAppName: 'crm' }),
 }));
+// The sidebar also imports the per-selector scope-key derivation (#3500) to
+// build Studio's home link; keep those exports on the mock or the module is
+// missing them at import time.
 vi.mock('../ContextSelectors', () => ({
   useAppContextSelectors: () => ({ contextValues: {}, element: null }),
+  contextSelectorQueryKey: (id: string) => (id === 'active_package' ? 'package' : id),
+  STUDIO_PACKAGE_SELECTOR_ID: 'active_package',
 }));
 vi.mock('../LocalizedSidebarTrigger', () => ({
   LocalizedSidebarTrigger: () => null,

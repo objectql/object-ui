@@ -133,6 +133,7 @@ const de = {
     createTitle: "{{object}} erstellen",
     editTitle: "{{object}} bearbeiten",
     viewTitle: "{{object}} anzeigen",
+    createTargetOrg: "Wird in {{org}} erstellt",
     saveRecord: "Datensatz speichern",
     create: "Erstellen",
     update: "Aktualisieren",

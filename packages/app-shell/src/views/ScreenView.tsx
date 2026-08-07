@@ -95,7 +95,11 @@ export function visibleScreenFields(
 ): ScreenFieldSpec[] {
   const scope = screenPredicateScope(screen, values);
   return screenFields(screen).filter((f) =>
-    f.visibleWhen ? evalFieldPredicate(f.visibleWhen, scope, true, undefined, scope) : true,
+    f.visibleWhen
+      ? evalFieldPredicate(f.visibleWhen, scope, true, undefined, scope, {
+          context: `visibleWhen of screen field '${f.name}'`,
+        })
+      : true,
   );
 }
 

@@ -135,8 +135,10 @@ export function RecordFormPage({ mode }: RecordFormPageProps) {
   // would have silently changed verb with every test still green (#3469).
   // Declared = enforced: the packs are the single source of this copy, and a
   // missing key must surface (raw key + dev missing-key warning), not be
-  // papered over at the call site. The one deliberate exception in this file
-  // is `form.createTargetOrg` below — see the note there.
+  // papered over at the call site. This now holds for EVERY `t()` in the file:
+  // `form.createTargetOrg` was the last exception (#3469 kept its default
+  // because the key existed in no pack, not even `en`) and #3517 backfilled it
+  // into all ten, so the write-target badge is translated and passes bare too.
   const pageTitle =
     mode === 'create'
       ? t('form.createTitle', { object: label })
@@ -314,18 +316,7 @@ export function RecordFormPage({ mode }: RecordFormPageProps) {
                 data-testid="record-form-write-target-org"
               >
                 <Building2 className="h-3.5 w-3.5 shrink-0" />
-                {/* The one LOAD-BEARING `defaultValue` in this file (#3469):
-                    unlike every other key here, `form.createTargetOrg` is
-                    defined in NO locale pack — not even `en` — so i18next
-                    genuinely misses and this default is what renders. Removing
-                    it would put the raw key on screen. It is also why the badge
-                    is English-only in all ten locales. Backfilling the key into
-                    `en` (the parity test then carries it to the other nine) is
-                    the real fix; delete this default in the same change. */}
-                {t('form.createTargetOrg', {
-                  org: activeOrganization.name,
-                  defaultValue: `Creates in ${activeOrganization.name}`,
-                })}
+                {t('form.createTargetOrg', { org: activeOrganization.name })}
               </span>
             )}
         </header>

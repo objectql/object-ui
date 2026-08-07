@@ -18,7 +18,10 @@
  * `New {object}` while the pack says `Create {{object}}`. The day the key was
  * renamed or dropped, the page title would have silently changed verb with
  * every test still green. #3469 deleted them (declared = enforced), leaving
- * exactly one deliberate exception documented below.
+ * exactly one deliberate exception — `form.createTargetOrg`, the only key the
+ * packs genuinely lacked. #3517 backfilled it into all ten, deleted that last
+ * default, and inverted the exception's pin (final describe below), so the
+ * rule now holds for every `t()` on the page with no carve-out.
  *
  * Direction note — a "put the deleted limb back and watch this go red"
  * reverse-verification is IMPOSSIBLE for this change, by construction: with
@@ -214,6 +217,10 @@ describe('the keys RecordFormPage passes bare are defined in every pack (#3469)'
     'form.createSuccess',
     'form.updateSuccess',
     'form.saveRecord',
+    // Joined this list in #3517. It was the file's one exception — defined in
+    // NO pack, not even `en` — until the backfill; the describe below pins the
+    // rendered badge now that it resolves like every other key here.
+    'form.createTargetOrg',
     'common.back',
     'common.cancel',
   ] as const;
@@ -233,28 +240,42 @@ describe('the keys RecordFormPage passes bare are defined in every pack (#3469)'
   });
 });
 
-describe('form.createTargetOrg keeps its fallback — the one LOAD-BEARING default (#3469)', () => {
-  // Ledger entry, not decoration. Unlike every key above, this one is defined
-  // in NO pack (not even `en`), so i18next genuinely misses and the inline
-  // `defaultValue` is what renders. It was therefore NOT deleted by #3469.
-  // When the key is backfilled into `en` (parity carries it to the other
-  // nine), delete the inline default in the same change — this test says so.
-  it('is absent from all ten packs, which is why the inline default survives', () => {
-    const defining = Object.entries(builtInLocales)
-      .filter(([, pack]) => typeof (pack as any)?.form?.createTargetOrg === 'string')
-      .map(([lang]) => lang);
-    expect(
-      defining,
-      'form.createTargetOrg is now translated — backfill done, so remove the inline defaultValue in RecordFormPage.tsx',
-    ).toEqual([]);
-  });
-
-  it('renders the fallback copy, so deleting it would put a raw key on screen', async () => {
+describe('the ADR-0105 write-target badge resolves from the locale packs (#3517)', () => {
+  // This describe used to pin the OPPOSITE fact. `form.createTargetOrg` was
+  // the file's one load-bearing `defaultValue`: defined in NO pack — not even
+  // `en` — so i18next genuinely missed and the inline default rendered, which
+  // is why the badge read English `Creates in <org>` in all ten locales
+  // (#3517). #3469 kept that default deliberately and left an assertion here
+  // that would go red the moment any pack defined the key, instructing the
+  // backfill to delete it. The backfill landed, so the assertion has served
+  // its purpose and inverts: the key is now an ordinary member of BARE_KEYS
+  // above (pinned present in all ten packs) and what needs pinning is that the
+  // BADGE reads the pack copy.
+  const badgeIn = async (language: string) => {
     authState.activeOrganization = { name: 'Acme Inc' };
     getAuthConfig.mockResolvedValue({ features: { tenancyPosture: 'group' } });
-    renderPage('create');
-    const badge = await screen.findByTestId('record-form-write-target-org');
+    renderPage('create', { language });
+    return screen.findByTestId('record-form-write-target-org');
+  };
+
+  it('renders the en pack copy, never a raw key', async () => {
+    const badge = await badgeIn('en');
     expect(badge).toHaveTextContent('Creates in Acme Inc');
+    // A missing key would surface the key itself — the failure mode the
+    // deleted `defaultValue` used to hide.
     expect(badge).not.toHaveTextContent('form.createTargetOrg');
+  });
+
+  it('follows the active locale — the deleted English default could not produce this', async () => {
+    // Same proof the title describe uses, and the point of the whole issue:
+    // under `zh` the badge is Chinese. The removed default was a hardcoded
+    // `Creates in ${org}`, so it could never satisfy this assertion — if the
+    // packs ever stop driving this badge, it fails loudly instead of quietly
+    // reverting to English.
+    const badge = await badgeIn('zh');
+    expect(badge).toHaveTextContent(
+      String(builtInLocales.zh.form.createTargetOrg).replace('{{org}}', 'Acme Inc'),
+    );
+    expect(badge).toHaveTextContent('创建到Acme Inc');
   });
 });

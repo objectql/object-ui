@@ -23,13 +23,19 @@
  * `{ dialect: 'cel', source }`, that was the common case, not an edge one.
  *
  * Two things are pinned here:
- *   1. The two normalizers agree input-for-input. `@object-ui/core` now owns
- *      the canonical `toPredicateInput`; `@object-ui/react` keeps a
- *      renderer-side twin (hook code must not be forced through the engine
- *      barrel). This table is what stops them drifting apart again.
+ *   1. There is only ONE normalizer. `@object-ui/core` owns the canonical
+ *      `toPredicateInput`, and since #3367 `@object-ui/react` re-exports it
+ *      rather than keeping a renderer-side twin — so this suite asserts
+ *      *identity* (same function object), not input shapes one by one. The old
+ *      14-shape normalization table was a guardrail against drift between two
+ *      implementations; with one implementation it compared a function to
+ *      itself and could no longer fail.
  *   2. The two PATHS agree verdict-for-verdict, including on a predicate where
  *      the engines genuinely disagree (`null < null` faults in CEL, is `false`
- *      in JS) — so the parity is proven, not merely assumed.
+ *      in JS) — so the parity is proven, not merely assumed. This half is
+ *      untouched by #3367: sharing a normalizer does not by itself prove the
+ *      engine and the renderer reach the same verdict, because they run the
+ *      normalized predicate through different call paths.
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
@@ -37,31 +43,21 @@ import { renderHook } from '@testing-library/react';
 import { ActionEngine, toPredicateInput as coreToPredicateInput } from '@object-ui/core';
 import { toPredicateInput, useCondition } from '../useExpression';
 
-/** Every shape an authored predicate can arrive in. */
-const NORMALIZATION_CASES: { what: string; input: unknown }[] = [
-  { what: 'null', input: null },
-  { what: 'undefined', input: undefined },
-  { what: 'empty string', input: '' },
-  { what: 'boolean true', input: true },
-  { what: 'boolean false', input: false },
-  { what: 'bare expression string', input: 'record.done == true' },
-  { what: 'cel envelope', input: { dialect: 'cel', source: 'record.done == true' } },
-  { what: 'template envelope', input: { dialect: 'template', source: 'record.done == true' } },
-  { what: 'dialect-less envelope', input: { source: 'record.done == true' } },
-  { what: 'cel envelope with empty source', input: { dialect: 'cel', source: '' } },
-  { what: 'envelope without a source', input: {} },
-  { what: 'number 0', input: 0 },
-  { what: 'number 1', input: 1 },
-  { what: 'array', input: [] },
-];
-
-describe('action predicate normalization — core/react parity (#3314)', () => {
-  it.each(NORMALIZATION_CASES)(
-    'normalizes $what identically in @object-ui/core and @object-ui/react',
-    ({ input }) => {
-      expect(coreToPredicateInput(input)).toEqual(toPredicateInput(input));
-    },
-  );
+describe('action predicate normalization — one implementation, not two (#3314 / #3367)', () => {
+  it('re-exports the canonical core normalizer instead of a renderer-side twin', () => {
+    // The whole guarantee, in one assertion: the name `@object-ui/react` hands
+    // to renderers IS `@object-ui/core`'s function object. Same function ⇒ the
+    // input shapes cannot disagree and there is nothing left to drift, which is
+    // strictly stronger than the 14-shape table this replaces (#3367).
+    //
+    // Enumerating shapes here again would be theatre — after the re-export both
+    // columns of that table called the same function, so every row passed by
+    // construction and the table could not fail for any implementation of it.
+    // Per-shape behaviour is still covered where it is a real assertion:
+    // `packages/react/src/hooks/__tests__/useExpression.test.ts` (through the
+    // react export) and the verdict suite below (through both call paths).
+    expect(toPredicateInput).toBe(coreToPredicateInput);
+  });
 
   it('preserves the cel dialect instead of flattening it to a `${…}` string', () => {
     // The one branch #3314 was about: flattening here is what demoted the

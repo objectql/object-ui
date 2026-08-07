@@ -103,6 +103,22 @@ merged record.
 visibility (don't hide content on error), `false` for required/readonly (don't
 block submit or lock a field on error) — the same posture as the server.
 
+**Amendment (objectstack#5149, appeal 2).** Fail-open is now **loud**: a
+predicate that cannot be evaluated (parse error, unbound identifier, engine
+fault) logs one `console.warn` per predicate text — with the source, the
+engine's failure reason, and the caller's locator (`visibleWhen of field
+'amount'`) when the call site provides one — and then still returns the
+fallback. Previously the failure was swallowed, which made a broken predicate
+indistinguishable from an absent one (the exact bug class objectstack#5149
+documents: two live inert predicates in one app, one shipped for months).
+Callers that deliberately probe for faults by evaluating twice with both
+fallbacks (`evalRowPredicate`'s fail-closed path, `ExpressionEvaluator`'s
+`throwOnError`) pass `warn: false` and surface their own diagnostic, so each
+broken predicate produces exactly one warning. The fail-open *default itself*
+is unchanged — flipping it is objectstack#5149 appeal 1, deliberately left
+undecided; this diagnostic exists partly to measure how often real apps hit
+the failure path before that call is made.
+
 ## Showcase
 
 `showcase_invoice` demonstrates all three:

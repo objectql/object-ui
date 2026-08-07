@@ -133,6 +133,7 @@ const pt = {
     createTitle: "Criar {{object}}",
     editTitle: "Editar {{object}}",
     viewTitle: "Ver {{object}}",
+    createTargetOrg: "Criação em {{org}}",
     saveRecord: "Salvar registro",
     create: "Criar",
     update: "Atualizar",

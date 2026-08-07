@@ -138,6 +138,7 @@ const zh = {
     createTitle: '新建{{object}}',
     editTitle: '编辑{{object}}',
     viewTitle: '查看{{object}}',
+    createTargetOrg: '创建到{{org}}',
     saveRecord: '保存',
     create: '创建',
     update: '更新',

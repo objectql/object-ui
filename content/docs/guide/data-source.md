@@ -199,5 +199,5 @@ behaviour: probe `/batch` and fall back to the non-atomic emulation on
 `404`/`405`/`501`. Atomic cross-object saves are therefore guaranteed only
 against backends that advertise the capability; older ones still save, but
 best-effort. See the
-[adapter README](../../../packages/data-objectstack/README.md#cross-object-atomic-batch-batchtransaction)
+[adapter README](https://github.com/objectstack-ai/objectui/blob/main/packages/data-objectstack/README.md#cross-object-atomic-batch-batchtransaction)
 for the full capability table and minimum-backend note.

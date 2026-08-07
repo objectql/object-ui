@@ -636,10 +636,10 @@ const data: UserData = { /* ... */ }
 
 - [Schema Rendering](./schema-rendering.md) - Learn the rendering engine
 - [Component Registry](./component-registry.md) - Understand components
-- [Protocol Overview](/protocol/overview) - Explore schema specifications
+- [Schema Overview](/docs/guide/schema-overview) - Explore schema specifications
 
 ## Related Documentation
 
-- [Core API](/api/core) - Expression evaluator API
-- [Form Protocol](/protocol/form) - Form-specific expressions
-- [View Protocol](/protocol/view) - Data view expressions
+- [`@object-ui/core` README](https://github.com/objectstack-ai/objectui/tree/main/packages/core) - Expression evaluator API
+- [Form Plugin](/docs/plugins/plugin-form) - Form-specific expressions
+- [View Plugin](/docs/plugins/plugin-view) - Data view expressions

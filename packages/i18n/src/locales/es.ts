@@ -138,6 +138,7 @@ const es = {
     createTitle: "Crear {{object}}",
     editTitle: "Editar {{object}}",
     viewTitle: "Ver {{object}}",
+    createTargetOrg: "Se crea en {{org}}",
     saveRecord: "Guardar registro",
     create: "Crear",
     update: "Actualizar",
