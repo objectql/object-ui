@@ -302,8 +302,9 @@ describe('CommentThread per-comment actions (objectstack#5506)', () => {
  * of an attribute. That distinction is the whole point of the fix: for a
  * `button`, name-from-content (accname §2F) is consulted BEFORE the `title`
  * tooltip (§2I), so a `title` hung on `'👍'` — or on `'+'`, which is what the
- * picker had until #3478 — leaves the computed name as the glyph. `aria-label`
- * is the only one of the three that outranks content.
+ * picker had until #3478 — leaves the computed name as the glyph. Of the three
+ * things that can name a `button` here, `aria-label` is the only one that
+ * outranks content.
  *
  * ── Direction ─────────────────────────────────────────────────────────────
  * RED before / GREEN after in EVERY language, `en` included — unlike the
@@ -378,8 +379,9 @@ describe('CommentThread glyph-only control names (objectui#3441, #3478)', () => 
   });
 
   /**
-   * objectui#3478 — the `+` reaction picker, the fourth emoji-only control, and
-   * the one objectui#3441 left behind.
+   * objectui#3478 — the `+` reaction picker, the fourth glyph-only control
+   * (`+` is not an emoji, but accname does not care), and the one objectui#3441
+   * left behind.
    *
    * Its content is the literal `'+'`, so accname §2F named it "plus" and the
    * `title` at §2I never got a turn — `collaboration.addThumbsUp` reached the
