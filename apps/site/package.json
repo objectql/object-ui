@@ -33,7 +33,7 @@
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
     "@objectstack/spec": "^17.0.0-rc.2",
-    "fumadocs-core": "16.13.0",
+    "fumadocs-core": "16.14.0",
     "fumadocs-mdx": "15.2.1",
     "fumadocs-ui": "16.14.0",
     "lucide-react": "^1.28.0",
