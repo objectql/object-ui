@@ -229,6 +229,66 @@
  * unscanned. Same one-row price, same caveat — measure the surface first, pay
  * its backlog separately, then add the row.
  *
+ * ## Why this file changed again (objectui#3603)
+ *
+ * A second scheme-bearing shape that is decidable here, and the exact mirror of
+ * the self-repo blob URLs above: **this site's own absolute URLs**.
+ *
+ * `judgeHref()` skipped every href carrying a scheme (`EXTERNAL_HREF_RE`), with
+ * `SELF_REPO_BLOB_RE` as the single exception. So
+ * `https://www.objectui.org/docs/guide/plugins` — a route on the very site this
+ * repo publishes, whose whole route table is already enumerated above to serve
+ * the `/docs/...` and `/...` branches — was never resolved, while the identical
+ * route written `/docs/guide/plugins` was checked strictly. The origin is the
+ * only difference between the two, and it is the one part of a URL this script
+ * can be certain about.
+ *
+ * **Not a package-README special case, and deliberately not written as one.**
+ * The blind spot lives in `judgeHref()`, so it was never confined to any
+ * surface: `content/docs` carries 6 site-absolute URLs of its own and the root
+ * `README.md` 5, and all 11 were unchecked until now. Stripping the origin and
+ * handing the rest to `routeExists()` fixes the class everywhere at once, which
+ * is also why it needs no new rule and no new scan root.
+ *
+ * Both host spellings are live in this tree (`www.objectui.org` and bare
+ * `objectui.org`), so both are accepted; every other origin stays external and
+ * remains lychee's problem. Because what survives the strip is an ordinary
+ * absolute site path, it inherits BOTH branches of `routeExists()` unchanged —
+ * `/docs` strictness included. `https://www.objectui.org/docs/guide/plugins.md`
+ * is rejected for precisely the reason `/docs/guide/plugins.md` is.
+ *
+ * Measured before landing: 11 site-absolute URLs across today's surfaces, zero
+ * dead. The #3572 shape again — the check arrives green, its backlog already
+ * paid.
+ *
+ * ### Measured and NOT bought: the package READMEs (objectui#3622)
+ *
+ * objectui#3603 asked for a second half: growing the scan surface by the 38
+ * package READMEs, which is where the 9 dead links that prompted it lived.
+ * Those 9 are fixed by hand in the same PR. The scan row is **not** added, and
+ * the reason is this file's own rule from #3572 — measure the surface, pay its
+ * backlog separately, then add the row.
+ *
+ * (Note for whoever writes that row: a glob naming each package README cannot
+ * be spelled inside this block comment, because the star-slash in it closes the
+ * comment. Say it in prose here, or move the note outside.)
+ *
+ * The surface was measured, and its backlog is not the 9. With the resolution
+ * above in place, a `disk`-rule row covering those 38 files
+ * reports **11 more** dead links in five packages that card never touched:
+ * `/api/core`, `/api/react`, `/api/components` (no such routes — the class
+ * #3490 swept), `/docs/core`, `/docs/fields`, `/docs/layout` (real directories
+ * with no index page, so no route), `/docs/types` and `/examples` (neither
+ * exists), plus two disk paths that are simply absent
+ * (`../../docs/SHADCN_SYNC.md`, `./LICENSE`).
+ *
+ * Three of those deserve naming, because objectui#3603's own verification
+ * script scored them GREEN: it accepted a bare DIRECTORY as a fumadocs
+ * candidate. This gate does not, and is right not to — `routeCandidates()` has
+ * no such spelling, and the pinned test "rejects a relative link to a directory
+ * that has no index page" is that decision. `content/docs/core/` really has no
+ * index page, so `/docs/core` really does 404. The class is 20 links, not 9.
+ *
  * ## Code spans are stripped before scanning
  *
  * Required, not tidiness. Extending the scan to relative hrefs turns markdown's
@@ -265,6 +325,15 @@ const ROUTE_ENTRY_RE = /^(?:page|route)\.(?:js|jsx|ts|tsx|md|mdx)$/;
  * treats owner and repo that way; the captured path is used as written.
  */
 const SELF_REPO_BLOB_RE = /^https:\/\/github\.com\/objectstack-ai\/objectui\/(?:blob|tree)\/main\/(.+)$/i;
+/**
+ * This site's own origin — the second decidable scheme-bearing shape
+ * (objectui#3603). Both host spellings are in use in this tree, and the site
+ * serves the same routes under each. Anchored at both ends so a lookalike host
+ * (`objectui.org.example.com`) cannot match; the captured group is the absolute
+ * site path, which `routeExists()` then judges exactly as if it had been
+ * written without the origin.
+ */
+const SITE_ORIGIN_RE = /^https?:\/\/(?:www\.)?objectui\.org(\/[^\s]*)?$/i;
 /** Never markdown sources of ours, and huge — walking them wastes the scan. */
 const UNSCANNED_DIRS = new Set(['node_modules', 'dist', 'build', '.next', '.turbo', '.git']);
 
@@ -399,6 +468,23 @@ function hrefPath(href) {
 export function selfRepoPath(href) {
   const match = SELF_REPO_BLOB_RE.exec(hrefPath(href));
   return match ? match[1].replace(/\/+$/, '') : null;
+}
+
+/**
+ * The absolute site path a site-absolute URL names, or `null` if this href is
+ * not one (objectui#3603). The fragment and query are stripped — anchors are
+ * out of scope here for the same reason they are for `selfRepoPath` — but the
+ * path is NOT decoded: `routeExists()` does that itself, and decoding twice
+ * would corrupt a legitimately escaped `%25`.
+ *
+ * `https://www.objectui.org` with no path at all names the site root, so it
+ * resolves to `/` rather than to the empty string (which `routeExists()` reads
+ * as a pure in-page anchor and waves through).
+ */
+export function siteAbsoluteRoute(href) {
+  const match = SITE_ORIGIN_RE.exec(href.split('#')[0].split('?')[0].trim());
+  if (!match) return null;
+  return match[1] || '/';
 }
 
 /**
@@ -592,13 +678,25 @@ function classifyBrokenDisk(href) {
  * @returns {string | null} the failing check's name, or `null` when it resolves
  */
 function judgeHref(href, context) {
-  // The self-repo URL check runs FIRST and in every rule: it is the one
-  // external-looking shape this script can decide, so it must be reached
-  // before the by-scheme skip below waves it through (objectui#3536).
+  // The two external-LOOKING shapes this script can actually decide run FIRST,
+  // and in every rule: both must be reached before the by-scheme skip below
+  // waves them through (objectui#3536, objectui#3603).
   const selfPath = selfRepoPath(href);
   if (selfPath !== null) {
     const target = path.resolve(context.repoRoot, selfPath);
     return isInside(context.repoRoot, target) && pathExists(target) ? null : 'self-repo-url';
+  }
+  // A URL on this site is an internal route wearing an origin. Strip the origin
+  // and judge what is left with the same `routeExists()` every absolute href
+  // goes through — so `/docs` strictness and the `apps/site` route table apply
+  // here too, on every surface, `content/docs` included.
+  // A URL on this site is an internal route wearing an origin. Strip the origin
+  // and judge what is left with the same `routeExists()` every absolute href
+  // goes through — so `/docs` strictness and the `apps/site` route table apply
+  // here too, on every surface, `content/docs` included.
+  const siteRoute = siteAbsoluteRoute(href);
+  if (siteRoute !== null) {
+    return routeExists(siteRoute, context) ? null : 'site-absolute-url';
   }
   if (EXTERNAL_HREF_RE.test(href)) return null;
 
@@ -678,6 +776,13 @@ const HINTS = {
     ' https://github.com/packages/core. Write the repo path relative to the' +
     ' file (`./packages/core`), or, if a github.com URL really was meant,' +
     ' write it in full with the scheme.',
+  'site-absolute-url':
+    'A `https://www.objectui.org/...` URL is a route on this project OWN site,' +
+    ' so the origin is stripped and the rest is checked exactly like the' +
+    ' equivalent absolute href — this one does not resolve. Fix the route, or' +
+    ' drop the link if no such page exists. Inside content/docs prefer the' +
+    ' origin-less form (`/docs/guide/plugins`): it survives a domain change,' +
+    ' and both spellings are checked identically.',
   'self-repo-url':
     'A `https://github.com/objectstack-ai/objectui/(blob|tree)/main/...` URL' +
     ' points into this repository, so its path is checked against the working' +

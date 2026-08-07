@@ -134,7 +134,6 @@ store.check('read', 'orders'); // true | false
 
 ## Links
 
-- 📚 [Documentation](https://www.objectui.org/docs/packages/permissions)
 - 📦 [npm package](https://www.npmjs.com/package/@object-ui/permissions)
 - 📝 [Changelog](./CHANGELOG.md)
 - 🐛 [Report an issue](https://github.com/objectstack-ai/objectui/issues)

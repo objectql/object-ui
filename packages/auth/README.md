@@ -220,7 +220,6 @@ function MyComponent() {
 
 ## Links
 
-- 📚 [Documentation](https://www.objectui.org/docs/packages/auth)
 - 📦 [npm package](https://www.npmjs.com/package/@object-ui/auth)
 - 📝 [Changelog](./CHANGELOG.md)
 - 🐛 [Report an issue](https://github.com/objectstack-ai/objectui/issues)

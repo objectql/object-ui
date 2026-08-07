@@ -149,7 +149,6 @@ isRTL('en'); // false
 
 ## Links
 
-- 📚 [Documentation](https://www.objectui.org/docs/packages/i18n)
 - 📦 [npm package](https://www.npmjs.com/package/@object-ui/i18n)
 - 📝 [Changelog](./CHANGELOG.md)
 - 🐛 [Report an issue](https://github.com/objectstack-ai/objectui/issues)

@@ -140,7 +140,6 @@ registerServiceWorker({ cacheStrategy: 'network-first' });
 
 ## Links
 
-- 📚 [Documentation](https://www.objectui.org/docs/packages/mobile)
 - 📦 [npm package](https://www.npmjs.com/package/@object-ui/mobile)
 - 📝 [Changelog](./CHANGELOG.md)
 - 🐛 [Report an issue](https://github.com/objectstack-ai/objectui/issues)

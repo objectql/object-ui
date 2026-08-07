@@ -240,7 +240,7 @@ See [full documentation](https://objectui.org/api/react) for detailed API refere
 
 ## Links
 
-- 📚 [Documentation](https://www.objectui.org/docs/packages/react)
+- 📚 [Documentation](https://www.objectui.org/docs/core/schema-renderer)
 - 📦 [npm package](https://www.npmjs.com/package/@object-ui/react)
 - 📝 [Changelog](./CHANGELOG.md)
 - 🐛 [Report an issue](https://github.com/objectstack-ai/objectui/issues)

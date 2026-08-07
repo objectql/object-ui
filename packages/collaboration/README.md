@@ -129,7 +129,6 @@ Threaded comment component with @mentions:
 
 ## Links
 
-- 📚 [Documentation](https://www.objectui.org/docs/packages/collaboration)
 - 📦 [npm package](https://www.npmjs.com/package/@object-ui/collaboration)
 - 📝 [Changelog](./CHANGELOG.md)
 - 🐛 [Report an issue](https://github.com/objectstack-ai/objectui/issues)

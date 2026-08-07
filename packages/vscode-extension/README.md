@@ -185,8 +185,8 @@ pnpm publish
 ## 📚 Documentation
 
 - [Object UI Documentation](https://www.objectui.org)
-- [Schema Reference](https://www.objectui.org/docs/protocol/overview)
-- [Component Library](https://www.objectui.org/docs/api/components)
+- [Schema Reference](https://www.objectui.org/docs/api/schema-reference)
+- [Component Library](https://www.objectui.org/docs/components)
 - [Examples](https://www.objectui.org/examples)
 
 ## 🤝 Contributing

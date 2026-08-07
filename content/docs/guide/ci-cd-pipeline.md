@@ -266,6 +266,22 @@ Four checks, by href shape:
 | absolute `/docs/...` | `content/docs/` as a **route** | no `foo.md`, `foo.mdx` or `foo/index.md*` backs it — a `.md`/`.mdx` suffix always fails, since that URL 404s whatever is on disk |
 | any other absolute (`/spec/...`, `/img/...`) | the **site itself**: route segments enumerated from `apps/site/app`, plus static files under `apps/site/public` | no route pattern or static file matches |
 
+**Two href shapes are checked on _every_ surface, both rules included**, because they look external
+but are decidable offline:
+
+| Href shape | Resolved against | Rejected when |
+|---|---|---|
+| this repo's own `https://github.com/objectstack-ai/objectui/(blob\|tree)/main/...` (objectui#3536) | the path in the working tree | that path is not in the checkout. Only `main` and only this repo — other refs and repos cannot be answered offline |
+| this site's own `https://[www.]objectui.org/...` (objectui#3603) | the origin is stripped, and what remains goes through the two absolute rows above, unchanged | the resulting route does not resolve — so `…/docs/guide/foo.md` fails for exactly the reason `/docs/guide/foo.md` does |
+
+The second one had been invisible since the beginning: `judgeHref()` skipped every href carrying a
+scheme, so a route written with the site's own origin was never checked while the identical
+origin-less route was checked strictly. That blind spot was never confined to package READMEs —
+`content/docs/` writes 6 such URLs itself — which is why the fix strips the origin in `judgeHref()`
+rather than special-casing any surface. Measured before landing: 11 across the scanned tree, zero
+dead. Prefer the origin-less form (`/docs/guide/plugins`) in new prose: it survives a domain change,
+and both spellings are now checked identically.
+
 Every other surface — `examples/`, `README.md`, `CONTRIBUTING.md`, `ROADMAP.md`, `docs/` — is read
 on **GitHub**, not served by the site, so a relative href there names a path on disk and is checked
 for existence only: a directory (`./packages/core`) or a non-markdown file (`./vite.config.ts`) is a
@@ -334,7 +350,7 @@ There are **two** link checkers, and they cover different things (objectui#3213)
 
 | | Covers | Network | Runs |
 |---|---|---|---|
-| `scripts/check-doc-links.mjs` | **Internal** links in `content/docs/` (relative hrefs, `/docs/...` routes, every other site-absolute href against `apps/site`), in `examples/`, `README.md`, `CONTRIBUTING.md`, `ROADMAP.md` and `docs/` (as paths on disk), plus this repo's own `blob/main/` and `tree/main/` GitHub URLs everywhere — **except** anything inside a code fence | No | `docs-links.yml` — every push and PR, no path filter (previous section) |
+| `scripts/check-doc-links.mjs` | **Internal** links in `content/docs/` (relative hrefs, `/docs/...` routes, every other site-absolute href against `apps/site`), in `examples/`, `README.md`, `CONTRIBUTING.md`, `ROADMAP.md` and `docs/` (as paths on disk), plus this repo's own `blob/main/` and `tree/main/` GitHub URLs and this site's own `objectui.org` URLs everywhere — **except** anything inside a code fence | No | `docs-links.yml` — every push and PR, no path filter (previous section) |
 | Lychee (this workflow) | **External** URLs, plus **relative** in-repo file links, in `content/docs/`, `docs/` and `README.md` | Yes | Weekly cron and manual dispatch |
 
 Lychee sweeps **both** documentation trees: `content/docs/` (the 183 pages the site publishes) and

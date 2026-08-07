@@ -79,7 +79,6 @@ function App() {
 
 ## Links
 
-- 📚 [Documentation](https://www.objectui.org/docs/packages/providers)
 - 📦 [npm package](https://www.npmjs.com/package/@object-ui/providers)
 - 📝 [Changelog](./CHANGELOG.md)
 - 🐛 [Report an issue](https://github.com/objectstack-ai/objectui/issues)

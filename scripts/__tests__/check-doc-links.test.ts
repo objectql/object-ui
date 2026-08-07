@@ -12,6 +12,7 @@ import {
   diskPathExists,
   routeExists,
   selfRepoPath,
+  siteAbsoluteRoute,
   siteUrlExists,
   stripCode,
 } from '../check-doc-links.mjs';
@@ -68,6 +69,22 @@ import {
  * the FENCE BOUNDARY — `stripCode()` hides a link inside a code fence from this
  * gate, dead or not, and that limit is pinned as a decision rather than left to
  * be discovered as coverage that was never there (#3570 is the live instance).
+ *
+ * objectui#3603 closed the second half of the by-scheme skip, and the last
+ * describe pins it: a URL on this project's OWN site
+ * (`https://www.objectui.org/docs/...`) is an internal route wearing an origin,
+ * and `judgeHref()` waved every one of them through. It is now stripped to an
+ * absolute site path and handed to the same `routeExists()` — so the tests that
+ * matter most there are the INHERITANCE ones: a `.md` extension is rejected
+ * because the `/docs` branch is strict, and a non-`/docs` path is judged by the
+ * `apps/site` route table. Neither behaviour is re-implemented, and these tests
+ * fail if either is.
+ *
+ * That card's OTHER half — adding the package READMEs to SCAN_ROOTS — was
+ * deliberately not bought, because measuring it first turned up 11 more dead
+ * links in packages the card never touched (objectui#3622). Nothing here pins
+ * a `packages/**` row for that reason; when its backlog is paid, the SCAN_ROOTS
+ * assertions below are what will need extending.
  */
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -938,9 +955,10 @@ describe("this repo's own GitHub blob/tree URLs are resolved offline — objectu
 });
 
 describe('every failure carries the reason that rejected it', () => {
-  it('labels all seven checks distinctly', () => {
-    // The #3490 test of the same name, extended with objectui#3536's three.
-    // Every reason here must have a HINTS entry — the next test pins that.
+  it('labels all eight checks distinctly', () => {
+    // The #3490 test of the same name, extended with objectui#3536's three and
+    // objectui#3603's one. Every reason here must have a HINTS entry — the next
+    // test pins that.
     const repo = repoWith({
       ...SITE_FIXTURE,
       'content/docs/guide/a.md': [
@@ -949,6 +967,7 @@ describe('every failure carries the reason that rejected it', () => {
         '[docs](/docs/guide/a.md)',
         '[rel](./nowhere.md)',
         '[self](https://github.com/objectstack-ai/objectui/blob/main/packages/gone/README.md)',
+        '[origin](https://www.objectui.org/docs/guide/gone)',
       ].join('\n\n'),
       'examples/README.md': '[disk](./nowhere.md) and [abs](/packages/core)',
     });
@@ -959,6 +978,7 @@ describe('every failure carries the reason that rejected it', () => {
       'docs-route',
       'relative',
       'self-repo-url',
+      'site-absolute-url',
       'example-relative',
       'example-absolute',
     ]);
@@ -980,7 +1000,158 @@ describe('every failure carries the reason that rejected it', () => {
       'example-relative',
       'relative',
       'self-repo-url',
+      'site-absolute-url',
       'site-route',
     ]);
+  });
+});
+
+describe("this site's own absolute URLs are resolved as internal routes — objectui#3603", () => {
+  it('reports the shape all 9 package-README links had: a full site URL to no page', () => {
+    // The assertion that dies if `if (EXTERNAL_HREF_RE.test(href)) return null;`
+    // is ever allowed to reach a site-absolute URL again. `/docs/packages/*` is
+    // the namespace 7 package READMEs invented; it has never existed.
+    expect(
+      brokenHrefs({
+        'guide/a.md': '[docs](https://www.objectui.org/docs/packages/auth)',
+      }),
+    ).toEqual(['https://www.objectui.org/docs/packages/auth']);
+  });
+
+  it('accepts the same URL once it names a real page', () => {
+    expect(
+      brokenHrefs({
+        'guide/a.md': '[renderer](https://www.objectui.org/docs/core/schema-renderer)',
+        'core/schema-renderer.mdx': '# SchemaRenderer',
+      }),
+    ).toEqual([]);
+  });
+
+  it('judges both host spellings — this tree really carries www and bare', () => {
+    // 109 `www.objectui.org` against 9 bare `objectui.org` on main. Accepting
+    // only the majority spelling would leave the other 9 in the blind spot the
+    // whole change exists to close.
+    expect(
+      brokenHrefs({
+        'guide/a.md': [
+          '[www dead](https://www.objectui.org/docs/gone)',
+          '[bare dead](https://objectui.org/docs/gone)',
+          '[www live](https://www.objectui.org/docs/guide/a)',
+          '[bare live](https://objectui.org/docs/guide/a)',
+        ].join('\n\n'),
+      }),
+    ).toEqual(['https://www.objectui.org/docs/gone', 'https://objectui.org/docs/gone']);
+  });
+
+  it('INHERITS /docs strictness — an extension 404s here exactly as it does origin-less', () => {
+    // The test that proves the origin is stripped and the rest handed to the
+    // existing `routeExists()`, rather than judged by some new parallel path.
+    // `guide/b.md` is materialised: only the strict `/docs` branch rejects it.
+    expect(
+      brokenHrefs({
+        'guide/a.md': '[b](https://www.objectui.org/docs/guide/b.md)',
+        'guide/b.md': '# B',
+      }),
+    ).toEqual(['https://www.objectui.org/docs/guide/b.md']);
+  });
+
+  it('INHERITS the apps/site route table for non-/docs paths', () => {
+    // `/playground` and `/` are real routes in the site fixture; `/examples` is
+    // the prefix #3490 proved has never been one. Same table, same verdicts.
+    expect(
+      brokenHrefs({
+        'guide/a.md': [
+          '[examples](https://www.objectui.org/examples)',
+          '[playground](https://www.objectui.org/playground)',
+          '[home](https://www.objectui.org)',
+          '[home slash](https://www.objectui.org/)',
+        ].join('\n\n'),
+      }),
+    ).toEqual(['https://www.objectui.org/examples']);
+  });
+
+  it('checks the shape in the disk surfaces too, not only content/docs', () => {
+    // One rejection from EACH tree, for the reason the fence test spells out:
+    // an expectation naming only the content/docs one would hold just as well
+    // if the check never ran on the disk rule, and would prove nothing.
+    const repo = repoWith({
+      ...SITE_FIXTURE,
+      'content/docs/guide/a.md': '[gone](https://www.objectui.org/docs/gone)',
+      'README.md': '[gone](https://objectui.org/docs/gone)',
+      'examples/hello-world/README.md': '[live](https://www.objectui.org/docs/guide/a)',
+    });
+
+    expect(scan(repo).map((item) => [path.relative(repo, item.file), item.reason])).toEqual([
+      [path.join('content', 'docs', 'guide', 'a.md'), 'site-absolute-url'],
+      ['README.md', 'site-absolute-url'],
+    ]);
+  });
+
+  it('leaves every other origin alone, a lookalike host included', () => {
+    // The regex is anchored at both ends precisely so `objectui.org.example.com`
+    // cannot borrow this repo's route table — it is somebody else's host, and
+    // resolving it here would invent 404s that are not ours to report.
+    expect(
+      brokenHrefs({
+        'guide/a.md': [
+          '[lookalike](https://objectui.org.example.com/docs/gone)',
+          '[prefixed](https://notobjectui.org/docs/gone)',
+          '[other](https://example.com/docs/gone)',
+          '[docs of another](https://react.dev/docs/gone)',
+        ].join('\n\n'),
+      }),
+    ).toEqual([]);
+  });
+
+  it('ignores the fragment and the query — anchors are out of scope', () => {
+    expect(
+      brokenHrefs({
+        'guide/a.md': [
+          '[live](https://www.objectui.org/docs/guide/a#install)',
+          '[live q](https://www.objectui.org/docs/guide/a?x=1)',
+          '[dead](https://www.objectui.org/docs/gone#install)',
+        ].join('\n\n'),
+      }),
+    ).toEqual(['https://www.objectui.org/docs/gone#install']);
+  });
+
+  it('exposes siteAbsoluteRoute: the path it extracts, and the shapes it declines', () => {
+    expect(siteAbsoluteRoute('https://www.objectui.org/docs/guide/plugins')).toBe('/docs/guide/plugins');
+    expect(siteAbsoluteRoute('https://objectui.org/api/core')).toBe('/api/core');
+    expect(siteAbsoluteRoute('http://objectui.org/docs')).toBe('/docs');
+    // No path at all is the site ROOT, not the empty string — `routeExists()`
+    // reads '' as a pure in-page anchor and would wave it through.
+    expect(siteAbsoluteRoute('https://www.objectui.org')).toBe('/');
+    expect(siteAbsoluteRoute('https://www.objectui.org/docs/guide/a#x')).toBe('/docs/guide/a');
+    expect(siteAbsoluteRoute('https://objectui.org.example.com/docs')).toBeNull();
+    expect(siteAbsoluteRoute('https://example.com/docs')).toBeNull();
+    expect(siteAbsoluteRoute('/docs/guide/plugins')).toBeNull();
+  });
+
+  it('really judges the site-absolute URLs this repo carries — the floor under the green', () => {
+    // objectui#3603's anti-vacuous-green assertion, and the one this change
+    // needs most. Unlike #3536 and #3572 this card added NO scan root, so the
+    // repo-wide "no broken internal links" test above stays green whether or
+    // not the new resolution runs at all — it would pass just as well if
+    // `siteAbsoluteRoute()` returned null for everything. This pins that the
+    // URLs are really there and really reaching the check.
+    //
+    // Measured on main: 11 of them, of which 6 sit inside `content/docs`
+    // itself — the fact that makes this a general fix rather than a package
+    // README one — and 3 carry a `/docs/...` path, so the strict branch above
+    // is genuinely exercised by real content and not only by fixtures.
+    const seen: { root: string; route: string }[] = [];
+    for (const root of SCAN_ROOTS as { path: string }[]) {
+      for (const file of collectFiles(path.join(repoRoot, root.path)) as string[]) {
+        for (const match of stripCode(fs.readFileSync(file, 'utf8')).matchAll(/\[[^\]]+\]\(([^)]+)\)/g)) {
+          const route = siteAbsoluteRoute(match[1].trim());
+          if (route !== null) seen.push({ root: root.path, route });
+        }
+      }
+    }
+
+    expect(seen.length).toBeGreaterThanOrEqual(11);
+    expect(seen.filter((item) => item.root === 'content/docs').length).toBeGreaterThanOrEqual(6);
+    expect(seen.filter((item) => item.route.startsWith('/docs')).length).toBeGreaterThanOrEqual(3);
   });
 });
