@@ -154,11 +154,15 @@
  * `https://github.com/objectstack-ai/objectui/(blob|tree)/main/<path>` is an
  * in-repo reference wearing an external URL's clothes, and it fell between the
  * two gates (#3507): this script skipped it by scheme, and lychee — the only
- * thing that would resolve it — is a weekly cron with `continue-on-error`, so
- * it gates nothing. Two such links stayed dead for about three months. The
- * backlog was cleared to zero by PR #3509 (25 distinct targets swept, exactly
- * the 2 dead), and PR #3506 then introduced 8 more of the shape with nothing
- * checking them. This closes that: `<path>` must exist in the working tree.
+ * thing that would resolve it — is a `schedule` + `workflow_dispatch` workflow
+ * with no PR trigger, so it blocks nobody. (It is `fail: true`, not a
+ * soft-failing job: what keeps it off pull requests is the absent trigger, not
+ * a tolerated failure. #3213 ruling B says keep it that way — uncommenting
+ * `pull_request:` would turn it into a hard gate over the network.) Two such
+ * links stayed dead for about three months. The backlog was cleared to zero by
+ * PR #3509 (25 distinct targets swept, exactly the 2 dead), and PR #3506 then
+ * introduced 8 more of the shape with nothing checking them. This closes that:
+ * `<path>` must exist in the working tree.
  *
  * It applies to **every** surface, `content/docs` included — the shape is
  * decidable wherever it is written, and the `escapes-collection` hint above
@@ -761,10 +765,6 @@ function judgeHref(href, context) {
     const target = path.resolve(context.repoRoot, selfPath);
     return isInside(context.repoRoot, target) && pathExists(target) ? null : 'self-repo-url';
   }
-  // A URL on this site is an internal route wearing an origin. Strip the origin
-  // and judge what is left with the same `routeExists()` every absolute href
-  // goes through — so `/docs` strictness and the `apps/site` route table apply
-  // here too, on every surface, `content/docs` included.
   // A URL on this site is an internal route wearing an origin. Strip the origin
   // and judge what is left with the same `routeExists()` every absolute href
   // goes through — so `/docs` strictness and the `apps/site` route table apply

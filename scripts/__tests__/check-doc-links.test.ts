@@ -883,7 +883,8 @@ describe("this repo's own GitHub blob/tree URLs are resolved offline — objectu
   it('reports the #3507 shape: a tree/main URL to a deleted example', () => {
     // `examples/crm` and `examples/todo` were deleted in 12b287d8b and the two
     // links to them stayed dead about three months: this script skipped them by
-    // scheme, and lychee (weekly cron, continue-on-error) gates nothing.
+    // scheme, and lychee (`schedule` + `workflow_dispatch`, no PR trigger) blocks
+    // nobody.
     expect(
       rejections({
         ...SITE_FIXTURE,
