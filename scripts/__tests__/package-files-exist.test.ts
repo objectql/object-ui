@@ -497,14 +497,35 @@ describe('published packages that declare a license ship its text (objectui#3696
     const stillMissing = new Set(withoutLicenseText.map((p) => p.dir));
     const stale = Object.keys(KNOWN_LICENSE_TEXT_MISSING).filter((dir) => !stillMissing.has(dir));
 
+    // WHY an entry stopped being a live defect, reported per entry rather than
+    // assumed — the convention objectui#3701 established for the baseline
+    // above, and for the same reason. An entry leaves this baseline by four
+    // routes and only the FIRST means someone added the licence: the other
+    // three mean the package stopped owing one, which is a different fact with
+    // a different reviewer response. Derived from the same data the predicate
+    // reads, so it cannot drift from the verdict it explains.
+    const causeOf = (dir: string): string => {
+      const pkg = packages.find((p) => p.dir === dir);
+      if (!pkg)
+        return 'no package sits at that path any more: it was moved or removed from the workspace, or this baseline key never matched one';
+      const texts = licenseTextFiles(pkg);
+      if (texts.length > 0) return `it now ships license text (${texts.join(', ')})`;
+      if (pkg.private) return 'it is now `private`, so it distributes nothing and owes no text';
+      return 'it no longer declares a `license` field, so there is no claim left to honour';
+    };
+
     expect(
       stale,
       [
-        'A KNOWN_LICENSE_TEXT_MISSING entry is stale: the package now ships license text, or it',
-        'stopped owing any (it went `private`, or dropped its `license` field). Either way the',
-        'defect is gone — delete its line from KNOWN_LICENSE_TEXT_MISSING to bank the progress.',
+        'A KNOWN_LICENSE_TEXT_MISSING entry no longer describes a live defect.',
+        'Delete its line from KNOWN_LICENSE_TEXT_MISSING to bank the progress — that is the',
+        'right move under every cause below.',
         '',
-        ...stale.map((dir) => `${dir} (${KNOWN_LICENSE_TEXT_MISSING[dir].issue})`),
+        'The cause is reported per entry rather than assumed, because only one of the four',
+        'routes out of this baseline means the licence was actually added; do not read a stale',
+        'line as proof that the package now ships its terms.',
+        '',
+        ...stale.map((dir) => `${dir} (${KNOWN_LICENSE_TEXT_MISSING[dir].issue}) — ${causeOf(dir)}`),
       ].join('\n'),
     ).toEqual([]);
   });
