@@ -160,20 +160,41 @@ load returns `null`, and `/` renders the built-in `No index page found.` placeho
 
 ### `vite.config.ts`
 
-The Runner uses Vite for development and building:
+The Runner's Vite config is
+[`packages/runner/vite.config.ts`](https://github.com/objectstack-ai/objectui/blob/main/packages/runner/vite.config.ts).
+It is deliberately **not** reproduced on this page: the two parts of it that matter are
+hard invariants, and a copy here would be the first thing to drift out of step with them.
+Read the file — its own comments carry the reasoning, and a shell command that
+re-derives the alias closure described below.
 
-```typescript
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+What it does **not** contain is a `server` block. The `http://localhost:5173` used
+throughout this page is Vite's own default port, not a configured one, and nothing tells
+the dev server to open a browser — `pnpm dev` prints the URL and waits.
 
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    port: 5173,
-    open: true,
-  },
-})
-```
+The two things in that file you must not drop when you edit it:
+
+- **`resolve.alias` — this is why the Runner boots from a plain checkout.** The table
+  maps `@object-ui/*` specifiers onto each package's `src` directory, which is what lets
+  [From Source](#from-source) be `pnpm install` then `pnpm dev`, with no `pnpm -w build`
+  in between. It has to be the **transitive closure**, not just the Runner's own direct
+  imports: any `@object-ui/*` imported anywhere under the `src` of a package that is
+  already aliased needs its own entry too. A specifier that is missing falls back to Node
+  resolution, lands on `packages/<pkg>/dist` — which does not exist in an install-only
+  checkout — and the dev server then answers HTTP 500 for **every** module on that import
+  chain. That is
+  [#3575](https://github.com/objectstack-ai/objectui/issues/3575): `plugin-kanban` was
+  aliased, the `fields` and `plugin-detail` that it imports were not.
+- **`build.modulePreload: false` — it keeps the icon code-split from backfiring.** The
+  alias table is not scoped to `serve`, so `pnpm build` bundles those packages from
+  source as well, and the per-icon chunks that `components/src/lib/lazy-icon.tsx` creates
+  stop being inlined. Measured when the table was completed (#3575), the build went from
+  10 assets to 1776, about 1761 of them sub-2KB icon micro-chunks. Vite's default
+  `modulePreload: true` emits a preload link for every one — `index.html` measured
+  546 B → 145 KB — so the browser eagerly fetches all of them on first paint and the lazy
+  split turns into a pessimisation. `apps/console` disables it for the same reason.
+
+⛔ Do not paste a Vite config out of this page, or any other guide, over that file.
+Anything that arrives without the alias table reproduces #3575 exactly.
 
 ### Adding Custom Plugins
 
