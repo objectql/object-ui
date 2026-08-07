@@ -466,6 +466,10 @@ export const ObjectChart = (props: any) => {
           // — so both aggregate and find see real values and any drill-down
           // filter further down the line stays consistent.
           const resolvedFilter = resolveFilterPlaceholders(schema.filter, filterScope);
+          // `{ kind, dimension? }` since objectstack#5011. Nothing here reads the
+          // value apart from its presence: the ONE discriminator (`.kind`) is
+          // read where the shift is computed — `shiftFilterByCompareTo` — so
+          // this file has no second copy of the branch table to drift from it.
           const compareTo: CompareToConfig | undefined = (schema as any).compareTo;
           const wantsComparison = !!compareTo && supportsCompareTo(schema.chartType);
           // shiftFilterByCompareTo expects the raw filter (with date macros)

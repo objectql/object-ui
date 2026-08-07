@@ -88,16 +88,19 @@ export interface ObjectMetricWidgetProps {
   /** Title for the drill-down panel; defaults to the metric label. */
   title?: string | { key?: string; defaultValue?: string };
   /**
-   * Period-over-period comparison configuration. When set, the widget
-   * issues a parallel aggregate for the comparison window and derives a
+   * Period-over-period comparison configuration — the executor's own
+   * `{ kind, dimension? }` contract since objectstack#5011. When set, the
+   * widget issues a parallel aggregate for the comparison window and derives a
    * trend (% delta + direction + i18n label like "vs last quarter").
    *
-   * - `'previousPeriod'`: same window length immediately before the current.
-   * - `'previousYear'`: same window shifted back one year.
-   * - `{ offset: '7d' }`: sliding window shifted back by N days/weeks.
+   * - `{ kind: 'previousPeriod' }`: same window length immediately before the current.
+   * - `{ kind: 'previousYear' }`: same window shifted back one year.
    *
-   * Has no effect when no `filter` (or no date filter) is provided — the
-   * shift uses the filter's date range to compute the comparison window.
+   * `dimension` is not read on this inline path — it names the dataset time
+   * dimension the EXECUTOR shifts, and this path shifts the widget's own
+   * `filter` instead. Has no effect when no `filter` (or no date filter) is
+   * provided — the shift uses the filter's date range to compute the
+   * comparison window.
    */
   compareTo?: CompareToConfig;
   /** Optional i18n translator used to localize the trend label. */
@@ -255,9 +258,9 @@ export const ObjectMetricWidget: React.FC<ObjectMetricWidgetProps> = ({
       // a slow backend doesn't double the perceived load time.
       // Pass the RAW (unresolved) filter so `shiftFilterByCompareTo` can
       // substitute `{current_*}` tokens with their `{last_*}` counterparts
-      // (`previousPeriod`) or re-resolve macros against a shifted `now`
-      // (`previousYear` / `{offset}`). Passing the already-resolved filter
-      // would produce an identical query with no period shift.
+      // (`kind: 'previousPeriod'`) or re-resolve macros against a shifted `now`
+      // (`kind: 'previousYear'`). Passing the already-resolved filter would
+      // produce an identical query with no period shift.
       const comparisonFilter = compareTo
         ? shiftFilterByCompareTo(filter, compareTo)
         : null;

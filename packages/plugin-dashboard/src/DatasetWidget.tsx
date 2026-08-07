@@ -48,6 +48,7 @@ import {
   // cross-tab keys multi-dimension ACROSS buckets with it too.
   pivotBucketId as pivotRowId,
   pivotCellKey,
+  type CompareToConfig,
   type DatasetResultField,
   type DatasetDrillRange,
 } from '@object-ui/core';
@@ -188,12 +189,16 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   const datasetName = String(widget?.dataset ?? '');
   const dimensions: string[] = useMemo(() => (Array.isArray(widget?.dimensions) ? widget.dimensions.filter(Boolean) : []), [widget]);
   const values: string[] = useMemo(() => (Array.isArray(widget?.values) ? widget.values.filter(Boolean) : []), [widget]);
-  // Dataset `compareTo` must be the structured `{ kind, dimension }` shape (it
-  // needs a time dimension + dateRange). The legacy widget form is a bare string
-  // (`'previousPeriod'`) — forwarding it makes the executor throw "compareTo
-  // requires a timeDimension". Only pass the structured form; drop the legacy
-  // string (the base measure still renders; the comparison overlay is opt-in).
-  const compareTo = widget?.compareTo && typeof widget.compareTo === 'object' ? widget.compareTo : undefined;
+  // `widget.compareTo` IS the executor's contract since objectstack#5011 —
+  // `{ kind, dimension? }`, the same `DatasetCompareTo` the selection carries —
+  // so it forwards unchanged. It used to be a three-branch union whose two
+  // string arms had no meaning downstream and were dropped right here; the
+  // convergence deleted the arms instead of keeping the workaround, so there is
+  // no longer a widget form this path has to quietly discard. A stale string
+  // left in stored metadata is now INVALID metadata, rejected where it is
+  // authored/published — not laundered here into a different query
+  // (AGENTS.md #0.1).
+  const compareTo: CompareToConfig | undefined = widget?.compareTo;
   const widgetType = String(widget?.type ?? '');
   const isMetric = METRIC_TYPES.has(widgetType) || dimensions.length === 0;
   const isTable = widgetType === 'table' || widgetType === 'pivot';

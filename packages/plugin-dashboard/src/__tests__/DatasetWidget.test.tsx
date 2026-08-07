@@ -100,15 +100,25 @@ describe('DatasetWidget', () => {
     await waitFor(() => expect(src.queryDataset).toHaveBeenCalledWith('sales', { dimensions: ['stage'], measures: ['revenue'] }));
   });
 
-  it('forwards a structured compareTo, but drops the legacy string form (which the executor cannot run)', async () => {
-    const structured = { kind: 'previousPeriod', dimension: 'close_date' };
+  // Replaces (does not amend) the assertion that pinned "structured forwarded,
+  // strings dropped". `compareTo` converged on the executor's own
+  // `{ kind, dimension? }` (objectstack#5011), so there is no second widget form
+  // left for this widget to discard — the whole value forwards, and the string
+  // spelling is now invalid METADATA, rejected where it is authored rather than
+  // laundered here.
+  it('forwards compareTo unchanged — the executor’s own { kind, dimension? } contract', async () => {
+    const withDimension = { kind: 'previousPeriod', dimension: 'close_date' };
     const src1 = makeSource(async () => ({ rows: [{ revenue: 1 }] }));
-    render(<DatasetWidget widget={{ type: 'metric', dataset: 'sales', values: ['revenue'], compareTo: structured }} dataSource={src1} />);
-    await waitFor(() => expect(src1.queryDataset).toHaveBeenCalledWith('sales', { dimensions: [], measures: ['revenue'], compareTo: structured }));
+    render(<DatasetWidget widget={{ type: 'metric', dataset: 'sales', values: ['revenue'], compareTo: withDimension }} dataSource={src1} />);
+    await waitFor(() => expect(src1.queryDataset).toHaveBeenCalledWith('sales', { dimensions: [], measures: ['revenue'], compareTo: withDimension }));
 
+    // `dimension` omitted — the executor resolves it (or fails loudly naming the
+    // candidates). The widget must NOT fill one in on its way past.
+    const bare = { kind: 'previousYear' };
     const src2 = makeSource(async () => ({ rows: [{ revenue: 1 }] }));
-    render(<DatasetWidget widget={{ type: 'metric', dataset: 'sales', values: ['revenue'], compareTo: 'previousPeriod' }} dataSource={src2} />);
-    await waitFor(() => expect(src2.queryDataset).toHaveBeenCalledWith('sales', { dimensions: [], measures: ['revenue'] }));
+    render(<DatasetWidget widget={{ type: 'metric', dataset: 'sales', values: ['revenue'], compareTo: bare }} dataSource={src2} />);
+    await waitFor(() => expect(src2.queryDataset).toHaveBeenCalledWith('sales', { dimensions: [], measures: ['revenue'], compareTo: bare }));
+    expect(src2.queryDataset.mock.calls[0][1].compareTo).not.toHaveProperty('dimension');
   });
 
   it('forwards the widget filter as runtimeFilter — a dataset-bound widget stays filtered (ADR-0021)', async () => {
