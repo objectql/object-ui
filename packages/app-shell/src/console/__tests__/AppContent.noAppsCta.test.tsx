@@ -204,9 +204,13 @@ describe('AppContent — no-apps empty state CTA (objectui#3573)', () => {
     fireEvent.click(await screen.findByTestId('go-to-settings-btn'));
 
     expect(pathname()).toBe('/apps/setup');
-    // Still the zero-app deployment, so the same empty state renders there.
-    expect(await screen.findByTestId('create-first-app-btn')).toBeInTheDocument();
     expect(screen.queryByTestId('root-landing')).not.toBeInTheDocument();
+    // NB: this asserts CURRENT behaviour, it does not bless it. `/apps/setup`
+    // bare IS this empty state's own URL (`isSystemRoute` needs a `/system`
+    // segment), so on a zero-app deployment this sibling CTA is a no-op loop —
+    // filed separately as #3590. Kept here only to prove the #3573 fix did not
+    // touch it; update this expectation together with #3590.
+    expect(await screen.findByTestId('create-first-app-btn')).toBeInTheDocument();
   });
 
   it('MEASUREMENT: a non-pseudo /apps/:appName URL never reaches this empty state', async () => {
