@@ -419,7 +419,19 @@ function MetadataResourceEditPageImpl({
     const handle = window.setTimeout(() => {
       // Pass the live server schema so the client never flags fields the
       // running server now treats as optional (cross-repo spec-skew root-cure).
-      void validateMetadataDraft(type, draft, entry?.schema as { required?: unknown } | undefined).then((res) => {
+      //
+      // `mode` picks the gate (objectstack#5316): a create draft is AUTHORED
+      // here and judged by the strict authoring schema, while an edit draft is
+      // a body that came back out of storage and is judged by the same wire
+      // schema the server runs. Judging a stored body by the authoring schema
+      // made this editor reject bodies the server accepts — e.g. a view that
+      // had been pinned or reordered carries `isPinned` / `sortOrder`.
+      void validateMetadataDraft(
+        type,
+        draft,
+        entry?.schema as { required?: unknown } | undefined,
+        { mode: createMode ? 'create' : 'edit' },
+      ).then((res) => {
         if (cancelled) return;
         setIssues(res.issues);
       });
@@ -428,7 +440,7 @@ function MetadataResourceEditPageImpl({
       cancelled = true;
       window.clearTimeout(handle);
     };
-  }, [type, draft, entry?.schema]);
+  }, [type, draft, entry?.schema, createMode]);
   // Issues to DISPLAY (banner + inline). Suppressed on a pristine create form
   // so a blank new item doesn't open covered in required-field errors.
   const displayIssues = React.useMemo(

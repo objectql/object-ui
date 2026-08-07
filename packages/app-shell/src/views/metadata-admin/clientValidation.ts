@@ -31,7 +31,24 @@ type ZodLikeSchema = {
   };
 };
 
-type SchemaLoader = () => Promise<ZodLikeSchema | undefined>;
+/**
+ * Which door a draft came through — the two are validated by different gates
+ * (objectstack#5316).
+ *
+ *  - `create` — the draft is being AUTHORED in this admin. It is judged by the
+ *    authoring schema, which is the strict one: a key the authoring contract
+ *    does not declare is a mistake the author should see now.
+ *  - `edit` — the draft is a body that came back OUT of storage. It is judged by
+ *    the same WIRE schema the server's `saveMetaItem` runs, because the platform
+ *    itself writes keys into stored bodies that the authoring contract has no
+ *    reason to declare.
+ *
+ * Only `view` currently distinguishes the two; every other loader ignores the
+ * mode and returns the one schema it has always returned.
+ */
+export type DraftMode = 'create' | 'edit';
+
+type SchemaLoader = (mode: DraftMode) => Promise<ZodLikeSchema | undefined>;
 
 /**
  * The `view` metadata type has TWO spec-declared shapes, and the backend serves
@@ -98,8 +115,43 @@ const LOADERS: Record<string, SchemaLoader> = {
   analytics_cube: async () => (await import('@objectstack/spec/data')).CubeSchema as unknown as ZodLikeSchema,
 
   // ui
-  view: async () => {
-    const { ViewItemSchema, ViewSchema } = await import('@objectstack/spec/ui');
+  //
+  // `view` is the one type whose two doors need two gates (objectstack#5316).
+  //
+  // CREATE — the authoring gate, unchanged: `viewSchemaForDraft` dispatches on
+  // the record's own `viewKind` discriminant to `ViewItemSchema` (what
+  // `createBuildBody` emits) or `ViewSchema` (the container). #5074 made these
+  // strict on purpose and this admin's create path passes them cleanly.
+  //
+  // EDIT — the WIRE gate. The editor opens a body that came back out of
+  // `sys_metadata`, and a stored view body carries keys the PLATFORM wrote:
+  // `isPinned` (the view switcher's pin action, `ObjectView.tsx:882`),
+  // `sortOrder` (the reorder write, `ObjectView.tsx:931`), and — nested —
+  // the console filter/sort builders' per-row `id`. `updateView` GETs the
+  // stored item and PUTs `{ ...current, ...partial }`; `saveMetaItem` persists
+  // the accepted body verbatim (ADR-0005 §Validation). So the server ACCEPTS
+  // this body — it validates against `ViewMetadataSchema` — while the authoring
+  // gate rejects it. Judging a stored body by the authoring schema made the
+  // client strictly stricter than the server; that is the inversion #5316 fixes.
+  //
+  // Why `ViewMetadataSchema` and not the narrower `ViewItemWireSchema`, which
+  // also declares `isPinned`/`sortOrder`: two measured reasons.
+  //   1. It is the schema the `view` metadata type registers, i.e. literally
+  //      the one `saveMetaItem` runs — so client and server accept the same
+  //      set by construction rather than by a maintained resemblance.
+  //   2. `ViewItemWireSchema` covers only the ViewItem record. It rejects the
+  //      container and the flattened overlay, and — measurably — still rejects
+  //      `config.filter[].id` with `unrecognized_keys`, because that decoration
+  //      is stripped by `ViewMetadataSchema`'s `z.preprocess`, which runs ahead
+  //      of every union member and reaches nested blocks a member-level
+  //      `.strip()` cannot.
+  //
+  // NOT a "try both, pass if either passes" fallback: each mode has exactly ONE
+  // gate and a rejection is final. The last pins in
+  // `clientValidation.viewShapes.test.ts` guard that.
+  view: async (mode) => {
+    const { ViewItemSchema, ViewSchema, ViewMetadataSchema } = await import('@objectstack/spec/ui');
+    if (mode === 'edit') return ViewMetadataSchema as unknown as ZodLikeSchema;
     return viewSchemaForDraft(
       ViewItemSchema as unknown as ZodLikeSchema,
       ViewSchema as unknown as ZodLikeSchema,
@@ -247,22 +299,25 @@ async function validateObjectFieldRules(draft: unknown): Promise<SchemaFormIssue
   return issues;
 }
 
+// Keyed by mode AND type — `view` resolves to a different schema per mode, so
+// caching by type alone would hand the create gate whichever mode asked first.
 const SCHEMA_CACHE = new Map<string, ZodLikeSchema | null>();
 
-async function getSchemaForType(type: string): Promise<ZodLikeSchema | null> {
-  if (SCHEMA_CACHE.has(type)) return SCHEMA_CACHE.get(type) ?? null;
+async function getSchemaForType(type: string, mode: DraftMode): Promise<ZodLikeSchema | null> {
+  const key = `${mode}:${type}`;
+  if (SCHEMA_CACHE.has(key)) return SCHEMA_CACHE.get(key) ?? null;
   const loader = LOADERS[type];
   if (!loader) {
-    SCHEMA_CACHE.set(type, null);
+    SCHEMA_CACHE.set(key, null);
     return null;
   }
   try {
-    const schema = await loader();
+    const schema = await loader(mode);
     const value = (schema && typeof schema.safeParse === 'function') ? schema : null;
-    SCHEMA_CACHE.set(type, value);
+    SCHEMA_CACHE.set(key, value);
     return value;
   } catch {
-    SCHEMA_CACHE.set(type, null);
+    SCHEMA_CACHE.set(key, null);
     return null;
   }
 }
@@ -301,8 +356,16 @@ export async function validateMetadataDraft(
    * per-change shim (cf. `FORWARD_COMPAT_FLOW_NODE_TYPES`).
    */
   serverSchema?: { required?: unknown },
+  /**
+   * Which door the draft came through (objectstack#5316). Defaults to
+   * `'create'` — the AUTHORING gate, which is the strict one — so a call site
+   * that omits it can only ever over-report, never silently widen the door.
+   * Callers that open a STORED body must say `{ mode: 'edit' }`.
+   */
+  options?: { mode?: DraftMode },
 ): Promise<ValidateResult> {
-  const schema = await getSchemaForType(type);
+  const mode: DraftMode = options?.mode ?? 'create';
+  const schema = await getSchemaForType(type, mode);
   if (!schema) return { ok: true, issues: [] };
 
   // CEL lint for object field conditional rules — additive to the Zod shape
