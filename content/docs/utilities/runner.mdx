@@ -17,7 +17,7 @@ The Runner is a complete ObjectUI application that demonstrates best practices a
 - 🧪 **Plugin Testing** - Test plugins in isolation
 - 🎨 **Example Implementations** - Reference code
 - 🚀 **Development Playground** - Experiment with schemas
-- 📦 **Pre-configured** - All official plugins included
+- 📦 **Pre-configured** - The Kanban and Charts plugins, wired up out of the box
 
 ## Running the Runner
 
@@ -198,25 +198,48 @@ Anything that arrives without the alias table reproduces #3575 exactly.
 
 ### Adding Custom Plugins
 
-To test your own plugin:
+There is no runtime plugin installation — a plugin reaches the Runner only by editing the
+Runner's own sources. Steps 1-4 below are the four wiring points `plugin-kanban` and
+`plugin-charts` already have, so those two are a working reference for each of them.
 
-1. **Link your plugin:**
+Your plugin needs a place in this pnpm workspace first. `pnpm-workspace.yaml` globs
+`packages/*`, so a package created at `packages/plugin-yourplugin` is picked up by
+`pnpm install` from the repo root. (`npm link` is not the tool here — this repo is a
+strict pnpm workspace.)
 
-```bash
-# In your plugin directory
-npm link
+1. **Depend on it** in `packages/runner/package.json`, through the workspace protocol,
+   then re-run `pnpm install` from the repo root:
 
-# In runner directory
-npm link @object-ui/plugin-yourplugin
+```json
+"dependencies": {
+  "@object-ui/plugin-yourplugin": "workspace:*"
+}
 ```
 
-2. **Import in `src/main.tsx`:**
+2. **Register it** with a side-effect import in `src/App.tsx`, alongside the two
+   pre-installed plugins:
 
 ```typescript
 import '@object-ui/plugin-yourplugin'
 ```
 
-3. **Use in schemas:**
+3. **Alias it** in `packages/runner/vite.config.ts` — together with every `@object-ui/*`
+   package your plugin's own `src` imports, since that table has to stay the transitive
+   closure. Skipping this is what the `vite.config.ts` section above describes: the dev
+   server answers HTTP 500 for every module on the import chain.
+
+```typescript
+"@object-ui/plugin-yourplugin": path.resolve(__dirname, "../../packages/plugin-yourplugin/src"),
+```
+
+4. **Add a Tailwind `@source`** line in `src/index.css`, so the classes your plugin's
+   components use survive the CSS build:
+
+```css
+@source '../../packages/plugin-yourplugin/src/**/*.{ts,tsx}';
+```
+
+5. **Use in schemas:**
 
 ```json
 {
@@ -234,7 +257,7 @@ import '@object-ui/plugin-yourplugin'
 Test new plugins in a full application context:
 
 ```typescript
-// src/main.tsx
+// src/App.tsx
 import '@object-ui/plugin-myplugin'
 
 // src/app-data/pages/index.json — the page served at "/"
@@ -533,11 +556,22 @@ export default defineConfig({
 
 ### Plugin Not Loading
 
-Check if plugin is imported in `main.tsx`:
+A plugin registers itself through the side-effect imports in `src/App.tsx`. `main.tsx`
+only mounts the root component and imports no plugin at all — not even the two
+pre-installed ones — so looking there can neither confirm nor rule anything out. Open
+`src/App.tsx` and check yours sits with the two known-good imports:
 
 ```typescript
-import '@object-ui/plugin-yourplugin'
+import '@object-ui/plugin-kanban';
+import '@object-ui/plugin-charts';
+import '@object-ui/plugin-yourplugin';  // yours belongs here
 ```
+
+If the import is there and the page still shows an **Unknown component type** box, the
+`type` in your schema and the key the plugin registers do not match — compare the two.
+If instead the dev server returns HTTP 500 for the plugin's modules, its `vite.config.ts`
+alias entry is missing; see [Adding Custom Plugins](#adding-custom-plugins) for the full
+set of wiring points a plugin needs.
 
 ### Build Errors
 
