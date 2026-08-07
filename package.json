@@ -92,7 +92,6 @@
     "jsdom": "^30.0.1",
     "msw": "^2.15.0",
     "playwright": "^1.62.1",
-    "prettier": "^3.9.6",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-router-dom": "^7.18.2",
