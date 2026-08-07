@@ -1,5 +1,53 @@
 # @object-ui/react
 
+## 17.3.0
+
+### Patch Changes
+
+- d915c47: Relation fields (`lookup` / `master_detail` / `user` / `tree`) are now usable in action and conditional-formatting predicates: they bind as the stored foreign key on every surface, and the fields a predicate reads are included in the query projection (#3501).
+
+  Before this, one predicate over one relation field had four different fates, decided by things its author does not control. `$expand` **replaces** the id in place with the whole related record, and a view expands exactly the relations it shows as COLUMNS — so `record.owner == "U1"` was **true** where the column was absent, **false** where it was displayed, and a **fault** where the field was neither displayed nor projected (a list's `$select` was built from its columns alone, and CEL treats an absent key as a fault, not as null). A fault is fail-CLOSED on the row kebab and the selection bar and fail-OPEN on the lenient paths, so the same authoring mistake hid the button from everyone on one surface and showed it to everyone on the next, with nothing on screen to point at either. The server, meanwhile, only ever sees the id — so client and server could not agree, which is the one thing ADR-0036 / ADR-0058 exist to guarantee.
+
+  Two changes close it. `toPredicateRecord` (new, `@object-ui/core`) collapses expanded relation values back to their ids when a record is bound for evaluation — driven by the object's own field types, not by sniffing for an `id` key, so a `json` field that happens to carry one is untouched. It is threaded through `evalRowPredicate` / `resolveConditionalFormatting` (via a new `fields` option), `useRowPredicate`, `partitionBulkRows`, and both `page:header` evaluators, with the object schema supplied by `ObjectGrid` / `ListView` / `ObjectKanban` / the record context. Kanban card formatting is threaded the same way, so a rule cannot match on the grid view of a list and silently never match on its board. Display is unaffected — a detail-page title still renders the related record's name, and the schema-only `kanban-ui` entry point (which has no object schema to offer) keeps using the payload verbatim. `collectPredicateFieldRefs` / `listViewPredicates` (new) harvest the `record.x` / `data.x` references out of a view's conditional formatting, row-action defs, bulk-action defs, promoted object actions and `userActions` overrides, and add them to `$select` — intersected with the object's declared fields plus the platform columns every object carries (`isProjectableField`), because an unknown key is not ignored by every backend. No `$expand` is added: a predicate wants the foreign key, which is what an unexpanded relation already is.
+
+- 175bd79: `toPredicateInput` is now re-exported from `@object-ui/core` instead of being reimplemented in `@object-ui/react`. Behaviour is byte-for-byte identical — the renderer-side copy in `packages/react/src/hooks/useExpression.ts` had item-for-item the same semantics as the canonical `packages/core/src/evaluator/predicateInput.ts` (booleans short-circuit, bare strings and non-`cel` dialects become `${…}`, a `{ dialect: 'cel', source }` envelope survives so `useCondition` routes it to the canonical `@objectstack/formula` engine, empty/absent predicates become `undefined`), and every existing import path (`import { toPredicateInput } from '@object-ui/react'`) keeps working with an unchanged signature. What changes is that there is now ONE implementation rather than two held in step by a parity table: #3314 is the record of what two normalizations do when left alone — they drift, and the same `visible:` predicate reaches different verdicts depending on whether the action was surfaced by `ActionEngine.getActionsForLocation` or rendered standalone. The 14-shape normalization parity table degenerated once both of its columns called the same function, so it is replaced by a single identity assertion (`react`'s export IS `core`'s function object); the engine-path-vs-renderer-path verdict parity suite is untouched and still proves the two call paths agree (#3367).
+- Updated dependencies [18cd432]
+- Updated dependencies [d915c47]
+- Updated dependencies [b71fc92]
+- Updated dependencies [65516ba]
+- Updated dependencies [94c5b7c]
+- Updated dependencies [ca0fa8f]
+- Updated dependencies [3889ffb]
+- Updated dependencies [5781fb1]
+- Updated dependencies [7e2406a]
+- Updated dependencies [9e9e9a9]
+- Updated dependencies [4eeb932]
+- Updated dependencies [5c856ec]
+- Updated dependencies [23018cc]
+- Updated dependencies [68b6a28]
+- Updated dependencies [0554e88]
+- Updated dependencies [d915c47]
+- Updated dependencies [f44d872]
+- Updated dependencies [28b2e65]
+- Updated dependencies [509104a]
+- Updated dependencies [825bbe3]
+- Updated dependencies [6195841]
+- Updated dependencies [5dd0127]
+- Updated dependencies [a415684]
+- Updated dependencies [a4cff5b]
+- Updated dependencies [5af2852]
+- Updated dependencies [f833d3a]
+- Updated dependencies [a6ec93d]
+- Updated dependencies [2a9513d]
+- Updated dependencies [d22ae31]
+- Updated dependencies [c7ed4c3]
+- Updated dependencies [2409e1d]
+- Updated dependencies [789fe3e]
+  - @object-ui/core@17.3.0
+  - @object-ui/types@17.3.0
+  - @object-ui/i18n@17.3.0
+  - @object-ui/data-objectstack@17.3.0
+
 ## 17.2.0
 
 ### Minor Changes

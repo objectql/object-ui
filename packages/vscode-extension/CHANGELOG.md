@@ -1,5 +1,24 @@
 # Changelog
 
+## 17.3.0
+
+### Patch Changes
+
+- Updated dependencies [18cd432]
+- Updated dependencies [d915c47]
+- Updated dependencies [5781fb1]
+- Updated dependencies [9e9e9a9]
+- Updated dependencies [23018cc]
+- Updated dependencies [d915c47]
+- Updated dependencies [f44d872]
+- Updated dependencies [509104a]
+- Updated dependencies [a4cff5b]
+- Updated dependencies [f833d3a]
+- Updated dependencies [2a9513d]
+- Updated dependencies [d22ae31]
+  - @object-ui/core@17.3.0
+  - @object-ui/types@17.3.0
+
 ## 17.2.0
 
 ### Patch Changes

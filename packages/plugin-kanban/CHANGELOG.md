@@ -1,5 +1,146 @@
 # @object-ui/plugin-kanban
 
+## 17.3.0
+
+### Patch Changes
+
+- d915c47: Relation fields (`lookup` / `master_detail` / `user` / `tree`) are now usable in action and conditional-formatting predicates: they bind as the stored foreign key on every surface, and the fields a predicate reads are included in the query projection (#3501).
+
+  Before this, one predicate over one relation field had four different fates, decided by things its author does not control. `$expand` **replaces** the id in place with the whole related record, and a view expands exactly the relations it shows as COLUMNS — so `record.owner == "U1"` was **true** where the column was absent, **false** where it was displayed, and a **fault** where the field was neither displayed nor projected (a list's `$select` was built from its columns alone, and CEL treats an absent key as a fault, not as null). A fault is fail-CLOSED on the row kebab and the selection bar and fail-OPEN on the lenient paths, so the same authoring mistake hid the button from everyone on one surface and showed it to everyone on the next, with nothing on screen to point at either. The server, meanwhile, only ever sees the id — so client and server could not agree, which is the one thing ADR-0036 / ADR-0058 exist to guarantee.
+
+  Two changes close it. `toPredicateRecord` (new, `@object-ui/core`) collapses expanded relation values back to their ids when a record is bound for evaluation — driven by the object's own field types, not by sniffing for an `id` key, so a `json` field that happens to carry one is untouched. It is threaded through `evalRowPredicate` / `resolveConditionalFormatting` (via a new `fields` option), `useRowPredicate`, `partitionBulkRows`, and both `page:header` evaluators, with the object schema supplied by `ObjectGrid` / `ListView` / `ObjectKanban` / the record context. Kanban card formatting is threaded the same way, so a rule cannot match on the grid view of a list and silently never match on its board. Display is unaffected — a detail-page title still renders the related record's name, and the schema-only `kanban-ui` entry point (which has no object schema to offer) keeps using the payload verbatim. `collectPredicateFieldRefs` / `listViewPredicates` (new) harvest the `record.x` / `data.x` references out of a view's conditional formatting, row-action defs, bulk-action defs, promoted object actions and `userActions` overrides, and add them to `$select` — intersected with the object's declared fields plus the platform columns every object carries (`isProjectableField`), because an unknown key is not ignored by every backend. No `$expand` is added: a predicate wants the foreign key, which is what an unexpanded relation already is.
+
+- aa36e60: Localize the record-detail headings that `ObjectKanban`, `ObjectTree` and
+  `ObjectView` build themselves (objectui#3459)
+
+  #3426 / PR #3457 keyed `ListView` and `ObjectGrid`; a repo-wide grep found the
+  same pattern in three more hosts, each string-building an English heading in
+  TypeScript so the surrounding drawer/panel was fully localized with one English
+  phrase on top of it.
+
+  - `packages/plugin-kanban/src/ObjectKanban.tsx` — the object-derived heading of
+    the card-detail drawer
+  - `packages/plugin-tree/src/ObjectTree.tsx` — the bare literal
+    `"Record Details"` handed to `NavigationOverlay`
+  - `packages/plugin-view/src/ObjectView.tsx` — `` `${objectLabel} Detail` `` on
+    the `mode: 'split'` panel
+
+  All three are user-reachable, each verified by a test that drives the real
+  interaction (render the block, click a card/row, read the heading), not by
+  inspection:
+
+  - `object-kanban` is a public page block whose `navigation` config DEFAULTS to
+    `{ mode: 'drawer' }`, so a board needs no authoring at all to open this
+    drawer on card click;
+  - `object-tree` needs `navigation: { mode: 'drawer' }` authored explicitly, and
+    every row's click is wired to `navigation.handleClick`;
+  - `object-view` declares `navigation` as an authorable input and maps
+    `mode: 'split'` onto the branch that renders this heading.
+
+  ## What changed
+
+  Each call site now keys its heading through the existing `detail.*` pair —
+  `detail.recordDetailWithLabel` (`'{{label}} Detail'`) where an object label is
+  available, `detail.recordDetail` where none is. No new locale keys: both
+  already ship in all ten packs from #3457, and reusing them keeps one heading on
+  one control instead of minting per-plugin twins that drift.
+
+  Each plugin gains its own English defaults map, which is what
+  `createSafeTranslation` falls back to with no `I18nProvider` mounted;
+  `@object-ui/plugin-tree` gains a dependency on `@object-ui/i18n` for it.
+
+  ## Visible English change
+
+  One, deliberate: the tree overlay's heading goes from the plural
+  `Record Details` to the singular `Record Detail` — the spelling the whole
+  `detail.*` family, including `NavigationOverlay`'s own default, already uses.
+  The maintainer ruled on normalizing the stray plurals rather than minting a
+  plural key; a repo-wide grep confirmed no `e2e/` spec and no unit test
+  addressed the old string.
+
+  Every other branch is byte-identical in English (`Contacts Detail`,
+  `Support cases Detail`, `Contacts Detail`), with and without a provider —
+  pinned by a provider-less test file per plugin, kept separate because
+  `initReactI18next` registers its instance as a module global that outlives
+  `cleanup()`.
+
+  The kanban's other former plural (`'Card Details'`) is NOT a visible change: it
+  sat on a branch that fires only when the board has no `objectName`, while the
+  drawer consuming it returns `null` on that very condition. It is keyed anyway
+  so the literal cannot leak if that guard ever relaxes, and it deliberately has
+  no test — an assertion there would pass because nothing renders.
+
+- Updated dependencies [18cd432]
+- Updated dependencies [b7165ce]
+- Updated dependencies [532cf8b]
+- Updated dependencies [680080a]
+- Updated dependencies [a7651e6]
+- Updated dependencies [d915c47]
+- Updated dependencies [b71fc92]
+- Updated dependencies [65516ba]
+- Updated dependencies [94c5b7c]
+- Updated dependencies [ca0fa8f]
+- Updated dependencies [34595eb]
+- Updated dependencies [3889ffb]
+- Updated dependencies [5781fb1]
+- Updated dependencies [7e2406a]
+- Updated dependencies [bbbde12]
+- Updated dependencies [5a24ad9]
+- Updated dependencies [9e9e9a9]
+- Updated dependencies [19b8c9b]
+- Updated dependencies [56409c2]
+- Updated dependencies [042e09d]
+- Updated dependencies [7d08c3f]
+- Updated dependencies [9cbcbf4]
+- Updated dependencies [85c4c9c]
+- Updated dependencies [fd54c3e]
+- Updated dependencies [4eeb932]
+- Updated dependencies [6fe485b]
+- Updated dependencies [5c856ec]
+- Updated dependencies [23018cc]
+- Updated dependencies [58a00f0]
+- Updated dependencies [53811d1]
+- Updated dependencies [b17ce4c]
+- Updated dependencies [68b6a28]
+- Updated dependencies [0554e88]
+- Updated dependencies [d915c47]
+- Updated dependencies [f44d872]
+- Updated dependencies [28b2e65]
+- Updated dependencies [509104a]
+- Updated dependencies [825bbe3]
+- Updated dependencies [6195841]
+- Updated dependencies [5dd0127]
+- Updated dependencies [06632e9]
+- Updated dependencies [c7fba27]
+- Updated dependencies [a415684]
+- Updated dependencies [a4cff5b]
+- Updated dependencies [175bd79]
+- Updated dependencies [5af2852]
+- Updated dependencies [12bf669]
+- Updated dependencies [34d9169]
+- Updated dependencies [5881a2c]
+- Updated dependencies [9bc3709]
+- Updated dependencies [f833d3a]
+- Updated dependencies [30ae33a]
+- Updated dependencies [a6ec93d]
+- Updated dependencies [2a9513d]
+- Updated dependencies [49f7449]
+- Updated dependencies [71be406]
+- Updated dependencies [d22ae31]
+- Updated dependencies [c7ed4c3]
+- Updated dependencies [2409e1d]
+- Updated dependencies [789fe3e]
+- Updated dependencies [f789c3b]
+- Updated dependencies [a321fa4]
+- Updated dependencies [8d8094a]
+  - @object-ui/core@17.3.0
+  - @object-ui/fields@17.3.0
+  - @object-ui/components@17.3.0
+  - @object-ui/plugin-detail@17.3.0
+  - @object-ui/types@17.3.0
+  - @object-ui/i18n@17.3.0
+  - @object-ui/react@17.3.0
+
 ## 17.2.0
 
 ### Patch Changes

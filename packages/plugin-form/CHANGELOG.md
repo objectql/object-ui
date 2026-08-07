@@ -1,5 +1,181 @@
 # @object-ui/plugin-form
 
+## 17.3.0
+
+### Minor Changes
+
+- f44d872: `mobile.fullscreenLongText` finally reaches auto-generated long-text fields, and
+  `mobile_fullscreen` gets one declared carrier (objectui#3245).
+
+  FROM: `ObjectForm` stamped the flag onto the FormField itself
+  (`{ ...f, mobile_fullscreen: true }`). TO: it stamps the flag onto the object the
+  form renderer will actually forward to the widget as `field` — `f.field || f`,
+  resolved exactly the way `renderFieldComponent` resolves it.
+
+  **The flag's only legal carrier is the field metadata, and its only producer is
+  `ObjectForm`.** That convention was already what the widget side assumed after
+  objectui#3232/#3233 (`TextAreaField` reads `field.mobile_fullscreen` and nothing
+  else, and `field` is the single metadata carrier); the producer was writing to a
+  different object, so for auto-generated fields the two never met.
+
+  What was broken, end to end: `ObjectForm` builds an auto-generated field as
+  `type: 'field:textarea'` **and** stashes the object-field metadata on `.field`.
+  The renderer forwards `field: field.field || field`, so the widget received the
+  raw metadata — which never carried the flag — while the FormField-level copy was
+  dropped by `stripRegisteredFieldProps`. Every entry point into `TextAreaField`
+  therefore read `undefined` and the expand affordance never rendered. Only the
+  hand-authored `customFields` path (no `.field` to shadow the FormField) ever
+  worked, i.e. the feature was dead on the path virtually every form takes. Unit
+  tests on both ends passed the whole time, because the break lived in the seam
+  between them; this release adds the feature's first integration coverage — real
+  `ObjectForm` → real form renderer → real `TextAreaField`, no mocks — which fails
+  against the old producer and passes against the new one.
+
+  `mobile_fullscreen` is now declared on `@object-ui/types`' `BaseFieldMetadata`,
+  hence on every member of the `FieldMetadata` union that
+  `FieldWidgetComponentProps.field` resolves to. It is deliberately **not** an
+  `@objectstack/spec` property: nobody authors it on a field definition, it is a
+  projection of the form-level `ObjectFormSchema.mobile.fullscreenLongText` setting
+  onto the field metadata at render time. Declaring it removes the last untyped
+  end of the chain — the producer's `as FormField` cast is gone — so the two sides
+  can now disagree out loud instead of silently.
+
+  The hand-authored `customFields` path keeps working unchanged, and keeps its own
+  metadata: the flag is stamped on the FormField only when there is no `.field` to
+  carry it. Synthesizing a `field` object in that case would light the affordance
+  up while quietly replacing the field's `rows` / `placeholder` with defaults — the
+  regression test pins that too.
+
+- 30ae33a: `RichTextField` honours `mobile_fullscreen`, so `mobile.fullscreenLongText` is
+  finally true of rich text too (objectui#3301).
+
+  `ObjectFormSchema.mobile.fullscreenLongText` has always been documented as
+  "textarea/rich-text get an expand button", and `ObjectForm` has always stamped
+  `mobile_fullscreen` onto `field:markdown` / `field:html` fields to deliver it.
+  Both of those types resolve to `RichTextField`, and that widget never read the
+  flag: a producer with no consumer. Turning the setting on gave a phone user an
+  expand affordance on their textareas and nothing at all on their markdown or
+  HTML fields, with nothing anywhere reporting that half the feature was inert.
+
+  FROM: `RichTextField` ignored the flag entirely (`grep fullscreen` over that
+  file returned nothing). TO: it reads `field.mobile_fullscreen` — the same single
+  metadata carrier `TextAreaField` reads, and nowhere else — and renders the same
+  expand affordance and full-height editing dialog.
+
+  **The affordance now has one implementation, not two.** One form-level setting
+  should produce one behaviour, so the expand button, the dialog and the
+  draft/commit semantics moved into a shared `FullscreenFieldEditor` that both
+  widgets render; only the EDITOR is per-widget. A second hand-written copy of
+  that state machine would be the same defect this release fixes, with an extra
+  step — it drifts, and nothing reports the drift. The rich-text dialog hosts the
+  widget's real editing surface (same format indicator, same editor), not a bare
+  textarea, so whatever that editor grows into, both positions get it at once.
+
+  Behaviour is identical across the two widgets and unchanged for
+  `TextAreaField`: the dialog seeds its draft from the committed value at open
+  time, keeps typing local (a react-hook-form field is not marked dirty by an
+  edit the user may still cancel), commits once on "Done", and discards on
+  "Cancel". Test ids follow the existing convention per widget —
+  `richtext-fullscreen-toggle` / `-dialog` / `-input` / `-save` alongside the
+  `textarea-*` ones, since a single form can contain both.
+
+  There is deliberately no prop spelling of the flag and no `??` fallback chain in
+  either widget. The field metadata is the one carrier (objectui#3233), so a
+  misspelled or misplaced flag stays inert and visible rather than being quietly
+  caught by a tolerant consumer.
+
+  Also removes a dead type from the producer: `ObjectForm` stamped the flag on
+  `'string-multiline'`, a string that `grep -rn` finds exactly once across both
+  this repo and `objectstack` — that line itself. No producer emitted it, no
+  registry key matched it, no widget read it. The remaining four stamped types
+  (`textarea`, `field:textarea`, `field:markdown`, `field:html`) each have a real
+  reader.
+
+### Patch Changes
+
+- a4cff5b: Conditional-rule predicates that fail to evaluate are no longer silent
+  (objectstack#5149, appeal 2). `evalFieldPredicate` — the canonical funnel for
+  `visibleWhen` / `readonlyWhen` / `requiredWhen`, view-level `visibleOn`, legacy
+  `condition`, per-option `visibleWhen`, screen-field predicates and list
+  conditional formatting — now logs **one `console.warn` per predicate text**
+  when evaluation fails (parse error, unbound identifier, engine fault), carrying
+  the predicate source, the engine's failure reason, and the field/rule locator
+  the call site provides. Renderer call sites thread that locator
+  (`visibleWhen of field 'amount'`), so a broken predicate identifies itself in
+  the browser console instead of being indistinguishable from an absent one.
+
+  Verdicts are unchanged: evaluation still fails open to the caller's safe
+  default (flipping that default is objectstack#5149 appeal 1, tracked
+  separately). Fault-probing callers (`evalRowPredicate`'s fail-closed path,
+  `ExpressionEvaluator`'s `throwOnError`) opt out via the new
+  `diagnostic.warn: false` and keep their own single diagnostic, so no broken
+  predicate ever warns twice.
+
+- Updated dependencies [18cd432]
+- Updated dependencies [b7165ce]
+- Updated dependencies [532cf8b]
+- Updated dependencies [680080a]
+- Updated dependencies [a7651e6]
+- Updated dependencies [d915c47]
+- Updated dependencies [b71fc92]
+- Updated dependencies [65516ba]
+- Updated dependencies [94c5b7c]
+- Updated dependencies [ca0fa8f]
+- Updated dependencies [34595eb]
+- Updated dependencies [3889ffb]
+- Updated dependencies [5781fb1]
+- Updated dependencies [7e2406a]
+- Updated dependencies [9e9e9a9]
+- Updated dependencies [19b8c9b]
+- Updated dependencies [56409c2]
+- Updated dependencies [042e09d]
+- Updated dependencies [7d08c3f]
+- Updated dependencies [9cbcbf4]
+- Updated dependencies [85c4c9c]
+- Updated dependencies [fd54c3e]
+- Updated dependencies [4eeb932]
+- Updated dependencies [6fe485b]
+- Updated dependencies [5c856ec]
+- Updated dependencies [23018cc]
+- Updated dependencies [53811d1]
+- Updated dependencies [68b6a28]
+- Updated dependencies [0554e88]
+- Updated dependencies [d915c47]
+- Updated dependencies [f44d872]
+- Updated dependencies [28b2e65]
+- Updated dependencies [509104a]
+- Updated dependencies [825bbe3]
+- Updated dependencies [6195841]
+- Updated dependencies [5dd0127]
+- Updated dependencies [06632e9]
+- Updated dependencies [a415684]
+- Updated dependencies [a4cff5b]
+- Updated dependencies [175bd79]
+- Updated dependencies [5af2852]
+- Updated dependencies [34d9169]
+- Updated dependencies [5881a2c]
+- Updated dependencies [9bc3709]
+- Updated dependencies [f833d3a]
+- Updated dependencies [30ae33a]
+- Updated dependencies [a6ec93d]
+- Updated dependencies [2a9513d]
+- Updated dependencies [49f7449]
+- Updated dependencies [71be406]
+- Updated dependencies [d22ae31]
+- Updated dependencies [c7ed4c3]
+- Updated dependencies [2409e1d]
+- Updated dependencies [789fe3e]
+- Updated dependencies [f789c3b]
+- Updated dependencies [a321fa4]
+- Updated dependencies [8d8094a]
+  - @object-ui/core@17.3.0
+  - @object-ui/fields@17.3.0
+  - @object-ui/components@17.3.0
+  - @object-ui/types@17.3.0
+  - @object-ui/i18n@17.3.0
+  - @object-ui/react@17.3.0
+  - @object-ui/permissions@17.3.0
+
 ## 17.2.0
 
 ### Minor Changes

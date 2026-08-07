@@ -1,5 +1,597 @@
 # @object-ui/fields
 
+## 17.3.0
+
+### Minor Changes
+
+- 3889ffb: Console chrome i18n gaps (objectstack#5407).
+
+  - A dependency-gated lookup now names its controlling field by its **label**
+    instead of its raw API name. The sentence was localized but the interpolated
+    name was not, so every locale — English included — read `Select crm_account
+first`. The form renderer passes a new `dependsOnLabels` widget prop (the
+    lookup-side counterpart of `emptyHint`, which it already resolves to labels
+    for the fixed-option widgets); a name the host does not cover still falls
+    back to itself.
+  - The page-header overflow trigger's `More actions` accessible name now reads
+    `detail.moreActions`, the same key `action:menu`'s own overflow trigger uses,
+    so the two cannot diverge per locale.
+  - The activity-feed reaction button's `Add reaction` accessible name is now a
+    bundle key (`detail.addReaction`, added to all ten packs).
+  - The "check the highlighted fields" toast joins field names with a per-locale
+    separator (`validation.formInvalidJoiner`) instead of a hardcoded `、`
+    (U+3001) — right for zh/ja by accident, wrong in English and every Latin
+    locale. Latin packs use `, `, CJK `、`, Arabic `، `.
+  - The Spanish `validation.required` / `validation.unique` templates gained
+    their own masculine head noun (`El campo {{field}} es obligatorio`) so the
+    adjective agrees for feminine field labels too — `Cuenta es obligatorio` was
+    ungrammatical.
+
+- 19b8c9b: Field widgets no longer spread renderer-only props — or arbitrary keys from a
+  field config — onto the DOM element they render (objectui#3291).
+
+  **Behaviour change:** an unknown key written on a field configuration (or on an
+  SDUI `field:*` node) stops becoming an HTML attribute on the rendered control.
+  Nothing reads those attributes, but they were serialized into the DOM, into
+  snapshots, and into anything scraping rendered markup.
+
+  ## What was happening
+
+  Widgets forwarded their leftover props with a bare spread, so whatever a host
+  handed them became an attribute. Measured on a real form with a real widget:
+
+  ```
+  <input placeholder="PH-f" zzcanary="CANARY-STR" zzcanaryobj="[object Object]"
+         zzcanarynum="42" id="…" type="text" value="" name="f">
+  ```
+
+  `zzcanaryobj="[object Object]"` is an ordinary extra key on the field config
+  being `String()`-ed onto an attribute. React 19 does not warn about any of it:
+  an all-lowercase unknown attribute is passed through in complete silence, which
+  is why this went unnoticed.
+
+  Eleven widgets carried a line that looked like it prevented exactly this:
+
+  ```ts
+  const { inputType, ...domProps } = props as any; // "Filter out non-DOM props"
+  ```
+
+  `inputType` is already stripped by the form renderer before a widget sees it,
+  so that line filtered nothing — the comment actively misled. It is gone.
+
+  ## What changed
+  - New `toDomProps(props)`, exported from `@object-ui/fields`. It keeps only
+    what may legitimately become a DOM attribute and drops the rest.
+  - The 14 field widgets that spread onto a host element now go through it:
+    `text`, `textarea`, `number`, `boolean`, `date`, `datetime`, `time`, `email`,
+    `phone`, `url`, `password`, `currency`, `percent`, and `select`.
+
+  **It is a whitelist, not a list of keys to drop.** The largest leak source is
+  not any named renderer prop — it is the open tail of author-supplied keys. The
+  form renderer destructures a fixed set of known keys and forwards the rest
+  verbatim, and `SchemaRenderer` is wider still: it spreads the whole authored
+  node as props with no strip layer at all, so on that path a widget's own spread
+  is the only line of defence. A blacklist of today's renderer-only props would
+  pass every canary above and would not stop the next authored key either.
+
+  The forwarded set is the one `FieldWidgetComponentProps` already **declares**:
+  `id`, `name`, `autoFocus`, `tabIndex`, `onBlur`, `onFocus`, `onClick`,
+  `className`, `disabled`, plus `aria-*` and the `data-*` family. Until now that
+  was a type-level claim a widget could violate at runtime just by spreading;
+  `toDomProps` is its executable form.
+
+  Two compile-time assertions tie the helper to the declaration, and it is worth
+  being exact about which drift each one prevents:
+
+  - the contract's DOM pass-through block is now a named type
+    (`FieldWidgetDomProps`), and **both directions are compiler-bound**:
+    forwarding a key the contract does not declare fails to compile, and
+    declaring a DOM key the helper does not forward fails to compile too. The
+    second direction guards _declared but not delivered_ — a key that
+    type-checks, reads as supported, and silently never reaches the element. The
+    leak test structurally cannot see that class of bug: it looks for attributes
+    that arrive, not for ones that go missing.
+  - `className` and `disabled` are bound in the **forward direction only**. They
+    are DOM-legal and are forwarded, but they live in the controlled-input block
+    because widgets also interpret them, so they are deliberately outside
+    `FieldWidgetDomProps`.
+
+  An HTML global attribute the contract does not declare (`role`, say) is no
+  longer forwarded. It only ever arrived through the open spread. If a field node
+  should be able to author one, declare it on `FieldWidgetComponentProps` and add
+  it to the whitelist — the fix belongs at the contract, not in a wider spread.
+
+  ## Regression gate
+
+  A new contract test renders **every** registered field widget through **both**
+  hosts — the real form renderer and `SchemaRenderer` — and fails on any
+  attribute HTML does not define for that element. It walks real DOM attributes
+  rather than listening for React warnings (React 19 is silent for the exact case
+  that leaked), asserts a validation error genuinely rendered before scanning the
+  error variant, and calibrates its own judge against two fixtures: standard
+  markup that must produce zero findings, and planted fake attributes that must
+  all be found. A new widget type is covered automatically — the sweep is derived
+  from the widget registry, so adding one without covering it fails the test.
+
+- 56409c2: Field widgets are finally told when their field fails validation, and the props
+  slot that carries it takes the name the published contract gives it
+  (objectui#3222).
+
+  **Breaking** for anyone implementing a field widget (see migration below). The
+  repo version policy keeps this a `minor` — objectui's major tracks
+  `@objectstack`'s — so read the bump as "breaking within objectui".
+
+  ## The a11y defect this fixes
+
+  `@objectstack/spec/ui`'s `FieldWidgetPropsSchema` — the published contract that
+  third-party and AI-authored field widgets are written against — has always
+  declared `error?: string`. `@object-ui/fields` declared its own slot as
+  `errorMessage`. That looked like a naming split; it was worse:
+
+  ```
+  producers of `errorMessage` anywhere in packages/ + apps/ :  0
+  reads of `errorMessage` in packages/fields/src            : 15  (7 widgets)
+  reads of `props.error`                                    :  0
+  ```
+
+  The slot was dead under BOTH spellings. No host ever passed it: the form
+  renderer showed validation text through its own `<FormMessage/>` and never
+  forwarded the prop. So `EmailField`, `CurrencyField`, `UrlField`,
+  `RichTextField`, `PercentField`, `TextAreaField` and `PhoneField` each computed
+  `aria-invalid={!!errorMessage}` from a value that was `undefined` forever —
+  **`aria-invalid` had never once been set, and a screen reader was never told
+  the field had failed validation.**
+
+  Worse than "never set": `<FormControl>` is a Radix `Slot` that hands its child a
+  CORRECT `aria-invalid`, but a widget's own attribute is written after the props
+  spread, so it wins. Those seven widgets were actively overwriting the right
+  answer with `false`.
+
+  FROM: `renderFieldComponent` received no validation state, and the widget props
+  type declared `errorMessage?: string`, which nothing produced.
+  TO: the form renderer passes react-hook-form's `fieldState.error?.message` down
+  as `error` when it renders a registered widget, and the props type declares
+  `error?: string`. Both ends of the contract are live for the first time; a
+  rename alone would only have swapped one dead key for another.
+
+  ## Migration for widget authors
+
+  ```diff
+  -export function MyField({ value, onChange, field, readonly, errorMessage }: FieldWidgetComponentProps< string >) {
+  -  return <Input value={value} aria-invalid={!!errorMessage} />;
+  +export function MyField({ value, onChange, field, readonly, error }: FieldWidgetComponentProps< string >) {
+  +  return <Input value={value} aria-invalid={!!error} />;
+  ```
+
+  No alias is kept. `errorMessage` was retained nowhere on purpose — a tolerant
+  second spelling is exactly the de-facto second contract AGENTS.md #0.1 forbids,
+  and it is what would let a missed call site go quiet again. Because
+  objectui#3221 had already removed the type's `[key: string]: any`, every missed
+  site is a compile error rather than a silent `any`, so the compiler — not grep
+  — validated this rename.
+
+  ## Responsibilities are split, not duplicated
+
+  The widget consumes `error` **only** to drive `aria-invalid` on the control it
+  renders (which only it can do — `aria-invalid` has to sit on the input element).
+  The message TEXT stays with `<FormMessage/>` in the form renderer. A widget that
+  also renders the text double-displays it, and the docs, the agent prompt and the
+  tests all now say so.
+
+  For the same reason `required` — also declared by the spec, also never delivered
+  — is deliberately NOT lowered into widget props: the required marker has exactly
+  one author, the renderer's `<FormLabel>`, and giving widgets the flag invites a
+  second asterisk. The a11y state a widget could legitimately carry is
+  `aria-required`, which needs no contract change at all (`AriaAttributes` is
+  already part of the type and widgets already forward it).
+
+  Builtin field types are unaffected: they render inside `<FormControl>`, whose
+  Slot already supplies `aria-invalid`, so `error` is stripped there rather than
+  leaking into the DOM as a stray attribute.
+
+  Docs updated to match: `content/docs/guide/plugin-development.md`,
+  `skills/objectui/guides/plugin-development.md` and
+  `.github/prompts/component.prompt.md` — the last of which additionally used the
+  spec's non-generic type alias as a generic (`FieldWidgetProps< number >`) and
+  destructured a `mode` prop that exists on neither type.
+
+- 042e09d: **BREAKING (v17)** — field widgets receive their metadata on ONE key, `field`.
+  `schema` is removed from the widget contract (objectui#3233).
+
+  ## What changed
+
+  `schema` was a second carrier for what `field` already means. Two producers fed
+  it: `SchemaRenderer` passed the authored node as `schema`, and the form
+  renderer's `renderFieldComponent` passed `schema={props.field || props.schema ||
+props}` _alongside_ `field`. The predictable result was ~30 widgets resolving
+  their config as `field || schema` — one concept, two spellings, a de-facto
+  second contract (AGENTS.md #0.1).
+
+  - `FieldWidgetComponentProps` no longer declares `schema`. Reading
+    `props.schema` is now a compile error, not a silent `any`.
+  - Both producers converged. The form renderer passes `field` only. The SDUI node
+    → `field` translation happens exactly once, in a new registration adapter
+    (`withFieldCarrier`), which every built-in field widget is registered through.
+  - All `field || schema` reads in `@object-ui/fields` are now plain `field` reads.
+
+  ## Migrating a widget you wrote
+
+  **Reading the metadata** — replace the fallback with the single key:
+
+  ```diff
+  -const config = field || (props as any).schema;
+  +const config = field;
+  ```
+
+  **Registering a widget** — if your widget can be rendered from a schema node
+  (anything `SchemaRenderer` dispatches, not just forms), wrap it once so it still
+  gets `field`:
+
+  ```diff
+  +import { withFieldCarrier } from '@object-ui/fields';
+  +
+  -ComponentRegistry.register('color', ColorField, { namespace: 'field' });
+  +ComponentRegistry.register('color', withFieldCarrier(ColorField), { namespace: 'field' });
+  ```
+
+  `withFieldCarrier` forwards the node **by reference** — nothing is copied,
+  narrowed or renamed — and consumes `schema` so it cannot reach the DOM through a
+  widget's `...props` spread.
+
+  A third-party widget that still reads `props.schema` and is **not** re-registered
+  through the adapter will read `undefined` in v17 and silently render an empty /
+  default state. That is the deliberate cost of a major boundary: one contract
+  beats N dialects, and a widget that picks the wrong spelling should fail at
+  compile time rather than work under one host and not another.
+
+  ## What did NOT change
+  - **Host metadata (SDUI JSON) is untouched.** No authored schema changes; this is
+    a change to how widgets are _written_, not to what apps declare.
+  - **`schema` is still the universal SDUI prop** every registered component
+    receives from `SchemaRenderer` (`element:*`, `page:*`, grids, reports). Only
+    the _field-widget_ contract retired it. In particular `renderFieldComponent`
+    still passes `schema` when a form field type resolves to a plain component
+    through the bare-name fallback (e.g. `type: 'text'` reaching the display text
+    widget) — that component's contract is the node, and dropping it there would
+    render `undefined.className`.
+
+  ## Payload equivalence
+
+  Every path that used to deliver a payload through `schema` now delivers the
+  identical object through `field`, and both halves are pinned by tests asserting
+  **object identity**, not shape:
+
+  - form path — `packages/components/src/renderers/form/__tests__/form-field-carrier.test.tsx`
+  - SDUI path — `packages/fields/src/__tests__/field-carrier-sdui.test.tsx`
+
+- 30ae33a: `RichTextField` honours `mobile_fullscreen`, so `mobile.fullscreenLongText` is
+  finally true of rich text too (objectui#3301).
+
+  `ObjectFormSchema.mobile.fullscreenLongText` has always been documented as
+  "textarea/rich-text get an expand button", and `ObjectForm` has always stamped
+  `mobile_fullscreen` onto `field:markdown` / `field:html` fields to deliver it.
+  Both of those types resolve to `RichTextField`, and that widget never read the
+  flag: a producer with no consumer. Turning the setting on gave a phone user an
+  expand affordance on their textareas and nothing at all on their markdown or
+  HTML fields, with nothing anywhere reporting that half the feature was inert.
+
+  FROM: `RichTextField` ignored the flag entirely (`grep fullscreen` over that
+  file returned nothing). TO: it reads `field.mobile_fullscreen` — the same single
+  metadata carrier `TextAreaField` reads, and nowhere else — and renders the same
+  expand affordance and full-height editing dialog.
+
+  **The affordance now has one implementation, not two.** One form-level setting
+  should produce one behaviour, so the expand button, the dialog and the
+  draft/commit semantics moved into a shared `FullscreenFieldEditor` that both
+  widgets render; only the EDITOR is per-widget. A second hand-written copy of
+  that state machine would be the same defect this release fixes, with an extra
+  step — it drifts, and nothing reports the drift. The rich-text dialog hosts the
+  widget's real editing surface (same format indicator, same editor), not a bare
+  textarea, so whatever that editor grows into, both positions get it at once.
+
+  Behaviour is identical across the two widgets and unchanged for
+  `TextAreaField`: the dialog seeds its draft from the committed value at open
+  time, keeps typing local (a react-hook-form field is not marked dirty by an
+  edit the user may still cancel), commits once on "Done", and discards on
+  "Cancel". Test ids follow the existing convention per widget —
+  `richtext-fullscreen-toggle` / `-dialog` / `-input` / `-save` alongside the
+  `textarea-*` ones, since a single form can contain both.
+
+  There is deliberately no prop spelling of the flag and no `??` fallback chain in
+  either widget. The field metadata is the one carrier (objectui#3233), so a
+  misspelled or misplaced flag stays inert and visible rather than being quietly
+  caught by a tolerant consumer.
+
+  Also removes a dead type from the producer: `ObjectForm` stamped the flag on
+  `'string-multiline'`, a string that `grep -rn` finds exactly once across both
+  this repo and `objectstack` — that line itself. No producer emitted it, no
+  registry key matched it, no widget read it. The remaining four stamped types
+  (`textarea`, `field:textarea`, `field:markdown`, `field:html`) each have a real
+  reader.
+
+### Patch Changes
+
+- b7165ce: AddressField / GeolocationField sub-inputs now derive their DOM ids from a `useId()` prefix + sub-field name (the RadioField / CheckboxesField `groupId` paradigm) instead of hardcoded literals ("street", "city", "state", "zipCode", "country", "latitude", "longitude"). Two address or geolocation fields in one form no longer produce duplicate DOM ids, and each sub-label's `htmlFor` resolves to and focuses its own field's input instead of the first match in the document (#3343).
+- 7d08c3f: `TextAreaField` / `RichTextField` now honour `disabled` on their fullscreen editing path. `disabled` used to reach the inline control only: `showFullscreenButton` never consulted it, neither widget forwarded it to `FullscreenFieldEditor`, and that component did not declare the prop at all. A disabled long-text or rich-text field therefore sat correctly greyed out next to a live expand button whose dialog accepted any edit and wrote it straight back through `onCommit` — reproduced dynamically before the fix as toggle `disabled=false`, dialog input `disabled=false`, `onChange` called with "EDITED WHILE DISABLED". The state was easy to miss precisely because the visible control looked right.
+
+  `FullscreenFieldEditor` now declares `disabled`: the expand button stays (disabled means "not interactive, muted", unlike `readonly`, which suppresses the affordance entirely via each widget's read-only early return) but is disabled and refuses to open, the dialog's editor is disabled through a new third `children` argument, and "Done" is both disabled and gated before `onCommit`. The dialog locks on its own rather than trusting the button, because the form renderer folds `isSubmitting` into `disabled` — so a submit starting while the dialog was already open used to leave the field editable for the duration of the submit. Cancel and Esc stay live in every state. This is the registered-widget half of the same defect #3400 / #3401 fixed on the built-in `form.tsx` path, so both render paths now give the same metadata the same behaviour (#3402).
+
+- 6fe485b: fix(fields): translate the registered path's fullscreen long-text dialog (objectui#3404)
+
+  `FullscreenFieldEditor` — the expand button and dialog that `TextAreaField`
+  (`field:textarea`) and `RichTextField` (`field:markdown` / `field:html`) render
+  when `ObjectFormSchema.mobile.fullscreenLongText` is on — shipped four English
+  literals: the toggle's accessible name (`Edit {label} fullscreen`), the title
+  fallback `Edit text`, `Cancel` and `Done`.
+
+  No translation was missing. `form.fullscreen.*` and `common.cancel` have shipped
+  in all ten locale packs since objectui#3272 translated the built-in branch; this
+  path simply never consumed them. The result was visible inside a SINGLE form: a
+  zh session saw 「取消 / 完成」 on a built-in-rendered long-text field and
+  `Cancel / Done` on a registered-widget one.
+
+  All four now consume those existing keys — **no new keys, no locale-pack
+  change**. The dialog also gained the sr-only `form.fullscreen.description` the
+  built-in branch already carries, so it has an accessible description
+  (`aria-describedby`) instead of none.
+
+  Copy resolves through `useFieldTranslation()` (`createSafeTranslation`), as the
+  built-in branch does, whose English defaults are byte-identical to the literals
+  they replace — so widgets rendered with no `I18nProvider` (standalone/embedded
+  hosts) render exactly what they did before rather than raw i18n keys.
+
+- 825bbe3: The option widgets' "this list cannot be filled" message now has one source, and
+  it is translated (objectui#3231).
+
+  FROM: `SelectField`, `MultiSelectField`, `RadioField` and `CheckboxesField` each
+  carried their own copy of the empty/gated state, each destructured the declared
+  `emptyHint` prop into `_emptyHint` and dropped it, and each rendered a hardcoded
+  English literal (`'No options available'`, `` `Select ${…} first` ``) even in a
+  Chinese or Japanese session. TO: one shared `OptionsEmptyState` — the host's
+  `emptyHint` when it supplied one, otherwise a translated fallback
+  (`fields.options.empty` / `fields.options.selectFirst`, added to all ten locale
+  packs).
+
+  `emptyHint` was declared, produced by the form renderer and transported, then
+  lost three times over — so no registered widget could ever render it. All three
+  breaks are fixed, because closing only the last one delivers nothing:
+
+  - `isOptionField` compared the raw resolved type against `'select'` /`'radio'` /
+    `'multiselect'` / `'checkboxes'`. Object-derived forms emit
+    `mapFieldTypeToFormType`'s prefixed ids (`field:select`), which matched none of
+    them, so for every option field coming from an object schema — the normal case
+    in the console — the whole cascade block was skipped and no hint was computed
+    at all. It now normalizes the `field:` prefix, the same normalization
+    `stripRegisteredFieldProps` already applied a few lines below.
+  - `stripRegisteredFieldProps` then removed the `emptyHint` key from what was
+    left. It is now forwarded to the four cascade option types, alongside
+    `dependentValues`. This stays an allow-list rather than a blanket
+    pass-through: every other registered widget spreads its leftover props onto a
+    DOM node, where an unknown `emptyHint` attribute is a React warning.
+  - the widgets themselves discarded it. Keeping it out of the `...props` spread
+    was correct; not using it afterwards was not.
+
+  User-visible effect: a dependency-gated option list now prompts with the
+  controlling field's **label** ("Select Country first") instead of its raw
+  metadata name, in the session's language; an unconfigured list says so in the
+  session's language too. The gate sentence is one i18n key shared by the renderer
+  and the widget fallback, so the two sides cannot word it differently.
+
+  Untouched: the built-in (unregistered) `select` branch of the form renderer,
+  which already consumed `emptyHint`. That is a separate live path.
+
+- 34d9169: The record picker's filter panel now sends the AUTHORED value of a picked `select` filter option instead of the control's stringified form. Radix `Select` speaks strings — options render as `String(opt.value)` and `onValueChange` returns that string — and the panel stored it as-is, so a filter option whose value is a number or a boolean queried `{ level: "1" }` against records storing `level: 1`. The user picked an option that plainly has records and got an empty list. This bit the `lookup_filters` auto-derivation in particular: `lookup_filters: [{ field: 'level', operator: 'in', value: [1, 2, 3] }]` derives options whose values keep the author's type (`LookupFilterDef.value` is `unknown`), so every non-string option in the picker was unfilterable. The control's string is now mapped back through `col.options` at the control boundary — the control speaks string, the payload keeps the authored type — reusing the `matchOptionValue` / `toControlValue` semantics `@object-ui/components` introduced for the standalone form's select (#3090), rather than coercing in `filterValuesToRecord`, which would have to guess whether `"1"` meant `1` or `"1"`. Options coming from the object schema are strings by spec and round-trip unchanged, and the `number` / `boolean` filter inputs (which already converted explicitly) are untouched — the `select` branch is lifted to their standard, resolving the three-way inconsistency (#3422).
+- 5881a2c: The lookup "Browse all records" Record Picker's filter panel now offers the
+  options a `select` field declares in its schema (objectui#3336). `LookupField`
+  turns each typed picker column into a filter column, and those carried no
+  `options` — so the filter panel's dropdown opened EMPTY and the column could
+  not be filtered at all, even though the same column's table cells had rendered
+  the authored option labels since objectui#3333.
+
+  `RecordPickerDialog` now fills a `select` filter column's missing `options`
+  from `fieldsMeta` (the referenced object's schema `fields` map) through the
+  same resolver — and the same i18n option translation — the table cells use, so
+  the filter dropdown and the cells can never disagree about what an option is
+  called. Explicitly authored filter `options` still win (including the ones
+  auto-derived from an `in`/`notIn` `lookup_filters` entry), and a select field
+  whose schema declares no options keeps an empty dropdown: no options are
+  synthesised from the loaded page's raw stored values.
+
+- 9bc3709: The lookup "Browse all records" Record Picker now formats its columns with
+  the same field metadata the list view uses (objectui#3333). Previously the
+  dialog handed cell renderers a bare `{ name, type }` descriptor, so a
+  `select` column had no `options` and fell back to title-casing the raw
+  stored value (`manufacturing` rendered as "Manufacturing" instead of the
+  authored option label, e.g. "03 制造") — while the same field displayed
+  correctly in the list view and on the record detail page.
+
+  `RecordPickerDialog` gains an optional `fieldsMeta` prop (the referenced
+  object's schema `fields` map). When provided, each column's field descriptor
+  is enriched from the schema — `options` (run through the shared i18n option
+  translation), `currency`, `scale`, `precision`, `format`, `reference_to`, … —
+  and columns authored as plain strings in `lookup_columns` inherit the schema
+  field's `type`, so they format identically to typed columns. `LookupField`
+  passes the referenced object's schema it already fetches for `titleFormat`.
+  Callers that don't pass `fieldsMeta` keep the previous behavior.
+
+- 49f7449: `field:select` now announces its validation state to assistive tech: the
+  widget's DOM pass-through lands on the Radix `SelectTrigger` — the focusable
+  `<button role="combobox">` a user actually interacts with — instead of
+  `Select.Root`, which renders no DOM element of its own and silently dropped
+  every `aria-*` the form renderer delivered (objectui#3306).
+
+  Before this, a required select that failed validation showed the red message
+  while a screen reader was told nothing: `aria-invalid`, `aria-describedby`
+  (the link to the message text) and `aria-required` (objectui#3290's state
+  channel) all landed on Root and vanished. All three now reach the trigger,
+  and the widget computes `aria-invalid` from the published `error` slot after
+  the spread, the objectui#3222 discipline — a valid field explicitly says
+  `aria-invalid="false"` rather than staying mute.
+
+  Two keys deliberately stay on Root: `name` (Root forwards it to the hidden
+  native `<select>` that takes part in form submission) and `disabled` (Root is
+  the single authority that disables trigger, items and hidden select together).
+
+  Guarding the whole class forward, a new registry-wide sweep
+  (`widget-aria-invalid-registry-e2e.test.tsx`, the objectui#3291 leak-sweep
+  paradigm) renders every registered field widget through the real form, drives
+  a real validation failure, and asserts `aria-invalid="true"` appears inside
+  the field's row. The 29 widget types measured not to deliver yet are pinned in
+  a ratchet ledger (tracked in objectui#3318): fixing one turns its ledger row
+  red until the entry is removed, so the ledger only ever shrinks.
+
+- c7ed4c3: `TagsField` no longer ships a hardcoded Chinese input placeholder
+  (objectui#3342, AGENTS.md Commandment #-1). The placeholder now resolves
+  through the pinned chain: the author-declared `field.placeholder` wins
+  (previously ignored by this widget); otherwise the widget's own copy arrives
+  via `useFieldTranslation()` under the new `fields.tags.placeholder` key, added
+  at full parity across all locale packs (Chinese lives in the zh pack, not in
+  code); with no `I18nProvider` mounted the English default from FIELD_DEFAULTS
+  renders — never a raw key.
+- 2409e1d: `TextAreaField`'s character counter now announces itself in the session locale. The counter block — rendered only when the field declares `maxLength` — carried the accessible name `Character count: {n} of {max}` as an English literal, and the element is an `aria-live="polite"` region, so a zh/ja/ar session had that English sentence read out on every keystroke while sighted users saw only the language-independent `{n}/{max}` digits. Nothing was wrong on screen, which is why it survived: only screen reader users could perceive it (#3406).
+
+  Unlike #3404, no key existed to consume — none of the ten locale packs had any character-count string. `fields.textarea.characterCount` is new in all ten, interpolating `{{count}}` and `{{max}}` as one sentence rather than parts assembled in code, because `ja` and `ko` put the cap before the count ("of {{max}} characters, {{count}}"), an order no concatenation can produce. The English pack value and the `FIELD_DEFAULTS` fallback are byte-identical to the literal they replace, so an `en` session and a provider-less embed both render exactly what they did before.
+
+  Behaviour is unchanged: `aria-live="polite"` and the per-keystroke recompute are deliberately untouched here and tracked separately (#3408).
+
+- 789fe3e: `TextAreaField`'s character counter no longer re-announces itself on every keystroke. Measured on `main` in a zh session with `maxLength: 500`, typing a 52-character sentence one character at a time produced 52 distinct screen-reader announcements totalling 979 spoken characters — roughly 19x the text being written, each one cutting off the reader's echo of the letter just typed. The counter element was simultaneously the visible `{n}/{max}` digits, the carrier of the translated sentence and the `aria-live` region itself, so "re-render" and "announce" were the same event; the field also had no `aria-describedby`, so focusing it said nothing about the cap at all (#3408).
+
+  It is now the three-node shape the GOV.UK Design System character-count component uses: the visible digits are `aria-hidden` and purely decorative; the counter sentence (`fields.textarea.characterCount`, unchanged in all ten packs) has moved onto the textarea's `aria-describedby`, so focus reads "Character count: 12 of 500" once and then stays quiet; and a separate visually-hidden `aria-live="polite"` region carries a new near-limit warning, `fields.textarea.charactersRemaining` (new in all ten packs), which stays silent until the value is inside the last 10% or last 20 characters of the cap — whichever the typist reaches first — and updates only after typing pauses for a second. The same 52-keystroke probe now produces zero announcements; a run that types all the way onto a 500-character cap produces five. Any `aria-describedby` the host already supplied (the form renderer's description and error-message ids) is appended to, never replaced.
+
+  No metadata change: the counter still renders exactly when the field declares `maxLength` (or the legacy `max_length`), and a widget rendered with no `I18nProvider` still shows the same English sentences.
+
+- f789c3b: `TextAreaField`'s fullscreen edit dialog now gives screen reader users the character count it has always shown sighted ones. The dialog's footer counter was a bare `{n}/{max}` span: no accessible name, nothing `aria-live`, and nothing tying it to the dialog's textarea — so browse mode read "5 slash 500" if it happened to sweep the footer, and focusing the input said nothing about the cap at all. The inline surface of the same field has carried a proper three-node counter since #3408, so the fullscreen branch was at zero for the same field, the same cap and the same user (#3417). It is reachable on any phone form with `ObjectFormSchema.mobile.fullscreenLongText` on, for every long-text field that declares a limit.
+
+  The counting UI is now ONE shared `CharacterCount` component that both surfaces render, instead of two hand-written copies that could only drift. In the dialog it renders `aria-hidden` digits plus a visually-hidden description carrying `fields.textarea.characterCount`, wired to the dialog's textarea through `aria-describedby`, so focus reads "Character count: 12 of 500" once and the count follows the draft as it is edited. The description ids are per surface, because the dialog's draft and the committed value diverge as soon as the user types.
+
+  The dialog deliberately gets NO live region: it is a modal opened to write at length, the description already delivers the cap on focus, and the inline surface's `aria-live` region stays mounted behind the overlay. The inline surface is unchanged — same DOM, same threshold-gated debounced announcements, same ten locale packs and the same English fallbacks with no `I18nProvider` mounted. No new i18n keys and no metadata change: the counter still renders exactly when the field declares `maxLength` (or the legacy `max_length`).
+
+- a321fa4: `TextAreaField`'s mobile fullscreen flag converges on its one real producer
+  (objectui#3232).
+
+  FROM: the widget resolved the "show the expand affordance" decision through a
+  four-way `??` chain — a `mobileFullscreen` (camelCase) prop, the field
+  metadata's `mobile_fullscreen`, a `mobile_fullscreen` prop, and
+  `schema.mobile_fullscreen`. TO: a single read of the field metadata's
+  `mobile_fullscreen`, resolved through the `field || schema` carrier pair every
+  widget in this package already uses.
+
+  No runtime behaviour changes, because three of those four reads were
+  permanently `undefined`:
+
+  - `mobileFullscreen` (camelCase) had **no producer anywhere in the repo** — the
+    only occurrences of that spelling were the widget's own read and the
+    destructure that kept it off the DOM spread. The doc comment nonetheless
+    claimed "the host form passes `mobileFullscreen`", so the contract it
+    described had never held.
+  - `mobile_fullscreen` as a **prop** cannot arrive: the form renderer's
+    `stripRegisteredFieldProps` explicitly removes `mobile_fullscreen` and
+    `fullscreen` from the props forwarded to registered field widgets.
+  - `schema.mobile_fullscreen` was the same object `field || schema` already
+    resolves, so it could only ever restate the metadata read.
+
+  What actually drives the affordance — and is now the only thing that does — is
+  the field metadata flag `ObjectForm` stamps onto long-text fields from
+  `ObjectFormSchema.mobile.fullscreenLongText`. That path is unchanged and is now
+  pinned by tests (button, dialog, and the committed edit), so the cleanup cannot
+  have silently removed the working behaviour.
+
+  Also untouched: the built-in (unregistered) `textarea` branch of the form
+  renderer, which reads `mobile_fullscreen || fullscreen` off the form-field
+  props and renders its own `FullscreenTextarea`. That is a separate live path.
+
+  Why this is worth a changeset rather than a silent tidy-up: reads that nobody
+  writes are not free. They document a contract that does not exist — the next
+  author follows the comment, passes the prop, and is ignored without a word —
+  and a `??` chain that accepts four spellings and rejects none is exactly where
+  a misspelled key hides. With one source, a wrong spelling has no read path left
+  to absorb it. Per AGENTS.md #0.1 and Prime Directive #12, divergence like this
+  converges at the producer, not by accumulating tolerance at the consumer. No
+  host-override prop was invented in its place: inventing a key with no producer
+  is the same mistake in the other direction.
+
+- 8d8094a: 20 more registered field widgets now announce a failed validation to assistive
+  tech: `multiselect`, `radio`, `checkboxes`, `tags`, `lookup`, `master_detail`,
+  `user`, `owner`, `file`, `image`, `location`, `object`, `color`, `rating`,
+  `code`, `avatar`, `address`, `geolocation`, `qrcode` and `object-ref` carry
+  `aria-invalid="true"` on their real focusable control after a validation
+  failure, where before the red message rendered while a screen reader was told
+  nothing (objectui#3318, the registry-wide gap objectui#3306's sweep measured).
+
+  Each widget follows the objectui#3222/#3306 pattern: the `toDomProps(props)`
+  whitelist spread goes onto the control the user actually focuses — the input,
+  the lookup trigger button, the radiogroup (`role="radiogroup"` is the
+  ARIA-designated carrier for a set of radios), every chip/checkbox/star of the
+  composite option widgets, the upload dropzone/button — followed by an explicit
+  `aria-invalid={!!error}` computed from the published `error` slot. Wrapper
+  `<div>`s never carry the state, and `name` is withheld from non-form-control
+  elements (the objectui#3291 leak class).
+
+  `Combobox` (`@object-ui/components`) now accepts standard button attributes
+  and forwards them to its focusable `role="combobox"` trigger, giving
+  combobox-based widgets an element to deliver `aria-invalid` /
+  `aria-describedby` to — the same seam objectui#3306 opened on
+  `SelectTrigger`.
+
+  Nine types remain on the objectui#3318 ratchet ledger with their blockers
+  documented there (`formula`/`summary`/`auto_number`/`vector` render no
+  focusable control; `grid`, `slider`, `signature` need component-level design;
+  `filter-condition`/`recipient-picker` deliver in their editable states but
+  render a dependency-gate hint with no control in a fresh form).
+
+- Updated dependencies [18cd432]
+- Updated dependencies [532cf8b]
+- Updated dependencies [680080a]
+- Updated dependencies [a7651e6]
+- Updated dependencies [d915c47]
+- Updated dependencies [b71fc92]
+- Updated dependencies [65516ba]
+- Updated dependencies [94c5b7c]
+- Updated dependencies [ca0fa8f]
+- Updated dependencies [34595eb]
+- Updated dependencies [3889ffb]
+- Updated dependencies [5781fb1]
+- Updated dependencies [7e2406a]
+- Updated dependencies [9e9e9a9]
+- Updated dependencies [56409c2]
+- Updated dependencies [042e09d]
+- Updated dependencies [9cbcbf4]
+- Updated dependencies [85c4c9c]
+- Updated dependencies [fd54c3e]
+- Updated dependencies [4eeb932]
+- Updated dependencies [5c856ec]
+- Updated dependencies [23018cc]
+- Updated dependencies [53811d1]
+- Updated dependencies [68b6a28]
+- Updated dependencies [0554e88]
+- Updated dependencies [d915c47]
+- Updated dependencies [f44d872]
+- Updated dependencies [28b2e65]
+- Updated dependencies [509104a]
+- Updated dependencies [825bbe3]
+- Updated dependencies [6195841]
+- Updated dependencies [5dd0127]
+- Updated dependencies [06632e9]
+- Updated dependencies [a415684]
+- Updated dependencies [a4cff5b]
+- Updated dependencies [175bd79]
+- Updated dependencies [5af2852]
+- Updated dependencies [f833d3a]
+- Updated dependencies [a6ec93d]
+- Updated dependencies [2a9513d]
+- Updated dependencies [71be406]
+- Updated dependencies [d22ae31]
+- Updated dependencies [c7ed4c3]
+- Updated dependencies [2409e1d]
+- Updated dependencies [789fe3e]
+- Updated dependencies [8d8094a]
+  - @object-ui/core@17.3.0
+  - @object-ui/components@17.3.0
+  - @object-ui/types@17.3.0
+  - @object-ui/i18n@17.3.0
+  - @object-ui/react@17.3.0
+  - @object-ui/providers@17.3.0
+
 ## 17.2.0
 
 ### Minor Changes

@@ -1,5 +1,208 @@
 # @object-ui/plugin-detail
 
+## 17.3.0
+
+### Minor Changes
+
+- 5af2852: The record detail page now shows a read-gated approval panel (#3461). A record in approval used to expose NOTHING about the running approval to anyone but the current pending approver — `useRecordApprovals` was consumed solely to inject the header Approve/Reject buttons, while the pending-approver list, decision progress, and the `sys_approval_action` timeline existed only in the Approval Center's drawer, a `setup`-app surface that business roles can't navigate to (and whose backing object is tenant-wide, so granting read there is over-broad). The submitter couldn't tell whom to nudge; the record's own audit history was no help either, since the engine mirrors business fields as `runAs:'system'` and decisions never enter record history. The new surface is an **Approvals tab** on the record page — a peer of Details/Related (same promotion Attachments got in objectstack#4358), emitted by `buildDefaultTabs` only when the record actually has requests, with a request-count badge and the label localizing through the tab strip's KNOWN_LABEL_DICT (审批). The tab wraps the new `record:approvals` node (`RecordApprovalsPanel`), visible to EVERY viewer who can read the record: current flow/step with the enriched flow-steps strip, server-computed decision progress (quorum tally, per-group 会签 ticks), the waiting-on chips with server-resolved names and group labels (never raw ids), one chronological action timeline merged across all of the record's requests (a multi-level flow opens one request per node), decision comments and attachments, and an inline remind button for the submitter (`viewer.is_submitter`, with an id-match fallback for older backends) that POSTs the existing `/approvals/requests/:id/remind`. The host threads its live `useRecordApprovals` read through the node so the tab and the header decision buttons never disagree; on authored pages the `record:approvals` renderer self-fetches, and an authored page that omits the node gets a bottom-of-page fallback append so the approval story is never lost to a custom layout. Copy reuses the Approval Center's `approvalsInbox.*` keys so the two surfaces can't drift; `useRecordApprovals` now exposes the full `requests` array plus `listApprovalActions` / `remindApprovalRequest`, and its `ApprovalRequestLite` carries the display enrichment (`process_label`, `step_label`, `flow_steps`, `viewer`, `round`) the single-read endpoint already sent.
+
+### Patch Changes
+
+- 532cf8b: Deliver the required state to the control in the five renderers outside the object form that still painted it as an asterisk only (objectui#3299 — the same defect #3290/#3298 fixed in `form.tsx`).
+
+  Each site converges on the reference shape (`EmbeddableForm.tsx`): the control carries `aria-required={required || undefined}` and the asterisk is `aria-hidden="true"`, so assistive tech announces required once, as a state — instead of hearing a bare "asterisk" folded into the accessible name, or nothing at all.
+
+  - `@object-ui/app-shell` — `ActionParamDialog` (both the boolean row and the default branch, delivered through the real field widgets' `toDomProps` whitelist) and `CreateViewDialog` (display label, machine name, and every type-specific required-field selector).
+  - `@object-ui/components` — the custom `ActionParamDialog` (all five typed branches, including the Radix select trigger) and `FieldContainer`, whose existing Slot injection (`id` / `aria-describedby` / `aria-invalid`) now also injects `aria-required`, covering every consumer in one place.
+  - `@object-ui/plugin-detail` — `InlineCreateRelated`'s create-tab inputs.
+
+  Deliberately NOT the native `required` attribute (#3290 ruling): each of these hosts runs its own validation, and native `required` would arm the browser's constraint-validation bubble beside it. The SDUI controls that already use native `required` (`renderers/form/{input,textarea,select,checkbox}.tsx`, `basic/text-input.tsx`) are unchanged — they don't have a second validator, so their channel is already correct.
+
+- b71fc92: Localize the last untranslated console-chrome accessible names (objectstack#5430)
+
+  Four icon-only controls still carried hardcoded English accessible names, so
+  under a non-English session they were the only English left in the record
+  chrome — and because the controls have no visible label, that literal _is_ the
+  control to a screen reader and to the hover tooltip.
+
+  - `page:header`'s `role="toolbar"` — now `detail.pageHeaderActions` (its `⋯`
+    overflow trigger eight lines below was fixed in #5407; the toolbar was missed)
+  - `ReactionPicker`'s `role="listbox"` popup — now `detail.emojiPicker`
+  - `ReactionPicker`'s per-reaction chip, which built its name by concatenation
+    with English pluralization baked in (`reaction${count !== 1 ? 's' : ''}`) —
+    now `detail.reactionCount` / `detail.reactionCountOne`
+  - `NavigationOverlay`'s drawer close and split-panel close — now `common.close`
+    (the key the rest of the console already uses) and `common.closePanel`
+
+  The pluralized label follows this repo's **two-key** convention
+  (`detail.relatedRecords`/`relatedRecordOne`, `lookup.recordCount`/`recordCountOne`)
+  rather than an i18next `_one`/`_other` pair: zh/ja/ko have no separate singular
+  form, so those packs would legitimately omit the `_one` half and
+  `all-locales-key-parity` would read that as a lost key.
+
+  All five new keys are added to all ten locale packs.
+
+- 3889ffb: Console chrome i18n gaps (objectstack#5407).
+
+  - A dependency-gated lookup now names its controlling field by its **label**
+    instead of its raw API name. The sentence was localized but the interpolated
+    name was not, so every locale — English included — read `Select crm_account
+first`. The form renderer passes a new `dependsOnLabels` widget prop (the
+    lookup-side counterpart of `emptyHint`, which it already resolves to labels
+    for the fixed-option widgets); a name the host does not cover still falls
+    back to itself.
+  - The page-header overflow trigger's `More actions` accessible name now reads
+    `detail.moreActions`, the same key `action:menu`'s own overflow trigger uses,
+    so the two cannot diverge per locale.
+  - The activity-feed reaction button's `Add reaction` accessible name is now a
+    bundle key (`detail.addReaction`, added to all ten packs).
+  - The "check the highlighted fields" toast joins field names with a per-locale
+    separator (`validation.formInvalidJoiner`) instead of a hardcoded `、`
+    (U+3001) — right for zh/ja by accident, wrong in English and every Latin
+    locale. Latin packs use `, `, CJK `、`, Arabic `، `.
+  - The Spanish `validation.required` / `validation.unique` templates gained
+    their own masculine head noun (`El campo {{field}} es obligatorio`) so the
+    adjective agrees for feminine field labels too — `Cuenta es obligatorio` was
+    ungrammatical.
+
+- bbbde12: Behavior change — **an authored display `type` can NARROW inline editability, but never WIDEN it** (objectui#3355).
+
+  Both detail-surface editability gates (`HeaderHighlight`, the `record:highlights` strip; `DetailSection`, the details body) used to resolve ONE effective type with display precedence — `viewFieldType || objectFieldType`. An authored non-computed `type` therefore ERASED the object's `formula` / `summary` / `rollup` / `auto_number` declaration from the gate's view, and a machine-owned column became inline-editable.
+
+  The gate now reads the two types separately and takes their UNION: a field is non-editable if the authored entry type **or** the object field's type is computed. Renderer/editor selection keeps the old precedence, so nothing about the display changes — only who may write.
+
+  What flips:
+
+  - `{ name: 'supply_share', type: 'number' }` authored over an object field declared `rollup` (or `formula` / `summary` / `auto_number`) — a display override written to fix formatting — no longer offers a pencil / double-click editor. This is the shipped configuration behind objectstack-ai/objectstack#5077: a hook-maintained rollup was overwritten by hand from the header strip and stayed corrupted until an unrelated child-row touch re-fired it (downstream yinlianghui/hotcrm-heimao#61).
+  - Narrowing is unchanged: an authored `type: 'formula'` still locks a plain object column.
+  - Fields with no authored computed type over a plain object column stay editable, and the entry-level `readonly` declaration from objectui#3356 is still honored.
+
+  The object schema is authoritative about what is machine-computed; a presentation override has no business granting write access. The rule now lives in ONE shared helper, `isComputedFieldType` in `fieldEnrichment.ts` — beside `enrichDetailField`, the module both hosts already share — with the computed-type set moved there too (still re-exported as `TEXTUAL_REF_FALLBACK_TYPES`), so the strip and the body cannot drift apart again.
+
+- 5a24ad9: Localize `RecordDetailDrawer`'s drag-resize handle (objectstack#5733)
+
+  `packages/plugin-detail/src/RecordDetailDrawer.tsx` carried a byte-identical twin
+  of the literal objectstack#5506 removed from `NavigationOverlay`: a
+  `role="separator"` drag handle on the drawer's left edge with a hardcoded
+  `aria-label="Resize drawer"`. #5506's sweep fenced on `packages/components`, so
+  this second copy survived it.
+
+  The handle has no visible label, so that string IS the control as far as a
+  screen reader is concerned — a zh/ja/de session got one English announcement in
+  an otherwise localized drawer. It is not a dormant branch either: `resizable`
+  defaults to `true`, and the drawer is what plugin-kanban / plugin-calendar /
+  plugin-gantt open on row, card and event click.
+
+  It now reads `t('common.resizeDrawer')` — deliberately the SAME key #5506 gave
+  the other handle (already present in all ten locale packs) rather than a new
+  `detail.resizeDrawer` twin, so one control rendered from two packages cannot end
+  up with two translations that drift apart.
+
+  `common.resizeDrawer` is also added to `DETAIL_DEFAULT_TRANSLATIONS`, the map
+  `createSafeTranslation` falls back to when no `I18nProvider` is mounted. Without
+  that entry the name would degrade to the raw key for every provider-less host —
+  which is the regression the accompanying no-provider test pins.
+
+- 23018cc: `record:highlights` now honours a `readonly: true` on an authored field entry, so a header chip for a platform-owned column no longer offers inline edit. `HeaderHighlight`'s editability gate already consulted `field.readonly`, but the renderer rebuilt each entry from a fixed `{name,label,icon,type}` list and dropped `readonly` one layer before that check, so the gate could never fire from authored metadata — a hook-maintained rollup or approval-written grade could be overwritten by hand from the detail-page header strip and stayed wrong until an unrelated write re-fired the computation. `readonly` is now a declared key on `HighlightField` and on the `RecordHighlightsComponentProps.fields[]` entry union, mirroring `DetailViewField.readonly` (objectstack#5077).
+- 58a00f0: Give `InlineCreateRelated`'s card-header close button an accessible name (objectui#3411 — the neighbouring defect found while implementing #3381/PR #3410, in the same file and left outside that PR's scope fence as a different class).
+
+  The button is icon-only: its sole child was a lucide `X`, with no text, `aria-label`, `aria-labelledby` or `title`. lucide-react excludes childless, a11y-prop-less icons from the accessibility tree (it defaults them to `aria-hidden="true"`), so the button had no name source at all and its computed accessible name was the empty string — a screen reader announced a nameless "button". Unlike the placeholder case in #3381 there was no browser-side fallback to soften it: the name was empty in every implementation. WCAG 4.1.2 / 2.4.6.
+
+  The fix is `aria-label="Close"` on the button, plus an explicit `aria-hidden="true"` on the icon so the intent is local rather than inherited from the icon library's default. `aria-label` rather than #3381's visually hidden `<label>` because this control has no visible copy for a label to stay in step with — the drift that ruling guarded against cannot arise here — and it matches the shape the repo's other close buttons already use (shadcn's dialog/sheet, `DashboardEditor`).
+
+  No props, spec or visible-copy change; the component's rendering is otherwise identical.
+
+- 53811d1: Associate the label with its control at the two form surfaces where the two were never programmatically connected (objectui#3341 — found while implementing #3299/PR #3340, and deliberately left out of that PR's scope fence as a different class of defect).
+
+  `aria-required` reaching the control (#3299) only fixes the required _state_; at these two sites the control's accessible _name_ was still wrong, because the label pointed at nothing:
+
+  - `@object-ui/plugin-detail` — `InlineCreateRelated`'s create-tab fields rendered a `<label>` with no `htmlFor` beside an `<Input>` with no `id`, and the two were siblings rather than wrapper/child. The field label was unreachable for assistive tech, and clicking the label did not focus the input. The ids are namespaced with `React.useId`, because `field.name` alone is unique only within one instance and a detail page mounts one of these per related list.
+  - `@object-ui/components` — the custom `ActionParamDialog`'s `select` branch rendered `<Label htmlFor={param.name}>` but never put the matching `id` on its Radix `SelectTrigger`, so the reference dangled. The textarea / number / date / text branches already set `id={param.name}`; select was the only one that did not.
+
+  `SelectTrigger` renders a `<button role="combobox">`, and `button` is a labelable element, so the plain `htmlFor`/`id` pair is the correct association there — no `aria-labelledby` required. No spec change and no widget-props contract change.
+
+- b17ce4c: Give `InlineCreateRelated`'s "Link Existing" search box a real accessible name (objectui#3381 — the neighbouring defect found while implementing #3341/PR #3380, and left out of that PR's scope fence as a different class).
+
+  The box carried a `placeholder` and nothing else: no `<label>`, no `aria-label`, no `aria-labelledby`. Its accessible name therefore fell through to the placeholder, which is the last resort in HTML-AAM and fails in two ways — the name a browser derives from it is the one thing that disappears the moment the user types, and the fallback is not implemented uniformly (`dom-accessibility-api` has no placeholder step at all, so under test the control computed to the empty string while a browser would have said "Search Contact…").
+
+  The fix is a visually hidden `<label htmlFor>` pointing at a `React.useId`-namespaced input id — the same shape #3341 left on the create tab, rather than an `aria-label`, so the accessible name stays a real label element instead of a detached string that can drift from the visible copy. The label text and the placeholder are now derived from one expression (the placeholder only adds the ellipsis), and the id uses a hyphenated `link-search` segment so it cannot collide with a create-tab field literally named `search`. The decorative magnifier is explicitly `aria-hidden` — lucide already defaults childless icons to that, but spelling it out keeps the intent local and independent of the icon library's defaults.
+
+  No props, spec or rendered-copy change: the placeholder string is byte-identical to before.
+
+- c7fba27: `field:permission-facet-link` now registers through `withFieldCarrier` — the
+  repo's only raw `field:` registration bypassed the single-metadata-carrier seam
+  (objectui#3233), so under the SDUI path (`SchemaRenderer` passes `schema`,
+  never `field`) the widget read `field === undefined` and silently rendered an
+  anonymous facet summary (`field?.name` empty, no facet branch selected). The
+  form and inline-edit hosts were unaffected — they pass `field` directly, which
+  the carrier forwards unchanged. Fixes objectui#3307.
+- 12bf669: The record discussion panel now says "loading" while it is loading, instead of
+  "No comments yet" (objectui#3209).
+
+  FROM: opening any record page showed the discussion/chatter panel asserting
+  `No comments yet` for the whole first leg of the page, then contradicting
+  itself when the comments appeared. TO: the panel shows the loading row until
+  the feed has actually answered, and only then commits to "this record has no
+  comments".
+
+  objectui#3205 gave `RecordActivityTimeline` the render branch that prefers a
+  loading row over the empty copy, and `RecordChatterPanel` already forwarded
+  `loading` to it in both positions — but on the chatter chain **nothing
+  produced the signal**, so that branch could never fire. `record:activity`
+  computes its own flag and was visibly fixed by #3205; chatter was not. The
+  four wiring points are one chain and are all closed here, because any one of
+  them left open still ships the empty copy to some user:
+
+  - `RecordDetailView` — the host that OWNS the feed fetch — now derives a
+    `feedLoading` flag from its two reads (`sys_comment` + `sys_activity`);
+  - `<DiscussionContextProvider loading={feedLoading}>` publishes it (the field
+    was already declared on `DiscussionContextValue`, and already read by
+    `record:activity`);
+  - the auto-appended `<RecordChatterPanel loading={feedLoading}>` — the panel
+    authored pages get when they place no discussion slot — receives it
+    directly;
+  - the `record:chatter` / `record:discussion` renderer forwards
+    `loading={discussion?.loading}`, so a hand-placed block is on the same
+    chain as the synthesized one.
+
+  The two reads run in parallel, so the flag closes over **both**: it clears on
+  `Promise.allSettled`, and a REJECTED read counts as an answer. A deployment
+  without the audit plugin 404s `sys_activity` and an object with
+  `enable.feeds: false` 403s `sys_comment`; neither may pin the panel in a
+  permanent spinner, which would be a worse bug than the one being fixed. The
+  flag is keyed by `object:recordId` rather than being a plain boolean, so the
+  first render of a record already reads as loading (no one-frame flash of the
+  empty state) and navigating between records cannot show the previous record's
+  settled answer.
+
+  No tolerance was added at the consumer. The timeline still does not guess that
+  "no items yet and just mounted" means loading — that guess is wrong the moment
+  a record genuinely has no comments, and the signal belongs to whoever owns the
+  fetch. Same shape as objectui#3165 / #3205: divergence converges at the
+  producer.
+
+- Updated dependencies [b71fc92]
+- Updated dependencies [65516ba]
+- Updated dependencies [94c5b7c]
+- Updated dependencies [ca0fa8f]
+- Updated dependencies [3889ffb]
+- Updated dependencies [7e2406a]
+- Updated dependencies [4eeb932]
+- Updated dependencies [5c856ec]
+- Updated dependencies [68b6a28]
+- Updated dependencies [0554e88]
+- Updated dependencies [28b2e65]
+- Updated dependencies [825bbe3]
+- Updated dependencies [6195841]
+- Updated dependencies [5dd0127]
+- Updated dependencies [a415684]
+- Updated dependencies [5af2852]
+- Updated dependencies [a6ec93d]
+- Updated dependencies [c7ed4c3]
+- Updated dependencies [2409e1d]
+- Updated dependencies [789fe3e]
+  - @object-ui/i18n@17.3.0
+
 ## 17.2.0
 
 ### Minor Changes

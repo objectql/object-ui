@@ -1,9 +1,0 @@
----
-'@object-ui/fields': patch
----
-
-`TextAreaField`'s fullscreen edit dialog now gives screen reader users the character count it has always shown sighted ones. The dialog's footer counter was a bare `{n}/{max}` span: no accessible name, nothing `aria-live`, and nothing tying it to the dialog's textarea — so browse mode read "5 slash 500" if it happened to sweep the footer, and focusing the input said nothing about the cap at all. The inline surface of the same field has carried a proper three-node counter since #3408, so the fullscreen branch was at zero for the same field, the same cap and the same user (#3417). It is reachable on any phone form with `ObjectFormSchema.mobile.fullscreenLongText` on, for every long-text field that declares a limit.
-
-The counting UI is now ONE shared `CharacterCount` component that both surfaces render, instead of two hand-written copies that could only drift. In the dialog it renders `aria-hidden` digits plus a visually-hidden description carrying `fields.textarea.characterCount`, wired to the dialog's textarea through `aria-describedby`, so focus reads "Character count: 12 of 500" once and the count follows the draft as it is edited. The description ids are per surface, because the dialog's draft and the committed value diverge as soon as the user types.
-
-The dialog deliberately gets NO live region: it is a modal opened to write at length, the description already delivers the cap on focus, and the inline surface's `aria-live` region stays mounted behind the overlay. The inline surface is unchanged — same DOM, same threshold-gated debounced announcements, same ten locale packs and the same English fallbacks with no `I18nProvider` mounted. No new i18n keys and no metadata change: the counter still renders exactly when the field declares `maxLength` (or the legacy `max_length`).

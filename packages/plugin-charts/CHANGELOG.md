@@ -1,5 +1,79 @@
 # @object-ui/plugin-charts
 
+## 17.3.0
+
+### Minor Changes
+
+- 9e9e9a9: `DrillDownConfig` now declares only keys a renderer reads, and `target: 'navigate'` is honoured on charts too (#3354).
+
+  **Removed — two keys no renderer has ever read.** `DrillDownConfig.view` (self-described as "reserved") and `DrillDownConfig.sort` ("default sort applied to the drill list") had zero read sites repo-wide: the drill drawer rendered its inline `object-data-table` regardless of `view`, and no widget put `sort` into the drilled table schema. Authoring either did nothing, silently. They are removed rather than implemented because nothing asked for them, and this interface is the shape the protocol's own `drillDown` declaration is being derived from (objectstack#5022) — left in place, they were about to become dead keys carrying protocol authority. Removing a declared key from a published interface is technically breaking for anyone who wrote one, but only in the sense that TypeScript now reports what was already true at runtime: the key did nothing. Per this repo's version policy the bump stays `minor` (the fixed release group tracks `@objectstack`'s major). A compile-time pin in `@object-ui/types` keeps both keys from drifting back without a reader.
+
+  **Fixed — `ObjectChart` no longer degrades `target: 'navigate'` to a drawer.** All five widgets share `DrillDownConfig`, whose `target` JSDoc promises `'navigate'` skips the in-place view and opens the object's full list page when the host provides drill navigation. `DrillDownDrawer` delivered that for the table / pivot / metric widgets, but `ObjectChart` draws its own drawer and branched on `'dialog'` only — so `'navigate'` fell through to the default side sheet, indistinguishable from `'drawer'` even with a host handler wired. The chart now routes `'navigate'` through `DrillNavigationContext.openRecordList` with the same merged filter the drawer would have used, and keeps the documented fallback: with no host navigation handler it degrades to the drawer. `'drawer'` / `'dialog'` behaviour is unchanged, and the header's "Open in list" escape hatch stays independent of `target`.
+
+  The `object-chart` registry input deliberately keeps advertising `target: 'drawer' | 'dialog'` only. `ChartDrillDownSchema` in `@objectstack/spec` declares the chart drill target as those two, strictly, and the publish-time react-page lint parses that schema against the authored literal — so listing `'navigate'` in the designer palette would offer authors a value the publish gate rejects. Widening the protocol union is a spec-side follow-up (objectstack#5435); `'navigate'` works today for any host that composes an `object-chart` schema directly.
+
+- 524a635: `<ObjectChart>` declares `drillDown` as a registry input, so the SDUI save gate treats the segment drill as a contract prop instead of an unknown one (framework#5022).
+
+  The component has read `schema.drillDown` all along — it is what opens the drawer of underlying records when you click a bar or a slice — but the prop was declared in neither the protocol nor this registry entry. The manifest the save gate validates page JSX against is built verbatim from these `inputs`, so an author who wrote the drill got an `unknown-prop` diagnostic for a prop that works. `@objectstack/spec` now declares the shape (`ChartDrillDownSchema`, published on the react-tier `<ObjectChart>` contract); this is the renderer half.
+
+  The published input describes the six keys the spec declares — `enabled`, `filter`, `title`, `target` (`'drawer' | 'dialog'`), `columns`, `maxRows` — and deliberately not the wider `DrillDownConfig` this repo shares with the table / pivot / metric widgets: `ObjectChart` reads none of `mode` / `report` / `view` / `sort`, and does not implement `target: 'navigate'` (it renders the drawer instead — objectui#3354).
+
+  The untyped `(schema as any).drillDown` read is now typed as `DrillDownConfig`. Narrowing it to the spec's `ChartDrillDown` is left as a TODO on the version pin: `@objectstack/spec` is pinned at `^17.0.0-rc.2` here and the declaration lands in the next rc, and re-declaring the shape locally would be the fork that lets the two drift.
+
+### Patch Changes
+
+- Updated dependencies [18cd432]
+- Updated dependencies [532cf8b]
+- Updated dependencies [680080a]
+- Updated dependencies [a7651e6]
+- Updated dependencies [d915c47]
+- Updated dependencies [b71fc92]
+- Updated dependencies [65516ba]
+- Updated dependencies [94c5b7c]
+- Updated dependencies [ca0fa8f]
+- Updated dependencies [34595eb]
+- Updated dependencies [3889ffb]
+- Updated dependencies [5781fb1]
+- Updated dependencies [7e2406a]
+- Updated dependencies [9e9e9a9]
+- Updated dependencies [56409c2]
+- Updated dependencies [042e09d]
+- Updated dependencies [9cbcbf4]
+- Updated dependencies [85c4c9c]
+- Updated dependencies [fd54c3e]
+- Updated dependencies [4eeb932]
+- Updated dependencies [5c856ec]
+- Updated dependencies [23018cc]
+- Updated dependencies [53811d1]
+- Updated dependencies [68b6a28]
+- Updated dependencies [0554e88]
+- Updated dependencies [d915c47]
+- Updated dependencies [f44d872]
+- Updated dependencies [28b2e65]
+- Updated dependencies [509104a]
+- Updated dependencies [825bbe3]
+- Updated dependencies [6195841]
+- Updated dependencies [5dd0127]
+- Updated dependencies [06632e9]
+- Updated dependencies [a415684]
+- Updated dependencies [a4cff5b]
+- Updated dependencies [175bd79]
+- Updated dependencies [5af2852]
+- Updated dependencies [f833d3a]
+- Updated dependencies [a6ec93d]
+- Updated dependencies [2a9513d]
+- Updated dependencies [71be406]
+- Updated dependencies [d22ae31]
+- Updated dependencies [c7ed4c3]
+- Updated dependencies [2409e1d]
+- Updated dependencies [789fe3e]
+- Updated dependencies [8d8094a]
+  - @object-ui/core@17.3.0
+  - @object-ui/components@17.3.0
+  - @object-ui/types@17.3.0
+  - @object-ui/i18n@17.3.0
+  - @object-ui/react@17.3.0
+
 ## 17.2.0
 
 ### Minor Changes

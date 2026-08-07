@@ -1,5 +1,527 @@
 # @object-ui/i18n
 
+## 17.3.0
+
+### Minor Changes
+
+- 0554e88: The console language choice now survives a reload. `I18nProvider` writes every language change to `localStorage` (`objectui-locale`, exported as `LOCALE_STORAGE_KEY`) and boots the next session in that language, so switching to 中文/日本語/… is no longer reverted to `en` by the next F5 or new tab (objectstack#5406).
+
+  Bootstrap precedence is **stored choice → browser language → `defaultLanguage`**: an explicit choice outranks browser detection, and a stored value the app no longer offers is ignored and purged rather than locking the UI to a locale with no translations. The restore lands in the instance's bootstrap language, so `<html lang>` — and therefore the `Accept-Language` header on the first wave of API calls — is already correct on the first render.
+
+  New public surface on `@object-ui/i18n`: `persistLanguage` (default `true`; set `false` for fixed-language previews/demos), `LOCALE_STORAGE_KEY`, and `readStoredLanguage()` for apps that bootstrap their own i18next instance.
+
+- 5af2852: The record detail page now shows a read-gated approval panel (#3461). A record in approval used to expose NOTHING about the running approval to anyone but the current pending approver — `useRecordApprovals` was consumed solely to inject the header Approve/Reject buttons, while the pending-approver list, decision progress, and the `sys_approval_action` timeline existed only in the Approval Center's drawer, a `setup`-app surface that business roles can't navigate to (and whose backing object is tenant-wide, so granting read there is over-broad). The submitter couldn't tell whom to nudge; the record's own audit history was no help either, since the engine mirrors business fields as `runAs:'system'` and decisions never enter record history. The new surface is an **Approvals tab** on the record page — a peer of Details/Related (same promotion Attachments got in objectstack#4358), emitted by `buildDefaultTabs` only when the record actually has requests, with a request-count badge and the label localizing through the tab strip's KNOWN_LABEL_DICT (审批). The tab wraps the new `record:approvals` node (`RecordApprovalsPanel`), visible to EVERY viewer who can read the record: current flow/step with the enriched flow-steps strip, server-computed decision progress (quorum tally, per-group 会签 ticks), the waiting-on chips with server-resolved names and group labels (never raw ids), one chronological action timeline merged across all of the record's requests (a multi-level flow opens one request per node), decision comments and attachments, and an inline remind button for the submitter (`viewer.is_submitter`, with an id-match fallback for older backends) that POSTs the existing `/approvals/requests/:id/remind`. The host threads its live `useRecordApprovals` read through the node so the tab and the header decision buttons never disagree; on authored pages the `record:approvals` renderer self-fetches, and an authored page that omits the node gets a bottom-of-page fallback append so the approval story is never lost to a custom layout. Copy reuses the Approval Center's `approvalsInbox.*` keys so the two surfaces can't drift; `useRecordApprovals` now exposes the full `requests` array plus `listApprovalActions` / `remindApprovalRequest`, and its `ApprovalRequestLite` carries the display enrichment (`process_label`, `step_label`, `flow_steps`, `viewer`, `round`) the single-read endpoint already sent.
+
+### Patch Changes
+
+- b71fc92: Localize the last untranslated console-chrome accessible names (objectstack#5430)
+
+  Four icon-only controls still carried hardcoded English accessible names, so
+  under a non-English session they were the only English left in the record
+  chrome — and because the controls have no visible label, that literal _is_ the
+  control to a screen reader and to the hover tooltip.
+
+  - `page:header`'s `role="toolbar"` — now `detail.pageHeaderActions` (its `⋯`
+    overflow trigger eight lines below was fixed in #5407; the toolbar was missed)
+  - `ReactionPicker`'s `role="listbox"` popup — now `detail.emojiPicker`
+  - `ReactionPicker`'s per-reaction chip, which built its name by concatenation
+    with English pluralization baked in (`reaction${count !== 1 ? 's' : ''}`) —
+    now `detail.reactionCount` / `detail.reactionCountOne`
+  - `NavigationOverlay`'s drawer close and split-panel close — now `common.close`
+    (the key the rest of the console already uses) and `common.closePanel`
+
+  The pluralized label follows this repo's **two-key** convention
+  (`detail.relatedRecords`/`relatedRecordOne`, `lookup.recordCount`/`recordCountOne`)
+  rather than an i18next `_one`/`_other` pair: zh/ja/ko have no separate singular
+  form, so those packs would legitimately omit the `_one` half and
+  `all-locales-key-parity` would read that as a lost key.
+
+  All five new keys are added to all ten locale packs.
+
+- 65516ba: Name `CommentThread`'s three emoji-only buttons, and follow the session language past the 7-day mark (objectui#3441)
+
+  Two leftovers from objectstack#5506 / objectui#3424, in the same component. It
+  is an exported, published component with no in-repo consumer, so both only ever
+  bite an external host.
+
+  **One — three controls with no authored accessible name.** Each comment's two
+  quick-reaction buttons (`'👍'` and `'❤️'`) and the reply banner's dismiss button
+  (`'✕'`) carried no `aria-label` and no `title`. The `+` reaction picker right
+  beside them has had one since #3424 (`collaboration.addThumbsUp`), which is what
+  makes these three an omission rather than a design choice.
+
+  `aria-label`, not the `title` the `+` uses: a `button`'s accessible name is
+  computed from its CONTENT (accname §2F) before the `title` tooltip is ever
+  consulted (§2I), so on a button whose only child is a glyph a `title` decorates
+  the mouse and leaves the name alone. What a screen reader read out was the
+  codepoint — "thumbs up", "red heart", in English whatever the session language,
+  and for U+2715 MULTIPLICATION X very often nothing at all.
+
+  Three new keys in all ten packs: `collaboration.reactThumbsUp`,
+  `collaboration.reactHeart`, `collaboration.cancelReply`.
+
+  `reactThumbsUp` is deliberately NOT a reuse of `addThumbsUp`, even though both
+  dispatch the same `onReaction(id, '👍')` today. `addThumbsUp` names the reaction
+  bar's picker entry point, whose copy follows the picker if it ever picks; and on
+  any comment that already has reactions the two controls are on screen together,
+  so one shared key would put two visibly different buttons under one name.
+  `cancelReply` rather than the generic `common.cancel` for the same reason — an
+  accessible name has to say what is being cancelled (only the reply target is
+  dropped; anything typed into the composer survives).
+
+  **Two — the >= 7 day timestamp ignored the session language.** `formatTimestamp`
+  ended in a bare `date.toLocaleDateString()`, i.e. the RUNTIME's locale, so a
+  `zh` session read "6 天前" for a six-day-old comment and `8/1/2026` for an
+  eight-day-old one.
+
+  The fix passes the session `language`, but not straight through — that is the
+  trap #3424 flagged and declined to walk into. `toLocaleDateString(tag)`
+  canonicalizes its argument and throws `RangeError` on anything not well-formed
+  per BCP 47, and the session language reaches the component verbatim: a host that
+  configures `defaultLanguage: 'en_US'` (the POSIX spelling — well-formed-looking,
+  and rejected) hands `Intl` a tag it refuses. That `RangeError` would land in
+  `formatTimestamp`'s outer `catch`, whose fallback is `return iso`, replacing the
+  date with a raw `2026-08-01T09:30:00.000Z` — worse than the un-localized date it
+  set out to fix.
+
+  So the absolute-date branch gets its own local `try`/`catch` that falls back to
+  the no-argument call. A malformed tag degrades to exactly the previous
+  behaviour (the runtime's own locale); the worst case of following the session
+  language is the status quo, never a regression. A well-formed but unknown tag
+  such as `xx-YY` does not throw at all — `Intl` resolves it to the default — so
+  only genuinely malformed tags reach the guard. No date library, and no month or
+  weekday copy in the locale packs: `Intl` already owns the per-locale ordering
+  and separators.
+
+  Tests assert the computed accessible name via `getByRole('button', { name })`
+  rather than the presence of an attribute, which is the distinction the fix turns
+  on, and pin that no button is left answering to a bare emoji. The malformed-tag
+  case is recorded honestly as green on both sides of this change — `origin/main`
+  never passed a tag anywhere, so it could not trip over a bad one; its
+  counterfactual is the naive fix, and dropping the inner `catch` is what turns it
+  red with the raw ISO string in the DOM.
+
+- 94c5b7c: Localize `@object-ui/collaboration` — `CommentThread` no longer hardcodes English (objectstack#5506)
+
+  `@object-ui/collaboration` depended only on `@object-ui/types` and carried every
+  user-visible string as an English literal, so a `zh` console rendered a Chinese
+  shell around an English comment thread: "3 comments", "Reply", "Resolve",
+  "just now", "Add a comment... (use @ to mention)".
+
+  The package now takes `@object-ui/i18n` as a dependency and exposes one
+  translation seam, `useCollaborationTranslation` /
+  `COLLAB_DEFAULT_TRANSLATIONS`, built on `createSafeTranslation` — the same
+  factory `data-table`, `form` and `filter-builder` use. Under an `I18nProvider`
+  it resolves the session locale; with no provider it resolves the English
+  defaults map, which is what keeps `CommentThread` usable standalone. There is
+  deliberately no `formatter`/label prop escape hatch: a host that wants
+  different copy overrides the locale keys, so one thread can never end up half
+  translated by the bundle and half by props.
+
+  The issue listed 13 sites. A site-by-site sweep of the file found **20** — the
+  seven the original sweep missed are `{n}h ago`, `{n}d ago`, `(edited)`, the
+  thread's own comment count, the `Oldest`/`Newest` sort options,
+  `Replying to {name}...`, and the composer's `Send` button. All 20 are keyed
+  here; leaving any behind would have shipped a thread that is 90% translated.
+
+  Two of them carry a second defect on top of being untranslated: the plural
+  **rule** was compiled into the component, not just the words.
+
+  - the header read `` `${n} comment${n !== 1 ? 's' : ''}` ``;
+  - the reaction chip tooltip read `` n === 1 ? '1 reaction' : `${n} reactions` ``.
+
+  Both produced correct _English_ — this is not the "1 items" bug objectui#3423
+  fixed on the tab badge — but the choice between the two forms was English
+  grammar hardwired into the render path. No locale could apply its own: ru needs
+  three forms and ja needs none, and neither could ever be expressed no matter
+  what the packs said.
+
+  Both now use the repo's **two-key** plural convention
+  (`collaboration.commentCount`/`commentCountOne`,
+  `collaboration.reactionCount`/`reactionCountOne`) rather than an i18next
+  `_one`/`_other` pair: zh/ja/ko have no separate singular form, so those packs
+  would legitimately omit the `_one` half and `all-locales-key-parity` reads a
+  legitimately-absent half as a lost key. Counts are interpolated as strings, so
+  i18next skips its own plural resolution and the two-key scheme stays in charge.
+
+  The reaction tooltip gets a **dedicated** key pair rather than reusing
+  `detail.reactionCount`: that one interpolates `{{emoji}}`, and at this call
+  site the emoji is the chip's visible label with nothing to hand the
+  placeholder — reuse would have left a literal `{{emoji}}` in the accessible
+  name under every locale.
+
+  Relative timestamps stayed word-level: the existing minute/hour/day buckets are
+  untouched and no date library was introduced. The `>= 7d` branch still uses the
+  runtime's own `toLocaleDateString()` — that is not a hardcoded English literal,
+  and pinning it to the session language has its own failure mode (an
+  unrecognised tag throws into the surrounding `catch`, which would render a raw
+  ISO string), so it is tracked separately.
+
+  `Save` / `Cancel` / `Edit` / `Delete` read from the shared `common` namespace
+  instead of being re-spelled under `collaboration` — they are the generic action
+  words, already translated in all ten packs, and a second spelling would only be
+  a second thing to keep in sync. The 21 genuinely new keys are added to all ten
+  locale packs with real translations.
+
+- ca0fa8f: Localize `PresenceAvatars` — the avatar stack's accessible name and tooltips follow the session language (objectui#3440)
+
+  objectui#3424 wired `@object-ui/collaboration` up to `@object-ui/i18n` but only
+  converted `CommentThread`. `PresenceAvatars` in the same package kept three
+  English literals, and it is not a dormant export — the console renders it in
+  two places: `app-shell/src/layout/AppHeader.tsx` (tenant presence beside the
+  lifecycle badge) and `app-shell/src/views/RecordDetailView.tsx` (who else is on
+  this record). A `zh` session got them in English.
+
+  The three sites:
+
+  - the group's `aria-label`, `` `${n} user${n !== 1 ? 's' : ''} present` ``;
+  - the overflow badge's tooltip, `` `${n} more user${n !== 1 ? 's' : ''}` ``;
+  - each avatar's tooltip, `` `${name} (${status})` ``.
+
+  The first one is the whole control as far as a screen reader is concerned: the
+  stack renders images and initials and nothing else, so there was no other
+  accessible name to fall back on.
+
+  As with the comment count in #3424, the first two carried a second defect on
+  top of being untranslated — the plural **rule** was compiled into the component.
+  Both produced correct _English_ (each has a real singular branch, so this is
+  not the "1 items" defect objectui#3423 fixed on the tab badge), but
+  `n !== 1 ? 's' : ''` is English grammar in a render path and no locale could
+  apply its own. Both now use the repo's **two-key** plural convention
+  (`collaboration.presentUserCount`/`presentUserCountOne`,
+  `collaboration.moreUserCount`/`moreUserCountOne`) rather than an i18next
+  `_one`/`_other` pair, with the count interpolated as a string so i18next skips
+  its own plural resolution. German is what witnesses the move: "1 anwesender
+  Benutzer" vs "2 anwesende Benutzer" inflects the adjective, which the deleted
+  ternary could not have produced for any pack.
+
+  The avatar tooltip becomes a single `collaboration.userStatusTitle` key
+  (`{{name}} ({{status}})`) so the parentheses and their spacing belong to the
+  translation — the CJK packs drop the space English puts before `(`, matching
+  their existing `edited: '(已编辑)'`.
+
+  Its `status` is a **display-layer** translation
+  (`collaboration.statusActive` / `statusIdle` / `statusAway`): the
+  `PresenceUser['status']` enum value stays raw data everywhere it is stored,
+  compared or passed around — including the `statusColors` lookup — and is
+  translated only at this render exit. A status outside the declared union
+  renders as itself, the raw string: presence users arrive from a host-supplied
+  `PresenceSource` transport, so an unmapped value is reachable at runtime
+  whatever the type says, and the fallback invents nothing rather than leaving an
+  empty bracket pair.
+
+  Eight new keys, added to all ten locale packs with real translations.
+
+- 3889ffb: Console chrome i18n gaps (objectstack#5407).
+
+  - A dependency-gated lookup now names its controlling field by its **label**
+    instead of its raw API name. The sentence was localized but the interpolated
+    name was not, so every locale — English included — read `Select crm_account
+first`. The form renderer passes a new `dependsOnLabels` widget prop (the
+    lookup-side counterpart of `emptyHint`, which it already resolves to labels
+    for the fixed-option widgets); a name the host does not cover still falls
+    back to itself.
+  - The page-header overflow trigger's `More actions` accessible name now reads
+    `detail.moreActions`, the same key `action:menu`'s own overflow trigger uses,
+    so the two cannot diverge per locale.
+  - The activity-feed reaction button's `Add reaction` accessible name is now a
+    bundle key (`detail.addReaction`, added to all ten packs).
+  - The "check the highlighted fields" toast joins field names with a per-locale
+    separator (`validation.formInvalidJoiner`) instead of a hardcoded `、`
+    (U+3001) — right for zh/ja by accident, wrong in English and every Latin
+    locale. Latin packs use `, `, CJK `、`, Arabic `، `.
+  - The Spanish `validation.required` / `validation.unique` templates gained
+    their own masculine head noun (`El campo {{field}} es obligatorio`) so the
+    adjective agrees for feminine field labels too — `Cuenta es obligatorio` was
+    ungrammatical.
+
+- 7e2406a: The group-tenancy write-target badge is now translated in all ten locales (objectui#3517)
+
+  `form.createTargetOrg` — the ADR-0105 badge `RecordFormPage` shows in create mode
+  to name the organization a new record will land in — was defined in **no** locale
+  pack, not even `en`. i18next therefore genuinely missed the key and rendered the
+  call site's inline `defaultValue`, so the badge read English `Creates in <org>` in
+  all ten languages: a Chinese console creating a record on an org-walled object
+  showed `Creates in 某某组织`.
+
+  `all-locales-key-parity.test.ts` could not see this. It asserts that every pack
+  defines every **`en`** key, so a key `en` itself lacks is outside the comparison —
+  ten packs missing it identically kept parity fully green.
+
+  ## What changed
+  - `createTargetOrg` is backfilled into `en` as `Creates in {{org}}`, which makes
+    the parity gate demand it from the other nine; each is translated to its pack's
+    existing `form`-section tone rather than copied or machine-filled.
+  - The inline `defaultValue` in `RecordFormPage.tsx` is deleted, finishing what
+    objectui#3469 started — that key was the file's last remaining exception, and
+    every `t()` on the page now passes bare. Declared = enforced: the packs are the
+    single source of this copy, and a missing key must surface (raw key + dev
+    missing-key warning) instead of being papered over at the call site.
+  - The two exception-pinning tests objectui#3516 left behind invert. `form.createTargetOrg`
+    joins the `BARE_KEYS` list (pinned present in all ten packs), and the render
+    assertion now checks the badge against the **pack** copy in both `en` and `zh` —
+    the deleted English default could not satisfy the Chinese assertion, so the
+    badge fails loudly if the packs ever stop driving it.
+
+- 4eeb932: The form renderer's last user-visible English literals now go through i18n (#3272). The fullscreen long-text editor (`mobile_fullscreen`) was an entire untranslated dialog — title, screen-reader description, `Cancel` / `Done` footer buttons, and the expand trigger's accessible name — rendering English inside an otherwise translated zh/ja/ar form; it now reads the new `form.fullscreen.*` keys, shipped in all ten locale packs.
+
+  **Behaviour change worth reading if you author forms:** `submitLabel` and `cancelLabel` no longer default to the literals `'Submit'` and `'Cancel'` in the renderer. They default to _unset_, and the action bar falls back at render time to `common.submit` / `common.cancel`, so a form that declares no button copy now follows the session language instead of being silently frozen to English. A label you DO declare still wins verbatim in every locale — including an English one under a zh session, and including an explicit empty string (the fallback uses `??`, so `submitLabel: ''` renders a blank button rather than being overwritten). The only forms whose rendered text changes are those that never declared the labels and are viewed in a non-English session — which is the bug. `FormSchema.submitLabel` / `cancelLabel` stay optional strings; no spec or type change.
+
+  Also removed the built-in `select` branch's second `|| 'Select an option'` fallback. The single call site already supplies `t('common.selectOption')`, so the literal was reachable only through an authored `placeholder: ''` — where it replaced the author's deliberate blank with an untranslated English word.
+
+- 5c856ec: `ObjectGantt`'s quick-filter bar is now localized instead of pinned to Chinese. The four `QuickFilterBar` labels (`all`, `clear`, `empty`, `resultSummary`) were hardcoded as Chinese string literals at the `ObjectGantt` call site, so the bar read 全部 / 清除筛选 / 无可选项 / 显示 N / M 项任务 under an `en`, `ja`, `es` or `ar` session while the rest of the gantt toolbar localized correctly — a conspicuous mismatch, and a violation of the English-only-codebase rule. `QuickFilterBar` itself was never at fault: it is presentational and already falls back to English, so the host was the only thing pinning the copy.
+
+  The four strings moved into a new `gantt.quickFilter` namespace, added to all ten built-in locale packs, and the call site now resolves them through the gantt package's existing `useGanttTranslation` — the same per-key hook every other gantt string already uses, so a host dictionary that lags on these keys still renders the bundled English default rather than a raw key. `gantt.quickFilter.resultSummary` deliberately keeps SINGLE-brace placeholders (`{shown}` / `{total}`): the call site substitutes them with a literal `.replace`, not i18next interpolation, matching `gantt.autoScheduleDlg.body` and the placeholder convention `all-locales-key-parity` already recognises. Anyone retranslating these packs must keep that spelling — a respell to `{{shown}}` would render the raw placeholder to the user.
+
+- 68b6a28: The list toolbar's "Filter" now saves. Saving a filter from the runtime toolbar PUT the FilterBuilder's whole group object (`{ id, logic, conditions }`) into the view's `filter`, where `@objectstack/spec`'s `ListViewSchema.filter` declares `ViewFilterRule[]` — so every save came back `422 invalid_metadata` and the filter was silently never persisted (objectstack#5159).
+
+  The producer now folds the builder's group to the spec's flat `{ field, operator, value }` rule list before persisting, sharing one transform with the Studio view inspector (which had the only copy). Operators normalize through the spec's own `normalizeFilterOperator`, so the four builder operators the Studio's local table had drifted behind — `startsWith`, `endsWith`, `isNull`, `isNotNull` — now persist correctly too. The builder's per-row `id` is no longer written: it is a React list key that the read path regenerates, so stored view bodies keep the declared vocabulary only.
+
+  A filter whose shape cannot be represented losslessly as a flat rule list — `OR` across several conditions, or nested condition groups — is now refused with a translated message instead of being quietly saved as `AND`, which would have returned a different set of records than the one on screen. Such a filter still applies to the current list; it just does not become part of the saved view.
+
+- 28b2e65: Localize the create / edit / view form title `ObjectView` builds itself
+  (objectui#3462)
+
+  The same family as #3426 / PR #3457 and #3459 / PR #3464, one call site further
+  in. `ObjectView.getFormTitle()` string-built its three verbs in TypeScript:
+
+      case 'create': return `Create ${objectLabel}`;
+      case 'edit':   return `Edit ${objectLabel}`;
+      case 'view':   return `View ${objectLabel}`;
+
+  so a Chinese session whose object is labelled 联系人 read a drawer headed
+  **"View 联系人"** — an English verb glued onto a localized label. All three
+  consumers are visible chrome: `renderDrawerForm`'s `DrawerTitle`,
+  `renderModalForm`'s `DialogTitle`, and the `title` prop handed to
+  `NavigationOverlay` in the `popover` branch (a host-supplied `title` displaces
+  the overlay's own `resolvedTitle` default, so it is what the user sees).
+
+  The bar to reach it is lower than #3459's split panel: `ObjectViewSchema.layout`
+  already defaults to `'drawer'`, and `navigation` is a declared authorable input
+  on the registered `object-view` block whose `mode` union carries `drawer`,
+  `modal` and `popover`. A row click under any of them sets `formMode: 'view'` and
+  opens the container. `app-shell`'s wrapper pinning `layout: 'page'` is one host
+  overriding a registered block, not proof the branch is dead.
+
+  ## What changed
+
+  The three verb branches resolve `form.createTitle` / `form.editTitle` /
+  `form.viewTitle`.
+
+  **No new key family was minted.** `form.createTitle` (`'Create {{object}}'`) and
+  `form.editTitle` (`'Edit {{object}}'`) already ship in all ten packs and are
+  already how `app-shell` heads the PAGE-mode record form
+  (`RecordFormPage.tsx`, `AppContent.tsx`). The drawer / modal / popover titles are
+  the same heading on a different surface, so they resolve the same keys — a
+  parallel per-plugin family would have guaranteed the two spellings drift, which
+  is what the sibling issues were about. Only the third verb had no sibling:
+  `form.viewTitle` is added to all ten packs, following each pack's existing
+  arrangement for its create/edit twins rather than a translated-verb-plus-label
+  concatenation (de puts the verb last, ja/zh use particles and no space).
+
+  `VIEW_DEFAULT_TRANSLATIONS` in `ObjectView.tsx` gains the three English entries,
+  which is what `createSafeTranslation` falls back to with no `I18nProvider`
+  mounted.
+
+  Two branches stay literal on purpose and are pinned by tests: `schema.form.title`
+  (the author wrote a title, so the author's title wins, in every locale) and the
+  `default` branch (bare object label, no verb to translate).
+
+  ## Visible English change
+
+  None. Every branch is byte-identical in English — `Create Contacts`,
+  `Edit Contacts`, `View Contacts` — with and without a provider, so e2e specs and
+  host tests that address this chrome by its English name keep addressing it. The
+  provider-less path has its own test file, kept separate because
+  `initReactI18next` registers its instance as a module global that outlives
+  `cleanup()`.
+
+  The toolbar's create BUTTON keeps resolving `console.objectView.new`
+  ("New" / 新建) and was deliberately not reused for the heading: a button verb and
+  a title are different contexts, and folding them together is how the next drift
+  of this shape would start.
+
+- 825bbe3: The option widgets' "this list cannot be filled" message now has one source, and
+  it is translated (objectui#3231).
+
+  FROM: `SelectField`, `MultiSelectField`, `RadioField` and `CheckboxesField` each
+  carried their own copy of the empty/gated state, each destructured the declared
+  `emptyHint` prop into `_emptyHint` and dropped it, and each rendered a hardcoded
+  English literal (`'No options available'`, `` `Select ${…} first` ``) even in a
+  Chinese or Japanese session. TO: one shared `OptionsEmptyState` — the host's
+  `emptyHint` when it supplied one, otherwise a translated fallback
+  (`fields.options.empty` / `fields.options.selectFirst`, added to all ten locale
+  packs).
+
+  `emptyHint` was declared, produced by the form renderer and transported, then
+  lost three times over — so no registered widget could ever render it. All three
+  breaks are fixed, because closing only the last one delivers nothing:
+
+  - `isOptionField` compared the raw resolved type against `'select'` /`'radio'` /
+    `'multiselect'` / `'checkboxes'`. Object-derived forms emit
+    `mapFieldTypeToFormType`'s prefixed ids (`field:select`), which matched none of
+    them, so for every option field coming from an object schema — the normal case
+    in the console — the whole cascade block was skipped and no hint was computed
+    at all. It now normalizes the `field:` prefix, the same normalization
+    `stripRegisteredFieldProps` already applied a few lines below.
+  - `stripRegisteredFieldProps` then removed the `emptyHint` key from what was
+    left. It is now forwarded to the four cascade option types, alongside
+    `dependentValues`. This stays an allow-list rather than a blanket
+    pass-through: every other registered widget spreads its leftover props onto a
+    DOM node, where an unknown `emptyHint` attribute is a React warning.
+  - the widgets themselves discarded it. Keeping it out of the `...props` spread
+    was correct; not using it afterwards was not.
+
+  User-visible effect: a dependency-gated option list now prompts with the
+  controlling field's **label** ("Select Country first") instead of its raw
+  metadata name, in the session's language; an unconfigured list says so in the
+  session's language too. The gate sentence is one i18n key shared by the renderer
+  and the widget fallback, so the two sides cannot word it differently.
+
+  Untouched: the built-in (unregistered) `select` branch of the form renderer,
+  which already consumed `emptyHint`. That is a separate live path.
+
+- 6195841: Localize the record-detail overlay heading that `ListView` and `ObjectGrid`
+  build themselves (objectui#3426)
+
+  #3423 gave `NavigationOverlay`'s `resolvedTitle` an i18n default
+  (`detail.recordDetail`), but two hosts never let that default run: they
+  string-built an English heading in TypeScript and passed it as the `title`
+  prop, so a zh/ja/de session got a fully localized drawer with one English
+  heading on it.
+
+  - `packages/plugin-list/src/ListView.tsx` — `` `${schema.label} Detail` ``
+  - `packages/plugin-grid/src/ObjectGrid.tsx` — the same template, plus a bare
+    `'Record Detail'` literal for the no-label case
+
+  Both are user-reachable, not dead defaults. `list-view` / `object-grid` are
+  public page blocks and `navigation` is an authorable key on their schema, so a
+  page that authors `navigation: { mode: 'drawer' }` opens exactly this overlay
+  on row click. (`app-shell`'s `ObjectView` does suppress it — it passes its own
+  `onRowClick`, which takes priority inside `useNavigationOverlay`, and renders
+  its own overlay — but that is one host overriding a public block, not proof the
+  branch is unreachable.)
+
+  ## What changed
+
+  Both call sites now key their heading instead of concatenating it:
+
+  - a new `detail.recordDetailWithLabel` (`'{{label}} Detail'`) carries the
+    object label through interpolation, so a pack whose qualifier trails the noun
+    (`de`) or that needs a possessive particle (`ja`/`zh`) can write its own
+    arrangement rather than inherit English word order;
+  - the no-label branch reuses `detail.recordDetail` — the very key the overlay
+    itself defaults to — so one heading on one control cannot drift into two
+    translations.
+
+  The new key is added to all ten locale packs and to each plugin's English
+  defaults map (`LIST_DEFAULT_TRANSLATIONS` / `GRID_DEFAULT_TRANSLATIONS`), which
+  is what `createSafeTranslation` falls back to with no `I18nProvider` mounted.
+
+  English output is byte-identical in every branch (`Contacts Detail` /
+  `Contacts Detail` / `Record Detail`), with and without a provider — pinned by a
+  provider-less test file per plugin, kept separate because `initReactI18next`
+  registers its instance as a module global that outlives `cleanup()`.
+
+- 5dd0127: Localize the record-overlay and tab-badge chrome that #5430's sweep left behind (objectstack#5506)
+
+  Four more console-chrome strings were still hardcoded English literals. Unlike
+  #5430's set they are not all accessible names — one is visible copy, and one was
+  a component **default** that only the console happened to override.
+
+  - `page:tabs`' count badge built its `aria-label` by template literal,
+    `` `${formatTabCount(count)} items` ``. The badge renders digits only, so that
+    label _is_ the badge to a screen reader — and the English plural was baked in
+    with no singular branch at all, so a related list with one row announced
+    "1 items". Now `common.itemCount` / `common.itemCountOne`.
+  - `NavigationOverlay`'s drag-resize handle (`role="separator"`, no visible label)
+    — now `common.resizeDrawer`.
+  - `NavigationOverlay`'s `expandLabel` **default**. Hosts may override it and the
+    console does, but the default is what every other host ships — and it feeds
+    both `aria-label` and `title` of an icon-only button. Now
+    `detail.openAsFullPage`, still overridable by the prop.
+  - `NavigationOverlay`'s `resolvedTitle` fallback, `'Record Detail'` — **visible**
+    overlay heading, not just an a11y name. Now `detail.recordDetail`.
+  - The sr-only `SheetDescription`/`DialogDescription` prose
+    `Record detail overlay for {title}.`, which existed in three copies
+    (drawer / modal / popover) — now one `detail.recordDetailOverlay` key with a
+    `{{title}}` placeholder.
+
+  The count badge follows this repo's **two-key** plural convention
+  (`detail.reactionCount`/`reactionCountOne`, `detail.relatedRecords`/`relatedRecordOne`)
+  rather than an i18next `_one`/`_other` pair: zh/ja/ko have no separate singular
+  form, so those packs would legitimately omit the `_one` half and
+  `all-locales-key-parity` would read that as a lost key. The formatted count
+  (`1.2k`, not `1200`) is interpolated so the accessible name and the visible
+  digits never disagree — and because i18next skips its own plural resolution when
+  `count` is a string, the two-key scheme stays in charge of the choice.
+
+  Both touched components moved from `useSafeTranslate` to `createSafeTranslation`,
+  which carries an options bag (two of the new keys interpolate) and an English
+  defaults map. That map is what keeps the provider-less path English, which
+  consumers outside this package depend on — `plugin-view`'s `ObjectView.test.tsx`
+  and `e2e/live/inline-edit-polish-2572.spec.ts` address this chrome by English
+  accessible name with no `I18nProvider` mounted.
+
+  All six new keys are added to all ten locale packs.
+
+- a415684: The console server-action wrapper's `opensInNewTab` choreography no longer
+  ships hard-coded bilingual Chinese/English copy (objectui#3321, AGENTS.md
+  Commandment #-1): the pre-opened SSO spinner tab (title + body) and the
+  popup-blocked toast (title, description, action label) are now localized
+  through new `console.serverAction.*` keys in `@object-ui/i18n`, added at full
+  parity across all ten locale packs.
+
+  `createConsoleServerActionHandler` gains an optional i18next-style `t` option
+  (`t(key, englishDefault)`) — the wrapper is a plain function, so the translate
+  function is injected from the two hook-context call sites
+  (`useConsoleActionRuntime`, `RecordDetailView`) via `useObjectTranslation`.
+  When omitted (tests / standalone), every string falls back to its English
+  default; no non-English copy remains in code. Locale strings are HTML-escaped
+  before being written into the spinner document.
+
+- a6ec93d: `createSafeTranslation`'s no-provider fallback interpolation now replaces **all**
+  occurrences of each placeholder, matching i18next semantics on the provider path.
+
+  The fallback used `value.replace('{{k}}', String(v))`, and `String.prototype.replace`
+  with a string needle substitutes only the _first_ match. A default string repeating a
+  placeholder — `'Selected {{count}} of {{count}} items'`, natural in many locales and
+  sometimes required by RTL / agglutinative word order — therefore leaked literal braces
+  to users on hosts with no `I18nProvider` mounted (standalone / embedded renderers),
+  while the same string interpolated correctly once a provider was present. A silent
+  semantic fork, in exactly the environments we observe least.
+
+  The replacement is `value.split(needle).join(String(v))` rather than `replaceAll`:
+  both `replace` and `replaceAll` interpret `$&`, `` $` ``, `$'` and `$$` in the
+  _replacement_ string, which i18next does not. Values here are runtime data (record
+  labels, search terms), so that second divergence was reachable today — a label
+  containing `$&` was mangled on the fallback path. split/join is literal on both sides
+  and needs no regex escaping of the placeholder name.
+
+  Key resolution (`defaults[key] || key`), the `String(v)` coercion, and the
+  leave-it-literal behaviour for a placeholder with no matching option are unchanged.
+  Fixes objectui#3418.
+
+- c7ed4c3: `TagsField` no longer ships a hardcoded Chinese input placeholder
+  (objectui#3342, AGENTS.md Commandment #-1). The placeholder now resolves
+  through the pinned chain: the author-declared `field.placeholder` wins
+  (previously ignored by this widget); otherwise the widget's own copy arrives
+  via `useFieldTranslation()` under the new `fields.tags.placeholder` key, added
+  at full parity across all locale packs (Chinese lives in the zh pack, not in
+  code); with no `I18nProvider` mounted the English default from FIELD_DEFAULTS
+  renders — never a raw key.
+- 2409e1d: `TextAreaField`'s character counter now announces itself in the session locale. The counter block — rendered only when the field declares `maxLength` — carried the accessible name `Character count: {n} of {max}` as an English literal, and the element is an `aria-live="polite"` region, so a zh/ja/ar session had that English sentence read out on every keystroke while sighted users saw only the language-independent `{n}/{max}` digits. Nothing was wrong on screen, which is why it survived: only screen reader users could perceive it (#3406).
+
+  Unlike #3404, no key existed to consume — none of the ten locale packs had any character-count string. `fields.textarea.characterCount` is new in all ten, interpolating `{{count}}` and `{{max}}` as one sentence rather than parts assembled in code, because `ja` and `ko` put the cap before the count ("of {{max}} characters, {{count}}"), an order no concatenation can produce. The English pack value and the `FIELD_DEFAULTS` fallback are byte-identical to the literal they replace, so an `en` session and a provider-less embed both render exactly what they did before.
+
+  Behaviour is unchanged: `aria-live="polite"` and the per-keystroke recompute are deliberately untouched here and tracked separately (#3408).
+
+- 789fe3e: `TextAreaField`'s character counter no longer re-announces itself on every keystroke. Measured on `main` in a zh session with `maxLength: 500`, typing a 52-character sentence one character at a time produced 52 distinct screen-reader announcements totalling 979 spoken characters — roughly 19x the text being written, each one cutting off the reader's echo of the letter just typed. The counter element was simultaneously the visible `{n}/{max}` digits, the carrier of the translated sentence and the `aria-live` region itself, so "re-render" and "announce" were the same event; the field also had no `aria-describedby`, so focusing it said nothing about the cap at all (#3408).
+
+  It is now the three-node shape the GOV.UK Design System character-count component uses: the visible digits are `aria-hidden` and purely decorative; the counter sentence (`fields.textarea.characterCount`, unchanged in all ten packs) has moved onto the textarea's `aria-describedby`, so focus reads "Character count: 12 of 500" once and then stays quiet; and a separate visually-hidden `aria-live="polite"` region carries a new near-limit warning, `fields.textarea.charactersRemaining` (new in all ten packs), which stays silent until the value is inside the last 10% or last 20 characters of the cap — whichever the typist reaches first — and updates only after typing pauses for a second. The same 52-keystroke probe now produces zero announcements; a run that types all the way onto a 500-character cap produces five. Any `aria-describedby` the host already supplied (the form renderer's description and error-message ids) is appended to, never replaced.
+
+  No metadata change: the counter still renders exactly when the field declares `maxLength` (or the legacy `max_length`), and a widget rendered with no `I18nProvider` still shows the same English sentences.
+
 ## 17.2.0
 
 ### Minor Changes

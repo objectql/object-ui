@@ -1,5 +1,202 @@
 # @object-ui/layout
 
+## 17.3.0
+
+### Minor Changes
+
+- 608669e: `AppSchemaRenderer` now derives area visibility from the items inside the
+  area, closing the visible-but-empty regression the spec 17.0.0 area-key
+  retirement left behind (objectui#3311, option C of the recorded ruling).
+
+  Spec 17.0.0 retired the authorable area-level `visible` /
+  `requiredPermissions` (`AREA_VISIBLE_RETIRED` /
+  `AREA_REQUIRED_PERMISSIONS_RETIRED`) — an area is a layout grouping, not an
+  access boundary — and objectui followed in #3315 by deleting the area
+  switcher's filter. Correct on the contract, but it changed the navigation
+  surface: an area whose items are **all** gated away used to disappear from
+  the switcher and instead rendered as a selectable, empty area.
+
+  ## What changed
+  - **Area visibility is now derived, not authored.** An area appears in the
+    switcher iff at least one of its navigation items survives the exact
+    item-level guards `NavigationRenderer` applies: the `visible` expression,
+    `requiredPermissions`, the `requiresObject` / `requiresService` runtime
+    capability gates, and — for `action` items — the presence of an `onAction`
+    dispatcher (framework#4509: without one they are not rendered, so they
+    cannot carry an area either). Separators never count; a `group` counts only
+    through its children.
+  - **The active area is elected among visible areas only.** A fully gated
+    first area is no longer auto-activated, and when a gating change hides the
+    currently active area the shell re-elects the first visible one. A gating
+    change that merely _reveals_ an area never yanks the user away from where
+    they are.
+  - **An area with no items at all derives the same way**: no visible item →
+    hidden. (Boundary recorded in objectui#3311.)
+  - New export `hasVisibleNavigationItems(items, options)` from
+    `@object-ui/layout` — the predicate behind the derivation, usable by other
+    shells that render their own area switchers.
+
+  No authorable key is involved anywhere: the platform's `.strict()` area
+  object still rejects the retired keys, and the derivation — computed from the
+  same guards that decide what renders — cannot disagree with the rendered
+  navigation, so there is nothing for a metadata author to get wrong.
+
+- d22ae31: Track `@objectstack/spec` 17.0.0-rc.2 (objectui#3235, #3208, #3287, #3264).
+
+  The pin moves from `^17.0.0-rc.1` to `^17.0.0-rc.2` across the workspace, and
+  the sibling `@objectstack/*` packages (`client` / `core` / `formula` / `lint`)
+  move with it — they pin `@objectstack/spec` **exactly**, so leaving them behind
+  kept a second copy of the spec in the tree and would have had `@objectstack/lint`
+  validating against rc.1 schemas that still accept keys rc.2 retires.
+
+  Breaking semantics, in FROM → TO form:
+
+  - **`app.homePageId` is retired — an app's landing page is now its first
+    navigation item.** An app that pinned a landing page with `homePageId` will
+    open on the first reachable navigation entry (by `order`) instead; the root
+    landing still follows `isDefault`. To restore a specific landing page, reorder
+    `navigation` so the intended entry comes first. Stored metadata is migrated by
+    `os migrate meta --from 16`. The key is a hard error now, not a stripped one:
+    the spec ships a tombstone that names the migration.
+    Upstream retired it because of its SHAPE, not its usage — it was an ID
+    cross-reference with no referential integrity, so a `homePageId` that pointed
+    at nothing silently fell back to the first navigation item anyway
+    (objectstack#4667, premise corrected in #4709). If the capability returns, it
+    returns as a flag on the navigation item itself, which cannot dangle.
+  - **`@object-ui/types`' `HttpMethod` now resolves to the spec's
+    `HttpMethodType`.** Shape is verbatim identical — the same 5-value UI subset —
+    and `@object-ui/types` still exports it as `HttpMethod`, so no consumer
+    changes. The spec renamed its `./ui` export because `HttpMethod` named two
+    different types depending on the import path (`./shared` / `./api` carry a
+    7-value enum including `HEAD` / `OPTIONS`); objectui deliberately keeps the
+    5-value one (objectstack#4691).
+  - **`AppContextSelector.includeAll` / `placement` are gone.** Neither ever did
+    anything in this renderer: context selectors are mandatory-scope, so no "All"
+    row was ever rendered, and `placement: 'topbar'` put nothing in the topbar.
+    Both carried schema defaults, which is why the liveness lint structurally
+    could not flag them — removal was the only channel that reaches an author
+    (framework#4509).
+  - **`NavigationArea.visible` / `order` / `requiredPermissions` are gone.** An
+    area is a layout grouping, not an access boundary. Gating moved down to the
+    navigation ITEM, where `visible` and `requiredPermissions` are unchanged and
+    still enforced. `AppSchemaRenderer`'s area switcher no longer hides an area, so
+    an area whose items are all gated away renders as visible-but-empty rather
+    than disappearing.
+  - **`@object-ui/core` no longer exports `NotificationProtocol`**
+    (`resolveNotificationConfig`, `specNotificationToToast`, `mapSeverityToVariant`,
+    `mapPosition`, `ToastNotification`). It bridged `@objectstack/spec/ui`'s
+    `Notification` / `NotificationConfig`, which objectstack#4610 deleted with no
+    successor. Use `resolveNotificationConfig` from `@object-ui/react`
+    (`NotificationContext`), which owns the live `NotificationSystemConfig` and is
+    what every notification surface already read. Note that the spec's _other_
+    `Notification` — `@objectstack/spec/api` — is the REST inbox row, a different
+    contract, and is deliberately NOT aliased in as a replacement.
+  - **The `email_template` client-side validator now uses
+    `EmailTemplateDefinitionSchema`.** It was pointing at the removed
+    `EmailTemplateSchema`, so authored templates were being checked against the
+    wrong contract: the live one is keyed `name` + `locale` (not `id`) and splits
+    the body into `bodyHtml` / `bodyText` (not `body` + `bodyType`)
+    (objectstack#4616 / #4807).
+
+  Fixes that are not breaking, but were only found because rc.2 stopped being
+  lenient — each had been passing vacuously:
+
+  - **`view` drafts are actually validated now.** The client validator named the
+    aggregated container schema while this admin authors first-class `ViewItem`s,
+    and the container used to strip `viewKind` / `config` in silence — so no view
+    draft ever had one of its own keys checked. It now validates each shape
+    against its own schema (objectui#3312).
+  - **The console's worked examples were wrong**, and being stripped rather than
+    refused: `view.list.object` (the container root already declares it),
+    `job.concurrency` / `job.timeoutMs` (no such keys; the spelling is `timeout`,
+    already in ms), `email_template.from` / `.to` (a template is not a send —
+    the sender override is `fromOverride`, an object), and
+    `datasource.capabilities` / `.healthCheck` (objectstack#4583 removed the
+    former; the latter was never a datasource key). These are the drafts an
+    author — or a model generating metadata — copies.
+  - Action key inventory re-derived: `ActionSchema` gained the package-lock
+    envelope (`_lock*` / `_package*` / `_provenance`), so a packaged action no
+    longer reports them as unknown keys.
+  - The schema-diff panel labels the new `default_mismatch` finding.
+  - Test fixtures pinning the retired `managedBy: 'system'` bucket now use
+    `engine-owned`. Protocol 17 split that value (objectstack#3355), so it
+    resolved to the default-writable fallback and a batch of "stays locked"
+    assertions had quietly stopped asserting anything.
+
+### Patch Changes
+
+- d2363e7: The legacy `page-header` alias stops advertising `description` as an authorable
+  key (objectui#3226).
+
+  FROM: `registerLayout()` declared `inputs: [title, description]`. TO:
+  `inputs: [title, subtitle]` — the key `@objectstack/spec/ui`'s `PageHeaderProps`
+  declares, and the one the canonical `page:header` renderer in
+  `@object-ui/components` already declares.
+
+  `inputs` is a DECLARATION surface, not documentation: the designer builds its
+  property palette from it, and the framework's `check:react-declaration-parity`
+  diffs it against the spec schemas. Declaring `description` therefore did not
+  merely tolerate a legacy spelling — it published a second dialect for the one
+  concept the protocol calls `subtitle`, and told authors (an AI author most
+  readily, since the registry is what it reads to learn the shape) that the
+  non-spec key was legal. Metadata that took the offer renders a subtitle under
+  `page-header` and silently loses it under `page:header`: same JSON, two results,
+  which is the outcome a single contract exists to prevent.
+
+  No runtime behaviour changes. `PageHeader` still reads `subtitle ?? description`,
+  deliberately: this alias exists for out-of-repo consumer schemas, so "no in-repo
+  author writes `description`" (verified — zero hits) is not evidence that nobody
+  does, and dropping the read today would delete an external page's second line
+  while its title kept rendering, the least reportable failure mode there is. That
+  read is retired together with an ADR-0087 D2 conversion entry
+  (`page-header-subtitle-alias`, `description` → `subtitle` rewritten at load
+  time), which lives in the framework repo and is tracked separately. Narrowing the
+  declaration did not need to wait on it and breaks no consumer; leaving the
+  declaration wrong in the meantime keeps minting the metadata the conversion would
+  then have to absorb.
+
+  New tests pin both halves so neither can drift back: the registration may not
+  declare `description`, must declare `subtitle`, and — checked against the spec's
+  own shape rather than a hand-written allowlist — may declare nothing
+  `@objectstack/spec` does not; while the runtime fallback is pinned as a sequencing
+  guard, to be deleted in the same change that lands the conversion entry.
+
+- Updated dependencies [18cd432]
+- Updated dependencies [532cf8b]
+- Updated dependencies [680080a]
+- Updated dependencies [a7651e6]
+- Updated dependencies [d915c47]
+- Updated dependencies [b71fc92]
+- Updated dependencies [34595eb]
+- Updated dependencies [3889ffb]
+- Updated dependencies [5781fb1]
+- Updated dependencies [9e9e9a9]
+- Updated dependencies [56409c2]
+- Updated dependencies [042e09d]
+- Updated dependencies [9cbcbf4]
+- Updated dependencies [85c4c9c]
+- Updated dependencies [fd54c3e]
+- Updated dependencies [4eeb932]
+- Updated dependencies [23018cc]
+- Updated dependencies [53811d1]
+- Updated dependencies [d915c47]
+- Updated dependencies [f44d872]
+- Updated dependencies [509104a]
+- Updated dependencies [825bbe3]
+- Updated dependencies [5dd0127]
+- Updated dependencies [06632e9]
+- Updated dependencies [a4cff5b]
+- Updated dependencies [175bd79]
+- Updated dependencies [f833d3a]
+- Updated dependencies [2a9513d]
+- Updated dependencies [71be406]
+- Updated dependencies [d22ae31]
+- Updated dependencies [8d8094a]
+  - @object-ui/core@17.3.0
+  - @object-ui/components@17.3.0
+  - @object-ui/types@17.3.0
+  - @object-ui/react@17.3.0
+
 ## 17.2.0
 
 ### Minor Changes

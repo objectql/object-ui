@@ -1,7 +1,0 @@
----
-'@object-ui/components': patch
----
-
-The close button that the `Sheet` and `Dialog` primitives auto-render now announces itself in the session locale instead of always in English. Both buttons are icon-only (a lucide `X`), so their `sr-only` span is not decoration — it IS the control's accessible name, and upstream Shadcn ships it as a hardcoded English literal. Under zh/ja/es every drawer and modal in the console (~20 `SheetContent` consumers plus every `DialogContent` consumer — ChatDock, ActivityFeed, metadata-admin, AiChatPage, BuildDebugDrawer, PeoplePicker, RecordDetailDrawer, …) announced "Close" to a screen reader. The span now renders `<CloseSrLabel />`, which resolves `common.close` (present in all ten locale packs since objectstack#5430) and falls back to English when no `I18nProvider` is mounted, so existing suites and e2e specs that address these controls by their English name are unaffected (objectstack#5505).
-
-Because `packages/components/src/ui/**` is regenerated from the Shadcn registry, the edit is not a hand patch that the next `pnpm shadcn:update` would silently revert: it is declared as data in `scripts/shadcn-local-patches.mjs`, re-applied automatically on every sync (including `--force`), and enforced in both directions — `pnpm shadcn:check` now exits non-zero if a declared patch is missing from the file on disk or can no longer be re-applied to current upstream, and an offline test gates the same invariant on every PR.

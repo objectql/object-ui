@@ -1,5 +1,95 @@
 # @object-ui/plugin-list
 
+## 17.3.0
+
+### Patch Changes
+
+- 978705c: Gallery covers now resolve the `coverField` value through its **file value
+  shape** instead of assuming the field value _is_ a URL string, so an
+  ADR-0104-conforming `image` value renders a cover again (objectui#3317).
+
+  Since ADR-0104 D3 wave 2 the stored value of a `file`/`image`/`avatar`/
+  `video`/`audio` field is an opaque `sys_file` id, which the read path expands
+  in place into `{ id, name, size, mimeType, url }`. `ObjectGallery` read the
+  value twice — `hasAnyCover` tested `typeof value === 'string'`, and each card
+  did `item[coverField] as string` — so against a spec-correct object value the
+  cover area collapsed for the whole gallery, and the card underneath it built
+  an `<img src="[object Object]">`. The only values that ever rendered were the
+  inline `data:` URIs and external links ADR-0104 retired, which is why this
+  stayed invisible.
+
+  ## What changed
+  - Both reads now share one `resolveCoverUrl`, so the "does anything have a
+    cover?" predicate and the per-card render can no longer disagree — that
+    disagreement is what collapsed the area for records that did have a cover.
+  - Shape handling is delegated to `readFileValues` from `@object-ui/fields`,
+    the platform's existing single arbiter of file value shapes, rather than
+    re-derived in the gallery. It accepts the expanded `{ url }` object, a
+    legacy bare URL string (still valid during the dual-mode window), and a
+    still-bare `sys_file` id — which resolves to the stable
+    `/api/v1/storage/files/:id` endpoint instead of reaching `<img src>` as a
+    raw opaque token. A value carrying no resolvable URL yields no cover, which
+    collapses the area rather than emitting a broken `src`.
+  - A `multiple` file field's first entry is used as the cover.
+
+  The sibling paths that thread `coverField`/`imageField` around
+  (`ListView`, `app-shell/ObjectView`, `plugin-view/ObjectView`) pass the field
+  **name**, not the value, and needed no change.
+
+- d915c47: Relation fields (`lookup` / `master_detail` / `user` / `tree`) are now usable in action and conditional-formatting predicates: they bind as the stored foreign key on every surface, and the fields a predicate reads are included in the query projection (#3501).
+
+  Before this, one predicate over one relation field had four different fates, decided by things its author does not control. `$expand` **replaces** the id in place with the whole related record, and a view expands exactly the relations it shows as COLUMNS — so `record.owner == "U1"` was **true** where the column was absent, **false** where it was displayed, and a **fault** where the field was neither displayed nor projected (a list's `$select` was built from its columns alone, and CEL treats an absent key as a fault, not as null). A fault is fail-CLOSED on the row kebab and the selection bar and fail-OPEN on the lenient paths, so the same authoring mistake hid the button from everyone on one surface and showed it to everyone on the next, with nothing on screen to point at either. The server, meanwhile, only ever sees the id — so client and server could not agree, which is the one thing ADR-0036 / ADR-0058 exist to guarantee.
+
+  Two changes close it. `toPredicateRecord` (new, `@object-ui/core`) collapses expanded relation values back to their ids when a record is bound for evaluation — driven by the object's own field types, not by sniffing for an `id` key, so a `json` field that happens to carry one is untouched. It is threaded through `evalRowPredicate` / `resolveConditionalFormatting` (via a new `fields` option), `useRowPredicate`, `partitionBulkRows`, and both `page:header` evaluators, with the object schema supplied by `ObjectGrid` / `ListView` / `ObjectKanban` / the record context. Kanban card formatting is threaded the same way, so a rule cannot match on the grid view of a list and silently never match on its board. Display is unaffected — a detail-page title still renders the related record's name, and the schema-only `kanban-ui` entry point (which has no object schema to offer) keeps using the payload verbatim. `collectPredicateFieldRefs` / `listViewPredicates` (new) harvest the `record.x` / `data.x` references out of a view's conditional formatting, row-action defs, bulk-action defs, promoted object actions and `userActions` overrides, and add them to `$select` — intersected with the object's declared fields plus the platform columns every object carries (`isProjectableField`), because an unknown key is not ignored by every backend. No `$expand` is added: a predicate wants the foreign key, which is what an unexpanded relation already is.
+
+- 6195841: Localize the record-detail overlay heading that `ListView` and `ObjectGrid`
+  build themselves (objectui#3426)
+
+  #3423 gave `NavigationOverlay`'s `resolvedTitle` an i18n default
+  (`detail.recordDetail`), but two hosts never let that default run: they
+  string-built an English heading in TypeScript and passed it as the `title`
+  prop, so a zh/ja/de session got a fully localized drawer with one English
+  heading on it.
+
+  - `packages/plugin-list/src/ListView.tsx` — `` `${schema.label} Detail` ``
+  - `packages/plugin-grid/src/ObjectGrid.tsx` — the same template, plus a bare
+    `'Record Detail'` literal for the no-label case
+
+  Both are user-reachable, not dead defaults. `list-view` / `object-grid` are
+  public page blocks and `navigation` is an authorable key on their schema, so a
+  page that authors `navigation: { mode: 'drawer' }` opens exactly this overlay
+  on row click. (`app-shell`'s `ObjectView` does suppress it — it passes its own
+  `onRowClick`, which takes priority inside `useNavigationOverlay`, and renders
+  its own overlay — but that is one host overriding a public block, not proof the
+  branch is unreachable.)
+
+  ## What changed
+
+  Both call sites now key their heading instead of concatenating it:
+
+  - a new `detail.recordDetailWithLabel` (`'{{label}} Detail'`) carries the
+    object label through interpolation, so a pack whose qualifier trails the noun
+    (`de`) or that needs a possessive particle (`ja`/`zh`) can write its own
+    arrangement rather than inherit English word order;
+  - the no-label branch reuses `detail.recordDetail` — the very key the overlay
+    itself defaults to — so one heading on one control cannot drift into two
+    translations.
+
+  The new key is added to all ten locale packs and to each plugin's English
+  defaults map (`LIST_DEFAULT_TRANSLATIONS` / `GRID_DEFAULT_TRANSLATIONS`), which
+  is what `createSafeTranslation` falls back to with no `I18nProvider` mounted.
+
+  English output is byte-identical in every branch (`Contacts Detail` /
+  `Contacts Detail` / `Record Detail`), with and without a provider — pinned by a
+  provider-less test file per plugin, kept separate because `initReactI18next`
+  registers its instance as a module global that outlives `cleanup()`.
+
+- d7f350a: `UserFilters` no longer carries its own operator table when it lowers a `ViewTab.filter` preset into an ObjectQL AST node. The private `specOperatorToAst` was the second hand-kept operator map in this package and it had drifted: it lowered `not_in` — the spec's OWN canonical spelling — and the legacy `nin` to the spaced `'not in'`, a spelling that appears in no spec vocabulary. `isFilterAST` refuses it, so clicking such a tab produced an empty list plus `400 INVALID_FILTER`. Measured against a real backend (published `@objectstack/*@17.0.0-rc.2` + app-showcase, on `showcase_task`): `$filter=[["status","not in",["done"]]]` returned `400 INVALID_FILTER`, while `[["status","not_in",["done"]]]` returned `200` with the same 8 records as the `["status","!=","done"]` baseline.
+
+  Lowering is now purely structural — all 19 `VIEW_FILTER_OPERATORS` are already members of the wire's `VALID_AST_OPERATORS`, so nothing needs translating — with the spec's own `normalizeFilterOperator` as the single exit for the legacy spellings stored metadata still carries (`gt`, `eq`, `nin`, `notEquals`, …). That is the same exit the write side (`viewFilterFold`) and the saved-view fold in `@object-ui/core` already use, so the directions cannot drift into two dialects. An operator the spec does not know is passed through verbatim, so a misspelling still earns a loud `400` rather than being coerced into a valid filter.
+
+  `before` and `after` are now passed through rather than rewritten to `<` and `>`. That was the one judgement call, and it was settled by measurement rather than assumption: on the same live backend the word and the symbol return identical status and identical record ids, on a `date` field and on a `datetime` field, in both directions — so the rewrite was a no-op and dropping it is a pure fix. The remaining 18 canonical operators were measured the same way and are likewise unchanged in what the server answers; `not_in` is the only one whose answer changes, from `400` to the correct rows. Tab presets given in the legacy already-lowered `filters: triplet[]` shape are untouched, as before.
+
 ## 17.2.0
 
 ### Minor Changes

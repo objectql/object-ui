@@ -1,5 +1,217 @@
 # @object-ui/core
 
+## 17.3.0
+
+### Minor Changes
+
+- 5781fb1: `@object-ui/core` now ships the server-action dispatcher factory —
+  `createServerActionHandler({ fetch, baseUrl, resolveObject, ... })` — so any
+  consumer of the runner (standalone renderers, SDUI hosts, embedded usage) can
+  run `action.body` script actions by registering the produced handler, instead
+  of dead-ending on the built-in `executeScript`'s "must be executed server-side"
+  error with no supported way to make it run (objectui#2904, the follow-up
+  objectui#2896 deferred).
+
+  The factory is deliberately opinion-free about the three things core has no
+  business deciding — auth (`fetch` is an injected authenticated wrapper), origin
+  (`baseUrl` string or thunk; no bundler env convention), and fallback object
+  scope (`resolveObject`) — and owns everything protocol-shaped, once:
+
+  - name-based action identity (ADR-0110 D1 — `target` is a binding expression,
+    never an identity);
+  - the record-id resolution dance, also exported as
+    `resolveServerActionRecordId` (`_rowRecord`, `recordIdField`, toolbar
+    selection fallback with its single/zero-select guards, aggregate
+    `_selectedIds` bypass), replaceable wholesale via `resolveRecordId` for
+    hosts with their own policy (record pages);
+  - a re-entrancy guard per action+record;
+  - the `/actions` response-envelope rule: `interpretActionResponse`,
+    `readActionPayload` and `actionErrorDetail` moved from `@object-ui/app-shell`
+    internals into core and are now public exports.
+
+  `@object-ui/app-shell`'s two hand-rolled copies of this POST —
+  `useConsoleActionRuntime.serverActionHandler` and `RecordDetailView`'s — are
+  collapsed into one console wrapper (`createConsoleServerActionHandler`) that
+  layers the browser-only choreography (popup pre-open dance, zero-roundtrip
+  `newTabUrl` fast path, `redirectUrl` convention) over the core factory. The
+  copies had already drifted twice (objectstack#3913 — envelope; framework#3935 —
+  identity, fixed in one copy only): RecordDetailView now also dispatches by
+  declarative `name` instead of `target || name`, and no longer leaks the
+  client-side `_rowRecord` stash to the server.
+
+- f833d3a: Retire `validation` from the action-param contract — it was declared on both
+  halves, read by neither, and rejected outright by the server (objectui#3201).
+
+  FROM: `validation?: string` was declared on the AUTHORING type
+  (`@object-ui/types`' `ActionParam`) and on the RESOLVED type (`@object-ui/core`'s
+  `ActionParamDef`). TO: it is declared on neither.
+
+  **Breaking for anyone who declared it — but it never did anything.** This is
+  marked `minor`, not `major`, per the repo's version-alignment policy (objectui's
+  major tracks `@objectstack`'s, so objectui's own breaking changes ship as `minor`
+  with the breaking semantics spelled out here).
+
+  **Migration: delete it.** If you authored `validation: '...'` on an action param,
+  it never took effect, and publishing that metadata to the server is a hard parse
+  failure — so any metadata that reached production either never carried the key or
+  never parsed. Removing it changes no runtime behaviour; it only moves the error
+  from "silent no-op, then rejected at publish" to a `tsc` error at the keystroke.
+
+  Why it could not work as authored:
+
+  - `ActionParamSchema` in `@objectstack/spec/ui` is `.strict()` and does not list
+    `validation`, so an authored key is a PARSE REJECTION on the server:
+    `Unrecognized key(s) on this action param: \`validation\``. Meanwhile `tsc`
+    against the public type accepted it — the type vouched for a key the platform
+    itself refuses.
+  - Nothing read it on the resolved side either: it was never a key of
+    `resolveActionParams()`'s `RawActionParam`, the runtime field metadata a
+    field-backed param inherits from carries no `validation` to source one from,
+    and `paramToField()` never mapped it — so it could not reach the field widgets,
+    whose rules `buildValidationRules()` builds from `required` / `minLength` /
+    `maxLength` / `pattern`.
+
+  Removed rather than implemented, on ADR-0049 enforce-or-remove. Giving it meaning
+  would mean first deciding what an "expression" is here (CEL? a formula? a regex?)
+  and adding it to `@objectstack/spec`, which is where such a capability has to
+  start — not accreted renderer-side around a key the contract does not have.
+
+  This also retires the last named exception in objectui#3174's drift guard
+  (`packages/types/src/__tests__/page-nav-misc-spec-parity.test.ts`), which carried
+  `validation` as the one key `ActionParam` added on top of the spec's set. The
+  rule it pins — **the authoring type declares exactly the spec's authorable
+  keys** — is now literal: the guard asserts the local-only key set is empty, so
+  any future addition fails the build instead of being waved through.
+
+- d22ae31: Track `@objectstack/spec` 17.0.0-rc.2 (objectui#3235, #3208, #3287, #3264).
+
+  The pin moves from `^17.0.0-rc.1` to `^17.0.0-rc.2` across the workspace, and
+  the sibling `@objectstack/*` packages (`client` / `core` / `formula` / `lint`)
+  move with it — they pin `@objectstack/spec` **exactly**, so leaving them behind
+  kept a second copy of the spec in the tree and would have had `@objectstack/lint`
+  validating against rc.1 schemas that still accept keys rc.2 retires.
+
+  Breaking semantics, in FROM → TO form:
+
+  - **`app.homePageId` is retired — an app's landing page is now its first
+    navigation item.** An app that pinned a landing page with `homePageId` will
+    open on the first reachable navigation entry (by `order`) instead; the root
+    landing still follows `isDefault`. To restore a specific landing page, reorder
+    `navigation` so the intended entry comes first. Stored metadata is migrated by
+    `os migrate meta --from 16`. The key is a hard error now, not a stripped one:
+    the spec ships a tombstone that names the migration.
+    Upstream retired it because of its SHAPE, not its usage — it was an ID
+    cross-reference with no referential integrity, so a `homePageId` that pointed
+    at nothing silently fell back to the first navigation item anyway
+    (objectstack#4667, premise corrected in #4709). If the capability returns, it
+    returns as a flag on the navigation item itself, which cannot dangle.
+  - **`@object-ui/types`' `HttpMethod` now resolves to the spec's
+    `HttpMethodType`.** Shape is verbatim identical — the same 5-value UI subset —
+    and `@object-ui/types` still exports it as `HttpMethod`, so no consumer
+    changes. The spec renamed its `./ui` export because `HttpMethod` named two
+    different types depending on the import path (`./shared` / `./api` carry a
+    7-value enum including `HEAD` / `OPTIONS`); objectui deliberately keeps the
+    5-value one (objectstack#4691).
+  - **`AppContextSelector.includeAll` / `placement` are gone.** Neither ever did
+    anything in this renderer: context selectors are mandatory-scope, so no "All"
+    row was ever rendered, and `placement: 'topbar'` put nothing in the topbar.
+    Both carried schema defaults, which is why the liveness lint structurally
+    could not flag them — removal was the only channel that reaches an author
+    (framework#4509).
+  - **`NavigationArea.visible` / `order` / `requiredPermissions` are gone.** An
+    area is a layout grouping, not an access boundary. Gating moved down to the
+    navigation ITEM, where `visible` and `requiredPermissions` are unchanged and
+    still enforced. `AppSchemaRenderer`'s area switcher no longer hides an area, so
+    an area whose items are all gated away renders as visible-but-empty rather
+    than disappearing.
+  - **`@object-ui/core` no longer exports `NotificationProtocol`**
+    (`resolveNotificationConfig`, `specNotificationToToast`, `mapSeverityToVariant`,
+    `mapPosition`, `ToastNotification`). It bridged `@objectstack/spec/ui`'s
+    `Notification` / `NotificationConfig`, which objectstack#4610 deleted with no
+    successor. Use `resolveNotificationConfig` from `@object-ui/react`
+    (`NotificationContext`), which owns the live `NotificationSystemConfig` and is
+    what every notification surface already read. Note that the spec's _other_
+    `Notification` — `@objectstack/spec/api` — is the REST inbox row, a different
+    contract, and is deliberately NOT aliased in as a replacement.
+  - **The `email_template` client-side validator now uses
+    `EmailTemplateDefinitionSchema`.** It was pointing at the removed
+    `EmailTemplateSchema`, so authored templates were being checked against the
+    wrong contract: the live one is keyed `name` + `locale` (not `id`) and splits
+    the body into `bodyHtml` / `bodyText` (not `body` + `bodyType`)
+    (objectstack#4616 / #4807).
+
+  Fixes that are not breaking, but were only found because rc.2 stopped being
+  lenient — each had been passing vacuously:
+
+  - **`view` drafts are actually validated now.** The client validator named the
+    aggregated container schema while this admin authors first-class `ViewItem`s,
+    and the container used to strip `viewKind` / `config` in silence — so no view
+    draft ever had one of its own keys checked. It now validates each shape
+    against its own schema (objectui#3312).
+  - **The console's worked examples were wrong**, and being stripped rather than
+    refused: `view.list.object` (the container root already declares it),
+    `job.concurrency` / `job.timeoutMs` (no such keys; the spelling is `timeout`,
+    already in ms), `email_template.from` / `.to` (a template is not a send —
+    the sender override is `fromOverride`, an object), and
+    `datasource.capabilities` / `.healthCheck` (objectstack#4583 removed the
+    former; the latter was never a datasource key). These are the drafts an
+    author — or a model generating metadata — copies.
+  - Action key inventory re-derived: `ActionSchema` gained the package-lock
+    envelope (`_lock*` / `_package*` / `_provenance`), so a packaged action no
+    longer reports them as unknown keys.
+  - The schema-diff panel labels the new `default_mismatch` finding.
+  - Test fixtures pinning the retired `managedBy: 'system'` bucket now use
+    `engine-owned`. Protocol 17 split that value (objectstack#3355), so it
+    resolved to the default-writable fallback and a batch of "stays locked"
+    assertions had quietly stopped asserting anything.
+
+### Patch Changes
+
+- 18cd432: `ActionEngine.getActionsForLocation` now evaluates a `{ dialect: 'cel', source }` action `visible` predicate on the canonical `@objectstack/formula` engine instead of the legacy JS evaluator. The method used to unwrap the envelope into a `${source}` string before calling `evaluateCondition`, which only routes to the CEL engine while its argument is still an envelope — so the engine silently demoted every CEL predicate to the legacy path while every action renderer (`action-button`, `action-menu`, `action-bar`, … via `toPredicateInput`) ran the same predicate on CEL (#2661). Because `ExpressionInputSchema` normalizes even a bare authored string into a CEL envelope, that was the common case, and the two engines disagree: `null < null` faults in CEL (fail-closed hide) but is `false` in JS, and CEL-only builtins such as `today()` do not exist on the JS path at all — so one `visible:` predicate could hide a button in the renderer while the engine kept it (or the reverse). Normalization now goes through a shared `toPredicateInput` helper exported from `@object-ui/core`, pinned to the renderer-side twin by a parity suite. Bare strings, non-`cel` dialects, empty `source`, and boolean predicates all behave exactly as before (#3314).
+- d915c47: Relation fields (`lookup` / `master_detail` / `user` / `tree`) are now usable in action and conditional-formatting predicates: they bind as the stored foreign key on every surface, and the fields a predicate reads are included in the query projection (#3501).
+
+  Before this, one predicate over one relation field had four different fates, decided by things its author does not control. `$expand` **replaces** the id in place with the whole related record, and a view expands exactly the relations it shows as COLUMNS — so `record.owner == "U1"` was **true** where the column was absent, **false** where it was displayed, and a **fault** where the field was neither displayed nor projected (a list's `$select` was built from its columns alone, and CEL treats an absent key as a fault, not as null). A fault is fail-CLOSED on the row kebab and the selection bar and fail-OPEN on the lenient paths, so the same authoring mistake hid the button from everyone on one surface and showed it to everyone on the next, with nothing on screen to point at either. The server, meanwhile, only ever sees the id — so client and server could not agree, which is the one thing ADR-0036 / ADR-0058 exist to guarantee.
+
+  Two changes close it. `toPredicateRecord` (new, `@object-ui/core`) collapses expanded relation values back to their ids when a record is bound for evaluation — driven by the object's own field types, not by sniffing for an `id` key, so a `json` field that happens to carry one is untouched. It is threaded through `evalRowPredicate` / `resolveConditionalFormatting` (via a new `fields` option), `useRowPredicate`, `partitionBulkRows`, and both `page:header` evaluators, with the object schema supplied by `ObjectGrid` / `ListView` / `ObjectKanban` / the record context. Kanban card formatting is threaded the same way, so a rule cannot match on the grid view of a list and silently never match on its board. Display is unaffected — a detail-page title still renders the related record's name, and the schema-only `kanban-ui` entry point (which has no object schema to offer) keeps using the payload verbatim. `collectPredicateFieldRefs` / `listViewPredicates` (new) harvest the `record.x` / `data.x` references out of a view's conditional formatting, row-action defs, bulk-action defs, promoted object actions and `userActions` overrides, and add them to `$select` — intersected with the object's declared fields plus the platform columns every object carries (`isProjectableField`), because an unknown key is not ignored by every backend. No `$expand` is added: a predicate wants the foreign key, which is what an unexpanded relation already is.
+
+- 509104a: Fix matrix report cells showing another bucket's numbers when dimension values run together.
+
+  The cross-tab in `DatasetReportRenderer` built its bucket ids by joining dimension values with the EMPTY string, so adjacent values had no boundary at all: `"x"` + `"yz"` and `"xy"` + `"z"` were the same bucket on both axes, and the later row silently overwrote the earlier one. Its cell key then joined the two bucket ids with a plain space, while dimension values contain spaces constantly ("New York", "In Progress"), so `"New"` × `"York Q1"` and `"New York"` × `"Q1"` also met in one key. A merged bucket showed a different row's measure, the overwritten row's value was unreachable, the per-row and per-column subtotals matched the wrong header, and drill-through followed the same wrong index into another record's list — none of it with an error.
+
+  Bucket ids and cell keys are now encoded with `JSON.stringify`, which carries the boundary in its own quoting rather than in a character the data is assumed never to contain. All four lookups in the renderer (row headers, column headers, row subtotals, column subtotals) share the one encoder, so they agree by construction.
+
+  The encoders moved to `@object-ui/core` as `pivotBucketId` / `pivotCellKey` and are now shared with the dashboard `DatasetWidget`, which carried the same defect and fixed it separately: two packages each hand-rolling the same key is why one fix left the other broken. The dashboard keeps its existing exports and behaviour.
+
+- a4cff5b: Conditional-rule predicates that fail to evaluate are no longer silent
+  (objectstack#5149, appeal 2). `evalFieldPredicate` — the canonical funnel for
+  `visibleWhen` / `readonlyWhen` / `requiredWhen`, view-level `visibleOn`, legacy
+  `condition`, per-option `visibleWhen`, screen-field predicates and list
+  conditional formatting — now logs **one `console.warn` per predicate text**
+  when evaluation fails (parse error, unbound identifier, engine fault), carrying
+  the predicate source, the engine's failure reason, and the field/rule locator
+  the call site provides. Renderer call sites thread that locator
+  (`visibleWhen of field 'amount'`), so a broken predicate identifies itself in
+  the browser console instead of being indistinguishable from an absent one.
+
+  Verdicts are unchanged: evaluation still fails open to the caller's safe
+  default (flipping that default is objectstack#5149 appeal 1, tracked
+  separately). Fault-probing callers (`evalRowPredicate`'s fail-closed path,
+  `ExpressionEvaluator`'s `throwOnError`) opt out via the new
+  `diagnostic.warn: false` and keep their own single diagnostic, so no broken
+  predicate ever warns twice.
+
+- 2a9513d: `toFilterNode` now lowers a spec `ViewFilterRule[]` into ObjectQL AST nodes instead of returning the array verbatim, so a saved view's stored filter reaches `$filter` as something the server accepts. It previously did not: `ListViewSchema.filter` / `ViewTab.filter` are declared `z.array(ViewFilterRuleSchema)`, and the whole read path — `ObjectView` → `ListViewSchema.filter` → `buildEffectiveFilter` → `mergeFilterNodes` → `toFilterNode` — carried those rule objects untouched into the query. `isFilterAST` is `false` for an array of objects, so the data API answered `400 INVALID_FILTER` and the list rendered no rows at all. Measured against a real backend on the showcase's shipped `showcase_task.in_progress` view: `$filter=[{"field":"status","operator":"equals","value":"in_progress"}]` returned `400`, while the lowered `[["status","equals","in_progress"]]` returned its 2 rows. Every saved view carrying a filter was affected, on both producers that share this sink — `plugin-list`'s `buildEffectiveFilter` (the grid and its export) and `plugin-view`'s `ObjectView` (calendar / kanban / gallery / timeline).
+
+  Operators are canonicalised through the spec's own `normalizeFilterOperator`, the same exit the write side (`viewFilterFold`) uses, so the two directions cannot drift into two dialects; no second operator table is introduced. An operator the spec does not know is passed through verbatim so the server still refuses it loudly rather than having a misspelling coerced into a valid filter. AST nodes and MongoDB-style object filters are unaffected, mixed arrays (a view's rules concatenated with `?filter[<field>]=<value>` URL triples) fold element-wise with the triples untouched, and a rule with a blank `field` is deliberately left unlowered — `["", op, value]` passes `isFilterAST` and returns an empty list, whereas the unlowered rule keeps the loud `400`.
+
+- Updated dependencies [d915c47]
+- Updated dependencies [9e9e9a9]
+- Updated dependencies [23018cc]
+- Updated dependencies [f44d872]
+- Updated dependencies [f833d3a]
+- Updated dependencies [d22ae31]
+  - @object-ui/types@17.3.0
+
 ## 17.2.0
 
 ### Minor Changes

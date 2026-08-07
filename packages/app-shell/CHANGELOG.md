@@ -1,5 +1,715 @@
 # @object-ui/app-shell — Changelog
 
+## 17.3.0
+
+### Minor Changes
+
+- 8ec4067: The environment entitlement dialog now reads its context from
+  `error.details.*` — the single declared location — and the flat dual-dialect
+  tolerance is deleted (objectui#3329, the objectui half of cloud#1046).
+
+  `entitlementDialogFromError()` maps a cloud env-create 403 into the friendly
+  upgrade / limit dialog. It read `upgrade_url`, `contact_url`, `plan`, `current`
+  and `limit` off the error object's **top level**, where the control plane used
+  to put them as undeclared siblings of `code`. Those keys are conformant only by
+  evaporating: `ApiErrorSchema` is a plain `z.object` that STRIPS unknown keys, so
+  they survive to the Console purely because this path consumes the raw wire body
+  before any parse. ADR-0112 (with framework#4224 and cloud#930's `AiErrorExtra`)
+  declares `details` as the slot for structured error context, and cloud#1046
+  moves the producer there.
+
+  ## What changed
+  - All entitlement context is read from `error.details.<key>` and **nowhere
+    else**. `code` and `message` are declared `ApiErrorSchema` fields and stay on
+    `error` itself.
+  - `entitlementErrorFields()` — the `body?.error ?? body` flat/nested tolerance —
+    is **removed**. A flat body (`error` as a string with `code` at the top level)
+    no longer produces a dialog; it takes the caller's ordinary error path.
+  - No `??` chain between shapes was added in its place: exactly one shape is
+    accepted after this change, and tests pin both directions (details is read;
+    the retired locations are not).
+
+  ## Breaking note — read before tracking objectui `main` directly
+
+  This is a wire-shape change with no consumer-side fallback, by decision on
+  cloud#1046 (option A). It is safe for the **hosted** product because the cloud
+  image pins objectui by `.objectui-sha`: cloud#1046's second half lands the
+  producer change and the pin bump in one PR, so producer and consumer flip
+  atomically and the hosted Console never runs one against the other.
+
+  **Self-hosted deployments that track objectui `main` ahead of their control
+  plane** will, until that control plane emits `error.details.*`, see the
+  entitlement dialog lose its context: the upgrade CTA falls back to
+  `/settings/billing`, `PRODUCTION_ENV_LIMIT` drops its "Contact sales" CTA,
+  `DEV_ENV_PLAN_LOCKED` says "free plan" regardless of the real plan, and
+  `DEV_ENV_LIMIT` drops the "using X of Y" counts. The dialog itself still opens
+  and its titles/messages are unaffected — `code` did not move. Upgrade the
+  control plane past cloud#1046 to restore the context.
+
+- 6e794a1: The flow designer writes node geometry as the spec's `FlowNode.position`, not its
+  own `ui: { x, y }` (objectui#3172).
+
+  FROM: dragging, adding-at-a-point and insert-on-edge each wrote `node.ui = {x, y}`
+  — a fourth-generation local spelling of a concept `@objectstack/spec` has modelled
+  as `FlowNode.position` all along. TO: all three write `position: { x, y }`, and the
+  canvas migrates on write: a stored flow's legacy `ui` is lifted onto `position` and
+  the key removed in the first patch the canvas emits, geometry-related or not.
+
+  **This is a behaviour fix, not a rename.** `FlowNodeSchema` has been `.strict()`
+  since objectstack#4001, so `ui` is an `unrecognized_keys` error: the live client
+  validation flagged the draft on every keystroke and the server rejected the save
+  with a 422. In other words, dragging a node made the flow unsavable — the
+  convergence is what makes the designer's most basic gesture round-trip again. A
+  test now parses `{ …node, ui: {x, y} }` through the spec's own schema and asserts
+  the rejection, so the claim is executed rather than argued.
+
+  Reading is backwards-compatible: `manualPosition()` prefers `position` and falls
+  back to a legacy `ui`, so a flow stored before this change still opens with its
+  nodes exactly where the author left them (pinned by a test that lays out both
+  spellings and compares the maps). The fallback is a migration path, not a second
+  contract — nothing writes `ui`, and the canvas strips it at its input boundary, so
+  no patch can re-emit it.
+
+  The geometry type is now derived from the spec by reference
+  (`FlowNodePosition = NonNullable< SpecFlowNode['position'] >`), and
+  `spec-symbol-parity.test.ts` pins the equality in both directions — including that
+  both coordinates are required, so a half-position stays unrepresentable. The
+  shape-copy in `FlowPreview.tsx` is gone; it reads the canvas's own node type, the
+  way it already read the canvas's edge type.
+
+  Breaking for anyone reading `node.ui` off a flow draft: after the author's first
+  edit the key is gone and the coordinates live under `node.position`. Nothing in
+  this repo or the engine read it — it was a designer-local key the schema rejected.
+
+- 5af2852: The record detail page now shows a read-gated approval panel (#3461). A record in approval used to expose NOTHING about the running approval to anyone but the current pending approver — `useRecordApprovals` was consumed solely to inject the header Approve/Reject buttons, while the pending-approver list, decision progress, and the `sys_approval_action` timeline existed only in the Approval Center's drawer, a `setup`-app surface that business roles can't navigate to (and whose backing object is tenant-wide, so granting read there is over-broad). The submitter couldn't tell whom to nudge; the record's own audit history was no help either, since the engine mirrors business fields as `runAs:'system'` and decisions never enter record history. The new surface is an **Approvals tab** on the record page — a peer of Details/Related (same promotion Attachments got in objectstack#4358), emitted by `buildDefaultTabs` only when the record actually has requests, with a request-count badge and the label localizing through the tab strip's KNOWN_LABEL_DICT (审批). The tab wraps the new `record:approvals` node (`RecordApprovalsPanel`), visible to EVERY viewer who can read the record: current flow/step with the enriched flow-steps strip, server-computed decision progress (quorum tally, per-group 会签 ticks), the waiting-on chips with server-resolved names and group labels (never raw ids), one chronological action timeline merged across all of the record's requests (a multi-level flow opens one request per node), decision comments and attachments, and an inline remind button for the submitter (`viewer.is_submitter`, with an id-match fallback for older backends) that POSTs the existing `/approvals/requests/:id/remind`. The host threads its live `useRecordApprovals` read through the node so the tab and the header decision buttons never disagree; on authored pages the `record:approvals` renderer self-fetches, and an authored page that omits the node gets a bottom-of-page fallback append so the approval story is never lost to a custom layout. Copy reuses the Approval Center's `approvalsInbox.*` keys so the two surfaces can't drift; `useRecordApprovals` now exposes the full `requests` array plus `listApprovalActions` / `remindApprovalRequest`, and its `ApprovalRequestLite` carries the display enrichment (`process_label`, `step_label`, `flow_steps`, `viewer`, `round`) the single-read endpoint already sent.
+- d22ae31: Track `@objectstack/spec` 17.0.0-rc.2 (objectui#3235, #3208, #3287, #3264).
+
+  The pin moves from `^17.0.0-rc.1` to `^17.0.0-rc.2` across the workspace, and
+  the sibling `@objectstack/*` packages (`client` / `core` / `formula` / `lint`)
+  move with it — they pin `@objectstack/spec` **exactly**, so leaving them behind
+  kept a second copy of the spec in the tree and would have had `@objectstack/lint`
+  validating against rc.1 schemas that still accept keys rc.2 retires.
+
+  Breaking semantics, in FROM → TO form:
+
+  - **`app.homePageId` is retired — an app's landing page is now its first
+    navigation item.** An app that pinned a landing page with `homePageId` will
+    open on the first reachable navigation entry (by `order`) instead; the root
+    landing still follows `isDefault`. To restore a specific landing page, reorder
+    `navigation` so the intended entry comes first. Stored metadata is migrated by
+    `os migrate meta --from 16`. The key is a hard error now, not a stripped one:
+    the spec ships a tombstone that names the migration.
+    Upstream retired it because of its SHAPE, not its usage — it was an ID
+    cross-reference with no referential integrity, so a `homePageId` that pointed
+    at nothing silently fell back to the first navigation item anyway
+    (objectstack#4667, premise corrected in #4709). If the capability returns, it
+    returns as a flag on the navigation item itself, which cannot dangle.
+  - **`@object-ui/types`' `HttpMethod` now resolves to the spec's
+    `HttpMethodType`.** Shape is verbatim identical — the same 5-value UI subset —
+    and `@object-ui/types` still exports it as `HttpMethod`, so no consumer
+    changes. The spec renamed its `./ui` export because `HttpMethod` named two
+    different types depending on the import path (`./shared` / `./api` carry a
+    7-value enum including `HEAD` / `OPTIONS`); objectui deliberately keeps the
+    5-value one (objectstack#4691).
+  - **`AppContextSelector.includeAll` / `placement` are gone.** Neither ever did
+    anything in this renderer: context selectors are mandatory-scope, so no "All"
+    row was ever rendered, and `placement: 'topbar'` put nothing in the topbar.
+    Both carried schema defaults, which is why the liveness lint structurally
+    could not flag them — removal was the only channel that reaches an author
+    (framework#4509).
+  - **`NavigationArea.visible` / `order` / `requiredPermissions` are gone.** An
+    area is a layout grouping, not an access boundary. Gating moved down to the
+    navigation ITEM, where `visible` and `requiredPermissions` are unchanged and
+    still enforced. `AppSchemaRenderer`'s area switcher no longer hides an area, so
+    an area whose items are all gated away renders as visible-but-empty rather
+    than disappearing.
+  - **`@object-ui/core` no longer exports `NotificationProtocol`**
+    (`resolveNotificationConfig`, `specNotificationToToast`, `mapSeverityToVariant`,
+    `mapPosition`, `ToastNotification`). It bridged `@objectstack/spec/ui`'s
+    `Notification` / `NotificationConfig`, which objectstack#4610 deleted with no
+    successor. Use `resolveNotificationConfig` from `@object-ui/react`
+    (`NotificationContext`), which owns the live `NotificationSystemConfig` and is
+    what every notification surface already read. Note that the spec's _other_
+    `Notification` — `@objectstack/spec/api` — is the REST inbox row, a different
+    contract, and is deliberately NOT aliased in as a replacement.
+  - **The `email_template` client-side validator now uses
+    `EmailTemplateDefinitionSchema`.** It was pointing at the removed
+    `EmailTemplateSchema`, so authored templates were being checked against the
+    wrong contract: the live one is keyed `name` + `locale` (not `id`) and splits
+    the body into `bodyHtml` / `bodyText` (not `body` + `bodyType`)
+    (objectstack#4616 / #4807).
+
+  Fixes that are not breaking, but were only found because rc.2 stopped being
+  lenient — each had been passing vacuously:
+
+  - **`view` drafts are actually validated now.** The client validator named the
+    aggregated container schema while this admin authors first-class `ViewItem`s,
+    and the container used to strip `viewKind` / `config` in silence — so no view
+    draft ever had one of its own keys checked. It now validates each shape
+    against its own schema (objectui#3312).
+  - **The console's worked examples were wrong**, and being stripped rather than
+    refused: `view.list.object` (the container root already declares it),
+    `job.concurrency` / `job.timeoutMs` (no such keys; the spelling is `timeout`,
+    already in ms), `email_template.from` / `.to` (a template is not a send —
+    the sender override is `fromOverride`, an object), and
+    `datasource.capabilities` / `.healthCheck` (objectstack#4583 removed the
+    former; the latter was never a datasource key). These are the drafts an
+    author — or a model generating metadata — copies.
+  - Action key inventory re-derived: `ActionSchema` gained the package-lock
+    envelope (`_lock*` / `_package*` / `_provenance`), so a packaged action no
+    longer reports them as unknown keys.
+  - The schema-diff panel labels the new `default_mismatch` finding.
+  - Test fixtures pinning the retired `managedBy: 'system'` bucket now use
+    `engine-owned`. Protocol 17 split that value (objectstack#3355), so it
+    resolved to the default-writable fallback and a batch of "stays locked"
+    assertions had quietly stopped asserting anything.
+
+### Patch Changes
+
+- 8d9984c: `AppSidebar` and `UnifiedSidebar` area switchers now adopt the derived area
+  visibility introduced for `AppSchemaRenderer` in objectui#3311, closing the
+  same visible-but-empty gap in the console shells (objectui#3319).
+
+  Both sidebars inlined their own area switcher without any area-level
+  filtering, so an area whose navigation items were **all** gated away
+  (`visible` expression, `requiredPermissions`, `requiresObject` /
+  `requiresService` capability gates) still appeared in the switcher and
+  rendered an empty navigation — and a fully gated _first_ area was even
+  auto-activated, landing the user on an empty sidebar.
+
+  ## What changed
+  - **Shared predicate, not a second implementation.** Both switchers now call
+    `hasVisibleNavigationItems` from `@object-ui/layout` — the exact guards
+    `NavigationRenderer` applies per item — so the switcher can never disagree
+    with the rendered navigation. In `UnifiedSidebar`, `action` items count as
+    content (it wires `onAction`, framework#4509); in `AppSidebar` they do not
+    (it wires none).
+  - **The active area is elected among visible areas only**: first visible by
+    default, re-elected when the active area is gated away, and a gating change
+    that merely _reveals_ an area never steals the user's current selection.
+  - `areas: any[]` tightened to `NavigationArea[]` in both components.
+
+  No authorable area-level key is introduced — visibility stays derived, per
+  the objectui#3311 ruling.
+
+- 532cf8b: Deliver the required state to the control in the five renderers outside the object form that still painted it as an asterisk only (objectui#3299 — the same defect #3290/#3298 fixed in `form.tsx`).
+
+  Each site converges on the reference shape (`EmbeddableForm.tsx`): the control carries `aria-required={required || undefined}` and the asterisk is `aria-hidden="true"`, so assistive tech announces required once, as a state — instead of hearing a bare "asterisk" folded into the accessible name, or nothing at all.
+
+  - `@object-ui/app-shell` — `ActionParamDialog` (both the boolean row and the default branch, delivered through the real field widgets' `toDomProps` whitelist) and `CreateViewDialog` (display label, machine name, and every type-specific required-field selector).
+  - `@object-ui/components` — the custom `ActionParamDialog` (all five typed branches, including the Radix select trigger) and `FieldContainer`, whose existing Slot injection (`id` / `aria-describedby` / `aria-invalid`) now also injects `aria-required`, covering every consumer in one place.
+  - `@object-ui/plugin-detail` — `InlineCreateRelated`'s create-tab inputs.
+
+  Deliberately NOT the native `required` attribute (#3290 ruling): each of these hosts runs its own validation, and native `required` would arm the browser's constraint-validation bubble beside it. The SDUI controls that already use native `required` (`renderers/form/{input,textarea,select,checkbox}.tsx`, `basic/text-input.tsx`) are unchanged — they don't have a second validator, so their channel is already correct.
+
+- f59406d: `useAppContextSelectors` now derives each context selector's URL scope key from its own `id` instead of hardcoding the literal `package` query key. `App.contextSelectors` is an array and `AppContextSelectorSchema.id` is documented as the nav template var the selected value is published under — but the shell spelled `package` on all five read/write sites, so a second declared selector mirrored the first: switching either one wrote the same query key, and every `contextValues[id]` read it back. An app declaring `active_package` + `active_env` parsed clean, rendered two dropdowns, and fed both template vars one shared value (#3500).
+
+  Studio's shipped `?package=` links are unaffected. The `active_package` selector keeps that exact key through a single grandfathered entry (`contextSelectorQueryKey`), because it is not this renderer's key to rename: ~15 Studio nav items declare `params: { package: '{active_package}' }` in `@objectstack/platform-objects`, six Studio surfaces read `?package` straight off the query string, and bookmarked URLs already carry it. Existing URLs are byte-identical before and after; only newly declared selectors get `?<id>=`. `UnifiedSidebar`'s Studio home link now reads and re-emits the scope through the same derivation rather than assuming the literal key. Two selectors colliding on one key warn in dev.
+
+  The `persist` under-enforcement reported in the same issue (`'query' | 'session' | 'none'` are not distinguished) is deliberately untouched here — it is a spec-side enforce-or-remove ruling tracked separately.
+
+- 5781fb1: `@object-ui/core` now ships the server-action dispatcher factory —
+  `createServerActionHandler({ fetch, baseUrl, resolveObject, ... })` — so any
+  consumer of the runner (standalone renderers, SDUI hosts, embedded usage) can
+  run `action.body` script actions by registering the produced handler, instead
+  of dead-ending on the built-in `executeScript`'s "must be executed server-side"
+  error with no supported way to make it run (objectui#2904, the follow-up
+  objectui#2896 deferred).
+
+  The factory is deliberately opinion-free about the three things core has no
+  business deciding — auth (`fetch` is an injected authenticated wrapper), origin
+  (`baseUrl` string or thunk; no bundler env convention), and fallback object
+  scope (`resolveObject`) — and owns everything protocol-shaped, once:
+
+  - name-based action identity (ADR-0110 D1 — `target` is a binding expression,
+    never an identity);
+  - the record-id resolution dance, also exported as
+    `resolveServerActionRecordId` (`_rowRecord`, `recordIdField`, toolbar
+    selection fallback with its single/zero-select guards, aggregate
+    `_selectedIds` bypass), replaceable wholesale via `resolveRecordId` for
+    hosts with their own policy (record pages);
+  - a re-entrancy guard per action+record;
+  - the `/actions` response-envelope rule: `interpretActionResponse`,
+    `readActionPayload` and `actionErrorDetail` moved from `@object-ui/app-shell`
+    internals into core and are now public exports.
+
+  `@object-ui/app-shell`'s two hand-rolled copies of this POST —
+  `useConsoleActionRuntime.serverActionHandler` and `RecordDetailView`'s — are
+  collapsed into one console wrapper (`createConsoleServerActionHandler`) that
+  layers the browser-only choreography (popup pre-open dance, zero-roundtrip
+  `newTabUrl` fast path, `redirectUrl` convention) over the core factory. The
+  copies had already drifted twice (objectstack#3913 — envelope; framework#3935 —
+  identity, fixed in one copy only): RecordDetailView now also dispatches by
+  declarative `name` instead of `target || name`, and no longer leaks the
+  client-side `_rowRecord` stash to the server.
+
+- 7e2406a: The group-tenancy write-target badge is now translated in all ten locales (objectui#3517)
+
+  `form.createTargetOrg` — the ADR-0105 badge `RecordFormPage` shows in create mode
+  to name the organization a new record will land in — was defined in **no** locale
+  pack, not even `en`. i18next therefore genuinely missed the key and rendered the
+  call site's inline `defaultValue`, so the badge read English `Creates in <org>` in
+  all ten languages: a Chinese console creating a record on an org-walled object
+  showed `Creates in 某某组织`.
+
+  `all-locales-key-parity.test.ts` could not see this. It asserts that every pack
+  defines every **`en`** key, so a key `en` itself lacks is outside the comparison —
+  ten packs missing it identically kept parity fully green.
+
+  ## What changed
+  - `createTargetOrg` is backfilled into `en` as `Creates in {{org}}`, which makes
+    the parity gate demand it from the other nine; each is translated to its pack's
+    existing `form`-section tone rather than copied or machine-filled.
+  - The inline `defaultValue` in `RecordFormPage.tsx` is deleted, finishing what
+    objectui#3469 started — that key was the file's last remaining exception, and
+    every `t()` on the page now passes bare. Declared = enforced: the packs are the
+    single source of this copy, and a missing key must surface (raw key + dev
+    missing-key warning) instead of being papered over at the call site.
+  - The two exception-pinning tests objectui#3516 left behind invert. `form.createTargetOrg`
+    joins the `BARE_KEYS` list (pinned present in all ten packs), and the render
+    assertion now checks the badge against the **pack** copy in both `en` and `zh` —
+    the deleted English default could not satisfy the Chinese assertion, so the
+    badge fails loudly if the packs ever stop driving it.
+
+- 35da149: The flow designer no longer seeds new `wait` nodes with the retired
+  `waitEventConfig.onTimeout` (objectui#3316).
+
+  FROM: `defaultNodeExtras('wait')` returned
+  `{ waitEventConfig: { eventType: 'timer', onTimeout: 'fail' } }`, and the
+  one-click revision loop (`addReviseLoop`) wrote `onTimeout: 'fail'` onto the
+  `wait` node it creates. TO: both seed only the event flavor — `{ eventType:
+'timer' }` and `{ eventType: 'signal', signalName: 'revision' }`. The author
+  fills in `timerDuration`.
+
+  **This is a behaviour fix, not a cleanup.** `waitEventConfig.onTimeout` was
+  retired in `@objectstack/spec` 17 (framework#4158) via `retiredKey()`, i.e.
+  `z.never().optional()` — it is not a silently-stripped extra but a hard
+  `FlowNodeSchema.parse()` error carrying its own prescription ("It had no
+  readers at all … Delete the key."). Every `wait` node dragged out of the
+  palette, inserted on an edge, or created by the revision-loop button therefore
+  carried a key the loader rejects, so publishing a flow the author had merely
+  assembled returned 422. The other half of the same retirement had already
+  landed here — the label overrides came out of `i18n.ts` and the two fields came
+  out of the hand-written node form (`inspectors/flow-node-config.ts`) — but the
+  block that _produces_ the key was missed.
+
+  A new `flow-canvas-seeds.spec-parse.test.tsx` pins the invariant for the next
+  retirement: every seeded node shape (all `NODE_PALETTE` types plus `start` /
+  `end` / `http_request` / `boundary_event`) is run through the spec's own
+  `FlowNodeSchema`, and the revision-loop node is captured from a real button
+  click and parsed the same way. Two deliberately different criteria: the strict
+  sibling blocks (`waitEventConfig` / `connectorConfig` / `boundaryConfig`) get a
+  full-parse verdict plus an explicit `[REMOVED]`-tombstone check that names the
+  offending seed key; the `config`-rooted seeds (`approval` / `notify` / `http`)
+  — invisible to `FlowNodeSchema`, whose `config` is a permissive record, and
+  deliberately partial, since the author still supplies notify's `title` and
+  http's `url` — are checked key-level against the spec's published
+  `ApprovalNodeConfigSchema` / `NotifyConfigSchema` / `HttpConfigSchema`.
+
+  No other `defaultNodeExtras` branch was affected: the remaining seeds
+  (`connector_action` / `boundary_event` / `approval` / `notify` / `http` /
+  `script` / `start`) were each checked against the spec and are clean.
+
+- 68b6a28: The list toolbar's "Filter" now saves. Saving a filter from the runtime toolbar PUT the FilterBuilder's whole group object (`{ id, logic, conditions }`) into the view's `filter`, where `@objectstack/spec`'s `ListViewSchema.filter` declares `ViewFilterRule[]` — so every save came back `422 invalid_metadata` and the filter was silently never persisted (objectstack#5159).
+
+  The producer now folds the builder's group to the spec's flat `{ field, operator, value }` rule list before persisting, sharing one transform with the Studio view inspector (which had the only copy). Operators normalize through the spec's own `normalizeFilterOperator`, so the four builder operators the Studio's local table had drifted behind — `startsWith`, `endsWith`, `isNull`, `isNotNull` — now persist correctly too. The builder's per-row `id` is no longer written: it is a React list key that the read path regenerates, so stored view bodies keep the declared vocabulary only.
+
+  A filter whose shape cannot be represented losslessly as a flat rule list — `OR` across several conditions, or nested condition groups — is now refused with a translated message instead of being quietly saved as `AND`, which would have returned a different set of records than the one on screen. Such a filter still applies to the current list; it just does not become part of the saved view.
+
+- 94755bb: RecordDetailView's `type:'modal'` dispatch no longer falls back to the server-side action handler when the target resolves to neither a page nor an object. That fallthrough could never succeed — the framework rejects `type:'modal'` over REST with a 400 (`headlessActionTypeError`) — so it only converted an authoring mistake into a confusing round-trip. The record page now reports the same descriptive authoring error as the shared console runtime (objectstack#3959), naming the action, the dud target, and the way out (`type:'script'` with `params`).
+- 875c5fa: `ObjectDataPage`'s "Save as view" now folds the active URL drill conditions into `@objectstack/spec` `ViewFilterRule`s before persisting them, instead of writing the runtime filter triples verbatim into the view body. The page renders from a filter AST (`['stage', '=', 'open']`), but a saved view is a ViewItem whose `ListViewSchema.filter` declares `z.array(ViewFilterRuleSchema)` — `{ field, operator, value }` over the canonical operator words. Saving a drilled list therefore produced an off-spec ViewItem that the record gate rejects on `config.filter.0` ("expected object, received array"), so a view saved with drill conditions was already invalid the moment it was written (#3419). Operators are canonicalised through the spec's own `normalizeFilterOperator` — the same exit `viewFilterFold` uses for the FilterBuilder — so `=` becomes `equals` and `>=` becomes `greater_than_or_equal`, and `field` / `value` are carried through untouched. Contract-first: the fold is at the producer; no consumer was taught to accept triples. A condition whose operator has no canonical spelling is dropped from the persisted view with a debug-level note rather than written off-spec (the URL contract emits none such today). Saving a view with no drill conditions active is unchanged — no `filter` key is written, exactly as before.
+- 8e02ad7: The Page block inspector's conditional-visibility control now authors
+  `visibleWhen`, and says "Visible when" while doing it (objectui#3229).
+
+  FROM: the `ConditionBuilder` rendered for the selected page block read and wrote
+  `block.hidden`. TO: it reads and writes `block.visibleWhen`, the canonical
+  conditional-visibility key (ADR-0089), through the same envelope read/write pair
+  the hook and action guards use (objectui#3218).
+
+  `PageComponentSchema` (`ui/page.zod.ts`) is `.strict()` and has no `hidden` key
+  at all. So this was not a tolerant consumer accepting something sloppy — it was
+  the **producer emitting a key the contract rejects**: every author who filled
+  that box got a save-time parse failure naming a key they never typed, because the
+  inspector typed it for them. The spec's own error message already names the fix
+  (`` the canonical key is `visibleWhen` ``). A designer that mass-produces drafts
+  guaranteed to be rejected is a worse failure than a lenient reader — a lenient
+  reader lets wrong metadata run, this made the _correct tool_ emit the wrong thing.
+
+  The fix also closes the gap in the other direction: a **valid** block carrying
+  `visibleWhen` previously had no control in the inspector that could edit its
+  visibility, because the only visibility control on screen wrote a different key.
+  Removing the control instead would have stopped teaching the wrong key but left
+  that gap open, which is a capability regression.
+
+  **The semantic flip lands in the UI copy, not just the key.** `hidden` and
+  `visibleWhen` are inverses (`hidden` true ⇒ gone; `visibleWhen` true ⇒ shown), so
+  the label, the i18n key (`engine.inspector.pageBlock.hidden` →
+  `engine.inspector.pageBlock.visibleWhen`) and both language packs move together:
+  "Hidden (CEL)" → "Visible when (CEL)", 「隐藏条件（CEL）」→「显示条件（CEL）」.
+  Renaming the key while leaving hide-flavoured copy would have been worse than
+  leaving the bug: authors would write the predicate backwards, producing metadata
+  that PARSES and means the opposite — the objectui#3276 class, which objectui#3257's
+  guard is structurally blind to because it only asks whether a draft parses.
+
+  **No value is migrated.** An existing `hidden` expression is NOT negated into
+  `visibleWhen`: textually negating an arbitrary CEL predicate is unsound
+  (`!(a && b)` is not `!a && !b`), and there is no stored valid draft to migrate
+  anyway — since ADR-0089 D3a `hidden` is a loud parse failure on save, and before
+  D3a the key was silently dropped, so it never reached published metadata either.
+  A loud error on a rare stale draft, with the spec's message pointing at
+  `visibleWhen`, beats silently rewriting an author's predicate.
+
+  Because `visibleWhen` is `ExpressionInputSchema`, a persisted block carries the
+  `{ dialect, source }` envelope rather than the authored string, so the control
+  goes through `expressionSource` / `writeExpressionSource` — an edit preserves
+  `dialect` and `meta` and drops the stale `ast`, instead of flattening the
+  envelope to a bare string and silently swapping the evaluation engine.
+
+  Tests pin DIRECTION, not just the key name (the objectui#3276 precedent makes
+  that a hard requirement): the block the inspector actually commits is rendered
+  through `SchemaRenderer` and must appear when its predicate is true and be absent
+  when it is false, alongside assertions that the committed key is `visibleWhen`,
+  never `hidden`, and that the resulting draft parses.
+
+- a415684: The console server-action wrapper's `opensInNewTab` choreography no longer
+  ships hard-coded bilingual Chinese/English copy (objectui#3321, AGENTS.md
+  Commandment #-1): the pre-opened SSO spinner tab (title + body) and the
+  popup-blocked toast (title, description, action label) are now localized
+  through new `console.serverAction.*` keys in `@object-ui/i18n`, added at full
+  parity across all ten locale packs.
+
+  `createConsoleServerActionHandler` gains an optional i18next-style `t` option
+  (`t(key, englishDefault)`) — the wrapper is a plain function, so the translate
+  function is injected from the two hook-context call sites
+  (`useConsoleActionRuntime`, `RecordDetailView`) via `useObjectTranslation`.
+  When omitted (tests / standalone), every string falls back to its English
+  default; no non-English copy remains in code. Locale strings are HTML-escaped
+  before being written into the spinner document.
+
+- a4cff5b: Conditional-rule predicates that fail to evaluate are no longer silent
+  (objectstack#5149, appeal 2). `evalFieldPredicate` — the canonical funnel for
+  `visibleWhen` / `readonlyWhen` / `requiredWhen`, view-level `visibleOn`, legacy
+  `condition`, per-option `visibleWhen`, screen-field predicates and list
+  conditional formatting — now logs **one `console.warn` per predicate text**
+  when evaluation fails (parse error, unbound identifier, engine fault), carrying
+  the predicate source, the engine's failure reason, and the field/rule locator
+  the call site provides. Renderer call sites thread that locator
+  (`visibleWhen of field 'amount'`), so a broken predicate identifies itself in
+  the browser console instead of being indistinguishable from an absent one.
+
+  Verdicts are unchanged: evaluation still fails open to the caller's safe
+  default (flipping that default is objectstack#5149 appeal 1, tracked
+  separately). Fault-probing callers (`evalRowPredicate`'s fail-closed path,
+  `ExpressionEvaluator`'s `throwOnError`) opt out via the new
+  `diagnostic.warn: false` and keep their own single diagnostic, so no broken
+  predicate ever warns twice.
+
+- 8ff3ad7: Five metadata designers stop rendering keys `@objectstack/spec` rejects, and start
+  rendering the keys it declares (objectui#3275, objectui#3281).
+
+  The previews and the console's sample drafts had been wrong TOGETHER, which is
+  why the gallery looked healthy. objectui#3266 corrected the samples and the
+  gallery immediately rendered LESS — agent's TOOLS and KNOWLEDGE blocks, skill's
+  TRIGGER PHRASES, app's per-item row and `Dashboard` badge, and datasource's
+  CAPABILITIES all vanished or degraded. Nothing had broken: those blocks were only
+  ever lit up by metadata that cannot be saved. This is the renderer half of that
+  finding, and the same fix objectui#3236 / PR #3258 made to `ToolPreview`.
+
+  A preview that renders a rejected key does not just show something useless — it
+  tells the author "this is correct" until publish refuses it. For AI-generated
+  metadata that is where a stale key hides and multiplies, so every read below was
+  deleted rather than kept behind a fallback (AGENTS.md #0.1).
+
+  **Retired keys, deleted** — each is a `retiredKey()` tombstone rejected by name:
+  `agent.tools` (objectstack#3894 — an agent reaches exactly the tools its skills
+  declare, ADR-0064), `agent.knowledge` (objectstack#3896 — it never scoped
+  retrieval), `skill.triggerPhrases` (objectstack#3896 — phrases were never matched
+  against a user's message).
+
+  **`AppPreview` / `AppNavCanvas`** — `AppSchema.navigation` is a discriminated
+  union on `type` whose every branch is `.strict()`. Both surfaces ignored the
+  discriminator: kind came from `it.object` / `it.dashboard`, the route from
+  `it.path ?? it.href ?? it.route ?? it.url`, and the landing from
+  `landingRoute ?? landing ?? defaultRoute ?? '/'`. Not one of those is a key
+  (`landing` was removed in objectstack#4001), so the reading was exactly inverted —
+  a valid app showed generic badges, no targets and an invented `Landing: /`. Now
+  `type` is the badge, each branch's own key is the target
+  (`objectName`/`pageName`/`dashboardName`/`url`/`reportName`/`componentRef`/
+  `actionDef.actionName`), and the route comes from `resolveHref`, the shell's own
+  nav → URL mapping that `useNavPins` and `SearchResultsPage` already share — so a
+  link in the preview is the link the runtime follows. The landing entry is
+  DERIVED, never read off the draft — it is the first navigation item that yields
+  a route, the same rule the console shell applies; `homePageId` was retired in
+  `@objectstack/spec` 17.0.0 and is not consulted.
+
+  **`DatasourcePreview`** — `capabilities` is a `DatasourceCapabilities` object of
+  boolean flags, and the preview tested `Array.isArray`, lighting the block up only
+  for the pre-17 token array the schema refuses. It now lists the flags set to
+  `true`. The `driver ?? d.type` fallback is gone (the schema's own hint is
+  `type` → `driver`), as is the `default` pill behind `isDefault ?? default` —
+  routing is declared at stack level via `datasourceMapping`, never on the
+  datasource.
+
+  **`SkillPreview`** — the trigger-conditions table read `cond.expression ??
+cond.value` under a `cond.type` gutter, so a spec-valid condition rendered as
+  `COND | sales_order` with the field it tests and the operator it applies both
+  invisible. It is now three columns — `field` / `operator` / `value` — straight off
+  `SkillTriggerConditionSchema`, and a row missing one of those required cells says
+  so instead of rendering a blank that reads as fine.
+
+  **`ValidationPreview`** (objectui#3281) — drew nine rule types where the union has
+  six. `unique`, `async` and `custom` were removed by one paragraph of
+  `validation.zod.ts`, because a rule must be a deterministic, synchronous,
+  side-effect-free predicate over one record; each now redirects to the layer that
+  does the job (a unique **index** — a SELECT-then-INSERT rule is racy, TOCTOU — a
+  form-layer check, a lifecycle hook). Two alias fallbacks went with them:
+  `condition ?? expression` and `pattern ?? regex`, where neither `expression` nor
+  `pattern` has ever been a key on any branch — which is precisely why a bogus
+  `expression` sat unnoticed in the console sample. Two branches were also simply
+  wrong: `conditional` read `condition` instead of its `when` (a valid rule showed
+  "No expression set", and its nested `then`/`otherwise` now render), and
+  `json_schema` had no branch at all, so a valid rule displayed "Unknown rule type".
+
+  `validation.object` is deliberately still read: `anchors.ts` registers a
+  standalone `validation` resource matched by `anchorByField('object')`, so a
+  standalone rule genuinely carries it. Not every key a union omits is residue.
+
+  Verified in the preview gallery before and after, per designer; each preview also
+  gains tests that feed a spec-valid draft and assert the block renders, then feed a
+  stale draft carrying the retired key and assert nothing renders from it.
+
+- 12bf669: The record discussion panel now says "loading" while it is loading, instead of
+  "No comments yet" (objectui#3209).
+
+  FROM: opening any record page showed the discussion/chatter panel asserting
+  `No comments yet` for the whole first leg of the page, then contradicting
+  itself when the comments appeared. TO: the panel shows the loading row until
+  the feed has actually answered, and only then commits to "this record has no
+  comments".
+
+  objectui#3205 gave `RecordActivityTimeline` the render branch that prefers a
+  loading row over the empty copy, and `RecordChatterPanel` already forwarded
+  `loading` to it in both positions — but on the chatter chain **nothing
+  produced the signal**, so that branch could never fire. `record:activity`
+  computes its own flag and was visibly fixed by #3205; chatter was not. The
+  four wiring points are one chain and are all closed here, because any one of
+  them left open still ships the empty copy to some user:
+
+  - `RecordDetailView` — the host that OWNS the feed fetch — now derives a
+    `feedLoading` flag from its two reads (`sys_comment` + `sys_activity`);
+  - `<DiscussionContextProvider loading={feedLoading}>` publishes it (the field
+    was already declared on `DiscussionContextValue`, and already read by
+    `record:activity`);
+  - the auto-appended `<RecordChatterPanel loading={feedLoading}>` — the panel
+    authored pages get when they place no discussion slot — receives it
+    directly;
+  - the `record:chatter` / `record:discussion` renderer forwards
+    `loading={discussion?.loading}`, so a hand-placed block is on the same
+    chain as the synthesized one.
+
+  The two reads run in parallel, so the flag closes over **both**: it clears on
+  `Promise.allSettled`, and a REJECTED read counts as an answer. A deployment
+  without the audit plugin 404s `sys_activity` and an object with
+  `enable.feeds: false` 403s `sys_comment`; neither may pin the panel in a
+  permanent spinner, which would be a worse bug than the one being fixed. The
+  flag is keyed by `object:recordId` rather than being a plain boolean, so the
+  first render of a record already reads as loading (no one-frame flash of the
+  empty state) and navigating between records cannot show the previous record's
+  settled answer.
+
+  No tolerance was added at the consumer. The timeline still does not guess that
+  "no items yet and just mounted" means loading — that guess is wrong the moment
+  a record genuinely has no comments, and the signal belongs to whoever owns the
+  fetch. Same shape as objectui#3165 / #3205: divergence converges at the
+  producer.
+
+- a8aa576: The record discussion panel no longer shows the PREVIOUS record's comments and
+  activity (objectui#3268).
+
+  FROM: clicking from record A to record B in a list left A's comments and
+  activity rows on B's discussion panel, with B's own rows merged in alongside
+  them. TO: each record's panel shows that record's feed and nothing else, and a
+  record that is still being fetched shows the loading row rather than the
+  record the user just came from.
+
+  This was cross-record data display, not a cosmetic glitch. `RecordDetailView`
+  is deliberately NOT remounted between records — no mount site passes a `key=`
+  (`console/AppContent.tsx`, and the `ObjectView` / `ObjectDataPage` /
+  `InterfaceListPage` drawers just swap `recordIdOverride`), per objectui#2269
+  "refresh data, don't rebuild UI" — so its feed state survived the navigation,
+  and both reads (`sys_comment`, `sys_activity`) merged into it BY ROW ID. A's
+  rows and B's rows have different ids, so the merge could not dedupe them away
+  and nothing anywhere reset the list.
+
+  It also suppressed the fix objectui#3209 had just shipped. On record→record
+  navigation `feedLoading` did flip true, but `RecordActivityTimeline`'s branch
+  is `loading && filtered.length === 0` (objectui#3205, deliberate: a refresh
+  must not turn an on-screen feed into a spinner) and the leftover rows kept
+  `filtered` non-empty — so the panel rendered the previous record's content
+  where a loading state belonged. The two issues only add up to a working
+  feature together.
+
+  The feed state is now keyed by `objectName:recordId` — the same key
+  objectui#3209 introduced in this file for the loading flag, and the very
+  `thread_id` the rows carry server-side. The render reads only the current
+  key's slice, so "empty for a new record" FALLS OUT of reading a key that has
+  no slice; there is no `setFeedItems([])` racing the fetch that fills it. A
+  response that lands after the user has navigated away is written under the key
+  its effect closed over, so it updates the record it was fetched for and can
+  never bleed into the record now on screen — the same guarantee `settledFeedKey`
+  already gave the loading flag. One idiom in this file, not two.
+
+  Keying rather than clearing is what keeps OPTIMISTIC rows safe. A comment the
+  user has just posted but that has not come back from the server lives only in
+  this state, and it now rides in its own record's slice: navigating away and
+  back finds it again, and it never appears on another record's panel. Nothing
+  deletes a slice, so returning to a record shows its rows immediately while the
+  re-read confirms them (objectui#3205 again), and the re-read folds the
+  persisted copy onto the optimistic row by id — same id, because that is the id
+  it was created under — so there is no duplicate when it lands. The same
+  scoping applies to threaded replies and reaction toggles.
+
+  No tolerance was added at the consumer. `RecordActivityTimeline` still keeps
+  `loading && filtered.length === 0` exactly as objectui#3205 wrote it; once the
+  feed's lifecycle is correct that condition is right on its own. Weakening it
+  would have been treating the symptom at the consumer, which is what
+  objectui#3165 / #3205 / #3209 all deliberately avoided.
+
+- c0c771c: `RecordFormPage` no longer passes an inline `defaultValue` to the seven `t()`
+  lookups whose keys are defined in all ten locale packs (`form.createTitle`,
+  `form.editTitle`, `form.createSuccess`, `form.updateSuccess`,
+  `form.saveRecord`, `common.back`, `common.cancel`). Rendered copy is
+  unchanged in every locale — those branches were unreachable, because
+  `all-locales-key-parity.test.ts` pins the keys as present, so i18next always
+  resolved the pack value and never consulted the fallback (objectui#3469).
+
+  What the dead fallbacks _did_ do is carry a second, unwatched English
+  spelling of the same string. `form.createTitle`'s default read
+  `New {object}` while the pack says `Create {{object}}` — a different verb for
+  one title at one call site. Had the key ever been renamed or dropped, the page
+  title would have silently changed from "Create Contacts" to "New Contacts"
+  with the whole suite still green. Now a missing key surfaces as the raw key
+  plus the dev missing-key warning, and a new
+  `RecordFormPage.i18n.test.tsx` asserts both that the rendered copy is the pack
+  copy (checked in `en` and `zh`, which no hardcoded English default could
+  satisfy) and that every bare key really exists in all ten packs.
+
+  One `defaultValue` in the file is deliberately kept: `form.createTargetOrg`
+  (the group-tenancy write-target badge) is defined in **no** pack, not even
+  `en`, so its fallback is what actually renders. It is now documented as the
+  exception and pinned by a test that says to remove it when the key is
+  backfilled.
+
+- 30ac2e1: `ToolPreview` stops advertising retired `ToolSchema` flags (objectui#3236).
+
+  The metadata-admin tool preview painted a header strip of flag pills read
+  straight off the raw draft: `Requires confirmation`, `Active` / `Disabled`,
+  `built-in`, and the `category` tag. All four keys have been removed from
+  `@objectstack/spec`'s `ToolSchema` — `requiresConfirmation` in the 16.x line
+  (objectstack#3715, ADR-0033 §2) and `category` / `active` / `builtIn` in
+  17.0.0 (objectstack#3896 audit close-out). The schema is `.strict()` and now
+  rejects each by name with an upgrade prescription, so no newly authored tool
+  can carry them; verified against the `@objectstack/spec@17.0.0-rc.1` this repo
+  depends on.
+
+  New metadata could not reach these pills — but rows stored before the removals
+  still carry the keys, and for those the preview kept rendering. That is the
+  harmful direction, not a cosmetic one:
+
+  - `Requires confirmation` advertised a safety pause that no execution path has
+    ever performed. Nothing read the key — not the LLM tool set (a tool reaches
+    the model as name/description/parameters only), not `ToolRegistry.execute`,
+    not `POST /ai/tools/:name/execute`. A reviewer reading the preview saw a
+    destructive tool marked as gated when it was not. The real gate is
+    `action.ai.requiresConfirmation`, which the HITL approval queue reads.
+  - `Disabled` claimed a tool had been withdrawn while `ToolRegistry.getAll()`
+    kept handing it to the LLM and the execute route kept running it.
+
+  Same shape as objectui#2962: a UI badge advertising a capability the runtime
+  does not have. The pills are gone; the surviving header strip shows label,
+  machine name and the `objectName` pill (`objectName` is still a live spec key),
+  and nothing else in the preview changed — parameters table, example LLM call
+  and output schema are untouched.
+
+  New tests feed the preview a stale draft that still carries all four retired
+  keys and assert none of them renders, so the pills cannot grow back: the names
+  survive in the spec's tombstone guidance, which gives the next reader a
+  plausible-looking reason to "restore" them.
+
+- Updated dependencies [18cd432]
+- Updated dependencies [b7165ce]
+- Updated dependencies [608669e]
+- Updated dependencies [532cf8b]
+- Updated dependencies [680080a]
+- Updated dependencies [a7651e6]
+- Updated dependencies [d915c47]
+- Updated dependencies [b71fc92]
+- Updated dependencies [65516ba]
+- Updated dependencies [94c5b7c]
+- Updated dependencies [ca0fa8f]
+- Updated dependencies [d0d71df]
+- Updated dependencies [34595eb]
+- Updated dependencies [3889ffb]
+- Updated dependencies [5781fb1]
+- Updated dependencies [7e2406a]
+- Updated dependencies [9e9e9a9]
+- Updated dependencies [19b8c9b]
+- Updated dependencies [56409c2]
+- Updated dependencies [042e09d]
+- Updated dependencies [7d08c3f]
+- Updated dependencies [9cbcbf4]
+- Updated dependencies [85c4c9c]
+- Updated dependencies [fd54c3e]
+- Updated dependencies [4eeb932]
+- Updated dependencies [6fe485b]
+- Updated dependencies [5c856ec]
+- Updated dependencies [23018cc]
+- Updated dependencies [53811d1]
+- Updated dependencies [68b6a28]
+- Updated dependencies [0554e88]
+- Updated dependencies [d915c47]
+- Updated dependencies [f44d872]
+- Updated dependencies [28b2e65]
+- Updated dependencies [509104a]
+- Updated dependencies [825bbe3]
+- Updated dependencies [6195841]
+- Updated dependencies [5dd0127]
+- Updated dependencies [d2363e7]
+- Updated dependencies [06632e9]
+- Updated dependencies [a415684]
+- Updated dependencies [a4cff5b]
+- Updated dependencies [175bd79]
+- Updated dependencies [5af2852]
+- Updated dependencies [34d9169]
+- Updated dependencies [5881a2c]
+- Updated dependencies [9bc3709]
+- Updated dependencies [f833d3a]
+- Updated dependencies [30ae33a]
+- Updated dependencies [a6ec93d]
+- Updated dependencies [2a9513d]
+- Updated dependencies [49f7449]
+- Updated dependencies [71be406]
+- Updated dependencies [d22ae31]
+- Updated dependencies [c7ed4c3]
+- Updated dependencies [2409e1d]
+- Updated dependencies [789fe3e]
+- Updated dependencies [f789c3b]
+- Updated dependencies [a321fa4]
+- Updated dependencies [8d8094a]
+  - @object-ui/core@17.3.0
+  - @object-ui/fields@17.3.0
+  - @object-ui/layout@17.3.0
+  - @object-ui/components@17.3.0
+  - @object-ui/types@17.3.0
+  - @object-ui/i18n@17.3.0
+  - @object-ui/collaboration@17.3.0
+  - @object-ui/react@17.3.0
+  - @object-ui/data-objectstack@17.3.0
+  - @object-ui/plugin-editor@17.3.0
+  - @object-ui/auth@17.3.0
+  - @object-ui/permissions@17.3.0
+  - @object-ui/providers@17.3.0
+
 ## 17.2.0
 
 ### Minor Changes

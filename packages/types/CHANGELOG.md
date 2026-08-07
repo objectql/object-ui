@@ -1,5 +1,195 @@
 # @object-ui/types
 
+## 17.3.0
+
+### Minor Changes
+
+- 9e9e9a9: `DrillDownConfig` now declares only keys a renderer reads, and `target: 'navigate'` is honoured on charts too (#3354).
+
+  **Removed — two keys no renderer has ever read.** `DrillDownConfig.view` (self-described as "reserved") and `DrillDownConfig.sort` ("default sort applied to the drill list") had zero read sites repo-wide: the drill drawer rendered its inline `object-data-table` regardless of `view`, and no widget put `sort` into the drilled table schema. Authoring either did nothing, silently. They are removed rather than implemented because nothing asked for them, and this interface is the shape the protocol's own `drillDown` declaration is being derived from (objectstack#5022) — left in place, they were about to become dead keys carrying protocol authority. Removing a declared key from a published interface is technically breaking for anyone who wrote one, but only in the sense that TypeScript now reports what was already true at runtime: the key did nothing. Per this repo's version policy the bump stays `minor` (the fixed release group tracks `@objectstack`'s major). A compile-time pin in `@object-ui/types` keeps both keys from drifting back without a reader.
+
+  **Fixed — `ObjectChart` no longer degrades `target: 'navigate'` to a drawer.** All five widgets share `DrillDownConfig`, whose `target` JSDoc promises `'navigate'` skips the in-place view and opens the object's full list page when the host provides drill navigation. `DrillDownDrawer` delivered that for the table / pivot / metric widgets, but `ObjectChart` draws its own drawer and branched on `'dialog'` only — so `'navigate'` fell through to the default side sheet, indistinguishable from `'drawer'` even with a host handler wired. The chart now routes `'navigate'` through `DrillNavigationContext.openRecordList` with the same merged filter the drawer would have used, and keeps the documented fallback: with no host navigation handler it degrades to the drawer. `'drawer'` / `'dialog'` behaviour is unchanged, and the header's "Open in list" escape hatch stays independent of `target`.
+
+  The `object-chart` registry input deliberately keeps advertising `target: 'drawer' | 'dialog'` only. `ChartDrillDownSchema` in `@objectstack/spec` declares the chart drill target as those two, strictly, and the publish-time react-page lint parses that schema against the authored literal — so listing `'navigate'` in the designer palette would offer authors a value the publish gate rejects. Widening the protocol union is a spec-side follow-up (objectstack#5435); `'navigate'` works today for any host that composes an `object-chart` schema directly.
+
+- f44d872: `mobile.fullscreenLongText` finally reaches auto-generated long-text fields, and
+  `mobile_fullscreen` gets one declared carrier (objectui#3245).
+
+  FROM: `ObjectForm` stamped the flag onto the FormField itself
+  (`{ ...f, mobile_fullscreen: true }`). TO: it stamps the flag onto the object the
+  form renderer will actually forward to the widget as `field` — `f.field || f`,
+  resolved exactly the way `renderFieldComponent` resolves it.
+
+  **The flag's only legal carrier is the field metadata, and its only producer is
+  `ObjectForm`.** That convention was already what the widget side assumed after
+  objectui#3232/#3233 (`TextAreaField` reads `field.mobile_fullscreen` and nothing
+  else, and `field` is the single metadata carrier); the producer was writing to a
+  different object, so for auto-generated fields the two never met.
+
+  What was broken, end to end: `ObjectForm` builds an auto-generated field as
+  `type: 'field:textarea'` **and** stashes the object-field metadata on `.field`.
+  The renderer forwards `field: field.field || field`, so the widget received the
+  raw metadata — which never carried the flag — while the FormField-level copy was
+  dropped by `stripRegisteredFieldProps`. Every entry point into `TextAreaField`
+  therefore read `undefined` and the expand affordance never rendered. Only the
+  hand-authored `customFields` path (no `.field` to shadow the FormField) ever
+  worked, i.e. the feature was dead on the path virtually every form takes. Unit
+  tests on both ends passed the whole time, because the break lived in the seam
+  between them; this release adds the feature's first integration coverage — real
+  `ObjectForm` → real form renderer → real `TextAreaField`, no mocks — which fails
+  against the old producer and passes against the new one.
+
+  `mobile_fullscreen` is now declared on `@object-ui/types`' `BaseFieldMetadata`,
+  hence on every member of the `FieldMetadata` union that
+  `FieldWidgetComponentProps.field` resolves to. It is deliberately **not** an
+  `@objectstack/spec` property: nobody authors it on a field definition, it is a
+  projection of the form-level `ObjectFormSchema.mobile.fullscreenLongText` setting
+  onto the field metadata at render time. Declaring it removes the last untyped
+  end of the chain — the producer's `as FormField` cast is gone — so the two sides
+  can now disagree out loud instead of silently.
+
+  The hand-authored `customFields` path keeps working unchanged, and keeps its own
+  metadata: the flag is stamped on the FormField only when there is no `.field` to
+  carry it. Synthesizing a `field` object in that case would light the affordance
+  up while quietly replacing the field's `rows` / `placeholder` with defaults — the
+  regression test pins that too.
+
+- f833d3a: Retire `validation` from the action-param contract — it was declared on both
+  halves, read by neither, and rejected outright by the server (objectui#3201).
+
+  FROM: `validation?: string` was declared on the AUTHORING type
+  (`@object-ui/types`' `ActionParam`) and on the RESOLVED type (`@object-ui/core`'s
+  `ActionParamDef`). TO: it is declared on neither.
+
+  **Breaking for anyone who declared it — but it never did anything.** This is
+  marked `minor`, not `major`, per the repo's version-alignment policy (objectui's
+  major tracks `@objectstack`'s, so objectui's own breaking changes ship as `minor`
+  with the breaking semantics spelled out here).
+
+  **Migration: delete it.** If you authored `validation: '...'` on an action param,
+  it never took effect, and publishing that metadata to the server is a hard parse
+  failure — so any metadata that reached production either never carried the key or
+  never parsed. Removing it changes no runtime behaviour; it only moves the error
+  from "silent no-op, then rejected at publish" to a `tsc` error at the keystroke.
+
+  Why it could not work as authored:
+
+  - `ActionParamSchema` in `@objectstack/spec/ui` is `.strict()` and does not list
+    `validation`, so an authored key is a PARSE REJECTION on the server:
+    `Unrecognized key(s) on this action param: \`validation\``. Meanwhile `tsc`
+    against the public type accepted it — the type vouched for a key the platform
+    itself refuses.
+  - Nothing read it on the resolved side either: it was never a key of
+    `resolveActionParams()`'s `RawActionParam`, the runtime field metadata a
+    field-backed param inherits from carries no `validation` to source one from,
+    and `paramToField()` never mapped it — so it could not reach the field widgets,
+    whose rules `buildValidationRules()` builds from `required` / `minLength` /
+    `maxLength` / `pattern`.
+
+  Removed rather than implemented, on ADR-0049 enforce-or-remove. Giving it meaning
+  would mean first deciding what an "expression" is here (CEL? a formula? a regex?)
+  and adding it to `@objectstack/spec`, which is where such a capability has to
+  start — not accreted renderer-side around a key the contract does not have.
+
+  This also retires the last named exception in objectui#3174's drift guard
+  (`packages/types/src/__tests__/page-nav-misc-spec-parity.test.ts`), which carried
+  `validation` as the one key `ActionParam` added on top of the spec's set. The
+  rule it pins — **the authoring type declares exactly the spec's authorable
+  keys** — is now literal: the guard asserts the local-only key set is empty, so
+  any future addition fails the build instead of being waved through.
+
+- d22ae31: Track `@objectstack/spec` 17.0.0-rc.2 (objectui#3235, #3208, #3287, #3264).
+
+  The pin moves from `^17.0.0-rc.1` to `^17.0.0-rc.2` across the workspace, and
+  the sibling `@objectstack/*` packages (`client` / `core` / `formula` / `lint`)
+  move with it — they pin `@objectstack/spec` **exactly**, so leaving them behind
+  kept a second copy of the spec in the tree and would have had `@objectstack/lint`
+  validating against rc.1 schemas that still accept keys rc.2 retires.
+
+  Breaking semantics, in FROM → TO form:
+
+  - **`app.homePageId` is retired — an app's landing page is now its first
+    navigation item.** An app that pinned a landing page with `homePageId` will
+    open on the first reachable navigation entry (by `order`) instead; the root
+    landing still follows `isDefault`. To restore a specific landing page, reorder
+    `navigation` so the intended entry comes first. Stored metadata is migrated by
+    `os migrate meta --from 16`. The key is a hard error now, not a stripped one:
+    the spec ships a tombstone that names the migration.
+    Upstream retired it because of its SHAPE, not its usage — it was an ID
+    cross-reference with no referential integrity, so a `homePageId` that pointed
+    at nothing silently fell back to the first navigation item anyway
+    (objectstack#4667, premise corrected in #4709). If the capability returns, it
+    returns as a flag on the navigation item itself, which cannot dangle.
+  - **`@object-ui/types`' `HttpMethod` now resolves to the spec's
+    `HttpMethodType`.** Shape is verbatim identical — the same 5-value UI subset —
+    and `@object-ui/types` still exports it as `HttpMethod`, so no consumer
+    changes. The spec renamed its `./ui` export because `HttpMethod` named two
+    different types depending on the import path (`./shared` / `./api` carry a
+    7-value enum including `HEAD` / `OPTIONS`); objectui deliberately keeps the
+    5-value one (objectstack#4691).
+  - **`AppContextSelector.includeAll` / `placement` are gone.** Neither ever did
+    anything in this renderer: context selectors are mandatory-scope, so no "All"
+    row was ever rendered, and `placement: 'topbar'` put nothing in the topbar.
+    Both carried schema defaults, which is why the liveness lint structurally
+    could not flag them — removal was the only channel that reaches an author
+    (framework#4509).
+  - **`NavigationArea.visible` / `order` / `requiredPermissions` are gone.** An
+    area is a layout grouping, not an access boundary. Gating moved down to the
+    navigation ITEM, where `visible` and `requiredPermissions` are unchanged and
+    still enforced. `AppSchemaRenderer`'s area switcher no longer hides an area, so
+    an area whose items are all gated away renders as visible-but-empty rather
+    than disappearing.
+  - **`@object-ui/core` no longer exports `NotificationProtocol`**
+    (`resolveNotificationConfig`, `specNotificationToToast`, `mapSeverityToVariant`,
+    `mapPosition`, `ToastNotification`). It bridged `@objectstack/spec/ui`'s
+    `Notification` / `NotificationConfig`, which objectstack#4610 deleted with no
+    successor. Use `resolveNotificationConfig` from `@object-ui/react`
+    (`NotificationContext`), which owns the live `NotificationSystemConfig` and is
+    what every notification surface already read. Note that the spec's _other_
+    `Notification` — `@objectstack/spec/api` — is the REST inbox row, a different
+    contract, and is deliberately NOT aliased in as a replacement.
+  - **The `email_template` client-side validator now uses
+    `EmailTemplateDefinitionSchema`.** It was pointing at the removed
+    `EmailTemplateSchema`, so authored templates were being checked against the
+    wrong contract: the live one is keyed `name` + `locale` (not `id`) and splits
+    the body into `bodyHtml` / `bodyText` (not `body` + `bodyType`)
+    (objectstack#4616 / #4807).
+
+  Fixes that are not breaking, but were only found because rc.2 stopped being
+  lenient — each had been passing vacuously:
+
+  - **`view` drafts are actually validated now.** The client validator named the
+    aggregated container schema while this admin authors first-class `ViewItem`s,
+    and the container used to strip `viewKind` / `config` in silence — so no view
+    draft ever had one of its own keys checked. It now validates each shape
+    against its own schema (objectui#3312).
+  - **The console's worked examples were wrong**, and being stripped rather than
+    refused: `view.list.object` (the container root already declares it),
+    `job.concurrency` / `job.timeoutMs` (no such keys; the spelling is `timeout`,
+    already in ms), `email_template.from` / `.to` (a template is not a send —
+    the sender override is `fromOverride`, an object), and
+    `datasource.capabilities` / `.healthCheck` (objectstack#4583 removed the
+    former; the latter was never a datasource key). These are the drafts an
+    author — or a model generating metadata — copies.
+  - Action key inventory re-derived: `ActionSchema` gained the package-lock
+    envelope (`_lock*` / `_package*` / `_provenance`), so a packaged action no
+    longer reports them as unknown keys.
+  - The schema-diff panel labels the new `default_mismatch` finding.
+  - Test fixtures pinning the retired `managedBy: 'system'` bucket now use
+    `engine-owned`. Protocol 17 split that value (objectstack#3355), so it
+    resolved to the default-writable fallback and a batch of "stays locked"
+    assertions had quietly stopped asserting anything.
+
+### Patch Changes
+
+- d915c47: The bulk selection bar now applies the ADR-0066 D4 `requiredPermissions` capability gate, and short-circuits a boolean `visible` instead of treating it as a broken expression (#3492).
+
+  Two independent gaps put the selection bar out of step with the other three action surfaces. **First**, the capability gate: `action-bar.tsx` (list toolbar), `containers.tsx` (record header) and `RowActionMenu.tsx` (row kebab) all call `useCapabilityGate`, but `resolveBulkActions` dropped `requiredPermissions` when promoting an object action into a `BulkActionDef` and `BulkActionBar` never read it — so the same action was hidden from an unentitled user in the row kebab and offered to them in the selection bar the moment they ticked a checkbox. For a `type: 'api'` action pointed at a custom endpoint nothing behind it was guaranteed to say no. `BulkActionDef` now carries `requiredPermissions?: string[]`, the fold forwards it, and the bar filters on it with the engine's rule verbatim (empty declaration passes, several are AND-ed, unknown capabilities fail OPEN).
+
+  **Second**, boolean `visible`: `partitionBulkRows` handed it straight to the CEL engine, producing `{ dialect: 'cel', source: undefined }` — a fault, which on this fail-closed path disqualified every selected record. So `visible: true` hid the button from everyone, the exact inverse of what it says; and `visible: false` rendered the button anyway, because the render guard tested `def.visible &&` for truthiness and read a declared `false` as "ungated". Booleans now short-circuit the way `useCondition` / `useRowPredicate` always have, and "is this def gated" is one shared predicate (`hasVisibilityGate`) rather than a truthiness test. `BulkActionDefSchema.visible` is `ExpressionInputSchema`, so `objectstack build` never emitted this shape — hand-written view JSON and in-process callers did.
+
+- 23018cc: `record:highlights` now honours a `readonly: true` on an authored field entry, so a header chip for a platform-owned column no longer offers inline edit. `HeaderHighlight`'s editability gate already consulted `field.readonly`, but the renderer rebuilt each entry from a fixed `{name,label,icon,type}` list and dropped `readonly` one layer before that check, so the gate could never fire from authored metadata — a hook-maintained rollup or approval-written grade could be overwritten by hand from the detail-page header strip and stayed wrong until an unrelated write re-fired the computation. `readonly` is now a declared key on `HighlightField` and on the `RecordHighlightsComponentProps.fields[]` entry union, mirroring `DetailViewField.readonly` (objectstack#5077).
+
 ## 17.2.0
 
 ### Minor Changes

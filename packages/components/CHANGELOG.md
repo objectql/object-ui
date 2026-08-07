@@ -1,5 +1,569 @@
 # @object-ui/components
 
+## 17.3.0
+
+### Minor Changes
+
+- 3889ffb: Console chrome i18n gaps (objectstack#5407).
+
+  - A dependency-gated lookup now names its controlling field by its **label**
+    instead of its raw API name. The sentence was localized but the interpolated
+    name was not, so every locale — English included — read `Select crm_account
+first`. The form renderer passes a new `dependsOnLabels` widget prop (the
+    lookup-side counterpart of `emptyHint`, which it already resolves to labels
+    for the fixed-option widgets); a name the host does not cover still falls
+    back to itself.
+  - The page-header overflow trigger's `More actions` accessible name now reads
+    `detail.moreActions`, the same key `action:menu`'s own overflow trigger uses,
+    so the two cannot diverge per locale.
+  - The activity-feed reaction button's `Add reaction` accessible name is now a
+    bundle key (`detail.addReaction`, added to all ten packs).
+  - The "check the highlighted fields" toast joins field names with a per-locale
+    separator (`validation.formInvalidJoiner`) instead of a hardcoded `、`
+    (U+3001) — right for zh/ja by accident, wrong in English and every Latin
+    locale. Latin packs use `, `, CJK `、`, Arabic `، `.
+  - The Spanish `validation.required` / `validation.unique` templates gained
+    their own masculine head noun (`El campo {{field}} es obligatorio`) so the
+    adjective agrees for feminine field labels too — `Cuenta es obligatorio` was
+    ungrammatical.
+
+- 56409c2: Field widgets are finally told when their field fails validation, and the props
+  slot that carries it takes the name the published contract gives it
+  (objectui#3222).
+
+  **Breaking** for anyone implementing a field widget (see migration below). The
+  repo version policy keeps this a `minor` — objectui's major tracks
+  `@objectstack`'s — so read the bump as "breaking within objectui".
+
+  ## The a11y defect this fixes
+
+  `@objectstack/spec/ui`'s `FieldWidgetPropsSchema` — the published contract that
+  third-party and AI-authored field widgets are written against — has always
+  declared `error?: string`. `@object-ui/fields` declared its own slot as
+  `errorMessage`. That looked like a naming split; it was worse:
+
+  ```
+  producers of `errorMessage` anywhere in packages/ + apps/ :  0
+  reads of `errorMessage` in packages/fields/src            : 15  (7 widgets)
+  reads of `props.error`                                    :  0
+  ```
+
+  The slot was dead under BOTH spellings. No host ever passed it: the form
+  renderer showed validation text through its own `<FormMessage/>` and never
+  forwarded the prop. So `EmailField`, `CurrencyField`, `UrlField`,
+  `RichTextField`, `PercentField`, `TextAreaField` and `PhoneField` each computed
+  `aria-invalid={!!errorMessage}` from a value that was `undefined` forever —
+  **`aria-invalid` had never once been set, and a screen reader was never told
+  the field had failed validation.**
+
+  Worse than "never set": `<FormControl>` is a Radix `Slot` that hands its child a
+  CORRECT `aria-invalid`, but a widget's own attribute is written after the props
+  spread, so it wins. Those seven widgets were actively overwriting the right
+  answer with `false`.
+
+  FROM: `renderFieldComponent` received no validation state, and the widget props
+  type declared `errorMessage?: string`, which nothing produced.
+  TO: the form renderer passes react-hook-form's `fieldState.error?.message` down
+  as `error` when it renders a registered widget, and the props type declares
+  `error?: string`. Both ends of the contract are live for the first time; a
+  rename alone would only have swapped one dead key for another.
+
+  ## Migration for widget authors
+
+  ```diff
+  -export function MyField({ value, onChange, field, readonly, errorMessage }: FieldWidgetComponentProps< string >) {
+  -  return <Input value={value} aria-invalid={!!errorMessage} />;
+  +export function MyField({ value, onChange, field, readonly, error }: FieldWidgetComponentProps< string >) {
+  +  return <Input value={value} aria-invalid={!!error} />;
+  ```
+
+  No alias is kept. `errorMessage` was retained nowhere on purpose — a tolerant
+  second spelling is exactly the de-facto second contract AGENTS.md #0.1 forbids,
+  and it is what would let a missed call site go quiet again. Because
+  objectui#3221 had already removed the type's `[key: string]: any`, every missed
+  site is a compile error rather than a silent `any`, so the compiler — not grep
+  — validated this rename.
+
+  ## Responsibilities are split, not duplicated
+
+  The widget consumes `error` **only** to drive `aria-invalid` on the control it
+  renders (which only it can do — `aria-invalid` has to sit on the input element).
+  The message TEXT stays with `<FormMessage/>` in the form renderer. A widget that
+  also renders the text double-displays it, and the docs, the agent prompt and the
+  tests all now say so.
+
+  For the same reason `required` — also declared by the spec, also never delivered
+  — is deliberately NOT lowered into widget props: the required marker has exactly
+  one author, the renderer's `<FormLabel>`, and giving widgets the flag invites a
+  second asterisk. The a11y state a widget could legitimately carry is
+  `aria-required`, which needs no contract change at all (`AriaAttributes` is
+  already part of the type and widgets already forward it).
+
+  Builtin field types are unaffected: they render inside `<FormControl>`, whose
+  Slot already supplies `aria-invalid`, so `error` is stripped there rather than
+  leaking into the DOM as a stray attribute.
+
+  Docs updated to match: `content/docs/guide/plugin-development.md`,
+  `skills/objectui/guides/plugin-development.md` and
+  `.github/prompts/component.prompt.md` — the last of which additionally used the
+  spec's non-generic type alias as a generic (`FieldWidgetProps< number >`) and
+  destructured a `mode` prop that exists on neither type.
+
+- 042e09d: **BREAKING (v17)** — field widgets receive their metadata on ONE key, `field`.
+  `schema` is removed from the widget contract (objectui#3233).
+
+  ## What changed
+
+  `schema` was a second carrier for what `field` already means. Two producers fed
+  it: `SchemaRenderer` passed the authored node as `schema`, and the form
+  renderer's `renderFieldComponent` passed `schema={props.field || props.schema ||
+props}` _alongside_ `field`. The predictable result was ~30 widgets resolving
+  their config as `field || schema` — one concept, two spellings, a de-facto
+  second contract (AGENTS.md #0.1).
+
+  - `FieldWidgetComponentProps` no longer declares `schema`. Reading
+    `props.schema` is now a compile error, not a silent `any`.
+  - Both producers converged. The form renderer passes `field` only. The SDUI node
+    → `field` translation happens exactly once, in a new registration adapter
+    (`withFieldCarrier`), which every built-in field widget is registered through.
+  - All `field || schema` reads in `@object-ui/fields` are now plain `field` reads.
+
+  ## Migrating a widget you wrote
+
+  **Reading the metadata** — replace the fallback with the single key:
+
+  ```diff
+  -const config = field || (props as any).schema;
+  +const config = field;
+  ```
+
+  **Registering a widget** — if your widget can be rendered from a schema node
+  (anything `SchemaRenderer` dispatches, not just forms), wrap it once so it still
+  gets `field`:
+
+  ```diff
+  +import { withFieldCarrier } from '@object-ui/fields';
+  +
+  -ComponentRegistry.register('color', ColorField, { namespace: 'field' });
+  +ComponentRegistry.register('color', withFieldCarrier(ColorField), { namespace: 'field' });
+  ```
+
+  `withFieldCarrier` forwards the node **by reference** — nothing is copied,
+  narrowed or renamed — and consumes `schema` so it cannot reach the DOM through a
+  widget's `...props` spread.
+
+  A third-party widget that still reads `props.schema` and is **not** re-registered
+  through the adapter will read `undefined` in v17 and silently render an empty /
+  default state. That is the deliberate cost of a major boundary: one contract
+  beats N dialects, and a widget that picks the wrong spelling should fail at
+  compile time rather than work under one host and not another.
+
+  ## What did NOT change
+  - **Host metadata (SDUI JSON) is untouched.** No authored schema changes; this is
+    a change to how widgets are _written_, not to what apps declare.
+  - **`schema` is still the universal SDUI prop** every registered component
+    receives from `SchemaRenderer` (`element:*`, `page:*`, grids, reports). Only
+    the _field-widget_ contract retired it. In particular `renderFieldComponent`
+    still passes `schema` when a form field type resolves to a plain component
+    through the bare-name fallback (e.g. `type: 'text'` reaching the display text
+    widget) — that component's contract is the node, and dropping it there would
+    render `undefined.className`.
+
+  ## Payload equivalence
+
+  Every path that used to deliver a payload through `schema` now delivers the
+  identical object through `field`, and both halves are pinned by tests asserting
+  **object identity**, not shape:
+
+  - form path — `packages/components/src/renderers/form/__tests__/form-field-carrier.test.tsx`
+  - SDUI path — `packages/fields/src/__tests__/field-carrier-sdui.test.tsx`
+
+### Patch Changes
+
+- 532cf8b: Deliver the required state to the control in the five renderers outside the object form that still painted it as an asterisk only (objectui#3299 — the same defect #3290/#3298 fixed in `form.tsx`).
+
+  Each site converges on the reference shape (`EmbeddableForm.tsx`): the control carries `aria-required={required || undefined}` and the asterisk is `aria-hidden="true"`, so assistive tech announces required once, as a state — instead of hearing a bare "asterisk" folded into the accessible name, or nothing at all.
+
+  - `@object-ui/app-shell` — `ActionParamDialog` (both the boolean row and the default branch, delivered through the real field widgets' `toDomProps` whitelist) and `CreateViewDialog` (display label, machine name, and every type-specific required-field selector).
+  - `@object-ui/components` — the custom `ActionParamDialog` (all five typed branches, including the Radix select trigger) and `FieldContainer`, whose existing Slot injection (`id` / `aria-describedby` / `aria-invalid`) now also injects `aria-required`, covering every consumer in one place.
+  - `@object-ui/plugin-detail` — `InlineCreateRelated`'s create-tab inputs.
+
+  Deliberately NOT the native `required` attribute (#3290 ruling): each of these hosts runs its own validation, and native `required` would arm the browser's constraint-validation bubble beside it. The SDUI controls that already use native `required` (`renderers/form/{input,textarea,select,checkbox}.tsx`, `basic/text-input.tsx`) are unchanged — they don't have a second validator, so their channel is already correct.
+
+- 680080a: The required state now reaches the input control as `aria-required`, instead of
+  existing only as part of the control's accessible name (objectui#3290).
+
+  The form renderer has always computed a correct `required` — the static
+  `required` flag merged with the `requiredWhen` CEL verdict — and then spent it
+  on exactly one thing: the red asterisk in `<FormLabel>`. That asterisk carried
+  `aria-label="required"`, so the only path from the computed state to assistive
+  tech was `<label for>` folding it into the control's **accessible name**: the
+  field was announced as "Title required".
+
+  A state smuggled through a name is broken three ways:
+
+  - it is read in name order rather than announced as a state, and "list the
+    required fields" style navigation cannot see it at all;
+  - a field rendered without a `label` (compact layouts, inline grid editing)
+    draws no asterisk, so the signal disappears entirely;
+  - `requiredWhen` makes required **dynamic**, and a state channel can express
+    the flip where a name cannot.
+
+  ## What changed
+  - Every field control — built-in (`input` / `textarea` / `checkbox` / `switch` /
+    `select`) and registered widget alike — now receives `aria-required="true"`
+    when the field resolves required, and **no attribute at all** when it does
+    not. Absence rather than `aria-required="false"` is deliberate: it is what
+    the `requiredWhen`-turns-false case has to produce.
+  - The red asterisk is now `aria-hidden="true"` and no longer carries
+    `aria-label="required"`. It renders exactly as before for sighted users; it
+    simply stops being announced, so the state is reported once (as a state) and
+    not twice.
+
+  **No field widget needed a change.** `aria-required` is already declared and
+  typed on the widget props contract (`FieldWidgetComponentProps &
+AriaAttributes`) and every widget forwards its leftover props to the control it
+  renders, so all 48 widgets pick it up unmodified.
+
+  Two non-changes, both deliberate:
+
+  - **No native `required` attribute.** That would arm the browser's own
+    constraint-validation bubble alongside react-hook-form's `<FormMessage/>` —
+    two validators, two UIs, one field. `aria-required` reports the state without
+    triggering native validation.
+  - **No `required` boolean in the widget props contract.** A boolean would give
+    the required marker a second author, and the next widget draws its own
+    asterisk next to the renderer's — the double-display failure objectui#3222
+    already declined for the validation message.
+
+  If you select the asterisk in a test, it is now
+  `span[data-required-marker]` — an explicit locator, rather than an
+  accessibility attribute doubling as a test hook.
+
+- a7651e6: The form renderer's built-in `select` branch stops saying "No options available"
+  in English to non-English sessions (objectui#3263).
+
+  FROM: the inline branch that renders a `type: 'select'` field — the one taken
+  whenever the field is a `BUILTIN_FIELD_TYPES` member, i.e. before the `field:`
+  registry is consulted — rendered `{emptyHint || 'No options available'}`. TO:
+  `{emptyHint || t('fields.options.empty')}`, the same i18n key the registered
+  option widgets fall back to (objectui#3231, all ten locale packs).
+
+  This was the last hardcoded copy of that sentence in `form.tsx`, and the file was
+  half-translated in a way a user could see inside one widget: the dependency-gate
+  sentence next to it already went through `t()`
+  (`fields.options.selectFirst`), so under a `zh` session a gated select read
+  "请先选择Country" and the same select — one keystroke later, when the parent
+  value matched no option — flipped to English.
+
+  `fields.options.empty` is added to `useSafeFormTranslation`'s defaults map, the
+  pattern `fields.options.selectFirst` already follows there, so a form rendered
+  with no `I18nProvider` (standalone widget, test, embedded form) produces the
+  byte-identical English string it produced before. Both halves are pinned by
+  tests: the Chinese rendering in one file, the no-provider English fallback in
+  another (mounting a provider installs it as react-i18next's global default,
+  which would erase the state the second one observes).
+
+  The box moved from an inline `<div>` into a small `BuiltinSelectEmptyState`
+  component in the same file, because `renderFieldComponent` is a plain helper that
+  early-returns on the registered-widget path — a hook called there would run
+  conditionally. It forwards its rest props, since `<FormControl>` is a Radix
+  `Slot` that supplies the control's `id` / `aria-describedby`; a test pins that
+  the field's `<label for>` still resolves to this box.
+
+  Deliberately NOT unified with `@object-ui/fields`' `OptionsEmptyState`: different
+  package, different render path (inline branch vs. registry). What the two share
+  is the i18n key, not a component — merging them would impose one path's markup
+  and props on the other.
+
+- b71fc92: Localize the last untranslated console-chrome accessible names (objectstack#5430)
+
+  Four icon-only controls still carried hardcoded English accessible names, so
+  under a non-English session they were the only English left in the record
+  chrome — and because the controls have no visible label, that literal _is_ the
+  control to a screen reader and to the hover tooltip.
+
+  - `page:header`'s `role="toolbar"` — now `detail.pageHeaderActions` (its `⋯`
+    overflow trigger eight lines below was fixed in #5407; the toolbar was missed)
+  - `ReactionPicker`'s `role="listbox"` popup — now `detail.emojiPicker`
+  - `ReactionPicker`'s per-reaction chip, which built its name by concatenation
+    with English pluralization baked in (`reaction${count !== 1 ? 's' : ''}`) —
+    now `detail.reactionCount` / `detail.reactionCountOne`
+  - `NavigationOverlay`'s drawer close and split-panel close — now `common.close`
+    (the key the rest of the console already uses) and `common.closePanel`
+
+  The pluralized label follows this repo's **two-key** convention
+  (`detail.relatedRecords`/`relatedRecordOne`, `lookup.recordCount`/`recordCountOne`)
+  rather than an i18next `_one`/`_other` pair: zh/ja/ko have no separate singular
+  form, so those packs would legitimately omit the `_one` half and
+  `all-locales-key-parity` would read that as a lost key.
+
+  All five new keys are added to all ten locale packs.
+
+- 34595eb: The Combobox trigger now declares `type="button"` explicitly, so it can never
+  submit an enclosing `<form>` (objectui#3344). The current Radix
+  `PopoverTrigger` happens to supply `type="button"` through its Slot, but that
+  form-safety guarantee was an upstream implementation detail — it is now a
+  locally declared, regression-tested contract, matching the explicit style of
+  LookupField / MultiSelectField / RatingField. The default sits before the
+  trigger pass-through spread (objectui#3318), so a consumer who explicitly
+  passes `type` (e.g. `type="submit"`) still wins.
+- 9cbcbf4: The form renderer's built-in `textarea` branch reads the fullscreen long-text
+  flag on one spelling (objectui#3303).
+
+  FROM: the branch resolved the affordance as `mobile_fullscreen || fullscreen`,
+  and both prop strips (`stripRendererOnlyProps`, `stripRegisteredFieldProps`)
+  carried a matching entry discarding a `fullscreen` key. TO: a single read of
+  `mobile_fullscreen`, with no strip entry left for the alias.
+
+  No runtime behaviour changes for anything that exists, because the second term
+  was permanently `undefined`. `fullscreen` had **no producer**: a repo-wide grep
+  plus `objectstack`'s `packages/spec` turns up only the unrelated
+  feedback/loading overlay property of the same name, never a form field. The one
+  real producer is `ObjectForm`, which stamps `mobile_fullscreen` onto long-text
+  fields from `ObjectFormSchema.mobile.fullscreenLongText` — the same single
+  carrier `TextAreaField` and `RichTextField` read.
+
+  This closes the last member of the convergence run objectui#3232 / #3233 /
+  #3245 / #3301 started. The changeset for #3232 named this branch explicitly as
+  "a separate live path" still accepting two spellings; it is now single-read like
+  the two widgets, so the same authored metadata behaves the same way whether a
+  field type resolves to a registered widget or falls through to the built-in
+  branch.
+
+  Why a no-producer alias is worth removing rather than leaving as harmless
+  insurance: it is not insurance, it is a contract that never held. The renderer
+  advertised a spelling to whoever reads it next — very much including an AI
+  writing form metadata — and that spelling silently does nothing, with no error
+  and nowhere to look. That is the lenient consumer fallback AGENTS.md #0.1
+  forbids, and the identical mechanism behind #3245 and #3301. Dropping the strip
+  entries matters for the same reason: a key nobody produces should not get a
+  dedicated discard, it should be in the ordinary unrecognised-key class, so a
+  typo is as visible as any other typo instead of being quietly swallowed.
+
+  Pinned by tests in both places the alias lived: the built-in branch renders the
+  expand affordance for `mobile_fullscreen` and not for `fullscreen` (the
+  canonical case is asserted alongside the alias case, so the negative cannot pass
+  for the empty reason of the affordance having disappeared altogether), and the
+  strips are shown to own `mobile_fullscreen` — stripped from the top-level props,
+  delivered on `field` — while `fullscreen` is now indistinguishable from an
+  arbitrary unknown key.
+
+- 85c4c9c: 表单内置 `textarea` 的全屏编辑对话框现在能拿到字段自己的 label：对话框标题显示字段名而不是恒定的通用词「编辑文本」，同一张表单上多个长文本字段的展开按钮也终于有了互不相同的无障碍名（objectui#3393）。
+
+  `renderFormField` 在解构字段配置时把 `label` 单独取走了（它要渲染 `<FormLabel>`），而下游 `renderFieldComponent` 唯一调用点重建 props 对象时显式补回了 `field` / `inputType` / `options` / `placeholder` / `emptyHint` / `dependsOnLabels` 等等，唯独漏了 `label`。于是内置 `textarea` 分支里的 `label` 恒为 `undefined`，`FullscreenTextarea` 中两条依赖它的分支从写下那天起就没走到过：
+
+  - 对话框标题 `label ?? t('form.fullscreen.title')` 永远落到通用词——一个叫「备注」的字段点开全屏编辑，标题不会说自己是「备注」；
+  - 展开按钮的无障碍名永远插值通用名词，一张有三个长文本字段的表单上三个按钮读屏完全一样。读屏用户无法判断自己要展开的是哪个字段，这是可达性缺陷而不是观感问题。
+
+  ## 改了什么
+  - 调用点显式转发 `label`（与 `placeholder` / `emptyHint` 同法），这是唯一的行为改动。
+  - `label` 属于 renderer-only：`stripRendererOnlyProps` 与 `stripRegisteredFieldProps` 各加一条丢弃项，所以它既不会变成 DOM 上的 `label="备注"` 杂属性（每个内置分支都会把剩余 props 直接摊到 DOM 节点上），也不会成为注册型 widget 新收到的 prop——自 v17 起 `field` 是它们唯一的元数据载体（objectui#3233），label 一直在那里读。
+  - 内置 `textarea` 分支里那句 `const { label: _label, ...rest }` 随之删除。它本想拦住 label 落到 DOM，但既然从来没有 label 送进来，它拦的是不存在的东西（ESLint 一直报着 `'_label' is assigned a value but never used`），而且只护住了这一个分支。现在这件事由 strip 统一负责，所有分支同等受护。
+
+  十个语言包零改动：#3272 把 `form.fullscreen.toggle` 做成了带 `{{label}}` 插值的整句（zh 插在句尾、ja 插在句首），label 一通，十个语言的句子直接就对。字段没有 label 时仍回落到被翻译的通用词。
+
+- fd54c3e: The form renderer's built-in `textarea` branch now honours `readonly` / `disabled` on its fullscreen exit, which previously bypassed both (objectui#3400). `renderFieldComponent` destructures `readonly` off its props, so it is absent from the `...rest` each branch spreads; the plain exit put it back as `readOnly={readonly}` plus the read-only tint, the `mobile_fullscreen` exit put back neither. `FullscreenTextarea` then renders three controls — the inline textarea, the expand button, and the dialog's own textarea — of which only the first ever saw a spread prop. So a read-only long-text field was editable in place without even opening the dialog, and a disabled one looked correctly greyed out while its expand button stayed live, its dialog accepted any edit, and "Done" wrote that edit back into form state. Neither is an exotic combination: `ObjectForm` stamps `mobile_fullscreen` onto every long-text field when `mobile.fullscreenLongText` is set without consulting either flag, `readonly` is also resolved at runtime from a `readonlyWhen` CEL rule, and `disabled` is additionally true for the whole form while a submit is in flight — so a submit in progress did not stop a long-text edit either. A read-only field now renders no expand button at all, matching the registered `TextAreaField` path so both renderers give the same metadata the same behaviour; a disabled field keeps the button but disables it. Both states also lock the dialog's textarea and its "Done" button independently, because `disabled` can flip to true while the dialog is already open. Editable long-text fields are unaffected.
+- 4eeb932: The form renderer's last user-visible English literals now go through i18n (#3272). The fullscreen long-text editor (`mobile_fullscreen`) was an entire untranslated dialog — title, screen-reader description, `Cancel` / `Done` footer buttons, and the expand trigger's accessible name — rendering English inside an otherwise translated zh/ja/ar form; it now reads the new `form.fullscreen.*` keys, shipped in all ten locale packs.
+
+  **Behaviour change worth reading if you author forms:** `submitLabel` and `cancelLabel` no longer default to the literals `'Submit'` and `'Cancel'` in the renderer. They default to _unset_, and the action bar falls back at render time to `common.submit` / `common.cancel`, so a form that declares no button copy now follows the session language instead of being silently frozen to English. A label you DO declare still wins verbatim in every locale — including an English one under a zh session, and including an explicit empty string (the fallback uses `??`, so `submitLabel: ''` renders a blank button rather than being overwritten). The only forms whose rendered text changes are those that never declared the labels and are viewed in a non-English session — which is the bug. `FormSchema.submitLabel` / `cancelLabel` stay optional strings; no spec or type change.
+
+  Also removed the built-in `select` branch's second `|| 'Select an option'` fallback. The single call site already supplies `t('common.selectOption')`, so the literal was reachable only through an authored `placeholder: ''` — where it replaced the author's deliberate blank with an untranslated English word.
+
+- 53811d1: Associate the label with its control at the two form surfaces where the two were never programmatically connected (objectui#3341 — found while implementing #3299/PR #3340, and deliberately left out of that PR's scope fence as a different class of defect).
+
+  `aria-required` reaching the control (#3299) only fixes the required _state_; at these two sites the control's accessible _name_ was still wrong, because the label pointed at nothing:
+
+  - `@object-ui/plugin-detail` — `InlineCreateRelated`'s create-tab fields rendered a `<label>` with no `htmlFor` beside an `<Input>` with no `id`, and the two were siblings rather than wrapper/child. The field label was unreachable for assistive tech, and clicking the label did not focus the input. The ids are namespaced with `React.useId`, because `field.name` alone is unique only within one instance and a detail page mounts one of these per related list.
+  - `@object-ui/components` — the custom `ActionParamDialog`'s `select` branch rendered `<Label htmlFor={param.name}>` but never put the matching `id` on its Radix `SelectTrigger`, so the reference dangled. The textarea / number / date / text branches already set `id={param.name}`; select was the only one that did not.
+
+  `SelectTrigger` renders a `<button role="combobox">`, and `button` is a labelable element, so the plain `htmlFor`/`id` pair is the correct association there — no `aria-labelledby` required. No spec change and no widget-props contract change.
+
+- d915c47: Relation fields (`lookup` / `master_detail` / `user` / `tree`) are now usable in action and conditional-formatting predicates: they bind as the stored foreign key on every surface, and the fields a predicate reads are included in the query projection (#3501).
+
+  Before this, one predicate over one relation field had four different fates, decided by things its author does not control. `$expand` **replaces** the id in place with the whole related record, and a view expands exactly the relations it shows as COLUMNS — so `record.owner == "U1"` was **true** where the column was absent, **false** where it was displayed, and a **fault** where the field was neither displayed nor projected (a list's `$select` was built from its columns alone, and CEL treats an absent key as a fault, not as null). A fault is fail-CLOSED on the row kebab and the selection bar and fail-OPEN on the lenient paths, so the same authoring mistake hid the button from everyone on one surface and showed it to everyone on the next, with nothing on screen to point at either. The server, meanwhile, only ever sees the id — so client and server could not agree, which is the one thing ADR-0036 / ADR-0058 exist to guarantee.
+
+  Two changes close it. `toPredicateRecord` (new, `@object-ui/core`) collapses expanded relation values back to their ids when a record is bound for evaluation — driven by the object's own field types, not by sniffing for an `id` key, so a `json` field that happens to carry one is untouched. It is threaded through `evalRowPredicate` / `resolveConditionalFormatting` (via a new `fields` option), `useRowPredicate`, `partitionBulkRows`, and both `page:header` evaluators, with the object schema supplied by `ObjectGrid` / `ListView` / `ObjectKanban` / the record context. Kanban card formatting is threaded the same way, so a rule cannot match on the grid view of a list and silently never match on its board. Display is unaffected — a detail-page title still renders the related record's name, and the schema-only `kanban-ui` entry point (which has no object schema to offer) keeps using the payload verbatim. `collectPredicateFieldRefs` / `listViewPredicates` (new) harvest the `record.x` / `data.x` references out of a view's conditional formatting, row-action defs, bulk-action defs, promoted object actions and `userActions` overrides, and add them to `$select` — intersected with the object's declared fields plus the platform columns every object carries (`isProjectableField`), because an unknown key is not ignored by every backend. No `$expand` is added: a predicate wants the foreign key, which is what an unexpanded relation already is.
+
+- 825bbe3: The option widgets' "this list cannot be filled" message now has one source, and
+  it is translated (objectui#3231).
+
+  FROM: `SelectField`, `MultiSelectField`, `RadioField` and `CheckboxesField` each
+  carried their own copy of the empty/gated state, each destructured the declared
+  `emptyHint` prop into `_emptyHint` and dropped it, and each rendered a hardcoded
+  English literal (`'No options available'`, `` `Select ${…} first` ``) even in a
+  Chinese or Japanese session. TO: one shared `OptionsEmptyState` — the host's
+  `emptyHint` when it supplied one, otherwise a translated fallback
+  (`fields.options.empty` / `fields.options.selectFirst`, added to all ten locale
+  packs).
+
+  `emptyHint` was declared, produced by the form renderer and transported, then
+  lost three times over — so no registered widget could ever render it. All three
+  breaks are fixed, because closing only the last one delivers nothing:
+
+  - `isOptionField` compared the raw resolved type against `'select'` /`'radio'` /
+    `'multiselect'` / `'checkboxes'`. Object-derived forms emit
+    `mapFieldTypeToFormType`'s prefixed ids (`field:select`), which matched none of
+    them, so for every option field coming from an object schema — the normal case
+    in the console — the whole cascade block was skipped and no hint was computed
+    at all. It now normalizes the `field:` prefix, the same normalization
+    `stripRegisteredFieldProps` already applied a few lines below.
+  - `stripRegisteredFieldProps` then removed the `emptyHint` key from what was
+    left. It is now forwarded to the four cascade option types, alongside
+    `dependentValues`. This stays an allow-list rather than a blanket
+    pass-through: every other registered widget spreads its leftover props onto a
+    DOM node, where an unknown `emptyHint` attribute is a React warning.
+  - the widgets themselves discarded it. Keeping it out of the `...props` spread
+    was correct; not using it afterwards was not.
+
+  User-visible effect: a dependency-gated option list now prompts with the
+  controlling field's **label** ("Select Country first") instead of its raw
+  metadata name, in the session's language; an unconfigured list says so in the
+  session's language too. The gate sentence is one i18n key shared by the renderer
+  and the widget fallback, so the two sides cannot word it differently.
+
+  Untouched: the built-in (unregistered) `select` branch of the form renderer,
+  which already consumed `emptyHint`. That is a separate live path.
+
+- 5dd0127: Localize the record-overlay and tab-badge chrome that #5430's sweep left behind (objectstack#5506)
+
+  Four more console-chrome strings were still hardcoded English literals. Unlike
+  #5430's set they are not all accessible names — one is visible copy, and one was
+  a component **default** that only the console happened to override.
+
+  - `page:tabs`' count badge built its `aria-label` by template literal,
+    `` `${formatTabCount(count)} items` ``. The badge renders digits only, so that
+    label _is_ the badge to a screen reader — and the English plural was baked in
+    with no singular branch at all, so a related list with one row announced
+    "1 items". Now `common.itemCount` / `common.itemCountOne`.
+  - `NavigationOverlay`'s drag-resize handle (`role="separator"`, no visible label)
+    — now `common.resizeDrawer`.
+  - `NavigationOverlay`'s `expandLabel` **default**. Hosts may override it and the
+    console does, but the default is what every other host ships — and it feeds
+    both `aria-label` and `title` of an icon-only button. Now
+    `detail.openAsFullPage`, still overridable by the prop.
+  - `NavigationOverlay`'s `resolvedTitle` fallback, `'Record Detail'` — **visible**
+    overlay heading, not just an a11y name. Now `detail.recordDetail`.
+  - The sr-only `SheetDescription`/`DialogDescription` prose
+    `Record detail overlay for {title}.`, which existed in three copies
+    (drawer / modal / popover) — now one `detail.recordDetailOverlay` key with a
+    `{{title}}` placeholder.
+
+  The count badge follows this repo's **two-key** plural convention
+  (`detail.reactionCount`/`reactionCountOne`, `detail.relatedRecords`/`relatedRecordOne`)
+  rather than an i18next `_one`/`_other` pair: zh/ja/ko have no separate singular
+  form, so those packs would legitimately omit the `_one` half and
+  `all-locales-key-parity` would read that as a lost key. The formatted count
+  (`1.2k`, not `1200`) is interpolated so the accessible name and the visible
+  digits never disagree — and because i18next skips its own plural resolution when
+  `count` is a string, the two-key scheme stays in charge of the choice.
+
+  Both touched components moved from `useSafeTranslate` to `createSafeTranslation`,
+  which carries an options bag (two of the new keys interpolate) and an English
+  defaults map. That map is what keeps the provider-less path English, which
+  consumers outside this package depend on — `plugin-view`'s `ObjectView.test.tsx`
+  and `e2e/live/inline-edit-polish-2572.spec.ts` address this chrome by English
+  accessible name with no `I18nProvider` mounted.
+
+  All six new keys are added to all ten locale packs.
+
+- 06632e9: `PageRenderer` no longer renders its own `<h1>` when the page authors a titled `page:header`, so a page has exactly one level-1 heading. Every non-record page used to render the page `title`/`label` as an `h1` _and_ let the `page:header` block render a second one — on the showcase master-detail page both said "New Project + Tasks", producing a broken document outline, a page title a screen reader announces twice, and the same string printed twice on screen. Record pages already delegated the whole title block to `page:header`; that rule now holds for `app` / `home` / `utility` pages too, and it is what the live e2e was reporting as a Playwright strict-mode violation (`getByRole('heading', { name })` resolving to 2 elements, objectui#3434).
+
+  Delegation is deliberately conservative: only a `page:header` whose title renders literal text takes the heading over. A header with no title — or one whose title interpolates to nothing (e.g. `title: '{name}'` with no record in scope) — renders no heading of its own, so the page keeps its implicit `h1` rather than ending up with none. The page-level `description` is unaffected; it is the page's own prose, not a duplicate of the header `subtitle`.
+
+  Author-visible effect: on a page carrying both a `label` and a titled `page:header`, only the header's title is shown (e.g. app-crm's welcome page shows "Welcome to the CRM", not also "CRM Welcome"). Pages without a `page:header` are unchanged.
+
+- a4cff5b: Conditional-rule predicates that fail to evaluate are no longer silent
+  (objectstack#5149, appeal 2). `evalFieldPredicate` — the canonical funnel for
+  `visibleWhen` / `readonlyWhen` / `requiredWhen`, view-level `visibleOn`, legacy
+  `condition`, per-option `visibleWhen`, screen-field predicates and list
+  conditional formatting — now logs **one `console.warn` per predicate text**
+  when evaluation fails (parse error, unbound identifier, engine fault), carrying
+  the predicate source, the engine's failure reason, and the field/rule locator
+  the call site provides. Renderer call sites thread that locator
+  (`visibleWhen of field 'amount'`), so a broken predicate identifies itself in
+  the browser console instead of being indistinguishable from an absent one.
+
+  Verdicts are unchanged: evaluation still fails open to the caller's safe
+  default (flipping that default is objectstack#5149 appeal 1, tracked
+  separately). Fault-probing callers (`evalRowPredicate`'s fail-closed path,
+  `ExpressionEvaluator`'s `throwOnError`) opt out via the new
+  `diagnostic.warn: false` and keep their own single diagnostic, so no broken
+  predicate ever warns twice.
+
+- 71be406: The close button that the `Sheet` and `Dialog` primitives auto-render now announces itself in the session locale instead of always in English. Both buttons are icon-only (a lucide `X`), so their `sr-only` span is not decoration — it IS the control's accessible name, and upstream Shadcn ships it as a hardcoded English literal. Under zh/ja/es every drawer and modal in the console (~20 `SheetContent` consumers plus every `DialogContent` consumer — ChatDock, ActivityFeed, metadata-admin, AiChatPage, BuildDebugDrawer, PeoplePicker, RecordDetailDrawer, …) announced "Close" to a screen reader. The span now renders `<CloseSrLabel />`, which resolves `common.close` (present in all ten locale packs since objectstack#5430) and falls back to English when no `I18nProvider` is mounted, so existing suites and e2e specs that address these controls by their English name are unaffected (objectstack#5505).
+
+  Because `packages/components/src/ui/**` is regenerated from the Shadcn registry, the edit is not a hand patch that the next `pnpm shadcn:update` would silently revert: it is declared as data in `scripts/shadcn-local-patches.mjs`, re-applied automatically on every sync (including `--force`), and enforced in both directions — `pnpm shadcn:check` now exits non-zero if a declared patch is missing from the file on disk or can no longer be re-applied to current upstream, and an offline test gates the same invariant on every PR.
+
+- 8d8094a: 20 more registered field widgets now announce a failed validation to assistive
+  tech: `multiselect`, `radio`, `checkboxes`, `tags`, `lookup`, `master_detail`,
+  `user`, `owner`, `file`, `image`, `location`, `object`, `color`, `rating`,
+  `code`, `avatar`, `address`, `geolocation`, `qrcode` and `object-ref` carry
+  `aria-invalid="true"` on their real focusable control after a validation
+  failure, where before the red message rendered while a screen reader was told
+  nothing (objectui#3318, the registry-wide gap objectui#3306's sweep measured).
+
+  Each widget follows the objectui#3222/#3306 pattern: the `toDomProps(props)`
+  whitelist spread goes onto the control the user actually focuses — the input,
+  the lookup trigger button, the radiogroup (`role="radiogroup"` is the
+  ARIA-designated carrier for a set of radios), every chip/checkbox/star of the
+  composite option widgets, the upload dropzone/button — followed by an explicit
+  `aria-invalid={!!error}` computed from the published `error` slot. Wrapper
+  `<div>`s never carry the state, and `name` is withheld from non-form-control
+  elements (the objectui#3291 leak class).
+
+  `Combobox` (`@object-ui/components`) now accepts standard button attributes
+  and forwards them to its focusable `role="combobox"` trigger, giving
+  combobox-based widgets an element to deliver `aria-invalid` /
+  `aria-describedby` to — the same seam objectui#3306 opened on
+  `SelectTrigger`.
+
+  Nine types remain on the objectui#3318 ratchet ledger with their blockers
+  documented there (`formula`/`summary`/`auto_number`/`vector` render no
+  focusable control; `grid`, `slider`, `signature` need component-level design;
+  `filter-condition`/`recipient-picker` deliver in their editable states but
+  render a dependency-gate hint with no control in a fresh form).
+
+- Updated dependencies [18cd432]
+- Updated dependencies [d915c47]
+- Updated dependencies [b71fc92]
+- Updated dependencies [65516ba]
+- Updated dependencies [94c5b7c]
+- Updated dependencies [ca0fa8f]
+- Updated dependencies [3889ffb]
+- Updated dependencies [5781fb1]
+- Updated dependencies [7e2406a]
+- Updated dependencies [9e9e9a9]
+- Updated dependencies [4eeb932]
+- Updated dependencies [5c856ec]
+- Updated dependencies [23018cc]
+- Updated dependencies [68b6a28]
+- Updated dependencies [0554e88]
+- Updated dependencies [d915c47]
+- Updated dependencies [f44d872]
+- Updated dependencies [28b2e65]
+- Updated dependencies [509104a]
+- Updated dependencies [825bbe3]
+- Updated dependencies [6195841]
+- Updated dependencies [5dd0127]
+- Updated dependencies [a415684]
+- Updated dependencies [a4cff5b]
+- Updated dependencies [175bd79]
+- Updated dependencies [5af2852]
+- Updated dependencies [f833d3a]
+- Updated dependencies [a6ec93d]
+- Updated dependencies [2a9513d]
+- Updated dependencies [d22ae31]
+- Updated dependencies [c7ed4c3]
+- Updated dependencies [2409e1d]
+- Updated dependencies [789fe3e]
+  - @object-ui/core@17.3.0
+  - @object-ui/types@17.3.0
+  - @object-ui/i18n@17.3.0
+  - @object-ui/react@17.3.0
+  - @object-ui/sdui-parser@17.3.0
+  - @object-ui/react-runtime@17.3.0
+
 ## 17.2.0
 
 ### Minor Changes

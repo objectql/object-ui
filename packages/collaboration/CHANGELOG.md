@@ -1,5 +1,261 @@
 # @object-ui/collaboration
 
+## 17.3.0
+
+### Patch Changes
+
+- 65516ba: Name `CommentThread`'s three emoji-only buttons, and follow the session language past the 7-day mark (objectui#3441)
+
+  Two leftovers from objectstack#5506 / objectui#3424, in the same component. It
+  is an exported, published component with no in-repo consumer, so both only ever
+  bite an external host.
+
+  **One — three controls with no authored accessible name.** Each comment's two
+  quick-reaction buttons (`'👍'` and `'❤️'`) and the reply banner's dismiss button
+  (`'✕'`) carried no `aria-label` and no `title`. The `+` reaction picker right
+  beside them has had one since #3424 (`collaboration.addThumbsUp`), which is what
+  makes these three an omission rather than a design choice.
+
+  `aria-label`, not the `title` the `+` uses: a `button`'s accessible name is
+  computed from its CONTENT (accname §2F) before the `title` tooltip is ever
+  consulted (§2I), so on a button whose only child is a glyph a `title` decorates
+  the mouse and leaves the name alone. What a screen reader read out was the
+  codepoint — "thumbs up", "red heart", in English whatever the session language,
+  and for U+2715 MULTIPLICATION X very often nothing at all.
+
+  Three new keys in all ten packs: `collaboration.reactThumbsUp`,
+  `collaboration.reactHeart`, `collaboration.cancelReply`.
+
+  `reactThumbsUp` is deliberately NOT a reuse of `addThumbsUp`, even though both
+  dispatch the same `onReaction(id, '👍')` today. `addThumbsUp` names the reaction
+  bar's picker entry point, whose copy follows the picker if it ever picks; and on
+  any comment that already has reactions the two controls are on screen together,
+  so one shared key would put two visibly different buttons under one name.
+  `cancelReply` rather than the generic `common.cancel` for the same reason — an
+  accessible name has to say what is being cancelled (only the reply target is
+  dropped; anything typed into the composer survives).
+
+  **Two — the >= 7 day timestamp ignored the session language.** `formatTimestamp`
+  ended in a bare `date.toLocaleDateString()`, i.e. the RUNTIME's locale, so a
+  `zh` session read "6 天前" for a six-day-old comment and `8/1/2026` for an
+  eight-day-old one.
+
+  The fix passes the session `language`, but not straight through — that is the
+  trap #3424 flagged and declined to walk into. `toLocaleDateString(tag)`
+  canonicalizes its argument and throws `RangeError` on anything not well-formed
+  per BCP 47, and the session language reaches the component verbatim: a host that
+  configures `defaultLanguage: 'en_US'` (the POSIX spelling — well-formed-looking,
+  and rejected) hands `Intl` a tag it refuses. That `RangeError` would land in
+  `formatTimestamp`'s outer `catch`, whose fallback is `return iso`, replacing the
+  date with a raw `2026-08-01T09:30:00.000Z` — worse than the un-localized date it
+  set out to fix.
+
+  So the absolute-date branch gets its own local `try`/`catch` that falls back to
+  the no-argument call. A malformed tag degrades to exactly the previous
+  behaviour (the runtime's own locale); the worst case of following the session
+  language is the status quo, never a regression. A well-formed but unknown tag
+  such as `xx-YY` does not throw at all — `Intl` resolves it to the default — so
+  only genuinely malformed tags reach the guard. No date library, and no month or
+  weekday copy in the locale packs: `Intl` already owns the per-locale ordering
+  and separators.
+
+  Tests assert the computed accessible name via `getByRole('button', { name })`
+  rather than the presence of an attribute, which is the distinction the fix turns
+  on, and pin that no button is left answering to a bare emoji. The malformed-tag
+  case is recorded honestly as green on both sides of this change — `origin/main`
+  never passed a tag anywhere, so it could not trip over a bad one; its
+  counterfactual is the naive fix, and dropping the inner `catch` is what turns it
+  red with the raw ISO string in the DOM.
+
+- 94c5b7c: Localize `@object-ui/collaboration` — `CommentThread` no longer hardcodes English (objectstack#5506)
+
+  `@object-ui/collaboration` depended only on `@object-ui/types` and carried every
+  user-visible string as an English literal, so a `zh` console rendered a Chinese
+  shell around an English comment thread: "3 comments", "Reply", "Resolve",
+  "just now", "Add a comment... (use @ to mention)".
+
+  The package now takes `@object-ui/i18n` as a dependency and exposes one
+  translation seam, `useCollaborationTranslation` /
+  `COLLAB_DEFAULT_TRANSLATIONS`, built on `createSafeTranslation` — the same
+  factory `data-table`, `form` and `filter-builder` use. Under an `I18nProvider`
+  it resolves the session locale; with no provider it resolves the English
+  defaults map, which is what keeps `CommentThread` usable standalone. There is
+  deliberately no `formatter`/label prop escape hatch: a host that wants
+  different copy overrides the locale keys, so one thread can never end up half
+  translated by the bundle and half by props.
+
+  The issue listed 13 sites. A site-by-site sweep of the file found **20** — the
+  seven the original sweep missed are `{n}h ago`, `{n}d ago`, `(edited)`, the
+  thread's own comment count, the `Oldest`/`Newest` sort options,
+  `Replying to {name}...`, and the composer's `Send` button. All 20 are keyed
+  here; leaving any behind would have shipped a thread that is 90% translated.
+
+  Two of them carry a second defect on top of being untranslated: the plural
+  **rule** was compiled into the component, not just the words.
+
+  - the header read `` `${n} comment${n !== 1 ? 's' : ''}` ``;
+  - the reaction chip tooltip read `` n === 1 ? '1 reaction' : `${n} reactions` ``.
+
+  Both produced correct _English_ — this is not the "1 items" bug objectui#3423
+  fixed on the tab badge — but the choice between the two forms was English
+  grammar hardwired into the render path. No locale could apply its own: ru needs
+  three forms and ja needs none, and neither could ever be expressed no matter
+  what the packs said.
+
+  Both now use the repo's **two-key** plural convention
+  (`collaboration.commentCount`/`commentCountOne`,
+  `collaboration.reactionCount`/`reactionCountOne`) rather than an i18next
+  `_one`/`_other` pair: zh/ja/ko have no separate singular form, so those packs
+  would legitimately omit the `_one` half and `all-locales-key-parity` reads a
+  legitimately-absent half as a lost key. Counts are interpolated as strings, so
+  i18next skips its own plural resolution and the two-key scheme stays in charge.
+
+  The reaction tooltip gets a **dedicated** key pair rather than reusing
+  `detail.reactionCount`: that one interpolates `{{emoji}}`, and at this call
+  site the emoji is the chip's visible label with nothing to hand the
+  placeholder — reuse would have left a literal `{{emoji}}` in the accessible
+  name under every locale.
+
+  Relative timestamps stayed word-level: the existing minute/hour/day buckets are
+  untouched and no date library was introduced. The `>= 7d` branch still uses the
+  runtime's own `toLocaleDateString()` — that is not a hardcoded English literal,
+  and pinning it to the session language has its own failure mode (an
+  unrecognised tag throws into the surrounding `catch`, which would render a raw
+  ISO string), so it is tracked separately.
+
+  `Save` / `Cancel` / `Edit` / `Delete` read from the shared `common` namespace
+  instead of being re-spelled under `collaboration` — they are the generic action
+  words, already translated in all ten packs, and a second spelling would only be
+  a second thing to keep in sync. The 21 genuinely new keys are added to all ten
+  locale packs with real translations.
+
+- ca0fa8f: Localize `PresenceAvatars` — the avatar stack's accessible name and tooltips follow the session language (objectui#3440)
+
+  objectui#3424 wired `@object-ui/collaboration` up to `@object-ui/i18n` but only
+  converted `CommentThread`. `PresenceAvatars` in the same package kept three
+  English literals, and it is not a dormant export — the console renders it in
+  two places: `app-shell/src/layout/AppHeader.tsx` (tenant presence beside the
+  lifecycle badge) and `app-shell/src/views/RecordDetailView.tsx` (who else is on
+  this record). A `zh` session got them in English.
+
+  The three sites:
+
+  - the group's `aria-label`, `` `${n} user${n !== 1 ? 's' : ''} present` ``;
+  - the overflow badge's tooltip, `` `${n} more user${n !== 1 ? 's' : ''}` ``;
+  - each avatar's tooltip, `` `${name} (${status})` ``.
+
+  The first one is the whole control as far as a screen reader is concerned: the
+  stack renders images and initials and nothing else, so there was no other
+  accessible name to fall back on.
+
+  As with the comment count in #3424, the first two carried a second defect on
+  top of being untranslated — the plural **rule** was compiled into the component.
+  Both produced correct _English_ (each has a real singular branch, so this is
+  not the "1 items" defect objectui#3423 fixed on the tab badge), but
+  `n !== 1 ? 's' : ''` is English grammar in a render path and no locale could
+  apply its own. Both now use the repo's **two-key** plural convention
+  (`collaboration.presentUserCount`/`presentUserCountOne`,
+  `collaboration.moreUserCount`/`moreUserCountOne`) rather than an i18next
+  `_one`/`_other` pair, with the count interpolated as a string so i18next skips
+  its own plural resolution. German is what witnesses the move: "1 anwesender
+  Benutzer" vs "2 anwesende Benutzer" inflects the adjective, which the deleted
+  ternary could not have produced for any pack.
+
+  The avatar tooltip becomes a single `collaboration.userStatusTitle` key
+  (`{{name}} ({{status}})`) so the parentheses and their spacing belong to the
+  translation — the CJK packs drop the space English puts before `(`, matching
+  their existing `edited: '(已编辑)'`.
+
+  Its `status` is a **display-layer** translation
+  (`collaboration.statusActive` / `statusIdle` / `statusAway`): the
+  `PresenceUser['status']` enum value stays raw data everywhere it is stored,
+  compared or passed around — including the `statusColors` lookup — and is
+  translated only at this render exit. A status outside the declared union
+  renders as itself, the raw string: presence users arrive from a host-supplied
+  `PresenceSource` transport, so an unmapped value is reachable at runtime
+  whatever the type says, and the fallback invents nothing rather than leaving an
+  empty bracket pair.
+
+  Eight new keys, added to all ten locale packs with real translations.
+
+- d0d71df: Give `CommentThread`'s `+` reaction picker a real accessible name (objectui#3478)
+
+  The fourth glyph-only control in the same component, and the one objectui#3441
+  walked past. Its content is the literal `'+'`, so the `title` objectstack#5506
+  gave it (`collaboration.addThumbsUp`) could never become its accessible name: a
+  `button`'s name is computed from CONTENT (accname §2F) before the `title`
+  tooltip is consulted at all (§2I). A screen reader announced "plus button". The
+  copy existed, was localized into all ten packs, and reached only the people who
+  could already see the button.
+
+  That is a different failure from #3441's three buttons, which is why it survived
+  that fix — those had no authored copy anywhere, so every "is the key wired up?"
+  check found the gap. Here the key WAS wired up and the English WAS in
+  `COLLAB_DEFAULT_TRANSLATIONS`; only its DESTINATION was wrong. #3441's own pin
+  test recorded the defect without naming it, asserting `getByTitle('Add thumbs
+up')` and `queryAllByRole('button', { name: 'Add thumbs up' })).toHaveLength(0)`
+  in the same green case — two assertions that together say "the title is set and
+  it is not the name". The docblock read them as pinning the picker apart from the
+  quick 👍; they were also, unread, the bug report.
+
+  The fix adds `aria-label` (accname §2C, which outranks content) alongside the
+  existing `title`, on the same key. Zero new keys — the copy was always there.
+
+  The `title` is KEPT rather than replaced, and this is the one control in the
+  component where carrying both is right instead of redundant: `+` says nothing to
+  a sighted mouse user either, so the hover hint is doing real work of its own.
+  (The 👍/❤️ buttons #3441 fixed had no `title` to keep.) Both attributes read the
+  same key, so the tooltip and the name cannot drift apart.
+
+  The name stays `addThumbsUp` — it describes what the button does today
+  (`onReaction(id, '👍')`, unconditionally), not what `styles.reactionPicker`
+  hints it might become. Turning it into an actual emoji picker is a feature
+  change, and the copy follows the behaviour when that lands. It also stays
+  distinct from #3441's `reactThumbsUp`: on a comment that already has reactions
+  both controls are on screen at once, and now that both carry a real accessible
+  name, sharing one key would be worse than when #3441 declined to — two visibly
+  different buttons announcing themselves identically.
+
+  The adjacent reaction chips are deliberately untouched. Their content is
+  `${emoji} ${count}` — already a descriptive name — so name-from-content is the
+  right answer there, and their `title` adds the count in words.
+
+  Tests assert the computed accessible name via `getByRole('button', { name })`
+  rather than the presence of an attribute, in English, Chinese and with no
+  `I18nProvider` mounted; the mirror assertion (`{ name: '+' }` finds nothing) is
+  what fails if the `aria-label` is ever dropped. #3441's pin was rewritten in
+  place to pin the new both-named state instead of the old separation, since the
+  statement it used to make is exactly the one this change falsifies.
+
+- Updated dependencies [d915c47]
+- Updated dependencies [b71fc92]
+- Updated dependencies [65516ba]
+- Updated dependencies [94c5b7c]
+- Updated dependencies [ca0fa8f]
+- Updated dependencies [3889ffb]
+- Updated dependencies [7e2406a]
+- Updated dependencies [9e9e9a9]
+- Updated dependencies [4eeb932]
+- Updated dependencies [5c856ec]
+- Updated dependencies [23018cc]
+- Updated dependencies [68b6a28]
+- Updated dependencies [0554e88]
+- Updated dependencies [f44d872]
+- Updated dependencies [28b2e65]
+- Updated dependencies [825bbe3]
+- Updated dependencies [6195841]
+- Updated dependencies [5dd0127]
+- Updated dependencies [a415684]
+- Updated dependencies [5af2852]
+- Updated dependencies [f833d3a]
+- Updated dependencies [a6ec93d]
+- Updated dependencies [d22ae31]
+- Updated dependencies [c7ed4c3]
+- Updated dependencies [2409e1d]
+- Updated dependencies [789fe3e]
+  - @object-ui/types@17.3.0
+  - @object-ui/i18n@17.3.0
+
 ## 17.2.0
 
 ### Minor Changes
