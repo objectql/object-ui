@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Rejects internal documentation links under `content/docs/**` that point nowhere.
+ * Rejects internal documentation links that point nowhere, across the scan
+ * surfaces listed in `SCAN_ROOTS` below.
  *
  * Run:  node scripts/check-doc-links.mjs   (also `pnpm docs:check-links`)
  * Exit: 0 = every internal link resolves, 1 = at least one does not
@@ -86,11 +87,12 @@
  *     `apps/site` moved under it. That failure is *correct* (the link really
  *     would 404), but it does mean the two trees are no longer independent.
  *
- * What is deliberately NOT bought here: `next.config.mjs` rewrites/redirects are
- * not modelled (the one rewrite, `/docs/:path*.mdx`, sits under the stricter
- * `/docs` branch above and never reaches this one), and the scan surface is
- * still only `content/docs` — `examples/**` and the root `README.md` remain
- * unscanned, tracked separately.
+ * (The paragraph that stood here listed two things #3490 deliberately did not
+ * buy: the scan surface staying at `content/docs`, and `examples/**` + the root
+ * `README.md` remaining unscanned. objectui#3536 bought both — see the next
+ * section. What is still not modelled is `next.config.mjs`
+ * rewrites/redirects; the one rewrite, `/docs/:path*.mdx`, sits under the
+ * stricter `/docs` branch above and never reaches the site-route branch.)
  *
  * **Relative hrefs may not leave the collection.** `../../../packages/foo/
  * README.md` resolves on disk, so the pre-#3490 check passed it, but
@@ -101,6 +103,88 @@
  * link is rejected with a pointer to the fix the repo already uses everywhere
  * else: an absolute `https://github.com/objectstack-ai/objectui/blob/main/...`
  * URL (the "Package README" form in `content/docs/plugins/*.mdx`).
+ *
+ * ## Why this file changed again (objectui#3536)
+ *
+ * Two extensions, in the two directions the paragraph above had left open.
+ *
+ * ### 1. The scan surface: `examples/**` and the root `README.md`
+ *
+ * Both had been caught carrying dead links twice, by eye and never by a gate:
+ * `examples/hello-world/README.md` pointed at `../crm/` and `../todo/` after
+ * those examples were deleted (#3486 / PR #3495), and the root `README.md`
+ * listed four dead example entries (PR #3485). `examples/console-starter`'s 14
+ * relative links (PR #3524) were checked by a throwaway script its author wrote
+ * by hand, because nothing in CI would.
+ *
+ * **These files do not have docs semantics, and forcing them onto it would be
+ * wrong.** They are read on GitHub, whose renderer resolves a relative href
+ * against the file's own directory *in the repository* — so the href names a
+ * path on DISK, not a fumadocs route. Three consequences, all encoded in the
+ * `disk` rule below:
+ *
+ *   - **Existence is the whole question.** A directory is a fine target
+ *     (`./packages/core` renders as a directory listing), and so is a file with
+ *     no extension at all (`./LICENSE`) or one that is not markdown
+ *     (`./src/App.tsx`, `./vite.config.ts`). The docs rule's
+ *     `routeCandidates()` spellings are meaningless here and are not tried.
+ *   - **There is no collection to escape.** `examples/console-starter/README.md`
+ *     links `../../packages/app-shell/src/console/ConsoleShell.tsx` and
+ *     `../../content/docs/fields/lookup.mdx`; both render correctly on GitHub.
+ *     The `escapes-collection` rule that is right for `content/docs` would
+ *     reject them, so it is not applied. The only containment rule is the repo
+ *     boundary: a path resolving above `<repoRoot>` cannot be rendered at all.
+ *   - **An extensionless spelling of a markdown file is a dead link, not a
+ *     fragile one.** `../plugins/plugin-charts` is accepted under the docs rule
+ *     (a browser may resolve it); on GitHub it is a 404, because there is no
+ *     file by that name. The disk rule therefore does not accept it.
+ *
+ * **Absolute `/...` hrefs in these files: rejected** (`example-absolute`).
+ * There are none today — the decision is preventive, and it is the one the
+ * renderer forces. GitHub does not rewrite a leading `/`; it resolves it
+ * against `github.com` itself, so `[core](/packages/core)` in the root README
+ * links to `https://github.com/packages/core`, not to this repo's directory.
+ * The hint names both repairs, because the rare deliberate case (a real
+ * github.com path) is real: write the repo path relative, or write the
+ * github.com URL in full. Waving the shape through instead would be the same
+ * silent waiver #3490 spent 18 live 404s removing.
+ *
+ * ### 2. A decidable href shape: this repo's own GitHub blob/tree URLs
+ *
+ * `https://github.com/objectstack-ai/objectui/(blob|tree)/main/<path>` is an
+ * in-repo reference wearing an external URL's clothes, and it fell between the
+ * two gates (#3507): this script skipped it by scheme, and lychee — the only
+ * thing that would resolve it — is a weekly cron with `continue-on-error`, so
+ * it gates nothing. Two such links stayed dead for about three months. The
+ * backlog was cleared to zero by PR #3509 (25 distinct targets swept, exactly
+ * the 2 dead), and PR #3506 then introduced 8 more of the shape with nothing
+ * checking them. This closes that: `<path>` must exist in the working tree.
+ *
+ * It applies to **every** surface, `content/docs` included — the shape is
+ * decidable wherever it is written, and the `escapes-collection` hint above
+ * actively recommends it, so leaving it unchecked would recommend an unchecked
+ * form as the fix for a checked one.
+ *
+ * Deliberately narrow, because the rest is not decidable offline:
+ *
+ *   - **Only `main`.** `blob/v1.2.0/...` or `blob/<sha>/...` names a different
+ *     ref; the working tree cannot answer for it.
+ *   - **Only this repo.** Other repos' GitHub URLs stay external (lychee's job).
+ *   - **Only the path.** `#fragment` (`#L42`, `#readme`) is out of scope, and
+ *     stripped before the check — resolving an anchor means parsing the target,
+ *     which is a different gate.
+ *   - **Only `blob|tree`.** `https://github.com/objectstack-ai/objectui/issues`
+ *     and the `workflows/<name>/badge.svg` badge URLs in the root README are
+ *     github.com web routes, not paths in this tree, and stay skipped.
+ *
+ * ### Still not bought
+ *
+ * The other root-level markdown (`CONTRIBUTING.md`, `ROADMAP.md`,
+ * `QUICK_REFERENCE.md`, `AGENTS.md`) and the internal `docs/` tree remain
+ * unscanned. That is a surface, not an oversight: the scan found real dead
+ * links in two of those files while this was being written, filed separately
+ * rather than folded in. Adding them is a matter of one `SCAN_ROOTS` row each
+ * — plus fixing what that turns red.
  *
  * ## Code spans are stripped before scanning
  *
@@ -132,14 +216,44 @@ const INLINE_CODE_RE = /(`+)[^`\n]*\1/g;
 const EXTERNAL_HREF_RE = /^(?:#|[a-zA-Z][a-zA-Z0-9+.-]*:)/;
 /** Files that turn an App-Router directory into a servable URL. */
 const ROUTE_ENTRY_RE = /^(?:page|route)\.(?:js|jsx|ts|tsx|md|mdx)$/;
+/**
+ * This repo's own GitHub URLs, in the one shape that is decidable offline: a
+ * `main` blob/tree path (objectui#3536). Case-insensitive because github.com
+ * treats owner and repo that way; the captured path is used as written.
+ */
+const SELF_REPO_BLOB_RE = /^https:\/\/github\.com\/objectstack-ai\/objectui\/(?:blob|tree)\/main\/(.+)$/i;
+/** Never markdown sources of ours, and huge — walking them wastes the scan. */
+const UNSCANNED_DIRS = new Set(['node_modules', 'dist', 'build', '.next', '.turbo', '.git']);
+
+/**
+ * The scan surfaces, and the link semantics each one actually has.
+ *
+ * `docs` — the fumadocs collection: an href names a site ROUTE, resolved
+ *          through the page index and the `apps/site` router.
+ * `disk` — files read on GitHub: an href names a PATH in this repository.
+ *
+ * The split is the point (objectui#3536). See the header for why applying the
+ * docs rules to the second group would reject links that render perfectly well.
+ */
+export const SCAN_ROOTS = [
+  { path: 'content/docs', rule: 'docs' },
+  { path: 'examples', rule: 'disk' },
+  { path: 'README.md', rule: 'disk' },
+];
 
 const blank = (text) => text.replace(/[^\n]/g, ' ');
 
 export function walk(dir, files = []) {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return files; // a scan root that does not exist here contributes nothing
+  }
+  for (const entry of entries) {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      walk(fullPath, files);
+      if (!UNSCANNED_DIRS.has(entry.name)) walk(fullPath, files);
       continue;
     }
     if (/\.(md|mdx)$/.test(entry.name)) {
@@ -147,6 +261,16 @@ export function walk(dir, files = []) {
     }
   }
   return files;
+}
+
+/** One scan root, which may be a directory to walk or a single markdown file. */
+export function collectFiles(root) {
+  try {
+    if (statSync(root).isFile()) return /\.(md|mdx)$/.test(root) ? [root] : [];
+  } catch {
+    return [];
+  }
+  return walk(root);
 }
 
 /**
@@ -187,6 +311,61 @@ function isFile(candidate) {
   } catch {
     return false;
   }
+}
+
+/**
+ * Existence, the `disk` rule's whole question — a directory counts, and so does
+ * a file with no extension. GitHub renders links to both.
+ */
+function pathExists(candidate) {
+  try {
+    statSync(candidate);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Is `candidate` `root` itself, or inside it? */
+function isInside(root, candidate) {
+  return candidate === root || candidate.startsWith(root + path.sep);
+}
+
+/** Strips the fragment and query, and decodes escapes — shared by every rule. */
+function hrefPath(href) {
+  const cleanHref = href.split('#')[0].split('?')[0].trim();
+  try {
+    return decodeURI(cleanHref);
+  } catch {
+    return cleanHref; // a malformed escape is checked as written
+  }
+}
+
+/**
+ * The in-repo path a self-referential GitHub URL names, or `null` if this href
+ * is not one (objectui#3536). Fragments are stripped: anchors are out of scope.
+ */
+export function selfRepoPath(href) {
+  const match = SELF_REPO_BLOB_RE.exec(hrefPath(href));
+  return match ? match[1].replace(/\/+$/, '') : null;
+}
+
+/**
+ * Does one `disk`-rule href resolve to something in this repository?
+ *
+ * @param {string} href
+ * @param {{ fromFile: string, repoRoot: string }} context
+ */
+export function diskPathExists(href, { fromFile, repoRoot }) {
+  const cleanHref = hrefPath(href);
+  if (!cleanHref) return true; // pure in-page anchor or query
+
+  // GitHub resolves a leading `/` against github.com, never against the repo,
+  // so this shape cannot name a path here at all. See the header.
+  if (cleanHref.startsWith('/')) return false;
+
+  const target = path.resolve(path.dirname(fromFile), cleanHref);
+  return isInside(repoRoot, target) && pathExists(target);
 }
 
 /** The extensionless-route spellings of `base`, as fumadocs would serve them. */
@@ -351,31 +530,61 @@ function classifyBroken(href, { fromFile, docsRoot }) {
   return 'relative';
 }
 
+/** Which `disk`-rule check rejected this href — drives the hint printed below. */
+function classifyBrokenDisk(href) {
+  return hrefPath(href).startsWith('/') ? 'example-absolute' : 'example-relative';
+}
+
 /**
- * @param {string} docsRoot  the `content/docs` tree to scan
- * @param {string} siteRoot  `apps/site` — truth source for absolute hrefs
+ * Judges one href under one scan root's rule.
+ *
+ * @returns {string | null} the failing check's name, or `null` when it resolves
+ */
+function judgeHref(href, context) {
+  // The self-repo URL check runs FIRST and in every rule: it is the one
+  // external-looking shape this script can decide, so it must be reached
+  // before the by-scheme skip below waves it through (objectui#3536).
+  const selfPath = selfRepoPath(href);
+  if (selfPath !== null) {
+    const target = path.resolve(context.repoRoot, selfPath);
+    return isInside(context.repoRoot, target) && pathExists(target) ? null : 'self-repo-url';
+  }
+  if (EXTERNAL_HREF_RE.test(href)) return null;
+
+  if (context.rule === 'disk') {
+    return diskPathExists(href, context) ? null : classifyBrokenDisk(href);
+  }
+  return routeExists(href, context) ? null : classifyBroken(href, context);
+}
+
+/**
+ * Scans every surface in `SCAN_ROOTS`, each under its own rule.
+ *
+ * Takes the repo root — not a docs root — so a caller cannot configure away a
+ * scan surface or the `apps/site` truth source and get a green that only means
+ * "nothing was looked at". `SCAN_ROOTS` is the single list of what is checked.
+ *
+ * @param {string} repoRoot  the repository to scan
  * @returns {{ file: string, href: string, line: number, reason: string }[]}
  */
-export function collectBrokenLinks(docsRoot, siteRoot) {
+export function collectBrokenLinks(repoRoot) {
   const broken = [];
-  const site = collectSiteRoutes(siteRoot);
+  const docsRoot = path.join(repoRoot, 'content', 'docs');
+  const site = collectSiteRoutes(path.join(repoRoot, 'apps', 'site'));
 
-  for (const file of walk(docsRoot)) {
-    const source = stripCode(readFileSync(file, 'utf8'));
-    MARKDOWN_LINK_RE.lastIndex = 0;
-    let match;
+  for (const scanRoot of SCAN_ROOTS) {
+    for (const file of collectFiles(path.join(repoRoot, scanRoot.path))) {
+      const source = stripCode(readFileSync(file, 'utf8'));
+      MARKDOWN_LINK_RE.lastIndex = 0;
+      let match;
 
-    while ((match = MARKDOWN_LINK_RE.exec(source)) !== null) {
-      const href = match[1].trim();
-      if (EXTERNAL_HREF_RE.test(href)) continue;
-      if (routeExists(href, { fromFile: file, docsRoot, site })) continue;
+      while ((match = MARKDOWN_LINK_RE.exec(source)) !== null) {
+        const href = match[1].trim();
+        const reason = judgeHref(href, { fromFile: file, docsRoot, repoRoot, site, rule: scanRoot.rule });
+        if (reason === null) continue;
 
-      broken.push({
-        file,
-        href,
-        line: source.slice(0, match.index).split('\n').length,
-        reason: classifyBroken(href, { fromFile: file, docsRoot }),
-      });
+        broken.push({ file, href, line: source.slice(0, match.index).split('\n').length, reason });
+      }
     }
   }
 
@@ -405,17 +614,37 @@ const HINTS = {
     ' 404s even though the file exists. Use an absolute' +
     ' `https://github.com/objectstack-ai/objectui/blob/main/...` URL instead' +
     ' (the "Package README" form used throughout content/docs/plugins/).',
+  'example-relative':
+    'Outside content/docs (examples/**, the root README) a relative link is a' +
+    ' PATH IN THIS REPO, resolved by GitHub against the linking file — so it' +
+    ' must name something that exists and lives inside the repository. A' +
+    ' directory or a non-markdown file is fine; an extensionless spelling of a' +
+    ' `.md` file is not, since GitHub serves files, not routes.',
+  'example-absolute':
+    'Outside content/docs a leading `/` is NOT the root of this repository —' +
+    ' GitHub resolves it against github.com, so `/packages/core` links to' +
+    ' https://github.com/packages/core. Write the repo path relative to the' +
+    ' file (`./packages/core`), or, if a github.com URL really was meant,' +
+    ' write it in full with the scheme.',
+  'self-repo-url':
+    'A `https://github.com/objectstack-ai/objectui/(blob|tree)/main/...` URL' +
+    ' points into this repository, so its path is checked against the working' +
+    ' tree — this one is not there. Fix the path, or link the equivalent' +
+    ' `/docs/...` page. (Only `main` and only this repo are checked; other' +
+    ' refs and other repos cannot be resolved offline.)',
 };
 
 if (invokedDirectly) {
-  const docsRoot = path.resolve('content/docs');
-  const siteRoot = path.resolve('apps/site');
-  const broken = collectBrokenLinks(docsRoot, siteRoot);
+  // Derived from this file's own location, not the cwd: a cwd-relative root
+  // would make running the script from a subdirectory scan nothing and report
+  // success — a false green is the one failure mode this gate must not have.
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const broken = collectBrokenLinks(repoRoot);
 
   if (broken.length > 0) {
     const targets = new Set(broken.map((item) => `${path.dirname(item.file)}|${item.href.split('#')[0]}`));
     console.error(
-      `Found ${broken.length} broken docs link${broken.length === 1 ? '' : 's'} (${targets.size} distinct target${targets.size === 1 ? '' : 's'}):`,
+      `Found ${broken.length} broken link${broken.length === 1 ? '' : 's'} (${targets.size} distinct target${targets.size === 1 ? '' : 's'}):`,
     );
     for (const item of broken) {
       console.error(`- [${item.reason}] ${path.relative(process.cwd(), item.file)}:${item.line} -> ${item.href}`);
@@ -427,5 +656,5 @@ if (invokedDirectly) {
     process.exit(1);
   }
 
-  console.log('Docs links are valid.');
+  console.log(`Links are valid across ${SCAN_ROOTS.length} scan roots.`);
 }

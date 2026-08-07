@@ -250,9 +250,13 @@ Backend pins live in `e2e/live/ci/backend.env` and must match the `@objectstack/
 all**, which is the point of the workflow. It appears in the checks list as **Internal Docs Link
 Check**.
 
-Runs `scripts/check-doc-links.mjs`, which walks every `.md` / `.mdx` file under `content/docs/` and
-asks of each internal markdown link the only question a reader cares about — **does the site serve
-this URL?** Four checks, by href shape:
+Runs `scripts/check-doc-links.mjs`, which walks every `.md` / `.mdx` file in the surfaces listed in
+its `SCAN_ROOTS` — `content/docs/`, `examples/` and the root `README.md` — and asks of each internal
+markdown link whether its target is really there.
+
+**Two rules, because the two groups are read through different machinery** (objectui#3536). For
+`content/docs/` the question is the one a site reader cares about, **does the site serve this URL?**
+Four checks, by href shape:
 
 | Href shape | Resolved against | Rejected when |
 |---|---|---|
@@ -261,8 +265,20 @@ this URL?** Four checks, by href shape:
 | absolute `/docs/...` | `content/docs/` as a **route** | no `foo.md`, `foo.mdx` or `foo/index.md*` backs it — a `.md`/`.mdx` suffix always fails, since that URL 404s whatever is on disk |
 | any other absolute (`/spec/...`, `/img/...`) | the **site itself**: route segments enumerated from `apps/site/app`, plus static files under `apps/site/public` | no route pattern or static file matches |
 
-External `http(s)` and `mailto:` links and bare `#anchors` are skipped — those belong to Lychee,
-below. No install, no build, no network: a checkout and one `node` call.
+`examples/` and the root `README.md` are read on **GitHub**, not served by the site, so a relative
+href there names a path on disk and is checked for existence only — a directory (`./packages/core`)
+or a non-markdown file (`./vite.config.ts`) is a perfectly good target, and there is no collection
+to escape. A leading `/` is rejected outright: GitHub resolves it against `github.com`, not against
+this repository. Applying the `content/docs/` rules to these files instead would reject 61 links
+that render correctly today.
+
+One href shape is checked in **every** surface: a
+`https://github.com/objectstack-ai/objectui/(blob|tree)/main/<path>` URL points back into this
+repository, so `<path>` must exist in the working tree. Other repos' URLs, other refs, and
+`#fragments` are not resolvable offline and stay Lychee's job.
+
+Everything else — external `http(s)` and `mailto:` links, bare `#anchors` — is skipped. No install,
+no build, no network: a checkout and one `node` call.
 
 The last two rows are objectui#3490. Reading `apps/site` widens the script's responsibility, and
 that is the deliberate purchase: it is the only way to catch a link to a route that does not exist,
@@ -306,7 +322,7 @@ There are **two** link checkers, and they cover different things (objectui#3213)
 
 | | Covers | Network | Runs |
 |---|---|---|---|
-| `scripts/check-doc-links.mjs` | **Internal** links in `content/docs/`: relative hrefs, `/docs/...` routes, and every other site-absolute href (against `apps/site`) | No | `docs-links.yml` — every push and PR, no path filter (previous section) |
+| `scripts/check-doc-links.mjs` | **Internal** links in `content/docs/` (relative hrefs, `/docs/...` routes, every other site-absolute href against `apps/site`), in `examples/` and the root `README.md` (as paths on disk), plus this repo's own `blob\|tree/main/` GitHub URLs everywhere | No | `docs-links.yml` — every push and PR, no path filter (previous section) |
 | Lychee (this workflow) | **External** URLs, plus **relative** in-repo file links, in `content/docs/`, `docs/` and `README.md` | Yes | Weekly cron and manual dispatch |
 
 Lychee sweeps **both** documentation trees: `content/docs/` (the 183 pages the site publishes) and

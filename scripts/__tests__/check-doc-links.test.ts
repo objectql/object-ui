@@ -4,7 +4,17 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { collectBrokenLinks, collectSiteRoutes, routeExists, siteUrlExists, stripCode } from '../check-doc-links.mjs';
+import {
+  SCAN_ROOTS,
+  collectBrokenLinks,
+  collectFiles,
+  collectSiteRoutes,
+  diskPathExists,
+  routeExists,
+  selfRepoPath,
+  siteUrlExists,
+  stripCode,
+} from '../check-doc-links.mjs';
 
 /**
  * objectui#3479 — the behaviour test for `scripts/check-doc-links.mjs`.
@@ -35,6 +45,19 @@ import { collectBrokenLinks, collectSiteRoutes, routeExists, siteUrlExists, stri
  * behind them. The gate now enumerates `apps/site/app` + `apps/site/public` as
  * its truth source for absolute hrefs, and rejects relative hrefs that resolve
  * out of the docs collection. The describes at the bottom pin both.
+ *
+ * objectui#3536 extended the gate in two directions, and the last three
+ * describes pin them:
+ *
+ *   - the SCAN SURFACE now includes `examples/**` and the root `README.md`,
+ *     under a *different* rule — those files are read on GitHub, so a relative
+ *     href there names a path on DISK, not a fumadocs route. The tests that
+ *     matter most are the contrast pairs: the same href accepted under one rule
+ *     and rejected under the other, in both directions;
+ *   - the HREF SHAPE `https://github.com/objectstack-ai/objectui/(blob|tree)/
+ *     main/<path>` is now resolved against the working tree in every surface —
+ *     an in-repo reference that had been skipped by scheme, and sat dead for
+ *     three months between two gates (#3507).
  */
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -72,7 +95,12 @@ function docsRootWith(files: Record<string, string>): string {
 }
 
 function scan(repo: string): { file: string; href: string; line: number; reason: string }[] {
-  return collectBrokenLinks(path.join(repo, 'content/docs'), path.join(repo, 'apps/site'));
+  return collectBrokenLinks(repo);
+}
+
+/** `[href, reason]` for every rejection, in scan order. */
+function rejections(files: Record<string, string>): [string, string][] {
+  return scan(repoWith(files)).map((item) => [item.href, item.reason]);
 }
 
 /** The hrefs reported broken, in file order. */
@@ -295,12 +323,61 @@ describe('code is stripped before scanning — markdown syntax quoted in code is
 });
 
 describe('the repo it guards', () => {
-  it('has no broken internal docs links', () => {
+  it('has no broken internal links in any scanned surface', () => {
     // The other half of objectui#3479: the extended check must land GREEN, not
-    // arrive with a backlog it merely describes.
+    // arrive with a backlog it merely describes. objectui#3536 widened what
+    // "any scanned surface" means — see the next test, which is what stops this
+    // one from passing because nothing was looked at.
     const broken = scan(repoRoot);
-    const report = broken.map((b) => `${path.relative(repoRoot, b.file)}:${b.line} -> ${b.href}`);
+    const report = broken.map((b) => `[${b.reason}] ${path.relative(repoRoot, b.file)}:${b.line} -> ${b.href}`);
     expect(report).toEqual([]);
+  });
+
+  it('really scans every surface in SCAN_ROOTS — a green above must mean "checked"', () => {
+    // objectui#3536. The assertion the widened scan needs most: `collectFiles`
+    // returns [] for a root that is not there, so a typo in SCAN_ROOTS, or a
+    // rename of `examples/`, would silently drop a whole surface and leave the
+    // test above green about a tree it never opened.
+    const scanned = Object.fromEntries(
+      SCAN_ROOTS.map((root: { path: string; rule: string }) => [
+        root.path,
+        collectFiles(path.join(repoRoot, root.path)).length,
+      ]),
+    );
+
+    expect(Object.keys(scanned)).toEqual(['content/docs', 'examples', 'README.md']);
+    expect(scanned['README.md']).toBe(1);
+    expect(scanned['examples']).toBeGreaterThanOrEqual(4);
+    expect(scanned['content/docs']).toBeGreaterThanOrEqual(100);
+  });
+
+  it('pairs each scan root with the link semantics that root actually has', () => {
+    // The rule split is the design decision of objectui#3536, so it is pinned
+    // as data: `examples/**` and the root README are read on GitHub (disk
+    // paths), `content/docs` is served by fumadocs (site routes).
+    expect(SCAN_ROOTS).toEqual([
+      { path: 'content/docs', rule: 'docs' },
+      { path: 'examples', rule: 'disk' },
+      { path: 'README.md', rule: 'disk' },
+    ]);
+  });
+
+  it('has no dead self-repo GitHub URLs — the #3507 sweep, now a gate', () => {
+    // #3509 cleared this class to zero (25 targets, exactly 2 dead); PR #3506
+    // then added 8 more with nothing checking them. This is that sweep, run on
+    // every push instead of by hand in an issue comment.
+    const targets = new Set<string>();
+    for (const root of SCAN_ROOTS as { path: string }[]) {
+      for (const file of collectFiles(path.join(repoRoot, root.path)) as string[]) {
+        for (const match of stripCode(fs.readFileSync(file, 'utf8')).matchAll(/\[[^\]]+\]\(([^)]+)\)/g)) {
+          const target = selfRepoPath(match[1].trim());
+          if (target !== null) targets.add(target);
+        }
+      }
+    }
+
+    expect(targets.size).toBeGreaterThanOrEqual(25);
+    expect([...targets].filter((target) => !fs.existsSync(path.join(repoRoot, target)))).toEqual([]);
   });
 
   it('exposes routeExists with the context the scan gives it', () => {
@@ -442,7 +519,249 @@ describe('relative hrefs may not leave the collection — objectui#3490 A-class'
     ).toEqual([]);
   });
 
-  it('labels each failure with the check that rejected it', () => {
+  // The `labels each failure with the check that rejected it` test that stood
+  // here is superseded by `labels all seven checks distinctly` in the last
+  // describe — same fixture shape, extended with objectui#3536's three reasons.
+});
+
+describe('examples/** and the root README are scanned as DISK paths — objectui#3536 extension 1', () => {
+  const EXAMPLE = 'examples/hello-world/README.md';
+
+  it('reports the #3486 shape: a link to an example directory that was deleted', () => {
+    // `examples/hello-world/README.md` really carried `../crm/` and `../todo/`
+    // after both examples were removed. Two people found them by eye; nothing
+    // in CI ever would have, because this file was outside the scan surface.
+    expect(
+      rejections({
+        [EXAMPLE]: '[CRM](../crm/) and [Todo](../todo/)',
+        'examples/schema-catalog/README.md': '# Schema Catalog',
+      }),
+    ).toEqual([
+      ['../crm/', 'example-relative'],
+      ['../todo/', 'example-relative'],
+    ]);
+  });
+
+  it('reports the PR #3485 shape: a dead example entry in the root README', () => {
+    expect(
+      rejections({
+        'README.md': '- [Todo](./examples/todo)\n- [Hello World](./examples/hello-world)',
+        'examples/hello-world/README.md': '# Hello World',
+      }),
+    ).toEqual([['./examples/todo', 'example-relative']]);
+  });
+
+  it('accepts a directory, a non-markdown file, and an extensionless file', () => {
+    // All three are things GitHub renders happily and `routeCandidates()` knows
+    // nothing about: the docs rule would reject every one of them.
+    expect(
+      rejections({
+        'README.md': '[pkg](./packages/core) [vite](./vite.config.ts) [licence](./LICENSE)',
+        'packages/core/index.ts': 'export {}',
+        'vite.config.ts': 'export default {}',
+        LICENSE: 'MIT',
+      }),
+    ).toEqual([]);
+  });
+
+  it('rejects an extensionless spelling of a markdown file — the docs rule accepts it', () => {
+    // The sharpest contrast pair. On the site `../plugins/plugin-charts` may
+    // resolve in the browser, so the docs rule lets it through (see the
+    // "accepts the extensionless-route spelling" test above). GitHub serves
+    // FILES: there is nothing at that name, so it is simply a 404.
+    expect(
+      rejections({
+        'examples/README.md': '[catalog](./schema-catalog/README)',
+        'examples/schema-catalog/README.md': '# Schema Catalog',
+      }),
+    ).toEqual([['./schema-catalog/README', 'example-relative']]);
+  });
+
+  it('accepts a relative link that leaves the example — there is no collection to escape', () => {
+    // The other half of the contrast. The identical shape out of content/docs
+    // is `escapes-collection` (pinned below); out of an example README it is
+    // exactly how console-starter's README links the app-shell source and a
+    // docs page, and both render.
+    expect(
+      rejections({
+        'examples/console-starter/README.md': [
+          '[shell](../../packages/app-shell/src/console/ConsoleShell.tsx)',
+          '[lookup](../../content/docs/fields/lookup.mdx)',
+        ].join('\n\n'),
+        'packages/app-shell/src/console/ConsoleShell.tsx': 'export {}',
+        'content/docs/fields/lookup.mdx': '# Lookup',
+      }),
+    ).toEqual([]);
+  });
+
+  it('rejects a relative link that climbs out of the repository', () => {
+    // The one containment rule the disk surface does have: GitHub cannot render
+    // a path above the repo root, whatever exists on the machine running this.
+    expect(rejections({ 'examples/README.md': '[up](../../../etc/hosts)' })).toEqual([
+      ['../../../etc/hosts', 'example-relative'],
+    ]);
+  });
+
+  it('rejects an absolute /... href — GitHub resolves it against github.com', () => {
+    // No file in these surfaces carries this shape today; the rejection is
+    // preventive, and it is what the renderer forces. `/packages/core` in the
+    // root README links to https://github.com/packages/core, not to this repo.
+    expect(
+      rejections({
+        'README.md': '[core](/packages/core)',
+        'packages/core/index.ts': 'export {}',
+      }),
+    ).toEqual([['/packages/core', 'example-absolute']]);
+  });
+
+  it('leaves external URLs and in-page anchors alone here too', () => {
+    expect(
+      rejections({
+        'examples/README.md': '[web](https://example.com/nope) [mail](mailto:a@b.c) [top](#quick-start)',
+      }),
+    ).toEqual([]);
+  });
+
+  it('scans every markdown file under examples/, not only README.md', () => {
+    expect(rejections({ 'examples/hello-world/NOTES.md': '[gone](./nowhere.md)' })).toEqual([
+      ['./nowhere.md', 'example-relative'],
+    ]);
+  });
+
+  it('does not walk into an example dependency tree', () => {
+    // `pnpm install` puts a real `node_modules` in every example. Its READMEs
+    // are not ours, and there are tens of thousands of them.
+    expect(
+      rejections({
+        'examples/hello-world/node_modules/some-dep/README.md': '[gone](./nowhere.md)',
+        'examples/hello-world/dist/README.md': '[gone](./nowhere.md)',
+      }),
+    ).toEqual([]);
+  });
+
+  it('exposes diskPathExists with the context the scan gives it', () => {
+    const repo = repoWith({ 'examples/README.md': '# Examples', 'examples/hello-world/vite.config.ts': 'x' });
+    const fromFile = path.join(repo, 'examples/README.md');
+
+    expect(diskPathExists('./hello-world/vite.config.ts', { fromFile, repoRoot: repo })).toBe(true);
+    expect(diskPathExists('./hello-world/vite.config', { fromFile, repoRoot: repo })).toBe(false);
+    expect(diskPathExists('/hello-world/vite.config.ts', { fromFile, repoRoot: repo })).toBe(false);
+  });
+
+  it('keeps the docs rules off the disk surface and the disk rules off docs', () => {
+    // One fixture, one target, four links: the same two hrefs judged by both
+    // rules. If either rule ever leaks into the other's surface, exactly one of
+    // these four verdicts flips.
+    const repo = repoWith({
+      ...SITE_FIXTURE,
+      'content/docs/guide/a.md': '[out](../../../packages/core/README.md) and [bare](../plugins/plugin-charts)',
+      'content/docs/plugins/plugin-charts.mdx': '# Charts',
+      'examples/README.md': '[out](../packages/core/README.md) and [bare](../content/docs/plugins/plugin-charts)',
+      'packages/core/README.md': '# Core',
+    });
+
+    expect(scan(repo).map((item) => [path.relative(repo, item.file), item.href, item.reason])).toEqual([
+      ['content/docs/guide/a.md', '../../../packages/core/README.md', 'escapes-collection'],
+      ['examples/README.md', '../content/docs/plugins/plugin-charts', 'example-relative'],
+    ]);
+  });
+});
+
+describe("this repo's own GitHub blob/tree URLs are resolved offline — objectui#3536 extension 2", () => {
+  it('reports the #3507 shape: a tree/main URL to a deleted example', () => {
+    // `examples/crm` and `examples/todo` were deleted in 12b287d8b and the two
+    // links to them stayed dead about three months: this script skipped them by
+    // scheme, and lychee (weekly cron, continue-on-error) gates nothing.
+    expect(
+      rejections({
+        ...SITE_FIXTURE,
+        'content/docs/guide/building-crud-app.md': [
+          '[CRM](https://github.com/objectstack-ai/objectui/tree/main/examples/crm)',
+          '[Catalog](https://github.com/objectstack-ai/objectui/tree/main/examples/schema-catalog)',
+        ].join('\n\n'),
+        'examples/schema-catalog/README.md': '# Schema Catalog',
+      }),
+    ).toEqual([['https://github.com/objectstack-ai/objectui/tree/main/examples/crm', 'self-repo-url']]);
+  });
+
+  it('checks the shape in the disk surfaces too, not only content/docs', () => {
+    expect(
+      rejections({
+        'examples/README.md': '[gone](https://github.com/objectstack-ai/objectui/blob/main/packages/gone/README.md)',
+      }),
+    ).toEqual([['https://github.com/objectstack-ai/objectui/blob/main/packages/gone/README.md', 'self-repo-url']]);
+  });
+
+  it('accepts a blob URL to a real file and a tree URL to a real directory', () => {
+    expect(
+      rejections({
+        ...SITE_FIXTURE,
+        'content/docs/plugins/plugin-charts.mdx': [
+          '[README](https://github.com/objectstack-ai/objectui/blob/main/packages/plugin-charts/README.md)',
+          '[Packages](https://github.com/objectstack-ai/objectui/tree/main/packages)',
+        ].join('\n\n'),
+        'packages/plugin-charts/README.md': '# Charts',
+      }),
+    ).toEqual([]);
+  });
+
+  it('ignores the fragment and the query — anchors are out of scope', () => {
+    // `#L42` / `?plain=1` would need the target parsed, which is a different
+    // gate. The path in front of them is still checked.
+    expect(
+      rejections({
+        ...SITE_FIXTURE,
+        'content/docs/guide/a.md': [
+          '[live](https://github.com/objectstack-ai/objectui/blob/main/packages/core/README.md#install)',
+          '[raw](https://github.com/objectstack-ai/objectui/blob/main/packages/core/README.md?plain=1)',
+          '[dead](https://github.com/objectstack-ai/objectui/blob/main/packages/gone/README.md#install)',
+        ].join('\n\n'),
+        'packages/core/README.md': '# Core',
+      }),
+    ).toEqual([['https://github.com/objectstack-ai/objectui/blob/main/packages/gone/README.md#install', 'self-repo-url']]);
+  });
+
+  it('leaves every other GitHub URL alone — nothing else is decidable offline', () => {
+    // A different repo (lychee's job), a different ref (not in this tree), and
+    // github.com web routes: the two badge URLs and the issues link that the
+    // root README really carries.
+    expect(
+      rejections({
+        'examples/README.md': [
+          '[other repo](https://github.com/objectstack-ai/objectstack/blob/main/packages/gone/README.md)',
+          '[a tag](https://github.com/objectstack-ai/objectui/blob/v1.2.0/packages/gone/README.md)',
+          '[a sha](https://github.com/objectstack-ai/objectui/blob/12b287d8b/packages/gone/README.md)',
+          '[issues](https://github.com/objectstack-ai/objectui/issues)',
+          '[ci](https://github.com/objectstack-ai/objectui/workflows/CI/badge.svg)',
+          '[repo root](https://github.com/objectstack-ai/objectui/tree/main)',
+        ].join('\n\n'),
+      }),
+    ).toEqual([]);
+  });
+
+  it('exposes selfRepoPath: the path it extracts, and the shapes it declines', () => {
+    expect(selfRepoPath('https://github.com/objectstack-ai/objectui/blob/main/packages/core/README.md')).toBe(
+      'packages/core/README.md',
+    );
+    expect(selfRepoPath('https://github.com/objectstack-ai/objectui/tree/main/packages/#readme')).toBe('packages');
+    expect(selfRepoPath('https://github.com/objectstack-ai/objectui/issues')).toBeNull();
+    expect(selfRepoPath('https://github.com/objectstack-ai/objectstack/blob/main/a.md')).toBeNull();
+    expect(selfRepoPath('./packages/core/README.md')).toBeNull();
+  });
+
+  it('does not let the URL escape the repository', () => {
+    expect(
+      rejections({
+        'examples/README.md': '[up](https://github.com/objectstack-ai/objectui/blob/main/../../../etc/hosts)',
+      }),
+    ).toEqual([['https://github.com/objectstack-ai/objectui/blob/main/../../../etc/hosts', 'self-repo-url']]);
+  });
+});
+
+describe('every failure carries the reason that rejected it', () => {
+  it('labels all seven checks distinctly', () => {
+    // The #3490 test of the same name, extended with objectui#3536's three.
+    // Every reason here must have a HINTS entry — the next test pins that.
     const repo = repoWith({
       ...SITE_FIXTURE,
       'content/docs/guide/a.md': [
@@ -450,7 +769,9 @@ describe('relative hrefs may not leave the collection — objectui#3490 A-class'
         '[site](/spec/component.md)',
         '[docs](/docs/guide/a.md)',
         '[rel](./nowhere.md)',
+        '[self](https://github.com/objectstack-ai/objectui/blob/main/packages/gone/README.md)',
       ].join('\n\n'),
+      'examples/README.md': '[disk](./nowhere.md) and [abs](/packages/core)',
     });
 
     expect(scan(repo).map((item) => item.reason)).toEqual([
@@ -458,6 +779,29 @@ describe('relative hrefs may not leave the collection — objectui#3490 A-class'
       'site-route',
       'docs-route',
       'relative',
+      'self-repo-url',
+      'example-relative',
+      'example-absolute',
+    ]);
+  });
+
+  it('prints a hint for every reason the script can produce', () => {
+    // A reason with no HINTS entry fails silently: the failure line is printed
+    // and the "how do I fix this" paragraph simply never appears.
+    const source = fs.readFileSync(path.join(repoRoot, 'scripts/check-doc-links.mjs'), 'utf8');
+    const hinted = source
+      .slice(source.indexOf('const HINTS = {'))
+      .split('\n};')[0]
+      .matchAll(/^\s{2}'?([a-z-]+)'?:/gm);
+
+    expect([...hinted].map((match) => match[1]).sort()).toEqual([
+      'docs-route',
+      'escapes-collection',
+      'example-absolute',
+      'example-relative',
+      'relative',
+      'self-repo-url',
+      'site-route',
     ]);
   });
 });
