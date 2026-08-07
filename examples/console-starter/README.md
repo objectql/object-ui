@@ -32,10 +32,10 @@ monorepo detail. Drop the aliases when you consume published packages.
 
 ## What it is **not**
 
-- **Not a schema or relationship modelling example.** This directory holds ten
-  files and not one of them declares an object, a field or a relationship — those
-  live on the server. If you came here to see how relationships are modelled, you
-  want [`../schema-catalog/`](../schema-catalog/) and the docs
+- **Not a schema or relationship modelling example.** Nothing in this directory
+  declares an object, a field or a relationship — there is no schema JSON here at
+  all; those live on the server. If you came here to see how relationships are
+  modelled, you want [`../schema-catalog/`](../schema-catalog/) and the docs
   ([`content/docs/fields/lookup.mdx`](../../content/docs/fields/lookup.mdx) for
   lookup / master-detail).
 - **Not a bring-your-own-backend example.** The data layer is hardwired to
