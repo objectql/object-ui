@@ -83,6 +83,16 @@ jobs:
       - name: Verify spec-named symbols are derived, not hand-written
         run: pnpm check:spec-symbols
 
+      # A key a component asks `t()` for must exist in the `en` pack.
+      # `all-locales-key-parity.test.ts` compares packs to EACH OTHER, so ten
+      # packs identically missing a key is full parity and full parity is green
+      # — objectui#3517 lived there for months, and this gate's first full run
+      # found 258 more keys in the same blind spot. Same placement rationale as
+      # the step above: it imports `typescript` to parse the sources, so it
+      # needs the install, but nothing built.
+      - name: Verify t() call-site keys exist in the en locale pack
+        run: pnpm check:i18n-keys
+
       # `scripts/` is not a workspace package, so `pnpm type-check` (i.e.
       # `turbo run type-check`, which walks package.json `scripts`) structurally
       # cannot reach it, and the coverage guard above decides coverage per
