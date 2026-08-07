@@ -322,7 +322,7 @@ There are **two** link checkers, and they cover different things (objectui#3213)
 
 | | Covers | Network | Runs |
 |---|---|---|---|
-| `scripts/check-doc-links.mjs` | **Internal** links in `content/docs/` (relative hrefs, `/docs/...` routes, every other site-absolute href against `apps/site`), in `examples/` and the root `README.md` (as paths on disk), plus this repo's own `blob\|tree/main/` GitHub URLs everywhere | No | `docs-links.yml` — every push and PR, no path filter (previous section) |
+| `scripts/check-doc-links.mjs` | **Internal** links in `content/docs/` (relative hrefs, `/docs/...` routes, every other site-absolute href against `apps/site`), in `examples/` and the root `README.md` (as paths on disk), plus this repo's own `blob/main/` and `tree/main/` GitHub URLs everywhere | No | `docs-links.yml` — every push and PR, no path filter (previous section) |
 | Lychee (this workflow) | **External** URLs, plus **relative** in-repo file links, in `content/docs/`, `docs/` and `README.md` | Yes | Weekly cron and manual dispatch |
 
 Lychee sweeps **both** documentation trees: `content/docs/` (the 183 pages the site publishes) and
