@@ -408,23 +408,12 @@ Key dependencies:
 
 ### Add Custom Routes
 
-Edit `src/App.tsx`:
-
-```typescript
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-
-function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/custom" element={<CustomPage />} />
-      </Routes>
-    </BrowserRouter>
-  )
-}
-```
+There is no route table to edit and no router dependency to install — the Runner derives
+routes from metadata. `src/App.tsx` keeps the current path in state, navigates with
+`history.pushState`, and asks the active loader for whatever page answers that path. So
+adding a route means adding the page document it resolves to: see
+[Add Custom Schemas](#add-custom-schemas) below, and [Metadata Loading](#metadata-loading)
+for how a route maps to a file or a request.
 
 ### Add Custom Components
 
