@@ -221,7 +221,7 @@ AGENTS.md 的「只跑受影响的包」指的是**用上面的路径过滤缩�
      Changes must be made through the merge queue
   ```
 
-  不带 `--auto` 的 `gh pr merge --squash --delete-branch` 打的是同一个 REST 端点,同样 405。**撞上这个 405 不是你权限不够** —— 别去试更强的手段、也别以为要等人工审批,换成下面的入队路径就行。
+  实测是从 REST 端点发起的;405 正文那句 `Changes must be made through the merge queue` 拒绝的是**「直接合并」这个动作**本身,不是某个客户端,所以旧文教的 `gh pr merge --squash --delete-branch`(不带 `--auto`)这条收尾路径同样不成立(`gh` 具体报什么文案随版本变,**别按文案去猜**,认准下面的入队路径)。**撞上这个 405 不是你权限不够** —— 别去试更强的手段,也别以为要等人工审批。
 - **CI 全绿即自行合并,不必等维护者确认**(授权语义没变,变的只是动作)—— 修改完成后**只提交你任务改动的文件**(逐路径 `git add <file>`,绝不 `git add -A` 扫入无关 diff),开 **draft** PR;等远端 CI 全绿后:
 
   ```bash
