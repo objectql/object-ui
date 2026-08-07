@@ -90,8 +90,6 @@
     "console.notFound.back": { "issue": "objectui#3546" },
     "console.notFound.description": { "issue": "objectui#3546" },
     "console.notFound.title": { "issue": "objectui#3546" },
-    "console.objectView.cannotDeleteMetaView": { "issue": "objectui#3546" },
-    "console.objectView.cannotEditMetaView": { "issue": "objectui#3546" },
     "console.shortcuts.groups.aiChat": { "issue": "objectui#3546" },
     "console.shortcuts.newChat": { "issue": "objectui#3546" },
     "console.shortcuts.toggleChatsList": { "issue": "objectui#3546" },
@@ -100,11 +98,9 @@
     "detail.concurrentUpdateRecordLabel": { "issue": "objectui#3546" },
     "detail.deleted": { "issue": "objectui#3546" },
     "detail.historyEmpty": { "issue": "objectui#3546" },
-    "detail.viewSource": { "issue": "objectui#3546" },
     "empty.appNotAvailable": { "issue": "objectui#3546" },
     "empty.appNotAvailableDescription": { "issue": "objectui#3546" },
     "empty.interfacePageSourceMissing": { "issue": "objectui#3546" },
-    "gantt.toolbar.refresh": { "issue": "objectui#3546" },
     "home.pendingDrafts.capabilityWarn": { "issue": "objectui#3546" },
     "home.pendingDrafts.nothing": { "issue": "objectui#3546" },
     "home.pendingDrafts.probeWarn": { "issue": "objectui#3546" },
@@ -266,7 +262,6 @@
     "preview.unpublishedBar.publishFailed": { "issue": "objectui#3546" },
     "preview.unpublishedBar.published": { "issue": "objectui#3546" },
     "preview.unpublishedBar.publishing": { "issue": "objectui#3546" },
-    "wizard.missingRequired": { "issue": "objectui#3546" },
     "workspace.multiOrgDisabled": { "issue": "objectui#3546" }
   },
 

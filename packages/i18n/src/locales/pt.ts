@@ -689,6 +689,7 @@ const pt = {
       exportPng: "Exportar como PNG",
       exportPdf: "Exportar PDF",
       saveLayout: "Salvar o layout",
+      refresh: "Atualizar",
       undo: "Desfazer",
       redo: "Refazer",
       prevPeriod: "Período anterior",
@@ -846,6 +847,7 @@ const pt = {
     loadMore: "Carregar mais",
     edited: "(editado)",
     via: "via {{source}}",
+    viewSource: "Ver origem",
     replyCount: "{{count}} resposta",
     replyCountPlural: "{{count}} respostas",
     replyPlaceholder: "Responder…",
@@ -1526,6 +1528,8 @@ const pt = {
       viewNameRequired: "Informe uma chave (letras minúsculas, números, sublinhado). Não é preenchida automaticamente para títulos não latinos.",
       viewNameInvalid: "Use letras minúsculas, números e sublinhados; comece com uma letra ou sublinhado.",
       systemViewReadonly: 'System view defined in code - duplicate to customize.',
+      cannotEditMetaView: "Esta exibição é integrada e definida no código — não é possível alterá-la.",
+      cannotDeleteMetaView: "Esta exibição é integrada e definida no código — não é possível excluí-la.",
       expandToPage: 'Open as full page',
       objectNotFound: "Objeto não encontrado",
       objectNotFoundDescription: "O objeto \"{{objectName}}\" não existe na configuração atual.",
@@ -3088,6 +3092,9 @@ const pt = {
     statusActive: "ativo",
     statusIdle: "inativo",
     statusAway: "ausente",
+  },
+  wizard: {
+    missingRequired: "Preencha os campos obrigatórios: {{fields}}",
   },
 };
 

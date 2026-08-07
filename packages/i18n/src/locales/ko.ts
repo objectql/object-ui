@@ -689,6 +689,7 @@ const ko = {
       exportPng: "PNG로 내보내기",
       exportPdf: "PDF로 내보내기",
       saveLayout: "레이아웃 저장",
+      refresh: "새로 고침",
       undo: "실행 취소",
       redo: "다시 실행",
       prevPeriod: "이전 기간",
@@ -844,6 +845,7 @@ const ko = {
     loadMore: "더 보기",
     edited: "(수정됨)",
     via: "{{source}} 통해",
+    viewSource: "원본 보기",
     replyCount: "답글 {{count}}개",
     replyCountPlural: "답글 {{count}}개",
     replyPlaceholder: "답글…",
@@ -1526,6 +1528,8 @@ const ko = {
       viewNameRequired: "키를 입력하세요(소문자, 숫자, 밑줄). 비라틴 문자 제목에서는 자동으로 채워지지 않습니다.",
       viewNameInvalid: "소문자, 숫자, 밑줄을 사용하고 문자 또는 밑줄로 시작하세요.",
       systemViewReadonly: 'System view defined in code - duplicate to customize.',
+      cannotEditMetaView: "이 보기는 코드에 정의된 기본 제공 보기이므로 변경할 수 없습니다.",
+      cannotDeleteMetaView: "이 보기는 코드에 정의된 기본 제공 보기이므로 삭제할 수 없습니다.",
       expandToPage: 'Open as full page',
       objectNotFound: "객체를 찾을 수 없음",
       objectNotFoundDescription: "객체 \"{{objectName}}\"이(가) 현재 구성에 존재하지 않습니다.",
@@ -3088,6 +3092,9 @@ const ko = {
     statusActive: "활성",
     statusIdle: "유휴",
     statusAway: "자리 비움",
+  },
+  wizard: {
+    missingRequired: "필수 항목을 입력하세요: {{fields}}",
   },
 };
 

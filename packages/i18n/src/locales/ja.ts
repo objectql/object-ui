@@ -689,6 +689,7 @@ const ja = {
       exportPng: "PNG で書き出す",
       exportPdf: "PDF で書き出す",
       saveLayout: "レイアウトを保存",
+      refresh: "更新",
       undo: "元に戻す",
       redo: "やり直す",
       prevPeriod: "前の期間",
@@ -855,6 +856,7 @@ const ja = {
     loadMore: "さらに読み込む",
     edited: "(編集済み)",
     via: "{{source}} 経由",
+    viewSource: "ソースを表示",
     replyCount: "{{count}} 件の返信",
     replyCountPlural: "{{count}} 件の返信",
     replyPlaceholder: "返信…",
@@ -1526,6 +1528,8 @@ const ja = {
       viewNameRequired: "キーを入力してください（英小文字、数字、アンダースコア）。ラテン文字以外のタイトルでは自動入力されません。",
       viewNameInvalid: "英小文字、数字、アンダースコアを使用し、先頭は文字かアンダースコアにしてください。",
       systemViewReadonly: 'System view defined in code - duplicate to customize.',
+      cannotEditMetaView: "このビューはコードで定義された組み込みビューのため、変更できません。",
+      cannotDeleteMetaView: "このビューはコードで定義された組み込みビューのため、削除できません。",
       expandToPage: 'Open as full page',
       objectNotFound: "オブジェクトが見つかりません",
       objectNotFoundDescription: "オブジェクト「{{objectName}}」は現在の設定に存在しません。",
@@ -3088,6 +3092,9 @@ const ja = {
     statusActive: "アクティブ",
     statusIdle: "アイドル",
     statusAway: "離席中",
+  },
+  wizard: {
+    missingRequired: "必須項目を入力してください: {{fields}}",
   },
 };
 

@@ -689,6 +689,7 @@ const ru = {
       exportPng: "Экспортировать в PNG",
       exportPdf: "Экспортировать в PDF",
       saveLayout: "Сохранить компоновку",
+      refresh: "Обновить",
       undo: "Отменить",
       redo: "Повторить",
       prevPeriod: "Предыдущий период",
@@ -857,6 +858,7 @@ const ru = {
     loadMore: "Загрузить ещё",
     edited: "(изменено)",
     via: "через {{source}}",
+    viewSource: "Показать источник",
     replyCount: "{{count}} ответ",
     replyCountPlural: "{{count}} ответов",
     replyPlaceholder: "Ответить…",
@@ -1526,6 +1528,8 @@ const ru = {
       viewNameRequired: "Введите ключ (строчные буквы, цифры, подчёркивание). Для нелатинских заголовков автозаполнение не работает.",
       viewNameInvalid: "Используйте строчные латинские буквы, цифры и подчёркивания; начните с буквы или подчёркивания.",
       systemViewReadonly: 'System view defined in code - duplicate to customize.',
+      cannotEditMetaView: "Это встроенное представление, определённое в коде, — изменить его нельзя.",
+      cannotDeleteMetaView: "Это встроенное представление, определённое в коде, — удалить его нельзя.",
       expandToPage: 'Open as full page',
       objectNotFound: "Объект не найден",
       objectNotFoundDescription: "Объект «{{objectName}}» не существует в текущей конфигурации.",
@@ -3088,6 +3092,9 @@ const ru = {
     statusActive: "активен",
     statusIdle: "бездействует",
     statusAway: "отошёл",
+  },
+  wizard: {
+    missingRequired: "Заполните обязательные поля: {{fields}}",
   },
 };
 

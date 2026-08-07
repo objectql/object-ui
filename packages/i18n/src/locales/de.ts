@@ -689,6 +689,7 @@ const de = {
       exportPng: "Als PNG exportieren",
       exportPdf: "PDF exportieren",
       saveLayout: "Layout speichern",
+      refresh: "Aktualisieren",
       undo: "Rückgängig",
       redo: "Wiederholen",
       prevPeriod: "Vorherige Periode",
@@ -844,6 +845,7 @@ const de = {
     loadMore: "Mehr laden",
     edited: "(bearbeitet)",
     via: "über {{source}}",
+    viewSource: "Quelle anzeigen",
     replyCount: "{{count}} Antwort",
     replyCountPlural: "{{count}} Antworten",
     replyPlaceholder: "Antworten…",
@@ -1526,6 +1528,8 @@ const de = {
       viewNameRequired: "Geben Sie einen Schlüssel ein (Kleinbuchstaben, Ziffern, Unterstrich). Bei nicht-lateinischen Titeln wird er nicht automatisch gefüllt.",
       viewNameInvalid: "Verwenden Sie Kleinbuchstaben, Ziffern und Unterstriche; beginnen Sie mit einem Buchstaben oder Unterstrich.",
       systemViewReadonly: 'System view defined in code - duplicate to customize.',
+      cannotEditMetaView: "Diese Ansicht ist integriert und im Code definiert – sie kann nicht geändert werden.",
+      cannotDeleteMetaView: "Diese Ansicht ist integriert und im Code definiert – sie kann nicht gelöscht werden.",
       expandToPage: 'Open as full page',
       objectNotFound: "Objekt nicht gefunden",
       objectNotFoundDescription: "Das Objekt „{{objectName}}\" existiert in der aktuellen Konfiguration nicht.",
@@ -3088,6 +3092,9 @@ const de = {
     statusActive: "aktiv",
     statusIdle: "inaktiv",
     statusAway: "abwesend",
+  },
+  wizard: {
+    missingRequired: "Bitte füllen Sie die Pflichtfelder aus: {{fields}}",
   },
 };
 

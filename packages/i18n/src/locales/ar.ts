@@ -689,6 +689,7 @@ const ar = {
       exportPng: "تصدير بصيغة PNG",
       exportPdf: "تصدير PDF",
       saveLayout: "حفظ التخطيط",
+      refresh: "تحديث",
       undo: "تراجع",
       redo: "إعادة",
       prevPeriod: "الفترة السابقة",
@@ -846,6 +847,7 @@ const ar = {
     loadMore: "تحميل المزيد",
     edited: "(معدل)",
     via: "عبر {{source}}",
+    viewSource: "عرض المصدر",
     replyCount: "{{count}} رد",
     replyCountPlural: "{{count}} ردود",
     replyPlaceholder: "رد…",
@@ -1526,6 +1528,8 @@ const ar = {
       viewNameRequired: "أدخل مفتاحًا (أحرف إنجليزية صغيرة وأرقام وشرطة سفلية). لا يُملأ تلقائيًا للعناوين غير اللاتينية.",
       viewNameInvalid: "استخدم أحرفًا إنجليزية صغيرة وأرقامًا وشرطات سفلية؛ وابدأ بحرف أو شرطة سفلية.",
       systemViewReadonly: 'System view defined in code - duplicate to customize.',
+      cannotEditMetaView: "هذا عرض مدمج معرَّف في الكود — لا يمكن تعديله.",
+      cannotDeleteMetaView: "هذا عرض مدمج معرَّف في الكود — لا يمكن حذفه.",
       expandToPage: 'Open as full page',
       objectNotFound: "الكائن غير موجود",
       objectNotFoundDescription: "الكائن \"{{objectName}}\" غير موجود في الإعدادات الحالية.",
@@ -3088,6 +3092,9 @@ const ar = {
     statusActive: "نشط",
     statusIdle: "خامل",
     statusAway: "غائب",
+  },
+  wizard: {
+    missingRequired: "يرجى إكمال الحقول المطلوبة: {{fields}}",
   },
 };
 

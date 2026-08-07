@@ -642,6 +642,7 @@ const zh = {
       exportPng: '导出 PNG',
       exportPdf: '导出 PDF',
       saveLayout: '保存布局',
+      refresh: '刷新',
       undo: '撤销',
       redo: '重做',
     },
@@ -928,6 +929,7 @@ const zh = {
     loadMore: '加载更多',
     edited: '(已编辑)',
     via: '通过 {{source}}',
+    viewSource: '查看来源',
     // Replies
     replyCount: '{{count}} 条回复',
     replyCountPlural: '{{count}} 条回复',
@@ -1702,6 +1704,8 @@ const zh = {
     },
     objectView: {
       systemViewReadonly: '系统视图由代码定义，只读。',
+      cannotEditMetaView: '该视图为内置视图，由代码定义，无法修改。',
+      cannotDeleteMetaView: '该视图为内置视图，由代码定义，无法删除。',
       expandToPage: '以完整页面打开',
       objectNotFound: '未找到对象',
       objectNotFoundDescription: '对象"{{objectName}}"在当前配置中不存在。',
@@ -3142,6 +3146,9 @@ const zh = {
     statusActive: '活跃',
     statusIdle: '空闲',
     statusAway: '离开',
+  },
+  wizard: {
+    missingRequired: '请填写以下必填字段：{{fields}}',
   },
 } as const;
 

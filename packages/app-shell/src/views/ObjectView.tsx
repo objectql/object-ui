@@ -851,7 +851,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
 
     const handleRenameView = useCallback(async (vid: string, newName: string) => {
         if (!isSavedView(vid)) {
-            toast.error(t('console.objectView.cannotEditMetaView') || 'Built-in views cannot be renamed.');
+            toast.error(t('console.objectView.cannotEditMetaView'));
             return;
         }
         try {
@@ -869,7 +869,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     const handleDeleteView = useCallback(async (vid: string) => {
         if (!dataSource) return;
         if (!isSavedView(vid)) {
-            toast.error(t('console.objectView.cannotDeleteMetaView') || 'Built-in views cannot be deleted.');
+            toast.error(t('console.objectView.cannotDeleteMetaView'));
             return;
         }
         const targetView = views.find((v: any) => v.id === vid);
@@ -903,7 +903,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     const handlePinView = useCallback(async (vid: string, pinned: boolean) => {
         if (!dataSource) return;
         if (!isSavedView(vid)) {
-            toast.error(t('console.objectView.cannotEditMetaView') || 'Built-in views cannot be pinned.');
+            toast.error(t('console.objectView.cannotEditMetaView'));
             return;
         }
         try {
@@ -919,10 +919,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     const handleSetDefaultView = useCallback(async (vid: string) => {
         if (!dataSource) return;
         if (!isSavedView(vid)) {
-            toast.error(
-                t('console.objectView.cannotEditMetaView')
-                || 'System view — it cannot be set as a default.',
-            );
+            toast.error(t('console.objectView.cannotEditMetaView'));
             return;
         }
         try {
@@ -972,10 +969,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         // ViewConfigPanel against one would let the user save changes that
         // never persist.
         if (!isSavedView(vid)) {
-            toast.error(
-                t('console.objectView.cannotEditMetaView')
-                || 'System view — it cannot be edited.',
-            );
+            toast.error(t('console.objectView.cannotEditMetaView'));
             return;
         }
         if (vid !== activeViewId) handleViewChange(vid);

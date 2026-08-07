@@ -689,6 +689,7 @@ const fr = {
       exportPng: "Exporter en PNG",
       exportPdf: "Exporter en PDF",
       saveLayout: "Enregistrer la disposition",
+      refresh: "Actualiser",
       undo: "Annuler",
       redo: "Rétablir",
       prevPeriod: "Période précédente",
@@ -846,6 +847,7 @@ const fr = {
     loadMore: "Charger plus",
     edited: "(modifié)",
     via: "via {{source}}",
+    viewSource: "Voir la source",
     replyCount: "{{count}} réponse",
     replyCountPlural: "{{count}} réponses",
     replyPlaceholder: "Répondre…",
@@ -1526,6 +1528,8 @@ const fr = {
       viewNameRequired: "Saisissez une clé (minuscules, chiffres, tiret bas). Non remplie automatiquement pour les titres non latins.",
       viewNameInvalid: "Utilisez des minuscules, des chiffres et des tirets bas ; commencez par une lettre ou un tiret bas.",
       systemViewReadonly: 'System view defined in code - duplicate to customize.',
+      cannotEditMetaView: "Cette vue est intégrée et définie dans le code — elle ne peut pas être modifiée.",
+      cannotDeleteMetaView: "Cette vue est intégrée et définie dans le code — elle ne peut pas être supprimée.",
       expandToPage: 'Open as full page',
       objectNotFound: "Objet introuvable",
       objectNotFoundDescription: "L'objet « {{objectName}} » n'existe pas dans la configuration actuelle.",
@@ -3088,6 +3092,9 @@ const fr = {
     statusActive: "actif",
     statusIdle: "inactif",
     statusAway: "absent",
+  },
+  wizard: {
+    missingRequired: "Veuillez renseigner les champs obligatoires : {{fields}}",
   },
 };
 

@@ -664,6 +664,7 @@ const en = {
       exportPng: 'Export as PNG',
       exportPdf: 'Export PDF',
       saveLayout: 'Save layout',
+      refresh: 'Refresh',
       undo: 'Undo',
       redo: 'Redo',
     },
@@ -962,6 +963,7 @@ const en = {
     loadMore: 'Load more',
     edited: '(edited)',
     via: 'via {{source}}',
+    viewSource: 'View source',
     // Replies
     replyCount: '{{count}} reply',
     replyCountPlural: '{{count}} replies',
@@ -1754,6 +1756,11 @@ const en = {
       filterOrNotSavable: 'This filter uses OR between conditions, which a saved view cannot store yet. It still applies to this list — remove the OR grouping to save it to the view.',
       filterNestedNotSavable: 'This filter uses nested condition groups, which a saved view cannot store. Flatten it to a single list of conditions to save it to the view.',
       systemViewReadonly: 'System view defined in code — read-only.',
+      // ObjectView.tsx references ONE edit-denied key from four call sites
+      // (rename / pin / set-as-default / configure), so the copy has to cover
+      // any change to a built-in view rather than name one operation.
+      cannotEditMetaView: 'This view is built in and defined in code — it cannot be changed.',
+      cannotDeleteMetaView: 'This view is built in and defined in code — it cannot be deleted.',
       expandToPage: 'Open as full page',
       allRecords: 'All Records',
       exitDesignMode: 'Exit Design Mode',
@@ -3252,6 +3259,11 @@ const en = {
     statusActive: 'active',
     statusIdle: 'idle',
     statusAway: 'away',
+  },
+  // Multi-step form (plugin-form's WizardForm). `{{fields}}` is a
+  // comma-joined, already-truncated label list built at the call site.
+  wizard: {
+    missingRequired: 'Please complete the required fields: {{fields}}',
   },
 } as const;
 
