@@ -4,7 +4,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// @ts-expect-error — plain-JS CI helper, intentionally untyped
 import { collectBrokenLinks, routeExists, stripCode } from '../check-doc-links.mjs';
 
 /**
