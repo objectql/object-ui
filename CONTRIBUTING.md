@@ -411,13 +411,15 @@ These thresholds are intentionally set just below current coverage levels to pre
 
 ### Writing Documentation
 
-We use fumadocs for documentation. All docs are in `docs/`.
+We use fumadocs for documentation. The published pages live in `content/docs/**` — that root is declared once, in `apps/site/source.config.ts` (`dir: '../../content/docs'`) — and a file's path below it becomes its route under `/docs`. New and updated documentation pages go there.
+
+The repository root also has a `docs/` directory, and it is **not** part of the site: it holds internal engineering material (ADRs, audits, architecture notes) that the fumadocs collection never reads, so none of it is rendered or reachable at a `/docs/...` route. A page filed there never reaches the site.
 
 ```bash
-# Start docs dev server
+# Start the documentation site dev server
 pnpm site:dev
 
-# Build docs
+# Build the documentation site
 pnpm site:build
 ```
 
