@@ -12,10 +12,10 @@ The **Console** is the reference application for [ObjectUI](/docs/guide). It ren
 ```bash
 # From the repository root
 pnpm install
-pnpm console        # starts the dev server (Vite)
+pnpm dev            # starts the console dev server (Vite)
 ```
 
-The console opens at **http://localhost:5175** with MSW (Mock Service Worker) providing a simulated backend.
+The console opens at **http://localhost:5180** (the port is fixed in `apps/console/vite.config.ts`). There is no bundled mock backend — `apps/console/.env.development` points `VITE_SERVER_URL` at `http://localhost:3000`, so an ObjectStack server has to be listening there. See [Running with a Real Backend](#running-with-a-real-backend) to target a different one.
 
 ## Key Features
 
@@ -88,12 +88,13 @@ export default defineStack({
 
 ## Running with a Real Backend
 
-To connect to a real ObjectStack server instead of MSW:
+`VITE_SERVER_URL` is the setting that decides which backend the console talks to — the data adapter, auth, i18n and action endpoints all hang off it.
 
-1. Set the `VITE_API_URL` environment variable:
+1. Point it at your server. An inline value overrides `apps/console/.env.development`:
    ```bash
-   VITE_API_URL=http://localhost:3000 pnpm console
+   VITE_SERVER_URL=http://localhost:3000 pnpm dev
    ```
+   Leave it empty (`VITE_SERVER_URL=`) to use the same origin — the right setting when an ObjectStack server serves the console itself.
 2. The console will use the ObjectStack client to discover metadata and perform CRUD operations against the server.
 
 ## Folder Structure
@@ -118,8 +119,6 @@ apps/console/
     hooks/
       useBranding.ts           # Delegates to @object-ui/layout
       useObjectActions.ts      # CRUD action handlers
-    mocks/
-      browser.ts               # MSW browser worker
 ```
 
 ## See Also

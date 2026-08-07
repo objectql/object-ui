@@ -158,31 +158,32 @@ ObjectUI uses Vite's `import.meta.env` for build-time configuration. Prefix all 
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VITE_USE_MOCK_SERVER` | `"true"` | Enable MSW mock server for local development. Set to `"false"` for production builds that hit a real API. |
-| `VITE_API_URL` | — | Base URL for the ObjectStack API (e.g. `https://api.example.com`). |
+| `VITE_SERVER_URL` | `""` (same origin) | Absolute origin of the ObjectStack backend, e.g. `https://demo.objectstack.ai`. The one setting that matters — the data adapter, auth, i18n and action endpoints all hang off it. An empty value means same-origin, which is correct when the ObjectStack server serves the console itself; on a static host with no backend behind it, every `/api/v1/*` request then 404s. |
 | `NODE_ENV` | `"development"` | Set automatically to `"production"` by `vite build`. |
+
+Because Vite inlines `import.meta.env` at **build time**, `VITE_SERVER_URL` has to be present when the build runs. Setting it only in a static host's runtime environment changes nothing — the value is already baked into the bundle.
 
 Create a `.env.production` file for production defaults:
 
 ```bash
-VITE_USE_MOCK_SERVER=false
-VITE_API_URL=https://api.example.com
+# Leave empty for same-origin; set an absolute origin for a split-origin deploy.
+VITE_SERVER_URL=https://demo.objectstack.ai
 ```
 
 For platform-specific configuration, set environment variables in each platform's dashboard or CLI:
 
 ```bash
 # Vercel
-vercel env add VITE_API_URL production
+vercel env add VITE_SERVER_URL production
 
 # Railway
-railway variables set VITE_API_URL=https://api.example.com
+railway variables set VITE_SERVER_URL=https://demo.objectstack.ai
 
 # Netlify
-netlify env:set VITE_API_URL https://api.example.com
+netlify env:set VITE_SERVER_URL https://demo.objectstack.ai
 ```
 
-> **Tip:** The console app ships with MSW enabled by default. Always set `VITE_USE_MOCK_SERVER=false` in production to disable the mock service worker.
+> **Tip:** A split-origin deployment (console and backend on different origins) needs two things from the backend: CORS for the SPA origin (`Access-Control-Allow-Origin: <spa-origin>`, `Access-Control-Allow-Credentials: true`), and auth cookies marked `SameSite=None; Secure` so they survive cross-site requests.
 
 ## Build Optimization
 
@@ -244,13 +245,13 @@ export default defineConfig({
 
 ### Production Build Command
 
-Build without the mock server and verify the output:
+Bake the backend origin into the bundle and verify the output:
 
 ```bash
-VITE_USE_MOCK_SERVER=false pnpm build
+VITE_SERVER_URL=https://demo.objectstack.ai pnpm build
 ```
 
-This is equivalent to the `build:server` script defined in the console app.
+`pnpm build` runs `turbo run build` across the workspace. Turbo runs in strict env mode, but it detects the console as a Vite package and passes `VITE_*` through automatically, so an inline `VITE_SERVER_URL` does reach the build. To build the console alone, use `pnpm build:console`.
 
 ## Health Checks
 
