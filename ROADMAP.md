@@ -1889,7 +1889,7 @@ All 313 `@object-ui/fields` tests pass.
 
 - [CONTRIBUTING.md](./CONTRIBUTING.md) — Contribution guidelines
 - [QUICK_REFERENCE.md](./QUICK_REFERENCE.md) — Developer quick reference
-- [Plugin Development Guide](./content/docs/guide/plugin-development.mdx)
+- [Plugin Development Guide](./content/docs/guide/plugin-development.md)
 
 ---
 

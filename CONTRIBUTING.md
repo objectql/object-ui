@@ -150,7 +150,7 @@ packages/
 4. **Tree Shakable**: Modular imports, no monolithic bundles
 5. **Zero React in Core**: Core package has no React dependencies
 
-See [Architecture Documentation](./docs/spec/architecture.md) for details.
+See the [Architecture Overview](./content/docs/guide/architecture.md) guide for details.
 
 ## Writing Tests
 
@@ -465,8 +465,6 @@ Fumadocs is configured with `baseUrl: '/docs'`, which means all documentation pa
 #### Validating Links
 
 Link validation runs automatically via GitHub Actions on all PRs using lychee-action. This checks for broken internal and external links.
-
-See [Documentation Guide](./docs/README.md) for details.
 
 ## Versioning and Releases
 
