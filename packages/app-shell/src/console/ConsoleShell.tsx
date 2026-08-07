@@ -370,11 +370,17 @@ export function RootRedirect() {
 
 /**
  * SystemRedirect — forwards legacy /system/* URLs to the canonical
- * /apps/setup/* location so bookmarks keep working. Suffix is preserved.
+ * /apps/setup/system/* location so bookmarks keep working. Suffix is preserved.
+ *
+ * #3611 — the bare `/system` bookmark used to land on the bare `/apps/setup`,
+ * which on a zero-app deployment is the "No Apps Configured" empty state's own
+ * URL. Every suffixed bookmark was already forwarded to `/apps/setup/system…`;
+ * the bare one now agrees with them instead of dropping the `system` segment
+ * that makes the hub mount at all.
  */
 export function SystemRedirect() {
   const location = useLocation();
   const suffix = location.pathname.replace(/^\/system/, '');
-  const target = suffix ? `/apps/setup/system${suffix}` : '/apps/setup';
+  const target = suffix ? `/apps/setup/system${suffix}` : '/apps/setup/system';
   return <Navigate to={`${target}${location.search}${location.hash}`} replace />;
 }

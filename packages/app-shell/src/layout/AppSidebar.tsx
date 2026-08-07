@@ -451,7 +451,14 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
             /* No-app fallback header */
             <SidebarMenuButton
               size="lg"
-              onClick={() => navigate('/apps/setup')}
+              /* #3611 — the system hub is `/apps/setup/system`, not the bare
+                 `/apps/setup`. This header renders ONLY when `activeApp` is
+                 falsy, i.e. exactly on the zero-app deployment where
+                 `/apps/setup` is the "No Apps Configured" empty state's own
+                 URL — so the bare target sent the user back to the screen
+                 they were already looking at. Same fix as the `sys-settings`
+                 entry above (#3590). */
+              onClick={() => navigate('/apps/setup/system')}
               data-testid="system-sidebar-header"
             >
               <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -680,8 +687,12 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
+                  {/* #3611 — "Settings" means the system hub. The bare
+                      `/apps/setup` resolves to the "No Apps Configured" empty
+                      state on a zero-app deployment, so this entry looped in
+                      place there. */}
                   <DropdownMenuItem
-                    onClick={() => navigate('/apps/setup')}
+                    onClick={() => navigate('/apps/setup/system')}
                   >
                     <Settings className="mr-2 h-4 w-4" />
                     {t('user.settings', { defaultValue: 'Settings' })}
