@@ -5,7 +5,9 @@ Universal Object UI Application Runner - A standalone development server and run
 ## Features
 
 - **Schema Development** - Test and debug Object UI schemas in isolation
-- **Hot Reload** - Automatic reload on schema changes
+- **No-Restart Edits** - Under `src/app-data/` the dev server picks metadata changes up
+  without a restart, because that JSON is part of Vite's module graph; behind `?api=` it
+  cannot, because Vite never sees your backend ([Metadata Loading](#metadata-loading))
 - **Plugin Support** - Pre-configured with popular plugins (Kanban, Charts, etc.)
 - **Development Ready** - Built-in Vite development server
 - **Production Build** - Optimized build for deployment
