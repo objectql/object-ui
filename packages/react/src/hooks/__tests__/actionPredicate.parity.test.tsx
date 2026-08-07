@@ -24,9 +24,9 @@
  *
  * Two things are pinned here:
  *   1. There is only ONE normalizer. `@object-ui/core` owns the canonical
- *      `toPredicateInput`; since #3367 `@object-ui/react` re-exports it rather
- *      than keeping a renderer-side twin, so this suite asserts *identity*
- *      (same function object) instead of enumerating input shapes. The old
+ *      `toPredicateInput`, and since #3367 `@object-ui/react` re-exports it
+ *      rather than keeping a renderer-side twin — so this suite asserts
+ *      *identity* (same function object), not input shapes one by one. The old
  *      14-shape normalization table was a guardrail against drift between two
  *      implementations; with one implementation it compared a function to
  *      itself and could no longer fail.
