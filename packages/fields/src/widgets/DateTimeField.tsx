@@ -3,6 +3,7 @@ import { Input, EmptyValue } from '@object-ui/components';
 import { FieldWidgetComponentProps } from './types';
 import { toDomProps } from './toDomProps';
 import { openNativePicker } from './openNativePicker';
+import { toDateTimeInputValue, fromDateTimeInputValue } from './nativeDateValue';
 
 /**
  * DateTimeField - Combined date and time picker widget
@@ -25,8 +26,11 @@ export function DateTimeField({ value, onChange, field, readonly, ...props }: Fi
     <Input
       {...domProps}
       type="datetime-local"
-      value={value || ''}
-      onChange={(e) => onChange(e.target.value)}
+      // The record's value is ISO-8601 (`…T14:30:00.000Z`), which this control
+      // rejects outright — it renders empty and the user reads that as a lost
+      // value (objectui#3127). Convert in, and back out on the same basis.
+      value={toDateTimeInputValue(value)}
+      onChange={(e) => onChange(fromDateTimeInputValue(e.target.value))}
       onClick={(e) => {
         openNativePicker(e.currentTarget);
         domProps.onClick?.(e);

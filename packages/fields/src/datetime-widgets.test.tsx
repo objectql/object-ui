@@ -1,3 +1,4 @@
+import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { DateField } from './widgets/DateField';
@@ -54,10 +55,15 @@ describe('Date/Time Widgets', () => {
         });
 
         it('calls onChange when value changes', () => {
-            const { container } = render(<DateTimeField {...baseProps} />);
+            const onChange = vi.fn();
+            const { container } = render(<DateTimeField {...baseProps} onChange={onChange} />);
             const input = container.querySelector('input[type="datetime-local"]') as HTMLInputElement;
             fireEvent.change(input, { target: { value: '2023-01-01T12:00' } });
-            expect(baseProps.onChange).toHaveBeenCalledWith('2023-01-01T12:00');
+            // The control speaks zone-less local wall clock; form state holds
+            // ISO, the shape the API hands back and `toDateTimeInputValue`
+            // reads (objectui#3127). Storing the naive string instead would put
+            // read and write on different timezone bases.
+            expect(onChange).toHaveBeenCalledWith(new Date('2023-01-01T12:00').toISOString());
         });
 
         it('renders formatted datetime in readonly mode', () => {
@@ -68,6 +74,92 @@ describe('Date/Time Widgets', () => {
                 return content.includes(date.toLocaleDateString());
             });
             expect(span).toBeInTheDocument();
+        });
+    });
+
+    /**
+     * objectui#3127 — the record's stored ISO value reached the native control
+     * verbatim, and `<input type="date">` / `<input type="datetime-local">`
+     * reject anything but their one exact shape SILENTLY: the attribute lands
+     * in the DOM, `.value` reads back `''`, and the user sees an empty box on a
+     * field that has a value. `.value` (not `getAttribute('value')`) is
+     * therefore the only assertion that can see this bug at all.
+     */
+    describe('existing values round-trip through the native controls (#3127)', () => {
+        // The seeded showcase value. Whole minutes and no sub-second part, so
+        // the control (which has minute resolution) can represent it exactly
+        // and the round trip below is lossless in every timezone.
+        const storedIso = '2026-06-17T14:30:00.000Z';
+
+        it('DateTimeField shows a stored ISO instant instead of an empty box', () => {
+            const { container } = render(<DateTimeField {...baseProps} value={storedIso} />);
+            const input = container.querySelector('input[type="datetime-local"]') as HTMLInputElement;
+
+            expect(input.value).not.toBe('');
+            expect(input.value).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+            // The shown wall clock denotes the SAME instant as the record —
+            // asserted this way so the test holds in every timezone, which a
+            // hardcoded "2026-06-17T22:30" would not.
+            expect(new Date(input.value).getTime()).toBe(new Date(storedIso).getTime());
+        });
+
+        it('DateTimeField writes back on the same basis it reads', () => {
+            // Read and write must share one timezone basis. Displaying local
+            // while storing the naive local string is the worse bug: the value
+            // would silently drift by the viewer's offset on every edit.
+            const onChange = vi.fn();
+            const { container } = render(
+                <DateTimeField {...baseProps} onChange={onChange} value={storedIso} />
+            );
+            const input = container.querySelector('input[type="datetime-local"]') as HTMLInputElement;
+
+            fireEvent.change(input, { target: { value: '2026-06-18T09:15' } });
+
+            const written = onChange.mock.calls[0][0];
+            // Zone-QUALIFIED, which the control's own output is not. Storing
+            // the raw `2026-06-18T09:15` is what puts the write on a different
+            // basis from the read: the server has no way to know whose 09:15
+            // it is, and resolves it to a different instant than the one the
+            // user picked.
+            expect(written).toMatch(/(Z|[+-]\d{2}:\d{2})$/);
+            expect(new Date(written).getTime()).toBe(new Date('2026-06-18T09:15').getTime());
+        });
+
+        it('DateTimeField returning to the shown minute restores the exact stored value', () => {
+            // Guards the drift this fix could otherwise introduce: if the two
+            // conversions disagreed by the viewer's UTC offset, navigating away
+            // from a value and back would land somewhere else, and every open →
+            // fiddle → undo would quietly move the record.
+            // Held in real state, because a `vi.fn()` onChange would leave the
+            // control pinned to its initial prop and React would swallow the
+            // second edit as a no-op — the test would pass without exercising
+            // anything.
+            const seen: string[] = [];
+            const Host = () => {
+                const [v, setV] = React.useState<string>(storedIso);
+                seen.push(v);
+                return <DateTimeField {...baseProps} value={v} onChange={setV as any} />;
+            };
+            const { container } = render(<Host />);
+            const input = container.querySelector('input[type="datetime-local"]') as HTMLInputElement;
+            const shown = input.value;
+
+            fireEvent.change(input, { target: { value: '2026-06-18T09:15' } });
+            fireEvent.change(input, { target: { value: shown } });
+
+            expect(seen[seen.length - 1]).toBe(storedIso);
+        });
+
+        it('DateField shows the stored calendar day, ISO-shaped or not', () => {
+            // Both spellings the API may hand back for a `date` field. The day
+            // must survive verbatim — re-parsing the bare form as UTC midnight
+            // would move it to the 16th west of Greenwich.
+            for (const stored of ['2026-06-17', '2026-06-17T00:00:00.000Z']) {
+                const { container, unmount } = render(<DateField {...baseProps} value={stored} />);
+                const input = container.querySelector('input[type="date"]') as HTMLInputElement;
+                expect(input.value).toBe('2026-06-17');
+                unmount();
+            }
         });
     });
 
