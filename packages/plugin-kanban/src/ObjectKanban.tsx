@@ -640,6 +640,12 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
     <>
       <KanbanRenderer schema={{
         ...effectiveSchema,
+        // Card conditional formatting evaluates against the card record, and
+        // this fetch expands relations (`buildExpandFields` above) exactly as
+        // the grid's does. Handing the renderer the object's field types is
+        // what lets a rule comparing a relation see the stored foreign key
+        // instead of the expanded record (objectui#3501).
+        objectFields: objectDef?.fields,
         onCardClick: (card: any, event?: any) => {
           navigation.handleClick(card, event);
           onCardClick?.(card);

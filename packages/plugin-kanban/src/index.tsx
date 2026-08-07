@@ -139,6 +139,18 @@ export interface KanbanRendererProps {
     onQuickAdd?: (columnId: string, title: string) => void;
     coverImageField?: string;
     conditionalFormatting?: KanbanConditionalFormattingRule[];
+    /**
+     * The object's field definitions, injected by `ObjectKanban` (the only
+     * entry point that fetches an object schema). Card conditional formatting
+     * needs them so a rule comparing a relation field sees the stored foreign
+     * key rather than the record `$expand` substituted for it — the board
+     * expands relations exactly as the grid does, so without this the SAME
+     * rule on the SAME view worked on the grid and silently never matched on
+     * the board (objectui#3501). Absent on the schema-only `kanban-ui` entry,
+     * which has no object schema to offer; there the payload is used verbatim,
+     * as before.
+     */
+    objectFields?: unknown;
   };
 }
 
@@ -172,6 +184,7 @@ export const KanbanRenderer: React.FC<KanbanRendererProps> = ({ schema }) => {
         onQuickAdd={schema.onQuickAdd}
         coverImageField={schema.coverImageField}
         conditionalFormatting={schema.conditionalFormatting}
+        objectFields={schema.objectFields}
         swimlaneField={schema.swimlaneField}
       />
     </Suspense>

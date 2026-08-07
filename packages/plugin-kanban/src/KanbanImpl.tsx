@@ -94,6 +94,8 @@ export interface KanbanBoardProps {
   onQuickAdd?: (columnId: string, title: string) => void
   coverImageField?: string
   conditionalFormatting?: ConditionalFormattingRule[]
+  /** Object field definitions — see `getCardStyles` (objectui#3501). */
+  objectFields?: unknown
   /** Field name for swimlane rows (2D grouping) */
   swimlaneField?: string
 }
@@ -112,11 +114,19 @@ function getCardStyles(
   card: KanbanCard,
   rules?: ConditionalFormattingRule[],
   scope?: Record<string, unknown>,
+  objectFields?: unknown,
 ): React.CSSProperties {
-  return resolveConditionalFormatting(card as Record<string, unknown>, rules as any, scope) as React.CSSProperties
+  // `objectFields` binds a relation field as the stored foreign key rather than
+  // the record `$expand` substituted for it. The board expands relations for
+  // display exactly as the grid does, so without it a rule like
+  // `record.account == "<id>"` compared an object to a string and could only
+  // ever be false — on the board only, while the same rule matched on the grid
+  // view of the same list (objectui#3501). Absent on the schema-only entry
+  // point, where the payload is used verbatim.
+  return resolveConditionalFormatting(card as Record<string, unknown>, rules as any, scope, objectFields as never) as React.CSSProperties
 }
 
-function SortableCard({ card, onCardClick, conditionalFormatting }: { card: KanbanCard; onCardClick?: (card: KanbanCard, event?: React.MouseEvent) => void; conditionalFormatting?: ConditionalFormattingRule[] }) {
+function SortableCard({ card, onCardClick, conditionalFormatting, objectFields }: { card: KanbanCard; onCardClick?: (card: KanbanCard, event?: React.MouseEvent) => void; conditionalFormatting?: ConditionalFormattingRule[]; objectFields?: unknown }) {
   const {
     attributes,
     listeners,
@@ -133,7 +143,7 @@ function SortableCard({ card, onCardClick, conditionalFormatting }: { card: Kanb
   }
 
   const predicateScope = usePredicateScope()
-  const cardStyles = getCardStyles(card, conditionalFormatting, predicateScope)
+  const cardStyles = getCardStyles(card, conditionalFormatting, predicateScope, objectFields)
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners} role="listitem" aria-label={card.title}
@@ -265,6 +275,7 @@ function KanbanColumnView({
   quickAdd,
   onQuickAdd,
   conditionalFormatting,
+  objectFields,
   columnStyle,
   suppressEmptyPlaceholder,
 }: {
@@ -274,6 +285,8 @@ function KanbanColumnView({
   quickAdd?: boolean
   onQuickAdd?: (columnId: string, title: string) => void
   conditionalFormatting?: ConditionalFormattingRule[]
+  /** Object field definitions — see `getCardStyles` (objectui#3501). */
+  objectFields?: unknown
   /** Container-aware width override from useResizeObserver in KanbanBoardInner. */
   columnStyle?: React.CSSProperties
   /**
@@ -370,7 +383,7 @@ function KanbanColumnView({
               </div>
             )}
             {safeCards.map((card) => (
-              <SortableCard key={card.id} card={card} onCardClick={onCardClick} conditionalFormatting={conditionalFormatting} />
+              <SortableCard key={card.id} card={card} onCardClick={onCardClick} conditionalFormatting={conditionalFormatting} objectFields={objectFields} />
             ))}
           </div>
         </SortableContext>
@@ -388,21 +401,21 @@ function DndBridge({ children }: { children: (dnd: ReturnType<typeof useDnd>) =>
   return <>{children(dnd)}</>
 }
 
-export default function KanbanBoard({ columns, onCardMove, onCardClick, className, quickAdd, onQuickAdd, coverImageField, conditionalFormatting, swimlaneField }: KanbanBoardProps) {
+export default function KanbanBoard({ columns, onCardMove, onCardClick, className, quickAdd, onQuickAdd, coverImageField, conditionalFormatting, objectFields, swimlaneField }: KanbanBoardProps) {
   const hasDnd = useHasDndProvider()
 
   if (hasDnd) {
     return (
       <DndBridge>
-        {(dnd) => <KanbanBoardInner columns={columns} onCardMove={onCardMove} onCardClick={onCardClick} className={className} dnd={dnd} quickAdd={quickAdd} onQuickAdd={onQuickAdd} coverImageField={coverImageField} conditionalFormatting={conditionalFormatting} swimlaneField={swimlaneField} />}
+        {(dnd) => <KanbanBoardInner columns={columns} onCardMove={onCardMove} onCardClick={onCardClick} className={className} dnd={dnd} quickAdd={quickAdd} onQuickAdd={onQuickAdd} coverImageField={coverImageField} conditionalFormatting={conditionalFormatting} objectFields={objectFields} swimlaneField={swimlaneField} />}
       </DndBridge>
     )
   }
 
-  return <KanbanBoardInner columns={columns} onCardMove={onCardMove} onCardClick={onCardClick} className={className} dnd={null} quickAdd={quickAdd} onQuickAdd={onQuickAdd} coverImageField={coverImageField} conditionalFormatting={conditionalFormatting} swimlaneField={swimlaneField} />
+  return <KanbanBoardInner columns={columns} onCardMove={onCardMove} onCardClick={onCardClick} className={className} dnd={null} quickAdd={quickAdd} onQuickAdd={onQuickAdd} coverImageField={coverImageField} conditionalFormatting={conditionalFormatting} objectFields={objectFields} swimlaneField={swimlaneField} />
 }
 
-function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, quickAdd, onQuickAdd, coverImageField: _coverImageField, conditionalFormatting, swimlaneField }: KanbanBoardProps & { dnd: ReturnType<typeof useDnd> | null }) {
+function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, quickAdd, onQuickAdd, coverImageField: _coverImageField, conditionalFormatting, objectFields, swimlaneField }: KanbanBoardProps & { dnd: ReturnType<typeof useDnd> | null }) {
   const { t } = useKanbanT()
   const [activeCard, setActiveCard] = React.useState<KanbanCard | null>(null)
 
@@ -705,7 +718,7 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
                           <SortableContext items={laneCards.map(c => c.id)} strategy={verticalListSortingStrategy}>
                             <div className="space-y-2" role="list" aria-label={`${col.title} - ${lane} cards`}>
                               {laneCards.map(card => (
-                                <SortableCard key={card.id} card={card} onCardClick={onCardClick} conditionalFormatting={conditionalFormatting} />
+                                <SortableCard key={card.id} card={card} onCardClick={onCardClick} conditionalFormatting={conditionalFormatting} objectFields={objectFields} />
                               ))}
                             </div>
                           </SortableContext>
@@ -730,6 +743,7 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
               quickAdd={quickAdd}
               onQuickAdd={onQuickAdd}
               conditionalFormatting={conditionalFormatting}
+              objectFields={objectFields}
               columnStyle={columnInlineStyle}
               suppressEmptyPlaceholder={isBoardEmpty}
             />
@@ -753,7 +767,7 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
             activeCard && 'motion-safe:rotate-2 motion-safe:scale-[1.03] motion-safe:transition-transform shadow-2xl shadow-primary/25 ring-1 ring-primary/40 rounded-xl cursor-grabbing'
           )}
         >
-          {activeCard ? <SortableCard card={activeCard} conditionalFormatting={conditionalFormatting} /> : null}
+          {activeCard ? <SortableCard card={activeCard} conditionalFormatting={conditionalFormatting} objectFields={objectFields} /> : null}
         </div>
       </DragOverlay>
     </DndContext>

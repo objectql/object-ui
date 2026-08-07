@@ -108,10 +108,23 @@ function expandedId(value: unknown): string | undefined {
  *                a caller that cannot name the relations must not guess.
  */
 export function toPredicateRecord<T extends Record<string, unknown>>(
+  record: T,
+  fields: FieldContainerLike,
+): T;
+export function toPredicateRecord<T extends Record<string, unknown>>(
   record: T | null | undefined,
   fields: FieldContainerLike,
-): T {
-  if (!record || typeof record !== 'object') return record as T;
+): T | null | undefined;
+// Two overloads rather than one `: T`: a null/undefined record is passed
+// STRAIGHT THROUGH (a caller with no record loaded yet must be able to tell
+// that from an empty one — `page:header` binds the result into an eval scope
+// where `{}` and `undefined` are different answers). Declaring the return as
+// plain `T` would have been a lie the `as T` cast hid.
+export function toPredicateRecord<T extends Record<string, unknown>>(
+  record: T | null | undefined,
+  fields: FieldContainerLike,
+): T | null | undefined {
+  if (!record || typeof record !== 'object') return record;
   const relations = relationFieldNames(fields);
   if (!relations) return record;
 
