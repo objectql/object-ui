@@ -591,9 +591,28 @@ export function CommentThread({
               ),
             }, `${emoji} ${userIds.length}`),
           ),
+          // The reaction-bar picker (objectui#3478). Its content is the literal
+          // `'+'`, so the `title` objectstack#5506 gave it could never become
+          // its accessible name — name-from-content (accname §2F) is resolved
+          // before the `title` tooltip (§2I) gets a turn, and a screen reader
+          // announced "plus button". The copy was localized and correct and
+          // reached nobody who could not see the glyph. `aria-label` (§2C)
+          // outranks content, so it is what actually names the control.
+          //
+          // The `title` STAYS: `+` tells a sighted mouse user nothing either,
+          // so the hover hint does real work of its own. Both attributes read
+          // the SAME key, so name and tooltip cannot drift apart. (The 👍/❤️
+          // buttons below had no `title` to keep — hence `aria-label` alone.)
+          //
+          // Still `addThumbsUp`: the button dispatches `onReaction(id, '👍')`
+          // unconditionally today, and the name describes that, not what
+          // `styles.reactionPicker` hints it might one day become. The chips
+          // above stay content-named — `${emoji} ${count}` already describes
+          // them.
           onReaction && React.createElement('button', {
             style: styles.reactionPicker,
             onClick: () => onReaction(comment.id, '👍'),
+            'aria-label': t('collaboration.addThumbsUp'),
             title: t('collaboration.addThumbsUp'),
           }, '+'),
         ),
@@ -608,15 +627,18 @@ export function CommentThread({
           // ever reaches `title` (accname §2F outranks §2I) — so these two were
           // announced as the bare glyph: "thumbs up" / "red heart" at best,
           // nothing at all where the SR has no name for the codepoint. Hence
-          // `aria-label`, which overrides content, rather than the `title` the
-          // `+` picker above uses.
+          // `aria-label`, which overrides content. (The `+` picker above had
+          // only a `title` and was announced as "plus" for exactly the same
+          // reason, until objectui#3478 gave it an `aria-label` too.)
           //
           // Their own key pair, NOT a reuse of `collaboration.addThumbsUp`: the
           // `+` above happens to fire the same `onReaction(id, '👍')` today, but
           // it is the reaction PICKER's entry point (`styles.reactionPicker`)
           // whose copy follows the picker if it ever picks. Sharing one key
-          // would also give a comment that already has reactions two visible
-          // controls answering to one name.
+          // would now be worse than when #3441 wrote this down — since #3478
+          // both controls carry a real accessible name, so on a comment that
+          // already has reactions a shared key means two visibly different
+          // controls announcing themselves identically.
           onReaction && React.createElement('button', {
             style: styles.actionBtn,
             onClick: () => onReaction(comment.id, '👍'),

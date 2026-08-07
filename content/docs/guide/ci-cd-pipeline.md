@@ -230,11 +230,16 @@ is informational and never ejects a PR from the merge queue. Do not add it to re
 (and do not remove `continue-on-error`) until the nightly record proves the lane stable; see the
 header comment in the workflow file (#2835).
 
-What it does: runs the allowlisted live specs (`pnpm test:e2e:live:ci` — screen-flow,
-action-modal, master-detail) against a real `objectstack dev` backend booted from **published**
-`@objectstack/*` packages serving the showcase app, catching the class of bug only a real
-browser against a real backend can see. Failures still surface as a red step plus an uploaded
-Playwright report and job summary.
+What it does: runs an allowlist of the live specs (`pnpm test:e2e:live:ci`) against a real
+`objectstack dev` backend booted from **published** `@objectstack/*` packages serving the
+showcase app, catching the class of bug only a real browser against a real backend can see.
+Failures still surface as a red step plus an uploaded Playwright report and job summary.
+
+**Which specs are in the allowlist:** whatever the `test:e2e:live:ci` script in `package.json`
+names — that script is the single source of truth, and this page deliberately does not repeat
+the list. The lane grows the allowlist a few proven specs at a time (see the workflow's header
+comment), so every promotion would stale a hand-copied enumeration here; it already did
+(objectui#3488).
 
 Backend pins live in `e2e/live/ci/backend.env` and must match the `@objectstack/spec` version in
 `pnpm-lock.yaml` — bump both in the same PR, or the run proves nothing.
