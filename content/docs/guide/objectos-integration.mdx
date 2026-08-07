@@ -403,7 +403,7 @@ start();
 ```typescript
 // frontend/src/config.ts
 export const config = {
-  apiBaseUrl: process.env.VITE_API_URL || 'http://localhost:3000/api'
+  apiBaseUrl: import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
 };
 
 // frontend/src/index.tsx
