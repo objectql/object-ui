@@ -343,4 +343,46 @@ describe('serializeParamValues', () => {
     });
     expect(out).toEqual({ attachments: 'f_1', comment: 'keep me' });
   });
+
+  // `DateTimeField` became ISO-canonical on both sides in objectui#3127 (a
+  // record's stored value arrives as an ISO instant, which the native control
+  // silently rejects, so read and write must share one basis). Action params
+  // have no stored value, so the endpoint contract stays the control's own
+  // zone-less local wall clock — converted back HERE rather than by weakening
+  // the widget, which would put the record form back on two bases.
+  describe('datetime params (objectui#3127 / contract pinned by #2714)', () => {
+    const dtParam = (name: string): ActionParamDef =>
+      ({ name, label: name, type: 'datetime' } as ActionParamDef);
+
+    it('converts the widget ISO instant back to the local wall clock it POSTs', () => {
+      const iso = new Date(2026, 6, 20, 14, 30).toISOString();
+      expect(serializeParamValues([dtParam('when')], { when: iso })).toEqual({
+        when: '2026-07-20T14:30',
+      });
+    });
+
+    it('leaves an already zone-less value untouched', () => {
+      expect(serializeParamValues([dtParam('when')], { when: '2026-07-20T14:30' })).toEqual({
+        when: '2026-07-20T14:30',
+      });
+    });
+
+    it('leaves an empty / absent datetime alone', () => {
+      expect(serializeParamValues([dtParam('when')], { when: '' })).toEqual({ when: '' });
+      expect(serializeParamValues([dtParam('when')], { other: 1 })).toEqual({ other: 1 });
+    });
+
+    it('keeps an unparseable value rather than blanking it', () => {
+      expect(serializeParamValues([dtParam('when')], { when: 'not-a-date' })).toEqual({
+        when: 'not-a-date',
+      });
+    });
+
+    it('does not touch a plain date param', () => {
+      const dateParam = { name: 'day', label: 'day', type: 'date' } as ActionParamDef;
+      expect(serializeParamValues([dateParam], { day: '2026-07-20' })).toEqual({
+        day: '2026-07-20',
+      });
+    });
+  });
 });

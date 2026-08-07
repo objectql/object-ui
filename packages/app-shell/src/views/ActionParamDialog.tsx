@@ -32,7 +32,7 @@ import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { ActionParamDef } from '@object-ui/core';
 import { ExpressionEvaluator } from '@object-ui/core';
 import { usePredicateScope } from '@object-ui/react';
-import { getLazyFieldWidget, fileIdOf } from '@object-ui/fields';
+import { getLazyFieldWidget, fileIdOf, toDateTimeInputValue } from '@object-ui/fields';
 import { paramToField } from '../utils/paramToField';
 
 export interface ParamDialogState {
@@ -84,26 +84,44 @@ export function filterVisibleParams(
  * is visible rather than silently POSTing `undefined`. Every non-upload value is
  * returned as-is. Pure + exported so the mapping is unit-testable without the
  * dialog render tree.
+ *
+ * `datetime` params are converted back to the control's zone-less local wall
+ * clock (`YYYY-MM-DDTHH:mm`) — the shape this endpoint contract pins (#2714).
+ * `DateTimeField` is ISO-canonical on both sides since objectui#3127: it has to
+ * be, because a record's stored value arrives as an ISO instant and the control
+ * silently rejects that shape, so read and write must share one basis or a
+ * UTC+8 user picking 08:33 would store `08:33Z`. Action params have no stored
+ * value to read, so that widget-level basis is invisible here — but its ISO
+ * output would still reach endpoints that were built against the naive string.
+ * Converting at this boundary keeps the widget coherent AND the wire shape
+ * byte-identical; moving action params onto ISO is a contract change of its own
+ * and belongs in its own ticket, not in a display-bug fix.
  */
 export function serializeParamValues(
   params: ActionParamDef[],
   values: Record<string, any>,
 ): Record<string, any> {
-  const uploadNames = new Set(
-    params
-      .filter((p) => {
-        const t = paramToField(p).type;
-        return t === 'file' || t === 'image';
-      })
-      .map((p) => p.name),
-  );
-  if (uploadNames.size === 0) return values;
+  const uploadNames = new Set<string>();
+  const datetimeNames = new Set<string>();
+  for (const p of params) {
+    const t = paramToField(p).type;
+    if (t === 'file' || t === 'image') uploadNames.add(p.name);
+    else if (t === 'datetime') datetimeNames.add(p.name);
+  }
+  if (uploadNames.size === 0 && datetimeNames.size === 0) return values;
   const toId = (item: any) => fileIdOf(item) ?? item;
   const out: Record<string, any> = { ...values };
   for (const name of uploadNames) {
     const v = out[name];
     if (v == null) continue;
     out[name] = Array.isArray(v) ? v.map(toId) : toId(v);
+  }
+  for (const name of datetimeNames) {
+    const v = out[name];
+    if (v == null || v === '') continue;
+    // An unconvertible value is left intact rather than blanked — the same
+    // failure-visible rule the upload branch above follows.
+    out[name] = toDateTimeInputValue(v) || v;
   }
   return out;
 }

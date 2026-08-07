@@ -2499,5 +2499,18 @@ export { withFieldCarrier } from './withFieldCarrier';
 export { toDomProps } from './widgets/toDomProps';
 export type { DomProps } from './widgets/toDomProps';
 
+// The native date/time control value adapters (objectui#3127). `DateTimeField`
+// is ISO-canonical on BOTH sides — it takes the record's ISO instant and hands
+// an ISO instant back — so a caller whose own endpoint contract is the control's
+// zone-less local wall clock (`ActionParamDialog`'s `datetime` param, pinned by
+// #2714) needs `toDateTimeInputValue` to convert at its serialization boundary.
+// Exported rather than duplicated so the two surfaces cannot drift on what the
+// local wall clock of an instant is.
+export {
+  toDateInputValue,
+  toDateTimeInputValue,
+  fromDateTimeInputValue,
+} from './widgets/nativeDateValue';
+
 // Initialize registry
 registerAllFields();
