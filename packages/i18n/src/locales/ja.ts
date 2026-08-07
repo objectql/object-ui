@@ -133,6 +133,7 @@ const ja = {
     createTitle: "{{object}}を作成",
     editTitle: "{{object}}を編集",
     viewTitle: "{{object}}を表示",
+    createTargetOrg: "作成先: {{org}}",
     saveRecord: "レコードを保存",
     create: "作成",
     update: "更新",

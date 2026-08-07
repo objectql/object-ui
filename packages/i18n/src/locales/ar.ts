@@ -133,6 +133,7 @@ const ar = {
     createTitle: "إنشاء {{object}}",
     editTitle: "تعديل {{object}}",
     viewTitle: "عرض {{object}}",
+    createTargetOrg: "الإنشاء في {{org}}",
     saveRecord: "حفظ السجل",
     create: "إنشاء",
     update: "تحديث",
