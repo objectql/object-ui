@@ -305,13 +305,33 @@ describe('package.json `files` entries exist on disk (objectui#3663)', () => {
     const stillMissing = new Set(missing.map((d) => d.relPath));
     const stale = Object.keys(KNOWN_MISSING).filter((relPath) => !stillMissing.has(relPath));
 
+    // WHY an entry stopped being a live defect, reported per entry instead of
+    // assumed. An entry leaves `missing` by exactly the three routes the
+    // assertion above sanctions as fixes, and only the first makes the path
+    // resolve — so a message hardcoded to "the path now resolves" is wrong two
+    // times in three, and sends the reader off to `ls` a path that is still
+    // absent (objectui#3674, seen for real in objectui#3665). Derived from the
+    // same `declared`/`missing` data the predicate reads, so it cannot drift
+    // from the verdict it explains.
+    const causeOf = (relPath: string): string => {
+      const entry = declared.find((d) => d.relPath === relPath);
+      if (!entry) return 'the `files` entry that declared it is gone (deleted, or its package left the workspace)';
+      if (entry.onDisk) return 'the path now exists on disk';
+      return 'still declared and still absent, but now excused as build output (git-ignored, untracked, package has a `build` script)';
+    };
+
     expect(
       stale,
       [
-        'A KNOWN_MISSING entry is stale — the path now resolves, so the defect is fixed.',
-        'Delete its line from KNOWN_MISSING in this file to bank the progress.',
+        'A KNOWN_MISSING entry no longer describes a live defect.',
+        'Delete its line from KNOWN_MISSING in this file to bank the progress — that is the',
+        'right move under every cause below.',
         '',
-        ...stale.map((relPath) => `${relPath} (${KNOWN_MISSING[relPath].issue})`),
+        'The cause is reported per entry rather than assumed, because only one of the three',
+        'routes out of the baseline makes the path resolve; do not read a stale line as',
+        'proof that the file is now there.',
+        '',
+        ...stale.map((relPath) => `${relPath} (${KNOWN_MISSING[relPath].issue}) — ${causeOf(relPath)}`),
       ].join('\n'),
     ).toEqual([]);
   });
