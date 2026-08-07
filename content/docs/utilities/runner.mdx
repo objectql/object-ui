@@ -134,11 +134,15 @@ browser path plus `.json`, with `/` rewritten to `/index` first.
   into `null`. The Runner then shows `Page not found: <path>` for a page, and for a
   failed `app.json` it drops the app chrome (header/sidebar) and renders the page on
   its own. The HTTP status never reaches the UI — read it from the Network tab.
-- **Read once, at mount.** The parameter is captured in a `useMemo` with an empty
-  dependency list. In-app navigation calls `history.pushState` with the bare path, so
-  the address bar loses `?api=…` after the first click; the loader already created
-  keeps serving that session, but reloading or sharing the resulting URL falls back to
-  the local bundle.
+- **Read once, at mount — and it survives navigation.** The parameter is captured in
+  a `useMemo` with an empty dependency list, so editing `?api=…` in the address bar
+  does nothing to the running session until you reload. In-app navigation pushes the
+  target path with the current query string carried over, so `?api=…` stays in the
+  address bar after a sidebar click, and reloading or sharing that URL reaches the
+  same backend. The whole query string rides along, not just `api` — that also keeps
+  `@object-ui/core`'s `?__debug…` flags alive across navigation. A navigation target
+  that spells out its own query keeps it and wins on collision; the remaining current
+  parameters are merged in behind it.
 - `NetworkLoader`'s own default base is `/api` (`constructor(baseUrl: string = '/api')`).
   That default only applies when the class is constructed directly in code — the
   Runner always passes it the query-parameter value.

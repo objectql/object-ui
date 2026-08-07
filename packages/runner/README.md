@@ -88,8 +88,10 @@ Without the parameter, `LocalBundleLoader` resolves `src/app-data/app.json` and
 git-ignored and absent from a fresh checkout, so every load returns `null` until you
 copy or symlink your own metadata directory into it.
 
-Full details — route resolution order, error handling, and the caveat that in-app
-navigation drops `?api=` from the address bar — are in the
+In-app navigation carries the query string across, so `?api=…` stays in the address
+bar and the URL you copy or reload reaches the same backend.
+
+Full details — route resolution order and error handling — are in the
 [Metadata Loading](https://www.objectui.org/docs/utilities/runner#metadata-loading)
 section of the docs.
 
