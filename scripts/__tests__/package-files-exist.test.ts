@@ -415,8 +415,9 @@ function licenseTextFiles(pkg: WorkspacePackage): string[] {
 /**
  * Whether a package owes license text. Split out from the filter below so the
  * truth table can be asserted directly: two of its four cases have no specimen
- * in the tree today, and an unexercised predicate limb is how objectui#4984's
- * family of dead rules started.
+ * in the tree today (every non-private package declares a license), and a
+ * predicate limb no test ever walks is one a later edit can invert with nothing
+ * turning red.
  */
 function owesLicenseText(pkg: Pick<WorkspacePackage, 'private' | 'license'>): boolean {
   return !pkg.private && pkg.license !== undefined && pkg.license.trim() !== '';
