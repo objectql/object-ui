@@ -27,6 +27,12 @@
  *    spec's export set, and every OLD name asserted still present — a rename
  *    whose reason has evaporated should give the natural name back.
  *
+ * Two of those nine have since been given back: `GestureType` and
+ * `GestureConfig` were reclaimed in objectui#3363 after objectstack#4988
+ * deleted `ui/touch`. A third, `OfflineConfig`, was vacated by the spec too but
+ * deliberately NOT reclaimed — `@object-ui/react` owns that name in-repo, and
+ * that reason is pinned below rather than left as prose.
+ *
  * Type-level assertions here are real gates: `tsconfig.test.json` compiles this
  * file, unlike the package build (see its header for why that distinction was
  * itself a bug once).
@@ -36,6 +42,7 @@ import { describe, it, expect } from 'vitest';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import type { z } from 'zod';
 import { NavigationAreaSchema as SpecNavigationAreaSchema } from '@objectstack/spec/ui';
@@ -564,39 +571,74 @@ describe('renamed local dialects do not collide with a spec export (objectui#307
   });
 
   /**
-   * THE TRIPWIRE FIRED, exactly as designed. `@objectstack/spec` 17.0.0-rc.3
-   * deleted the whole `ui/touch` and `ui/offline` modules (objectstack#4988,
-   * PR objectstack#5321), so `GestureType`, `GestureConfig` and `OfflineConfig`
-   * moved from the first list to this one: the spec no longer owns them, and
-   * the three local dialects are free to take their natural names back.
+   * THE TRIPWIRE FIRED, exactly as designed, and objectui#3363 acted on it.
+   * `@objectstack/spec` 17.0.0-rc.3 deleted the whole `ui/touch` and
+   * `ui/offline` modules (objectstack#4988, PR objectstack#5321), so
+   * `GestureType`, `GestureConfig` and `OfflineConfig` moved from the first
+   * list to this one: the spec stopped owning all three.
    *
-   * The rename itself is objectui#3363's unlock item and is deliberately NOT
-   * done here — this is a dependency bump, and `TouchGestureType` →
-   * `GestureType` is a public-surface rename across `@object-ui/types`,
-   * `@object-ui/mobile` and every consumer, which deserves its own PR and its
-   * own changeset. What this block does is record that the reason for the
-   * workaround has expired, so the next reader finds the unlock rather than a
-   * deleted assertion.
+   * Two of the three were then RECLAIMED — `TouchGestureType` → `GestureType`
+   * and `TouchGestureConfig` → `GestureConfig` now carry the natural names in
+   * `@object-ui/types`' `mobile` module, so a workaround does not outlive its
+   * reason (objectui#3169). These rows keep asserting the same thing they did
+   * before the reclaim, and that is the point: they are now what makes the
+   * reclaimed names SAFE, not merely available.
+   *
+   * The third did not move — see the `OfflineConfig` block below.
    */
   it.each([
     ['GestureType', 'TouchGestureType'],
     ['GestureConfig', 'TouchGestureConfig'],
-    ['OfflineConfig', 'PWAOfflineConfig'],
   ])(
-    'the spec has VACATED `%s` — `%s` may reclaim it (objectui#3363)',
-    (vacated) => {
+    'the spec still does not own `%s`, reclaimed from `%s` (objectui#3363)',
+    (reclaimed) => {
       expect(
         names,
-        `spec owns '${vacated}' again — the local dialect rename is load-bearing once more, ` +
-          `move this row back to the list above and close objectui#3363's unlock item.`,
-      ).not.toContain(vacated);
+        `spec owns '${reclaimed}' again, and @object-ui/types now exports that ` +
+          `exact name — this is a live collision, not a latent one. Re-triage ` +
+          `(objectstack#4115): derive from the spec, or rename the local dialect back.`,
+      ).not.toContain(reclaimed);
     },
   );
 
+  /**
+   * `OfflineConfig` is the one the spec vacated that objectui did NOT reclaim,
+   * and the reason is worth pinning rather than remembering: **the spec was
+   * never the only claimant**. That rename was a cross-package arbitration
+   * between two objectui packages, and `@object-ui/react` won it — its
+   * `useOffline` config IS the offline data/sync model, key for key, so it
+   * holds the bare name while this package's service-worker route cache stays
+   * `PWAOfflineConfig` (objectui#3156 / objectui#3159).
+   *
+   * Before objectui#3560 that name reached `@object-ui/react` from the spec, so
+   * the spec-side assertion above covered it by accident. Since the retirement
+   * it is declared locally, which is exactly why it needs its own pin: the
+   * spec's vacancy no longer says anything about whether the name is free. If
+   * `@object-ui/react` ever drops or renames `OfflineConfig`, this goes red and
+   * the reclaim genuinely IS available — that is the unlock signal, and it now
+   * points at the right repository instead of at the spec.
+   */
+  it('`@object-ui/react` still owns `OfflineConfig`, so `PWAOfflineConfig` keeps its prefix (objectui#3363)', () => {
+    // A source read, not an import: `@object-ui/types` has zero deps and must
+    // not take one on `@object-ui/react`. Same instrument the sibling
+    // `spec-ui-schema-reexports.test.ts` uses to inspect source it cannot load.
+    const useOfflinePath = resolve(
+      dirname(fileURLToPath(import.meta.url)),
+      '../../../react/src/hooks/useOffline.ts',
+    );
+    const src = readFileSync(useOfflinePath, 'utf8');
+    expect(
+      /^export interface OfflineConfig\b/m.test(src),
+      `${useOfflinePath} no longer declares 'export interface OfflineConfig'. If the ` +
+        `name was dropped or moved, the cross-package reason for 'PWAOfflineConfig' is ` +
+        `gone — the spec vacated 'OfflineConfig' back in objectstack#4988, so the ` +
+        `natural name is now free and @object-ui/types' mobile module may reclaim it ` +
+        `(objectui#3363 reclaimed 'GestureType'/'GestureConfig' the same way).`,
+    ).toBe(true);
+  });
+
   it.each([
     ['UploadedFileMetadata', 'file-field VALUE payload, not the storage file record'],
-    ['TouchGestureType', 'direction-fused recognizer vocabulary (`swipe-left`, …)'],
-    ['TouchGestureConfig', 'gesture→action binding, not the spec per-gesture tuning'],
     ['PWAOfflineConfig', 'service-worker route caching, not the offline data model'],
     ['PageNodeRegion', 'region of the objectui page NODE, holding renderer nodes'],
     ['PageNodeRegionSchema', 'zod twin of PageNodeRegion'],

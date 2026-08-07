@@ -562,8 +562,12 @@ export type {
   FetchCacheStrategy,
   PWAOfflineConfig,
   OfflineRoute,
-  TouchGestureType,
-  TouchGestureConfig,
+  // `GestureType` / `GestureConfig` reclaimed their natural names in
+  // objectui#3363 once `@objectstack/spec` deleted `ui/touch`
+  // (objectstack#4988). `PWAOfflineConfig` above deliberately did NOT — see
+  // its note in `./mobile`; `@object-ui/react`'s `useOffline` owns that name.
+  GestureType,
+  GestureConfig,
   GestureContext,
   MobileComponentConfig,
   // The retired `@objectstack/spec/ui` touch vocabulary, now owned here —

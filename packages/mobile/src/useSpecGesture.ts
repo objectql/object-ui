@@ -7,7 +7,7 @@
  */
 
 import { useGesture } from './useGesture';
-import type { TouchGestureType, SpecGestureConfig } from '@object-ui/types';
+import type { GestureType, SpecGestureConfig } from '@object-ui/types';
 
 export interface UseSpecGestureOptions {
   /** Spec gesture configuration */
@@ -28,7 +28,7 @@ export interface UseSpecGestureOptions {
   onGesture?: (context: { type: string; direction?: string; scale?: number; rotation?: number }) => void;
 }
 
-const SWIPE_DIRECTION_MAP: Record<string, TouchGestureType> = {
+const SWIPE_DIRECTION_MAP: Record<string, GestureType> = {
   left: 'swipe-left',
   right: 'swipe-right',
   up: 'swipe-up',
@@ -36,8 +36,11 @@ const SWIPE_DIRECTION_MAP: Record<string, TouchGestureType> = {
 };
 
 /**
- * Spec `GestureTypeSchema` (`ui/touch.zod.ts`) → the recognizer type
- * `useGesture` implements. The spec's `drag` and `pan` are one recognizer
+ * `SPEC_GESTURE_TYPES` (the retired `ui/touch` vocabulary, owned by
+ * `@object-ui/types` since objectstack#4988) → the recognizer
+ * {@link GestureType} `useGesture` implements. Note the two sides are
+ * different vocabularies, which is why this map exists at all: the retired
+ * spec's `drag` and `pan` are one recognizer
  * (any-direction move past the threshold); `swipe` resolves per configured
  * direction, so it maps through {@link SWIPE_DIRECTION_MAP} instead.
  * Exported for the spec-parity test.
@@ -47,7 +50,7 @@ const SWIPE_DIRECTION_MAP: Record<string, TouchGestureType> = {
  * `pan` / `drag` / `rotate` / `double_tap` (types with no sub-object) all
  * fell through to the `'tap'` initializer and fired on a tap.
  */
-export const SPEC_GESTURE_TYPE_MAP: Record<string, TouchGestureType> = {
+export const SPEC_GESTURE_TYPE_MAP: Record<string, GestureType> = {
   swipe: 'swipe-left', // per-direction; resolved via SWIPE_DIRECTION_MAP
   pinch: 'pinch',
   long_press: 'long-press',
@@ -58,8 +61,9 @@ export const SPEC_GESTURE_TYPE_MAP: Record<string, TouchGestureType> = {
 };
 
 /**
- * Spec-aware gesture hook that maps an @objectstack/spec GestureConfig
- * to the existing useGesture hook.
+ * Spec-aware gesture hook that maps a {@link SpecGestureConfig} — the retired
+ * `@objectstack/spec` `ui/touch` shape, not this package's own
+ * `GestureConfig` — onto the existing useGesture hook.
  *
  * @example
  * ```tsx
@@ -90,7 +94,7 @@ export function useSpecGesture<T extends HTMLElement = HTMLElement>(
             ? 'pinch'
             : undefined;
 
-  let gestureType: TouchGestureType = 'tap';
+  let gestureType: GestureType = 'tap';
   let threshold: number | undefined;
   let longPressDuration: number | undefined;
   let onGesture: (ctx: { direction?: string; scale?: number; rotation?: number }) => void = () => {};

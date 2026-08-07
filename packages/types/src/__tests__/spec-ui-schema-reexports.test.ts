@@ -52,7 +52,11 @@ const DROPPED_SCHEMA_EXPORTS = [
   // Notifications
   'NotificationSchema',
   'NotificationConfigSchema',
-  'NotificationActionSchema',
+  // `NotificationActionSchema` removed (objectui#3362 residue, closed out on
+  // objectui#3363): objectstack#5015 / PR objectstack#5300 RETIRED
+  // `NotificationAction` from the spec outright. A deny-list entry for a name
+  // the spec no longer publishes asserts nothing about this package's decision
+  // — nothing could re-export it — so the row passed as a tautology.
   'NotificationPositionSchema',
   'NotificationSeveritySchema',
   'NotificationTypeSchema',
@@ -93,7 +97,9 @@ const DROPPED_SCHEMA_EXPORTS = [
   'WidgetColorVariantSchema',
   // Sharing & Embedding
   'SharingConfigSchema',
-  'EmbedConfigSchema',
+  // `EmbedConfigSchema` removed for the same reason as
+  // `NotificationActionSchema` above — `EmbedConfig` was retired by
+  // objectstack#5015 / PR objectstack#5300.
   // View Configuration
   'AddRecordConfigSchema',
   'AppearanceConfigSchema',
