@@ -12,8 +12,8 @@ const DEFAULTS = {
   'detail.test': 'Test Anchor',
   'detail.greeting': 'Hello {{name}}',
   // objectui#3418: the same placeholder twice in one sentence — natural in
-  // many locales ("已选 {{count}} 项,共 {{count}} 项"), and the shape the
-  // fallback used to interpolate only once.
+  // many locales, and sometimes forced by RTL / agglutinative word order.
+  // This is the shape the fallback used to interpolate only once.
   'detail.selection': 'Selected {{count}} of {{count}} items',
   'detail.pair': '{{a}}/{{b}} — {{a}} again, {{b}} again',
 };
