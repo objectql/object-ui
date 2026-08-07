@@ -8,7 +8,7 @@ Universal Object UI Application Runner - A standalone development server and run
 - **No-Restart Edits** - Under `src/app-data/` the dev server picks metadata changes up
   without a restart, because that JSON is part of Vite's module graph; behind `?api=` it
   cannot, because Vite never sees your backend ([Metadata Loading](#metadata-loading))
-- **Plugin Support** - Pre-configured with popular plugins (Kanban, Charts, etc.)
+- **Plugin Support** - Pre-configured with the Kanban and Charts plugins
 - **Development Ready** - Built-in Vite development server
 - **Production Build** - Optimized build for deployment
 
@@ -42,11 +42,16 @@ pnpm preview
 
 ## Pre-installed Plugins
 
-The runner comes with these plugins pre-configured:
+The runner comes with these two plugins pre-configured, registered by the imports in
+`src/App.tsx`:
 
 - **@object-ui/plugin-kanban** - Kanban board components
 - **@object-ui/plugin-charts** - Chart visualization components
-- **Additional plugins can be added as needed**
+
+Adding any other plugin means editing the runner's own sources and rebuilding — a
+dependency in `package.json`, a registration import in `src/App.tsx`, and the
+`vite.config.ts` alias and `src/index.css` `@source` entries the two above have. There
+is no runtime plugin installation.
 
 ## Metadata Loading
 
