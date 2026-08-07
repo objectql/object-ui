@@ -293,25 +293,32 @@ describe('CommentThread per-comment actions (objectstack#5506)', () => {
 });
 
 /**
- * objectui#3441 — the three emoji-only controls objectstack#5506 left unnamed.
+ * objectui#3441 / #3478 — the four glyph-only controls objectstack#5506 left
+ * unnamed: the quick 👍, the quick ❤️, the reply-banner ✕ (all #3441) and the
+ * reaction-bar `+` picker (#3478).
  *
  * These assert the computed ACCESSIBLE NAME (`getByRole('button', { name })`,
  * which runs dom-accessibility-api's accname implementation), not the presence
  * of an attribute. That distinction is the whole point of the fix: for a
  * `button`, name-from-content (accname §2F) is consulted BEFORE the `title`
- * tooltip (§2I), so hanging a `title` on `'👍'` the way the `+` picker does
- * would have left the computed name as the glyph. `aria-label` is the only one
- * of the three that outranks content.
+ * tooltip (§2I), so a `title` hung on `'👍'` — or on `'+'`, which is what the
+ * picker had until #3478 — leaves the computed name as the glyph. `aria-label`
+ * is the only one of the three that outranks content.
  *
  * ── Direction ─────────────────────────────────────────────────────────────
  * RED before / GREEN after in EVERY language, `en` included — unlike the
  * copy-pin cases above, these names did not exist in any locale on
  * `origin/main`, so there is no "English was already right" half here. The
- * `queryAllByRole(… { name: '👍' })` assertions are the mirror image: they
- * pass ONLY after the fix, because the glyph was the name until `aria-label`
- * displaced it.
+ * `queryAllByRole(… { name: '👍' })` / `{ name: '+' }` assertions are the
+ * mirror image: they pass ONLY after the fix, because the glyph was the name
+ * until `aria-label` displaced it.
+ *
+ * The one deliberate exception is the picker's `getByTitle` assertion, green on
+ * both sides: `+` keeps its tooltip as well as gaining a name. It is the only
+ * control here that legitimately carries both — a sighted mouse user gets the
+ * hover hint the glyph cannot give them either.
  */
-describe('CommentThread emoji-only control names (objectui#3441)', () => {
+describe('CommentThread glyph-only control names (objectui#3441, #3478)', () => {
   it('names the two quick-reaction buttons in English', () => {
     renderThread('en');
 
@@ -371,18 +378,55 @@ describe('CommentThread emoji-only control names (objectui#3441)', () => {
   });
 
   /**
-   * The `+` picker keeps `collaboration.addThumbsUp` (objectstack#5506) and the
-   * quick 👍 gets its own `reactThumbsUp`, even though both dispatch the same
-   * `onReaction(id, '👍')` today. This case is what pins the two apart: on a
-   * comment that already has reactions both controls are on screen at once, so
-   * sharing one key would put two visibly different controls under one name.
+   * objectui#3478 — the `+` reaction picker, the fourth emoji-only control, and
+   * the one objectui#3441 left behind.
+   *
+   * Its content is the literal `'+'`, so accname §2F named it "plus" and the
+   * `title` at §2I never got a turn — `collaboration.addThumbsUp` reached the
+   * tooltip and nothing else. #3441's own pin is what recorded this: it
+   * asserted `getByTitle('Add thumbs up')` AND
+   * `queryAllByRole('button', { name: 'Add thumbs up' })).toHaveLength(0)` in
+   * the same case, two simultaneously-green assertions that say in so many
+   * words "the title is set and it is not the name". The docblock read them as
+   * pinning the picker APART from the quick 👍; they were also, unread, the
+   * bug report. This case now pins the fixed state: `aria-label` names it,
+   * `title` still shows it, and the two keys stay distinct.
+   *
+   * ── Direction ─────────────────────────────────────────────────────────────
+   * RED before / GREEN after, twice over: the `name: 'Add thumbs up'` lookup
+   * finds 0 buttons on `origin/main` (it was `toHaveLength(0)` there), and the
+   * `name: '+'` lookup finds 1 — the glyph IS the name until `aria-label`
+   * displaces it. The `getByTitle` and `React with thumbs up` assertions are
+   * green on both sides on purpose: the tooltip must survive the fix (the
+   * picker is the one control here that legitimately has both), and the two
+   * controls must stay under two names.
    */
-  it('keeps the reaction-bar picker distinct from the quick thumbs-up', () => {
+  it('names the reaction-bar picker and keeps its tooltip', () => {
     renderThread('en');
 
+    // Tooltip survives — green on both sides.
     expect(screen.getByTitle('Add thumbs up')).toBeTruthy();
-    expect(screen.queryAllByRole('button', { name: 'Add thumbs up' })).toHaveLength(0);
+    // …and is now ALSO the accessible name. Exactly one picker: it renders
+    // only on a comment that already has reactions, i.e. `c2`.
+    expect(screen.getAllByRole('button', { name: 'Add thumbs up' }).length).toBe(1);
+    // The bug, mirrored: `'+'` was the computed name on origin/main.
+    expect(screen.queryAllByRole('button', { name: '+' })).toHaveLength(0);
+    // Still two names for two controls — #3441's separation is not undone.
     expect(screen.getAllByRole('button', { name: 'React with thumbs up' }).length).toBe(2);
+  });
+
+  /**
+   * The same control in the session language. `addThumbsUp` is already in every
+   * locale pack (objectstack#5506 shipped it for the tooltip), so this needed
+   * no new key — only a call site that lets a screen reader reach it.
+   */
+  it('names the reaction-bar picker in the session language', () => {
+    renderThread('zh');
+
+    expect(screen.getByRole('button', { name: '点赞' })).toBeTruthy();
+    expect(screen.getByTitle('点赞')).toBeTruthy();
+    expect(screen.queryAllByRole('button', { name: '+' })).toHaveLength(0);
+    expect(screen.queryAllByRole('button', { name: 'Add thumbs up' })).toHaveLength(0);
   });
 });
 
