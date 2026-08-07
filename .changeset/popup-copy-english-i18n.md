@@ -8,7 +8,7 @@ ships hard-coded bilingual Chinese/English copy (objectui#3321, AGENTS.md
 Commandment #-1): the pre-opened SSO spinner tab (title + body) and the
 popup-blocked toast (title, description, action label) are now localized
 through new `console.serverAction.*` keys in `@object-ui/i18n`, added at full
-parity across all eleven locale packs.
+parity across all ten locale packs.
 
 `createConsoleServerActionHandler` gains an optional i18next-style `t` option
 (`t(key, englishDefault)`) — the wrapper is a plain function, so the translate
