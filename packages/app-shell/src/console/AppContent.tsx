@@ -180,9 +180,22 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   // Built-in pseudo-routes under /apps/* that are NOT metadata apps (create-app,
   // system/*, metadata/*, setup). They must keep working — and may fall back to
   // a default app — regardless of whether the segment resolves to an app.
+  // #3638 — `system` / `metadata` are matched as whole path SEGMENTS, not as
+  // substrings. `pathname.includes('/system')` was also true for any segment
+  // that merely STARTS with `system` (`system_log`, `system_setting`,
+  // `systems`), and likewise for `metadata` (`metadata_import`, …). That made
+  // `isSpecialRoute` true for an ordinary `/apps/:app/:objectName` URL whose
+  // object name happened to start that way — which suppressed
+  // `requestedAppMissing` below and let a MISTYPED app name silently render a
+  // DIFFERENT app (the exact failure the comment on the fallback describes).
+  // Every real pseudo-route spells them as full segments — `system/marketplace`,
+  // `system/metadata/:type`, `metadata/:type`, `component/metadata/resource` —
+  // so the segment test keeps all of them true (pinned in
+  // `__tests__/AppContent.pseudoRouteSegments.test.tsx`).
+  const pathSegments = location.pathname.split('/');
   const isCreateAppRoute = location.pathname.endsWith('/create-app');
-  const isSystemRoute = location.pathname.includes('/system');
-  const isMetadataRoute = location.pathname.includes('/metadata');
+  const isSystemRoute = pathSegments.includes('system');
+  const isMetadataRoute = pathSegments.includes('metadata');
   const isSetupRoute =
     location.pathname === '/apps/setup' || location.pathname.startsWith('/apps/setup/');
   const isSpecialRoute = isCreateAppRoute || isSystemRoute || isMetadataRoute || isSetupRoute;
@@ -637,8 +650,8 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
               `sys-datasources` points straight at
               `…/component/metadata/resource?type=datasource`, and `sys-objects`
               arrives via the host's `system/metadata/:type` → same alias
-              rewrite. Both pass `isMetadataRoute` (a substring test on
-              `/metadata`) and so land in THIS branch, which declared no
+              rewrite. Both pass `isMetadataRoute` (a `metadata` path segment —
+              a substring test until #3638) and so land in THIS branch, which declared no
               `component/…` route at all — every one of them rendered a blank
               screen. Kept as a mirror rather than re-pointed navigation because
               the alias already has exactly one canonical destination; adding a
