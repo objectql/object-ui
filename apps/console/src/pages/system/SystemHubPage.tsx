@@ -75,10 +75,38 @@ export function SystemHubPage() {
     if (!dataSource) return;
     setLoading(true);
     try {
+      // Every name below must be one the framework actually registers. A name
+      // it does NOT register is not a loud failure here: the backend answers
+      // `404 OBJECT_NOT_FOUND` and `ObjectStackAdapter.find()` absorbs that on
+      // purpose (`packages/data-objectstack/src/index.ts` — it caches the
+      // resource in `missingResources` and resolves `{ data: [], total: 0 }`),
+      // so a misspelled object renders a perfectly plausible `0` that no
+      // administrator can tell apart from "there really are none"
+      // (objectui#3670). The `.catch` on each call never even sees that case;
+      // it only covers non-404 rejections.
+      //
+      // Verified against the framework's object registry:
+      //   sys_user         packages/platform-objects/src/identity/sys-user.object.ts
+      //   sys_organization packages/platform-objects/src/identity/sys-organization.object.ts
+      //   sys_position     packages/plugins/plugin-security/src/objects/sys-position.object.ts
+      //   sys_audit_log    packages/plugins/plugin-audit/src/objects/sys-audit-log.object.ts
+      //
+      // `sys_permission` is the one exception and is deliberately left alone.
+      // The framework has no such object; it splits that surface into
+      // `sys_capability` (lineage — its docblock names itself "not
+      // sys_permission as the ADR loosely floats") and `sys_permission_set`
+      // (function — the admin-managed grant container). Both would render, so
+      // picking one here would silently commit this card to a surface the
+      // maintainer has not chosen; that call is pending on objectui#3655
+      // (A: sys_permission_set / B: sys_capability / C: retire this bespoke
+      // card with the hub itself, which is already `@deprecated` above). Until
+      // it lands the Permissions count stays a known-wrong `0` — pinned by a
+      // MEASUREMENT case in this page's test rather than quietly re-aimed.
+      //
       // TODO: Replace with count-specific API endpoint when available
       const [usersRes, orgsRes, positionsRes, permsRes, logsRes] = await Promise.all([
         dataSource.find('sys_user').catch(() => ({ data: [] })),
-        dataSource.find('sys_org').catch(() => ({ data: [] })),
+        dataSource.find('sys_organization').catch(() => ({ data: [] })),
         dataSource.find('sys_position').catch(() => ({ data: [] })),
         dataSource.find('sys_permission').catch(() => ({ data: [] })),
         dataSource.find('sys_audit_log').catch(() => ({ data: [] })),
