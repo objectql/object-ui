@@ -36,6 +36,7 @@
  */
 import { evalFieldPredicate, type FieldRulePredicate } from './fieldRules.js';
 import { ExpressionEvaluator } from './ExpressionEvaluator.js';
+import { toPredicateRecord, type FieldContainerLike } from '../utils/predicate-record.js';
 
 /**
  * Syntax that only the legacy JS-dialect evaluator understands and that is NOT
@@ -127,6 +128,14 @@ export interface RowPredicateOptions {
   warnOnError?: boolean;
   /** Label used in warning messages (e.g. an action name or rule index). */
   label?: string;
+  /**
+   * The object's field definitions (`objectSchema.fields`). Supplying them lets
+   * a relation field be bound as the FOREIGN KEY the server stores, rather than
+   * as whatever `$expand` happened to substitute for it on this surface — see
+   * {@link toPredicateRecord}. Omitting them keeps the payload verbatim, so a
+   * caller with no schema at hand never guesses which fields are relations.
+   */
+  fields?: FieldContainerLike;
 }
 
 /**
@@ -147,7 +156,10 @@ export function evalRowPredicate(
   const source = typeof pred === 'string' ? pred : undefined;
   if (source !== undefined && !source.trim()) return fallback;
 
-  const rowObj = row && typeof row === 'object' ? row : {};
+  // Relations collapse to the foreign key the server stores, so `record.owner`
+  // means one thing whether or not this surface expanded the column
+  // (objectui#3501). Returned by reference when there is nothing to collapse.
+  const rowObj = toPredicateRecord(row && typeof row === 'object' ? row : {}, opts.fields);
   // Bare fields + `data.*` + the host scope, all top-level; `record` is bound
   // by the engine call itself (evalCel / the legacy evaluator below).
   const scope = { ...(opts.scope ?? {}), ...rowObj, data: rowObj };
@@ -272,11 +284,15 @@ function ruleToStyle(rule: ConditionalFormattingRuleLike): Record<string, string
  *
  * @param scope  Extra top-level scope (host predicate scope) bound alongside
  *               the row, so `features.*` predicates keep resolving.
+ * @param fields The object's field definitions, so a rule comparing a relation
+ *               field sees the stored foreign key rather than the expanded
+ *               record (see {@link RowPredicateOptions.fields}).
  */
 export function resolveConditionalFormatting(
   record: Record<string, unknown> | null | undefined,
   rules?: readonly ConditionalFormattingRuleLike[] | null,
   scope?: Record<string, unknown>,
+  fields?: FieldContainerLike,
 ): Record<string, string> {
   if (!rules || rules.length === 0) return {};
   const row = record && typeof record === 'object' ? record : {};
@@ -288,6 +304,7 @@ export function resolveConditionalFormatting(
     const matched = evalRowPredicate(pred, row, {
       fallback: false,
       scope,
+      fields,
       label: `conditionalFormatting[${i}]`,
     });
     if (matched) return ruleToStyle(rule);

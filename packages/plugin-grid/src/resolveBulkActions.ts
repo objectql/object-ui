@@ -44,8 +44,8 @@
  *     below). They own their names and win every collision either way.
  *  2. `bulkActions: string[]` — bare action names, resolved against
  *     `objectDef.actions` and PROMOTED to that def, so they carry the action's
- *     label, icon, `visible` predicate, confirm text and params instead of a
- *     bare humanized name. The bare-string form always promotes to the
+ *     label, icon, `visible` predicate, `requiredPermissions` gate, confirm text
+ *     and params instead of a bare humanized name. The bare-string form always promotes to the
  *     per-record dispatch — it has nowhere to carry an `execution` flag, so
  *     aggregate mode (objectui#3139) requires the authored-def form above.
  *
@@ -142,6 +142,13 @@ function toBulkActionDef(action: NamedActionDef, localize?: ActionLabelResolver)
     ...(params.length > 0 && { params }),
     ...(confirmText !== undefined && { confirmText }),
     ...(action.visible != null && { visible: action.visible as BulkActionDef['visible'] }),
+    // [ADR-0066 D4 / objectui#3492] The capability gate travels with the action.
+    // Dropping it here is what let a `requiredPermissions` action that the row
+    // kebab hides reappear in the selection bar: the bar has no other route to
+    // the declaration, since it renders defs, not `ActionDef`s.
+    ...(Array.isArray(action.requiredPermissions) && {
+      requiredPermissions: action.requiredPermissions as string[],
+    }),
     batchSize: PROMOTED_BULK_BATCH_SIZE,
     actionDef: action,
   };

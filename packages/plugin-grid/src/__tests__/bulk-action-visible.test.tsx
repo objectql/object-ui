@@ -54,4 +54,24 @@ describe('BulkActionBar — bulk action visible CEL', () => {
     renderBar([{ name: 'bulk_tag', label: 'Tag' }]);
     expect(screen.getByTestId('bulk-action-bulk_tag')).toBeInTheDocument();
   });
+
+  // [objectui#3492] A boolean `visible` reached the CEL engine as
+  // `{ dialect: 'cel', source: undefined }`, faulted, and — on this fail-closed
+  // path — disqualified every selected record. So `visible: true`, the most
+  // explicit way to say "always offer this", hid the button from everyone; and
+  // `visible: false` was misread as "ungated" by the render guard's truthiness
+  // test and rendered the button anyway. Both are inverted; both are fixed by
+  // short-circuiting booleans the way every other action surface does.
+  describe('boolean visible', () => {
+    it('renders a `visible: true` action for everyone', () => {
+      renderBar([{ name: 'always', label: 'Always', visible: true }]);
+      expect(screen.getByTestId('bulk-action-always')).toBeInTheDocument();
+    });
+
+    it('hides a `visible: false` action from everyone', () => {
+      renderBar([{ name: 'never', label: 'Never', visible: false }]);
+      expect(screen.queryByTestId('bulk-action-never')).toBeNull();
+      expect(screen.getByTestId('bulk-actions-bar')).toBeInTheDocument();
+    });
+  });
 });

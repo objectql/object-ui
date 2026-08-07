@@ -60,4 +60,12 @@ export * from './utils/dataset-pivot.js';
 export * from './utils/record-title.js';
 export * from './utils/export-filename.js';
 export * from './utils/reference-keys.js';
+// Binds a fetched record into an expression scope the way the SERVER binds it
+// (a relation is its foreign key, never the expanded record) — see
+// `toPredicateRecord` for why an unnormalized one gives the same predicate
+// different verdicts on different surfaces.
+export * from './utils/predicate-record.js';
+// The other half of a view's field appetite: the fields its PREDICATES read,
+// which the column-derived `$select` never asked the server for.
+export * from './utils/predicate-fields.js';
 export * from './utils/normalize-list-view.js';

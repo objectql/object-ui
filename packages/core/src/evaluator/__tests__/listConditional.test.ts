@@ -225,3 +225,72 @@ describe('resolveConditionalFormatting', () => {
     ).toEqual({});
   });
 });
+
+/**
+ * The relation binding (objectui#3501): with the payload as delivered, whether
+ * `record.<lookup>` is an id or a whole record is decided by whether THIS
+ * surface happened to expand that column — a display decision no predicate
+ * author participates in. Supplying the object's fields collapses the expanded
+ * form back to the id, which is what the server's CEL engine sees.
+ */
+describe('evalRowPredicate — relation fields', () => {
+  const FIELDS = {
+    title: { type: 'text' },
+    owner: { type: 'user' },
+    account: { type: 'lookup', reference: 'accounts' },
+    config: { type: 'json' },
+  };
+  const SCOPE = { os: { user: { id: 'U1' } } };
+
+  it('an EXPANDED relation compares equal to the id it stands for', () => {
+    const expanded = { owner: { id: 'U1', name: 'Ada' } };
+
+    // Without the schema this is the reported bug: false for the very user the
+    // record belongs to, with no error to notice.
+    expect(evalRowPredicate('record.owner == os.user.id', expanded, { scope: SCOPE })).toBe(false);
+    expect(
+      evalRowPredicate('record.owner == os.user.id', expanded, { scope: SCOPE, fields: FIELDS }),
+    ).toBe(true);
+  });
+
+  it('an UNEXPANDED relation reaches the same verdict — one predicate, one answer', () => {
+    const plain = { owner: 'U1' };
+
+    expect(evalRowPredicate('record.owner == os.user.id', plain, { scope: SCOPE, fields: FIELDS })).toBe(true);
+    expect(evalRowPredicate('record.owner == os.user.id', plain, { scope: SCOPE })).toBe(true);
+  });
+
+  it('an EMPTY relation is a clean false, not a fault', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    expect(
+      evalRowPredicate('record.owner == os.user.id', { owner: null }, {
+        scope: SCOPE, fields: FIELDS, warnOnError: true,
+      }),
+    ).toBe(false);
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('binds the collapsed value under the bare and `data.` spellings too', () => {
+    const expanded = { account: { id: 'A1', name: 'Acme' } };
+
+    expect(evalRowPredicate('account == "A1"', expanded, { fields: FIELDS })).toBe(true);
+    expect(evalRowPredicate('data.account == "A1"', expanded, { fields: FIELDS })).toBe(true);
+  });
+
+  it('leaves a non-relational object field addressable as an object', () => {
+    expect(
+      evalRowPredicate('record.config.retries == 3', { config: { retries: 3 } }, { fields: FIELDS }),
+    ).toBe(true);
+  });
+
+  it('applies to conditional formatting through the same option', () => {
+    const rules = [{ condition: 'record.owner == os.user.id', backgroundColor: 'mine' }];
+
+    expect(resolveConditionalFormatting({ owner: { id: 'U1' } }, rules, SCOPE)).toEqual({});
+    expect(resolveConditionalFormatting({ owner: { id: 'U1' } }, rules, SCOPE, FIELDS)).toEqual({
+      backgroundColor: 'mine',
+    });
+  });
+});

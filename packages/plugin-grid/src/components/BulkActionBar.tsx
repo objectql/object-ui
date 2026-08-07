@@ -10,9 +10,9 @@ import React from 'react';
 import { Button } from '@object-ui/components';
 import { Trash2, CheckSquare, X } from 'lucide-react';
 import { LazyIcon, toKebabIconName } from '@object-ui/components';
-import { useObjectTranslation, usePredicateScope } from '@object-ui/react';
+import { useObjectTranslation, usePredicateScope, useCapabilityGate } from '@object-ui/react';
 import type { BulkActionDef } from '@object-ui/types';
-import { partitionBulkRows } from '../bulkEligibility';
+import { partitionBulkRows, hasVisibilityGate } from '../bulkEligibility';
 import { formatActionLabel } from './RowActionMenu';
 
 /**
@@ -32,17 +32,20 @@ import { formatActionLabel } from './RowActionMenu';
 const BulkActionButton: React.FC<{
   def: BulkActionDef;
   selectedRows: any[];
+  objectFields?: unknown;
   onActionDef?: (def: BulkActionDef, selectedRows: any[]) => void;
-}> = ({ def, selectedRows, onActionDef }) => {
+}> = ({ def, selectedRows, objectFields, onActionDef }) => {
   const scope = usePredicateScope();
   const { eligible } = React.useMemo(
-    () => partitionBulkRows(def, selectedRows, { scope }),
-    [def, selectedRows, scope],
+    () => partitionBulkRows(def, selectedRows, { scope, fields: objectFields as never }),
+    [def, selectedRows, scope, objectFields],
   );
   // Only a def that actually declares `visible` can be gated away — an
   // ungated def always renders, even against an empty selection (the bar
-  // itself is what decides there is a selection at all).
-  if (def.visible && eligible.length === 0) return null;
+  // itself is what decides there is a selection at all). `hasVisibilityGate`
+  // rather than truthiness, so a declared `visible: false` still counts as a
+  // gate instead of falling through to "ungated → always render".
+  if (hasVisibilityGate(def) && eligible.length === 0) return null;
   const isDestructive = def.variant === 'danger' || def.operation === 'delete';
   const iconName = def.icon ? toKebabIconName(def.icon) : null;
   return (
@@ -75,6 +78,14 @@ export interface BulkActionBarProps {
   actions: string[];
   /** Rich action definitions — authored inline or derived from the object. */
   actionDefs?: BulkActionDef[];
+  /**
+   * The object's field definitions (`objectSchema.fields`). Passed to each
+   * def's per-record `visible` so a relation field is bound as the FOREIGN KEY
+   * the server stores rather than the record `$expand` substituted for it — the
+   * selected rows come straight off the grid's expanded fetch, where every
+   * relational COLUMN is an object (see `toPredicateRecord`).
+   */
+  objectFields?: unknown;
   /** Callback when a legacy string-id bulk action button is clicked */
   onAction?: (action: string, selectedRows: any[]) => void;
   /** Callback when a rich-def bulk action button is clicked. */
@@ -99,6 +110,7 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
   selectedRows,
   actions,
   actionDefs,
+  objectFields,
   onAction,
   onActionDef,
   onClearSelection,
@@ -108,7 +120,21 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
   onSelectAllMatching,
 }) => {
   const { t } = useObjectTranslation();
-  const hasDefs = Array.isArray(actionDefs) && actionDefs.length > 0;
+  // [ADR-0066 D4 / objectui#3492] Capability gate, applied to the whole def set
+  // before anything renders — the fourth action surface joining the list
+  // toolbar (`action-bar.tsx`), the record header (`containers.tsx`) and the row
+  // kebab (`RowActionMenu.tsx`). Without it, an action that those three hide
+  // from an unentitled user reappeared here the moment they ticked a checkbox.
+  // Same rule as the engine: an empty declaration always passes, several are
+  // AND-ed, and unknown capabilities fail OPEN (see `useCapabilityGate`) — the
+  // server stays the authority. Legacy string `actions` carry no declaration to
+  // gate on, so they are untouched.
+  const mayInvoke = useCapabilityGate();
+  const permittedDefs = React.useMemo(
+    () => (actionDefs ?? []).filter(d => mayInvoke(d?.requiredPermissions)),
+    [actionDefs, mayInvoke],
+  );
+  const hasDefs = permittedDefs.length > 0;
   const hasLegacy = Array.isArray(actions) && actions.length > 0;
   // Render whenever rows are selected — this bar is the single, canonical
   // selection indicator (count + Clear). Bulk-action buttons are optional: with
@@ -190,11 +216,12 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
         </span>
       </span>
       <div className="flex items-center gap-1.5 ml-3">
-        {hasDefs && actionDefs!.map(def => (
+        {hasDefs && permittedDefs.map(def => (
           <BulkActionButton
             key={def.name}
             def={def}
             selectedRows={selectedRows}
+            objectFields={objectFields}
             onActionDef={onActionDef}
           />
         ))}

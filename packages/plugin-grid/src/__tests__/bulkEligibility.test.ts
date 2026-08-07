@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { partitionBulkRows } from '../bulkEligibility';
+import { partitionBulkRows, hasVisibilityGate } from '../bulkEligibility';
 
 const ROWS = [
   { id: 'r1', done: false, owner: 'u1' },
@@ -95,5 +95,42 @@ describe('partitionBulkRows', () => {
 
     expect(eligible).toEqual([]);
     expect(skipped).toBe(0);
+  });
+
+  // [objectui#3492] A boolean `visible` is a verdict, not an expression. The
+  // engine has no AST to run for one, so it faulted and — on this fail-CLOSED
+  // path — turned `visible: true` into "no record qualifies", i.e. the exact
+  // inverse of what the author wrote. The other three action surfaces
+  // (`useCondition` / `useRowPredicate`) have always short-circuited booleans.
+  describe('boolean visible', () => {
+    it('treats `true` as "every record qualifies", not as a fault', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const { eligible, skipped } = partitionBulkRows({ name: 'always', visible: true }, ROWS);
+
+      // By reference, like the ungated case: nothing was filtered.
+      expect(eligible).toBe(ROWS);
+      expect(skipped).toBe(0);
+      // No engine call means nothing to warn about.
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('treats `false` as "no record qualifies"', () => {
+      const { eligible, skipped } = partitionBulkRows({ name: 'never', visible: false }, ROWS);
+
+      expect(eligible).toEqual([]);
+      expect(skipped).toBe(ROWS.length);
+    });
+
+    it('reports `false` as a DECLARED gate — truthiness cannot', () => {
+      // What the bar keys "hide me" off. `def.visible &&` classified `false` as
+      // ungated, so the button `false` was written to remove kept rendering.
+      expect(hasVisibilityGate({ name: 'never', visible: false })).toBe(true);
+      expect(hasVisibilityGate({ name: 'always', visible: true })).toBe(true);
+      expect(hasVisibilityGate({ name: 'expr', visible: 'record.done' })).toBe(true);
+      expect(hasVisibilityGate({ name: 'plain' })).toBe(false);
+      expect(hasVisibilityGate({ name: 'blank', visible: '' })).toBe(false);
+      expect(hasVisibilityGate(undefined)).toBe(false);
+    });
   });
 });

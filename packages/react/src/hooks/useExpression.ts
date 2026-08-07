@@ -186,10 +186,22 @@ export function useCondition(
 export function useRowPredicate(
   pred: unknown,
   row: Record<string, any> | null | undefined,
-  options?: { fallback?: boolean; warnOnError?: boolean; label?: string },
+  options?: {
+    fallback?: boolean;
+    warnOnError?: boolean;
+    label?: string;
+    /**
+     * The object's field definitions. Supplying them binds a relation field as
+     * the stored foreign key instead of whatever `$expand` substituted for it
+     * on this surface, so `record.owner == os.user.id` reaches the server's
+     * verdict — see `toPredicateRecord`.
+     */
+    fields?: unknown;
+  },
 ): boolean {
   const scope = usePredicateScope();
   const fallback = options?.fallback ?? true;
+  const fields = options?.fields;
   return useMemo(
     () => {
       // A boolean predicate short-circuits (no expression to evaluate).
@@ -200,8 +212,9 @@ export function useRowPredicate(
         scope,
         warnOnError: options?.warnOnError,
         label: options?.label,
+        fields: fields as never,
       });
     },
-    [pred, row, scope, fallback, options?.warnOnError, options?.label],
+    [pred, row, scope, fallback, options?.warnOnError, options?.label, fields],
   );
 }

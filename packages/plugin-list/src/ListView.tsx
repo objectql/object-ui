@@ -19,7 +19,7 @@ import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, EXPANDABLE_FIELD_TYPES } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES } from '@object-ui/core';
 import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 
@@ -298,13 +298,17 @@ export function convertFilterGroupToAST(group: FilterGroup): any[] {
  * @param scope  Extra top-level scope (the host predicate scope) bound
  *               alongside the row, so `features.*` / `current_user.*`
  *               conditions resolve as they do on grid rows / kanban cards.
+ * @param fields The object's field definitions, so a rule comparing a relation
+ *               field sees the stored foreign key rather than the record
+ *               `$expand` substituted for it (see `toPredicateRecord`).
  */
 export function evaluateConditionalFormatting(
   record: Record<string, unknown>,
   rules?: ListViewSchema['conditionalFormatting'],
-  scope?: Record<string, unknown>
+  scope?: Record<string, unknown>,
+  fields?: unknown,
 ): React.CSSProperties {
-  return resolveConditionalFormatting(record, rules as any, scope) as React.CSSProperties;
+  return resolveConditionalFormatting(record, rules as any, scope, fields as never) as React.CSSProperties;
 }
 
 /**
@@ -1159,6 +1163,14 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
             if (typeof f !== 'string' || !f) return;
             if (!knownObjectFields || knownObjectFields.has(f)) required.add(f);
           };
+          // Predicate refs take the same guard, widened by the platform columns
+          // every object carries but no object DECLARES (`owner_id` and the
+          // audit FKs) — `record.owner_id == os.user.id` is the commonest
+          // ownership gate there is, and `knownObjectFields` alone drops it.
+          const addPredicateField = (f: string) => {
+            if (PLATFORM_RECORD_COLUMNS.has(f)) required.add(f);
+            else addSpeculative(f);
+          };
 
           // View-specific runtime fields. Each non-grid view binds to one
           // or more record fields (groupBy for kanban, dates for calendar/
@@ -1210,6 +1222,22 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           }
           collectViewFields(schema.gantt);
           collectViewFields(schema.options?.gantt);
+
+          // The fields the view's PREDICATES read (objectui#3501).
+          // `$select` was built from the COLUMNS alone, so a row action gated on
+          // `record.owner` while the view shows Title / Status asked the server
+          // for everything except `owner` — and an absent key is a CEL FAULT
+          // (`No such key`), not a null, which fail-closed hides the button for
+          // everyone. Routed through addSpeculative for the same reason the view
+          // bindings are: a typo'd predicate must not put an unknown column in
+          // `$select` and zero the whole list.
+          for (const f of collectPredicateFieldRefs(listViewPredicates({
+            conditionalFormatting: schema.conditionalFormatting as unknown[] | undefined,
+            rowActionDefs: (schema as any).rowActionDefs,
+            bulkActionDefs: (schema as any).bulkActionDefs,
+            objectActions: (objectDef as any)?.actions,
+            userActions: (schema as any).userActions ?? (objectDef as any)?.userActions,
+          }))) addPredicateField(f);
 
           return Array.from(required);
         })();

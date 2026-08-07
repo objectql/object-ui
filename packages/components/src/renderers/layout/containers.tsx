@@ -18,7 +18,7 @@
  */
 
 import React from 'react';
-import { ComponentRegistry, ExpressionEvaluator, getRecordDisplayName } from '@object-ui/core';
+import { ComponentRegistry, ExpressionEvaluator, getRecordDisplayName, toPredicateRecord } from '@object-ui/core';
 import { actionRendersAt } from '@object-ui/types';
 import { useRecordContext, useAction, useCapabilityGate, usePredicateScope, usePageVariables, useInlineEdit } from '@object-ui/react';
 import { renderChildren, cn } from '../../lib/utils';
@@ -968,10 +968,21 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     // predicates resolve — alongside the record fields spread for bare
     // `status`/`is_default` CEL.
     const scopeUser = (predicateScope as any)?.user;
+    // Relation fields bind as the FOREIGN KEY the server stores, not as the
+    // record `$expand` substituted for them: the detail fetch expands every
+    // relation it can, so `record.owner == os.user.id` — the spelling that
+    // works server-side and in a bare list — could only ever be false here,
+    // while `record.owner.id` throws on any record whose lookup is empty. See
+    // `toPredicateRecord`. Display (`interpolate` above) still reads the raw
+    // `ctx.data`, which is what renders the related record's NAME.
+    // `toPredicateRecord` passes a null/undefined record straight through, so
+    // "no record loaded yet" stays distinguishable from "an empty record" —
+    // spreading either into `evalCtx` is a no-op.
+    const predicateRecord = toPredicateRecord(recordData, headerObjectSchema?.fields);
     const evalCtx = {
-      ...(recordData && typeof recordData === 'object' ? recordData : {}),
-      record: recordData,
-      data: recordData,
+      ...predicateRecord,
+      record: predicateRecord,
+      data: predicateRecord,
       user: scopeUser,
       // Server-CEL-parity identity alias (#2358 trap 1): the spec's canonical
       // CEL identity scope is `os.user.*`, so a predicate authored against the
@@ -979,8 +990,8 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       os: (predicateScope as any)?.os ?? { user: scopeUser },
       ctx: {
         user: scopeUser,
-        record: recordData,
-        data: recordData,
+        record: predicateRecord,
+        data: predicateRecord,
         app: (predicateScope as any)?.app,
         features: (predicateScope as any)?.features,
       },
@@ -1197,7 +1208,10 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     // evaluation above — a boolean OR a CEL expression (`'record.status == …'`
     // or the `{ dialect, source }` envelope). Without this a CEL `disabled`
     // silently did nothing (only boolean was honoured).
-    const dRecord: any = ctx?.data;
+    // Same relation normalization the `visible` evaluation above applies, so a
+    // `disabled` predicate over a lookup reaches the same verdict (and the same
+    // one the server would) instead of throwing on `record.owner.id`.
+    const dRecord: any = toPredicateRecord(ctx?.data, headerObjectSchema?.fields);
     const dScopeUser = (predicateScope as any)?.user;
     const dEvaluator = new ExpressionEvaluator({
       ...(dRecord && typeof dRecord === 'object' ? dRecord : {}),

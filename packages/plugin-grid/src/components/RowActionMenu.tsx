@@ -94,6 +94,14 @@ export interface RowActionMenuProps {
    * and clip each other in the narrow actions column. Defaults to 1.
    */
   maxInlineActions?: number;
+  /**
+   * The object's field definitions (`objectSchema.fields`). Passed to every
+   * predicate on this row so a relation field is bound as the FOREIGN KEY the
+   * server stores rather than the record `$expand` substituted for it — the
+   * grid expands every relational COLUMN, which would otherwise decide whether
+   * `record.owner == os.user.id` can be true (see `toPredicateRecord`).
+   */
+  objectFields?: unknown;
 }
 
 /**
@@ -109,15 +117,16 @@ export interface RowActionMenuProps {
 const RowActionMenuItem: React.FC<{
   def: RowActionDef;
   row: any;
+  objectFields?: unknown;
   onActionDef?: (def: RowActionDef, row: any) => void;
-}> = ({ def, row, onActionDef }) => {
+}> = ({ def, row, objectFields, onActionDef }) => {
   // Evaluate predicates against the row on the canonical CEL engine (issue
   // #1584): the row is bound both bare (`status`) and as `record.status`, and
   // the ambient `features`/`user` scope is merged. `visible` fails CLOSED
   // (hidden + warn) so a broken predicate can't silently expose an action —
   // matching ActionEngine's posture; `disabled` fails soft (not disabled).
-  const isVisible = useRowPredicate(def.visible, row, { fallback: false, warnOnError: true, label: def.name });
-  const isDisabled = useRowPredicate((def as any).disabled, row, { fallback: false, warnOnError: true, label: `${def.name}:disabled` });
+  const isVisible = useRowPredicate(def.visible, row, { fallback: false, warnOnError: true, label: def.name, fields: objectFields });
+  const isDisabled = useRowPredicate((def as any).disabled, row, { fallback: false, warnOnError: true, label: `${def.name}:disabled`, fields: objectFields });
   if (def.visible && !isVisible) return null;
   return (
     <DropdownMenuItem
@@ -152,17 +161,20 @@ export const BuiltinRowActionItem: React.FC<{
   icon: React.ReactNode;
   label: string;
   className?: string;
+  objectFields?: unknown;
   onSelect: (row: any) => void;
-}> = ({ name, predicates, row, icon, label, className, onSelect }) => {
+}> = ({ name, predicates, row, icon, label, className, objectFields, onSelect }) => {
   const isVisible = useRowPredicate(predicates?.visibleWhen, row, {
     fallback: false,
     warnOnError: true,
     label: `builtin:${name}:visibleWhen`,
+    fields: objectFields,
   });
   const isDisabled = useRowPredicate(predicates?.disabledWhen, row, {
     fallback: false,
     warnOnError: true,
     label: `builtin:${name}:disabledWhen`,
+    fields: objectFields,
   });
   if (predicates?.visibleWhen != null && !isVisible) return null;
   const disabled = predicates?.disabledWhen != null && isDisabled;
@@ -200,9 +212,10 @@ function toButtonVariant(v: RowActionDef['variant']): 'default' | 'secondary' | 
 const RowActionInlineButton: React.FC<{
   def: RowActionDef;
   row: any;
+  objectFields?: unknown;
   onActionDef?: (def: RowActionDef, row: any) => void;
-}> = ({ def, row, onActionDef }) => {
-  const isVisible = useRowPredicate(def.visible, row, { fallback: false, warnOnError: true, label: def.name });
+}> = ({ def, row, objectFields, onActionDef }) => {
+  const isVisible = useRowPredicate(def.visible, row, { fallback: false, warnOnError: true, label: def.name, fields: objectFields });
   if (def.visible && !isVisible) return null;
   return (
     <Button
@@ -230,6 +243,7 @@ export const RowActionMenu: React.FC<RowActionMenuProps> = ({
   onAction,
   onActionDef,
   maxInlineActions = 1,
+  objectFields,
 }) => {
   const t = useRowActionTranslation();
   // [ADR-0066 D4 / framework#3923] Capability gate, applied ONCE to the whole
@@ -269,6 +283,7 @@ export const RowActionMenu: React.FC<RowActionMenuProps> = ({
           key={def.name}
           def={def}
           row={row}
+          objectFields={objectFields}
           onActionDef={onActionDef}
         />
       ))}
@@ -293,6 +308,7 @@ export const RowActionMenu: React.FC<RowActionMenuProps> = ({
                 row={row}
                 icon={<Edit className="mr-2 h-4 w-4" />}
                 label={t('grid.edit')}
+                objectFields={objectFields}
                 onSelect={onEdit}
               />
             )}
@@ -303,6 +319,7 @@ export const RowActionMenu: React.FC<RowActionMenuProps> = ({
                 row={row}
                 icon={<Trash2 className="mr-2 h-4 w-4" />}
                 label={t('grid.delete')}
+                objectFields={objectFields}
                 onSelect={onDelete}
               />
             )}
@@ -311,6 +328,7 @@ export const RowActionMenu: React.FC<RowActionMenuProps> = ({
                 key={def.name}
                 def={def}
                 row={row}
+                objectFields={objectFields}
                 onActionDef={onActionDef}
               />
             ))}

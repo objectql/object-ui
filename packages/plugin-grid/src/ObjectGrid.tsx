@@ -36,7 +36,7 @@ import {
   RefreshIndicator,
 } from '@object-ui/components';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, columnIdentity, isExpandableFieldType } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, columnIdentity, collectPredicateFieldRefs, listViewPredicates, isProjectableField, isExpandableFieldType } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
 import { ChevronRight, ChevronDown, ChevronLeft, ChevronsLeft, ChevronsRight, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock, Loader2 } from 'lucide-react';
 import { useRowColor } from './useRowColor';
@@ -569,12 +569,37 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
               const names = list.map((f: any) => columnIdentity(f));
               return names.includes('id') ? list : ['id', ...list];
             };
-            if (schemaFields) return ensureId(schemaFields as any[]);
+            // Fields the view's PREDICATES read but no column shows
+            // (objectui#3501). Without them the projection asks the
+            // server for everything except the field a row action is gated on,
+            // and CEL faults on the absent key (`No such key`) rather than
+            // reading it as null — which fail-closed hides the button for
+            // everyone, with nothing pointing at the projection. Kept to fields
+            // the object actually declares: an unknown key in `$select` is not
+            // ignored by every backend, and a typo'd predicate must not be able
+            // to zero the list.
+            const declared = resolvedSchema?.fields;
+            const predicateFields = declared
+              ? collectPredicateFieldRefs(listViewPredicates({
+                  conditionalFormatting: schema.conditionalFormatting as unknown[] | undefined,
+                  rowActionDefs: (schema as any).rowActionDefs,
+                  bulkActionDefs: (schema as any).bulkActionDefs,
+                  objectActions: (resolvedSchema as any)?.actions,
+                  userActions: (schema as any).userActions ?? (resolvedSchema as any)?.userActions,
+                })).filter((f) => isProjectableField(f, declared as Record<string, unknown>))
+              : [];
+            const withPredicates = (list: any[]): any[] => {
+              if (predicateFields.length === 0) return list;
+              const names = new Set(list.map((f: any) => columnIdentity(f)));
+              const extra = predicateFields.filter((f) => !names.has(f));
+              return extra.length > 0 ? [...list, ...extra] : list;
+            };
+            if (schemaFields) return withPredicates(ensureId(schemaFields as any[]));
             if (schemaColumns && Array.isArray(schemaColumns)) {
               const fields = schemaColumns
                 .map((c: any) => columnIdentity(c))
                 .filter((v): v is string => !!v);
-              return ensureId(fields);
+              return withPredicates(ensureId(fields));
             }
             return undefined;
           };
@@ -710,9 +735,13 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const getRowStyle = useCallback((row: Record<string, unknown>): React.CSSProperties | undefined => {
     const rules = schema.conditionalFormatting;
     if (!rules || rules.length === 0) return undefined;
-    const style = resolveConditionalFormatting(row, rules as any, predicateScope);
+    // `objectSchema.fields` binds relation fields as the stored foreign key
+    // rather than the record `$expand` substituted for them — the grid expands
+    // every relational COLUMN, so without this a rule comparing one could only
+    // ever be false (see `toPredicateRecord`).
+    const style = resolveConditionalFormatting(row, rules as any, predicateScope, objectSchema?.fields);
     return Object.keys(style).length > 0 ? (style as React.CSSProperties) : undefined;
-  }, [schema.conditionalFormatting, predicateScope]);
+  }, [schema.conditionalFormatting, predicateScope, objectSchema]);
 
   // --- Grouping support ---
   // Build a per-field value formatter so group headers display the human
@@ -1615,6 +1644,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
           row={row}
           rowActions={customRowActions}
           rowActionDefs={resolvedRowActionDefs as any[]}
+          objectFields={objectSchema?.fields}
           maxInlineActions={(schema as any).maxInlineRowActions ?? 1}
           canEdit={canEdit}
           canDelete={canDelete}
@@ -1900,7 +1930,10 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       // selection the bar could see: "select all N matching" pulls in records
       // the button's own eligibility check never evaluated, and running the
       // action on those would defeat the gate the author wrote.
-      const { eligible, skipped } = partitionBulkRows(def, expanded, { scope: predicateScope });
+      const { eligible, skipped } = partitionBulkRows(def, expanded, {
+        scope: predicateScope,
+        fields: objectSchema?.fields,
+      });
       setActiveBulkDef(def);
       setActiveBulkRows(eligible);
       setActiveBulkSkipped(skipped);
@@ -2869,6 +2902,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                 selectedRows={selectedRows}
                 actions={effectiveBulkActions ?? []}
                 actionDefs={bulkActionDefs}
+                objectFields={objectSchema?.fields}
                 onAction={dispatchBulkAction}
                 onActionDef={dispatchBulkActionDef}
                 onClearSelection={() => { setSelectedRows([]); setSelectAllMatching(false); }}
@@ -2906,6 +2940,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
         selectedRows={selectedRows}
         actions={effectiveBulkActions ?? []}
         actionDefs={bulkActionDefs}
+        objectFields={objectSchema?.fields}
         onAction={dispatchBulkAction}
         onActionDef={dispatchBulkActionDef}
         onClearSelection={() => { setSelectedRows([]); setSelectAllMatching(false); }}

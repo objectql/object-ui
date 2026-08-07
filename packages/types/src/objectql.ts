@@ -368,6 +368,20 @@ export interface BulkActionDef {
    * derived from an object action can forward `action.visible` untouched.
    */
   visible?: string | { dialect?: string; source: string };
+  /**
+   * Capability gate — the UI half of ADR-0066 D4's `requiredPermissions`
+   * contract, carried here so the selection bar reaches the SAME verdict as the
+   * other three action surfaces (list toolbar / record header / row kebab).
+   *
+   * Semantics are `ActionSchema.requiredPermissions` verbatim: an empty or
+   * absent declaration always passes, several entries are AND-ed, and a host
+   * that never published the caller's capabilities fails OPEN (the server is
+   * the authority). Populated by `resolveBulkActions` when a def is promoted
+   * from an object action, and honoured by `BulkActionBar` via
+   * `useCapabilityGate` — without it, an action hidden in the row kebab
+   * reappeared in the bulk bar the moment a row was selected (objectui#3492).
+   */
+  requiredPermissions?: string[];
   /** Max records the action will operate on; selection above this is blocked. */
   maxRecords?: number;
   /** Batch size for the executor loop (default: 200). */

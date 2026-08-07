@@ -167,6 +167,41 @@ describe('resolveBulkActions', () => {
     });
   });
 
+  // [objectui#3492] The capability gate must travel with the promoted action:
+  // the bar renders defs, not `ActionDef`s, so a dropped declaration is the
+  // whole gate — the same action that the row kebab hides from an unentitled
+  // user reappeared here the moment a row was selected.
+  it('forwards requiredPermissions from the action', () => {
+    const gated = { name: 'push_down', requiredPermissions: ['plan.push'] };
+    const { defs } = resolveBulkActions({
+      bulkActions: ['push_down'],
+      objectActions: [gated],
+    });
+
+    expect(defs[0].requiredPermissions).toEqual(['plan.push']);
+  });
+
+  it('omits requiredPermissions when the action declares none', () => {
+    const { defs } = resolveBulkActions({
+      bulkActions: ['push_down'],
+      objectActions: [PUSH_DOWN],
+    });
+
+    // Absent, not `[]` — an empty array is a legitimate authored value and the
+    // fold must not invent one (`useCapabilityGate` treats both as "passes").
+    expect('requiredPermissions' in defs[0]).toBe(false);
+  });
+
+  it('drops a non-array requiredPermissions rather than forwarding it', () => {
+    const bogus = { name: 'push_down', requiredPermissions: 'plan.push' };
+    const { defs } = resolveBulkActions({
+      bulkActions: ['push_down'],
+      objectActions: [bogus],
+    });
+
+    expect('requiredPermissions' in defs[0]).toBe(false);
+  });
+
   it('drops an action variant the bulk bar cannot render', () => {
     const linkVariant = { name: 'push_down', variant: 'link' };
     const { defs } = resolveBulkActions({

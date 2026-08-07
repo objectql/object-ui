@@ -39,7 +39,7 @@
  * made row-scoped predicates land in a record-free evaluation.
  */
 
-import { evalRowPredicate } from '@object-ui/core';
+import { evalRowPredicate, type FieldContainerLike } from '@object-ui/core';
 import type { BulkActionDef } from '@object-ui/types';
 
 export interface BulkEligibility<TRow> {
@@ -53,18 +53,66 @@ export interface BulkEligibility<TRow> {
 }
 
 /**
+ * A def as far as this fold is concerned. `visible` is widened with `boolean`
+ * beyond `BulkActionDef`'s `ExpressionInput`: the schema cannot emit one, but
+ * hand-written view JSON and in-process callers do, and the fold owes them the
+ * same short-circuit every other predicate surface gives (see below).
+ */
+export type BulkEligibilityDef = Pick<BulkActionDef, 'name'> & {
+  visible?: BulkActionDef['visible'] | boolean;
+};
+
+/**
+ * Whether the def declares a visibility gate at all — the ONE definition of
+ * "gated", shared by the fold and by the button that renders its verdict.
+ *
+ * The bar reads it because "no record qualified" only means "hide me" for a def
+ * that gated itself; an ungated def renders regardless. Truthiness cannot
+ * answer this: `visible: false` is a declared gate that excludes everything,
+ * and testing `def.visible &&` classified it as *ungated* — which rendered the
+ * button `false` was written to remove (objectui#3492).
+ */
+export function hasVisibilityGate(def: BulkEligibilityDef | null | undefined): boolean {
+  const visible = def?.visible;
+  return visible != null && visible !== '';
+}
+
+/**
  * Split selected records into the ones this def may act on and a count of the
  * ones it may not. A def without `visible` is a no-op: `rows` is returned by
  * REFERENCE so the common case allocates nothing and downstream memos hold.
  */
 export function partitionBulkRows<TRow extends Record<string, unknown>>(
-  def: Pick<BulkActionDef, 'name' | 'visible'> | null | undefined,
+  def: BulkEligibilityDef | null | undefined,
   rows: readonly TRow[],
-  opts: { scope?: Record<string, unknown> } = {},
+  opts: {
+    scope?: Record<string, unknown>;
+    /**
+     * The object's field definitions, so a `visible` comparing a relation field
+     * sees the stored foreign key rather than the record `$expand` substituted
+     * for it — the selection bar's rows come straight off the grid's expanded
+     * fetch. See `toPredicateRecord`.
+     */
+    fields?: FieldContainerLike;
+  } = {},
 ): BulkEligibility<TRow> {
   const visible = def?.visible;
   if (visible == null || visible === '') {
     return { eligible: rows as TRow[], skipped: 0 };
+  }
+  // A BOOLEAN `visible` is a verdict, not an expression — short-circuit it
+  // exactly as `useCondition` / `useRowPredicate` do (objectui#3492). Handing
+  // it to the engine instead produced `{ dialect: 'cel', source: undefined }`,
+  // which faults ("AST-only evaluation not yet supported") and fails CLOSED —
+  // so `visible: true`, the most explicit way to say "always offer this",
+  // silently disqualified every selected record and hid the button from
+  // everyone. `BulkActionDefSchema.visible` is `ExpressionInputSchema` (no
+  // boolean), so `objectstack build` cannot emit this shape — hand-written view
+  // JSON and in-process callers constructing defs can, and did.
+  if (typeof visible === 'boolean') {
+    return visible
+      ? { eligible: rows as TRow[], skipped: 0 }
+      : { eligible: [], skipped: rows.length };
   }
 
   const eligible = (rows as TRow[]).filter(row =>
@@ -75,6 +123,7 @@ export function partitionBulkRows<TRow extends Record<string, unknown>>(
       // predicate) instead of silent.
       fallback: false,
       scope: opts.scope,
+      fields: opts.fields,
       warnOnError: true,
       label: def?.name,
     }),
