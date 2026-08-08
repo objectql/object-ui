@@ -7,7 +7,8 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, existsSync } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import chalk from 'chalk';
 import * as yaml from 'js-yaml';
 
@@ -110,7 +111,353 @@ export function scanPagesDirectory(pagesDir: string): RouteInfo[] {
   return routes;
 }
 
+/** This package's own name, used to locate its manifest for the platform range. */
+const CLI_PACKAGE_NAME = '@object-ui/cli';
+
+/**
+ * `@object-ui/*` packages the generated apps IMPORT, and therefore must declare.
+ *
+ * Every entry is imported by a generated `src/App.tsx` — the two platform
+ * packages by name, the seven plugins as side-effect imports that register
+ * their components with the registry. Until objectui#3827 only the first two
+ * were declared, so a generated app asked npm for nine packages having named
+ * two of them; the seven plugins resolved in this workspace purely because the
+ * temp app is created under `<cwd>` and hoisting reached the root
+ * `node_modules`.
+ *
+ * `@object-ui/core` and `@object-ui/types` are deliberately absent: the
+ * generated sources never import them (only `commands/dev.ts` aliases them for
+ * Vite), and declaring a versioned dependency nothing imports is the defect
+ * objectui#3755 removed from the sibling generator. `app-generator.test.ts`
+ * gates both directions.
+ */
+const PLATFORM_RUNTIME_PACKAGES = [
+  '@object-ui/react',
+  '@object-ui/components',
+  '@object-ui/plugin-charts',
+  '@object-ui/plugin-editor',
+  '@object-ui/plugin-kanban',
+  '@object-ui/plugin-markdown',
+  '@object-ui/plugin-form',
+  '@object-ui/plugin-grid',
+  '@object-ui/plugin-view'
+] as const;
+
+/** Memoised so the manifest walk happens at most once per process. */
+let cachedCliVersion: string | undefined;
+
+/**
+ * This CLI's own version, read from its own `package.json`.
+ *
+ * Walks up from this module rather than joining a fixed `../package.json`,
+ * because the same source sits at `src/utils/` in the repo and is bundled into
+ * `dist/` when published — a relative depth that is correct in one is wrong in
+ * the other.
+ */
+function cliVersion(): string {
+  if (cachedCliVersion !== undefined) return cachedCliVersion;
+
+  let dir = dirname(fileURLToPath(import.meta.url));
+  for (;;) {
+    const candidate = join(dir, 'package.json');
+    if (existsSync(candidate)) {
+      const manifest = JSON.parse(readFileSync(candidate, 'utf-8')) as {
+        name?: string;
+        version?: string;
+      };
+      if (manifest.name === CLI_PACKAGE_NAME && typeof manifest.version === 'string') {
+        cachedCliVersion = manifest.version;
+        return cachedCliVersion;
+      }
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+
+  throw new Error(
+    `Could not locate the ${CLI_PACKAGE_NAME} manifest to version the generated app's ` +
+      `platform dependencies against. Refusing to write a package.json with a guessed range.`
+  );
+}
+
+/**
+ * The range the generated apps declare for every `@object-ui/*` dependency.
+ *
+ * Derived from this CLI's own version instead of being written out as a
+ * literal, because `.changeset/config.json` puts `@object-ui/cli` in the SAME
+ * `fixed` group as every package in `PLATFORM_RUNTIME_PACKAGES`: they are
+ * released together and always carry the identical version. So `^<own
+ * version>` is both current and guaranteed to exist on the registry — whatever
+ * CLI version a user is running was published alongside its siblings.
+ *
+ * The literal it replaces was `^0.1.0` for packages published at 17.x, which
+ * never resolved to any published version at all (objectui#3827; the registry
+ * has no 0.1.0 for `@object-ui/react`). A literal here is not merely a fossil
+ * risk, it is a fossil generator: the fixed group re-versions on every release,
+ * so any hard-coded range is stale the next day. Deriving it removes the class.
+ */
+function platformPackageRange(): string {
+  return `^${cliVersion()}`;
+}
+
+/**
+ * React's range in both generated manifests.
+ *
+ * Quotes the repo root verbatim (an exact pin there) rather than the wider
+ * `^18.0.0 || ^19.0.0` the platform packages accept as a peer. The peer range
+ * says what CAN work; this says what is actually exercised — inside this
+ * workspace the temp app resolves React by hoisting to the root, so the root's
+ * version is the only one the generated code has ever run against. Declaring
+ * `^18.3.1`, as it did until objectui#3827, named a major nothing here tests.
+ */
+const REACT_RANGE = '19.2.8';
+
+/**
+ * `dependencies` for an app generated WITHOUT routing (`createTempApp`).
+ *
+ * Exactly the packages `src/main.tsx` and `src/App.tsx` import. No
+ * `react-router-dom` and no `lucide-react`: this variant generates neither a
+ * router nor a layout.
+ */
+function buildAppDependencies(): Record<string, string> {
+  const range = platformPackageRange();
+  return {
+    react: REACT_RANGE,
+    'react-dom': REACT_RANGE,
+    ...Object.fromEntries(PLATFORM_RUNTIME_PACKAGES.map((name) => [name, range]))
+  };
+}
+
+/**
+ * `dependencies` for a routed app (`createTempAppWithRouting`).
+ *
+ * Adds the two packages the routed variant's own sources import and the plain
+ * one's do not: `react-router-dom` (router in `src/App.tsx`) and `lucide-react`
+ * (icons in `src/Layout.tsx`).
+ *
+ * `lucide-react` was imported and never declared until objectui#3827 — twice
+ * over, `import * as LucideIcons` plus a named `{ Moon, Sun }`, both live in
+ * the generated layout. `commands/dev.ts` had been papering over it in the
+ * consumer, aliasing `lucide-react` to a path resolved out of
+ * `packages/components` with the comment "avoid dependency not found in temp
+ * app"; that alias only runs in monorepo mode, so every other path was left
+ * with an unsatisfiable import. Declaring it at the producer is the fix — the
+ * alias becomes a workspace convenience rather than the only thing holding the
+ * import up.
+ */
+function buildRoutedAppDependencies(): Record<string, string> {
+  const range = platformPackageRange();
+  return {
+    react: REACT_RANGE,
+    'react-dom': REACT_RANGE,
+    'react-router-dom': '^7.18.2',
+    'lucide-react': '^1.28.0',
+    ...Object.fromEntries(PLATFORM_RUNTIME_PACKAGES.map((name) => [name, range]))
+  };
+}
+
+
+/**
+ * `devDependencies` shared by both generated apps (identical in both today).
+ *
+ * Every range is anchored to an in-repo manifest, and
+ * `app-generator.test.ts`'s `DEV_DEPENDENCY_ANCHORS` names the anchor for each
+ * one and fails on an unanchored addition. The three Tailwind-side entries are
+ * deliberately NOT anchored to the repo's Tailwind 4 — see
+ * `TAILWIND_V3_DEFERRED` in that test file, and objectui#3852.
+ */
+const APP_DEV_DEPENDENCIES: Record<string, string> = {
+  '@types/react': '19.2.18',
+  '@types/react-dom': '19.2.4',
+  '@vitejs/plugin-react': '^6.0.5',
+  autoprefixer: '^10.5.4',
+  postcss: '^8.5.26',
+  tailwindcss: '^3.4.19',
+  typescript: '^6.0.3',
+  vite: '^8.2.0'
+};
+
+/** The generated `tsconfig.json`, identical for both generators. */
+const APP_TSCONFIG = {
+  compilerOptions: {
+    target: 'ES2020',
+    useDefineForClassFields: true,
+    lib: ['ES2020', 'DOM', 'DOM.Iterable'],
+    module: 'ESNext',
+    skipLibCheck: true,
+    moduleResolution: 'bundler',
+    allowImportingTsExtensions: true,
+    resolveJsonModule: true,
+    isolatedModules: true,
+    noEmit: true,
+    jsx: 'react-jsx',
+    strict: true,
+    noUnusedLocals: true,
+    noUnusedParameters: true,
+    noFallthroughCasesInSwitch: true
+  },
+  include: ['src']
+};
+
+/** The generated `postcss.config.js`, identical for both generators. */
+const APP_POSTCSS_CONFIG = `export default {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+};`;
+
+/**
+ * Where the generator is running, as far as the generated files are concerned.
+ *
+ * Passed in rather than read from `process.cwd()` inside the builders so the
+ * file map is a pure function of its inputs and can be asserted over directly.
+ */
+export interface AppGeneratorContext {
+  /** The directory `objectui` was invoked from. */
+  cwd: string;
+  /** Whether `cwd` is a pnpm workspace root (root `node_modules` is reachable). */
+  isMonorepo: boolean;
+}
+
+/** The context the CLI commands themselves generate under. */
+function currentContext(): AppGeneratorContext {
+  const cwd = process.cwd();
+  return { cwd, isMonorepo: existsSync(join(cwd, 'pnpm-workspace.yaml')) };
+}
+
+/**
+ * The generated `package.json` for an app without routing.
+ *
+ * In a monorepo both maps are written EMPTY, which is pre-existing behaviour:
+ * the temp app lives under `<cwd>` and resolves everything by hoisting, and
+ * `commands/dev.ts` skips `npm install` entirely there. The consequence worth
+ * naming is that the ranges below are never the ranges exercised in this repo
+ * (objectui#3742's second cost), which is exactly why the tests anchor them to
+ * in-repo manifests instead of trusting a green command.
+ */
+export function buildAppPackageJson(context: Pick<AppGeneratorContext, 'isMonorepo'>): Record<string, unknown> {
+  return {
+    name: 'objectui-temp-app',
+    private: true,
+    type: 'module',
+    // In monorepo, we use root node_modules, so we don't need dependencies here
+    dependencies: context.isMonorepo ? {} : buildAppDependencies(),
+    devDependencies: context.isMonorepo ? {} : { ...APP_DEV_DEPENDENCIES }
+  };
+}
+
+/**
+ * The generated `package.json` for a routed app.
+ *
+ * Unlike the variant above this one has no monorepo branch — it always writes
+ * the full manifest, so a missing declaration here is missing everywhere and
+ * cannot be explained away by hoisting.
+ */
+export function buildRoutedAppPackageJson(): Record<string, unknown> {
+  return {
+    name: 'objectui-temp-app',
+    private: true,
+    type: 'module',
+    dependencies: buildRoutedAppDependencies(),
+    devDependencies: { ...APP_DEV_DEPENDENCIES }
+  };
+}
+
+/** The generated `tailwind.config.js`; content globs widen inside a monorepo. */
+function buildTailwindConfig(context: AppGeneratorContext): string {
+  // Define Tailwind Content Paths
+  // Include JSON files specifically
+  const contentPaths = ["'./index.html'", "'./src/**/*.{js,ts,jsx,tsx,json}'"];
+  if (context.isMonorepo) {
+    const componentsPath = join(context.cwd, 'packages/components/src/**/*.{ts,tsx}');
+    const pluginsPath = join(context.cwd, 'packages/plugin-*/src/**/*.{ts,tsx}');
+    contentPaths.push(`'${componentsPath}'`);
+    contentPaths.push(`'${pluginsPath}'`);
+  }
+
+  return `/** @type {import('tailwindcss').Config} */
+export default {
+  darkMode: ['class'],
+  content: [${contentPaths.join(', ')}],
+  theme: {
+    extend: {
+      borderRadius: {
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
+      },
+      colors: {
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        card: {
+          DEFAULT: 'hsl(var(--card))',
+          foreground: 'hsl(var(--card-foreground))',
+        },
+        popover: {
+          DEFAULT: 'hsl(var(--popover))',
+          foreground: 'hsl(var(--popover-foreground))',
+        },
+        primary: {
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))',
+        },
+        secondary: {
+          DEFAULT: 'hsl(var(--secondary))',
+          foreground: 'hsl(var(--secondary-foreground))',
+        },
+        muted: {
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--muted-foreground))',
+        },
+        accent: {
+          DEFAULT: 'hsl(var(--accent))',
+          foreground: 'hsl(var(--accent-foreground))',
+        },
+        destructive: {
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))',
+        },
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        chart: {
+          1: 'hsl(var(--chart-1))',
+          2: 'hsl(var(--chart-2))',
+          3: 'hsl(var(--chart-3))',
+          4: 'hsl(var(--chart-4))',
+          5: 'hsl(var(--chart-5))',
+        },
+      },
+    },
+  },
+  plugins: [],
+};`;
+}
+
+/** Writes a generated file map onto `tmpDir`, creating nested directories. */
+function writeGeneratedFiles(tmpDir: string, files: Record<string, string>): void {
+  for (const [relativePath, contents] of Object.entries(files)) {
+    const target = join(tmpDir, relativePath);
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, contents);
+  }
+}
+
 export function createTempApp(tmpDir: string, schema: unknown) {
+  writeGeneratedFiles(tmpDir, buildAppFiles(schema, currentContext()));
+}
+
+/**
+ * Every file `createTempApp` writes, as `relative path -> contents`.
+ *
+ * Exported so the tests assert over the SAME artifact the CLI writes rather
+ * than over this file's source text — the shape objectui#3733/#3826 settled on
+ * for the sibling generator, and the only way a structural gate (imports vs
+ * declarations, entry reachability) can be written at all.
+ */
+export function buildAppFiles(schema: unknown, context: AppGeneratorContext): Record<string, string> {
   // Create index.html
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -125,12 +472,6 @@ export function createTempApp(tmpDir: string, schema: unknown) {
   </body>
 </html>`;
 
-  writeFileSync(join(tmpDir, 'index.html'), html);
-
-  // Create src directory
-  const srcDir = join(tmpDir, 'src');
-  mkdirSync(srcDir, { recursive: true });
-
   // Create main.tsx
   const mainTsx = `import React from 'react';
 import ReactDOM from 'react-dom/client';
@@ -142,8 +483,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <App />
   </React.StrictMode>
 );`;
-
-  writeFileSync(join(srcDir, 'main.tsx'), mainTsx);
 
   // Create App.tsx
   const appTsx = `import { SchemaRenderer } from '@object-ui/react';
@@ -163,8 +502,6 @@ function App() {
 }
 
 export default App;`;
-
-  writeFileSync(join(srcDir, 'App.tsx'), appTsx);
 
   // Create index.css
   const indexCss = `@tailwind base;
@@ -237,207 +574,39 @@ export default App;`;
   }
 }`;
 
-  writeFileSync(join(srcDir, 'index.css'), indexCss);
-
-  // Create tailwind.config.js
-  const tailwindConfig = `/** @type {import('tailwindcss').Config} */
-export default {
-  darkMode: ['class'],
-  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
-  theme: {
-    extend: {
-      borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
-      },
-      colors: {
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
-        card: {
-          DEFAULT: 'hsl(var(--card))',
-          foreground: 'hsl(var(--card-foreground))',
-        },
-        popover: {
-          DEFAULT: 'hsl(var(--popover))',
-          foreground: 'hsl(var(--popover-foreground))',
-        },
-        primary: {
-          DEFAULT: 'hsl(var(--primary))',
-          foreground: 'hsl(var(--primary-foreground))',
-        },
-        secondary: {
-          DEFAULT: 'hsl(var(--secondary))',
-          foreground: 'hsl(var(--secondary-foreground))',
-        },
-        muted: {
-          DEFAULT: 'hsl(var(--muted))',
-          foreground: 'hsl(var(--muted-foreground))',
-        },
-        accent: {
-          DEFAULT: 'hsl(var(--accent))',
-          foreground: 'hsl(var(--accent-foreground))',
-        },
-        destructive: {
-          DEFAULT: 'hsl(var(--destructive))',
-          foreground: 'hsl(var(--destructive-foreground))',
-        },
-        border: 'hsl(var(--border))',
-        input: 'hsl(var(--input))',
-        ring: 'hsl(var(--ring))',
-        chart: {
-          1: 'hsl(var(--chart-1))',
-          2: 'hsl(var(--chart-2))',
-          3: 'hsl(var(--chart-3))',
-          4: 'hsl(var(--chart-4))',
-          5: 'hsl(var(--chart-5))',
-        },
-      },
-    },
-  },
-  plugins: [],
-};`;
-
-  const cwd = process.cwd();
-  const isMonorepo = existsSync(join(cwd, 'pnpm-workspace.yaml'));
-
-  // Define Tailwind Content Paths
-  // Include JSON files specifically
-  const contentPaths = ["'./index.html'", "'./src/**/*.{js,ts,jsx,tsx,json}'"];
-  if (isMonorepo) {
-     const componentsPath = join(cwd, 'packages/components/src/**/*.{ts,tsx}');
-     const pluginsPath = join(cwd, 'packages/plugin-*/src/**/*.{ts,tsx}');
-     contentPaths.push(`'${componentsPath}'`);
-     contentPaths.push(`'${pluginsPath}'`); 
-  }
-
-  // Create tailwind.config.js
-  const finalTailwindConfig = `/** @type {import('tailwindcss').Config} */
-export default {
-  darkMode: ['class'],
-  content: [${contentPaths.join(', ')}],
-  theme: {
-    extend: {
-      borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
-      },
-      colors: {
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
-        card: {
-          DEFAULT: 'hsl(var(--card))',
-          foreground: 'hsl(var(--card-foreground))',
-        },
-        popover: {
-          DEFAULT: 'hsl(var(--popover))',
-          foreground: 'hsl(var(--popover-foreground))',
-        },
-        primary: {
-          DEFAULT: 'hsl(var(--primary))',
-          foreground: 'hsl(var(--primary-foreground))',
-        },
-        secondary: {
-          DEFAULT: 'hsl(var(--secondary))',
-          foreground: 'hsl(var(--secondary-foreground))',
-        },
-        muted: {
-          DEFAULT: 'hsl(var(--muted))',
-          foreground: 'hsl(var(--muted-foreground))',
-        },
-        accent: {
-          DEFAULT: 'hsl(var(--accent))',
-          foreground: 'hsl(var(--accent-foreground))',
-        },
-        destructive: {
-          DEFAULT: 'hsl(var(--destructive))',
-          foreground: 'hsl(var(--destructive-foreground))',
-        },
-        border: 'hsl(var(--border))',
-        input: 'hsl(var(--input))',
-        ring: 'hsl(var(--ring))',
-        chart: {
-          1: 'hsl(var(--chart-1))',
-          2: 'hsl(var(--chart-2))',
-          3: 'hsl(var(--chart-3))',
-          4: 'hsl(var(--chart-4))',
-          5: 'hsl(var(--chart-5))',
-        },
-      },
-    },
-  },
-  plugins: [],
-};`;
-
-  writeFileSync(join(tmpDir, 'tailwind.config.js'), finalTailwindConfig);
-
-  // Create postcss.config.js
-  const finalPostcssConfig = `export default {
-  plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
-  },
-};`;
-  
-  writeFileSync(join(tmpDir, 'postcss.config.js'), finalPostcssConfig);
-
-  // Create package.json
-  const baseDependencies = {
-    react: '^18.3.1',
-    'react-dom': '^18.3.1',
-    '@object-ui/react': '^0.1.0',
-    '@object-ui/components': '^0.1.0',
+  return {
+    'index.html': html,
+    'src/main.tsx': mainTsx,
+    'src/App.tsx': appTsx,
+    'src/index.css': indexCss,
+    'tailwind.config.js': buildTailwindConfig(context),
+    'postcss.config.js': APP_POSTCSS_CONFIG,
+    'package.json': JSON.stringify(buildAppPackageJson(context), null, 2),
+    'tsconfig.json': JSON.stringify(APP_TSCONFIG, null, 2)
   };
-
-  const baseDevDependencies = {
-    '@types/react': '^18.3.12',
-    '@types/react-dom': '^18.3.1',
-    '@vitejs/plugin-react': '^4.2.1',
-    autoprefixer: '^10.4.23',
-    postcss: '^8.5.6',
-    tailwindcss: '^3.4.19',
-    typescript: '~5.7.3',
-    vite: '^5.0.0',
-  };
-
-  const packageJson = {
-    name: 'objectui-temp-app',
-    private: true,
-    type: 'module',
-    // In monorepo, we use root node_modules, so we don't need dependencies here
-    dependencies: isMonorepo ? {} : baseDependencies,
-    devDependencies: isMonorepo ? {} : baseDevDependencies,
-  };
-
-  writeFileSync(join(tmpDir, 'package.json'), JSON.stringify(packageJson, null, 2));
-
-  // Create tsconfig.json
-  const tsconfig = {
-    compilerOptions: {
-      target: 'ES2020',
-      useDefineForClassFields: true,
-      lib: ['ES2020', 'DOM', 'DOM.Iterable'],
-      module: 'ESNext',
-      skipLibCheck: true,
-      moduleResolution: 'bundler',
-      allowImportingTsExtensions: true,
-      resolveJsonModule: true,
-      isolatedModules: true,
-      noEmit: true,
-      jsx: 'react-jsx',
-      strict: true,
-      noUnusedLocals: true,
-      noUnusedParameters: true,
-      noFallthroughCasesInSwitch: true,
-    },
-    include: ['src'],
-  };
-
-  writeFileSync(join(tmpDir, 'tsconfig.json'), JSON.stringify(tsconfig, null, 2));
 }
 
 export function createTempAppWithRouting(tmpDir: string, routes: RouteInfo[], appConfig?: unknown) {
+  writeGeneratedFiles(tmpDir, buildRoutedAppFiles(routes, appConfig, currentContext()));
+}
+
+/**
+ * Every file `createTempAppWithRouting` writes, as `relative path -> contents`.
+ *
+ * `src/main.tsx` is the entry — `index.html` loads exactly that one module — so
+ * every other generated `src/**` module has to be reachable from it, which is
+ * the reachability gate objectui#3826 established for the sibling generator and
+ * `app-generator.test.ts` ports here. `src/Layout.tsx` is written only when
+ * `appConfig` is present, precisely because that is the only case in which
+ * `src/App.tsx` imports it.
+ */
+export function buildRoutedAppFiles(
+  routes: RouteInfo[],
+  appConfig: unknown,
+  context: AppGeneratorContext
+): Record<string, string> {
+  const files: Record<string, string> = {};
+
   // Create index.html
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -452,32 +621,21 @@ export function createTempAppWithRouting(tmpDir: string, routes: RouteInfo[], ap
   </body>
 </html>`;
 
-  writeFileSync(join(tmpDir, 'index.html'), html);
+  files['index.html'] = html;
 
-  // Create src directory
-  const srcDir = join(tmpDir, 'src');
-  mkdirSync(srcDir, { recursive: true });
-
-  // Create schemas directory and copy all schemas
-  const schemasDir = join(srcDir, 'schemas');
-  mkdirSync(schemasDir, { recursive: true });
-  
   const schemaImports: string[] = [];
   const routeComponents: string[] = [];
-  
+
   routes.forEach((route, index) => {
     const schemaVarName = `schema${index}`;
     const schemaFileName = `page${index}.json`;
-    
-    // Write schema to schemas directory
-    writeFileSync(
-      join(schemasDir, schemaFileName),
-      JSON.stringify(route.schema, null, 2)
-    );
-    
+
+    // Add schema to the schemas directory
+    files[`src/schemas/${schemaFileName}`] = JSON.stringify(route.schema, null, 2);
+
     // Add import statement
     schemaImports.push(`import ${schemaVarName} from './schemas/${schemaFileName}';`);
-    
+
     // Add route component
     routeComponents.push(`        <Route path="${route.path}" element={<SchemaRenderer schema={${schemaVarName}} />} />`);
   });
@@ -556,7 +714,7 @@ export const useTheme = () => {
 
   return context
 }`;
-  writeFileSync(join(srcDir, 'theme-provider.tsx'), themeProviderTsx);
+  files['src/theme-provider.tsx'] = themeProviderTsx;
 
   // Create main.tsx
   const mainTsx = `import React from 'react';
@@ -573,7 +731,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   </React.StrictMode>
 );`;
 
-  writeFileSync(join(srcDir, 'main.tsx'), mainTsx);
+  files['src/main.tsx'] = mainTsx;
 
   // Generate Layout Code if appConfig is present
   let layoutImport = '';
@@ -766,7 +924,7 @@ const AppLayout = ({ app, children }) => {
 
 export default AppLayout;
 `;
-      writeFileSync(join(srcDir, 'Layout.tsx'), layoutCode);
+      files['src/Layout.tsx'] = layoutCode;
       
       layoutImport = `import AppLayout from './Layout';\nconst appConfig = ${JSON.stringify(appConfig)};`;
       layoutWrapperStart = `<AppLayout app={appConfig}>`;
@@ -801,7 +959,7 @@ ${routeComponents.join('\n')}
 
 export default App;`;
 
-  writeFileSync(join(srcDir, 'App.tsx'), appTsx);
+  files['src/App.tsx'] = appTsx;
 
   // Create index.css with Tailwind
   const indexCss = `@tailwind base;
@@ -874,139 +1032,12 @@ export default App;`;
   }
 }`;
 
-  writeFileSync(join(srcDir, 'index.css'), indexCss);
+  files['src/index.css'] = indexCss;
 
-  const cwd = process.cwd();
-  const isMonorepo = existsSync(join(cwd, 'pnpm-workspace.yaml'));
+  files['tailwind.config.js'] = buildTailwindConfig(context);
+  files['postcss.config.js'] = APP_POSTCSS_CONFIG;
+  files['package.json'] = JSON.stringify(buildRoutedAppPackageJson(), null, 2);
+  files['tsconfig.json'] = JSON.stringify(APP_TSCONFIG, null, 2);
 
-  // Define Tailwind Content Paths
-  // Include JSON files specifically
-  const contentPaths = ["'./index.html'", "'./src/**/*.{js,ts,jsx,tsx,json}'"];
-  if (isMonorepo) {
-     const componentsPath = join(cwd, 'packages/components/src/**/*.{ts,tsx}');
-     const pluginsPath = join(cwd, 'packages/plugin-*/src/**/*.{ts,tsx}');
-     contentPaths.push(`'${componentsPath}'`);
-     contentPaths.push(`'${pluginsPath}'`); 
-  }
-
-  // Create tailwind.config.js
-  const tailwindConfig = `/** @type {import('tailwindcss').Config} */
-export default {
-  darkMode: ['class'],
-  content: [${contentPaths.join(', ')}],
-  theme: {
-    extend: {
-      borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
-      },
-      colors: {
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
-        card: {
-          DEFAULT: 'hsl(var(--card))',
-          foreground: 'hsl(var(--card-foreground))',
-        },
-        popover: {
-          DEFAULT: 'hsl(var(--popover))',
-          foreground: 'hsl(var(--popover-foreground))',
-        },
-        primary: {
-          DEFAULT: 'hsl(var(--primary))',
-          foreground: 'hsl(var(--primary-foreground))',
-        },
-        secondary: {
-          DEFAULT: 'hsl(var(--secondary))',
-          foreground: 'hsl(var(--secondary-foreground))',
-        },
-        muted: {
-          DEFAULT: 'hsl(var(--muted))',
-          foreground: 'hsl(var(--muted-foreground))',
-        },
-        accent: {
-          DEFAULT: 'hsl(var(--accent))',
-          foreground: 'hsl(var(--accent-foreground))',
-        },
-        destructive: {
-          DEFAULT: 'hsl(var(--destructive))',
-          foreground: 'hsl(var(--destructive-foreground))',
-        },
-        border: 'hsl(var(--border))',
-        input: 'hsl(var(--input))',
-        ring: 'hsl(var(--ring))',
-        chart: {
-          1: 'hsl(var(--chart-1))',
-          2: 'hsl(var(--chart-2))',
-          3: 'hsl(var(--chart-3))',
-          4: 'hsl(var(--chart-4))',
-          5: 'hsl(var(--chart-5))',
-        },
-      },
-    },
-  },
-  plugins: [],
-};`;
-
-  writeFileSync(join(tmpDir, 'tailwind.config.js'), tailwindConfig);
-
-  // Create postcss.config.js
-  const postcssConfig = `export default {
-  plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
-  },
-};`;
-  
-  writeFileSync(join(tmpDir, 'postcss.config.js'), postcssConfig);
-
-  // Create package.json with react-router-dom
-  const packageJson = {
-    name: 'objectui-temp-app',
-    private: true,
-    type: 'module',
-    dependencies: {
-      react: '^18.3.1',
-      'react-dom': '^18.3.1',
-      'react-router-dom': '^7.12.0',
-      '@object-ui/react': '^0.1.0',
-      '@object-ui/components': '^0.1.0',
-    },
-    devDependencies: {
-      '@types/react': '^18.3.12',
-      '@types/react-dom': '^18.3.1',
-      '@vitejs/plugin-react': '^4.2.1',
-      autoprefixer: '^10.4.23',
-      postcss: '^8.5.6',
-      tailwindcss: '^3.4.19',
-      typescript: '~5.7.3',
-      vite: '^5.0.0',
-    },
-  };
-
-  writeFileSync(join(tmpDir, 'package.json'), JSON.stringify(packageJson, null, 2));
-
-  // Create tsconfig.json
-  const tsconfig = {
-    compilerOptions: {
-      target: 'ES2020',
-      useDefineForClassFields: true,
-      lib: ['ES2020', 'DOM', 'DOM.Iterable'],
-      module: 'ESNext',
-      skipLibCheck: true,
-      moduleResolution: 'bundler',
-      allowImportingTsExtensions: true,
-      resolveJsonModule: true,
-      isolatedModules: true,
-      noEmit: true,
-      jsx: 'react-jsx',
-      strict: true,
-      noUnusedLocals: true,
-      noUnusedParameters: true,
-      noFallthroughCasesInSwitch: true,
-    },
-    include: ['src'],
-  };
-
-  writeFileSync(join(tmpDir, 'tsconfig.json'), JSON.stringify(tsconfig, null, 2));
+  return files;
 }
