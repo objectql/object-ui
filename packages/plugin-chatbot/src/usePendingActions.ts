@@ -25,6 +25,10 @@
 import * as React from 'react';
 
 import type {
+  ApproveAiPendingActionResponse,
+  RejectAiPendingActionResponse,
+} from '@objectstack/spec/api';
+import type {
   PendingActionRow,
   PendingActionStatus,
 } from '@objectstack/spec/contracts';
@@ -58,26 +62,46 @@ import type {
 export type { PendingActionRow, PendingActionStatus };
 
 /**
- * Successful approval outcome returned by
- * `POST /api/v1/ai/pending-actions/:id/approve`.
+ * The two decision responses —
+ * `POST /api/v1/ai/pending-actions/:id/approve` and `…/reject` — THE spec
+ * types, re-exported under this package's published names (objectui#3783).
  *
- * The HTTP status is 200 when `status === 'executed'` and 500 when the
- * downstream dispatcher failed (`status === 'failed'`). The hook surfaces
- * both as a normal resolved value so the UI can show the error inline
- * without throwing.
+ * `@objectstack/spec/api` declares both (`ApproveAiPendingActionResponseSchema`
+ * / `RejectAiPendingActionResponseSchema` in `api/protocol.zod.ts`), and those
+ * are the same schemas `@objectstack/client`'s `ai.pendingActions.approve()` /
+ * `.reject()` type their return values with — so what is re-exported here IS
+ * the wire, not a second reading of it. The local names stay `ApproveOutcome` /
+ * `RejectOutcome` because they are this package's public API surface
+ * (`src/index.tsx`); only the shapes change.
+ *
+ * `status: 'failed'` is an HTTP **200** carrying a reason, not a 5xx: the
+ * approval succeeded, the execution did not (see the doc comment on
+ * `ApproveAiPendingActionResponseSchema`). The comment that used to sit here
+ * claimed 500, which contradicted both the spec and this hook's own design —
+ * `call()` throws on `!res.ok`, so a 500 could never reach the resolved-value
+ * path `AiPendingActionsInbox` reads `out.error` from.
+ *
+ * The copies this replaces were hand transcriptions and had drifted three ways.
+ * Because the local names are NOT the spec's names,
+ * `scripts/check-spec-symbol-derivation.mjs` — which fires when a local
+ * declaration OCCUPIES a spec export name — had no handle on them at all;
+ * renaming a hand copy is invisible to a name-based guard:
+ *
+ *  - `ApproveOutcome.id: string`, REQUIRED here and absent from the approve
+ *    response — `id` is on the REJECT side. This drift was not dormant: the
+ *    public `onDecided` callback (`useHitlInChat`) promised consumers a
+ *    `string` and handed them `undefined` at runtime, with no compiler
+ *    complaint anywhere;
+ *  - `status: 'executed' | 'failed' | string` — a union with `string` ABSORBS
+ *    the literals, so the annotation carried no information at all. The same
+ *    drift #3220 removed from the row above;
+ *  - `[k: string]: unknown` — the objectstack#4075 mechanism: an index
+ *    signature makes any structural comparison against the spec answer
+ *    "identical" however far the copy has drifted, so a parity test bolted onto
+ *    the copy would have been green from its first day.
  */
-export interface ApproveOutcome {
-  id: string;
-  status: 'executed' | 'failed' | string;
-  result?: unknown;
-  error?: string;
-  [k: string]: unknown;
-}
-
-export interface RejectOutcome {
-  id: string;
-  status: 'rejected' | string;
-}
+export type ApproveOutcome = ApproveAiPendingActionResponse;
+export type RejectOutcome = RejectAiPendingActionResponse;
 
 export interface UsePendingActionsOptions {
   /**

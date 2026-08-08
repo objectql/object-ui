@@ -33,6 +33,16 @@
  *    A path skip is broader than an ALLOW entry, and the hole it opens is an
  *    objectui-AUTHORED file dropped into that directory and silently unscanned.
  *    `the vendored directory stays vendored` below is what closes it.
+ *
+ * objectui#3783 added a fifth and sixth pin here for the guard's OTHER hole —
+ * the one no allowlist and no path skip is responsible for. `ApproveOutcome` /
+ * `RejectOutcome` in the same `usePendingActions.ts` were hand copies of the
+ * spec's approve/reject wire responses under DIFFERENT local names, so the
+ * name-collision guard was never going to see them: it fires on a spec name
+ * being occupied, and these occupied none. A renamed hand copy is invisible to
+ * a name-based check by construction, which makes a compile-time parity pin the
+ * only thing that can hold them — see
+ * `the decision outcomes ARE the spec wire responses` at the bottom.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -42,11 +52,20 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import type { PendingActionRow, PendingActionStatus } from '../usePendingActions';
+import type {
+  ApproveOutcome,
+  PendingActionRow,
+  PendingActionStatus,
+  RejectOutcome,
+} from '../usePendingActions';
 import type {
   PendingActionRow as SpecPendingActionRow,
   PendingActionStatus as SpecPendingActionStatus,
 } from '@objectstack/spec/contracts';
+import type {
+  ApproveAiPendingActionResponse,
+  RejectAiPendingActionResponse,
+} from '@objectstack/spec/api';
 
 /** Every name `@objectstack/spec` exports from any subpath — types AND values. */
 function specExportNames(): Set<string> {
@@ -239,5 +258,75 @@ describe('the pending-action row and status ARE the spec contract', () => {
     // status, this fails here rather than as an unstyled badge in the queue.
     const all: PendingActionStatus[] = ['pending', 'approved', 'executed', 'failed', 'rejected'];
     expect(new Set(all).size).toBe(5);
+  });
+});
+
+describe('the decision outcomes ARE the spec wire responses', () => {
+  it('is pinned at compile time', () => {
+    type _ApproveNotAny = Assert<Equal<IsAny<ApproveAiPendingActionResponse>, false>>;
+    type _ApproveNotUnknown = Assert<Equal<IsUnknown<ApproveAiPendingActionResponse>, false>>;
+    type _RejectNotAny = Assert<Equal<IsAny<RejectAiPendingActionResponse>, false>>;
+
+    type _ApproveIsSpec = Assert<Equal<ApproveOutcome, ApproveAiPendingActionResponse>>;
+    type _RejectIsSpec = Assert<Equal<RejectOutcome, RejectAiPendingActionResponse>>;
+
+    // Drift 1 — the copy declared `id: string`, REQUIRED, on the APPROVE side.
+    // The approve response has no `id` at all; `id` is the REJECT response's.
+    // This is the one drift that was not dormant: `useHitlInChat`'s public
+    // `onDecided` callback handed consumers this type over a payload that has
+    // never carried the field, so `outcome.id` type-checked and evaluated to
+    // `undefined`. The pin is `keyof`-shaped rather than an `Equal` on the
+    // property type because the failure to catch is the key EXISTING.
+    type _ApproveHasNoId = Assert<Equal<'id' extends keyof ApproveOutcome ? true : false, false>>;
+    type _RejectHasId = Assert<Equal<RejectOutcome['id'], string>>;
+
+    // Drift 2 — `'executed' | 'failed' | string` and `'rejected' | string`. A
+    // union with `string` ABSORBS the literals, so both annotations conveyed
+    // nothing; `AiPendingActionsInbox`'s `out.status === 'executed'` could have
+    // been compared against any spelling at all.
+    type _ApproveStatusNotString = Assert<
+      Equal<string extends ApproveOutcome['status'] ? true : false, false>
+    >;
+    type _RejectStatusNotString = Assert<
+      Equal<string extends RejectOutcome['status'] ? true : false, false>
+    >;
+    type _ApproveVocabulary = Assert<Equal<ApproveOutcome['status'], 'executed' | 'failed'>>;
+    type _RejectVocabulary = Assert<Equal<RejectOutcome['status'], 'rejected'>>;
+
+    // Drift 3 — `[k: string]: unknown` on the approve copy. objectstack#4075:
+    // with it, this whole describe block would have been green on the copies.
+    type _ApproveNoIndexSignature = Assert<Equal<HasIndexSignature<ApproveOutcome>, false>>;
+    type _RejectNoIndexSignature = Assert<Equal<HasIndexSignature<RejectOutcome>, false>>;
+
+    expect(true).toBe(true);
+  });
+
+  it('the spec still exports the names these are derived from', () => {
+    // The reverse pin. `check-spec-symbol-derivation.mjs` cannot cover this
+    // pair — the local names are `ApproveOutcome` / `RejectOutcome`, which
+    // collide with nothing, and that is exactly how a renamed hand copy hides
+    // from a name-based guard. So the only thing standing between these types
+    // and a fresh hand copy is the `Assert<Equal<…>>` block above plus this:
+    // if the spec renames or retires either response type, the import breaks
+    // loudly at compile time instead of the derivation quietly rotting.
+    for (const owned of ['ApproveAiPendingActionResponse', 'RejectAiPendingActionResponse']) {
+      expect(
+        SPEC_NAMES.has(owned),
+        `@objectstack/spec no longer exports \`${owned}\`, which ` +
+          `packages/plugin-chatbot/src/usePendingActions.ts derives its public ` +
+          `\`${owned.startsWith('Approve') ? 'ApproveOutcome' : 'RejectOutcome'}\` from. ` +
+          `Re-derive from the replacement — do NOT re-transcribe the shape locally ` +
+          `(objectui#3783).`,
+      ).toBe(true);
+    }
+  });
+
+  it('neither local name collides with a spec export', () => {
+    // Pins the PREMISE of the two pins above: were either name to become a spec
+    // export, `check-spec-symbol-derivation.mjs` would start covering this file
+    // for it and this note would be stale.
+    for (const local of ['ApproveOutcome', 'RejectOutcome']) {
+      expect(SPEC_NAMES.has(local)).toBe(false);
+    }
   });
 });
