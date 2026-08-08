@@ -26,6 +26,7 @@ import { Button } from '../../ui';
 import { cn } from '../../lib/utils';
 import { Loader2 } from 'lucide-react';
 import { resolveIcon } from './resolve-icon';
+import { hasDeclaredVisibilityGate } from './visibility-gate';
 
 export interface ActionButtonProps {
   schema: ActionSchema & { type: string; className?: string; actionType?: string };
@@ -145,7 +146,12 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
       // this once-only regardless, so it's safe to depend on it.
     }, [autoTrigger, handleClick]);
 
-    if (schema.visible && !isVisible) return null;
+    // A declared boolean `visible: false` is a verdict, not a missing gate —
+    // truthiness classified it as "ungated" and rendered the action for
+    // everyone (objectui#3823). Reachable because `action:bar` bypasses
+    // `SchemaRenderer` and spreads the whole member action onto this schema, so
+    // this gate is the only one on that path. See `hasDeclaredVisibilityGate`.
+    if (hasDeclaredVisibilityGate(schema.visible) && !isVisible) return null;
 
     return (
       <Button

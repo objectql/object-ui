@@ -22,6 +22,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../
 import { cn } from '../../lib/utils';
 import { Loader2 } from 'lucide-react';
 import { resolveIcon } from './resolve-icon';
+import { hasDeclaredVisibilityGate } from './visibility-gate';
 
 export interface ActionIconProps {
   schema: ActionSchema & { type: string; className?: string };
@@ -79,7 +80,11 @@ const ActionIconRenderer = forwardRef<HTMLButtonElement, ActionIconProps>(
       }
     }, [schema, execute, loading, localContext]);
 
-    if (schema.visible && !isVisible) return null;
+    // Same gate, same reachability as action-button.tsx (objectui#3823): an
+    // `action:icon` member of an `action:bar` gets the author's `visible`
+    // spread onto its own schema, and truthiness read a declared `false` as
+    // "no gate". See `hasDeclaredVisibilityGate`.
+    if (hasDeclaredVisibilityGate(schema.visible) && !isVisible) return null;
 
     const button = (
       <Button
