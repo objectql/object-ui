@@ -18,14 +18,28 @@ import React from 'react';
 // Capture the execute dispatch from the shared runner.
 const executeSpy = vi.fn().mockResolvedValue({ success: true });
 
-vi.mock('@object-ui/react', () => ({
-  ActionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  useAction: () => ({ execute: executeSpy }),
-  // `visible` predicate: our test actions omit `visible`, so this is unused,
-  // but keep it truthy so a `visible`-carrying action would still render.
-  useCondition: () => true,
-  toPredicateInput: (v: unknown) => v,
-}));
+// Only the action DISPATCH is doubled here. The predicate entry
+// (`useCondition` / `toPredicateInput`) is the REAL one (objectui#3835).
+//
+// It used to be stubbed constant-true, with a comment saying our test actions
+// omit `visible` "so this is unused" — which made the component's `visible`
+// gate unreachable from this suite for as long as it existed, so the truthiness
+// bug objectui#3835 reports lived here untouched (the objectui#4984 family: a
+// fixture keeping a broken rule green). A re-spelled stub would not fix that:
+// `visible: false` only reaches "hidden" if `toPredicateInput` passes the
+// boolean through and `evaluateCondition` short-circuits it, so a stub is a
+// second copy of exactly the semantics under test. `@object-ui/react`'s barrel
+// is cheap for the light `dom` project (`packages/components`' own gate suite
+// imports it unmocked), so the gate below is judged by the shipped evaluation
+// entry instead.
+vi.mock('@object-ui/react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@object-ui/react')>();
+  return {
+    ...actual,
+    ActionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    useAction: () => ({ execute: executeSpy }),
+  };
+});
 
 // The runtime is exercised in its own suite; here it's an inert shell so the
 // bar mounts without the full auth/i18n/router provider stack.
@@ -54,13 +68,27 @@ vi.mock('@object-ui/i18n', () => ({
   useObjectTranslation: () => ({ t: (key: string) => `t:${key}` }),
 }));
 
-vi.mock('@object-ui/components', () => ({
-  Button: ({ children, onClick, ...props }: any) => (
-    <button onClick={onClick} {...props}>{children}</button>
-  ),
-  Separator: () => <hr />,
-  cn: (...args: any[]) => args.filter(Boolean).join(' '),
-}));
+// The components barrel stays doubled (its full graph is what the light `dom`
+// project deliberately does not load), but `hasDeclaredVisibilityGate` is pulled
+// from its real source module — the ONE definition objectui#3492 established and
+// PR #3816 / #3825 / #3836 spread across the other four member-action gates. A
+// re-spelled `v != null && v !== ''` here would be a fifth copy of it living in
+// a test double, and would keep this suite green no matter what the shipped
+// predicate does (objectui#3142 is what copies of one answer cost). The module
+// is a dependency-free pure function, so importing it directly costs nothing.
+vi.mock('@object-ui/components', async () => {
+  const { hasDeclaredVisibilityGate } = await import(
+    '../../../../components/src/renderers/action/visibility-gate'
+  );
+  return {
+    Button: ({ children, onClick, ...props }: any) => (
+      <button onClick={onClick} {...props}>{children}</button>
+    ),
+    Separator: () => <hr />,
+    cn: (...args: any[]) => args.filter(Boolean).join(' '),
+    hasDeclaredVisibilityGate,
+  };
+});
 
 import { DeclaredActionsBar } from '../DeclaredActionsBar';
 
@@ -370,5 +398,134 @@ describe('DeclaredActionsBar chrome localization (objectui#2762)', () => {
     expect(byName['outputs.owning_team'].helpText).toBe('t:actions.decisionOutput.help');
     // The free-text variant carries the extra comma-separation sentence.
     expect(byName['outputs.notes'].helpText).toBe('t:actions.decisionOutput.helpMultiValue');
+  });
+});
+
+/**
+ * objectui#3835 — the declared-action `visible` gate. Fifth and hottest member
+ * of the objectui#3492 family: `if (action.visible && !isVisible) return null`
+ * asked TRUTHINESS, so `visible: false` — the most explicit "never show this" an
+ * author can write — was classified as "no gate declared", the verdict was never
+ * consulted, and the action rendered for everyone.
+ *
+ * Why this surface is the hot one, and why the family's mitigation does not
+ * cover it:
+ *
+ *   • The actions are SERVER-DECLARED (`objectDef.actions[]` /
+ *     `sys_approval_request`), not hand-written view JSON, so "spec's
+ *     `ExpressionInputSchema` has no boolean member, `objectstack build` cannot
+ *     emit one" does not apply — the def arrives from server metadata and
+ *     in-process construction, where a boolean is the natural spelling.
+ *   • `DeclaredActionsBar` is mounted as plain JSX by its hosts
+ *     (`apps/console/src/pages/system/ApprovalsInboxPage.tsx:2014` and `:2055`),
+ *     so `packages/react`'s `SchemaRenderer` — which hides a node whose
+ *     `visible !== undefined` evaluates false, and which made the component-level
+ *     gates of objectui#3812 dormant — is not on this path at all. This gate is
+ *     the only one there.
+ *   • What renders is the approvals inbox's record-section bar: Approve / Reject
+ *     / Reassign. A `visible: false` approval action rendered as a live button is
+ *     one click away from a real approve/reject call.
+ *
+ * The gate now asks `hasDeclaredVisibilityGate` (`!= null && !== ''`), imported
+ * from `@object-ui/components` rather than re-spelled — the verdict stays with
+ * the evaluation entry, which short-circuits a boolean instead of calling the
+ * expression engine.
+ *
+ * All FOUR shapes are asserted, and each one is load-bearing in a different
+ * direction:
+ *   • `false` hides — the defect itself (red before the fix);
+ *   • `true` renders and undeclared renders — the anti-mutation guards: "hide
+ *     the action unconditionally" satisfies every `visible: false` assertion on
+ *     its own and would otherwise leave the suite green;
+ *   • `''` renders — green BEFORE and AFTER the fix, and (measured, not assumed)
+ *     green even under a gate mutated to `visible !== undefined`. On THIS
+ *     surface `''` is covered twice: over-tightening the gate hands `''` to the
+ *     evaluation entry, and `toPredicateInput('')` is `undefined`, which
+ *     `evaluateCondition` reads as "no condition → visible". So this case
+ *     documents the intended semantics; it is not a mutation detector here, and
+ *     a reader should not mistake its passing for proof that the gate's `!== ''`
+ *     limb is exercised (the limb itself is pinned in `packages/components`,
+ *     next to the definition).
+ * Every case carries the ungated `COMPANION`, so a passing "not rendered" can
+ * never mean "the whole bar returned null" (the bar renders nothing at all when
+ * its located set is empty — a distinct code path, two lines away).
+ */
+const COMPANION = {
+  name: 'approval_reassign',
+  type: 'api',
+  label: 'Reassign',
+  target: '/api/v1/approvals/requests/{id}/reassign',
+  locations: ['record_section'],
+};
+
+function renderWithGate(action: Record<string, unknown>, record: Record<string, unknown> = REQUEST) {
+  return render(
+    <DeclaredActionsBar
+      objectName="sys_approval_request"
+      record={record}
+      location="record_section"
+      actions={[action, COMPANION] as any}
+    />,
+  );
+}
+
+describe('DeclaredActionsBar — declared `visible` on a server-declared action (objectui#3835)', () => {
+  const APPROVE = {
+    name: 'approval_approve',
+    type: 'api',
+    label: 'Approve',
+    target: '/api/v1/approvals/requests/{id}/approve',
+    locations: ['record_section'],
+  };
+
+  it('visible:false → the declared action does not render', () => {
+    renderWithGate({ ...APPROVE, visible: false });
+    expect(screen.queryByTestId('declared-action-approval_approve')).toBeNull();
+    // The bar itself rendered — the assertion above is about the gate, not about
+    // an empty located set.
+    expect(screen.getByTestId('declared-action-approval_reassign')).toBeInTheDocument();
+  });
+
+  it('visible:true → the declared action renders', () => {
+    renderWithGate({ ...APPROVE, visible: true });
+    expect(screen.getByTestId('declared-action-approval_approve')).toBeInTheDocument();
+    expect(screen.getByTestId('declared-action-approval_reassign')).toBeInTheDocument();
+  });
+
+  it('no `visible` at all → the declared action renders (ungated stays ungated)', () => {
+    renderWithGate({ ...APPROVE });
+    expect(screen.getByTestId('declared-action-approval_approve')).toBeInTheDocument();
+  });
+
+  it('an empty-string `visible` is not a declared gate — the action still renders', () => {
+    renderWithGate({ ...APPROVE, visible: '' });
+    expect(screen.getByTestId('declared-action-approval_approve')).toBeInTheDocument();
+  });
+
+  it('an expression-valued `visible` keeps its verdict — false hides, true shows', () => {
+    const gated = { ...APPROVE, visible: 'status == "pending"' };
+    const { unmount } = renderWithGate(gated, { ...REQUEST, status: 'approved' });
+    expect(screen.queryByTestId('declared-action-approval_approve')).toBeNull();
+    expect(screen.getByTestId('declared-action-approval_reassign')).toBeInTheDocument();
+    unmount();
+    renderWithGate(gated, { ...REQUEST, status: 'pending' });
+    expect(screen.getByTestId('declared-action-approval_approve')).toBeInTheDocument();
+  });
+
+  it('a hidden action leaves NO clickable surface in the toolbar', async () => {
+    // Hiding is not cosmetic on this surface: this component's own click handler
+    // is what POSTs the approve/reject call, so what matters is that the gated
+    // action contributes no button at all — not merely that a query by testid
+    // misses it. Asserting the toolbar's button SET (rather than clicking the
+    // companion and counting dispatches) is what makes this case move: an
+    // unclicked extra button dispatches nothing either way, so a
+    // dispatch-counting version of this test was green before the fix too.
+    renderWithGate({ ...APPROVE, visible: false });
+    const buttons = screen.getByRole('toolbar').querySelectorAll('button');
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]).toHaveAttribute('data-testid', 'declared-action-approval_reassign');
+    fireEvent.click(buttons[0]);
+    await waitFor(() => expect(executeSpy).toHaveBeenCalledTimes(1));
+    expect(executeSpy.mock.calls[0][0]).toMatchObject({ name: 'approval_reassign' });
   });
 });

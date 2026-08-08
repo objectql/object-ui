@@ -41,6 +41,21 @@ export { renderChildren } from './lib/utils';
 export { cva } from 'class-variance-authority';
 export { getLazyIcon, isLucideIconName, LazyIcon, toKebabIconName } from './lib/lazy-icon';
 
+// The member-action visibility gate — "did this action DECLARE a `visible` gate
+// at all?" (`!= null && !== ''`), the single definition objectui#3492
+// established and PR #3816 / #3825 / #3836 applied to every member-action gate
+// in this package and in `plugin-grid`.
+//
+// Exported because the family has a member OUTSIDE these packages: app-shell's
+// `DeclaredActionsBar` mounts an object's server-declared actions as plain JSX
+// (no `SchemaRenderer` in front, so its own gate is the only one on that path),
+// and asked truthiness — `visible: false` rendered a live Approve/Reject button
+// (objectui#3835). A re-export, not a copy: five gates in three packages asking
+// one question must not drift into five answers, which is exactly the shape
+// objectui#3142 had to unpick for `locations` in these same files. app-shell
+// already depends on this package, so the direction costs nothing new.
+export { hasDeclaredVisibilityGate } from './renderers/action/visibility-gate';
+
 // Export placeholder registration
 export { registerPlaceholders } from './renderers/placeholders';
 

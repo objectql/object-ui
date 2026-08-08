@@ -31,7 +31,7 @@
  */
 
 import React, { useCallback, useMemo, useState } from 'react';
-import { Button, Separator, cn } from '@object-ui/components';
+import { Button, Separator, cn, hasDeclaredVisibilityGate } from '@object-ui/components';
 import {
   ActionProvider,
   useAction,
@@ -187,7 +187,25 @@ const DeclaredActionButton: React.FC<{
     }
   }, [action, execute, loading, objectName, record, actionLabel, actionConfirm, actionSuccess, t]);
 
-  if ((action as any).visible && !isVisible) return null;
+  // Does the action DECLARE a `visible` gate? `hasDeclaredVisibilityGate`
+  // (`!= null && !== ''`) is the one definition on the question, imported rather
+  // than re-spelled. This gate used to ask truthiness, which classified
+  // `visible: false` — the most explicit "never show this" an author can write —
+  // as "no gate declared", skipped the verdict, and rendered the action for
+  // everyone (objectui#3835, the fifth member of the objectui#3492 family).
+  //
+  // The stakes here are the highest of the family: the actions are
+  // SERVER-declared (`objectDef.actions[]`), so "the spec's `visible` has no
+  // boolean member, `objectstack build` cannot emit one" does not apply, and this
+  // bar is mounted as plain JSX by its hosts — `packages/react`'s
+  // `SchemaRenderer`, which hides a `visible`-carrying node before its component
+  // mounts, is not on this path. This is the only gate on it, in front of the
+  // approvals inbox's Approve / Reject buttons.
+  //
+  // The verdict stays with the evaluation entry above: `toPredicateInput` passes
+  // a boolean through untouched and `useCondition` short-circuits it instead of
+  // calling the expression engine, so a declared `false` is `false`.
+  if (hasDeclaredVisibilityGate((action as any).visible) && !isVisible) return null;
 
   const iconName = typeof (action as any).icon === 'string' ? (action as any).icon as string : undefined;
   // Map the spec's action `variant` enum (primary|secondary|danger|ghost|link)
