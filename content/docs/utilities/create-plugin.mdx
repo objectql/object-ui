@@ -69,10 +69,11 @@ Two things are worth knowing before you look:
   config emitting an ES and a UMD bundle into `dist/`. There is no application to serve,
   so there is no dev server to start — see [Development Workflow](#development-workflow).
 - **Its dependency ranges are not listed here on purpose.** They live in that one
-  template literal, and the testing ones are asserted to equal this repository's own
-  ranges by `packages/create-plugin/src/__tests__/templates.test.ts`. Reading the literal
-  is the only way to see what your scaffold will actually contain; a range copied onto
-  this page would be the first thing to go stale.
+  template literal, and `packages/create-plugin/src/__tests__/templates.test.ts` anchors
+  the generated `devDependencies` to this repository's own declarations, so the scaffold
+  cannot drift away from the toolchain it is part of. Reading the literal is the only way
+  to see what your scaffold will actually contain; a range copied onto this page would be
+  the first thing to go stale.
 
 ## Development Workflow
 
