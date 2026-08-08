@@ -17,6 +17,7 @@
  * forms, and across inline / field-backed / missing-field branches.
  */
 import { describe, it, expect, vi } from 'vitest';
+import { resolveVisibleOptions, type ActionParamOption } from '@object-ui/core';
 import type { ActionParam } from '@object-ui/types';
 import {
   RESOLVED_ONLY_PARAM_KEYS,
@@ -356,5 +357,158 @@ describe('resolveActionParams — authored through the public ActionParam type (
     const authored: ActionParam = { name: 'account_id', type: 'lookup', reference: 'account' };
     const raw: RawActionParam = authored;
     expect(raw.reference).toBe('account');
+  });
+});
+
+/**
+ * objectui#3559 — a field-inherited option list keeps the keys the FIELD declared.
+ *
+ * `normaliseOptions()` rebuilt every inherited entry as a fresh `{ label, value }`,
+ * so a select field's per-option `visibleWhen` (ADR-0058 / #2284, declared by
+ * `@objectstack/spec`'s `SelectOptionSchema` and filtered by
+ * `resolveVisibleOptions()` in `@object-ui/core`) survived in the object form and
+ * vanished the moment an action param inherited the field via `{ field: '…' }`.
+ * The dialog then offered the whole list — predicate-hidden entries included —
+ * with no diagnostic on either side. `color` / `icon` / `disabled` went the same
+ * way.
+ *
+ * The asymmetry is the tell: options authored INLINE on the param never came
+ * through `normaliseOptions()` at all (`param.options ?? normaliseOptions(…)`),
+ * so they always sank verbatim. One branch of one `??` behaved one way and the
+ * other the other, for the same authored key.
+ *
+ * These tests follow the resolver's two jobs (expand bare strings, translate the
+ * label) and pin that it does no third one, then carry one inherited list all the
+ * way to `resolveVisibleOptions()` — the reader the option widgets wrap — so the
+ * claim under test is the observable one: the predicate narrows the dialog's list.
+ */
+describe('resolveActionParams — field-inherited option keys (objectui#3559)', () => {
+  /**
+   * A `select` field whose options carry the full declared vocabulary. Authoring
+   * this literal is itself the type-level half of the fix: this file is compiled
+   * by `tsconfig.typetests.json`, so a `RuntimeField.options` re-narrowed to
+   * `{ label, value }` fails excess-property checking right here rather than
+   * silently reverting the behaviour below.
+   */
+  const optionCtx = () =>
+    ctx({
+      objectName: 'account',
+      objects: [
+        {
+          name: 'account',
+          fields: {
+            tier: {
+              type: 'select',
+              label: 'Tier',
+              options: [
+                { label: 'Standard', value: 'standard', color: 'gray' },
+                {
+                  label: 'Admin only',
+                  value: 'admin_only',
+                  visibleWhen: "'admin' in current_user.positions",
+                  color: 'red',
+                  icon: 'shield',
+                  disabled: false,
+                },
+              ],
+            },
+            stage: { type: 'select', label: 'Stage', options: ['open', 'won'] },
+          },
+        },
+      ],
+    });
+
+  it('keeps a per-option visibleWhen the field declared', () => {
+    const resolved = resolveActionParams([{ field: 'tier' }], optionCtx())[0];
+    expect(resolved.options).toEqual([
+      { label: 'Standard', value: 'standard', color: 'gray' },
+      {
+        label: 'Admin only',
+        value: 'admin_only',
+        visibleWhen: "'admin' in current_user.positions",
+        color: 'red',
+        icon: 'shield',
+        disabled: false,
+      },
+    ]);
+  });
+
+  it('still translates the label through fieldOptionLabel, keeping the other keys', () => {
+    const resolved = resolveActionParams(
+      [{ field: 'tier' }],
+      ctx({
+        ...optionCtx(),
+        fieldOptionLabel: (objectName, fieldName, value, fallback) =>
+          `${objectName}.${fieldName}.${value}:${fallback}`,
+      }),
+    )[0];
+    expect(resolved.options?.[1]).toEqual({
+      label: 'account.tier.admin_only:Admin only',
+      value: 'admin_only',
+      visibleWhen: "'admin' in current_user.positions",
+      color: 'red',
+      icon: 'shield',
+      disabled: false,
+    });
+  });
+
+  it('still expands bare strings into label/value pairs', () => {
+    expect(resolveActionParams([{ field: 'stage' }], optionCtx())[0].options).toEqual([
+      { label: 'open', value: 'open' },
+      { label: 'won', value: 'won' },
+    ]);
+  });
+
+  it('leaves options undefined when the field declares none', () => {
+    const resolved = resolveActionParams(
+      [{ field: 'tier' }],
+      ctx({ objectName: 'account', objects: [{ name: 'account', fields: { tier: { type: 'text' } } }] }),
+    )[0];
+    expect(resolved.options).toBeUndefined();
+  });
+
+  it('passes an option list authored INLINE on the param through verbatim', () => {
+    // The branch that was never broken — pinned so the fix is read as making the
+    // two branches agree, not as touching this one. Stays green either way.
+    const inline = [
+      { label: 'Yes', value: 'yes' },
+      { label: 'Admin only', value: 'admin_only', visibleWhen: "'admin' in current_user.positions" },
+    ];
+    const resolved = resolveActionParams(
+      [{ field: 'tier', options: inline }, { name: 'confirm', type: 'select', options: inline }],
+      optionCtx(),
+    );
+    // Field-backed with inline options: the inline list wins and the field's is
+    // not consulted (same object identity — nothing rebuilt it).
+    expect(resolved[0].options).toBe(inline);
+    expect(resolved[1].options).toBe(inline);
+  });
+
+  it('reaches resolveVisibleOptions through paramToField and narrows the offered set', () => {
+    // End to end over the real chain the dialog uses: field metadata →
+    // resolveActionParams → paramToField → the `field.options` a widget reads →
+    // `resolveVisibleOptions`, which is what `useCascadingOptions` wraps.
+    const field = paramToField(resolveActionParams([{ field: 'tier' }], optionCtx())[0]);
+
+    const forSales = resolveVisibleOptions(field.options, {}, { current_user: { positions: ['sales'] } });
+    expect(forSales.map((o) => o.value)).toEqual(['standard']);
+
+    const forAdmin = resolveVisibleOptions(field.options, {}, { current_user: { positions: ['admin'] } });
+    expect(forAdmin.map((o) => o.value)).toEqual(['standard', 'admin_only']);
+  });
+
+  it('keeps `label` and `value` required on a param option (type-level)', () => {
+    // The catch-all widens the vocabulary; it must not dissolve the two keys
+    // this layer itself reads. Compiled by `tsconfig.typetests.json`, so these
+    // assertions are checked — a re-widening to `Record< string, unknown >`
+    // turns the unused suppressions into errors.
+    const complete: ActionParamOption = { label: 'Standard', value: 'standard', color: 'gray' };
+    expect(complete.value).toBe('standard');
+
+    // @ts-expect-error `value` is not optional
+    const noValue: ActionParamOption = { label: 'Standard' };
+    // @ts-expect-error `label` is not optional
+    const noLabel: ActionParamOption = { value: 'standard' };
+    expect([noValue, noLabel]).toHaveLength(2);
   });
 });

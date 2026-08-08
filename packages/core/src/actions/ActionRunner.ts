@@ -428,12 +428,38 @@ export type ResultDialogHandler = (
  * `maxLength` / `pattern`. Declaring it on the resolved side only invited the
  * authoring side to declare it back.
  */
+/**
+ * One entry of a param's option list, as the RESOLVED param carries it.
+ *
+ * `label` / `value` are the two keys this layer itself reads and rewrites (i18n
+ * translation of the label, value matching). Everything else an option declares
+ * rides along in the catch-all and reaches the widgets untouched: per-option
+ * `visibleWhen` (the CEL predicate `resolveVisibleOptions()` filters on —
+ * ADR-0058 / #2284), `color`, `icon`, `disabled`.
+ *
+ * The catch-all is deliberate rather than a closed key list (objectui#3559).
+ * A field's option vocabulary is owned by the field metadata (`@objectstack/spec`'s
+ * `SelectOptionSchema`) and read by the option widgets; a param's option list is
+ * only a CONDUIT between the two. When this type restated that vocabulary as
+ * `{ label, value }`, the resolver dutifully rebuilt every inherited option to
+ * match and a field's `visibleWhen` stopped narrowing the dialog's list — the
+ * same field metadata behaving two ways on two surfaces. Naming the two keys
+ * this layer uses and passing the rest through is what keeps that from
+ * recurring; it is NOT an invitation to author new resolved-only option keys
+ * (the spec's schema is the authoring gate, and it is `.strict()`).
+ */
+export type ActionParamOption = {
+  label: string;
+  value: string;
+  [key: string]: unknown;
+};
+
 export interface ActionParamDef {
   name: string;
   label: string;
   type: string;
   required?: boolean;
-  options?: Array<{ label: string; value: string }>;
+  options?: ActionParamOption[];
   defaultValue?: unknown;
   helpText?: string;
   placeholder?: string;
