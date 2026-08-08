@@ -262,13 +262,29 @@ const sampleFor = (input: any): unknown => {
 };
 
 /**
- * Mount one block bare and report every data-layer call it made.
+ * What one probe mount observed: every data-layer call the block made, and the
+ * DOM it produced.
+ *
+ * The html half is here because a crash is invisible in `calls` alone —
+ * `SchemaRenderer` catches a renderer's throw and paints an error card, so a
+ * crashed block simply makes no calls, which is the pass condition on the
+ * ledgered branch below. Deliberately the same shape and field names as the
+ * sibling probe's `Mount` (`record-block-record-reach.test.tsx:310-313`), which
+ * has captured both halves from the start for the same reason.
+ */
+interface Mount {
+  calls: string[];
+  html: string;
+}
+
+/**
+ * Mount one block bare and report every data-layer call it made, plus the DOM.
  *
  * The data source is a Proxy so ANY method a block reaches for is recorded
  * rather than crashing it — a block that calls `dataSource.aggregate` must not
  * fail the probe merely because a hand-written stub didn't anticipate it.
  */
-async function dataCallsFor(cfg: any): Promise<string[]> {
+async function dataCallsFor(cfg: any): Promise<Mount> {
   const calls: string[] = [];
   const record = (key: string) =>
     (...args: unknown[]) => {
