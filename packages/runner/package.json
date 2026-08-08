@@ -19,7 +19,7 @@
     "type-check": "tsc --noEmit && tsc -p tsconfig.test.json",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run --root ../.. packages/runner/"
   },
   "dependencies": {
     "@object-ui/components": "workspace:*",
