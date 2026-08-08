@@ -18,7 +18,7 @@
  *   generator actually writes.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -69,6 +69,92 @@ function importedPackagesOf(source: string): string[] {
   return [...packages].sort();
 }
 
+type Manifest = {
+  devDependencies?: Record<string, string>;
+  dependencies?: Record<string, string>;
+};
+
+function readManifest(path: string): Manifest {
+  return JSON.parse(readFileSync(path, 'utf-8')) as Manifest;
+}
+
+/** The repo root `package.json` — anchor for every dependency it declares. */
+function rootManifest(): Manifest {
+  return readManifest(resolve(REPO_ROOT, 'package.json'));
+}
+
+/**
+ * `packages/plugin-*` manifests, as `package name -> manifest`.
+ *
+ * `create-plugin` writes into `<cwd>/packages/plugin-<name>`, so a generated
+ * plugin is a literal sibling of these — which makes them the faithful anchor
+ * for build dependencies the root manifest does not declare
+ * (`@vitejs/plugin-react`, `vite-plugin-dts`).
+ */
+function inRepoPluginManifests(): Record<string, Manifest> {
+  const packagesDir = resolve(REPO_ROOT, 'packages');
+  const manifests: Record<string, Manifest> = {};
+  for (const entry of readdirSync(packagesDir, { withFileTypes: true })) {
+    if (!entry.isDirectory() || !entry.name.startsWith('plugin-')) continue;
+    const manifestPath = resolve(packagesDir, entry.name, 'package.json');
+    if (!existsSync(manifestPath)) continue;
+    manifests[entry.name] = readManifest(manifestPath);
+  }
+  return manifests;
+}
+
+/**
+ * Which in-repo manifest each generated devDependency range must quote.
+ *
+ * Anchoring is what keeps ONE range per dependency in this repo instead of one
+ * per file. `root` is preferred wherever the dependency exists there (that is
+ * the anchor objectui#3733 chose for the three testing entries); the two
+ * build-only tools the root does not declare are anchored to the in-repo plugin
+ * manifests the generated package sits beside.
+ *
+ * Every key of the generated `devDependencies` must appear here — the
+ * completeness test below fails on an unanchored addition, so this map cannot
+ * quietly go back to covering a subset (objectui#3742).
+ */
+const DEV_DEPENDENCY_ANCHORS: Record<string, 'root' | 'in-repo-plugins'> = {
+  '@testing-library/jest-dom': 'root',
+  '@testing-library/react': 'root',
+  '@vitejs/plugin-react': 'in-repo-plugins',
+  jsdom: 'root',
+  typescript: 'root',
+  vite: 'root',
+  'vite-plugin-dts': 'in-repo-plugins',
+  vitest: 'root'
+};
+
+/** The range `name` is declared at in the root manifest, if it is declared there. */
+function rootRangeOf(name: string): string | undefined {
+  const manifest = rootManifest();
+  return manifest.devDependencies?.[name] ?? manifest.dependencies?.[name];
+}
+
+/**
+ * The range every in-repo plugin declaring `name` agrees on.
+ *
+ * Returns the distinct ranges found, keyed by range, so a divergence names the
+ * offending manifests instead of just failing. A split here is itself a finding
+ * — this repo's rule is one range per dependency — so the parity test asserts
+ * unanimity rather than picking a winner.
+ */
+function inRepoPluginRangesOf(name: string): Record<string, string[]> {
+  const byRange: Record<string, string[]> = {};
+  for (const [pluginDir, manifest] of Object.entries(inRepoPluginManifests())) {
+    const range = manifest.devDependencies?.[name] ?? manifest.dependencies?.[name];
+    if (range === undefined) continue;
+    (byRange[range] ??= []).push(pluginDir);
+  }
+  return byRange;
+}
+
+function generatedDevDependencies(vars: PluginTemplateVars): Record<string, string> {
+  return (buildPackageJson(vars) as { devDependencies: Record<string, string> }).devDependencies;
+}
+
 function declaredDependencies(vars: PluginTemplateVars): Record<string, string> {
   const pkg = buildPackageJson(vars) as {
     dependencies: Record<string, string>;
@@ -94,24 +180,58 @@ describe('generated package.json', () => {
     );
   });
 
-  it('sources the testing ranges from this repo instead of inventing them', () => {
+  it('anchors every devDependency range, leaving none unpinned', () => {
+    // The completeness gate. objectui#3733 pinned only the three testing
+    // ranges, and the five build ranges beside them drifted one to two majors
+    // behind the repo's own toolchain unnoticed (objectui#3742). Adding a
+    // devDependency to the template without naming its anchor fails here.
+    const generated = generatedDevDependencies(VARS);
+    expect(Object.keys(generated).sort()).toEqual(Object.keys(DEV_DEPENDENCY_ANCHORS).sort());
+  });
+
+  it('sources every devDependency range from this repo instead of inventing them', () => {
     // These literals live in `.ts` source, outside the objectui#3711
     // version-claims gate's scan face, so this is the gate for them: the
     // template must quote the monorepo's own range for the same package.
-    // Bumping the root manifest and leaving the template behind is the drift
+    // Bumping an in-repo manifest and leaving the template behind is the drift
     // this test exists to catch — update `src/templates.ts` in the same PR.
-    const rootPkg = JSON.parse(readFileSync(resolve(REPO_ROOT, 'package.json'), 'utf-8')) as {
-      devDependencies: Record<string, string>;
-    };
-    const generated = (
-      buildPackageJson(VARS) as { devDependencies: Record<string, string> }
-    ).devDependencies;
+    const generated = generatedDevDependencies(VARS);
 
-    for (const name of ['@testing-library/react', '@testing-library/jest-dom', 'jsdom']) {
-      expect(rootPkg.devDependencies[name], `${name} must exist in the root manifest`).toBeTruthy();
-      expect(generated[name], `${name} range must match the repo root`).toBe(
-        rootPkg.devDependencies[name]
-      );
+    for (const [name, anchor] of Object.entries(DEV_DEPENDENCY_ANCHORS)) {
+      if (anchor === 'root') {
+        const rootRange = rootRangeOf(name);
+        expect(rootRange, `${name} must exist in the root manifest`).toBeTruthy();
+        expect(generated[name], `${name} range must match the repo root`).toBe(rootRange);
+        continue;
+      }
+
+      const byRange = inRepoPluginRangesOf(name);
+      const ranges = Object.keys(byRange);
+      expect(
+        ranges.length,
+        `${name} must be declared by at least one packages/plugin-* manifest to anchor to`
+      ).toBeGreaterThan(0);
+      expect(
+        ranges.sort(),
+        `in-repo plugins disagree on ${name}: ${JSON.stringify(byRange)} — settle on one range first`
+      ).toHaveLength(1);
+      expect(generated[name], `${name} range must match packages/plugin-*`).toBe(ranges[0]);
+    }
+  });
+
+  it('keeps the two anchors consistent wherever both declare a dependency', () => {
+    // Makes the anchor CHOICE non-load-bearing: for anything declared both at
+    // the root and in the plugin manifests, the two must already agree, so
+    // reading one instead of the other cannot hide a drift.
+    for (const name of Object.keys(DEV_DEPENDENCY_ANCHORS)) {
+      const rootRange = rootRangeOf(name);
+      if (rootRange === undefined) continue;
+      for (const [range, plugins] of Object.entries(inRepoPluginRangesOf(name))) {
+        expect(
+          range,
+          `${name} is ${rootRange} at the repo root but ${range} in ${plugins.join(', ')}`
+        ).toBe(rootRange);
+      }
     }
   });
 });
@@ -151,6 +271,19 @@ describe('generated vite.config.ts', () => {
     // RTL only hooks cleanup when `afterEach` exists as a global
     // (`@testing-library/react/dist/index.js`: `if (typeof afterEach === 'function')`).
     expect(viteConfig).toContain('globals: true');
+  });
+
+  it('resolves paths with import.meta.dirname so it survives configLoader native', () => {
+    // vite 8 still defines `__dirname` under its default `bundle` config
+    // loader, but warns on it ("... unsupported by `configLoader: 'native'`,
+    // which is planned to become the default ... Use `import.meta.dirname`
+    // instead") and would fail outright once `native` is the default: that
+    // loader imports the config with Node's own ESM loader, which defines no
+    // `__dirname`. Same conversion `apps/console/vite.config.ts` got in
+    // objectui#3384 (objectui#3742).
+    expect(viteConfig).toContain('path.resolve(import.meta.dirname,');
+    expect(viteConfig).not.toContain('__dirname');
+    expect(viteConfig).not.toContain('__filename');
   });
 
   it('points setupFiles at a file the generator actually writes', () => {
