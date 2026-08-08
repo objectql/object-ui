@@ -3020,7 +3020,7 @@ const ja = {
       reviewed: "審査・承認済み",
       unreviewed: "未審査",
       signed: "署名済み",
-      grantsIntro: "インストール時に、このパッケージには次の権限が付与されます：",
+      grantsIntro: "インストール時に、このパッケージには次の権限が付与されます:",
       services: "プラットフォームサービス",
       hooks: "ライフサイクルフック",
       network: "ネットワークアクセス",

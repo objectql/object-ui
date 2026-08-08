@@ -281,6 +281,37 @@ describe('objectui#3546 slice five — the marketplace and preview namespaces', 
     }
   });
 
+  it('the ja trailing colon follows that pack\'s predicate/noun split, not en', () => {
+    // The ja pack is not inconsistent here, it is conditioned: a value that ends
+    // in a PREDICATE takes the halfwidth ":" (10 of 12 — the five connectAgent
+    // bodies, oauth.consent.willAllow, preview.changes.loadFailed, …), and one
+    // that ends in a NOUN label takes the fullwidth "：" (4 of 5 —
+    // grid.import.mappingTemplate, auth.verifyEmail.sentTo,
+    // preview.changes.detailChangedKeys, …).
+    //
+    // Both of this slice's ja colons end in a predicate (`付与されます`,
+    // `読み込めませんでした`), so both are halfwidth. `loadFailed` additionally
+    // matches its same-name sibling `preview.changes.loadFailed` byte for byte;
+    // `grantsIntro` has no sibling and is decided by the split alone. Written
+    // down because the first draft of this file got `grantsIntro` wrong (it had
+    // the fullwidth form) and only the census caught it.
+    expect(at(builtInLocales.ja, 'marketplace.disclosure.grantsIntro')).toBe(
+      'インストール時に、このパッケージには次の権限が付与されます:',
+    );
+    expect(at(builtInLocales.ja, 'preview.history.loadFailed')).toBe('履歴を読み込めませんでした:');
+    for (const key of ['marketplace.disclosure.grantsIntro', 'preview.history.loadFailed']) {
+      expect((at(builtInLocales.ja, key) as string).endsWith('：'), `ja ${key} used the fullwidth colon`).toBe(false);
+    }
+    // zh goes the other way on the same two strings: that pack writes fullwidth
+    // punctuation throughout (165 fullwidth commas, 13 fullwidth trailing colons
+    // against 6 halfwidth), and preview.changes.loadFailed zh is fullwidth too.
+    for (const key of ['marketplace.disclosure.grantsIntro', 'preview.history.loadFailed']) {
+      expect((at(builtInLocales.zh, key) as string).endsWith('：'), `zh ${key} lost the fullwidth colon`).toBe(true);
+    }
+    // ko has no fullwidth trailing colon anywhere in the pack (16 halfwidth, 0).
+    expect((at(builtInLocales.ko, 'marketplace.disclosure.grantsIntro') as string).endsWith(':')).toBe(true);
+  });
+
   describe('the marketplace.disclosure.runtime. template-key family', () => {
     it('is enumerated from the trust-tier enum, not guessed', () => {
       // The family left `missingPrefixes` because all three members now exist.
