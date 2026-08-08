@@ -24,6 +24,7 @@
 import type { RunnableActionType } from '@object-ui/types';
 import type { ActionInput as SpecActionInput } from '@objectstack/spec/ui';
 import { ExpressionEvaluator } from '../evaluator/ExpressionEvaluator';
+import { toPredicateInput } from '../evaluator/predicateInput';
 import { globalUndoManager, type UndoableOperation } from './UndoManager';
 import { warnOnUnknownActionKeys } from './actionKeys';
 
@@ -526,6 +527,67 @@ function withIdentityAlias(context: ActionContext): ActionContext {
   return { ...context, os: { ...(os && typeof os === 'object' ? os : {}), user } };
 }
 
+/**
+ * Did this action declare a `disabled` gate at all — i.e. is there a CONDITION
+ * for the evaluator to reach a verdict on? (objectui#3848)
+ *
+ * `ExpressionEvaluator.evaluateCondition` documents and implements one default
+ * for "there is no condition here": it returns `true`, meaning
+ * *visible/enabled*. That default is correct on `visible` / `enabled`, and
+ * INVERTED on `disabled`, where `true` means "blocked". So the execution gate
+ * must decide "is there a condition?" itself, BEFORE evaluating — asking
+ * `!= null && !== false` (what it used to ask) hands every empty predicate to a
+ * function whose answer for "nothing to evaluate" is the strongest possible
+ * "yes, disabled". Measured consequence: `disabled: ''` returned
+ * `{ success: false, error: 'Action is disabled' }` and the handler never ran.
+ *
+ * The shapes `evaluateCondition` itself calls "no condition" are `null` /
+ * `undefined` / `''` / a whitespace-only string (`if (!trimmed) return true`) /
+ * an envelope whose `source` is blank. This gate excludes exactly those:
+ *
+ *   - `toPredicateInput` is core's single predicate normalizer and already maps
+ *     `''`, `null`, `undefined`, an empty-`source` envelope, and any
+ *     non-predicate junk (`0`, `{}`) to `undefined` = "nothing to evaluate".
+ *   - the whitespace-only string is the one shape it does NOT collapse (it
+ *     wraps it as `'${   }'`), so it is named here. This is the same blank-source
+ *     rule core's other predicate entry already applies —
+ *     `evalRowPredicate` (`evaluator/listConditional.ts`) returns its fallback
+ *     for `!source.trim()`.
+ *
+ * ## Why the gate normalizes but the VERDICT still reads the raw value
+ *
+ * `evaluateCondition(toPredicateInput(raw))` is NOT interchangeable with
+ * `evaluateCondition(raw)` for a string that is ALREADY a `${…}` template:
+ * `toPredicateInput` assumes a bare expression and wraps unconditionally, so
+ * `'${x}'` becomes `'${${x}}'`, which no longer matches the single-template
+ * fast path, fails to parse, and comes back as the original NON-EMPTY STRING —
+ * `Boolean(…)` = `true`. A `${…}`-spelled `disabled` predicate evaluated that
+ * way is therefore ALWAYS "disabled", whatever it says. Measured on this tree:
+ * `disabled: '${user.role === "guest"}'` (false, admin context) → blocked.
+ *
+ * So the value handed to the evaluator is left exactly as it was. Every
+ * non-empty shape — boolean, bare CEL, `${…}` template, `{ dialect, source }`
+ * envelope — keeps the verdict it reaches today, and this change can only stop
+ * blocking things, never start. The double-wrap itself is a defect of
+ * `toPredicateInput`, live at the action renderers and `ActionEngine` (which do
+ * compose it that way) and filed separately; `SchemaRenderer` and `page:header`
+ * both evaluate the raw value and both pin the correct verdict for that
+ * spelling, which is the behaviour preserved here.
+ *
+ * Scope note: `hasDeclaredVisibilityGate`
+ * (`components/renderers/action/visibility-gate.ts`, `!= null && !== ''`) is
+ * the renderer-side spelling of this question. It is deliberately NOT reused or
+ * moved: it lives in a package that depends on this one, it does not cover the
+ * empty-`source` envelope (objectui#3850) or the whitespace string, and
+ * objectui#3850 is the queued ruling on unifying the scope of "empty
+ * predicate" across the sites. Kept module-private until that lands — one gate,
+ * one site, no new exported dialect of the same question.
+ */
+function hasDisabledCondition(value: unknown): boolean {
+  if (typeof value === 'string' && value.trim() === '') return false;
+  return toPredicateInput(value) !== undefined;
+}
+
 export class ActionRunner {
   private handlers = new Map<string, ActionRunnerHandler>();
   private scripts = new Map<string, ActionRunnerHandler>();
@@ -663,7 +725,15 @@ export class ActionRunner {
         }
       }
 
-      if (action.disabled != null && action.disabled !== false) {
+      // Ask "is a `disabled` gate DECLARED?" — not "is the key present and not
+      // `false`?" (objectui#3848). The old test let every EMPTY predicate reach
+      // `evaluateCondition`, whose answer for "no condition" is `true`, which on
+      // this key means BLOCKED: `disabled: ''` / `'   '` /
+      // `{ dialect: 'cel', source: '' }` all returned `Action is disabled` with
+      // the handler never invoked. See `hasDisabledCondition` above for why the
+      // gate normalizes to decide but the verdict below still reads the RAW
+      // value (`toPredicateInput` double-wraps an already-`${…}` string).
+      if (hasDisabledCondition(action.disabled)) {
         // `disabled` may be a boolean, a CEL string, or the normalized envelope
         // `{ dialect, source }` (what `objectstack build` emits). The previous
         // code only evaluated the STRING form and treated any object as truthy,
