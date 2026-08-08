@@ -7,12 +7,37 @@ description: Develop features for the Object UI Console application — the refe
 
 Use this skill when working on the Console application (`apps/console/`), the reference admin interface for Object UI. The Console demonstrates schema-driven patterns at scale and serves as the blueprint for enterprise admin interfaces.
 
-> **`apps/console` is a reference assembly, not the engine.** Commit `cccdf84d7`
-> ("Slim apps/console for third-party customisation") moved the shell, the layouts,
-> the home pages, the navigation and the whole metadata admin into
-> `@object-ui/app-shell`, moved the designer pages into
-> `@object-ui/plugin-designer`, and left `apps/console` as a thin host that mostly
-> declares routes. Two consequences for anyone reading this guide:
+> **`apps/console` is a reference assembly, not the engine.** The shell, the layouts,
+> the home pages, the navigation and the whole metadata admin live in
+> `@object-ui/app-shell`, the designer pages live in `@object-ui/plugin-designer`, and
+> `apps/console` is a thin host that mostly declares routes.
+>
+> **Don't credit that move to one commit.** Earlier revisions of this note attributed
+> all of it to `cccdf84d7` ("Slim apps/console for third-party customisation",
+> 2026-04-22); following that pointer lands you in a diff that never touches the
+> symbols you are looking for. The `app-shell` extraction is a chain of commits
+> spanning 2026-04-21 → 04-23, and `cccdf84d7` is **one step** in it — the step that
+> removed the designer pages and `pages/system/`, not the shell/navigation move:
+>
+> - **Providers** (`AdapterProvider`, `MetadataProvider`, `ExpressionProvider`) —
+>   `app-shell` copies added in `c1e105793` (04-21, "extract core providers and hooks
+>   to @object-ui/app-shell"), `apps/console` copies deleted in `28ffe4033` (04-22,
+>   "Refactor context providers to use @object-ui/app-shell"). Both **before**
+>   `cccdf84d7`.
+> - **Navigation, layout, home pages and the hooks** (`NavigationContext`,
+>   `FavoritesProvider`, `UnifiedSidebar`, `ConsoleLayout`, `console/home/*`,
+>   `useFavorites`, `useMetadataService`, `useNavPins`, `useNavigationSync`,
+>   `useObjectActions`, `useRecentItems`, `useResponsiveSidebar`) — `apps/console`
+>   copies deleted in `b279d80d6` (04-23), which is titled "feat: Add ReportView and
+>   SearchResultsPage components" and names none of it. **After** `cccdf84d7`. (Most
+>   `app-shell` copies land in that same commit; `useObjectActions` and
+>   `useRecentItems` arrived earlier, in `c1e105793`.)
+>
+> Check the symbol you actually care about instead of trusting any single-commit
+> attribution for this refactor:
+> `git log --diff-filter=A --format='%h %ad %s' --date=short -- packages/app-shell/...`
+>
+> Two consequences for anyone reading this guide:
 >
 > - **Look in `packages/app-shell` first.** Most symbols you want to change are
 >   there, not under `apps/console/src/`. Grep before you assume a path.
@@ -79,7 +104,8 @@ apps/console/src/pages/
 └── SharedRecordPage.tsx         # Public share-link landing
 ```
 
-Where the rest went (all of it left `apps/console` in `cccdf84d7`):
+Where the rest went (spread across the 2026-04-21 → 04-23 `app-shell` extraction chain,
+**not** `cccdf84d7` alone — see the commit-attribution note at the top of this guide):
 
 | Looking for | Today's home |
 |---|---|
