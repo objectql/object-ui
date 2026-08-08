@@ -15,7 +15,8 @@ import {
   DropdownMenuTrigger,
 } from '@object-ui/components';
 import { Edit, Trash2, MoreVertical } from 'lucide-react';
-import { useObjectTranslation, useRowPredicate, useCapabilityGate } from '@object-ui/react';
+import { evalRowPredicate } from '@object-ui/core';
+import { useObjectTranslation, useRowPredicate, useCapabilityGate, usePredicateScope } from '@object-ui/react';
 
 const ROW_ACTION_FALLBACKS: Record<string, string> = {
   'grid.openMenu': 'Open menu',
@@ -104,6 +105,170 @@ export interface RowActionMenuProps {
   objectFields?: unknown;
 }
 
+// ---------------------------------------------------------------------------
+// Visibility — ONE definition, read by the items AND by the "⋮" guard
+// ---------------------------------------------------------------------------
+
+/**
+ * Evaluate a row-action visibility predicate the way this file's items do — on
+ * the canonical CEL engine, failing CLOSED with a diagnosable warning — but
+ * WITHOUT a hook.
+ *
+ * Hook-free matters because the guard below asks this question for a VARIABLE
+ * number of declared actions inside one `useMemo`; a `useRowPredicate` per
+ * action would tie the hook count to `rowActionDefs.length`. Mirrors
+ * `useRowPredicate(pred, row, { fallback: false, warnOnError: true, label, fields })`
+ * exactly, boolean short-circuit included — a boolean handed to the engine
+ * faults ("AST-only evaluation not yet supported") and fails closed, which is
+ * how `visible: true` once hid a bulk button from everyone (objectui#3492; the
+ * same short-circuit is spelled out at length in this package's
+ * `bulkEligibility`).
+ */
+function evalRowActionVisibility(
+  pred: unknown,
+  row: any,
+  scope: Record<string, unknown>,
+  label: string,
+  fields: unknown,
+): boolean {
+  if (typeof pred === 'boolean') return pred;
+  if (pred == null || pred === '') return false;
+  return evalRowPredicate(pred as never, row ?? {}, {
+    fallback: false,
+    scope,
+    warnOnError: true,
+    label,
+    fields: fields as never,
+  });
+}
+
+/**
+ * Does the built-in Edit/Delete item render for THIS row? The single
+ * definition, read both by {@link BuiltinRowActionItem} itself and by the guard
+ * that decides whether this row gets a "⋮" trigger at all.
+ *
+ * The two disagreeing is objectui#3562: the guard counted whether HANDLERS were
+ * supplied, the items were then filtered a second time by these per-record
+ * predicates, and a row with every item suppressed still grew a trigger that
+ * opened an empty 128×10 box with zero `[role=menu]` children.
+ *
+ * `visibleWhen` counts as a declared gate by `!= null`, not by truthiness —
+ * `visibleWhen: false` hides the item rather than reading as "ungated". This is
+ * the item's historical rule, extracted verbatim.
+ */
+export function isBuiltinRowActionVisible(
+  predicates: BuiltinRowActionPredicates | undefined,
+  name: 'edit' | 'delete',
+  row: any,
+  scope: Record<string, unknown>,
+  fields?: unknown,
+): boolean {
+  const pred = predicates?.visibleWhen;
+  if (pred == null) return true;
+  return evalRowActionVisibility(pred, row, scope, `builtin:${name}:visibleWhen`, fields);
+}
+
+/**
+ * Does this schema-driven action render for THIS row? Same single-definition
+ * rule as the built-ins above, and it governs BOTH surfaces a def can land on:
+ * the "⋮" menu item ({@link RowActionMenuItem}) and the inline primary button
+ * ({@link RowActionInlineButton}). One function, so a def cannot be visible on
+ * one surface and hidden on the other.
+ *
+ * The gate is truthiness, which is what both items have always applied: a
+ * `visible: false` def RENDERS (the objectui#3492 shape). Preserved verbatim —
+ * the contract this function exists for is that the guard and the items agree,
+ * and re-deciding `visible: false` would change WHICH items render, a separate
+ * question tracked as objectui#3758.
+ */
+export function isCustomRowActionVisible(
+  def: RowActionDef | undefined,
+  row: any,
+  scope: Record<string, unknown>,
+  fields?: unknown,
+): boolean {
+  if (!def?.visible) return true;
+  return evalRowActionVisibility(def.visible, row, scope, def.name ?? 'row-action', fields);
+}
+
+/** What this row's action cell will actually render. */
+export interface RowActionMenuPlan {
+  /** Inline `variant:'primary'` buttons surviving their own `visible`. */
+  inline: RowActionDef[];
+  /** The built-in Edit item renders in the menu for this row. */
+  edit: boolean;
+  /** The built-in Delete item renders in the menu for this row. */
+  remove: boolean;
+  /** Menu-bound defs surviving their own `visible`, in declared order. */
+  custom: RowActionDef[];
+  /** Legacy string row actions. Predicate-free, so all of them render. */
+  legacy: string[];
+  /**
+   * Items that will render INSIDE the "⋮" menu. `0` means: render no trigger at
+   * all (#3562).
+   *
+   * Named `menuCount` rather than the data-table plan's `count` because this
+   * surface also has an inline button path, and inline buttons are NOT part of
+   * the trigger's decision — a row may legitimately show an inline CTA and no
+   * "⋮" (that is today's behavior for a single primary action).
+   */
+  menuCount: number;
+}
+
+/**
+ * Resolve ONE row's action cell — which items survive their per-record
+ * predicates, and how many that leaves inside the "⋮" menu.
+ *
+ * Per ROW, not per grid: `visibleWhen` / `visible` are per-record predicates,
+ * so two rows of the same grid legitimately differ (one keeps Edit, the next
+ * has nothing left). `RowActionMenu` is already instantiated per row by the
+ * `_actions` column's `cell`, so the decision lives here.
+ *
+ * Only visibility is decided here — a `disabled` item still renders (greyed
+ * out) and still COUNTS, exactly as before. Capability filtering
+ * (ADR-0066 D4 / framework#3923) happens upstream of this call, on the declared
+ * set, so its verdict reaches the guard the same way.
+ *
+ * Inline slot allocation is deliberately NOT re-derived from visibility: the
+ * `maxInlineActions` slice runs on the declared primaries, exactly as before,
+ * so a suppressed primary does not promote the next one into its slot. Which
+ * items render, and where, is unchanged — only whether the trigger renders.
+ */
+export function planRowActionMenu(input: {
+  row: any;
+  scope: Record<string, unknown>;
+  /** Primaries occupying the inline slots, already sliced by `maxInlineActions`. */
+  inlineDefs: readonly RowActionDef[];
+  /** Defs bound for the "⋮" menu (folded primaries + non-primaries). */
+  menuDefs: readonly RowActionDef[];
+  /** Legacy string row actions (no predicates). */
+  rowActions?: readonly string[];
+  canEdit?: boolean;
+  canDelete?: boolean;
+  onEdit?: unknown;
+  onDelete?: unknown;
+  editPredicates?: BuiltinRowActionPredicates;
+  deletePredicates?: BuiltinRowActionPredicates;
+  objectFields?: unknown;
+}): RowActionMenuPlan {
+  const { row, scope, objectFields } = input;
+  const inline = input.inlineDefs.filter((def) => isCustomRowActionVisible(def, row, scope, objectFields));
+  const edit = Boolean(input.canEdit && input.onEdit)
+    && isBuiltinRowActionVisible(input.editPredicates, 'edit', row, scope, objectFields);
+  const remove = Boolean(input.canDelete && input.onDelete)
+    && isBuiltinRowActionVisible(input.deletePredicates, 'delete', row, scope, objectFields);
+  const custom = input.menuDefs.filter((def) => isCustomRowActionVisible(def, row, scope, objectFields));
+  const legacy = [...(input.rowActions ?? [])];
+  return {
+    inline,
+    edit,
+    remove,
+    custom,
+    legacy,
+    menuCount: (edit ? 1 : 0) + (remove ? 1 : 0) + custom.length + legacy.length,
+  };
+}
+
 /**
  * One schema-driven row-action menu item. Extracted into its own component
  * so the `visible` CEL predicate can be evaluated with a hook
@@ -125,9 +290,17 @@ const RowActionMenuItem: React.FC<{
   // the ambient `features`/`user` scope is merged. `visible` fails CLOSED
   // (hidden + warn) so a broken predicate can't silently expose an action —
   // matching ActionEngine's posture; `disabled` fails soft (not disabled).
-  const isVisible = useRowPredicate(def.visible, row, { fallback: false, warnOnError: true, label: def.name, fields: objectFields });
+  //
+  // `visible` goes through the shared `isCustomRowActionVisible` — the SAME
+  // function the guard in `RowActionMenu` counts with, so an item can never be
+  // suppressed behind a "⋮" trigger that survived (objectui#3562).
+  const scope = usePredicateScope();
+  const isVisible = React.useMemo(
+    () => isCustomRowActionVisible(def, row, scope, objectFields),
+    [def, row, scope, objectFields],
+  );
   const isDisabled = useRowPredicate((def as any).disabled, row, { fallback: false, warnOnError: true, label: `${def.name}:disabled`, fields: objectFields });
-  if (def.visible && !isVisible) return null;
+  if (!isVisible) return null;
   return (
     <DropdownMenuItem
       disabled={isDisabled}
@@ -164,19 +337,20 @@ export const BuiltinRowActionItem: React.FC<{
   objectFields?: unknown;
   onSelect: (row: any) => void;
 }> = ({ name, predicates, row, icon, label, className, objectFields, onSelect }) => {
-  const isVisible = useRowPredicate(predicates?.visibleWhen, row, {
-    fallback: false,
-    warnOnError: true,
-    label: `builtin:${name}:visibleWhen`,
-    fields: objectFields,
-  });
+  // `visibleWhen` is read through the shared `isBuiltinRowActionVisible`, the
+  // same function the "⋮" guard counts with — see objectui#3562.
+  const scope = usePredicateScope();
+  const isVisible = React.useMemo(
+    () => isBuiltinRowActionVisible(predicates, name, row, scope, objectFields),
+    [predicates, name, row, scope, objectFields],
+  );
   const isDisabled = useRowPredicate(predicates?.disabledWhen, row, {
     fallback: false,
     warnOnError: true,
     label: `builtin:${name}:disabledWhen`,
     fields: objectFields,
   });
-  if (predicates?.visibleWhen != null && !isVisible) return null;
+  if (!isVisible) return null;
   const disabled = predicates?.disabledWhen != null && isDisabled;
   return (
     <DropdownMenuItem
@@ -208,6 +382,12 @@ function toButtonVariant(v: RowActionDef['variant']): 'default' | 'secondary' | 
  * into the "⋮" overflow), so the row's main CTA — e.g. "Open" on an
  * environment — is immediately visible and clickable. Hook-safe per item so
  * the `visible` CEL predicate is honored just like the menu path.
+ *
+ * "Just like the menu path" is now literal rather than parallel prose: the
+ * predicate is read through the shared `isCustomRowActionVisible`, so a primary
+ * action whose `visible` fails for this row cannot render inline while the same
+ * def would be hidden in the menu (objectui#3562, the inline half of the same
+ * single-source rule).
  */
 const RowActionInlineButton: React.FC<{
   def: RowActionDef;
@@ -215,8 +395,12 @@ const RowActionInlineButton: React.FC<{
   objectFields?: unknown;
   onActionDef?: (def: RowActionDef, row: any) => void;
 }> = ({ def, row, objectFields, onActionDef }) => {
-  const isVisible = useRowPredicate(def.visible, row, { fallback: false, warnOnError: true, label: def.name, fields: objectFields });
-  if (def.visible && !isVisible) return null;
+  const scope = usePredicateScope();
+  const isVisible = React.useMemo(
+    () => isCustomRowActionVisible(def, row, scope, objectFields),
+    [def, row, scope, objectFields],
+  );
+  if (!isVisible) return null;
   return (
     <Button
       variant={toButtonVariant(def.variant)}
@@ -264,21 +448,75 @@ export const RowActionMenu: React.FC<RowActionMenuProps> = ({
   // the menu (kept above secondary actions) so a row never renders more inline
   // buttons than the actions column can show, which previously clipped the
   // leftmost button (e.g. "Open" hidden behind "Upgrade Plan").
-  const primaryDefs = gatedActionDefs.filter(d => d.variant === 'primary');
-  const inlineDefs = primaryDefs.slice(0, Math.max(0, maxInlineActions));
-  const menuDefs = [
-    ...primaryDefs.slice(Math.max(0, maxInlineActions)),
-    ...gatedActionDefs.filter(d => d.variant !== 'primary'),
-  ];
-  const hasMenu = Boolean(
-    (canEdit && onEdit) ||
-    (canDelete && onDelete) ||
-    menuDefs.length > 0 ||
-    (rowActions?.length ?? 0) > 0,
+  //
+  // The slice runs on the DECLARED primaries, before any `visible` predicate is
+  // evaluated — unchanged on purpose. Re-deriving the slots from the surviving
+  // primaries would promote the next primary into a suppressed one's slot, i.e.
+  // change WHERE an item renders; #3562 is only about whether the "⋮" renders.
+  const { inlineDefs, menuDefs } = React.useMemo(() => {
+    const primaryDefs = gatedActionDefs.filter(d => d.variant === 'primary');
+    const max = Math.max(0, maxInlineActions);
+    return {
+      inlineDefs: primaryDefs.slice(0, max),
+      menuDefs: [
+        ...primaryDefs.slice(max),
+        ...gatedActionDefs.filter(d => d.variant !== 'primary'),
+      ],
+    };
+  }, [gatedActionDefs, maxInlineActions]);
+  // What this row will ACTUALLY render, per-record predicates applied — the
+  // guard and the items read one visibility source, so they cannot disagree.
+  //
+  // objectui#3562: the old guard asked whether handlers were supplied and how
+  // many actions were DECLARED (`(canEdit && onEdit) || … || menuDefs.length > 0`),
+  // while the items were filtered a second time, per row, by `visibleWhen` /
+  // `visible`. Handlers present + every item suppressed for this record = a "⋮"
+  // that opens an empty box — measured at 128×10 with zero `[role=menu]`
+  // children on `sys_approval_request`, whose `list_item` actions (approve /
+  // reject / recall) are gated for approvers and fail for an admin browsing the
+  // "全部" view. The capability gate above was already folded in for exactly
+  // this reason (#3923); the per-record predicates were not.
+  const scope = usePredicateScope();
+  const plan = React.useMemo(
+    () =>
+      planRowActionMenu({
+        row,
+        scope,
+        inlineDefs,
+        menuDefs,
+        rowActions,
+        canEdit,
+        canDelete,
+        onEdit,
+        onDelete,
+        editPredicates,
+        deletePredicates,
+        objectFields,
+      }),
+    [
+      row,
+      scope,
+      inlineDefs,
+      menuDefs,
+      rowActions,
+      canEdit,
+      canDelete,
+      onEdit,
+      onDelete,
+      editPredicates,
+      deletePredicates,
+      objectFields,
+    ],
   );
+  // Nothing left to show → no trigger. An affordance that opens empty reads as
+  // a broken page, which is the whole of #3562. The wrapper `<div>` is still
+  // returned, so the `_actions` cell stays present and every row keeps the same
+  // `<td>` count — a row with nothing to offer renders an empty cell, the shape
+  // a grid with no actions at all has always produced.
+  const hasMenu = plan.menuCount > 0;
   return (
     <div className="flex items-center justify-end gap-1 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-      {inlineDefs.map(def => (
+      {plan.inline.map(def => (
         <RowActionInlineButton
           key={def.name}
           def={def}
@@ -301,7 +539,11 @@ export const RowActionMenu: React.FC<RowActionMenuProps> = ({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-            {canEdit && onEdit && (
+            {/* Rendered off the PLAN, the same object the trigger's existence
+                was decided from — the items and the "⋮" cannot drift apart
+                (#3562). Each item component re-reads the shared visibility
+                function too, so it stays correct when used standalone. */}
+            {plan.edit && (
               <BuiltinRowActionItem
                 name="edit"
                 predicates={editPredicates}
@@ -309,10 +551,10 @@ export const RowActionMenu: React.FC<RowActionMenuProps> = ({
                 icon={<Edit className="mr-2 h-4 w-4" />}
                 label={t('grid.edit')}
                 objectFields={objectFields}
-                onSelect={onEdit}
+                onSelect={(r) => onEdit?.(r)}
               />
             )}
-            {canDelete && onDelete && (
+            {plan.remove && (
               <BuiltinRowActionItem
                 name="delete"
                 predicates={deletePredicates}
@@ -320,10 +562,10 @@ export const RowActionMenu: React.FC<RowActionMenuProps> = ({
                 icon={<Trash2 className="mr-2 h-4 w-4" />}
                 label={t('grid.delete')}
                 objectFields={objectFields}
-                onSelect={onDelete}
+                onSelect={(r) => onDelete?.(r)}
               />
             )}
-            {menuDefs.map(def => (
+            {plan.custom.map(def => (
               <RowActionMenuItem
                 key={def.name}
                 def={def}
@@ -332,7 +574,7 @@ export const RowActionMenu: React.FC<RowActionMenuProps> = ({
                 onActionDef={onActionDef}
               />
             ))}
-            {rowActions?.map(action => (
+            {plan.legacy.map(action => (
               <DropdownMenuItem
                 key={action}
                 onClick={() => onAction?.(action, row)}
