@@ -47,11 +47,19 @@ actions / aria` and has no `description`. Both `title` and `subtitle` interpolat
 `{field.path}` tokens against the surrounding record context.
 
 `description` is a **legacy alias** of `subtitle`, kept only for pages authored before
-`subtitle` existed; `subtitle` wins when both are set. It is scheduled for removal
-together with the ADR-0087 D2 conversion entry `page-header-subtitle-alias` (in the
-framework repo), which rewrites `description` → `subtitle` at load time. Until that
-conversion ships, dropping the read here would silently delete the second line on
-out-of-repo pages — so the prop stays, and new pages write `subtitle`.
+`subtitle` existed; `subtitle` wins when both are set.
+
+Upstream has already closed its half of this. The ADR-0087 D2 conversion entry
+`page-header-subtitle-alias` is **live** in protocol 17: the loader rewrites a header
+node's `properties.description` to `properties.subtitle` as the stack is loaded. An
+already-canonical `subtitle` still wins, and a `description` it shadows is left exactly
+as authored rather than the loader choosing between two different second lines.
+
+Retiring the prop on this side is tracked separately, in objectui#3789. The gate there is
+a measurement rather than a date: every path by which a `page-header` node reaches this
+renderer has to be shown to go through a loader that actually performs that rewrite. Until
+objectui#3789 lands, the prop stays and this renderer keeps reading it — and new pages
+write `subtitle`.
 
 `actions` is delegated to the `record:quick_actions` widget with
 `location: 'record_header'`, so authors get the standard toolbar (icons, overflow menu,

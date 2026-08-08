@@ -243,12 +243,14 @@ renders nothing here.
 
 > **Write `subtitle`, not `description`.** `@objectstack/spec/ui`'s `PageHeaderProps` —
 > the contract for the canonical `page:header` node — declares
-> `title / subtitle / icon / breadcrumb / actions / aria` and has **no** `description`.
-> The renderer still reads `description` as a legacy alias (`subtitle` wins when both are
-> set) for pages authored before `subtitle` existed, but `page-header`'s registration
-> declares only `title` and `subtitle` as authorable inputs. Metadata written with
-> `description` renders a subtitle under the legacy `page-header` alias and **nothing at
-> all** under the canonical `page:header`.
+> `title / subtitle / icon / breadcrumb / actions / aria` and has **no** `description`,
+> and `page-header`'s registration declares only `title` and `subtitle` as authorable
+> inputs. `description` is still accepted in two places: protocol 17's ADR-0087 D2
+> conversion `page-header-subtitle-alias` rewrites it to `subtitle` on header nodes as the
+> stack loads, and this renderer reads it directly as a legacy alias (`subtitle` wins when
+> both are set) for nodes that reach it without passing through that loader. `subtitle` is
+> the only spelling that renders on **every** path, and the alias is on its way out
+> (objectui#3789) — see the [PageHeader reference](/docs/layout/page-header).
 
 > **There is no `breadcrumbs` array.** The component reads no breadcrumb property of any
 > kind, in either spelling. The spec's `breadcrumb` is singular and a **boolean** — a
