@@ -507,6 +507,58 @@ describe('objectui#3546 slice five — the marketplace and preview namespaces', 
     }
   });
 
+  it('preview.history.items reuses common.itemCount, the same count-plus-unit adjacency', () => {
+    // The call site renders `{c.itemCount} {t('preview.history.items')}` — the
+    // number comes from the component and the pack supplies only the unit. That
+    // is structurally identical to `common.itemCount` (`{{count}} items`), which
+    // this repo already translates in all ten packs, so the unit is taken from
+    // there rather than invented.
+    //
+    // This one was invented first, and wrongly: `de Element(e)` / `fr élément(s)`
+    // / `es elemento(s)` / `pt item(ns)` / `ru элемент(ов)`, copying the
+    // parenthesised plural marker those packs use elsewhere. Two things were wrong
+    // with it — `ru` uses that marker NOWHERE in 2832 values (it restructures, or
+    // abbreviates as in `fields.relativeDate.overdue`'s `{{count}} дн.`), and
+    // `item(ns)` does not even yield `itens` under pt's own append convention.
+    // The reason the neighbour was missed: the reuse table above matches
+    // BYTE-IDENTICAL `en` strings, and `common.itemCount`'s en is `{{count}} items`,
+    // not `item(s)` — so a neighbour expressing the same concept with different
+    // English is invisible to that search. Hence this assertion, by hand.
+    const UNIT: Record<string, string> = {
+      zh: '项',
+      ja: '件',
+      de: 'Elemente',
+      fr: 'éléments',
+      es: 'elementos',
+      pt: 'itens',
+      ru: 'элементов',
+      ar: 'عناصر',
+    };
+    for (const [lang, unit] of Object.entries(UNIT)) {
+      expect(at(builtInLocales[lang], 'preview.history.items'), `${lang} items`).toBe(unit);
+      // the premise: that unit really is what common.itemCount uses
+      expect(at(builtInLocales[lang], 'common.itemCount'), `${lang} common.itemCount`).toBe(
+        `{{count}} ${unit}`,
+      );
+    }
+    // `ko` is the one deliberate departure. `common.itemCount` ko is
+    // `{{count}}개 항목` — the counter 개 binds to the numeral with no space — but
+    // this call site emits `{count}` + a space + the unit, so carrying 개 across
+    // would render `3 개 항목` with a space inside the number-counter unit. The
+    // counter is dropped and the bare noun kept, which reads correctly as `3 항목`.
+    expect(at(builtInLocales.ko, 'preview.history.items')).toBe('항목');
+    expect(at(builtInLocales.ko, 'common.itemCount')).toBe('{{count}}개 항목');
+    // And no pack reintroduced a parenthesised plural marker here.
+    for (const lang of LANGS.filter((l) => l !== 'en')) {
+      expect(
+        /\(\w{1,4}\)/.test(at(builtInLocales[lang], 'preview.history.items') as string),
+        `${lang} items reintroduced a "(s)" marker`,
+      ).toBe(false);
+    }
+    // en keeps the call site's own spelling, per this slice's byte-identity rule.
+    expect(at(builtInLocales.en, 'preview.history.items')).toBe('item(s)');
+  });
+
   it('the ratchet actually shrank — no marketplace/preview key is still baselined', () => {
     // `scripts/i18n-call-site-key-baseline.json` fails the build both ways: an
     // unfixed key missing from it, AND a fixed key still listed. Pinning the

@@ -3307,7 +3307,7 @@ const es = {
       revertLabel: 'Se deshizo un cambio',
       applyLabel: 'Cambio de compilación',
       revert: 'deshacer',
-      items: 'elemento(s)',
+      items: 'elementos',
       revertAction: 'Deshacer',
       reverted: 'Deshecho — el cambio se ha revertido.',
       revertFailed: 'Error al deshacer',

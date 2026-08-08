@@ -3302,7 +3302,7 @@ const ko = {
       revertLabel: '변경을 되돌렸습니다',
       applyLabel: '빌드 변경',
       revert: '되돌림',
-      items: '개',
+      items: '항목',
       revertAction: '되돌리기',
       reverted: '되돌렸습니다 — 변경이 취소되었습니다.',
       revertFailed: '되돌리기 실패',

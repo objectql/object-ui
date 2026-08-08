@@ -3302,7 +3302,7 @@ const ru = {
       revertLabel: 'Изменение отменено',
       applyLabel: 'Изменение сборки',
       revert: 'отмена',
-      items: 'элемент(ов)',
+      items: 'элементов',
       revertAction: 'Отменить',
       reverted: 'Отменено — изменение возвращено.',
       revertFailed: 'Не удалось отменить',
