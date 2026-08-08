@@ -121,9 +121,12 @@ jobs:
       #
       # A failure inside this step means RUN, never SKIP. objectstack#4928 named
       # that the filter contract, after a filter job that skipped when it could
-      # not tell produced a fully green, zero-gate pull request; the `|| echo ""`
-      # in the `docs` job below is the fail-CLOSED spelling and is why that job's
-      # own gate is reported separately (see the PR).
+      # not tell produced a fully green, zero-gate pull request. Every gate in
+      # this workflow is spelled that way — including the `docs` job below, whose
+      # capture swallowed its own failure into an empty result until
+      # objectui#3723. `scripts/__tests__/merge-queue-reporting.test.ts` holds
+      # every `CHANGED=$(git diff …)` in this file and in `lint.yml` to the
+      # fail-open form, so a new gate cannot be added in the closed spelling.
       - name: Decide whether this change needs a full run
         id: relevant
         run: |
@@ -552,27 +555,46 @@ jobs:
           fetch-depth: 0
           submodules: true
 
+      # Fails OPEN: if the diff cannot be computed the job builds the site,
+      # rather than reporting green having built nothing (objectstack#4928).
+      # Until objectui#3723 this step swallowed a failed `git diff` into an empty
+      # result (`2>/dev/null || echo ""`), which is indistinguishable from
+      # "nothing docs-related changed" — a checkout that did not fetch deep
+      # enough, a transient git failure or a malformed sha skipped the whole
+      # site build and the job still reported success. Measured against a
+      # fixture repository: on an unreachable base sha the old spelling yielded
+      # `should_run=false`, this one yields `true`; on a reachable base sha both
+      # agree, so which pull requests pay for a site build is unchanged.
       - name: Check for docs changes
         id: docs-changes
         run: |
           # `!= pull_request` covers `push` and `merge_group` alike
           # (objectui#3523). A queue build has no `github.event.pull_request`,
-          # so the else-branch below would diff an empty revision range and
-          # skip the site build on the last check before `main`.
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
-            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          # so the diff below would run on an empty revision range — and that
+          # case is NOT caught by failing open: git reads a bare `...` as
+          # `HEAD...HEAD` and exits 0 with no output (measured), so it would
+          # skip the site build on the last check before `main`. This early
+          # return is what covers it.
+          if [ "${{ github.event_name }}" != 'pull_request' ]; then
+            echo 'should_run=true' >> "$GITHUB_OUTPUT"
+            echo 'Not a pull request: push is filtered at the trigger, and a merge_group build is the last validation before main. Building the site.'
+            exit 0
+          fi
+          if ! CHANGED=$(git diff --name-only \
+            '${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}' -- \
+            'apps/site/' \
+            'content/'); then
+            echo 'should_run=true' >> "$GITHUB_OUTPUT"
+            echo 'Could not diff against the merge base. Building the site rather than skipping silently.'
+            exit 0
+          fi
+          if [ -n "$CHANGED" ]; then
+            echo 'should_run=true' >> "$GITHUB_OUTPUT"
+            echo 'Docs-related files changed:'
+            echo "$CHANGED"
           else
-            # Check if docs-related files changed in this PR
-            CHANGED=$(git diff --name-only ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} -- \
-              'apps/site/' 'content/' 2>/dev/null || echo "")
-            if [ -n "$CHANGED" ]; then
-              echo "should_run=true" >> "$GITHUB_OUTPUT"
-              echo "Docs-related files changed:"
-              echo "$CHANGED"
-            else
-              echo "should_run=false" >> "$GITHUB_OUTPUT"
-              echo "No docs-related files changed, skipping build"
-            fi
+            echo 'should_run=false' >> "$GITHUB_OUTPUT"
+            echo 'No docs-related files changed. Skipping the steps below; this check still reports.'
           fi
 
       - name: Enable Corepack

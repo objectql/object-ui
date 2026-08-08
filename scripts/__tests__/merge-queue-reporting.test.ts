@@ -111,6 +111,42 @@ const quotedEntries = (block: string): string[] =>
 const excludePathspecs = (yaml: string): string[] =>
   [...yaml.matchAll(/':\(exclude,glob\)([^']+)'/g)].map((m) => m[1]);
 
+/**
+ * Every line capturing a `git diff` into `CHANGED` — one per gate, trimmed.
+ *
+ * Lines rather than whole commands, because the fail-open decision is made
+ * entirely by how the capture OPENS: `if ! CHANGED=$(…` is what turns a nonzero
+ * `git diff` into `should_run=true`. A capture continued over further lines
+ * (every one of these is) still contributes exactly one entry, so the count is
+ * the number of gates.
+ *
+ * Callers must strip comments first (`withoutComments`) — both workflows now
+ * discuss this exact shape in prose, and counting the prose would report gates
+ * no job has.
+ */
+const diffCaptureLines = (yaml: string): string[] =>
+  yaml
+    .split('\n')
+    .filter((line) => /CHANGED=\$\(\s*git diff/.test(line))
+    .map((line) => line.trim());
+
+/**
+ * `file -> the jobs whose diff capture must fail open`.
+ *
+ * Hand-maintained for the same reason as `MUST_SUBSCRIBE_MERGE_GROUP`, and used
+ * only as a FLOOR: the assertion below checks the shape of every capture it
+ * finds, so a sixth gate is covered the moment it is written, while the floor is
+ * what makes DELETING one red. Without it, the shape check would pass an empty
+ * list — green because nothing was produced, not because anything is right.
+ */
+const FAIL_OPEN_GATES = new Map<string, readonly string[]>([
+  // `type-check`, `test` and `e2e` share `id: relevant` (objectui#3523 / PR
+  // #3722); `docs` has its own `id: docs-changes` and predates them (#3450),
+  // which is how it kept the fail-CLOSED spelling until objectui#3723.
+  ['ci.yml', ['type-check', 'test', 'e2e', 'docs']],
+  ['lint.yml', ['lint']],
+]);
+
 describe('every requirable context reports on a merge-queue build (#3523 step 1)', () => {
   it('subscribes merge_group in each workflow that produces one', () => {
     const missing = [...MUST_SUBSCRIBE_MERGE_GROUP.keys()].filter(
@@ -242,24 +278,66 @@ describe('every context reports on every pull request (#3523 step 2)', () => {
     }
   });
 
-  it('fails OPEN: a gate that cannot compute the diff runs everything', () => {
+  it('fails OPEN: EVERY gate that cannot compute the diff runs everything', () => {
     // The direction matters more than the code. objectstack#4928 named this the
     // filter contract after the opposite spelling — a diff whose failure was
     // swallowed into an empty result — produced a fully green pull request with
-    // no job having run and no red signal anywhere. `ci.yml`'s older `docs` gate
-    // still uses that fail-CLOSED spelling (`|| echo ""`); the gates added by
-    // objectui#3523 must not copy it.
+    // no job having run and no red signal anywhere.
+    //
+    // This assertion used to be a single `toMatch` per FILE, which is why it
+    // reported green while `ci.yml`'s `docs` gate was still fail-CLOSED
+    // (objectui#3723): the three gates PR #3722 added satisfied the regex on
+    // ci.yml's behalf, and a whole-file match cannot tell four captures from
+    // three plus a swallow. It is now per CAPTURE, so each gate answers for
+    // itself and a fifth spelled the closed way cannot hide behind the others.
     for (const file of FILTER_MOVED_INTO_JOBS) {
-      const yaml = read(file);
-      const gates = [...yaml.matchAll(/^\s*id: relevant$/gm)];
-      expect(gates.length, `${file} must still carry at least one \`id: relevant\` gate`).toBeGreaterThan(0);
+      const expected = FAIL_OPEN_GATES.get(file) ?? [];
+      const captures = diffCaptureLines(withoutComments(read(file)));
 
       expect(
-        yaml,
-        `${file}'s short-circuit swallows a failed \`git diff\` into an empty result, which reads ` +
-          `as "nothing relevant changed" and skips every gate. When the filter cannot tell, it ` +
-          `must RUN (objectstack#4928).`,
-      ).toMatch(/if ! CHANGED=\$\(git diff --name-only/);
+        captures.length,
+        `${file} declares ${captures.length} \`CHANGED=$(git diff …)\` captures, fewer than the ` +
+          `${expected.length} gates that must have one (${expected.join(', ')}). A gate whose diff ` +
+          `capture is gone either no longer filters at all, or filters by some other means this ` +
+          `test cannot check the direction of — and with none left, the shape assertion below ` +
+          `passes an empty list (objectui#3523, objectui#3723).`,
+      ).toBeGreaterThanOrEqual(expected.length);
+
+      const failClosed = captures.filter((line) => !line.startsWith('if ! CHANGED=$(git diff'));
+      expect(
+        failClosed,
+        `${file} captures a \`git diff\` without letting its failure mean RUN:\n` +
+          failClosed.map((line) => `  - ${line}`).join('\n') +
+          `\n\nEvery gate must open its capture as \`if ! CHANGED=$(git diff …); then\` and treat ` +
+          `the failure branch as should_run=true. Swallowing the failure instead — the ` +
+          `\`2>/dev/null || echo ""\` this file's \`docs\` job used until objectui#3723 — makes ` +
+          `"the diff could not be computed" indistinguishable from "nothing changed", so a ` +
+          `shallow checkout or a malformed sha skips the job's real work and still reports ` +
+          `success. When the filter cannot tell, it must RUN (objectstack#4928).`,
+      ).toEqual([]);
+    }
+  });
+
+  it('fails OPEN in effect, not only in shape: no gate swallows its diff failure', () => {
+    // `if !` is necessary but not sufficient. `if ! CHANGED=$(git diff … || echo
+    // "")` reads as fail-open and is not: `|| echo ""` makes the command succeed
+    // whatever git did, so the failure branch becomes unreachable and the gate is
+    // fail-CLOSED again with the safe spelling wrapped around it. Same for
+    // `2>/dev/null`, which additionally deletes git's own explanation of what
+    // went wrong from the run log — the one diagnostic a future reader gets.
+    for (const file of FILTER_MOVED_INTO_JOBS) {
+      const code = withoutComments(read(file));
+      for (const [shape, why] of [
+        [/\|\|\s*echo\s*""/, '`|| echo ""` makes the capture succeed even when git failed'],
+        [/2>\s*\/dev\/null/, '`2>/dev/null` hides why git failed'],
+      ] as const) {
+        expect(
+          code,
+          `${file} still contains ${why}. Both halves of the fail-CLOSED spelling objectui#3723 ` +
+            `removed must stay out: the gate's failure branch has to be reachable, and the run ` +
+            `log has to say what happened (objectstack#4928).`,
+        ).not.toMatch(shape);
+      }
     }
   });
 });
