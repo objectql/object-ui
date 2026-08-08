@@ -576,16 +576,17 @@ describe('objectui#3546 slice five — the marketplace and preview namespaces', 
       ),
     ).toEqual([]);
     // 68 before this slice, 37 removed — then slice six (perm + home, 14 keys)
-    // took it to 17. The other namespaces' debt is not this slice's to spend;
-    // this number moves once per slice, and only downwards.
-    expect(Object.keys(baseline.missingKeys).length).toBe(17);
-    // The prefix family this slice handled is GONE from the ratchet, and the two
-    // that remain are untouched — neither belongs to these namespaces.
-    expect(Object.keys(baseline.missingPrefixes).sort()).toEqual([
-      'gantt.linkEnd.',
-      'organization.invitations.status.',
-    ]);
-    expect(Object.keys(baseline.missingPrefixes)).not.toContain('marketplace.disclosure.runtime.');
+    // took it to 17 and slice seven (the 17-key residue) to ZERO. The counter
+    // moved once per slice and only downwards; at zero it stops being "how much
+    // is left" and becomes "nothing may be added back".
+    expect(Object.keys(baseline.missingKeys).length).toBe(0);
+    // The prefix family this slice handled is GONE from the ratchet, and slice
+    // seven took the last two (`gantt.linkEnd.`,
+    // `organization.invitations.status.`). The `not.toContain(…)` that used to sit
+    // below this line was dropped rather than kept: against an empty list it
+    // passes because nothing is produced, not because the logic holds. The set
+    // equality is the stronger statement and it is not vacuous.
+    expect(Object.keys(baseline.missingPrefixes).sort()).toEqual([]);
   });
 
   describe('through the real binding — bare useObjectTranslation, provider mounted', () => {

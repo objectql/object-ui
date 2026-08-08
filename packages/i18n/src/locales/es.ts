@@ -104,6 +104,10 @@ const es = {
     itemCountOne: "{{count}} elemento",
     toggleSidebar: "Alternar barra lateral",
     package: "Paquete",
+    done: "Listo",
+    editInStudio: "Editar en Studio",
+    record: "Registro",
+    retry: "Reintentar",
   },
   actions: {
     decisionOutput: {
@@ -602,6 +606,7 @@ const es = {
   },
   kanban: {
     uncategorized: "Sin categoría",
+    columns: "columnas",
     addCard: "Añadir tarjeta",
     addColumn: "Añadir columna",
     moveCard: "Mover tarjeta",
@@ -666,6 +671,10 @@ const es = {
       ss: "Inicio → Inicio",
       ff: "Fin → Fin",
       sf: "Inicio → Fin",
+    },
+    linkEnd: {
+      start: "Inicio",
+      end: "Fin",
     },
     conflict: {
       title: "Conflicto de programación",
@@ -802,9 +811,11 @@ const es = {
     copyToClipboard: "Copiar al portapapeles",
     copied: "¡Copiado!",
     deleteConfirmation: "¿Está seguro de que desea eliminar este registro?",
+    deleted: "Registro eliminado",
     editRecord: "Editar registro",
     viewAll: "Ver todo",
     new: "Nuevo",
+    add: "Agregar",
     emptyValue: "—",
     comments: "Comentarios",
     searchComments: "Buscar comentarios…",
@@ -911,9 +922,11 @@ const es = {
     concurrentUpdateReload: "Cargar versión actual",
     concurrentUpdateOverwrite: "Sobrescribir de todos modos",
     concurrentUpdateCancel: "Cancelar",
+    concurrentUpdateRecordLabel: "este registro",
     openInNewTab: "Abrir en nueva pestaña",
     activity: "Actividad",
     history: "Historial",
+    historyEmpty: "Aún no hay historial",
     editRow: "Editar",
     deleteRow: "Eliminar",
     deleteRowConfirmation: "¿Eliminar este registro?",
@@ -1011,6 +1024,7 @@ const es = {
   },
   dashboard: {
     noRows: "Sin filas",
+    loading: "Cargando…",
     pickMeasures: "Elija medidas (valores) para este widget de dataset.",
     datasetUnsupported: "Esta fuente de datos no admite consultas de dataset.",
     details: "Detalles",
@@ -2155,6 +2169,7 @@ const es = {
     invite: "Invitar miembro",
     members: "Miembros",
     settings: "Configuración del espacio de trabajo",
+    multiOrgDisabled: "La creación de nuevas organizaciones está deshabilitada en esta instancia.",
   },
   help: {
     onThisPage: "En esta página",
@@ -2311,6 +2326,9 @@ const es = {
       roles: "Roles",
       configuration: "Configuración",
       createApp: "Crear aplicación",
+      administration: "Administración",
+      datasources: "Fuentes de datos",
+      documentation: "Documentación",
     },
     appSwitcher: {
       switchApplication: "Cambiar de aplicación",
@@ -2369,6 +2387,7 @@ const es = {
   empty: {
     objectNotFound: "Objeto no encontrado",
     objectNotFoundDescription: "Falta la definición del objeto \"{{name}}\". Verifique su configuración o navegue hacia atrás.",
+    interfacePageSourceMissing: "Esta página de interfaz hace referencia a \"{{name}}\", que no está disponible.",
     pageNotFound: "Página no encontrada",
     pageNotFoundDescription: "La página \"{{name}}\" no fue encontrada. Puede haber sido eliminada o renombrada.",
     dashboardNotFound: "Panel no encontrado",
@@ -2377,6 +2396,8 @@ const es = {
     reportNotFoundDescription: "El informe \"{{name}}\" no fue encontrado. Puede haber sido eliminado o renombrado.",
     noAppsConfigured: "Sin aplicaciones configuradas",
     noAppsConfiguredDescription: "No hay aplicaciones registradas. Cree su primera aplicación o visite la configuración del sistema.",
+    appNotAvailable: "Aplicación no disponible",
+    appNotAvailableDescription: "Esta aplicación aún no está disponible — puede que todavía se esté publicando. Vuelva a intentarlo en un momento.",
     createFirstApp: "Crear primera aplicación",
     systemSettings: "Configuración del sistema",
     back: "Atrás",
@@ -2659,6 +2680,13 @@ const es = {
       sentDescription: "Comparte el enlace de abajo con la persona invitada. Tendrá que iniciar sesión para aceptarla.",
       linkLabel: "Enlace de aceptación",
       invitedAs: "{{email}} invitado como {{role}}",
+      status: {
+        all: "Todas",
+        pending: "Pendiente",
+        accepted: "Aceptada",
+        rejected: "Rechazada",
+        canceled: "Cancelada",
+      },
     },
     settings: {
       generalTitle: "General",

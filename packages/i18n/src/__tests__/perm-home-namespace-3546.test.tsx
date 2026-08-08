@@ -556,15 +556,14 @@ describe('objectui#3546 slice six — the perm and home namespaces', () => {
     expect(
       Object.keys(baseline.missingKeys).filter((k) => k.startsWith('perm.') || k.startsWith('home.')),
     ).toEqual([]);
-    // 31 before this slice, 14 removed. The other namespaces' debt is not this
-    // slice's to spend; this number moves once per slice, and only downwards.
-    expect(Object.keys(baseline.missingKeys).length).toBe(17);
-    // This slice owns NO prefix family — the two left belong to later slices, and
-    // neither is touched.
-    expect(Object.keys(baseline.missingPrefixes).sort()).toEqual([
-      'gantt.linkEnd.',
-      'organization.invitations.status.',
-    ]);
+    // 31 before this slice, 14 removed, leaving 17 — which slice seven (the
+    // residue: 17 keys plus both remaining prefix families) took to ZERO. The
+    // counter moved once per slice and only downwards; at zero it stops being
+    // "how much is left" and becomes "nothing may be added back".
+    expect(Object.keys(baseline.missingKeys).length).toBe(0);
+    // This slice owned NO prefix family — the two left belonged to slice seven,
+    // which enumerated both, so the list is now empty.
+    expect(Object.keys(baseline.missingPrefixes).sort()).toEqual([]);
   });
 
   describe('through the real binding — provider mounted', () => {

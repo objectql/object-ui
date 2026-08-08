@@ -105,6 +105,10 @@ const de = {
     itemCountOne: "{{count}} Element",
     toggleSidebar: "Seitenleiste umschalten",
     package: "Paket",
+    done: "Fertig",
+    editInStudio: "Im Studio bearbeiten",
+    record: "Datensatz",
+    retry: "Erneut versuchen",
   },
   actions: {
     decisionOutput: {
@@ -598,6 +602,7 @@ const de = {
   },
   kanban: {
     uncategorized: "Nicht kategorisiert",
+    columns: "Spalten",
     addCard: "Karte hinzufügen",
     addColumn: "Spalte hinzufügen",
     moveCard: "Karte verschieben",
@@ -662,6 +667,10 @@ const de = {
       ss: "Anfang → Anfang",
       ff: "Ende → Ende",
       sf: "Anfang → Ende",
+    },
+    linkEnd: {
+      start: "Anfang",
+      end: "Ende",
     },
     conflict: {
       title: "Terminkonflikt",
@@ -798,9 +807,11 @@ const de = {
     copyToClipboard: "In Zwischenablage kopieren",
     copied: "Kopiert!",
     deleteConfirmation: "Sind Sie sicher, dass Sie diesen Datensatz löschen möchten?",
+    deleted: "Datensatz gelöscht",
     editRecord: "Datensatz bearbeiten",
     viewAll: "Alle anzeigen",
     new: "Neu",
+    add: "Hinzufügen",
     emptyValue: "—",
     comments: "Kommentare",
     searchComments: "Kommentare suchen…",
@@ -907,9 +918,11 @@ const de = {
     concurrentUpdateReload: "Aktuelle Version laden",
     concurrentUpdateOverwrite: "Trotzdem überschreiben",
     concurrentUpdateCancel: "Abbrechen",
+    concurrentUpdateRecordLabel: "diesem Datensatz",
     openInNewTab: "In neuem Tab öffnen",
     activity: "Aktivität",
     history: "Verlauf",
+    historyEmpty: "Noch kein Verlauf",
     editRow: "Bearbeiten",
     deleteRow: "Löschen",
     deleteRowConfirmation: "Möchten Sie diesen Datensatz wirklich löschen?",
@@ -1007,6 +1020,7 @@ const de = {
   },
   dashboard: {
     noRows: "Keine Zeilen",
+    loading: "Wird geladen…",
     pickMeasures: "Wählen Sie Kennzahlen (Werte) für dieses Dataset-Widget.",
     datasetUnsupported: "Diese Datenquelle unterstützt keine Dataset-Abfragen.",
     details: "Details",
@@ -2151,6 +2165,7 @@ const de = {
     invite: "Mitglied einladen",
     members: "Mitglieder",
     settings: "Arbeitsbereichseinstellungen",
+    multiOrgDisabled: "Das Erstellen neuer Organisationen ist auf dieser Instanz deaktiviert.",
   },
   help: {
     onThisPage: "Auf dieser Seite",
@@ -2307,6 +2322,9 @@ const de = {
       roles: "Rollen",
       configuration: "Konfiguration",
       createApp: "App erstellen",
+      administration: "Verwaltung",
+      datasources: "Datenquellen",
+      documentation: "Dokumentation",
     },
     appSwitcher: {
       switchApplication: "Anwendung wechseln",
@@ -2365,6 +2383,7 @@ const de = {
   empty: {
     objectNotFound: "Objekt nicht gefunden",
     objectNotFoundDescription: "Definition des Objekts „{{name}}\" fehlt. Überprüfen Sie Ihre Konfiguration oder navigieren Sie zurück.",
+    interfacePageSourceMissing: "Diese Interface-Seite verweist auf „{{name}}“, das nicht verfügbar ist.",
     pageNotFound: "Seite nicht gefunden",
     pageNotFoundDescription: "Die Seite „{{name}}\" wurde nicht gefunden. Sie wurde möglicherweise entfernt oder umbenannt.",
     dashboardNotFound: "Dashboard nicht gefunden",
@@ -2373,6 +2392,8 @@ const de = {
     reportNotFoundDescription: "Der Bericht „{{name}}\" wurde nicht gefunden. Er wurde möglicherweise entfernt oder umbenannt.",
     noAppsConfigured: "Keine Apps konfiguriert",
     noAppsConfiguredDescription: "Es sind keine Anwendungen registriert. Erstellen Sie Ihre erste App oder besuchen Sie die Systemeinstellungen.",
+    appNotAvailable: "App nicht verfügbar",
+    appNotAvailableDescription: "Diese App ist noch nicht verfügbar — sie wird möglicherweise noch veröffentlicht. Versuchen Sie es in einem Moment erneut.",
     createFirstApp: "Erste App erstellen",
     systemSettings: "Systemeinstellungen",
     back: "Zurück",
@@ -2655,6 +2676,13 @@ const de = {
       sentDescription: "Teilen Sie den folgenden Link mit der eingeladenen Person. Sie muss sich anmelden, um anzunehmen.",
       linkLabel: "Annahme-Link",
       invitedAs: "{{email}} als {{role}} eingeladen",
+      status: {
+        all: "Alle",
+        pending: "Ausstehend",
+        accepted: "Angenommen",
+        rejected: "Abgelehnt",
+        canceled: "Zurückgezogen",
+      },
     },
     settings: {
       generalTitle: "Allgemein",

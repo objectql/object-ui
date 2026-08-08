@@ -322,18 +322,19 @@ describe('objectui#3546 slice four — the console namespace', () => {
     };
     expect(Object.keys(baseline.missingKeys).filter((k) => k.startsWith('console.'))).toEqual([]);
     // 109 before this slice, 41 removed — then slice five (marketplace + preview,
-    // 37 keys) took it to 31 and slice six (perm + home, 14 keys) to 17. The other
-    // namespaces' debt is not this slice's to spend; this number moves once per
-    // slice, and only downwards.
-    expect(Object.keys(baseline.missingKeys).length).toBe(17);
-    // The prefix family this slice handled is GONE from the ratchet, and the ones
-    // that remain are untouched — none of them belongs to `console`. Slice five
-    // then took `marketplace.disclosure.runtime.`, leaving two.
-    expect(Object.keys(baseline.missingPrefixes).sort()).toEqual([
-      'gantt.linkEnd.',
-      'organization.invitations.status.',
-    ]);
-    expect(Object.keys(baseline.missingPrefixes)).not.toContain('console.ai.group.');
+    // 37 keys) took it to 31, slice six (perm + home, 14 keys) to 17 and slice
+    // seven (the 17-key residue) to ZERO. The counter moved once per slice and
+    // only downwards; at zero it stops being "how much is left" and becomes
+    // "nothing may be added back".
+    expect(Object.keys(baseline.missingKeys).length).toBe(0);
+    // The prefix family this slice handled is GONE from the ratchet. Slice five
+    // then took `marketplace.disclosure.runtime.` and slice seven the last two
+    // (`gantt.linkEnd.`, `organization.invitations.status.`), so the list is empty.
+    // The `not.toContain('console.ai.group.')` that used to sit here was dropped
+    // rather than kept: against an empty list it passes because nothing is
+    // produced, not because the logic holds. The set equality above is the
+    // stronger statement and it is not vacuous.
+    expect(Object.keys(baseline.missingPrefixes).sort()).toEqual([]);
   });
 
   describe('through the real binding — bare useObjectTranslation, provider mounted', () => {

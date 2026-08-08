@@ -112,6 +112,10 @@ const zh = {
     itemCountOne: '{{count}} 项',
     toggleSidebar: '切换侧边栏',
     package: '软件包',
+    done: '完成',
+    editInStudio: '在 Studio 中编辑',
+    record: '记录',
+    retry: '重试',
   },
   actions: {
     decisionOutput: {
@@ -626,6 +630,7 @@ const zh = {
     noCards: '暂无卡片',
     cardTitlePlaceholder: '输入卡片标题...',
     uncategorized: '未分类',
+    columns: '列',
   },
   timeline: {
     bucket: {
@@ -711,6 +716,10 @@ const zh = {
       ss: '开始 → 开始',
       ff: '完成 → 完成',
       sf: '开始 → 完成',
+    },
+    linkEnd: {
+      start: '开始',
+      end: '结束',
     },
     conflict: {
       title: '排程冲突',
@@ -818,6 +827,7 @@ const zh = {
     concurrentUpdateReload: '加载最新',
     concurrentUpdateOverwrite: '仍然覆盖',
     concurrentUpdateCancel: '取消',
+    concurrentUpdateRecordLabel: '此记录',
     openInNewTab: '在新标签页打开',
     share: '分享',
     duplicate: '复制',
@@ -851,12 +861,15 @@ const zh = {
     copyToClipboard: '复制到剪贴板',
     copied: '已复制！',
     deleteConfirmation: '确定要删除此记录吗？',
+    deleted: '记录已删除',
     editRecord: '编辑记录',
     viewAll: '查看全部',
     new: '新建',
+    add: '添加',
     emptyValue: '—',
     activity: '活动',
     history: '历史',
+    historyEmpty: '暂无历史记录',
     editRow: '编辑',
     deleteRow: '删除',
     deleteRowConfirmation: '确定要删除此记录吗？',
@@ -1181,6 +1194,7 @@ const zh = {
     noDataAvailable: '暂无数据',
     noDataSourceFor: '没有可用的数据源：',
     noRows: '暂无数据行',
+    loading: '加载中…',
     pickMeasures: '请为该数据集组件选择度量（值）。',
     datasetUnsupported: '当前数据源不支持数据集查询。',
     details: '明细',
@@ -2329,6 +2343,7 @@ const zh = {
     invite: '邀请成员',
     members: '成员',
     settings: '工作区设置',
+    multiOrgDisabled: '此实例已禁用创建新组织。',
   },
   help: {
     keyboardShortcuts: '键盘快捷键',
@@ -2496,6 +2511,9 @@ const zh = {
       roles: '角色',
       configuration: '配置',
       createApp: '创建应用',
+      administration: '管理',
+      datasources: '数据源',
+      documentation: '文档',
     },
     activityFeed: {
       title: '最近动态',
@@ -2543,6 +2561,7 @@ const zh = {
   empty: {
     objectNotFound: '未找到对象',
     objectNotFoundDescription: '对象 “{{name}}” 的定义不存在。请检查配置或返回选择有效的对象。',
+    interfacePageSourceMissing: '此界面页引用了 “{{name}}”，但该来源不可用。',
     recordNotFound: '未找到记录',
     recordNotFoundDescription: '您查找的记录不存在或已被删除。',
     pageNotFound: '未找到页面',
@@ -2553,6 +2572,8 @@ const zh = {
     reportNotFoundDescription: '未找到报表 “{{name}}”，可能已被删除或重命名。',
     noAppsConfigured: '尚未配置应用',
     noAppsConfiguredDescription: '当前没有任何已注册的应用。请创建您的第一个应用，或前往系统设置进行配置。',
+    appNotAvailable: '应用不可用',
+    appNotAvailableDescription: '此应用尚不可用 —— 可能仍在发布中。请稍后重试。',
     createFirstApp: '创建您的第一个应用',
     systemSettings: '系统设置',
     back: '返回',
@@ -2768,6 +2789,13 @@ const zh = {
       sentDescription: '请将下方链接发送给受邀人。对方需要登录后才能接受。',
       linkLabel: '接受链接',
       invitedAs: '{{email}} 已以 {{role}} 身份受邀',
+      status: {
+        all: '全部',
+        pending: '等待中',
+        accepted: '已接受',
+        rejected: '已拒绝',
+        canceled: '已取消',
+      },
     },
     settings: {
       generalTitle: '常规',

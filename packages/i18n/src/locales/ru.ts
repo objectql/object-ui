@@ -111,6 +111,10 @@ const ru = {
     itemCountOne: "{{count}} элемент",
     toggleSidebar: "Переключить боковую панель",
     package: "Пакет",
+    done: "Готово",
+    editInStudio: "Редактировать в Studio",
+    record: "Запись",
+    retry: "Повторить",
   },
   actions: {
     decisionOutput: {
@@ -604,6 +608,7 @@ const ru = {
   },
   kanban: {
     uncategorized: "Без категории",
+    columns: "колонок",
     addCard: "Добавить карточку",
     addColumn: "Добавить колонку",
     moveCard: "Переместить карточку",
@@ -668,6 +673,10 @@ const ru = {
       ss: "Начало → Начало",
       ff: "Окончание → Окончание",
       sf: "Начало → Окончание",
+    },
+    linkEnd: {
+      start: "Начало",
+      end: "Конец",
     },
     conflict: {
       title: "Конфликт расписания",
@@ -806,9 +815,11 @@ const ru = {
     copyToClipboard: "Копировать в буфер обмена",
     copied: "Скопировано!",
     deleteConfirmation: "Вы уверены, что хотите удалить эту запись?",
+    deleted: "Запись удалена",
     editRecord: "Редактировать запись",
     viewAll: "Показать все",
     new: "Создать",
+    add: "Добавить",
     emptyValue: "—",
     activity: "Активность",
     editRow: "Редактировать",
@@ -926,8 +937,10 @@ const ru = {
     concurrentUpdateReload: "Загрузить текущую версию",
     concurrentUpdateOverwrite: "Всё равно перезаписать",
     concurrentUpdateCancel: "Отмена",
+    concurrentUpdateRecordLabel: "этой записи",
     openInNewTab: "Открыть в новой вкладке",
     history: "История",
+    historyEmpty: "Истории пока нет",
     deleteRowTitle: "Удалить запись",
     createdBy: "Создано",
     updatedBy: "Обновлено",
@@ -1013,6 +1026,7 @@ const ru = {
   },
   dashboard: {
     noRows: "Нет строк",
+    loading: "Загрузка…",
     pickMeasures: "Выберите меры (значения) для этого виджета набора данных.",
     datasetUnsupported: "Этот источник данных не поддерживает запросы к наборам данных.",
     details: "Подробности",
@@ -2157,6 +2171,7 @@ const ru = {
     invite: "Пригласить участника",
     members: "Участники",
     settings: "Настройки рабочего пространства",
+    multiOrgDisabled: "Создание новых организаций отключено в этой среде.",
   },
   help: {
     onThisPage: "На этой странице",
@@ -2314,6 +2329,9 @@ const ru = {
       roles: "Роли",
       configuration: "Конфигурация",
       createApp: "Создать приложение",
+      administration: "Администрирование",
+      datasources: "Источники данных",
+      documentation: "Документация",
     },
     appSwitcher: {
       switchApplication: "Сменить приложение",
@@ -2372,6 +2390,7 @@ const ru = {
   empty: {
     objectNotFound: "Объект не найден",
     objectNotFoundDescription: "Определение объекта \"{{name}}\" отсутствует. Проверьте конфигурацию или вернитесь назад.",
+    interfacePageSourceMissing: "Эта интерфейсная страница ссылается на \"{{name}}\", который недоступен.",
     pageNotFound: "Страница не найдена",
     pageNotFoundDescription: "Страница \"{{name}}\" не найдена. Возможно, она была удалена или переименована.",
     dashboardNotFound: "Панель не найдена",
@@ -2380,6 +2399,8 @@ const ru = {
     reportNotFoundDescription: "Отчёт \"{{name}}\" не найден. Возможно, он был удалён или переименован.",
     noAppsConfigured: "Нет приложений",
     noAppsConfiguredDescription: "Нет зарегистрированных приложений. Создайте первое приложение или посетите системные настройки.",
+    appNotAvailable: "Приложение недоступно",
+    appNotAvailableDescription: "Это приложение пока недоступно — возможно, публикация ещё идёт. Повторите попытку через мгновение.",
     createFirstApp: "Создать приложение",
     systemSettings: "Системные настройки",
     back: "Назад",
@@ -2662,6 +2683,13 @@ const ru = {
       sentDescription: "Отправьте ссылку ниже приглашённому. Чтобы принять приглашение, ему нужно войти в систему.",
       linkLabel: "Ссылка для принятия",
       invitedAs: "{{email}} приглашён как {{role}}",
+      status: {
+        all: "Все",
+        pending: "Ожидает",
+        accepted: "Принято",
+        rejected: "Отклонено",
+        canceled: "Отменено",
+      },
     },
     settings: {
       generalTitle: "Общие",

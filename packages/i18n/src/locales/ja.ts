@@ -105,6 +105,10 @@ const ja = {
     itemCountOne: "{{count}} 件",
     toggleSidebar: "サイドバーを切り替え",
     package: "パッケージ",
+    done: "完了",
+    editInStudio: "Studio で編集",
+    record: "レコード",
+    retry: "再試行",
   },
   actions: {
     decisionOutput: {
@@ -598,6 +602,7 @@ const ja = {
   },
   kanban: {
     uncategorized: "未分類",
+    columns: "カラム",
     addCard: "カードを追加",
     addColumn: "カラムを追加",
     moveCard: "カードを移動",
@@ -662,6 +667,10 @@ const ja = {
       ss: "開始 → 開始",
       ff: "終了 → 終了",
       sf: "開始 → 終了",
+    },
+    linkEnd: {
+      start: "開始",
+      end: "終了",
     },
     conflict: {
       title: "スケジュールの競合",
@@ -798,9 +807,11 @@ const ja = {
     copyToClipboard: "クリップボードにコピー",
     copied: "コピーしました！",
     deleteConfirmation: "このレコードを削除してもよろしいですか？",
+    deleted: "レコードを削除しました",
     editRecord: "レコードを編集",
     viewAll: "すべて表示",
     new: "新規",
+    add: "追加",
     emptyValue: "—",
     activity: "アクティビティ",
     editRow: "編集",
@@ -918,8 +929,10 @@ const ja = {
     concurrentUpdateReload: "最新を読み込む",
     concurrentUpdateOverwrite: "上書きする",
     concurrentUpdateCancel: "キャンセル",
+    concurrentUpdateRecordLabel: "このレコード",
     openInNewTab: "新しいタブで開く",
     history: "履歴",
+    historyEmpty: "履歴はまだありません",
     deleteRowTitle: "レコードを削除",
     createdBy: "作成者",
     updatedBy: "更新者",
@@ -1007,6 +1020,7 @@ const ja = {
   },
   dashboard: {
     noRows: "行がありません",
+    loading: "読み込み中…",
     pickMeasures: "このデータセットウィジェットの指標（値）を選択してください。",
     datasetUnsupported: "このデータソースはデータセットクエリに対応していません。",
     details: "詳細",
@@ -2151,6 +2165,7 @@ const ja = {
     invite: "メンバーを招待",
     members: "メンバー",
     settings: "ワークスペース設定",
+    multiOrgDisabled: "このインスタンスでは新しい組織の作成が無効です。",
   },
   help: {
     onThisPage: "このページの内容",
@@ -2307,6 +2322,9 @@ const ja = {
       roles: "ロール",
       configuration: "構成",
       createApp: "アプリを作成",
+      administration: "管理",
+      datasources: "データソース",
+      documentation: "ドキュメント",
     },
     appSwitcher: {
       switchApplication: "アプリケーションを切り替え",
@@ -2365,6 +2383,7 @@ const ja = {
   empty: {
     objectNotFound: "オブジェクトが見つかりません",
     objectNotFoundDescription: "オブジェクト「{{name}}」の定義が見つかりません。設定を確認するか、有効なオブジェクトを選択してください。",
+    interfacePageSourceMissing: "このインターフェースページは「{{name}}」を参照していますが、利用できません。",
     pageNotFound: "ページが見つかりません",
     pageNotFoundDescription: "ページ「{{name}}」が見つかりません。削除または名前変更された可能性があります。",
     dashboardNotFound: "ダッシュボードが見つかりません",
@@ -2373,6 +2392,8 @@ const ja = {
     reportNotFoundDescription: "レポート「{{name}}」が見つかりません。削除または名前変更された可能性があります。",
     noAppsConfigured: "アプリが設定されていません",
     noAppsConfiguredDescription: "登録されているアプリケーションがありません。最初のアプリを作成するか、システム設定を参照してください。",
+    appNotAvailable: "アプリを利用できません",
+    appNotAvailableDescription: "このアプリはまだ利用できません — まだ公開処理中の可能性があります。しばらくしてからもう一度お試しください。",
     createFirstApp: "最初のアプリを作成",
     systemSettings: "システム設定",
     back: "戻る",
@@ -2655,6 +2676,13 @@ const ja = {
       sentDescription: "以下のリンクを招待相手に共有してください。承諾にはサインインが必要です。",
       linkLabel: "承諾リンク",
       invitedAs: "{{email}} を {{role}} として招待しました",
+      status: {
+        all: "すべて",
+        pending: "待機中",
+        accepted: "承諾済み",
+        rejected: "辞退済み",
+        canceled: "取消済み",
+      },
     },
     settings: {
       generalTitle: "一般",

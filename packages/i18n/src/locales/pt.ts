@@ -104,6 +104,10 @@ const pt = {
     itemCountOne: "{{count}} item",
     toggleSidebar: "Alternar barra lateral",
     package: "Pacote",
+    done: "Concluído",
+    editInStudio: "Editar no Studio",
+    record: "Registro",
+    retry: "Tentar novamente",
   },
   actions: {
     decisionOutput: {
@@ -597,6 +601,7 @@ const pt = {
   },
   kanban: {
     uncategorized: "Sem categoria",
+    columns: "colunas",
     addCard: "Adicionar cartão",
     addColumn: "Adicionar coluna",
     moveCard: "Mover cartão",
@@ -661,6 +666,10 @@ const pt = {
       ss: "Início → Início",
       ff: "Término → Término",
       sf: "Início → Término",
+    },
+    linkEnd: {
+      start: "Início",
+      end: "Fim",
     },
     conflict: {
       title: "Conflito de agendamento",
@@ -799,9 +808,11 @@ const pt = {
     copyToClipboard: "Copiar para área de transferência",
     copied: "Copiado!",
     deleteConfirmation: "Tem certeza de que deseja excluir este registro?",
+    deleted: "Registro excluído",
     editRecord: "Editar registro",
     viewAll: "Ver tudo",
     new: "Novo",
+    add: "Adicionar",
     emptyValue: "—",
     comments: "Comentários",
     searchComments: "Pesquisar comentários…",
@@ -908,9 +919,11 @@ const pt = {
     concurrentUpdateReload: "Carregar versão atual",
     concurrentUpdateOverwrite: "Sobrescrever mesmo assim",
     concurrentUpdateCancel: "Cancelar",
+    concurrentUpdateRecordLabel: "este registro",
     openInNewTab: "Abrir em nova aba",
     activity: "Atividade",
     history: "Histórico",
+    historyEmpty: "Nenhum histórico ainda",
     editRow: "Editar",
     deleteRow: "Excluir",
     deleteRowConfirmation: "Excluir este registro?",
@@ -1006,6 +1019,7 @@ const pt = {
   },
   dashboard: {
     noRows: "Sem linhas",
+    loading: "Carregando…",
     pickMeasures: "Escolha medidas (valores) para este widget de dataset.",
     datasetUnsupported: "Esta fonte de dados não oferece suporte a consultas de dataset.",
     details: "Detalhes",
@@ -2150,6 +2164,7 @@ const pt = {
     invite: "Convidar membro",
     members: "Membros",
     settings: "Configurações do espaço de trabalho",
+    multiOrgDisabled: "A criação de novas organizações está desativada nesta instância.",
   },
   help: {
     onThisPage: "Nesta página",
@@ -2306,6 +2321,9 @@ const pt = {
       roles: "Perfis",
       configuration: "Configuração",
       createApp: "Criar aplicativo",
+      administration: "Administração",
+      datasources: "Fontes de dados",
+      documentation: "Documentação",
     },
     appSwitcher: {
       switchApplication: "Trocar de aplicativo",
@@ -2364,6 +2382,7 @@ const pt = {
   empty: {
     objectNotFound: "Objeto não encontrado",
     objectNotFoundDescription: "A definição do objeto \"{{name}}\" está ausente. Verifique sua configuração ou navegue de volta.",
+    interfacePageSourceMissing: "Esta página de interface faz referência a \"{{name}}\", que não está disponível.",
     pageNotFound: "Página não encontrada",
     pageNotFoundDescription: "A página \"{{name}}\" não foi encontrada. Ela pode ter sido removida ou renomeada.",
     dashboardNotFound: "Painel não encontrado",
@@ -2372,6 +2391,8 @@ const pt = {
     reportNotFoundDescription: "O relatório \"{{name}}\" não foi encontrado. Ele pode ter sido removido ou renomeado.",
     noAppsConfigured: "Nenhum aplicativo configurado",
     noAppsConfiguredDescription: "Nenhum aplicativo está registrado. Crie seu primeiro aplicativo ou visite as configurações do sistema.",
+    appNotAvailable: "Aplicativo indisponível",
+    appNotAvailableDescription: "Este aplicativo ainda não está disponível — a publicação pode estar em andamento. Tente novamente em instantes.",
     createFirstApp: "Criar primeiro aplicativo",
     systemSettings: "Configurações do sistema",
     back: "Voltar",
@@ -2654,6 +2675,13 @@ const pt = {
       sentDescription: "Compartilhe o link abaixo com a pessoa convidada. Ela precisará entrar para aceitar.",
       linkLabel: "Link de aceitação",
       invitedAs: "{{email}} convidado como {{role}}",
+      status: {
+        all: "Todos",
+        pending: "Pendente",
+        accepted: "Aceito",
+        rejected: "Recusado",
+        canceled: "Cancelado",
+      },
     },
     settings: {
       generalTitle: "Geral",

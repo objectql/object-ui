@@ -109,6 +109,10 @@ const ar = {
     itemCountOne: "{{count}} عنصر",
     toggleSidebar: "تبديل الشريط الجانبي",
     package: "الحزمة",
+    done: "تم",
+    editInStudio: "التعديل في Studio",
+    record: "سجل",
+    retry: "إعادة المحاولة",
   },
   actions: {
     decisionOutput: {
@@ -602,6 +606,7 @@ const ar = {
   },
   kanban: {
     uncategorized: "غير مصنّف",
+    columns: "أعمدة",
     addCard: "إضافة بطاقة",
     addColumn: "إضافة عمود",
     moveCard: "نقل بطاقة",
@@ -666,6 +671,10 @@ const ar = {
       ss: "بداية → بداية",
       ff: "نهاية → نهاية",
       sf: "بداية → نهاية",
+    },
+    linkEnd: {
+      start: "بداية",
+      end: "نهاية",
     },
     conflict: {
       title: "تعارض في الجدولة",
@@ -804,9 +813,11 @@ const ar = {
     copyToClipboard: "نسخ إلى الحافظة",
     copied: "تم النسخ!",
     deleteConfirmation: "هل أنت متأكد أنك تريد حذف هذا السجل؟",
+    deleted: "تم حذف السجل",
     editRecord: "تحرير السجل",
     viewAll: "عرض الكل",
     new: "جديد",
+    add: "إضافة",
     emptyValue: "—",
     comments: "التعليقات",
     searchComments: "البحث في التعليقات…",
@@ -913,9 +924,11 @@ const ar = {
     concurrentUpdateReload: "تحميل النسخة الحالية",
     concurrentUpdateOverwrite: "الكتابة فوقه على أي حال",
     concurrentUpdateCancel: "إلغاء",
+    concurrentUpdateRecordLabel: "هذا السجل",
     openInNewTab: "فتح في علامة تبويب جديدة",
     activity: "النشاط",
     history: "السجل",
+    historyEmpty: "لا يوجد سجل بعد",
     editRow: "تعديل",
     deleteRow: "حذف",
     deleteRowConfirmation: "حذف هذا السجل؟",
@@ -1011,6 +1024,7 @@ const ar = {
   },
   dashboard: {
     noRows: "لا توجد صفوف",
+    loading: "جارٍ التحميل…",
     pickMeasures: "اختر المقاييس (القيم) لأداة مجموعة البيانات هذه.",
     datasetUnsupported: "مصدر البيانات هذا لا يدعم استعلامات مجموعات البيانات.",
     details: "التفاصيل",
@@ -2155,6 +2169,7 @@ const ar = {
     invite: "دعوة عضو",
     members: "الأعضاء",
     settings: "إعدادات مساحة العمل",
+    multiOrgDisabled: "إنشاء مؤسسات جديدة معطّل في هذا النشر.",
   },
   help: {
     onThisPage: "في هذه الصفحة",
@@ -2311,6 +2326,9 @@ const ar = {
       roles: "الأدوار",
       configuration: "التهيئة",
       createApp: "إنشاء تطبيق",
+      administration: "الإدارة",
+      datasources: "مصادر البيانات",
+      documentation: "الوثائق",
     },
     appSwitcher: {
       switchApplication: "تبديل التطبيق",
@@ -2369,6 +2387,7 @@ const ar = {
   empty: {
     objectNotFound: "الكائن غير موجود",
     objectNotFoundDescription: "تعريف الكائن \"{{name}}\" مفقود. تحقق من الإعداد أو ارجع للخلف.",
+    interfacePageSourceMissing: "تشير صفحة الواجهة هذه إلى \"{{name}}\"، وهو غير متاح.",
     pageNotFound: "الصفحة غير موجودة",
     pageNotFoundDescription: "الصفحة \"{{name}}\" غير موجودة. ربما تم إزالتها أو إعادة تسميتها.",
     dashboardNotFound: "لوحة التحكم غير موجودة",
@@ -2377,6 +2396,8 @@ const ar = {
     reportNotFoundDescription: "التقرير \"{{name}}\" غير موجود. ربما تم إزالته أو إعادة تسميته.",
     noAppsConfigured: "لا تطبيقات مُهيأة",
     noAppsConfiguredDescription: "لا تطبيقات مسجلة. أنشئ تطبيقك الأول أو زر إعدادات النظام.",
+    appNotAvailable: "التطبيق غير متاح",
+    appNotAvailableDescription: "هذا التطبيق غير متاح بعد — قد يكون النشر ما زال جارياً. أعد المحاولة بعد لحظات.",
     createFirstApp: "إنشاء أول تطبيق",
     systemSettings: "إعدادات النظام",
     back: "رجوع",
@@ -2659,6 +2680,13 @@ const ar = {
       sentDescription: "شارك الرابط أدناه مع المدعوّ. سيحتاج إلى تسجيل الدخول للقبول.",
       linkLabel: "رابط القبول",
       invitedAs: "تمت دعوة {{email}} بصفة {{role}}",
+      status: {
+        all: "الكل",
+        pending: "قيد الانتظار",
+        accepted: "مقبولة",
+        rejected: "مرفوضة",
+        canceled: "ملغاة",
+      },
     },
     settings: {
       generalTitle: "عام",

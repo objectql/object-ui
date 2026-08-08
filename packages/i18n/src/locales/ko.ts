@@ -105,6 +105,10 @@ const ko = {
     itemCountOne: "{{count}}개 항목",
     toggleSidebar: "사이드바 전환",
     package: "패키지",
+    done: "완료",
+    editInStudio: "Studio에서 편집",
+    record: "레코드",
+    retry: "다시 시도",
   },
   actions: {
     decisionOutput: {
@@ -598,6 +602,7 @@ const ko = {
   },
   kanban: {
     uncategorized: "미분류",
+    columns: "열",
     addCard: "카드 추가",
     addColumn: "열 추가",
     moveCard: "카드 이동",
@@ -662,6 +667,10 @@ const ko = {
       ss: "시작 → 시작",
       ff: "종료 → 종료",
       sf: "시작 → 종료",
+    },
+    linkEnd: {
+      start: "시작",
+      end: "종료",
     },
     conflict: {
       title: "일정 충돌",
@@ -798,9 +807,11 @@ const ko = {
     copyToClipboard: "클립보드에 복사",
     copied: "복사됨!",
     deleteConfirmation: "이 레코드를 삭제하시겠습니까?",
+    deleted: "레코드가 삭제됨",
     editRecord: "레코드 편집",
     viewAll: "모두 보기",
     new: "새로 만들기",
+    add: "추가",
     emptyValue: "—",
     comments: "댓글",
     searchComments: "댓글 검색…",
@@ -907,9 +918,11 @@ const ko = {
     concurrentUpdateReload: "현재 버전 로드",
     concurrentUpdateOverwrite: "그래도 덮어쓰기",
     concurrentUpdateCancel: "취소",
+    concurrentUpdateRecordLabel: "이 레코드",
     openInNewTab: "새 탭에서 열기",
     activity: "활동",
     history: "기록",
+    historyEmpty: "아직 기록이 없습니다",
     editRow: "편집",
     deleteRow: "삭제",
     deleteRowConfirmation: "이 레코드를 삭제하시겠습니까?",
@@ -1007,6 +1020,7 @@ const ko = {
   },
   dashboard: {
     noRows: "행 없음",
+    loading: "로딩 중…",
     pickMeasures: "이 데이터셋 위젯의 측정값(값)을 선택하세요.",
     datasetUnsupported: "이 데이터 소스는 데이터셋 쿼리를 지원하지 않습니다.",
     details: "세부 정보",
@@ -2151,6 +2165,7 @@ const ko = {
     invite: "구성원 초대",
     members: "구성원",
     settings: "워크스페이스 설정",
+    multiOrgDisabled: "이 인스턴스에서는 새 조직을 만들 수 없습니다.",
   },
   help: {
     onThisPage: "이 페이지에서",
@@ -2306,6 +2321,9 @@ const ko = {
       roles: "역할",
       configuration: "구성",
       createApp: "앱 만들기",
+      administration: "관리",
+      datasources: "데이터 소스",
+      documentation: "문서",
     },
     appSwitcher: {
       switchApplication: "애플리케이션 전환",
@@ -2364,6 +2382,7 @@ const ko = {
   empty: {
     objectNotFound: "오브젝트를 찾을 수 없습니다",
     objectNotFoundDescription: "\"{{name}}\" 오브젝트 정의가 없습니다. 구성을 확인하거나 뒤로 이동하세요.",
+    interfacePageSourceMissing: "이 인터페이스 페이지는 \"{{name}}\"을(를) 참조하지만 사용할 수 없습니다.",
     pageNotFound: "페이지를 찾을 수 없습니다",
     pageNotFoundDescription: "\"{{name}}\" 페이지를 찾을 수 없습니다. 삭제되거나 이름이 변경되었을 수 있습니다.",
     dashboardNotFound: "대시보드를 찾을 수 없습니다",
@@ -2372,6 +2391,8 @@ const ko = {
     reportNotFoundDescription: "\"{{name}}\" 보고서를 찾을 수 없습니다. 삭제되거나 이름이 변경되었을 수 있습니다.",
     noAppsConfigured: "구성된 앱 없음",
     noAppsConfiguredDescription: "등록된 앱이 없습니다. 첫 번째 앱을 만들거나 시스템 설정을 방문하세요.",
+    appNotAvailable: "앱을 사용할 수 없습니다",
+    appNotAvailableDescription: "이 앱을 아직 사용할 수 없습니다 — 아직 게시 중일 수 있습니다. 잠시 후 다시 시도하세요.",
     createFirstApp: "첫 번째 앱 만들기",
     systemSettings: "시스템 설정",
     back: "뒤로",
@@ -2654,6 +2675,13 @@ const ko = {
       sentDescription: "아래 링크를 초대 대상자와 공유하세요. 수락하려면 로그인해야 합니다.",
       linkLabel: "수락 링크",
       invitedAs: "{{email}}을(를) {{role}}(으)로 초대함",
+      status: {
+        all: "전체",
+        pending: "대기 중",
+        accepted: "수락됨",
+        rejected: "거절됨",
+        canceled: "취소됨",
+      },
     },
     settings: {
       generalTitle: "일반",

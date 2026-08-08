@@ -121,6 +121,10 @@ const en = {
     itemCountOne: '{{count}} item',
     toggleSidebar: 'Toggle sidebar',
     package: 'Package',
+    done: 'Done',
+    editInStudio: 'Edit in studio',
+    record: 'Record',
+    retry: 'Retry',
   },
   actions: {
     decisionOutput: {
@@ -654,6 +658,7 @@ const en = {
     noCards: 'No cards',
     cardTitlePlaceholder: 'Enter card title...',
     uncategorized: 'Uncategorized',
+    columns: 'columns',
   },
   timeline: {
     bucket: {
@@ -739,6 +744,10 @@ const en = {
       ss: 'Start → Start',
       ff: 'Finish → Finish',
       sf: 'Start → Finish',
+    },
+    linkEnd: {
+      start: 'start',
+      end: 'end',
     },
     conflict: {
       title: 'Schedule conflict',
@@ -845,6 +854,7 @@ const en = {
     concurrentUpdateReload: 'Reload latest',
     concurrentUpdateOverwrite: 'Overwrite anyway',
     concurrentUpdateCancel: 'Cancel',
+    concurrentUpdateRecordLabel: 'this record',
     openInNewTab: 'Open in new tab',
     share: 'Share',
     duplicate: 'Duplicate',
@@ -891,12 +901,15 @@ const en = {
     copyToClipboard: 'Copy to clipboard',
     copied: 'Copied!',
     deleteConfirmation: 'Are you sure you want to delete this record?',
+    deleted: 'Record deleted',
     editRecord: 'Edit record',
     viewAll: 'View All',
     new: 'New',
+    add: 'Add',
     emptyValue: '—',
     activity: 'Activity',
     history: 'History',
+    historyEmpty: 'No history yet',
     editRow: 'Edit',
     deleteRow: 'Delete',
     deleteRowConfirmation: 'Are you sure you want to delete this record?',
@@ -1225,6 +1238,7 @@ const en = {
     noDataAvailable: 'No data available',
     noDataSourceFor: 'No data source available for',
     noRows: 'No rows',
+    loading: 'Loading…',
     pickMeasures: 'Pick measures (values) for this dataset widget.',
     datasetUnsupported: 'This data source does not support dataset queries.',
     details: 'Details',
@@ -2410,6 +2424,7 @@ const en = {
     invite: 'Invite member',
     members: 'Members',
     settings: 'Workspace settings',
+    multiOrgDisabled: 'Creating new organizations is disabled on this instance.',
   },
   help: {
     onThisPage: 'On this page',
@@ -2580,6 +2595,9 @@ const en = {
       roles: 'Roles',
       configuration: 'Configuration',
       createApp: 'Create App',
+      administration: 'Administration',
+      datasources: 'Datasources',
+      documentation: 'Documentation',
     },
     activityFeed: {
       title: 'Recent Activity',
@@ -2627,6 +2645,7 @@ const en = {
   empty: {
     objectNotFound: 'Object Not Found',
     objectNotFoundDescription: 'Object "{{name}}" definition missing. Check your configuration or navigate back to select a valid object.',
+    interfacePageSourceMissing: 'This interface page references "{{name}}", which is not available.',
     recordNotFound: 'Record not found',
     recordNotFoundDescription: 'The record you are looking for does not exist or may have been deleted.',
     pageNotFound: 'Page Not Found',
@@ -2637,6 +2656,8 @@ const en = {
     reportNotFoundDescription: 'The report "{{name}}" could not be found. It may have been removed or renamed.',
     noAppsConfigured: 'No Apps Configured',
     noAppsConfiguredDescription: 'No applications have been registered. Create your first app or visit System Settings to configure your environment.',
+    appNotAvailable: 'App not available',
+    appNotAvailableDescription: 'This app is not available yet — it may still be publishing. Try again in a moment.',
     createFirstApp: 'Create Your First App',
     systemSettings: 'System Settings',
     back: 'Back',
@@ -2862,6 +2883,13 @@ const en = {
       sentDescription: 'Share the link below with the invitee. They will need to sign in to accept.',
       linkLabel: 'Accept link',
       invitedAs: '{{email}} invited as {{role}}',
+      status: {
+        all: 'All',
+        pending: 'Pending',
+        accepted: 'Accepted',
+        rejected: 'Rejected',
+        canceled: 'Canceled',
+      },
     },
     settings: {
       generalTitle: 'General',

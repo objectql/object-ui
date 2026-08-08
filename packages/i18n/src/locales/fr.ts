@@ -105,6 +105,10 @@ const fr = {
     itemCountOne: "{{count}} élément",
     toggleSidebar: "Basculer la barre latérale",
     package: "Package",
+    done: "Terminé",
+    editInStudio: "Modifier dans Studio",
+    record: "Enregistrement",
+    retry: "Réessayer",
   },
   actions: {
     decisionOutput: {
@@ -598,6 +602,7 @@ const fr = {
   },
   kanban: {
     uncategorized: "Non catégorisé",
+    columns: "colonnes",
     addCard: "Ajouter une carte",
     addColumn: "Ajouter une colonne",
     moveCard: "Déplacer la carte",
@@ -662,6 +667,10 @@ const fr = {
       ss: "Début → Début",
       ff: "Fin → Fin",
       sf: "Début → Fin",
+    },
+    linkEnd: {
+      start: "Début",
+      end: "Fin",
     },
     conflict: {
       title: "Conflit de planning",
@@ -800,9 +809,11 @@ const fr = {
     copyToClipboard: "Copier dans le presse-papiers",
     copied: "Copié !",
     deleteConfirmation: "Êtes-vous sûr de vouloir supprimer cet enregistrement ?",
+    deleted: "Enregistrement supprimé",
     editRecord: "Modifier l'enregistrement",
     viewAll: "Tout afficher",
     new: "Nouveau",
+    add: "Ajouter",
     emptyValue: "—",
     comments: "Commentaires",
     searchComments: "Rechercher des commentaires…",
@@ -909,9 +920,11 @@ const fr = {
     concurrentUpdateReload: "Charger la version actuelle",
     concurrentUpdateOverwrite: "Écraser quand même",
     concurrentUpdateCancel: "Annuler",
+    concurrentUpdateRecordLabel: "cet enregistrement",
     openInNewTab: "Ouvrir dans un nouvel onglet",
     activity: "Activité",
     history: "Historique",
+    historyEmpty: "Aucun historique pour le moment",
     editRow: "Modifier",
     deleteRow: "Supprimer",
     deleteRowConfirmation: "Supprimer cet enregistrement ?",
@@ -1007,6 +1020,7 @@ const fr = {
   },
   dashboard: {
     noRows: "Aucune ligne",
+    loading: "Chargement…",
     pickMeasures: "Choisissez des mesures (valeurs) pour ce widget de dataset.",
     datasetUnsupported: "Cette source de données ne prend pas en charge les requêtes de dataset.",
     details: "Détails",
@@ -2151,6 +2165,7 @@ const fr = {
     invite: "Inviter un membre",
     members: "Membres",
     settings: "Paramètres de l'espace de travail",
+    multiOrgDisabled: "La création de nouvelles organisations est désactivée sur cette instance.",
   },
   help: {
     onThisPage: "Sur cette page",
@@ -2307,6 +2322,9 @@ const fr = {
       roles: "Rôles",
       configuration: "Configuration",
       createApp: "Créer une application",
+      administration: "Administration",
+      datasources: "Sources de données",
+      documentation: "Documentation",
     },
     appSwitcher: {
       switchApplication: "Changer d'application",
@@ -2365,6 +2383,7 @@ const fr = {
   empty: {
     objectNotFound: "Objet introuvable",
     objectNotFoundDescription: "La définition de l'objet \"{{name}}\" est manquante. Vérifiez votre configuration ou revenez en arrière.",
+    interfacePageSourceMissing: "Cette page d'interface référence \"{{name}}\", qui n'est pas disponible.",
     pageNotFound: "Page introuvable",
     pageNotFoundDescription: "La page \"{{name}}\" est introuvable. Elle a peut-être été supprimée ou renommée.",
     dashboardNotFound: "Tableau de bord introuvable",
@@ -2373,6 +2392,8 @@ const fr = {
     reportNotFoundDescription: "Le rapport \"{{name}}\" est introuvable. Il a peut-être été supprimé ou renommé.",
     noAppsConfigured: "Aucune application configurée",
     noAppsConfiguredDescription: "Aucune application n'est enregistrée. Créez votre première application ou visitez les paramètres système.",
+    appNotAvailable: "Application non disponible",
+    appNotAvailableDescription: "Cette application n'est pas encore disponible — sa publication est peut-être en cours. Réessayez dans un instant.",
     createFirstApp: "Créer la première application",
     systemSettings: "Paramètres système",
     back: "Retour",
@@ -2655,6 +2676,13 @@ const fr = {
       sentDescription: "Partagez le lien ci-dessous avec la personne invitée. Elle devra se connecter pour accepter.",
       linkLabel: "Lien d'acceptation",
       invitedAs: "{{email}} invité en tant que {{role}}",
+      status: {
+        all: "Toutes",
+        pending: "En attente",
+        accepted: "Acceptée",
+        rejected: "Refusée",
+        canceled: "Annulée",
+      },
     },
     settings: {
       generalTitle: "Général",

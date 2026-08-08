@@ -257,17 +257,21 @@ describe('objectui#3546 slice two — the organization namespace', () => {
       missingPrefixes: Record<string, unknown>;
     };
     expect(Object.keys(baseline.missingKeys).filter((k) => k.startsWith('organization.'))).toEqual([]);
-    // Untouched on purpose: `organization.invitations.status.*` is a template
-    // key FAMILY, a different repair (enumerate the status values) than the 90
-    // literal keys, and it is still missing. Deliberately left for the
-    // prefix-family slice — this assertion is what stops it being forgotten.
-    expect(Object.keys(baseline.missingPrefixes)).toContain('organization.invitations.status.');
+    // `organization.invitations.status.*` was left untouched by THIS slice — a
+    // template key FAMILY needs a different repair (enumerate the status values)
+    // than the 90 literal keys — and the assertion here used to be
+    // `toContain(…)`, whose whole job was to stop the family being forgotten.
+    // Slice seven enumerated it (`StatusFilter` = all/pending/accepted/rejected/
+    // canceled) and emptied `missingPrefixes`, so the assertion inverts: it now
+    // states the family is gone, which is the fact a reverting change breaks.
+    expect(Object.keys(baseline.missingPrefixes)).not.toContain('organization.invitations.status.');
+    expect(Object.keys(baseline.missingPrefixes).sort()).toEqual([]);
     // The other namespaces' debt is not this slice's to spend. Slice three
     // (auth/oauth/acceptInvitation, 54 keys) took it from 163 to 109, slice four
-    // (console, 41 keys) to 68, slice five (marketplace + preview, 37 keys) to 31
-    // and slice six (perm + home, 14 keys) to 17; this number moves once per
-    // slice, and only downwards.
-    expect(Object.keys(baseline.missingKeys).length).toBe(17);
+    // (console, 41 keys) to 68, slice five (marketplace + preview, 37 keys) to 31,
+    // slice six (perm + home, 14 keys) to 17 and slice seven (the 17-key residue)
+    // to ZERO; this number moved once per slice, and only downwards.
+    expect(Object.keys(baseline.missingKeys).length).toBe(0);
   });
 
   describe('through the real binding — bare useObjectTranslation, provider mounted', () => {

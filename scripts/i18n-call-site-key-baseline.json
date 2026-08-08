@@ -6,32 +6,15 @@
     "Fix one by adding the key to packages/i18n/src/locales/en.ts and deleting its line",
     "here; all-locales-key-parity.test.ts then demands the same key in the other nine",
     "packs. Adding an inline defaultValue is NOT a fix -- that is the mechanism that hid",
-    "these for months (objectui#3517)."
+    "these for months (objectui#3517).",
+    "BOTH LISTS ARE NOW EMPTY -- the 258-key stock objectui#3546 opened with was paid off",
+    "across seven slices, the last of them the two template families below. Keep the file:",
+    "empty is its terminal, load-bearing state. Any NEW unresolved call-site key is",
+    "`unexpected` against an empty baseline and fails the build, which is the point."
   ],
 
-  "missingKeys": {
-    "common.done": { "issue": "objectui#3546" },
-    "common.editInStudio": { "issue": "objectui#3546" },
-    "common.record": { "issue": "objectui#3546" },
-    "common.retry": { "issue": "objectui#3546" },
-    "dashboard.loading": { "issue": "objectui#3546" },
-    "detail.add": { "issue": "objectui#3546" },
-    "detail.concurrentUpdateRecordLabel": { "issue": "objectui#3546" },
-    "detail.deleted": { "issue": "objectui#3546" },
-    "detail.historyEmpty": { "issue": "objectui#3546" },
-    "empty.appNotAvailable": { "issue": "objectui#3546" },
-    "empty.appNotAvailableDescription": { "issue": "objectui#3546" },
-    "empty.interfacePageSourceMissing": { "issue": "objectui#3546" },
-    "kanban.columns": { "issue": "objectui#3546" },
-    "layout.systemNav.administration": { "issue": "objectui#3546" },
-    "layout.systemNav.datasources": { "issue": "objectui#3546" },
-    "layout.systemNav.documentation": { "issue": "objectui#3546" },
-    "workspace.multiOrgDisabled": { "issue": "objectui#3546" }
-  },
+  "missingKeys": {},
 
   "//": "Template keys whose static head matches no en key at all, so every expansion misses.",
-  "missingPrefixes": {
-    "gantt.linkEnd.": { "issue": "objectui#3546" },
-    "organization.invitations.status.": { "issue": "objectui#3546" }
-  }
+  "missingPrefixes": {}
 }
