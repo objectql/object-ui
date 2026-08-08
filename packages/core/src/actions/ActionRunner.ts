@@ -412,23 +412,6 @@ export type ResultDialogHandler = (
 ) => Promise<void>;
 
 /**
- * ActionParam definition accepted by the runner.
- * Compatible with @objectstack/spec ActionParam.
- *
- * The RESOLVED shape — what `resolveActionParams()` emits and `ActionParamDialog`
- * reads, after a field-backed param's `{ field }` reference has been inlined.
- * The AUTHORING counterpart is `@object-ui/types`' `ActionParam` (objectui#3174).
- *
- * `validation?: string` used to sit here too, and was removed by objectui#3201:
- * no producer ever wrote it (it was never a key of `resolveActionParams()`'s
- * `RawActionParam`, and the runtime field metadata a field-backed param inherits
- * from carries no `validation` either) and no consumer ever read it —
- * `paramToField()` did not map it, so it never reached the field widgets, whose
- * rules `buildValidationRules()` builds from `required` / `minLength` /
- * `maxLength` / `pattern`. Declaring it on the resolved side only invited the
- * authoring side to declare it back.
- */
-/**
  * One entry of a param's option list, as the RESOLVED param carries it.
  *
  * `label` / `value` are the two keys this layer itself reads and rewrites (i18n
@@ -454,6 +437,23 @@ export type ActionParamOption = {
   [key: string]: unknown;
 };
 
+/**
+ * ActionParam definition accepted by the runner.
+ * Compatible with @objectstack/spec ActionParam.
+ *
+ * The RESOLVED shape — what `resolveActionParams()` emits and `ActionParamDialog`
+ * reads, after a field-backed param's `{ field }` reference has been inlined.
+ * The AUTHORING counterpart is `@object-ui/types`' `ActionParam` (objectui#3174).
+ *
+ * `validation?: string` used to sit here too, and was removed by objectui#3201:
+ * no producer ever wrote it (it was never a key of `resolveActionParams()`'s
+ * `RawActionParam`, and the runtime field metadata a field-backed param inherits
+ * from carries no `validation` either) and no consumer ever read it —
+ * `paramToField()` did not map it, so it never reached the field widgets, whose
+ * rules `buildValidationRules()` builds from `required` / `minLength` /
+ * `maxLength` / `pattern`. Declaring it on the resolved side only invited the
+ * authoring side to declare it back.
+ */
 export interface ActionParamDef {
   name: string;
   label: string;
