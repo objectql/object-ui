@@ -854,7 +854,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 **Routes:**
 - [x] `/system/` → SystemHubPage
 - [x] `/system/apps` → AppManagementPage
-- [x] `/system/permissions` → PermissionManagementPage
+- [ ] `/system/permissions` — no route is declared at this URL; the `PermissionManagementPage` it named was deleted when `apps/console` was slimmed for third-party customisation (commit cccdf84d), and the successor surface is pending maintainer decision, see #3655
 - [x] `/system/metadata/:metadataType` → MetadataManagerPage (generic, registry-driven)
 
 **Unified Metadata Management (P1.12.3):**
@@ -868,7 +868,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] 40+ new tests (registry, MetadataManagerPage, MetadataService generic, SystemHubPage registry)
 
 **Tests:**
-- [x] 11 new tests (SystemHubPage, AppManagementPage, PermissionManagementPage)
+- [x] New tests for the system pages — of the three suites named here, only `SystemHubPage`'s is still in the tree; nothing tests `AppManagementPage` today, and `PermissionManagementPage` has no tests because the page itself is gone (commit cccdf84d)
 - [x] Total: 20 system page tests passing
 
 ### P1.13 Airtable Grid/List UX Optimization ✅
