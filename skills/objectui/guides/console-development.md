@@ -243,7 +243,9 @@ export function buildObjectDetailPageSchema(objectName: string, item?: any): Pag
 
 ### Registered custom widgets
 
-`apps/console/src/components/schema/registerObjectDetailWidgets.ts` registers:
+`apps/console/src/components/schema/registerObjectDetailWidgets.ts` registers seven types
+(its own docblock lists the same seven — count the `ComponentRegistry.register()` calls if
+this table and the file ever disagree):
 
 | Widget type | Component | Purpose |
 |------------|-----------|---------|
@@ -251,6 +253,7 @@ export function buildObjectDetailPageSchema(objectName: string, item?: any): Pag
 | `object-properties` | `ObjectPropertiesWidget` | Object config form (name, label, icon, etc.) |
 | `object-field-designer` | `ObjectFieldDesignerWidget` | Interactive field CRUD |
 | `object-relationships` | `ObjectRelationshipsWidget` | Relationships & foreign keys |
+| `object-keys` | `ObjectKeysWidget` | Key fields card — unique, `id`, and external-id fields |
 | `object-data-experience` | `ObjectDataExperienceWidget` | Data experience config |
 | `object-data-preview` | `ObjectDataPreviewWidget` | Data preview table |
 
@@ -307,7 +310,8 @@ registerMetadataResource({
 
 ### UnifiedSidebar
 
-`apps/console/src/components/UnifiedSidebar.tsx` — Airtable-style contextual sidebar:
+`packages/app-shell/src/layout/UnifiedSidebar.tsx` (same directory as `ConsoleLayout.tsx`)
+— Airtable-style contextual sidebar:
 
 - **Persistent** across all routes (embedded in AppShell)
 - **Context-aware**: shows different items based on `NavigationContext` (`'home'` vs `'app'`)
@@ -315,7 +319,7 @@ registerMetadataResource({
 
 ### NavigationContext
 
-`apps/console/src/context/NavigationContext.tsx`:
+`packages/app-shell/src/context/NavigationContext.tsx`:
 
 ```typescript
 type NavigationContextType = 'home' | 'app';
@@ -389,15 +393,21 @@ system/users                        -> SystemObjectRedirect -> …/sys_user
 system/organizations                -> SystemObjectRedirect -> …/sys_organization
 system/roles                        -> SystemObjectRedirect -> …/sys_position
 system/positions                    -> SystemObjectRedirect -> …/sys_position
+system/permissions                  -> SystemObjectRedirect -> …/sys_permission_set
 ```
 
-Four redirects, not five. `system/permissions` is **deliberately absent** as of
-`origin/main`: the framework splits what this console called "Permissions" into
-`sys_capability` (the definition registry) and `sys_permission_set` (the grant container),
-so PR #3673 declined to guess and pinned the unchanged landing in a test instead. The
-maintainer has since ruled **A — `sys_permission_set`** on objectui#3655; that redirect is
-queued but **not yet on `main`**, so today the URL still falls through to app-shell's tail
-route. Check `apps/console/src/AppContent.tsx` before quoting this list.
+All five legs resolve on `origin/main`. `system/permissions` was the last one declared, and
+its history is worth knowing before you touch it: the framework splits what this console
+called "Permissions" into `sys_capability` (ADR-0066 layer 1, the definition registry of
+"what can be done") and `sys_permission_set` (layer 2, the grant container), so PR #3673
+declined to guess and pinned the then-unchanged landing in a test instead. The maintainer
+ruled **A — `sys_permission_set`** on objectui#3655 and PR #3728 declared the route. The
+target is layer 2 because the hub card that emits the URL promises "permission rules and
+assignments", and a definition catalog is what a set references by name, not what you
+assign. The route block in `apps/console/src/AppContent.tsx` carries that reasoning in full
+(including one reading of the two objects that does *not* survive a re-read of the
+framework) — read it there rather than re-deriving it, and re-read this list against the
+file if you are about to add a sixth leg.
 
 Two traps worth internalising, both paid for in objectui#3639 / #3655:
 
@@ -413,26 +423,40 @@ Two traps worth internalising, both paid for in objectui#3639 / #3655:
 
 ## Key contexts
 
+All five live in `@object-ui/app-shell`; there is no `apps/console/src/context/` directory
+at all. app-shell keeps **two** sibling directories, `context/` and `providers/`, and these
+five are split across both — so the prefix differs per row. Check the row; do not shift one
+prefix across the table.
+
 | Context | Location | Purpose |
 |---------|----------|---------|
-| `AdapterProvider` | `context/AdapterProvider.tsx` | ObjectStackAdapter lifecycle, connection management |
-| `MetadataProvider` | `context/MetadataProvider.tsx` | Apps, objects, dashboards, reports from API |
-| `NavigationContext` | `context/NavigationContext.tsx` | Home vs App sidebar context |
-| `FavoritesProvider` | `context/FavoritesProvider.tsx` | User's starred/pinned items |
-| `ExpressionProvider` | `context/ExpressionProvider.tsx` | Expression evaluator instance |
+| `AdapterProvider` | `packages/app-shell/src/providers/AdapterProvider.tsx` | ObjectStackAdapter lifecycle, connection management |
+| `MetadataProvider` | `packages/app-shell/src/providers/MetadataProvider.tsx` | Apps, objects, dashboards, reports from API |
+| `NavigationContext` | `packages/app-shell/src/context/NavigationContext.tsx` | Home vs App sidebar context |
+| `FavoritesProvider` | `packages/app-shell/src/context/FavoritesProvider.tsx` | User's starred/pinned items |
+| `ExpressionProvider` | `packages/app-shell/src/providers/ExpressionProvider.tsx` | Expression evaluator instance |
+
+`MetadataProvider` is the one name with two hits in the repo. The console's is the
+app-shell file above — it is what `ConsoleShell` / `ConnectedShell` mount and what
+`@object-ui/app-shell` re-exports. `packages/providers/src/MetadataProvider.tsx` is an
+unrelated, much smaller generic provider (static metadata or one fetch); nothing in the
+console path uses it.
 
 ## Key hooks
 
+`useBranding` is the **only** file in `apps/console/src/hooks/`. The other seven live in
+`@object-ui/app-shell`, so the first row's prefix does not generalise to the rest.
+
 | Hook | Location | Purpose |
 |------|----------|---------|
-| `useBranding` | `hooks/useBranding.ts` | AppShell brand colors/logo |
-| `useFavorites` | `hooks/useFavorites.ts` | Starred items state |
-| `useMetadataService` | `hooks/useMetadataService.ts` | CRUD operations on metadata |
-| `useNavPins` | `hooks/useNavPins.ts` | Pinned navigation items |
-| `useNavigationSync` | `hooks/useNavigationSync.ts` | URL ↔ navigation context sync |
-| `useObjectActions` | `hooks/useObjectActions.ts` | Custom actions on objects |
-| `useRecentItems` | `hooks/useRecentItems.ts` | MRU tracking |
-| `useResponsiveSidebar` | `hooks/useResponsiveSidebar.ts` | Sidebar collapse on mobile |
+| `useBranding` | `apps/console/src/hooks/useBranding.ts` | AppShell brand colors/logo |
+| `useFavorites` | `packages/app-shell/src/hooks/useFavorites.ts` | Starred items state |
+| `useMetadataService` | `packages/app-shell/src/hooks/useMetadataService.ts` | CRUD operations on metadata |
+| `useNavPins` | `packages/app-shell/src/hooks/useNavPins.ts` | Pinned navigation items |
+| `useNavigationSync` | `packages/app-shell/src/hooks/useNavigationSync.ts` | URL ↔ navigation context sync |
+| `useObjectActions` | `packages/app-shell/src/hooks/useObjectActions.ts` | Custom actions on objects |
+| `useRecentItems` | `packages/app-shell/src/hooks/useRecentItems.ts` | MRU tracking |
+| `useResponsiveSidebar` | `packages/app-shell/src/hooks/useResponsiveSidebar.ts` | Sidebar collapse on mobile |
 
 ## Common console development patterns
 
