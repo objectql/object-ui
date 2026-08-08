@@ -11,9 +11,9 @@ import React, { useState, useMemo, useRef, useEffect, useLayoutEffect } from 're
 import { cn } from '../../lib/utils';
 import { resolveIcon } from '../action/resolve-icon';
 import { useGridFieldAuthoring } from '../../context/gridFieldAuthoring';
-import { ComponentRegistry, compareSortValues, getSortValue } from '@object-ui/core';
+import { ComponentRegistry, compareSortValues, evalRowPredicate, getSortValue } from '@object-ui/core';
 import type { DataTableSchema, TableSortItem } from '@object-ui/types';
-import { useRowPredicate } from '@object-ui/react';
+import { useRowPredicate, usePredicateScope } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
 import { 
   Table, 
@@ -189,6 +189,123 @@ function extractSaveErrorMessage(error: unknown): string {
 type RowActionDef = NonNullable<DataTableSchema['rowActionDefs']>[number];
 
 /**
+ * Evaluate a row-action visibility predicate the way the row menu's items do —
+ * on the canonical CEL engine, failing CLOSED with a diagnosable warning — but
+ * WITHOUT a hook.
+ *
+ * Hook-free matters because the row-level guard below asks this question for a
+ * VARIABLE number of custom actions inside a single `useMemo`; one
+ * `useRowPredicate` per action would tie the hook count to
+ * `schema.rowActionDefs.length`. Mirrors
+ * `useRowPredicate(pred, row, { fallback: false, warnOnError: true, label })`,
+ * boolean short-circuit included — a boolean handed to the engine faults
+ * ("AST-only evaluation not yet supported") and fails closed, which is how
+ * `visible: true` once hid a bulk button from everyone (objectui#3492; the same
+ * short-circuit is spelled out in plugin-grid's `bulkEligibility`).
+ */
+function evalRowActionVisibility(
+  pred: unknown,
+  row: any,
+  scope: Record<string, unknown>,
+  label: string,
+): boolean {
+  if (typeof pred === 'boolean') return pred;
+  if (pred == null || pred === '') return false;
+  return evalRowPredicate(pred as never, row ?? {}, {
+    fallback: false,
+    scope,
+    warnOnError: true,
+    label,
+  });
+}
+
+/**
+ * Does the built-in Edit/Delete item render for THIS row? The single
+ * definition, read both by the item itself and by the row-level guard that
+ * decides whether the "⋮" trigger exists at all. The two disagreeing is
+ * objectui#3562: the guard counted handlers, the items were then filtered by
+ * these predicates, and a row with every item suppressed still got a trigger
+ * that opened an empty 128×10 box.
+ *
+ * `visibleWhen` counts as a declared gate by `!= null`, not by truthiness —
+ * `visibleWhen: false` hides the item rather than reading as "ungated".
+ */
+export function isBuiltinRowActionVisible(
+  predicates: { visibleWhen?: unknown } | undefined,
+  name: 'edit' | 'delete',
+  row: any,
+  scope: Record<string, unknown>,
+): boolean {
+  const pred = predicates?.visibleWhen;
+  if (pred == null) return true;
+  return evalRowActionVisibility(pred, row, scope, `builtin:${name}:visibleWhen`);
+}
+
+/**
+ * Does this schema-driven custom row action render for THIS row? Same
+ * single-definition rule as the built-ins above.
+ *
+ * The gate is truthiness, which is what the item has always applied: a
+ * `visible: false` def renders (the objectui#3492 shape). Preserved verbatim —
+ * the contract this function exists for is that the guard and the item agree,
+ * and re-deciding `visible: false` would change WHICH items render, a separate
+ * question tracked on its own issue.
+ */
+export function isCustomRowActionVisible(
+  action: { name?: string; visible?: unknown } | undefined,
+  row: any,
+  scope: Record<string, unknown>,
+): boolean {
+  if (!action?.visible) return true;
+  return evalRowActionVisibility(action.visible, row, scope, action.name ?? 'row-action');
+}
+
+/** What the row overflow menu will actually render for ONE row. */
+export interface DataTableRowMenuPlan {
+  /** The built-in Edit item renders for this row. */
+  edit: boolean;
+  /** The built-in Delete item renders for this row. */
+  remove: boolean;
+  /** Custom actions surviving their own `visible` predicate, in declared order. */
+  custom: RowActionDef[];
+  /** Items that will render. `0` means: render no trigger at all (#3562). */
+  count: number;
+}
+
+/**
+ * Resolve the row overflow menu for ONE row — which items survive their
+ * per-record predicates, and how many that leaves.
+ *
+ * Per ROW, not per table: `visibleWhen` / `visible` are per-record predicates,
+ * so two rows of the same table legitimately differ (one keeps Edit, the next
+ * has nothing left). A table-level guard cannot express that, which is why the
+ * trigger decision lives here and is recomputed for every row.
+ *
+ * Only visibility is decided here — a `disabled` item still renders (greyed
+ * out) and still counts, exactly as before.
+ */
+export function planDataTableRowMenu(input: {
+  onRowEdit?: unknown;
+  onRowDelete?: unknown;
+  editPredicates?: { visibleWhen?: unknown };
+  deletePredicates?: { visibleWhen?: unknown };
+  customActions: readonly RowActionDef[];
+  row: any;
+  scope: Record<string, unknown>;
+}): DataTableRowMenuPlan {
+  const { row, scope } = input;
+  const edit = !!input.onRowEdit && isBuiltinRowActionVisible(input.editPredicates, 'edit', row, scope);
+  const remove = !!input.onRowDelete && isBuiltinRowActionVisible(input.deletePredicates, 'delete', row, scope);
+  const custom = input.customActions.filter((action) => isCustomRowActionVisible(action, row, scope));
+  return {
+    edit,
+    remove,
+    custom,
+    count: (edit ? 1 : 0) + (remove ? 1 : 0) + custom.length,
+  };
+}
+
+/**
  * One schema-driven custom row action in the data-table's inline row overflow
  * menu. Extracted into its own component so the action's `visible` (and
  * `disabled`) CEL predicate can be evaluated with a hook (`useCondition`)
@@ -215,13 +332,18 @@ export const DataTableRowActionItem: React.FC<{
   row: any;
   onActionDef?: (action: RowActionDef, row: any) => void | Promise<void>;
 }> = ({ action, row, onActionDef }) => {
-  const visiblePred = action.visible;
   // Evaluate on the canonical CEL engine (issue #1584): row bound bare + as
   // `record.*`, ambient `features`/`user` scope merged. `visible` fails CLOSED
   // (hidden + warn); `disabled` fails soft (not disabled).
-  const isVisible = useRowPredicate(visiblePred, row, { fallback: false, warnOnError: true, label: action.name });
+  //
+  // `visible` goes through the shared `isCustomRowActionVisible` — the SAME
+  // function the row-level guard uses to decide whether this row gets a "⋮"
+  // trigger at all, so an item can never be suppressed behind a trigger that
+  // survived (objectui#3562).
+  const scope = usePredicateScope();
+  const isVisible = useMemo(() => isCustomRowActionVisible(action, row, scope), [action, row, scope]);
   const isDisabled = useRowPredicate(action.disabled, row, { fallback: false, warnOnError: true, label: `${action.name}:disabled` });
-  if (visiblePred && !isVisible) return null;
+  if (!isVisible) return null;
   const ActionIcon = resolveIcon(action.icon);
   return (
     <DropdownMenuItem
@@ -263,17 +385,19 @@ export const DataTableBuiltinRowActionItem: React.FC<{
   className?: string;
   onSelect: (row: any) => void;
 }> = ({ name, predicates, row, icon, label, className, onSelect }) => {
-  const isVisible = useRowPredicate(predicates?.visibleWhen, row, {
-    fallback: false,
-    warnOnError: true,
-    label: `builtin:${name}:visibleWhen`,
-  });
+  // `visibleWhen` is read through the shared `isBuiltinRowActionVisible`, the
+  // same function the row-level guard counts with — see objectui#3562.
+  const scope = usePredicateScope();
+  const isVisible = useMemo(
+    () => isBuiltinRowActionVisible(predicates, name, row, scope),
+    [predicates, name, row, scope],
+  );
   const isDisabled = useRowPredicate(predicates?.disabledWhen, row, {
     fallback: false,
     warnOnError: true,
     label: `builtin:${name}:disabledWhen`,
   });
-  if (predicates?.visibleWhen != null && !isVisible) return null;
+  if (!isVisible) return null;
   const disabled = predicates?.disabledWhen != null && isDisabled;
   return (
     <DropdownMenuItem
@@ -285,6 +409,115 @@ export const DataTableBuiltinRowActionItem: React.FC<{
       {icon}
       {label}
     </DropdownMenuItem>
+  );
+};
+
+/**
+ * The row overflow ("⋮") menu for ONE row — trigger included, or nothing at all.
+ *
+ * A component per row rather than inline JSX in the row loop, because deciding
+ * whether the trigger exists means evaluating THIS row's predicates, and that
+ * needs a hook scope of its own (the row loop's arity is the page's row count).
+ *
+ * objectui#3562: the old guard asked whether HANDLERS were supplied
+ * (`onRowEdit` / `onRowDelete` / `rowActionDefs`) while the items were filtered
+ * a second time by their per-record predicates. Handlers present + every item
+ * suppressed = a trigger that opens an empty box (measured at 128×10 with zero
+ * `[role=menu]` children). The guard now counts the items that will actually
+ * render, so the two can't disagree.
+ *
+ * The actions `<TableCell>` around this is NOT conditional: a row with no
+ * surviving actions renders an empty cell, keeping every row aligned with the
+ * `Actions` header — the same shape a table with no handlers at all has always
+ * produced.
+ */
+const DataTableRowActionsMenu: React.FC<{
+  schema: DataTableSchema;
+  row: any;
+  t: (key: string) => string;
+}> = ({ schema, row, t }) => {
+  const scope = usePredicateScope();
+  // Custom defs are only dispatchable when there is a handler to dispatch them
+  // to, so an unhandled `rowActionDefs` contributes no items (unchanged).
+  const customActions = useMemo(
+    () => (Array.isArray(schema.rowActionDefs) && schema.onRowActionDef ? schema.rowActionDefs : []),
+    [schema.rowActionDefs, schema.onRowActionDef],
+  );
+  const plan = useMemo(
+    () =>
+      planDataTableRowMenu({
+        onRowEdit: schema.onRowEdit,
+        onRowDelete: schema.onRowDelete,
+        editPredicates: schema.rowEditPredicates,
+        deletePredicates: schema.rowDeletePredicates,
+        customActions,
+        row,
+        scope,
+      }),
+    [
+      schema.onRowEdit,
+      schema.onRowDelete,
+      schema.rowEditPredicates,
+      schema.rowDeletePredicates,
+      customActions,
+      row,
+      scope,
+    ],
+  );
+  // Nothing to show → no trigger. An affordance that opens empty reads as a
+  // broken page, which is the whole of #3562.
+  if (plan.count === 0) return null;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={(e) => e.stopPropagation()}
+          aria-label="Row actions"
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+        {plan.edit && (
+          <DataTableBuiltinRowActionItem
+            name="edit"
+            predicates={schema.rowEditPredicates}
+            row={row}
+            icon={<Edit className="mr-2 h-4 w-4" />}
+            label={t('table.edit')}
+            onSelect={(r) => schema.onRowEdit?.(r)}
+          />
+        )}
+        {/* Child-object custom actions (e.g. a related list surfacing the
+            child's `list_item` actions). Dispatched with the clicked row.
+            Separators are placed off the SURVIVING groups, so a suppressed
+            group can no longer leave a stray rule behind. */}
+        {plan.custom.length > 0 && plan.edit && <DropdownMenuSeparator />}
+        {plan.custom.map((action) => (
+          <DataTableRowActionItem
+            key={action.name}
+            action={action}
+            row={row}
+            onActionDef={schema.onRowActionDef}
+          />
+        ))}
+        {plan.remove && (plan.edit || plan.custom.length > 0) && <DropdownMenuSeparator />}
+        {plan.remove && (
+          <DataTableBuiltinRowActionItem
+            name="delete"
+            predicates={schema.rowDeletePredicates}
+            row={row}
+            icon={<Trash2 className="mr-2 h-4 w-4" />}
+            label={t('table.delete')}
+            className="text-destructive focus:text-destructive"
+            onSelect={(r) => schema.onRowDelete?.(r)}
+          />
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };
 
@@ -1968,66 +2201,9 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                 </Button>
                               </>
                             ) : (
-                              (() => {
-                                const customActions =
-                                  Array.isArray(schema.rowActionDefs) && schema.onRowActionDef
-                                    ? schema.rowActionDefs
-                                    : [];
-                                if (!schema.onRowEdit && !schema.onRowDelete && customActions.length === 0) {
-                                  return null;
-                                }
-                                return (
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                      onClick={(e) => e.stopPropagation()}
-                                      aria-label="Row actions"
-                                    >
-                                      <MoreHorizontal className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                                    {schema.onRowEdit && (
-                                      <DataTableBuiltinRowActionItem
-                                        name="edit"
-                                        predicates={schema.rowEditPredicates}
-                                        row={row}
-                                        icon={<Edit className="mr-2 h-4 w-4" />}
-                                        label={t('table.edit')}
-                                        onSelect={(r) => schema.onRowEdit?.(r)}
-                                      />
-                                    )}
-                                    {/* Child-object custom actions (e.g. a related
-                                        list surfacing the child's `list_item`
-                                        actions). Dispatched with the clicked row. */}
-                                    {customActions.length > 0 && schema.onRowEdit && <DropdownMenuSeparator />}
-                                    {customActions.map((action) => (
-                                      <DataTableRowActionItem
-                                        key={action.name}
-                                        action={action}
-                                        row={row}
-                                        onActionDef={schema.onRowActionDef}
-                                      />
-                                    ))}
-                                    {schema.onRowDelete && (schema.onRowEdit || customActions.length > 0) && <DropdownMenuSeparator />}
-                                    {schema.onRowDelete && (
-                                      <DataTableBuiltinRowActionItem
-                                        name="delete"
-                                        predicates={schema.rowDeletePredicates}
-                                        row={row}
-                                        icon={<Trash2 className="mr-2 h-4 w-4" />}
-                                        label={t('table.delete')}
-                                        className="text-destructive focus:text-destructive"
-                                        onSelect={(r) => schema.onRowDelete?.(r)}
-                                      />
-                                    )}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                                );
-                              })()
+                              /* Trigger + menu, or nothing when this row's
+                                 predicates leave no item to show (#3562). */
+                              <DataTableRowActionsMenu schema={schema} row={row} t={t} />
                             )}
                           </div>
                         </TableCell>
