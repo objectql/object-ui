@@ -21,7 +21,6 @@ npm install @object-ui/i18n
 
 **Peer Dependencies:**
 - `react` ^18.0.0 || ^19.0.0
-- `react-dom` ^18.0.0 || ^19.0.0
 
 ## Quick Start
 

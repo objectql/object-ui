@@ -19,7 +19,6 @@ npm install @object-ui/plugin-ai
 **Peer Dependencies:**
 - `react` ^18.0.0 || ^19.0.0
 - `react-dom` ^18.0.0 || ^19.0.0
-- `@object-ui/core`
 
 ## Quick Start
 

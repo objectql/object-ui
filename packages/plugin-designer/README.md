@@ -25,7 +25,7 @@ npm install @object-ui/plugin-designer
 **Peer Dependencies:**
 - `react` ^18.0.0 || ^19.0.0
 - `react-dom` ^18.0.0 || ^19.0.0
-- `@object-ui/core`
+- `react-router-dom` ^6.0.0 || ^7.0.0
 
 ## Quick Start
 

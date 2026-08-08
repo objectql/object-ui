@@ -70,9 +70,47 @@ import { fileURLToPath } from 'node:url';
  *   - Whitespace inside a range is insignificant; nothing else is. See `sameRange`.
  *
  * Still not promised, stated so it is not mistaken for covered: a literal with no
- * same-package anchor (`unanchored`, `sample`) is recorded and not checked, and the peer
- * BLOCK is judged only where the ledger has an entry — narrower than the block itself,
- * whose other 16 lines include a live drift. Measured and filed as objectui#3750.
+ * same-package anchor (`unanchored`, `sample`) is recorded and not checked.
+ *
+ * ## What objectui#3750 added: the block, not just the ledgered lines
+ *
+ * Until then the peer assertion's input set was the LEDGER — the `restatement` entries —
+ * and that is narrower than the thing a reader acts on. Measured on 8ad6070fb: the peer
+ * blocks hold 28 backticked statements, the ledger names 12 of them (all `react`), and of
+ * the 16 nobody compared, NINE disagreed with their own manifest. The worst was
+ * `packages/components/README.md` telling readers to install `tailwindcss` `^3.0.0`
+ * against a manifest demanding `^4.2.1` — follow the README and npm rejects the peer.
+ *
+ * The ledger could not have caught any of the nine, for two independent reasons, and both
+ * are worth naming because they are different failures:
+ *
+ *   - `tailwindcss` never MATCHED the scan. `TOOLCHAIN` spelled the name as
+ *     `Tailwind CSS|Tailwind`, and `Tailwind` with a trailing word boundary does not
+ *     match inside `tailwindcss` — the `css` continues the word. So the line never became
+ *     a claim, never earned an inventory entry, and both directions of the ratchet were
+ *     green over it. Fixed here by adding the lowercase package spelling to `TOOLCHAIN`;
+ *     measured to newly match exactly one line in the 221-file corpus, that one.
+ *   - The other eight were STRUCTURAL, and no regex fix reaches them. Five READMEs listed
+ *     a `react-dom` peer their manifest does not declare (and whose `src` contains not one
+ *     react-dom reference); three listed `@object-ui/core` with no version literal at all,
+ *     which is not a version claim in any spelling, so a scan for version literals is the
+ *     wrong instrument by construction.
+ *
+ * Hence the input set below is the UNION: every statement the ledger resolves, plus every
+ * bullet of every `Peer Dependencies` block, deduplicated by line so one drift has one
+ * reporter. A bullet naming a dep the manifest does not declare is a failure even though
+ * it carries no version, which is precisely the class the ratchet cannot express.
+ *
+ * The REVERSE direction — every declared peer must appear in the block — is here too, but
+ * scoped to READMEs that ALREADY HAVE a block, and that scoping is the whole decision.
+ * Measured: 11 of 39 packages have one, and 20 of the 28 without declare peers. Repo-wide
+ * the rule would demand 20 new blocks written to satisfy a test, which is churn buying
+ * nothing — a package that documents its peers nowhere is not lying to anyone. Scoped to
+ * packages that opted in by writing a block, it is a promise the README already made:
+ * this list is the peers. It found one real gap on a tree where the forward direction was
+ * clean — `plugin-designer` declared a `react-router-dom` peer its block never mentioned,
+ * so a reader following that README installs the package and gets an unmet-peer warning
+ * for a dependency the README never named.
  *
  * ## The census that set the design (measured on d46b40324, the merge of PR #3698)
  *
@@ -190,9 +228,27 @@ const VERSION =
 /** A package in a scope this repository publishes or consumes as its contract. */
 const FIRST_PARTY = '@(?:objectstack|object-ui)/(?:\\*|[a-z][a-z0-9-]*)';
 
-/** Toolchain and runtime names whose version a reader would act on. */
+/**
+ * Toolchain and runtime names whose version a reader would act on.
+ *
+ * `tailwindcss` is listed SEPARATELY from `Tailwind`, and that is a fix rather than a
+ * duplicate (objectui#3750). These alternatives are applied between word boundaries, and
+ * `Tailwind` followed by a boundary cannot match inside `tailwindcss`: the `css` continues
+ * the word. The package spelling — the one a peer line and a package.json both use — was
+ * therefore invisible to this scan from the day it was written, which is how
+ * `packages/components/README.md` held `tailwindcss` `^3.0.0` against a `^4.2.1` manifest
+ * with every gate green.
+ *
+ * Ordering is load-bearing: JavaScript alternation is first-match, not longest-match, so
+ * `Tailwind CSS` must stay ahead of `tailwindcss` (otherwise, case-insensitively,
+ * "Tailwind CSS v3.3" would... not actually break, since `tailwindcss` needs the letters
+ * adjacent — but the general rule is cheap to honour and the next name added may not be
+ * so forgiving). Measured cost of the addition across the 221-file corpus: exactly one new
+ * match, `packages/components/README.md` line 41 — repaired in the same change and
+ * inventoried below.
+ */
 const TOOLCHAIN =
-  '(?:Node\\.js|Node|TypeScript|Tailwind CSS|Tailwind|React DOM|React|pnpm|Vite|Vitest|npm|Zod)';
+  '(?:Node\\.js|Node|TypeScript|Tailwind CSS|tailwindcss|Tailwind|React DOM|React|pnpm|Vite|Vitest|npm|Zod)';
 
 /**
  * What may sit between the name and its version: quoting, a table pipe, a colon,
@@ -482,6 +538,12 @@ const KNOWN_CLAIMS: KnownClaim[] = [
   { file: 'packages/auth/README.md', claim: PEER_18_19, kind: 'restatement', why: PEER_RESTATEMENT_OK },
   { file: 'packages/collaboration/README.md', claim: PEER_18_19, kind: 'restatement', why: PEER_RESTATEMENT_OK },
   { file: 'packages/components/README.md', claim: PEER_18_19, kind: 'restatement', why: PEER_RESTATEMENT_OK },
+  {
+    file: 'packages/components/README.md',
+    claim: 'tailwindcss' + TICK + ' ^4.2.1',
+    kind: 'restatement',
+    why: 'Restates this package peerDependencies.tailwindcss verbatim. Newly VISIBLE to the scan in objectui#3750 — the TOOLCHAIN word-boundary fix above — and repaired in the same change: it read ^3.0.0 against a ^4.2.1 manifest, and the package is Tailwind 4 only (its postcss.config.js loads @tailwindcss/postcss, which has no v3 counterpart, and src/index.css opens with an @import of tailwindcss and uses the v4-only @theme and @custom-variant at-rules, with no tailwind.config.js anywhere).',
+  },
   { file: 'packages/i18n/README.md', claim: PEER_18_19, kind: 'restatement', why: PEER_RESTATEMENT_OK },
   { file: 'packages/layout/README.md', claim: PEER_18_19, kind: 'restatement', why: PEER_RESTATEMENT_OK },
   { file: 'packages/mobile/README.md', claim: PEER_18_19, kind: 'restatement', why: PEER_RESTATEMENT_OK },
@@ -560,6 +622,68 @@ function parsePeerStatement(line: string): PeerStatement | null {
   }
 
   return null;
+}
+
+/**
+ * The block header, in the one spelling all 11 blocks use, on a line of its own
+ * (objectui#3750). Anchored rather than searched-for on purpose: `troubleshooting.md` has
+ * a `Missing Peer Dependencies` heading and `data-objectstack.mdx` two prose sentences
+ * about peer dependencies, none of them a machine-comparable list, and a loose match would
+ * drag all three in and then fail to parse their prose as bullets.
+ */
+const PEER_BLOCK_HEADING = /^\*\*Peer Dependencies:?\*\*$/i;
+
+/** A bullet naming a backticked dep, with whatever follows it. Range optional HERE. */
+const PEER_BULLET = new RegExp(
+  '^\\s*[-*]\\s+' + TICK + '([^' + TICK + ']+)' + TICK + '\\s*(.*?)\\s*$',
+);
+
+/** Any list item, conforming or not — what the block walker uses to find the block's end. */
+const ANY_BULLET = /^\s*[-*]\s+\S/;
+
+interface PeerBullet {
+  line: number;
+  /** null when the line is a bullet but does not name a backticked dep at all. */
+  dep: string | null;
+  /** Text after the dep name; empty string when the bullet states no range. */
+  rest: string;
+  raw: string;
+}
+
+/**
+ * Every bullet of one README's peer block, or null when it has no block.
+ *
+ * Deliberately NOT built on `parsePeerStatement`: that function answers "is this line a
+ * peer statement with a range", and returns null for `- ` + a backticked `@object-ui/core`
+ * with nothing after it. Three READMEs carried exactly that line while their manifests
+ * declared no such peer, and a block reader that inherited the same null would have walked
+ * straight past all three. Inside a block the question is different — every bullet is a
+ * claim about a peer whether or not it carries a version — so the range is optional at
+ * PARSE time and its absence is judged by the assertion instead.
+ *
+ * The walker skips blank lines and stops at the first non-blank line that is not a list
+ * item, which is what ends every block in the corpus (a level-2 heading) and also ends one
+ * followed by a prose paragraph.
+ */
+function peerBlockBullets(rel: string): PeerBullet[] | null {
+  const lines = linesOf(rel);
+  const start = lines.findIndex((line) => PEER_BLOCK_HEADING.test(line.trim()));
+  if (start < 0) return null;
+
+  const bullets: PeerBullet[] = [];
+  for (let i = start + 1; i < lines.length; i++) {
+    const raw = lines[i];
+    if (raw.trim() === '') continue;
+    if (!ANY_BULLET.test(raw)) break;
+    const match = PEER_BULLET.exec(raw);
+    bullets.push({
+      line: i + 1,
+      dep: match === null ? null : match[1].trim(),
+      rest: match === null ? '' : match[2],
+      raw: raw.trim(),
+    });
+  }
+  return bullets;
 }
 
 /**
@@ -659,6 +783,95 @@ const peerChecks: PeerCheck[] = KNOWN_CLAIMS.filter((e) => e.kind === 'restateme
   return { entry, compared, noManifest: peers === null, absent: occurrences.length === 0 };
 });
 
+/** One statement to be judged against one manifest entry, whatever route found it. */
+interface PeerComparison {
+  file: string;
+  line: number;
+  dep: string;
+  /** null when the statement names a dep but states no range — see `peerBlockBullets`. */
+  readme: string | null;
+  /** `undefined` when the manifest does not declare this dep as a peer at all. */
+  manifest: string | undefined;
+}
+
+/** A bullet inside a peer block that does not even name a backticked dep. */
+interface MalformedBullet {
+  file: string;
+  line: number;
+  raw: string;
+}
+
+interface PeerBlock {
+  file: string;
+  pkgDir: string;
+  peers: Record<string, string>;
+  bullets: PeerBullet[];
+}
+
+/**
+ * Every package README carrying a peer block, read straight off the file rather than
+ * through the ledger. This is objectui#3750's widening: the ledger indexed 12 of the 28
+ * statements these blocks make, and nine of the other 16 were wrong.
+ */
+const peerBlocks: PeerBlock[] = scannedFiles
+  .map((abs) => path.relative(repoRoot, abs).split(path.sep).join('/'))
+  .flatMap((rel) => {
+    const pkgDir = PACKAGE_README.exec(rel)?.[1];
+    if (pkgDir === undefined) return [];
+    const bullets = peerBlockBullets(rel);
+    const peers = manifestPeers(pkgDir);
+    if (bullets === null || peers === null) return [];
+    return [{ file: rel, pkgDir, peers, bullets }];
+  });
+
+const malformedBullets: MalformedBullet[] = peerBlocks.flatMap((block) =>
+  block.bullets
+    .filter((bullet) => bullet.dep === null)
+    .map((bullet) => ({ file: block.file, line: bullet.line, raw: bullet.raw })),
+);
+
+/**
+ * Ledger-resolved statements first, then every block bullet, deduplicated by line.
+ *
+ * The dedupe is what keeps "one defect, one reporter" true across the widening: the 12
+ * ledgered `react` lines all sit INSIDE blocks, so both routes reach them and without this
+ * a single drifted range would print twice and read as two problems. Ledger entries win
+ * the tie only because they arrive first; the two routes agree on every field for a line
+ * both can see.
+ */
+const peerComparisons: PeerComparison[] = [];
+const seenStatement = new Set<string>();
+for (const check of peerChecks) {
+  if (check.entry.notAPeerRestatement !== undefined) continue;
+  for (const stated of check.compared) {
+    const at = `${check.entry.file}:${stated.line}`;
+    if (seenStatement.has(at)) continue;
+    seenStatement.add(at);
+    peerComparisons.push({
+      file: check.entry.file,
+      line: stated.line,
+      dep: stated.dep,
+      readme: stated.readme,
+      manifest: stated.manifest,
+    });
+  }
+}
+for (const block of peerBlocks) {
+  for (const bullet of block.bullets) {
+    if (bullet.dep === null) continue;
+    const at = `${block.file}:${bullet.line}`;
+    if (seenStatement.has(at)) continue;
+    seenStatement.add(at);
+    peerComparisons.push({
+      file: block.file,
+      line: bullet.line,
+      dep: bullet.dep,
+      readme: RANGE_OPENS.test(bullet.rest) ? bullet.rest : null,
+      manifest: block.peers[bullet.dep],
+    });
+  }
+}
+
 describe('doc version claims - the scan itself', () => {
   it('reads a plausible corpus, so a broken scan cannot report green', () => {
     // Every count below is a floor, not the measured value: docs are added and
@@ -757,9 +970,12 @@ describe('doc version claims - the ratchet', () => {
 });
 
 describe('doc version claims - the peer-line assertion', () => {
-  it('pins every peer-line restatement to the range its own manifest declares', () => {
+  it('pins every peer statement to the range its own manifest declares', () => {
     const failures: string[] = [];
 
+    // Inventory integrity, which only the LEDGER route can report: an entry claiming to
+    // restate a peer range that resolves to no comparable statement at all. The widened
+    // block route cannot see this — it never looks at entries — so it stays here.
     for (const check of peerChecks) {
       // Skipped by name, with its reason on the entry. The closure test below is what
       // stops this branch from becoming a way out.
@@ -785,48 +1001,115 @@ describe('doc version claims - the peer-line assertion', () => {
             `but the line carrying it does not read as a peer statement, so NOTHING was ` +
             `compared - teach parsePeerStatement the spelling, or set notAPeerRestatement`,
         );
-        continue;
       }
+    }
 
-      for (const stated of check.compared) {
-        if (stated.manifest === undefined) {
-          failures.push(
-            `${check.entry.file}:${stated.line}  ${stated.dep}: the README states a peer ` +
-              `range, but this package's peerDependencies does not declare ${stated.dep} at all`,
-          );
-        } else if (!sameRange(stated.readme, stated.manifest)) {
-          failures.push(
-            `${check.entry.file}:${stated.line}  ${stated.dep}: README says ` +
-              `${JSON.stringify(stated.readme)}, manifest says ${JSON.stringify(stated.manifest)}`,
+    // The widened set: ledger-resolved statements UNION every peer-block bullet, one
+    // entry per line. objectui#3750 — the ledger indexed 12 of 28 and nine of the rest
+    // were wrong.
+    for (const stated of peerComparisons) {
+      if (stated.manifest === undefined) {
+        failures.push(
+          `${stated.file}:${stated.line}  ${stated.dep}: the README lists it as a peer, but ` +
+            `this package's peerDependencies does not declare ${stated.dep} at all - delete ` +
+            `the line, or declare the peer if the package really needs the host to supply it`,
+        );
+      } else if (stated.readme === null) {
+        failures.push(
+          `${stated.file}:${stated.line}  ${stated.dep}: listed in the peer block with no ` +
+            `version range, so a reader cannot tell what to install and nothing can be ` +
+            `compared - write the range the manifest declares (${JSON.stringify(stated.manifest)})`,
+        );
+      } else if (!sameRange(stated.readme, stated.manifest)) {
+        failures.push(
+          `${stated.file}:${stated.line}  ${stated.dep}: README says ` +
+            `${JSON.stringify(stated.readme)}, manifest says ${JSON.stringify(stated.manifest)}`,
+        );
+      }
+    }
+
+    for (const bad of malformedBullets) {
+      failures.push(
+        `${bad.file}:${bad.line}  ${JSON.stringify(bad.raw)}: a bullet inside a Peer ` +
+          `Dependencies block that names no backticked package, so it states a requirement ` +
+          `nothing can check - write it as a package plus its range, or move the prose out ` +
+          `of the block`,
+      );
+    }
+
+    expect(
+      failures,
+      `A README's Peer Dependencies block and its own package.json no longer agree:\n` +
+        failures.map((f) => `  - ${f}`).join('\n') +
+        `\n\nThis assertion does not decide which side is wrong. objectui#3710 narrowed the ` +
+        `PROSE to the manifest; objectui#3690 widened the MANIFEST to the prose, because ` +
+        `there the README was right. objectui#3750 did both in one change: it narrowed ` +
+        `components' tailwindcss line to the manifest (the package is Tailwind 4 only), and ` +
+        `deleted eight lines naming peers no manifest declares. Read the package and fix the ` +
+        `side that is actually stale, then run this again.\n\n` +
+        `Note that the ratchet above cannot see this class of drift: the inventory key stops ` +
+        `at the first version token, so changing the second arm of a range leaves the key, ` +
+        `the literal and the entry all untouched and both directions of the ratchet green. ` +
+        `Nor can it see a peer line carrying no version literal at all.`,
+    ).toEqual([]);
+
+    // Vacuity floor. Everything above is a loop: empty the inventory, break the line
+    // parser, or break the block walker, and the loops report success over nothing.
+    // Measured at 21 comparisons after objectui#3750 (20 block bullets across 11 READMEs
+    // plus react-runtime's prose sentence, which sits in no block); it was 12 before the
+    // widening. A floor rather than a pin, because this list legitimately shrinks when a
+    // package stops declaring a peer.
+    expect(
+      peerComparisons.length,
+      'the peer assertion compared implausibly few statements - the parser, the block ' +
+        'walker or the inventory collapsed, and the assertion is now green over nothing',
+    ).toBeGreaterThanOrEqual(18);
+
+    // And the block walker specifically must still be finding blocks: the union above
+    // would still clear its floor on ledger entries alone if `peerBlockBullets` started
+    // returning null for every file.
+    expect(
+      peerBlocks.length,
+      'no Peer Dependencies block was found in any package README - the block heading ' +
+        'spelling changed and the widening is silently back to ledger-only coverage',
+    ).toBeGreaterThanOrEqual(8);
+  });
+
+  it('requires a peer block to list every peer its own manifest declares', () => {
+    // The REVERSE direction, and the scoping is the decision — see the header. Only
+    // READMEs that already carry a block are judged: writing one is optional, but a block
+    // that exists is a claim to be the list, and a reader who installs everything in it
+    // and still gets an unmet-peer warning was misled by an omission rather than a typo.
+    //
+    // Measured when this landed: 11 of 39 packages carry a block and 20 of the 28 without
+    // declare peers, so the repo-wide spelling of this rule would have demanded 20 new
+    // blocks written to satisfy a test. It found exactly one real omission —
+    // plugin-designer declared a react-router-dom peer its block never mentioned.
+    const missing: string[] = [];
+
+    for (const block of peerBlocks) {
+      const listed = new Set(block.bullets.map((bullet) => bullet.dep).filter((dep) => dep !== null));
+      for (const [dep, range] of Object.entries(block.peers)) {
+        if (!listed.has(dep)) {
+          missing.push(
+            `${block.file} :: peerDependencies declares ${dep} ${JSON.stringify(range)}, but ` +
+              `the Peer Dependencies block never names it - a reader following this README ` +
+              `installs the package and gets an unmet-peer warning for something it never told ` +
+              `them about`,
           );
         }
       }
     }
 
     expect(
-      failures,
-      `A README restates its own package's peer range and the two no longer agree:\n` +
-        failures.map((f) => `  - ${f}`).join('\n') +
-        `\n\nThis assertion does not decide which side is wrong. objectui#3710 narrowed the ` +
-        `PROSE to the manifest; objectui#3690 widened the MANIFEST to the prose, because ` +
-        `there the README was right. Read the package and fix the side that is actually ` +
-        `stale, then run this again.\n\n` +
-        `Note that the ratchet above cannot see this class of drift: the inventory key stops ` +
-        `at the first version token, so changing the second arm of a range leaves the key, ` +
-        `the literal and the entry all untouched and both directions of the ratchet green.`,
+      missing,
+      `A package README carries a Peer Dependencies block that is not the whole list:\n` +
+        missing.map((m) => `  - ${m}`).join('\n') +
+        `\n\nAdd the missing line to the block, or drop the peer from the manifest if the ` +
+        `package does not actually need the host to supply it. This rule applies ONLY to ` +
+        `READMEs that already have a block: 20 packages declare peers and document none, ` +
+        `and forcing blocks onto them would be churn bought for a test rather than a reader.`,
     ).toEqual([]);
-
-    // Vacuity floor. Everything above is a loop over entries: delete the entries, or break
-    // the line parser, and the loop reports success over nothing. Measured at 12 comparisons
-    // on 8ad6070fb (11 bullet-spelled READMEs plus react-runtime's prose sentence); a floor
-    // rather than a pin, because this list legitimately shrinks when a README stops
-    // restating its manifest.
-    const compared = peerChecks.flatMap((c) => c.compared);
-    expect(
-      compared.length,
-      'the peer-line assertion compared implausibly few lines - the parser or the ' +
-        'inventory collapsed, and the assertion is now green over nothing',
-    ).toBeGreaterThanOrEqual(10);
   });
 
   it('lets no restatement entry sit outside the assertion without saying so', () => {
@@ -912,5 +1195,56 @@ describe('doc version claims - the peer-line assertion', () => {
         `${readme} and ${manifest} are different ranges and must not compare equal`,
       ).toBe(false);
     }
+  });
+
+  it('recognises the block heading only in the spelling that opens a machine-readable list', () => {
+    // The corpus spelling, on its own line. Anchored: the three near-misses below are real
+    // lines in this repository, and a loose match would pull their prose into the walker.
+    expect(PEER_BLOCK_HEADING.test('**Peer Dependencies:**')).toBe(true);
+    for (const notABlock of [
+      '## 3. Missing Peer Dependencies',
+      '- Peer dependency versions',
+      '**Note:** The `@objectstack/client` package is a peer dependency and must be installed separately.',
+      '2. Ensure peer dependencies match the new baselines',
+    ]) {
+      expect(
+        PEER_BLOCK_HEADING.test(notABlock.trim()),
+        `${JSON.stringify(notABlock)} does not open a peer block and must not be walked as one`,
+      ).toBe(false);
+    }
+  });
+
+  it('reads a range-less peer bullet instead of skipping it, which is how eight lines hid', () => {
+    // The distinction objectui#3750 turns on. `parsePeerStatement` answers "is this a peer
+    // statement WITH a range" and correctly returns null here; the block walker must not
+    // inherit that null, because three READMEs listed this exact line against manifests
+    // declaring no such peer, and a walker that skipped it would have walked past all three.
+    const rangeless = '- ' + ticked('@object-ui/core');
+    expect(parsePeerStatement(rangeless)).toBeNull();
+
+    const parsed = PEER_BULLET.exec(rangeless);
+    expect(parsed?.[1], 'the block walker must still recover the dep name').toBe('@object-ui/core');
+    expect(RANGE_OPENS.test(parsed?.[2] ?? ''), 'and must record that it states no range').toBe(false);
+
+    // A bullet with a range still parses the range identically to the ledger route, so the
+    // two agree on every line both can see - the premise the dedupe rests on.
+    const ranged = PEER_BULLET.exec('- ' + ticked('react') + ' ^18.0.0 || ^19.0.0');
+    expect({ dep: ranged?.[1], range: ranged?.[2] }).toEqual({
+      dep: 'react',
+      range: '^18.0.0 || ^19.0.0',
+    });
+  });
+
+  it('walks a real peer block to its end and no further', () => {
+    // components carries the longest block in the corpus and is followed by a heading,
+    // which is what must stop the walk. Reading past it would drag the `## Setup`
+    // section's bullets in and fail them against a manifest that never mentioned them.
+    const bullets = peerBlockBullets('packages/components/README.md');
+    expect(bullets?.map((b) => b.dep)).toEqual(['react', 'react-dom', 'tailwindcss']);
+
+    // A README with no block at all returns null rather than an empty list, so "has no
+    // block" and "has an empty block" stay distinguishable - the reverse-direction rule
+    // above judges the second and deliberately ignores the first.
+    expect(peerBlockBullets('packages/plugin-grid/README.md')).toBeNull();
   });
 });
