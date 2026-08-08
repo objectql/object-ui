@@ -29,6 +29,7 @@ packages/plugin-my-plugin/
 ├── package.json
 ├── tsconfig.json
 ├── vite.config.ts
+├── vitest.setup.ts         # Registers the jest-dom matchers
 └── README.md
 ```
 
@@ -37,7 +38,8 @@ packages/plugin-my-plugin/
 - ✅ TypeScript support out of the box
 - ✅ Vite build configuration
 - ✅ Component registration with ComponentRegistry
-- ✅ Test setup with Vitest
+- ✅ Runnable Vitest setup — jsdom environment, Testing Library and the jest-dom
+  matchers are all declared, so `pnpm test` is green on the first run
 - ✅ Proper package.json with workspace dependencies
 - ✅ README template
 - ✅ Type definitions
