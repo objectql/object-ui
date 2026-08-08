@@ -243,3 +243,46 @@ describe('planDataTableRowMenu', () => {
     expect(plan).toMatchObject({ edit: false, count: 0 });
   });
 });
+
+/**
+ * objectui#3758 reaching the guard: `planDataTableRowMenu` counts with the same
+ * `isCustomRowActionVisible` the item gates itself on, so correcting the gate
+ * propagates to whether the row gets a "⋮" at all — no separate change, and no
+ * way for the trigger and its contents to disagree about a boolean `visible`.
+ */
+describe('planDataTableRowMenu — declared boolean `visible` (objectui#3758)', () => {
+  const scope = {};
+  const row = MIXED_ROWS[1];
+
+  it('drops a custom action declaring `visible: false`, reaching zero items', () => {
+    const plan = planDataTableRowMenu({
+      customActions: [{ name: 'ghost', visible: false }] as any,
+      row,
+      scope,
+    });
+    expect(plan.custom).toEqual([]);
+    expect(plan.count).toBe(0);
+  });
+
+  // Keeps the assertion above from passing for the empty reason: a gate
+  // rewritten to "always hide" would also reach `count: 0`.
+  it('keeps a custom action declaring `visible: true` — declaration detection, not "always hide"', () => {
+    const plan = planDataTableRowMenu({
+      customActions: [{ name: 'always', visible: true }] as any,
+      row,
+      scope,
+    });
+    expect(plan.custom.map((a) => a.name)).toEqual(['always']);
+    expect(plan.count).toBe(1);
+  });
+
+  it('treats an empty-string `visible` as no gate at all, matching `hasVisibilityGate`', () => {
+    const plan = planDataTableRowMenu({
+      customActions: [{ name: 'compiled_away', visible: '' }] as any,
+      row,
+      scope,
+    });
+    expect(plan.custom.map((a) => a.name)).toEqual(['compiled_away']);
+    expect(plan.count).toBe(1);
+  });
+});

@@ -21,11 +21,14 @@
  * "⋮" guard share) and the selection bar (`partitionBulkRows`), and depends on
  * `@object-ui/components`, which owns `page:header`.
  *
- * Scope of the claim, deliberately: these fixtures are all non-empty predicate
- * STRINGS / envelopes, i.e. the dialect question. Boolean and empty `visible`
- * are a separate, still-open divergence — the kebab renders a `visible: false`
- * def (objectui#3758) while the header hides it — and pinning them here would
- * read as blessing a difference this issue did not fix.
+ * Scope of the claim: most fixtures are non-empty predicate STRINGS / envelopes,
+ * i.e. the dialect question #3521 asked. The boolean and empty-string shapes were
+ * excluded while they still diverged — the kebab rendered a `visible: false` def
+ * while the bar and the header hid it — and pinning them then would have read as
+ * blessing a difference #3521 did not fix. objectui#3758 closed that divergence
+ * by making the kebab's gate detect a DECLARED gate (`!= null && !== ''`) instead
+ * of a truthy one, so they belong in the table now: the shapes an author can
+ * write with no expression at all reach one verdict on all three surfaces too.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -203,6 +206,13 @@ const CASES: Case[] = [
   },
   // A predicate that cannot be evaluated: fail-CLOSED on all three.
   { what: 'faulting predicate fails closed', name: 'par_fault', visible: 'no_such_var_par == 1', expected: false },
+  // The non-expression shapes, parity-checked since objectui#3758. A declared
+  // BOOLEAN is a verdict every surface short-circuits rather than evaluating;
+  // `''` and an absent `visible` are no gate at all on every surface.
+  { what: 'declared boolean false excludes every row', name: 'par_bool_false', visible: false, expected: false },
+  { what: 'declared boolean true offers every row', name: 'par_bool_true', visible: true, expected: true },
+  { what: 'empty-string `visible` is no gate', name: 'par_empty_string', visible: '', expected: true },
+  { what: 'absent `visible` is no gate', name: 'par_absent', visible: undefined, expected: true },
 ];
 
 describe('one predicate, one verdict on all three action surfaces (#3521)', () => {

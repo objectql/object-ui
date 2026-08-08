@@ -132,6 +132,11 @@ function evalRowActionVisibility(
   fields: unknown,
 ): boolean {
   if (typeof pred === 'boolean') return pred;
+  // Not dead, and not the place that decides "was a gate declared?" — the two
+  // callers below answer that first, each by its own rule. `''` still arrives
+  // here from `isBuiltinRowActionVisible`, whose gate is `!= null` alone; a
+  // nothing-to-evaluate predicate that reached an evaluator fails CLOSED like
+  // any other unevaluable one.
   if (pred == null || pred === '') return false;
   return evalRowPredicate(pred as never, row ?? {}, {
     fallback: false,
@@ -175,11 +180,19 @@ export function isBuiltinRowActionVisible(
  * ({@link RowActionInlineButton}). One function, so a def cannot be visible on
  * one surface and hidden on the other.
  *
- * The gate is truthiness, which is what both items have always applied: a
- * `visible: false` def RENDERS (the objectui#3492 shape). Preserved verbatim —
- * the contract this function exists for is that the guard and the items agree,
- * and re-deciding `visible: false` would change WHICH items render, a separate
- * question tracked as objectui#3758.
+ * A gate counts as DECLARED by `!= null && !== ''`, never by truthiness
+ * (objectui#3758). Truthiness cannot answer the question: `visible: false` is a
+ * declared gate that excludes every row, and testing `!def.visible` classified
+ * it as *ungated* — so the most explicit way to say "never show this" rendered
+ * the action for everyone, on both surfaces and in the "⋮" guard's count. This
+ * is `bulkEligibility`'s `hasVisibilityGate` verbatim, the invariant
+ * objectui#3492 established for the selection bar, and the same `!= null`
+ * posture the built-in `visibleWhen` gate above has always had. The boolean then
+ * decides in {@link evalRowActionVisibility}, which short-circuits it instead of
+ * handing it to the engine.
+ *
+ * `''` is grouped with `null` deliberately: an empty predicate is nothing to
+ * evaluate, so it must not hide the action from everyone either.
  */
 export function isCustomRowActionVisible(
   def: RowActionDef | undefined,
@@ -187,8 +200,9 @@ export function isCustomRowActionVisible(
   scope: Record<string, unknown>,
   fields?: unknown,
 ): boolean {
-  if (!def?.visible) return true;
-  return evalRowActionVisibility(def.visible, row, scope, def.name ?? 'row-action', fields);
+  const pred = def?.visible;
+  if (pred == null || pred === '') return true;
+  return evalRowActionVisibility(pred, row, scope, def?.name ?? 'row-action', fields);
 }
 
 /** What this row's action cell will actually render. */

@@ -210,6 +210,11 @@ function evalRowActionVisibility(
   label: string,
 ): boolean {
   if (typeof pred === 'boolean') return pred;
+  // Not dead, and not the place that decides "was a gate declared?" — the two
+  // callers below answer that first, each by its own rule. `''` still arrives
+  // here from `isBuiltinRowActionVisible`, whose gate is `!= null` alone; a
+  // nothing-to-evaluate predicate that reached an evaluator fails CLOSED like
+  // any other unevaluable one.
   if (pred == null || pred === '') return false;
   return evalRowPredicate(pred as never, row ?? {}, {
     fallback: false,
@@ -245,19 +250,28 @@ export function isBuiltinRowActionVisible(
  * Does this schema-driven custom row action render for THIS row? Same
  * single-definition rule as the built-ins above.
  *
- * The gate is truthiness, which is what the item has always applied: a
- * `visible: false` def renders (the objectui#3492 shape). Preserved verbatim —
- * the contract this function exists for is that the guard and the item agree,
- * and re-deciding `visible: false` would change WHICH items render, a separate
- * question tracked on its own issue.
+ * A gate counts as DECLARED by `!= null && !== ''`, never by truthiness
+ * (objectui#3758). Truthiness cannot answer the question: `visible: false` is a
+ * declared gate that excludes every row, and testing `!action.visible`
+ * classified it as *ungated* — so the most explicit way to say "never show this"
+ * rendered the item for everyone, and counted toward the "⋮" guard. This is the
+ * invariant objectui#3492 established for the selection bar (plugin-grid's
+ * `hasVisibilityGate`), and the same `!= null` posture the built-in `visibleWhen`
+ * gate above has always had. The boolean then decides in
+ * {@link evalRowActionVisibility}, which short-circuits it instead of handing it
+ * to the engine.
+ *
+ * `''` is grouped with `null` deliberately: an empty predicate is nothing to
+ * evaluate, so it must not hide the item from everyone either.
  */
 export function isCustomRowActionVisible(
   action: { name?: string; visible?: unknown } | undefined,
   row: any,
   scope: Record<string, unknown>,
 ): boolean {
-  if (!action?.visible) return true;
-  return evalRowActionVisibility(action.visible, row, scope, action.name ?? 'row-action');
+  const pred = action?.visible;
+  if (pred == null || pred === '') return true;
+  return evalRowActionVisibility(pred, row, scope, action?.name ?? 'row-action');
 }
 
 /** What the row overflow menu will actually render for ONE row. */

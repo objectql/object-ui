@@ -114,3 +114,36 @@ describe('data-table row action — visible / disabled CEL evaluation', () => {
     expect(screen.getByTestId('row-action-locked_action')).toHaveAttribute('data-disabled');
   });
 });
+
+/**
+ * objectui#3758 — a DECLARED boolean `visible` is a verdict, not a missing gate.
+ *
+ * `isCustomRowActionVisible` used to ask truthiness (`if (!action?.visible)
+ * return true`), so `visible: false` — the most explicit way to say "never show
+ * this" — answered "no gate declared" and the item rendered for every row.
+ * Declaration is now detected by `!= null && !== ''`, the invariant
+ * objectui#3492 established for the selection bar (`hasVisibilityGate`) and the
+ * one the built-in `visibleWhen` gate has always used, so a declared boolean
+ * reaches the evaluator and decides.
+ *
+ * The `visible: true` and empty-string cases are asserted alongside on purpose:
+ * they are what separates "detect the declaration" from "hide unconditionally".
+ */
+describe('data-table row action — declared boolean `visible` (objectui#3758)', () => {
+  it('hides an action declaring `visible: false`', () => {
+    renderRowActionItem({ name: 'ghost', label: 'Ghost', visible: false }, { id: '2', role: 'member' });
+    expect(screen.queryByTestId('row-action-ghost')).toBeNull();
+    expect(screen.queryByText('Ghost')).toBeNull();
+  });
+
+  it('renders an action declaring `visible: true`', () => {
+    renderRowActionItem({ name: 'always', label: 'Always', visible: true }, { id: '2', role: 'member' });
+    expect(screen.getByTestId('row-action-always')).toBeInTheDocument();
+    expect(screen.getByText('Always')).toBeInTheDocument();
+  });
+
+  it('treats an empty-string `visible` as no gate at all, matching `hasVisibilityGate`', () => {
+    renderRowActionItem({ name: 'compiled_away', label: 'Compiled Away', visible: '' }, { id: '2', role: 'member' });
+    expect(screen.getByTestId('row-action-compiled_away')).toBeInTheDocument();
+  });
+});

@@ -410,17 +410,60 @@ describe('planRowActionMenu', () => {
     }
   });
 
-  it('preserves the `visible: false` truthy gate verbatim (objectui#3758, not this issue)', () => {
-    // `!def.visible` reads `false` as "ungated", so the def renders and counts —
-    // exactly what the item components have always done. Re-deciding this would
-    // change WHICH items render, which is out of #3562's scope; the point of the
-    // shared function is only that the guard and the items agree.
+  // objectui#3758 replaced the fixture that used to live here. It pinned the
+  // truthiness gate verbatim — `!def.visible` read `false` as "ungated", so the
+  // def rendered and counted — because re-deciding `visible: false` changes
+  // WHICH items render and was out of #3562's scope. #3758 then decided it, the
+  // other way: a declared boolean is a verdict (the #3492 invariant), so the
+  // fixture's expectations (`['ghost']` / `1`) are now the wrong verdicts and
+  // are replaced rather than re-spelled.
+  it('a declared `visible: false` excludes the def and leaves no trigger (objectui#3758)', () => {
     const plan = planRowActionMenu({
       ...base,
       row: FROZEN,
       menuDefs: [{ name: 'ghost', visible: false }],
     });
-    expect(plan.custom.map((a) => a.name)).toEqual(['ghost']);
+    expect(plan.custom).toEqual([]);
+    expect(plan.menuCount).toBe(0);
+  });
+
+  // The counterpart that keeps the assertion above from passing for the empty
+  // reason: a gate rewritten to "always hide" would also reach `menuCount: 0`.
+  it('a declared `visible: true` still counts — declaration detection, not "always hide"', () => {
+    const plan = planRowActionMenu({
+      ...base,
+      row: FROZEN,
+      menuDefs: [{ name: 'always', visible: true }],
+    });
+    expect(plan.custom.map((a) => a.name)).toEqual(['always']);
     expect(plan.menuCount).toBe(1);
+  });
+
+  it('an empty-string `visible` is no gate at all, matching `hasVisibilityGate`', () => {
+    const plan = planRowActionMenu({
+      ...base,
+      row: FROZEN,
+      menuDefs: [{ name: 'compiled_away', visible: '' }],
+    });
+    expect(plan.custom.map((a) => a.name)).toEqual(['compiled_away']);
+    expect(plan.menuCount).toBe(1);
+  });
+});
+
+/**
+ * The DOM half of objectui#3758 on this surface: a row whose only custom action
+ * declares `visible: false` renders no "⋮" at all. This is the #3562 guard and
+ * the #3758 gate meeting — the guard counts what the items will render, so
+ * correcting the gate propagates to the trigger with no separate change.
+ */
+describe('declared `visible: false` reaches the "⋮" guard (objectui#3758)', () => {
+  it('renders no trigger when the row\'s only custom action declares `visible: false`', () => {
+    renderMenu({ rowActionDefs: [{ name: 'ghost', label: 'Ghost', variant: 'secondary', visible: false }] });
+    expect(trigger()).not.toBeInTheDocument();
+  });
+
+  it('keeps the trigger when that same action declares `visible: true`', () => {
+    renderMenu({ rowActionDefs: [{ name: 'ghost', label: 'Ghost', variant: 'secondary', visible: true }] });
+    expect(trigger()).toBeInTheDocument();
   });
 });
