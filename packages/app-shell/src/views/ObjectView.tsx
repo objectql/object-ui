@@ -63,6 +63,7 @@ import { importTargetFields } from './importTargetFields';
 import { useExpressionContext } from '../providers/ExpressionProvider';
 import { resolveManagedByEmptyState } from '../utils/managedByEmptyState';
 import { resolveViewId } from '../utils/resolveViewId';
+import { defaultListViewId } from '../utils/viewIdentity';
 import { warnSuppressedListNav } from '../utils/warnSuppressedListNav';
 import { useObjectActions } from '../hooks/useObjectActions';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
@@ -556,12 +557,11 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         }
         const definedViews = (objectDef.listViews || objectDef.list_views || {}) as Record<string, any>;
         const ids = Object.keys(definedViews);
-        // Include the primary view id so overrides apply to it too.
-        const primary = (objectDef as any).list;
-        if (primary && typeof primary === 'object') {
-            const primaryId = primary.name || 'list';
-            if (!ids.includes(primaryId)) ids.unshift(primaryId);
-        }
+        // Include the primary view id so overrides apply to it too. Its identity
+        // comes from the view composer (objectui#3770) — the same id the override
+        // was persisted under, since `persistViewPatch` writes by view id.
+        const primaryId = defaultListViewId(objectDef.name, (objectDef as any).list);
+        if (primaryId && !ids.includes(primaryId)) ids.unshift(primaryId);
         if (ids.length === 0) {
             setViewOverrides({});
             return;
@@ -635,9 +635,14 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         // ViewSchema). MetadataProvider mirrors it into `listViews` so it's
         // already in `viewList` above; promote it to the front and mark it as
         // the default so `defaultViewId` picks it over secondary listViews.
+        //
+        // Its id is the composer's runtime identity (objectui#3770), which is
+        // what the tab label / description / emptyState are translated under:
+        // `viewLabel` reads `objects.<object>._views.<bare key>.label`, and for a
+        // default list declared without a `name` that bare key is `default`.
         const primary = (objectDef as any).list;
-        if (primary && typeof primary === 'object') {
-            const primaryId = primary.name || 'list';
+        const primaryId = defaultListViewId(objectDef.name, primary);
+        if (primaryId) {
             const idx = viewList.findIndex(v => v.id === primaryId);
             if (idx >= 0) {
                 const [entry] = viewList.splice(idx, 1);

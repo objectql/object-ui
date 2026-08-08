@@ -6,6 +6,7 @@ import {
   useMemo,
   type ReactNode,
 } from 'react';
+import { expandViewContainer } from '@objectstack/spec/ui';
 import { type ObjectStackAdapter } from '@object-ui/data-objectstack';
 import { normalizeSchemaReferenceKeys } from '@object-ui/core';
 import { resolveInlineMode } from '@object-ui/plugin-form';
@@ -141,10 +142,18 @@ function isNamedItem(item: unknown): item is { name: string } {
  *     (`isAggregatedViewContainer` / `expandViewContainer` in
  *     `@objectstack/spec/ui`), so it is NOT legacy and this branch is NOT dead
  *     code — delete it and stack-packaged views stop reaching the renderer.
- *     When an object already has expanded ViewItems the container is skipped
- *     for THAT object, since it restates the same views (and keying both would
- *     list every view twice — once under its short key, once under its
- *     canonical `<object>.<key>` name).
+ *     A container is served UNEXPANDED on purpose (the platform's write
+ *     chokepoint states it: "container bodies are left untouched —
+ *     `expandViewContainer` derives identity itself"), so this branch asks the
+ *     composer for each view's identity rather than deriving one of its own
+ *     (objectui#3770). Both gates therefore produce the same canonical
+ *     `<object>.<key>` ids — including the default `list`'s implicit
+ *     `<object>.default` — and the container inherits the composer's folding and
+ *     collision-renaming rules for free.
+ *     When an object already has expanded ViewItems the container is skipped for
+ *     THAT object: it restates the same identities, and the ViewItem rows are
+ *     the authoritative ones (the runtime heals personalization overlays onto
+ *     them).
  *
  * Existing `obj.listViews` / `obj.list_views` win to preserve overrides.
  */
@@ -160,6 +169,37 @@ function isViewItem(view: any): boolean {
   return !!view && typeof view === 'object' && !!view.viewKind && !!view.object;
 }
 
+/**
+ * Route ONE view identity into its object's bucket — shared by both gates: the
+ * record gate's stored ViewItems and the views `expandViewContainer` materialises
+ * out of a stack-packaged container. Both shapes are
+ * `{ name, object, viewKind, label?, isDefault?, config }`, so both are keyed by
+ * the canonical `<object>.<key>` name the composer owns.
+ *
+ * The `config` body is flattened to the legacy NamedListView/FormView shape the
+ * renderer consumes (type/data/columns/sections at top level); the item-level
+ * label/isDefault ride along and `name` is stamped with the id so primary-view
+ * promotion (which matches on `list.name`) finds this entry by its listViews key.
+ * FORM-family views land in `formViews` only, never in the list-view switcher.
+ */
+function applyViewItem(bucket: ViewBucket, view: any): void {
+  const key = view.name || `${view.object}.${view.viewKind}`;
+  const body = view.config && typeof view.config === 'object' ? view.config : {};
+  const entry = {
+    ...body,
+    name: key,
+    label: view.label ?? (body as any).label,
+    isDefault: !!view.isDefault,
+  };
+  if (view.viewKind === 'form') {
+    bucket.formViews[key] = entry;
+    if (view.isDefault || !bucket.form) bucket.form = entry;
+  } else {
+    bucket.listViews[key] = entry;
+    if (view.isDefault) bucket.primary = entry;
+  }
+}
+
 export function mergeViewsIntoObjects(objects: any[], views: any[]): any[] {
   if (!objects.length || !views.length) return objects;
   const byObject: Record<string, ViewBucket> = {};
@@ -173,23 +213,9 @@ export function mergeViewsIntoObjects(objects: any[], views: any[]): any[] {
   for (const view of views) {
     // ── Record gate: independent ViewItem ({ name, object, viewKind, config }) ──
     if (isViewItem(view)) {
-      const bucket = (byObject[view.object] ||= { listViews: {}, formViews: {} });
-      // Canonical `<object>.<key>` name doubles as the view id, so `/view/<name>`
-      // URLs resolve directly against the switcher tab ids.
-      const key = view.name || `${view.object}.${view.viewKind}`;
-      const body = view.config && typeof view.config === 'object' ? view.config : {};
-      // Flatten `config` to the legacy NamedListView/FormView shape the
-      // renderer consumes (type/data/columns/sections at top level); carry the
-      // item-level label/isDefault and stamp `name` so primary-view promotion
-      // (which matches on `list.name`) finds this entry by its listViews key.
-      const entry = { ...body, name: key, label: view.label ?? (body as any).label, isDefault: !!view.isDefault };
-      if (view.viewKind === 'form') {
-        bucket.formViews[key] = entry;
-        if (view.isDefault || !bucket.form) bucket.form = entry;
-      } else {
-        bucket.listViews[key] = entry;
-        if (view.isDefault) bucket.primary = entry;
-      }
+      // The canonical `<object>.<key>` name doubles as the view id, so
+      // `/view/<name>` URLs resolve directly against the switcher tab ids.
+      applyViewItem((byObject[view.object] ||= { listViews: {}, formViews: {} }), view);
       continue;
     }
     // ── Stack gate: aggregated container ({ list, form, listViews, formViews }) ──
@@ -198,27 +224,15 @@ export function mergeViewsIntoObjects(objects: any[], views: any[]): any[] {
     // Expanded ViewItems supersede the bare container for this object.
     if (hasViewItems.has(objName)) continue;
     const bucket = (byObject[objName] ||= { listViews: {}, formViews: {} });
-    if (view.list) {
-      // Preserve the primary list view as `obj.list` per @objectstack/spec
-      // ViewSchema. Also mirror it into `listViews` under its name so legacy
-      // consumers (that only iterate `listViews`) still see it. Consumers
-      // honoring `obj.list` (e.g. ObjectView) should dedup by id.
-      bucket.primary = view.list;
-      const k = view.list.name || 'list';
-      bucket.listViews[k] = view.list;
-    }
-    if (view.form) {
-      bucket.form = view.form;
-    }
-    if (view.listViews && typeof view.listViews === 'object') {
-      for (const [k, v] of Object.entries(view.listViews as Record<string, any>)) {
-        bucket.listViews[k] = v;
-      }
-    }
-    if (view.formViews && typeof view.formViews === 'object') {
-      for (const [k, v] of Object.entries(view.formViews as Record<string, any>)) {
-        bucket.formViews[k] = v;
-      }
+    // Ask the composer which views this container declares and what each one's
+    // runtime identity is (objectui#3770) — the default `list` implicitly claims
+    // `<object>.default`, and a `listViews` entry that merely restates it folds
+    // into that entry's own name. The primary list keeps arriving on `obj.list`
+    // per @objectstack/spec ViewSchema (below) AND is mirrored into `listViews`
+    // under that identity, so consumers that only iterate `listViews` still see
+    // it and consumers honoring `obj.list` dedup by the same id.
+    for (const item of expandViewContainer(objName, view)) {
+      applyViewItem(bucket, item);
     }
   }
   return objects.map(obj => {
