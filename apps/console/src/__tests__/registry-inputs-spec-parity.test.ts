@@ -6,18 +6,27 @@
  * LICENSE file in the root directory of this source tree.
  *
  * Registry `inputs` <-> `@objectstack/spec` `ComponentPropsMap` parity, for
- * EVERY block that has both (objectui#3797).
+ * EVERY block that has both, in BOTH directions (objectui#3797, objectui#3808).
  *
- * PR #3795 landed this check on one block (`record:highlights`, see
+ * PR #3795 landed both directions on one block (`record:highlights`, see
  * `packages/plugin-detail/src/__tests__/recordHighlightsInputs.spec-parity.test.ts`).
- * This file is the repo-wide half: it asserts the same direction — a block may
- * not DECLARE a top-level input its spec props schema does not accept — for
- * every entry of `ComponentPropsMap` this repo registers with a non-empty
- * `inputs`.
+ * This file is the repo-wide half, and it carries the same two:
  *
- * WHY THE DIRECTION MATTERS. `inputs` is not documentation, it is the published
- * authoring surface, and four layers are silent about a key that only exists
- * there:
+ *   FORWARD (objectui#3797, PR #3806) — a block may not DECLARE a top-level
+ *   input its spec props schema does not accept.
+ *
+ *   REVERSE (objectui#3808) — a top-level key the spec DOES declare must be
+ *   discoverable from that block's `inputs`.
+ *
+ * Both live in one file on purpose. #3808 exists because PR #3806 shipped only
+ * the forward half repo-wide and the reverse half stayed on the single block
+ * PR #3795 had covered; keeping them side by side, over one `covered` set and
+ * one exemption discipline, is what stops a direction from being forgotten
+ * again.
+ *
+ * WHY THE FORWARD DIRECTION MATTERS. `inputs` is not documentation, it is the
+ * published authoring surface, and four layers are silent about a key that only
+ * exists there:
  *
  *   1. `packages/sdui-parser/scripts/gen-manifest.ts` serializes `inputs` into
  *      `sdui.manifest.json` (the save-gate + parser whitelist) and into
@@ -45,6 +54,26 @@
  * always paired with an issue that resolves the disagreement, never left as a
  * standing licence.
  *
+ * WHY THE REVERSE DIRECTION MATTERS JUST AS MUCH. A key the spec declares, the
+ * renderer honours, and `inputs` omits does not exist as far as an author can
+ * tell — and the same four layers are just as quiet, only inverted:
+ * `gen-manifest.ts` leaves it out of `sdui.manifest.json` and
+ * `sdui-intrinsics.d.ts`, so it is in no designer panel and no `.d.ts`;
+ * `validate.ts:74` does not find it in `comp.inputs` and reports `unknown-prop`
+ * on it; and the renderer honours it anyway. An author who writes it is warned
+ * off a key that works, and an author who doesn't never learns it is there.
+ * That is objectui#3407's original complaint verbatim (`readonly` was enforced
+ * by the HeaderHighlight gate and honoured by the renderer — the description
+ * just never mentioned it), and objectui#3808 found it on three more keys plus
+ * one this gate now covers as an exemption.
+ *
+ * The reverse direction bites non-public blocks too, which is the other reason
+ * coverage is not limited to `PUBLIC_BLOCKS`: `element:text_input` never reaches
+ * `sdui.manifest.json`, but `page.tsx:462` builds the JSX-page compiler's prop
+ * whitelist from `getKnownTypes()` + these same `inputs`, so its undeclared
+ * `defaultValue` was a live `unknown-prop` warning on a key the renderer seeded
+ * page variables from.
+ *
  * WHY IT LIVES HERE. The check needs the FULL registration graph — the same one
  * that produces the published artifacts. `dev/manifest-dump.tsx` builds them
  * from `src/register-plugins.ts` plus `@object-ui/components`, so this file
@@ -68,12 +97,29 @@
  * DELETED rather than kept — the last test in this file turns a no-longer-needed
  * exemption red, so the list cannot rot into a permanent allowlist.
  *
- * LIMIT — worth knowing before trusting a pass. This gate can only see TOP-LEVEL
- * keys. An `inputs` entry of type `array`/`object` declares no member shape
- * (`ComponentInput` has no slot for one), so a drifted key INSIDE an array
- * element is invisible here; making that machine-readable is its own change
- * across types/core/sdui-parser and is tracked separately (PR #3795's open
- * question). A pass means the top-level surface is in parity, nothing more.
+ * LIMIT — worth knowing before trusting a pass. This gate compares TOP-LEVEL
+ * KEY NAMES and nothing else. Three things it therefore cannot see, all of them
+ * real and all filed:
+ *
+ *   - member shapes. An `inputs` entry of type `array`/`object` declares no
+ *     member shape (`ComponentInput` has no slot for one), so a drifted key
+ *     INSIDE an array element or nested object is invisible here — which is why
+ *     `record:details.sections`, `record:highlights.fields` and
+ *     `record:related_list.add` publish their members in prose and are pinned by
+ *     per-block tests next to their renderers. PR #3795's open question;
+ *   - types. `ComponentInput.type` is one coarse control kind and cannot spell a
+ *     spec union, so a key can be in perfect NAME parity while publishing a
+ *     narrower type than the contract accepts (objectui#3832);
+ *   - `retiredKey()` tombstones. `Object.keys(shape)` still contains a key the
+ *     spec rejects BY NAME, and the two directions then fail opposite ways —
+ *     forward reads the tombstone as "accepted" and goes falsely GREEN, reverse
+ *     reads it as "declared" and would demand the block publish it, going
+ *     falsely RED. Dormant today (zero tombstones in the pinned rc.5) and fixed
+ *     in one place — narrowing `specTopLevelKeys` — for both directions at once:
+ *     objectui#3809. Until then the reverse direction's exemptions for the
+ *     `element:record_picker` trio are what absorb the red, and they say so.
+ *
+ * A pass means the top-level key names are in parity, nothing more.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -113,6 +159,35 @@ function declaredInputs(type: string): string[] | null {
 function offSpecInputs(type: string): string[] {
   const allowed = new Set(specTopLevelKeys(type));
   return (declaredInputs(type) ?? []).filter((name) => !allowed.has(name));
+}
+
+/**
+ * Spec keys that no block is expected to publish, with the reason — applied to
+ * every block rather than repeated as one exemption entry per block.
+ *
+ * Only `aria` qualifies, and only because the reason is genuinely uniform: it is
+ * an accessibility escape hatch, not a layout choice, and the blocks that omit
+ * it say so in the same words at their registration sites
+ * (`plugin-detail/src/index.tsx:335-337`, verbatim: "`aria` is omitted for the
+ * same reason it is omitted on `record:details` above"). Publishing it would put
+ * an `aria` object in every designer panel and every generated `.d.ts` as though
+ * hand-writing ARIA were the normal way to configure a block, when the renderers
+ * derive their accessible names from labels and object metadata. A key whose
+ * reason is per-block belongs in `UNPUBLISHED_EXEMPTIONS` below, not here.
+ */
+const GLOBALLY_UNPUBLISHED_SPEC_KEYS: Record<string, string> = {
+  aria: 'Accessibility escape hatch, not a layout choice — renderers derive accessible names from labels and object metadata, and every block omits it for this one reason (plugin-detail/src/index.tsx:335-337). objectui#3808.',
+};
+
+/**
+ * Top-level keys this block's spec props schema declares that its `inputs` do
+ * not publish — the reverse direction (objectui#3808).
+ */
+function undiscoverableSpecKeys(type: string): string[] {
+  const declared = new Set(declaredInputs(type) ?? []);
+  return specTopLevelKeys(type).filter(
+    (key) => !declared.has(key) && !(key in GLOBALLY_UNPUBLISHED_SPEC_KEYS),
+  );
 }
 
 /**
@@ -270,8 +345,121 @@ const OFF_SPEC_EXEMPTIONS: Record<string, string> = {
     'Already declared upstream by objectstack#5775; flagged only because the pinned @objectstack/spec@17.0.0-rc.5 predates it. Delete this entry when the pin moves.',
 };
 
+/**
+ * Spec-declared top-level keys deliberately NOT published, each with the reason.
+ * Key format: `BLOCK.KEY`. The reverse direction's half of the same discipline
+ * as `OFF_SPEC_EXEMPTIONS` above: explicit, reasoned, issue-backed, and deleted
+ * by a failing test once it stops describing anything.
+ *
+ * The bar for an entry is NOT "we haven't got round to it". A spec key the
+ * renderer HONOURS and `inputs` omits is a plain defect and gets declared —
+ * that is what objectui#3808 did to `record:details.hideFields`,
+ * `record:related_list.relationshipValueField`, `record:related_list.add` and
+ * `element:text_input.defaultValue`. The bar is that publishing the key would
+ * itself be wrong or premature, and WHICH of those it is has to be named:
+ *
+ *   - the renderer does not read it, so publishing it would advertise
+ *     configuration the platform silently drops (the objectui#3797 direction, in
+ *     reverse) — the choice between wiring it and declaring it with a KNOWN GAP
+ *     is a contract decision, not an implementation detail;
+ *   - the spec rejects it by name upstream already and only a stale pin still
+ *     lists it;
+ *   - the key is out of the dispatched scope of the change that added this gate,
+ *     and its own issue owns it.
+ *
+ * Every reason cites an issue, which `references a tracking issue` asserts.
+ * Verified against renderer read sites at objectui `origin/main` @ `c85268256`
+ * with `@objectstack/spec@17.0.0-rc.5` — not assumed from the spec's wording.
+ */
+const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
+  // ── B class — spec declares it, NO renderer read point at all (2 keys) ─────
+  // The instinct here is to add an input, and it is wrong: that publishes a key
+  // the platform drops on the floor, which is exactly the defect objectui#3797
+  // spent a repo-wide gate closing. The other instinct — wire it — is a visual
+  // decision (where an icon sits next to RecordTitleChip; whether a card grows
+  // an actions area, which reaches into `renderers/action/**`). The third option
+  // is the `record:activity.showSubscriptionToggle` precedent: declare it and
+  // say NOT IMPLEMENTED in the description, so both directions are in parity and
+  // the author is told. Three viable shapes, one public contract — filed as
+  // objectui#3829 rather than guessed at here.
+  'page:header.icon':
+    'Spec declares it; PageHeaderRenderer has NO read point — `icon` in containers.tsx:822-1570 is only ever per-action (`action.icon`, :1321/:1365) or a nav item (:604). Wire it, or declare it with a KNOWN GAP per the showSubscriptionToggle precedent: objectui#3829.',
+  'page:card.actions':
+    'Spec declares it; PageCardRenderer (containers.tsx:666-695) renders title/body/footer only and never reads `actions`. Wire it, or declare it with a KNOWN GAP per the showSubscriptionToggle precedent: objectui#3829.',
+
+  // ── page:tabs.type — the carrier collision, from the other side ────────────
+  // The mirror image of the `page:tabs.tabStyle` exemption in
+  // `OFF_SPEC_EXEMPTIONS` above, and the same single fact seen twice: the spec
+  // spells this concept `type`, the flat SDUI carrier cannot express it (a flat
+  // node is `{ type: 'page:tabs', … }` where `type` is the dispatch tag, and
+  // `SchemaRenderer.tsx:251-270` deliberately refuses to hoist
+  // `properties.type`), and `validate.ts` lists `'type'` in `BASE_PROPS` so it
+  // is skipped as a base prop and could not be validated as an input even if
+  // declared. Publishing it would advertise a key this repo's own parser cannot
+  // check, on a spelling the carrier cannot carry. Convergence is upstream.
+  'page:tabs.type':
+    "Spec's spelling of the tabStyle concept; unpublishable in the flat carrier (`type` is the dispatch key, SchemaRenderer.tsx:251-270) and unvalidatable as an input (validate.ts BASE_PROPS). The renderer does read it when it survives as `properties.type` (containers.tsx:381). Upstream contract decision: objectstack#6776.",
+
+  // ── element:record_picker — retired upstream, stale pin only (3 keys) ──────
+  // objectstack#5775 (ADR-0087 D2) turned these three into `retiredKey()`
+  // tombstones, converging on the `labelField` / `valueField` this renderer
+  // actually reads (`renderers/basic/record-picker.tsx:80-81`). Declaring a key
+  // the spec has retired is the objectui#3797 direction again.
+  //
+  // TWO THINGS THE PIN BUMP WILL DO HERE, and objectui#3808 got the first of
+  // them wrong, so it is written out:
+  //   1. these three do NOT vanish from `Object.keys(shape)`. ADR-0087 D2
+  //      retirement REPLACES the entry with `z.never().optional()`, it does not
+  //      delete it — so they stay "declared" to this gate and these exemptions
+  //      stay live rather than going stale. They resolve when objectui#3809's
+  //      tombstone recognition narrows `specTopLevelKeys`, not when the pin
+  //      moves;
+  //   2. `sort` / `limit` / `emptyText` — which #5775 ADDS and this renderer
+  //      already reads (`record-picker.tsx:79/80` and `:170`) — become brand-new
+  //      A-class gaps, and this gate will go RED demanding them. That red is
+  //      correct and wanted: it is the pin bump's own reminder to declare them,
+  //      the way `record:details.hideFields` was declared here.
+  'element:record_picker.displayField':
+    'Retired upstream by objectstack#5775 (ADR-0087 D2 tombstone, converging on the `labelField` this renderer reads); declaring it would publish a key the spec rejects by name. Listed here only because the pinned @objectstack/spec@17.0.0-rc.5 predates the retirement. Resolves via objectui#3809, not via the pin bump.',
+  'element:record_picker.searchFields':
+    'Retired upstream by objectstack#5775 (ADR-0087 D2 tombstone); declaring it would publish a key the spec rejects by name. Listed here only because the pinned @objectstack/spec@17.0.0-rc.5 predates the retirement. Resolves via objectui#3809, not via the pin bump.',
+  'element:record_picker.multiple':
+    'Retired upstream by objectstack#5775 (ADR-0087 D2 tombstone); declaring it would publish a key the spec rejects by name. Listed here only because the pinned @objectstack/spec@17.0.0-rc.5 predates the retirement. Resolves via objectui#3809, not via the pin bump.',
+
+  // ── element:record_picker.filter — a real A-class gap, out of scope here ───
+  // The renderer DOES read it (`record-picker.tsx:78`, `ds.filter ?? props.filter`,
+  // into `query.$filter` at :103) and the spec DOES declare it, so by the bar
+  // above this key should be declared, not exempted. It is exempted because
+  // objectui#3808's own three-class triage never sorted it into A, B or C — it
+  // appears in that issue's raw key dump and then in none of the three lists —
+  // so it fell outside the dispatched scope of the change that added this gate.
+  // Filed as objectui#3830 with the same evidence, rather than widened into a
+  // PR nobody reviewed for it.
+  'element:record_picker.filter':
+    'A genuine A-class gap (renderer reads it at record-picker.tsx:78 → query.$filter at :103), not a deliberate omission — it fell out of objectui#3808\'s three-class triage and so out of that PR\'s scope. Owned by objectui#3830; delete this entry when it declares the input.',
+
+  // ── targetVariable — the spec's own "declarative hint" (2 keys) ────────────
+  // Zero read points repo-wide (`grep -rn targetVariable packages/ apps/` is
+  // empty), and that is by design, not drift: the spec's describe says the live
+  // binding resolves via the variable whose `source` equals the component id,
+  // which is exactly what `usePageVariableBinding(schema?.id)` does
+  // (`text-input.tsx:60`). So publishing it is neither a fix nor a defect — it
+  // is a judgement about whether to publish an intent-only key, with a concrete
+  // risk on the publish side (an author who writes only `targetVariable` and no
+  // variable `source` gets an input that writes nowhere, silently).
+  'element:text_input.targetVariable':
+    "Spec's own declarative hint with zero read points repo-wide; the live binding is the reverse lookup in usePageVariableBinding(schema.id) (text-input.tsx:60). Whether to publish an intent-only key is an open judgement: objectui#3834.",
+  'element:record_picker.targetVariable':
+    "Spec's own declarative hint with zero read points repo-wide; the live binding is the reverse lookup by component id, as on element:text_input. Whether to publish an intent-only key is an open judgement: objectui#3834.",
+};
+
 const exemptedFor = (type: string): string[] =>
   Object.keys(OFF_SPEC_EXEMPTIONS)
+    .filter((key) => key.startsWith(`${type}.`))
+    .map((key) => key.slice(type.length + 1));
+
+const unpublishedExemptedFor = (type: string): string[] =>
+  Object.keys(UNPUBLISHED_EXEMPTIONS)
     .filter((key) => key.startsWith(`${type}.`))
     .map((key) => key.slice(type.length + 1));
 
@@ -335,5 +523,97 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
       return !offSpecInputs(type).includes(input);
     });
     expect(stale).toEqual([]);
+  });
+
+  // ── the REVERSE direction (objectui#3808) ──────────────────────────────────
+  //
+  // Same `covered` set, same derived-not-restated expectations, same exemption
+  // discipline — only the subtraction is turned round: spec keys minus declared
+  // inputs, instead of declared inputs minus spec keys.
+
+  it('every globally unpublished key is a real spec key on a covered block', () => {
+    // Non-vacuity for the blanket exclusion. `aria` is subtracted from EVERY
+    // block's expected surface, so a typo there (or the spec renaming the key)
+    // would quietly stop excluding anything while still reading as a documented
+    // decision — and, worse, would make the per-block assertion below start
+    // demanding an `aria` input on fifteen blocks for a reason nobody wrote down.
+    //
+    // Non-empty FIRST: a `for` over an emptied map — and the reason check below —
+    // both pass on nothing, so the map's own existence is the first assertion.
+    expect(Object.keys(GLOBALLY_UNPUBLISHED_SPEC_KEYS).length).toBeGreaterThan(0);
+    for (const key of Object.keys(GLOBALLY_UNPUBLISHED_SPEC_KEYS)) {
+      const carriers = covered.filter((type) => specTopLevelKeys(type).includes(key));
+      expect(carriers.length, `no covered block's spec declares "${key}"`).toBeGreaterThan(0);
+    }
+  });
+
+  it('every globally unpublished key states a reason and references a tracking issue', () => {
+    const unjustified = Object.entries(GLOBALLY_UNPUBLISHED_SPEC_KEYS)
+      .filter(([, reason]) => !/#\d+/.test(reason))
+      .map(([key]) => key);
+    expect(unjustified).toEqual([]);
+  });
+
+  it.each(covered)('%s publishes every top-level key its spec props schema declares', (type) => {
+    const exempt = new Set(unpublishedExemptedFor(type));
+    const undiscoverable = undiscoverableSpecKeys(type).filter((key) => !exempt.has(key));
+    expect(undiscoverable).toEqual([]);
+  });
+
+  it('every unpublished-key exemption names a key the spec really declares', () => {
+    // The dangling check, in the reverse direction. Two ways to be wrong here,
+    // and both read as deliberate cover while licensing nothing: a typo'd key,
+    // and an entry for a block this gate does not judge.
+    const dangling = Object.keys(UNPUBLISHED_EXEMPTIONS).filter((key) => {
+      const dot = key.indexOf('.');
+      const type = key.slice(0, dot);
+      const specKey = key.slice(dot + 1);
+      return !covered.includes(type) || !specTopLevelKeys(type).includes(specKey);
+    });
+    expect(dangling).toEqual([]);
+  });
+
+  it('every unpublished-key exemption states a reason and references a tracking issue', () => {
+    // The discipline that separates "deliberately not published, and here is who
+    // owns the decision" from "we forgot". Four of the nine entries below exist
+    // only because objectui#3829 / #3830 / #3834 were opened to own them.
+    const unjustified = Object.entries(UNPUBLISHED_EXEMPTIONS)
+      .filter(([, reason]) => !/#\d+/.test(reason))
+      .map(([key]) => key);
+    expect(unjustified).toEqual([]);
+  });
+
+  it('carries no stale unpublished-key exemption — a published key must lose its entry', () => {
+    // Keeps the reverse list from rotting the same way. An entry goes stale when
+    // the block declares the input (objectui#3829/#3830/#3834 landing) or when
+    // the spec genuinely deletes the key — note that ADR-0087 D2 retirement is
+    // NOT a deletion, so the `element:record_picker` trio does not go stale on
+    // the pin bump; objectui#3809 is what resolves those.
+    const stale = Object.keys(UNPUBLISHED_EXEMPTIONS).filter((key) => {
+      const dot = key.indexOf('.');
+      const type = key.slice(0, dot);
+      const specKey = key.slice(dot + 1);
+      return !undiscoverableSpecKeys(type).includes(specKey);
+    });
+    expect(stale).toEqual([]);
+  });
+
+  it('the four keys objectui#3808 declared are discoverable, block by block', () => {
+    // Named, not just covered by the derived loop above. The derived assertion
+    // would also pass if these four were added to `UNPUBLISHED_EXEMPTIONS`
+    // instead of declared — which is precisely the move #3808 exists to rule
+    // out — so the keys it fixed are pinned by name, and pinned as DECLARED
+    // rather than merely "not failing".
+    const fixed: Array<[string, string]> = [
+      ['record:details', 'hideFields'],
+      ['record:related_list', 'relationshipValueField'],
+      ['record:related_list', 'add'],
+      ['element:text_input', 'defaultValue'],
+    ];
+    for (const [type, key] of fixed) {
+      expect(specTopLevelKeys(type), `${type} spec no longer declares ${key}`).toContain(key);
+      expect(declaredInputs(type) ?? [], `${type} does not publish ${key}`).toContain(key);
+      expect(Object.keys(UNPUBLISHED_EXEMPTIONS)).not.toContain(`${type}.${key}`);
+    }
   });
 });

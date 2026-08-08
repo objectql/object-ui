@@ -274,6 +274,25 @@ ComponentRegistry.register('details', RecordDetailsRenderer, {
     { name: 'layout', type: 'enum', label: 'Layout', enum: ['auto', 'custom'], defaultValue: 'auto', description: 'auto uses the object highlightFields; custom uses explicit sections' },
     { name: 'sections', type: 'array', label: 'Sections', description: 'Field groups rendered as the detail body, in order. Every entry is an OBJECT — `{ name?, label?, columns?, fields }` — a bare section-id string is NOT accepted (the spec retired that spelling in objectstack#5611, and the renderer reads name/label/fields off each entry, so a string entry renders no fields at all). `fields` (required) are the field names shown in this section, in order. `label` is the section heading; omit it for an untitled, borderless section. `name` is a stable snake_case identifier and the i18n anchor — the heading resolves through objects.<object>._sections.<name>.label, so a section without a name shows its authored label in every locale. `columns` (1-4) is THIS section\'s field-grid width; omit it and the renderer derives the width. Required when layout is "custom", where sections are the only source of the detail body.' },
     { name: 'fields', type: 'array', label: 'Fields', description: 'Explicit field list (overrides highlightFields)' },
+    // `hideFields` is DECLARED, not merely honoured (objectui#3808). The spec
+    // declares it (objectstack#5611) and `RecordDetailsRenderer` has read it
+    // since the highlight-dedup phase (`renderers/record-details.tsx:147`), but
+    // it was missing here — so an author reading the manifest could not
+    // discover it, and every layer that reads the manifest said the opposite:
+    // `sdui.manifest.json` / `sdui-intrinsics.d.ts` omitted it and
+    // `sdui-parser`'s prop walk reported `unknown-prop` on a key the renderer
+    // then honoured. Same failure as `readonly` in objectui#3407.
+    //
+    // Bare field NAMES only. The renderer also tolerates `{name}` / `{field}`
+    // entries (`typeof n === 'string' ? n : fieldName(n)` at the read site), but
+    // `hideFields` is `z.array(z.string())` in the spec and rejects those values
+    // on parse — teaching them here would publish a second dialect the contract
+    // refuses, the same fence `fields` above is held to.
+    //
+    // The "hiding every field drops the section" sentence is read off
+    // `DetailSection.tsx:439` (`visibleFields.length === 0 &&
+    // emptyCount === section.fields.length` returns null), not assumed.
+    { name: 'hideFields', type: 'array', label: 'Hide Fields', description: 'Field names to omit from the body — applied to the top-level `fields` list AND to every section\'s `fields`. Bare field names only. Authors rarely need it: the synth pipeline fills it with the fields already shown in `record:highlights`, and hand-authored pages get the same dedup live from HighlightFieldsContext, so its purpose is suppressing a field you do not want repeated (the page H1 title field is dropped for you too). Hiding every field of a section leaves that section out entirely.' },
   ],
 });
 
@@ -284,9 +303,20 @@ ComponentRegistry.register('related_list', RecordRelatedListRenderer, {
   label: 'Related List',
   icon: 'List',
   // Mirrors @objectstack/spec RecordRelatedListProps.
+  //
+  // `relationshipValueField` and `add` are DECLARED, not merely honoured
+  // (objectui#3808). Both are spec keys this renderer has read all along —
+  // `renderers/record-related-list.tsx:95` and `:186` — while `inputs` omitted
+  // them, so the published surface and the runtime disagreed in the direction
+  // nothing reports: `sdui.manifest.json` / `sdui-intrinsics.d.ts` never
+  // mentioned them, `sdui-parser`'s prop walk raised `unknown-prop` on an
+  // author who wrote one anyway, and the renderer honoured it regardless. `add`
+  // in particular is not cosmetic — without it declared, the ONLY published way
+  // to build a junction-assignment list was to write an undiscoverable key.
   inputs: [
     { name: 'objectName', type: 'string', label: 'Related Object', required: true, description: 'Related object name (e.g. "task")' },
     { name: 'relationshipField', type: 'string', label: 'Relationship Field', required: true, description: 'Field on the related object pointing back to this record' },
+    { name: 'relationshipValueField', type: 'string', label: 'Relationship Value Field', defaultValue: 'id', description: 'Which field OF THIS PARENT record `relationshipField` stores. Defaults to "id"; set it to the field a name-keyed junction points at (e.g. "name" when sys_user_position.position holds sys_position.name). The resolved value drives three things at once — the list filter, the Add-picker link value, and the pre-filled create form — so they cannot drift apart. While the parent record is still loading, a non-"id" field resolves to null and the list holds its fetch rather than querying on an empty value.' },
     { name: 'columns', type: 'array', label: 'Columns', required: true, description: 'Fields to display in the related list' },
     { name: 'sort', type: 'array', label: 'Sort' },
     { name: 'limit', type: 'number', label: 'Limit', defaultValue: 5, description: 'Records to display initially' },
@@ -294,6 +324,29 @@ ComponentRegistry.register('related_list', RecordRelatedListRenderer, {
     { name: 'title', type: 'string', label: 'Title' },
     { name: 'showViewAll', type: 'boolean', label: 'Show "View All"', defaultValue: true },
     { name: 'actions', type: 'array', label: 'Actions', description: 'Action IDs available for related records' },
+    // `add` publishes its MEMBER shape in prose for the reason the sibling
+    // array-of-objects inputs do (`record:details.sections`,
+    // `record:highlights.fields`, `record:path.stages`): `ComponentInput` is flat
+    // by design and has no slot for a member shape, so an `object` input can
+    // only document its members here.
+    //
+    // Documented members are exactly the spec's — `picker.object`,
+    // `picker.valueField`, `picker.labelField`, `linkField`, `label` — with each
+    // default taken from the RENDERER, which is where an author's expectation
+    // gets settled: `RelatedList.tsx:724` defaults `picker.valueField` to `id`
+    // (matching the spec's own default) but `:390` defaults `picker.labelField`
+    // to `name`, NOT to the object's title field as the spec's `.describe()`
+    // says. Publishing the spec's wording there would have been a description
+    // the platform does not honour.
+    //
+    // `picker.filter` is deliberately NOT documented as working: the spec
+    // declares it, and nothing in this repo reads it — `RelatedList` passes
+    // `picker.object` / `labelField` to `RecordPickerDialog` and never fills its
+    // `baseFilter` slot. Naming it here as a gap follows the
+    // `record:activity.showSubscriptionToggle` precedent above; silently
+    // documenting it as a restriction would tell an author their picker is
+    // scoped when it offers every record.
+    { name: 'add', type: 'object', label: 'Add Existing', description: 'Adds an "Add" button that assigns EXISTING records instead of creating one — the m2m/junction case. Shape: `{ picker: { object, valueField?, labelField?, filter? }, linkField?, label? }`. `picker.object` (required) is the object whose records the dialog offers. `picker.valueField` is the field of the picked record used as the link value (default "id"); `picker.labelField` is the column shown in the picker rows (default "name", and the other columns are derived from that object\'s schema). With `linkField` set, selecting records CREATES rows in this list\'s own object as `{ [relationshipField]: parentValue, [linkField]: pickedId }` — the junction case; omit `linkField` and the picked child is RE-PARENTED instead, by setting its own `relationshipField` to this parent. `label` is the button text (default "Add", localizable inline). Setting `add` also enables generic link removal on rows when no host delete handler is wired. KNOWN GAP: `picker.filter` is accepted by the spec but not applied — the dialog offers every record of `picker.object` whatever you put there.' },
   ],
 });
 

@@ -1,0 +1,176 @@
+/**
+ * ObjectUI
+ * Copyright (c) 2024-present ObjectStack Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * `record:related_list` — the published authoring surface stays in parity with
+ * `@objectstack/spec` `RecordRelatedListProps` (objectui#3808).
+ *
+ * Third sibling of `recordHighlightsInputs.spec-parity.test.ts` (objectui#3407 /
+ * PR #3795) and `recordDetailsInputs.spec-parity.test.ts` (objectui#3807), added
+ * for the direction those two carry and the repo-wide gate had not: a top-level
+ * key the SPEC declares must be discoverable from `inputs`.
+ *
+ * This block had the worst instance of it. `relationshipValueField` and `add`
+ * were both spec keys the renderer had honoured all along —
+ * `renderers/record-related-list.tsx:95` and `:186` — while `inputs` published
+ * neither, and nothing anywhere reported the mismatch:
+ * `gen-manifest.ts` left them out of `sdui.manifest.json` and
+ * `sdui-intrinsics.d.ts`, `sdui-parser/src/validate.ts:74` returned
+ * `unknown-prop` for an author who wrote one, and the renderer went on honouring
+ * it. `add` in particular is the ONLY way to build a junction-assignment list,
+ * so the single published route to that feature was an undiscoverable key.
+ *
+ * WHY A DESCRIPTION IS WORTH A TEST, and why `add`'s is checked member by
+ * member: `ComponentInput` is flat by design, so an `object` input can document
+ * its member shape nowhere but its own prose. The assertions below derive the
+ * member list from the spec at runtime, so a spec change fails here rather than
+ * leaving the description quietly incomplete — the failure mode objectui#3807
+ * was filed for.
+ */
+
+import { describe, it, expect } from 'vitest';
+import { ComponentRegistry } from '@object-ui/core';
+import { RecordRelatedListProps } from '@objectstack/spec/ui';
+import '../index';
+
+type ShapeCarrier = { shape?: unknown; _def?: { shape?: unknown } };
+
+/** Resolve a Zod object's `.shape` through both spellings, lazy or plain. */
+function shapeKeys(schema: unknown): string[] {
+  const carrier = schema as ShapeCarrier | undefined;
+  const shape = carrier?.shape ?? carrier?._def?.shape;
+  const resolved = typeof shape === 'function' ? (shape as () => object)() : shape;
+  return resolved && typeof resolved === 'object' ? Object.keys(resolved) : [];
+}
+
+/**
+ * One entry of `.shape`, unwrapped past the optional/default wrappers until an
+ * object shape is reachable. `add` is `.optional()` and `add.picker` carries
+ * defaults on its own members, so a single `.unwrap()` is not enough.
+ */
+function innerObject(schema: unknown, key: string): unknown {
+  const carrier = schema as ShapeCarrier | undefined;
+  const shape = carrier?.shape ?? carrier?._def?.shape;
+  const resolved = (typeof shape === 'function' ? (shape as () => object)() : shape) as
+    | Record<string, unknown>
+    | undefined;
+  let member = resolved?.[key] as
+    | { shape?: unknown; _def?: { shape?: unknown; innerType?: unknown; type?: unknown } }
+    | undefined;
+  for (let hop = 0; hop < 8; hop += 1) {
+    if (member?.shape ?? member?._def?.shape) return member;
+    const next = member?._def?.innerType ?? member?._def?.type;
+    if (!next || typeof next !== 'object') return member;
+    member = next as typeof member;
+  }
+  return member;
+}
+
+const specTopLevelKeys = (): string[] => shapeKeys(RecordRelatedListProps);
+const specAddKeys = (): string[] => shapeKeys(innerObject(RecordRelatedListProps, 'add'));
+const specPickerKeys = (): string[] =>
+  shapeKeys(innerObject(innerObject(RecordRelatedListProps, 'add'), 'picker'));
+
+const config = () => ComponentRegistry.getConfig('record:related_list');
+const inputs = () => config()?.inputs ?? [];
+const inputNames = () => inputs().map((i) => i.name);
+const input = (name: string) => inputs().find((i) => i.name === name);
+const addDescription = () => input('add')?.description ?? '';
+
+/** A spec-valid related list, so a fixture only ever carries the key under test. */
+const baseline = { objectName: 'task', relationshipField: 'account', columns: ['name'] };
+
+describe('record:related_list — registry inputs vs @objectstack/spec', () => {
+  it('is registered with a non-empty `inputs` surface', () => {
+    expect(config()).toBeDefined();
+    expect(inputNames().length).toBeGreaterThan(0);
+  });
+
+  it('declares no top-level input the spec does not accept', () => {
+    const allowed = new Set(specTopLevelKeys());
+    expect(inputNames().filter((name) => !allowed.has(name))).toEqual([]);
+  });
+
+  it('publishes `relationshipValueField`, which the renderer has read all along', () => {
+    // A KEY-reachability claim, so the criterion is that the key SURVIVES the
+    // parse rather than merely that the parse succeeds. `RecordRelatedListProps`
+    // is a strip-mode `z.object`: an UNDECLARED key also parses green, it is just
+    // silently gone from `data` afterwards — which is exactly how this gap stayed
+    // invisible for as long as it did.
+    expect(specTopLevelKeys()).toContain('relationshipValueField');
+    const parsed = RecordRelatedListProps.safeParse({ ...baseline, relationshipValueField: 'name' });
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.relationshipValueField).toBe('name');
+
+    expect(inputNames()).toContain('relationshipValueField');
+  });
+
+  it("`relationshipValueField` publishes the renderer's default, and it matches the read site", () => {
+    // `record-related-list.tsx:95` is `schema.relationshipValueField || 'id'`, and
+    // the input carries `defaultValue: 'id'` to match. Pinned because a default
+    // published on the authoring surface that disagrees with the renderer is
+    // worse than no default: the designer would pre-fill one value and the page
+    // would behave as another, with nothing comparing them.
+    expect(input('relationshipValueField')?.defaultValue).toBe('id');
+
+    // And the spec agrees, so all three say `id`.
+    expect(RecordRelatedListProps.safeParse(baseline).data?.relationshipValueField ?? 'id').toBe('id');
+  });
+
+  it('publishes `add`, the only route to a junction-assignment list', () => {
+    expect(specTopLevelKeys()).toContain('add');
+    const parsed = RecordRelatedListProps.safeParse({
+      ...baseline,
+      add: { picker: { object: 'sys_position' }, linkField: 'position', label: 'Assign' },
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.add?.picker?.object).toBe('sys_position');
+
+    expect(inputNames()).toContain('add');
+    expect(input('add')?.type).toBe('object');
+    expect(addDescription()).not.toBe('');
+  });
+
+  it('every spec member key of `add` is discoverable from its description', () => {
+    // `ComponentInput` has no member-shape slot (the LIMIT the repo-wide gate in
+    // `apps/console/src/__tests__/registry-inputs-spec-parity.test.ts` documents),
+    // so this prose is the only published description of the shape. Derived from
+    // the spec at runtime: a member key added upstream fails here instead of
+    // going unmentioned.
+    expect(specAddKeys().length).toBeGreaterThan(0);
+    expect(specPickerKeys().length).toBeGreaterThan(0);
+
+    const description = addDescription();
+    expect(specAddKeys().filter((key) => !description.includes(key))).toEqual([]);
+    expect(specPickerKeys().filter((key) => !description.includes(key))).toEqual([]);
+  });
+
+  it("`add`'s published defaults are the RENDERER's, not the spec's prose", () => {
+    // The one place the two disagree. `RelatedList.tsx:724` defaults
+    // `picker.valueField` to `id` — same as the spec — but `:390` defaults
+    // `picker.labelField` to `name`, where the spec's `.describe()` says it
+    // "defaults to the object title field". The description publishes what the
+    // platform does; publishing the spec's wording would document a behaviour no
+    // code implements.
+    const description = addDescription();
+    expect(description).toMatch(/labelField[^.]*default "name"/);
+    expect(description).not.toMatch(/labelField[^.]*title field/);
+  });
+
+  it('names `picker.filter` as a gap instead of documenting it as a restriction', () => {
+    // The `record:activity.showSubscriptionToggle` precedent applied at member
+    // level. The spec declares `add.picker.filter` ("Restrict which records the
+    // picker offers") and nothing in this repo reads it — `RelatedList` fills
+    // `RecordPickerDialog`'s `objectName` / `displayField` / `columns` and never
+    // its `baseFilter` slot. A description that merely listed `filter` among the
+    // members would tell an author their picker is scoped when it offers every
+    // record; objectui#3831 owns the wiring, and this assertion fails the moment
+    // someone deletes the warning without doing it.
+    expect(specPickerKeys()).toContain('filter');
+    expect(addDescription()).toMatch(/KNOWN GAP/);
+    expect(addDescription()).toMatch(/filter[\s\S]*not applied/);
+  });
+});

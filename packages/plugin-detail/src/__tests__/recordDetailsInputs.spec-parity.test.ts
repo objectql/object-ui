@@ -180,6 +180,57 @@ describe('record:details — registry inputs vs @objectstack/spec', () => {
     expect(offSpec).toEqual([]);
   });
 
+  it('publishes `hideFields`, which the renderer has read all along', () => {
+    // The reverse direction on this block (objectui#3808). `hideFields` was
+    // declared by the spec (objectstack#5611) and read by
+    // `renderers/record-details.tsx:147` while `inputs` omitted it, so the
+    // manifest, the generated `.d.ts` and the designer panel all said the key
+    // did not exist and `sdui-parser` reported `unknown-prop` on an author who
+    // wrote it anyway — while the renderer honoured it. Same shape as `readonly`
+    // in objectui#3407.
+    //
+    // A KEY-reachability claim, so the criterion is that the key SURVIVES the
+    // parse. These props schemas are strip-mode `z.object`s: an undeclared key
+    // is dropped from `data` with no error at all, which is exactly why the gap
+    // was silent — so "it is still there afterwards" is the proof, not
+    // `success === true` (which an undeclared key also gets).
+    expect(specTopLevelKeys()).toContain('hideFields');
+    const parsed = RecordDetailsProps.safeParse({ hideFields: ['phone'] });
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.hideFields).toEqual(['phone']);
+
+    expect(inputs().map((i) => i.name)).toContain('hideFields');
+    expect(input('hideFields')?.description ?? '').not.toBe('');
+  });
+
+  it('`hideFields` documents bare names only, because the spec rejects entry objects', () => {
+    // The same fence `fields` is held to below, on the sibling key — and here it
+    // is a VALUE verdict, so the criterion is a full parse either way: the object
+    // spelling has to be rejected on its value, not merely stripped.
+    //
+    // The renderer is more tolerant than the contract at this read site
+    // (`typeof n === 'string' ? n : fieldName(n)`), which is not a second
+    // contract to advertise. Every in-repo producer passes strings
+    // (`synth/buildDefaultPageSchema.ts:557-562` types it `string[]`), so the
+    // tolerant arm is unexercised drift rather than a live dialect.
+    const element = arrayElement(shapeMember(RecordDetailsProps, 'hideFields'));
+    expect(shapeKeys(element)).toEqual([]);
+    expect(RecordDetailsProps.safeParse({ hideFields: ['phone'] }).success).toBe(true);
+
+    const objectForm = RecordDetailsProps.safeParse({ hideFields: [{ name: 'phone' }] });
+    expect(objectForm.success).toBe(false);
+    expect(objectForm.error?.issues.map((i) => i.code)).toContain('invalid_type');
+
+    // Non-empty FIRST. A `not.toContain('{')` on a description that does not
+    // exist passes for the wrong reason — the reverse-verification run for
+    // objectui#3808 deleted the `hideFields` declaration and watched this
+    // assertion stay green on `''` while the three assertions that matter went
+    // red. An empty description is a failure here, not a vacuous pass.
+    const description = input('hideFields')?.description ?? '';
+    expect(description).not.toBe('');
+    expect(description).not.toContain('{');
+  });
+
   it('`fields` documents no entry shape, because the spec accepts bare names only', () => {
     // objectui#3807's fence check on the sibling input at the same call site.
     // Top-level `fields` is `z.array(z.string())`: there is no member shape to

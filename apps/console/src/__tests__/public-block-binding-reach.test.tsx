@@ -233,6 +233,15 @@ const SUPERSEDES_BINDING = new Set(['data']);
  */
 const sampleFor = (input: any): unknown => {
   if (input.name === 'objectName') return PROBE_OBJECT;
+  // `record:related_list.add` — the generic `object` sample below is `{}`, and
+  // `{}` is not a valid `add`: the spec makes `picker` required. An invalid one
+  // does not merely under-configure this block, it CRASHES it
+  // (`RelatedList.tsx:1299` dereferences `add.picker.object`, objectui#3838) —
+  // and a crashed block makes no data calls, which is indistinguishable from the
+  // "declines to fetch" verdict this block is ledgered for below. That is a green
+  // for the wrong reason, so the sample is spec-valid at the source instead.
+  // Arrived with objectui#3808, which is when `add` became a declared input.
+  if (input.name === 'add') return { picker: { object: PROBE_OBJECT } };
   if (input.defaultValue !== undefined) return input.defaultValue;
   switch (input.type) {
     case 'number':
@@ -309,12 +318,21 @@ async function dataCallsFor(cfg: any): Promise<string[]> {
   // its object. Every call it made is already recorded above, so swallow the
   // unmount and let the assertion speak to the data reach. Deliberately scoped
   // to unmount: an error thrown during RENDER still propagates and fails.
+  // Read the DOM before unmounting: `SchemaRenderer` CATCHES a renderer's throw
+  // and paints an error card, so a crash never propagates here — it just makes
+  // the block produce nothing, including no data calls. For a ledgered block
+  // ("declines to fetch") that is a green earned by crashing, which is why this
+  // is captured and asserted rather than left to the calls alone. Same guard the
+  // sibling probe carries as `assertRendered`
+  // (`record-block-record-reach.test.tsx`), added here after objectui#3808 made
+  // an invalid `add` sample able to trigger exactly that.
+  const html = view.container.innerHTML;
   try {
     view.unmount();
   } catch {
     /* see above */
   }
-  return calls;
+  return { calls, html };
 }
 
 const candidates = ComponentRegistry.getPublicConfigs().filter(declaresObjectName);
@@ -335,9 +353,40 @@ describe('public blocks — a declared objectName reaches the data layer (object
   for (const cfg of candidates) {
     const ledgered = cfg.type in NO_DATA_REACH;
     it(`${cfg.type} ${ledgered ? 'does not reach the data layer (ledgered)' : 'asks the data layer for its objectName'}`, async () => {
-      const calls = await dataCallsFor(cfg);
+      const { calls, html } = await dataCallsFor(cfg);
       const reached = calls.filter((c) => c.includes(PROBE_OBJECT));
       if (ledgered) {
+        // A crash is not a binding answer, and on THIS branch it is
+        // indistinguishable from one: "made no data call" is the pass condition,
+        // and a block that threw during render made none either. `SchemaRenderer`
+        // catches the throw and paints an error card, so nothing propagates —
+        // without this the ledger entry would be confirmed by the block being
+        // broken.
+        //
+        // Added with objectui#3808, and DEFENSIVE rather than load-bearing today:
+        // that change made an invalid `add` sample crash `record:related_list`
+        // (objectui#3838), which is what it does in the sibling probe, but not
+        // here — `renderers/record-related-list.tsx:185` passes
+        // `dataSource={ctx?.dataSource}`, this probe mounts with no RecordContext,
+        // so `RelatedList`'s `add && dataSource` guard short-circuits before the
+        // unguarded read. Checked, not assumed: reverting the sample to `{}` keeps
+        // all 16 green. The predicate itself is known to work — applied to both
+        // branches it reports the two crashes in objectui#3840 — so this is a
+        // cheap standing guard on the one branch where a crash IS the pass
+        // condition, not a claim that it fires today.
+        //
+        // Deliberately NOT applied to the other branch: `object-form` and
+        // `object-master-detail-form` do paint an error card under this fixture
+        // ("Cannot read properties of undefined (reading 'map')") while still
+        // making their data calls, so their verdicts are earned rather than
+        // vacuous. Whether that card is a product bug or this fixture handing
+        // them an implausible configuration — the lesson the header records four
+        // instances of — is objectui#3840, not something to decide by widening a
+        // guard here.
+        expect(
+          html.includes('failed to render'),
+          `<${cfg.type}> threw during render, so "made no data call" proves nothing:\n${html.slice(0, 600)}`,
+        ).toBe(false);
         // Asserted, not skipped: the day this block starts binding, this fails
         // and the ledger entry has to go — a ledger nobody is forced to update
         // decays into the accepted-baseline problem this whole test exists for.
