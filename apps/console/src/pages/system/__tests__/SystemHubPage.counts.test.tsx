@@ -14,16 +14,20 @@
  * none" — on a single-org deployment where `sys_organization` always has at
  * least one row.
  *
- * This file therefore asserts two different things, and the difference is the
- * point:
- *   - Organizations is FIXED — the count now travels through `sys_organization`
- *     and shows the real number.
- *   - Permissions is only PINNED — the query still says `sys_permission`, an
- *     object the framework does not have, so that card still reads 0. Which
- *     object it should read is a maintainer decision open on objectui#3655
- *     (A `sys_permission_set` / B `sys_capability` / C retire the card). The
- *     MEASUREMENT cases below hold that gap visible instead of letting it read
- *     like an oversight.
+ * Both halves are now FIXED, one issue apart:
+ *   - Organizations travels through `sys_organization` (objectui#3670).
+ *   - Permissions travelled through `sys_permission`, an object the framework
+ *     does not register, so that card read a confident `0` on every deployment.
+ *     PR #3680 pinned it rather than re-aiming it, because the framework splits
+ *     that surface in two and picking one is a product decision: `sys_capability`
+ *     (ADR-0066 layer 1, the definition registry — and the object whose docblock
+ *     says it is what the ADR "loosely floats" as `sys_permission`) versus
+ *     `sys_permission_set` (layer 2, the grant container the permissions docs
+ *     call "the only capability container"). objectui#3655 decided it as
+ *     `sys_permission_set`, matching the card's own copy ("Manage permission
+ *     rules and assignments") and the destination its link now redirects to.
+ *     The MEASUREMENT that held that gap open is REPLACED below — which is what
+ *     it was written for — not left to keep passing on a stale expectation.
  *
  * jsdom integration test — no backend. The adapter is stubbed at its real
  * contract boundary (see the `find` stub: unknown object RESOLVES empty, it
@@ -40,8 +44,15 @@
  * class the adapter does not absorb) leaves that card's count `null`, and the
  * badge's existing `count !== null` branch drops the badge. The MEASUREMENT
  * case that pinned the old collapse-into-0 was rewritten there, as its own
- * comment asked for; the other two MEASUREMENTs still pin objectui#3655's gap
- * and are untouched.
+ * comment asked for.
+ *
+ * That block keeps asserting Permissions as a NEIGHBOUR — the card that must
+ * still show its real number while another card's lookup fails — so its
+ * expectation moved from `0 permissions` to `5 permissions` when objectui#3655
+ * re-aimed the query. Its three-row matrix case also needed a fresh specimen
+ * for "unregistered object": there is no longer a misspelled name to supply
+ * one, so it drops `sys_permission_set` from the fixture registry, i.e. a
+ * deployment without plugin-security. Both are noted at their call sites.
  */
 
 import '@testing-library/jest-dom/vitest';
@@ -66,7 +77,9 @@ const { state, ADAPTER, FRAMEWORK_OBJECT_NAMES } = vi.hoisted(() => {
    *
    * `sys_org` and `sys_permission` are absent on purpose: a repo-wide grep for
    * either as an object name returns zero hits in the framework, which is
-   * exactly what makes them unqueryable.
+   * exactly what makes them unqueryable. Neither is asked for any more — the
+   * audit case below asserts that the set of queried-but-unregistered names is
+   * now EMPTY.
    */
   const FRAMEWORK_OBJECT_NAMES = [
     'sys_user',
@@ -190,15 +203,15 @@ const COUNTED_CARDS: ReadonlyArray<readonly [string, string]> = [
 ];
 
 /**
- * The object names the page asks for, in call order — including
- * `sys_permission`, which the framework does not register (objectui#3655) and
- * so is absent from the fixture registry above.
+ * The object names the page asks for, in call order. Every one of them is a
+ * name the framework registers — see `FRAMEWORK_OBJECT_NAMES` and the audit
+ * case that ties the two lists together.
  */
 const QUERIED_OBJECT_NAMES = [
   'sys_user',
   'sys_organization',
   'sys_position',
-  'sys_permission',
+  'sys_permission_set',
   'sys_audit_log',
 ];
 
@@ -221,7 +234,7 @@ describe('System Hub card counts — object names (objectui#3670)', () => {
     expect(within(screen.getByTestId('hub-card-audit-log')).getByText('6 entries')).toBeInTheDocument();
   });
 
-  it('asks for exactly five names, and only one of them is missing from the framework', async () => {
+  it('asks for exactly five names, every one of them registered by the framework', async () => {
     renderHub();
     // Settle on a card this audit does not judge, so a wrong name shows up as a
     // diff on the call list below rather than as a missing badge elsewhere.
@@ -231,50 +244,59 @@ describe('System Hub card counts — object names (objectui#3670)', () => {
       'sys_user',
       'sys_organization',
       'sys_position',
-      'sys_permission',
+      'sys_permission_set',
       'sys_audit_log',
     ]);
-    // The whole audit in one assertion: after this change the only name the
-    // framework does not register is the one parked on objectui#3655.
-    expect(state.calls.filter((name) => !FRAMEWORK_OBJECT_NAMES.includes(name))).toEqual([
-      'sys_permission',
-    ]);
+    // The whole audit in one assertion. It read `['sys_permission']` while
+    // objectui#3655 was open and `['sys_org', 'sys_permission']` before
+    // objectui#3670; with the permissions leg decided, no card asks for a name
+    // the framework does not have.
+    expect(state.calls.filter((name) => !FRAMEWORK_OBJECT_NAMES.includes(name))).toEqual([]);
+  });
+
+  it('counts Permissions through sys_permission_set, the container the card describes', async () => {
+    renderHub();
+
+    // The replacement for "MEASUREMENT: Permissions still reads 0 while both
+    // candidate objects hold rows", which pinned the pre-decision landing and
+    // said in so many words that it was written to be rewritten. Same fixture:
+    // `sys_permission_set` (5 rows) and `sys_capability` (7 rows) both exist,
+    // so the badge's number identifies WHICH one the page chose — a fixture
+    // where only one had rows would let either name pass. 5, not 7, and not the
+    // `0` that `sys_permission` produced.
+    expect(await badge('hub-card-permissions', '5 permissions')).toBeInTheDocument();
+    expect(state.calls).toContain('sys_permission_set');
+    expect(state.calls).not.toContain('sys_permission');
+    // Layer 1 stays unqueried: capabilities are what a permission set
+    // REFERENCES by name, not what an admin is assigned (ADR-0066).
+    expect(state.calls).not.toContain('sys_capability');
   });
 
   // ── MEASUREMENT ────────────────────────────────────────────────────────────
-  // The two cases below pin the CURRENT behaviour, not the desired one. They
-  // exist so the remaining gap is visible in the suite instead of being read as
-  // a missed line, and so whoever resolves objectui#3655 has a failing anchor
-  // to rewrite rather than a silent pass.
+  // The case below pins CURRENT behaviour that no open issue is fixing, so it
+  // is a measurement rather than an acceptance: it records a consequence of the
+  // adapter's absorb-the-404 contract, which this page does not own.
   //
-  // There were three. The third — "a non-404 failure is collapsed into 0 as
-  // well, with no error affordance" — named objectui#3679 as the work that
-  // would rewrite it, and that work is done: it now lives in the next describe
-  // block with its expectation inverted. These two stay measurements because
-  // objectui#3655 is still open.
-
-  it('MEASUREMENT: Permissions still reads 0 while both candidate objects hold rows', async () => {
-    renderHub();
-
-    // `sys_capability` (7 rows) and `sys_permission_set` (5 rows) both exist in
-    // this fixture, and the card shows neither — it asks for `sys_permission`,
-    // which the framework does not have. Aiming it at either candidate here
-    // would decide objectui#3655's A/B/C on the maintainer's behalf, so the
-    // query is deliberately untouched. When that decision lands, THIS is the
-    // case to rewrite (expected: `7 permissions` for B, `5 permissions` for A,
-    // or the card gone entirely for C).
-    expect(await badge('hub-card-permissions', '0 permissions')).toBeInTheDocument();
-    expect(state.calls).toContain('sys_permission');
-    expect(state.calls).not.toContain('sys_capability');
-    expect(state.calls).not.toContain('sys_permission_set');
-  });
+  // There were three others. "A non-404 failure is collapsed into 0 as well"
+  // was rewritten by objectui#3679 (next describe block). The two that held
+  // objectui#3655's permissions gap open are gone with the gap: one became the
+  // `5 permissions` case above, the other is this one, re-pointed — see below.
 
   it('MEASUREMENT: an unregistered object and a genuinely empty one render the identical badge', async () => {
-    // `sys_audit_log` exists but has no rows; `sys_permission` does not exist
-    // at all. Two different facts, one indistinguishable pixel — this is why
-    // the wrong name survived so long, and it is unchanged by this PR (fixing
-    // it means changing the error handling, a separate class of work).
+    // Two different facts, one indistinguishable pixel. This is why a wrong
+    // object name survived so long, and nothing here fixes it — the 404 is
+    // absorbed inside the adapter by design, so telling the two apart would
+    // mean changing that contract, not this page.
+    //
+    // It used to be demonstrated with `sys_permission`, a name that existed
+    // nowhere. Now that all five names are real, the unregistered case needs a
+    // real occasion, and there is one: `sys_permission_set` belongs to
+    // plugin-security, so a deployment that does not install that plugin has no
+    // such object. Dropping it from the fixture registry models exactly that —
+    // and the card is indistinguishable from the genuinely empty audit log
+    // beside it.
     state.registry.sys_audit_log = [];
+    delete state.registry.sys_permission_set;
     renderHub();
 
     expect(await badge('hub-card-audit-log', '0 entries')).toBeInTheDocument();
@@ -323,20 +345,28 @@ describe('System Hub card counts — a lookup that failed is not a `0` (objectui
       '2 organizations',
     );
     expect(countBadge('hub-card-positions', 'positions')).toHaveTextContent('4 positions');
+    // `5 permissions` since objectui#3655 aimed this card at
+    // `sys_permission_set`; it read `0` here while the query still named the
+    // unregistered `sys_permission`.
     expect(countBadge('hub-card-permissions', 'permissions')).toHaveTextContent(
-      '0 permissions',
+      '5 permissions',
     );
   });
 
   it('keeps `0` for the two things that really are zero, and blanks only the failure', async () => {
     // All three rows of the issue's behaviour matrix in one render. Only the
     // third moves; the first two are the adapter's contract and stay as they
-    // are (whether Permissions should be riding on row two at all is
-    // objectui#3655, not this change):
-    //   sys_audit_log   registered, genuinely empty  -> `0 entries`
-    //   sys_permission  unregistered, adapter resolves empty -> `0 permissions`
-    //   sys_position    403, adapter rethrows        -> no badge
+    // are:
+    //   sys_audit_log       registered, genuinely empty          -> `0 entries`
+    //   sys_permission_set  unregistered, adapter resolves empty -> `0 permissions`
+    //   sys_position        403, adapter rethrows                -> no badge
+    //
+    // Row two used to ride on `sys_permission`, a name the framework never had
+    // (objectui#3655 has since aimed the card at `sys_permission_set`). It now
+    // rides on a deployment without plugin-security, which owns that object —
+    // the row still needs a specimen, and this is the honest one.
     state.registry.sys_audit_log = [];
+    delete state.registry.sys_permission_set;
     state.failures.sys_position = Object.assign(new Error('Forbidden'), { status: 403 });
     renderHub();
 

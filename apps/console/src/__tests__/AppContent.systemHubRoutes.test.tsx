@@ -39,11 +39,11 @@
  *
  * `ChainRecorder` records every location the router settles on, so "one hop" is
  * an assertion rather than an inference; the pre-fix landings above are
- * reachable by deleting the four `system/*` routes from `systemRoutes` (the
+ * reachable by deleting the five `system/*` routes from `systemRoutes` (the
  * `object-view` probes go red and the chain returns to `Page not found` /
  * `…/system/record/<word>`).
  *
- * ## Two branches, and the `permissions` gap
+ * ## Two branches
  *
  * `AppContent` has two route tables and this host passes the same fragment to
  * both. With an active app the redirect target resolves (`:objectName` renders
@@ -52,10 +52,24 @@
  * and pinned below rather than asserted away, because a deployment with no apps
  * in its metadata also has no `sys_user` to show.
  *
- * `system/permissions` is deliberately still broken: the framework splits this
- * console's "Permissions" into `sys_capability` and `sys_permission_set` and
- * nothing in the issue picks one. Its unchanged landing is pinned so the gap is
- * visible, and so whichever mapping is chosen has to come here to change it.
+ * ## The `permissions` leg, closed
+ *
+ * Four of the five landed in PR #3673. `system/permissions` was held back and
+ * its broken landing PINNED, because the framework splits this console's
+ * "Permissions" into two Setup entries (`sys_capability`, ADR-0066 layer 1 —
+ * the definition registry; `sys_permission_set`, layer 2 — the grant container
+ * the permissions docs call "the only capability container") and guessing would
+ * have bound every click and bookmark to a surface nobody chose. objectui#3655
+ * decided it as `sys_permission_set`: the card that emits this URL says "Manage
+ * permission rules and assignments", which is layer 2. Those pins are therefore
+ * REPLACED here, not merely kept passing — that was their stated purpose.
+ *
+ * What the pins measured beyond the gap itself — that an undeclared segment
+ * fails in two different ways depending on its LENGTH — is still true and still
+ * measured, now on a hypothetical pair that is undeclared in both branches
+ * (`system/teams`, 5 chars, and `system/workgroups`, 10). Re-pointing them was
+ * the alternative to letting the length asymmetry lose its only coverage the
+ * moment its last real specimen got a route.
  */
 
 import '@testing-library/jest-dom/vitest';
@@ -214,16 +228,18 @@ beforeEach(() => {
 
 describe('system-hub entries reach the framework system objects (objectui#3655)', () => {
   /**
-   * The four whose equivalent the framework names unambiguously. `roles` and
-   * `positions` converge on ONE object on purpose: ADR-0090 D3 renamed
-   * `sys_role` -> `sys_position`, so the sidebar's "Roles" and the hub's
-   * "Positions" are the same surface in old and new vocabulary.
+   * All five. `roles` and `positions` converge on ONE object on purpose:
+   * ADR-0090 D3 renamed `sys_role` -> `sys_position`, so the sidebar's "Roles"
+   * and the hub's "Positions" are the same surface in old and new vocabulary.
+   * `permissions` -> `sys_permission_set` is objectui#3655's decision A (see
+   * the file docblock); it landed one PR after the other four.
    */
   it.each([
     ['/apps/setup/system/users', '/apps/setup/sys_user', 'sys_user'],
     ['/apps/setup/system/organizations', '/apps/setup/sys_organization', 'sys_organization'],
     ['/apps/setup/system/roles', '/apps/setup/sys_position', 'sys_position'],
     ['/apps/setup/system/positions', '/apps/setup/sys_position', 'sys_position'],
+    ['/apps/setup/system/permissions', '/apps/setup/sys_permission_set', 'sys_permission_set'],
   ])('%s reaches %s in ONE hop', async (url, target, objectName) => {
     renderConsoleAt(url);
 
@@ -253,34 +269,34 @@ describe('system-hub entries reach the framework system objects (objectui#3655)'
   });
 
   /**
-   * MEASUREMENT — deliberately unresolved. "Permissions" has TWO candidate
-   * equivalents in the framework (`sys_capability`, the definition registry and
-   * the object its own docblock identifies as the ADR's `sys_permission`; and
-   * `sys_permission_set`, the grant container the permissions docs call "the
-   * only capability container"). Choosing one here would silently commit every
-   * click and bookmark to a surface nobody picked, so this leg keeps its
-   * pre-fix landing until the mapping is decided. This assertion is expected to
-   * be REPLACED, not merely to keep passing.
+   * MEASUREMENT — the length-dependent split this issue is really about, kept
+   * alive now that its last real specimen has a route. `permissions` used to
+   * stand here: 11 chars, judged a record id, rewritten to
+   * `…/system/record/permissions` and rendered as a record of an object
+   * literally named `system`. That pin was written to be REPLACED once the
+   * mapping was decided (objectui#3655 → `sys_permission_set`), and the one-hop
+   * case above is its replacement.
+   *
+   * The asymmetry itself outlives it, so it is re-pinned on a hypothetical pair
+   * that is undeclared in both route tables: `workgroups` (10 chars) here and
+   * `teams` (5) below — the same concept spelled two lengths, producing two
+   * unrelated failure screens. Nothing here asks for `looksLikeRecordId` to
+   * change; that is a separate question. The point is that the next reader
+   * still finds it measured against the shipped routes rather than described.
    */
-  it('MEASUREMENT: system/permissions still lands on a record of the object `system`', async () => {
-    renderConsoleAt('/apps/setup/system/permissions');
+  it('MEASUREMENT: an undeclared LONG system segment lands on a record of the object `system`', async () => {
+    renderConsoleAt('/apps/setup/system/workgroups');
 
     const probe = await screen.findByTestId('record-detail-view');
     expect(probe).toHaveTextContent('"objectName":"system"');
-    expect(probe).toHaveTextContent('"recordId":"permissions"');
+    expect(probe).toHaveTextContent('"recordId":"workgroups"');
     expect(chain).toEqual([
-      '/apps/setup/system/permissions',
-      '/apps/setup/system/record/permissions',
+      '/apps/setup/system/workgroups',
+      '/apps/setup/system/record/workgroups',
     ]);
   });
 
-  /**
-   * MEASUREMENT — the length-dependent split this issue is really about, taken
-   * on the one URL the fix does not cover. `permissions` (11 chars) is judged a
-   * record id; a hypothetical 5-char sibling would not be. Nothing here asks
-   * for `looksLikeRecordId` to change — it is a separate question — but the
-   * asymmetry is recorded so the next reader does not have to rediscover it.
-   */
+  /** MEASUREMENT — the short half of the pair described just above. */
   it('MEASUREMENT: an undeclared SHORT system segment still reaches Page not found', async () => {
     renderConsoleAt('/apps/setup/system/teams');
 
@@ -310,6 +326,7 @@ describe('zero-app branch — measured, not asserted away (objectui#3655)', () =
     ['/apps/setup/system/organizations', '/apps/setup/sys_organization'],
     ['/apps/setup/system/roles', '/apps/setup/sys_position'],
     ['/apps/setup/system/positions', '/apps/setup/sys_position'],
+    ['/apps/setup/system/permissions', '/apps/setup/sys_permission_set'],
   ])('%s still redirects, and the target is the no-apps empty state', async (url, target) => {
     metadataApps = [];
     renderConsoleAt(url);
@@ -319,12 +336,22 @@ describe('zero-app branch — measured, not asserted away (objectui#3655)', () =
     expect(screen.queryByTestId('object-view')).not.toBeInTheDocument();
   });
 
+  /**
+   * MEASUREMENT — same re-pointing as the with-app half. This case used to run
+   * on `system/permissions`, which is now declared and so redirects here too
+   * (the row added above). Its subject was never that URL, though: it is that
+   * on a zero-app deployment even a LONG undeclared word reaches
+   * `RouteNotFound` and never a record page, because `ShorthandRecordRedirect`
+   * is not declared in this branch at all — i.e. the length split measured in
+   * the with-app describe does not exist here. `workgroups` (10 chars) keeps
+   * that fact pinned on a segment that is still undeclared.
+   */
   it('MEASUREMENT: with no apps, an undeclared system URL reaches Page not found, never a record page', async () => {
     metadataApps = [];
-    renderConsoleAt('/apps/setup/system/permissions');
+    renderConsoleAt('/apps/setup/system/workgroups');
 
     expect(await screen.findByText('Page not found')).toBeInTheDocument();
     expect(screen.queryByTestId('record-detail-view')).not.toBeInTheDocument();
-    expect(chain).toEqual(['/apps/setup/system/permissions']);
+    expect(chain).toEqual(['/apps/setup/system/workgroups']);
   });
 });
