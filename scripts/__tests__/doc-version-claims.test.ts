@@ -44,12 +44,19 @@ import { fileURLToPath } from 'node:url';
  *
  *   221 files scanned, 38 literals matched, 11 structurally exempt, 27 inventoried.
  *
- * Of the 27, NINE are measurably wrong today and are recorded as `stale` below —
- * including `@objectstack/spec ^4.0.4` in the architecture overview's layer diagram,
- * thirteen majors behind the `^17.0.0-rc.5` every manifest declares. None is fixed
- * here: objectui#3697 is a test-only task and every repair is a docs edit. They are
- * filed separately; inventorying a known-false line with `kind: 'stale'` records the
- * debt instead of blessing it, and still stops a tenth from joining them silently.
+ * Of the 27, NINE were measurably wrong when this file landed and were recorded as
+ * `stale` below — including `@objectstack/spec ^4.0.4` in the architecture overview's
+ * layer diagram, thirteen majors behind the `^17.0.0-rc.5` every manifest declares.
+ * None was fixed here: objectui#3697 is a test-only task and every repair is a docs
+ * edit. They are filed separately; inventorying a known-false line with `kind: 'stale'`
+ * records the debt instead of blessing it, and still stops a tenth from joining them
+ * silently.
+ *
+ * EIGHT remain. objectui#3690 paid off the first: `plugin-report/README.md` was the one
+ * entry where the README was RIGHT and the manifest lagged it, so widening that package
+ * peerDependencies to `^18.0.0 || ^19.0.0` turned the claim true without touching a
+ * single character of prose. Its entry is now a plain `restatement`. That direction —
+ * fix the anchor, not the sentence — is the cheapest way an entry ever leaves this list.
  *
  * ## Fences are SCANNED — the opposite of `check-doc-links.mjs`, on purpose
  *
@@ -325,10 +332,12 @@ const keyOf = (c: Pick<Claim, 'file' | 'claim'>): string => `${c.file} :: ${c.cl
  *                  can tell us when it stops being true.
  * `stale`        - measured WRONG at the time of writing. Recorded, not blessed.
  *
- * Nine of the 27 are `stale`. None is fixed here: objectui#3697 is a test-only task and
- * every one of them is a docs edit. They are filed separately. Inventorying a
- * known-false line records the debt where the next reader will trip over it, and the
- * ratchet still stops a tenth from joining them unnoticed.
+ * Nine of the 27 were `stale` when this file landed; EIGHT are today (objectui#3690
+ * cleared `plugin-report/README.md` by widening the manifest the README already
+ * described). None was fixed here: objectui#3697 is a test-only task and every one of
+ * them is a docs edit. They are filed separately. Inventorying a known-false line
+ * records the debt where the next reader will trip over it, and the ratchet still stops
+ * a tenth from joining them unnoticed.
  */
 type ClaimKind = 'anchored' | 'restatement' | 'sample' | 'unanchored' | 'stale';
 
@@ -440,6 +449,7 @@ const KNOWN_CLAIMS: KnownClaim[] = [
   { file: 'packages/permissions/README.md', claim: PEER_18_19, kind: 'restatement', why: PEER_RESTATEMENT_OK },
   { file: 'packages/plugin-ai/README.md', claim: PEER_18_19, kind: 'restatement', why: PEER_RESTATEMENT_OK },
   { file: 'packages/plugin-designer/README.md', claim: PEER_18_19, kind: 'restatement', why: PEER_RESTATEMENT_OK },
+  { file: 'packages/plugin-report/README.md', claim: PEER_18_19, kind: 'restatement', why: PEER_RESTATEMENT_OK },
   { file: 'packages/react/README.md', claim: PEER_18_19, kind: 'restatement', why: PEER_RESTATEMENT_OK },
   {
     file: 'packages/react-runtime/README.md',
@@ -452,12 +462,6 @@ const KNOWN_CLAIMS: KnownClaim[] = [
     claim: 'react' + TICK + ' >= 18.0.0',
     kind: 'stale',
     why: 'Claims ">= 18.0.0", which admits React 20; the manifest peer is ^18.0.0 || ^19.0.0 and rejects it. The README is broader than what npm will install.',
-  },
-  {
-    file: 'packages/plugin-report/README.md',
-    claim: PEER_18_19,
-    kind: 'stale',
-    why: 'Claims ^18.0.0 || ^19.0.0 while this package peerDependencies.react is ^18.0.0 alone — the sole UI package without React 19, first noticed as an out-of-scope finding in PR #3688.',
   },
   {
     file: 'packages/plugin-chatbot/README.md',
