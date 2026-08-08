@@ -529,3 +529,86 @@ describe('DeclaredActionsBar — declared `visible` on a server-declared action 
     expect(executeSpy.mock.calls[0][0]).toMatchObject({ name: 'approval_reassign' });
   });
 });
+
+/**
+ * objectui#3842 — the declared `disabled` gate on the same surface, and the
+ * half of the objectui#3492 family where the `''` reasoning INVERTS.
+ *
+ * The gate asked `(action as any).disabled != null`, so `disabled: ''` counted
+ * as "a gate is declared" and the verdict went to the evaluation entry — which
+ * reads an empty predicate as "no condition → true"
+ * (`toPredicateInput('')` → `undefined` → `evaluateCondition(undefined)` →
+ * `true`). Direction is everything: on `visible` that `true` means SHOW, so the
+ * over-broad "declared" test and the permissive empty predicate cancel out
+ * (which is why the `visible: ''` case above is documentation, not a detector,
+ * and says so). On `disabled` the same `true` means DISABLE, so the two
+ * compound: an empty predicate stopped meaning "no gate" and started meaning
+ * "greyed out forever".
+ *
+ * What that costs on THIS surface: the actions are server-declared
+ * (`objectDef.actions[]`) and the bar's own hosts are the approvals inbox's
+ * record sections, so a `disabled: ''` — an authoring form left empty, a
+ * template that rendered to an empty string — greys out Approve / Reject with
+ * no way for the approver to tell metadata intent from a bug. objectui#3835 was
+ * the same surface failing the other way (hidden action still clickable).
+ *
+ * `''` IS a mutation detector here, unlike on `visible`: restore `!= null` and
+ * this block's first case goes red on its own. All four shapes are asserted
+ * because "never disable anything" satisfies three of them, and `disabled: true`
+ * is what refuses that rewrite.
+ *
+ * No legacy `enabled` leg on this surface by design (see the component: server-
+ * declared actions are spec-shaped and never carried the non-spec key) — that
+ * leg's four shapes are pinned in `packages/components`, next to the renderer
+ * that has it.
+ */
+describe('DeclaredActionsBar — declared `disabled` on a server-declared action (objectui#3842)', () => {
+  const APPROVE = {
+    name: 'approval_approve',
+    type: 'api',
+    label: 'Approve',
+    target: '/api/v1/approvals/requests/{id}/approve',
+    locations: ['record_section'],
+  };
+  const approve = () => screen.getByTestId('declared-action-approval_approve');
+
+  it("an empty-string `disabled` is not a declared gate — Approve stays clickable", () => {
+    renderWithGate({ ...APPROVE, disabled: '' });
+    expect(approve()).not.toBeDisabled();
+  });
+
+  it('disabled:true → Approve is disabled', () => {
+    renderWithGate({ ...APPROVE, disabled: true });
+    expect(approve()).toBeDisabled();
+  });
+
+  it('disabled:false → Approve is not disabled', () => {
+    renderWithGate({ ...APPROVE, disabled: false });
+    expect(approve()).not.toBeDisabled();
+  });
+
+  it('no `disabled` at all → Approve is not disabled (ungated stays ungated)', () => {
+    renderWithGate({ ...APPROVE });
+    expect(approve()).not.toBeDisabled();
+  });
+
+  it('an expression-valued `disabled` keeps its verdict — true disables, false does not', () => {
+    const gated = { ...APPROVE, disabled: 'status == "approved"' };
+    const { unmount } = renderWithGate(gated, { ...REQUEST, status: 'approved' });
+    expect(approve()).toBeDisabled();
+    unmount();
+    renderWithGate(gated, { ...REQUEST, status: 'pending' });
+    expect(approve()).not.toBeDisabled();
+  });
+
+  it('an empty-string `disabled` leaves an Approve that actually DISPATCHES', async () => {
+    // Not-disabled is only the visible half of the claim. The `disabled`
+    // attribute is what this component hands its own click handler — the one
+    // that POSTs the approve call — so the case worth pinning is that the
+    // button reaches `execute`, not merely that an attribute is absent.
+    renderWithGate({ ...APPROVE, disabled: '' });
+    fireEvent.click(approve());
+    await waitFor(() => expect(executeSpy).toHaveBeenCalledTimes(1));
+    expect(executeSpy.mock.calls[0][0]).toMatchObject({ name: 'approval_approve' });
+  });
+});

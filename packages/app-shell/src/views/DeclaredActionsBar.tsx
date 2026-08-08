@@ -227,7 +227,23 @@ const DeclaredActionButton: React.FC<{
       type="button"
       size="sm"
       variant={variant as any}
-      disabled={((action as any).disabled != null ? isDisabledPred : false) || loading}
+      // Is a `disabled` gate DECLARED? The same question the `visible` gate
+      // above asks, so it reads the same definition rather than re-spelling it.
+      // The name is historic — objectui#3492 arrived through `visible` — and the
+      // predicate is key-neutral: "declared" is `!= null && !== ''`, because an
+      // empty predicate is nothing to evaluate. Kept under that name
+      // deliberately (objectui#3842 ruling): one implementation behind two names
+      // is a dialect, not a clarification.
+      //
+      // `!= null` alone was a real defect here, and NOT for the reason it was on
+      // `visible`: the evaluation entry reads an empty predicate as "no
+      // condition → true", which on `visible` means SHOW (so an over-broad
+      // "declared" test cancels out and `''` renders either way), but here means
+      // DISABLE. A `disabled: ''` on a server-declared approval action rendered
+      // a permanently greyed-out Approve / Reject — the mirror image of
+      // objectui#3835 on the same surface, and equally impossible to tell from
+      // deliberate metadata by looking at it.
+      disabled={(hasDeclaredVisibilityGate((action as any).disabled) ? isDisabledPred : false) || loading}
       onClick={handleClick}
       data-testid={`declared-action-${action.name}`}
     >
