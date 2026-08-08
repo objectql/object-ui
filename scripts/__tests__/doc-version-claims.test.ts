@@ -56,9 +56,14 @@ import { fileURLToPath } from 'node:url';
  * untouched, and both directions of the ratchet report green over a README that now
  * misstates the range. objectui#3690 was exactly that shape, found by a human census
  * (there the README was right and the MANIFEST lagged it — the assertion is symmetric, it
- * names the disagreement, not the guilty side). objectui#3741, still open, proposes
- * narrowing react-runtime's manifest range; the day someone does, this test goes red until
- * that README follows.
+ * names the disagreement, not the guilty side). objectui#3741 was the prediction this
+ * paragraph used to carry as future tense: it narrowed react-runtime's manifest from the
+ * unbounded `>=18` to the group's `^18.0.0 || ^19.0.0`, and this test did exactly what was
+ * written here — it went red until that README followed, in the same change. Worth keeping
+ * as the worked example, because it is also the case that shows what this assertion does
+ * NOT do: both sides said `>=18` and AGREED, so nothing here objected for the five weeks
+ * the unbounded range sat in a published manifest. Agreement is not correctness. The norm
+ * itself is asserted separately, in `react-peer-range-norm-3741.test.ts`.
  *
  * Two boundaries, both deliberate, both pinned below:
  *
@@ -554,9 +559,9 @@ const KNOWN_CLAIMS: KnownClaim[] = [
   { file: 'packages/react/README.md', claim: PEER_18_19, kind: 'restatement', why: PEER_RESTATEMENT_OK },
   {
     file: 'packages/react-runtime/README.md',
-    claim: 'react >= 18',
+    claim: 'react ^18.0.0',
     kind: 'restatement',
-    why: 'Restates this package peerDependencies.react, which is literally ">=18" — the one README whose looser spelling is the manifest spelling.',
+    why: 'Restates this package peerDependencies.react verbatim, in the prose spelling rather than a peer block. Until objectui#3741 both sides read ">=18": the manifest was the last react peer in the workspace with no upper bound, so the README faithfully restated a range that would have claimed React 20 the day it shipped. Narrowing the manifest to the group norm brought this line with it — the restatement was never the defect, the range it restated was.',
   },
   {
     file: 'packages/plugin-chatbot/README.md',
@@ -594,7 +599,7 @@ const RANGE_OPENS = /^[\^~><=\d]/;
  *   - a bullet in a peer-dependency list — 11 of the 12 entries, one spelling between them:
  *       - `react` ^18.0.0 || ^19.0.0
  *   - one code span read as prose, `packages/react-runtime/README.md` alone:
- *       `react >= 18` is a peer dependency.
+ *       `react ^18.0.0 || ^19.0.0` is a peer dependency.
  *
  * Note what the range is here and is not in the inventory key: the key stops at the first
  * version token (`^18.0.0`), this reads the range to end of line (`^18.0.0 || ^19.0.0`).
@@ -689,19 +694,28 @@ function peerBlockBullets(rel: string): PeerBullet[] | null {
 /**
  * Range equality: VERBATIM, up to whitespace INSIDE the range.
  *
- * That one-space normalisation is not a softening, and it exists for a measured reason.
- * `packages/react-runtime/README.md` writes `react >= 18` while its manifest writes
- * `>=18`. Nothing is drifted there — the two spell the same single comparator and npm
- * parses them identically — so byte-strict equality would paint that entry red on a tree
- * where nothing is wrong. The only two answers to such a red are to rewrite one side for
- * the gate's benefit, or to declare the entry uncovered: a cosmetic edit, or lost
- * coverage, in exchange for nothing.
+ * HISTORY — why the normalisation was written. `packages/react-runtime/README.md` wrote
+ * `react >= 18` while its manifest wrote `>=18`. Nothing was drifted there — the two
+ * spell the same single comparator and npm parses them identically — so byte-strict
+ * equality would have painted that entry red on a tree where nothing was wrong. The only
+ * two answers to such a red are to rewrite one side for the gate's benefit, or to declare
+ * the entry uncovered: a cosmetic edit, or lost coverage, in exchange for nothing.
  *
- * Everything this assertion exists to catch survives, because whitespace is the only
- * thing dropped: a bumped major, a `||` arm added or removed, `^` turning into `~`, a
- * vanished upper bound all still compare unequal. Pinned by its own test below — a
- * normaliser that quietly grew to strip operators would make the whole assertion vacuous
- * while every other test in this file stayed green.
+ * CURRENT STATE — that specimen is gone. objectui#3741 narrowed react-runtime's manifest
+ * to the `^18.0.0 || ^19.0.0` group norm (it was the last react peer in the workspace with
+ * no upper bound) and brought the README sentence with it, so both sides now spell the
+ * range identically. Measured on the tree at that change: 21 peer statements resolve to a
+ * manifest counterpart and ZERO of them differ by whitespace alone. The normaliser is
+ * therefore exercised only by its own unit test below, not by the corpus.
+ *
+ * It stays anyway, and deliberately: the two spellings it equates are equally correct npm
+ * ranges, so the day a README writes `>= 19` beside a `>=19` manifest the gate should stay
+ * green rather than demand a cosmetic edit. Tightening it to bytes would buy no new defect
+ * class — everything this assertion exists to catch survives the normalisation, because
+ * whitespace is the only thing dropped: a bumped major, a `||` arm added or removed, `^`
+ * turning into `~`, a vanished upper bound all still compare unequal. Pinned by its own
+ * test below — a normaliser that quietly grew to strip operators would make the whole
+ * assertion vacuous while every other test in this file stayed green.
  */
 const sameRange = (a: string, b: string): boolean =>
   a.replace(/\s+/g, '') === b.replace(/\s+/g, '');
@@ -1152,6 +1166,15 @@ describe('doc version claims - the peer-line assertion', () => {
       dep: 'react-router-dom',
       range: '^6.0.0 || ^7.0.0',
     });
+    // react-runtime's prose sentence, in the spelling it carries since objectui#3741.
+    expect(parsePeerStatement(ticked('react ^18.0.0 || ^19.0.0') + ' is a peer dependency.')).toEqual({
+      dep: 'react',
+      range: '^18.0.0 || ^19.0.0',
+    });
+    // The same shape carrying a single comparator. No longer in the corpus — it WAS
+    // react-runtime's spelling until objectui#3741 narrowed it — but kept because
+    // RANGE_OPENS admits `>` and a prose line is the shape most likely to be written
+    // that way again.
     expect(parsePeerStatement(ticked('react >= 18') + ' is a peer dependency.')).toEqual({
       dep: 'react',
       range: '>= 18',
@@ -1175,8 +1198,10 @@ describe('doc version claims - the peer-line assertion', () => {
   });
 
   it('treats whitespace inside a range as insignificant, and nothing else', () => {
-    // The one pair the normalisation exists for, and the only place in the corpus where
-    // README and manifest differ by anything at all.
+    // The pair the normalisation was written for. It is no longer a corpus pair — since
+    // objectui#3741 every one of the 21 resolved statements matches its manifest byte for
+    // byte — so these two cases are now the ONLY thing keeping the normalisation honest.
+    // See `sameRange` for why it is kept rather than tightened to bytes.
     expect(sameRange('>= 18', '>=18')).toBe(true);
     expect(sameRange('^18.0.0 || ^19.0.0', '^18.0.0||^19.0.0')).toBe(true);
 
