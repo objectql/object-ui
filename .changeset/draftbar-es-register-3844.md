@@ -47,13 +47,19 @@ packs are not touched. The diff is two values in one file.
 
 Re-voicing the whole `preview` namespace to tú was considered and rejected — a
 much larger change that would collide with the adjacent `marketplace.*` (9:0
-usted) and `console.ai.*`. `preview.empty.notReadyDescription` therefore stays
-tú on purpose: it is a different surface, nothing switches under the user
-mid-session, and #3844's body records it. A gate that checks "one register per
-namespace" is deliberately **not** here: recognising usted vs tú needs real
-morphology (the ad-hoc regex used to take the census above already miscounted the
-imperative `Revisa` as a tú marker), and the neighbourhood boundary such a gate
-would police is human judgement — #3546 slice two's "same rule, different
-answer". A new `draftBar-es-register-3844.test.ts` pins the four `es` values byte
-for byte instead, plus the `en` literals, so a future reword of either `en`
-sentence fails in the same PR that reworded it.
+usted) and `console.ai.*`. `preview.empty.notReadyDescription` therefore stays tú
+here, since #3844's ruling is this banner only; it is filed as #3875 rather than
+waved through, because `PreviewDraftEmptyState` renders *underneath*
+`DraftPreviewBar` and so those two show usted and tú on screen at the same time.
+After this change the `preview` namespace is 23 usted to that 1 tú.
+
+A gate that checks "one register per namespace" is deliberately **not** here:
+recognising usted vs tú needs real morphology, and token matching demonstrably
+cannot — in this pack the token `revisa` is usted in `console.ai.empty.build`
+(es.ts:1365, "…y usted revisa y publica.") and tú in
+`auth.forgotPassword.successTitle` (es.ts:1918, "Revisa tu correo electrónico"),
+the same eight letters in opposite registers. The neighbourhood boundary such a
+gate would police is human judgement anyway — #3546 slice two's "same rule,
+different answer". A new `draftBar-es-register-3844.test.ts` pins the four `es`
+values byte for byte instead, plus the `en` literals, so a future reword of
+either `en` sentence fails in the same PR that reworded it.

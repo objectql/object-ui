@@ -38,23 +38,40 @@
  * ## What this file deliberately does NOT do
  *
  * **No morphological register detection.** objectui#3844 evaluated a gate that
- * checks "one register per namespace" and argued it down: recognising usted vs
- * tú needs real morphology, and the ad-hoc regex used to take the census above
- * already miscounted the imperative `Revisa` as a tú marker. Worse, the
- * boundary such a gate would police — which neighbourhood is informal — is
- * human judgement (slice two's "same rule, different answer" precedent), so a
- * gate could only ever check consistency *within* a boundary it cannot draw.
+ * checks "one register per namespace" and argued it down. Recognising usted vs
+ * tú needs real morphology, and token matching demonstrably cannot: in this
+ * very pack the token `revisa` is **usted** in `console.ai.empty.build`
+ * (es.ts:1365, "…y usted revisa y publica.", present indicative with an
+ * explicit `usted`) and **tú** in `auth.forgotPassword.successTitle`
+ * (es.ts:1918, "Revisa tu correo electrónico", imperative). Same eight
+ * letters, opposite registers, and no regex over the string can tell them
+ * apart. The reverse error is just as easy: third-person and impersonal forms
+ * read as usted markers — a crude `puede|su|…` scan over `approvalsInbox`
+ * returns five "usted" hits that are all about *el solicitante* or are
+ * impersonal ("No se puede determinar la identidad"), in a namespace whose
+ * second-person address is in fact uniformly tú (nine strings). objectui#3844
+ * recorded this hazard as "the census regex miscounted `Revisa`"; the
+ * measurement above is the precise version — the miscount is the usted
+ * indicative at :1365, not an imperative. Worse, the boundary such a gate
+ * would police — which neighbourhood is informal — is human judgement (slice
+ * two's "same rule, different answer" precedent), so a gate could only ever
+ * check consistency *within* a boundary it cannot draw.
  * This file therefore pins **these four literal values, byte for byte**, and
  * generalises to nothing. The retired-spelling checks below are exact
  * substrings lifted from the pre-fix value of this one key — the same
  * technique as `viewReadonlyTooltip-semantics-3625.test.ts` — not a register
  * rule in disguise.
  *
- * Scope note: `preview.empty.notReadyDescription` is still tú and is left
- * that way on purpose. It is a different surface (an empty state, not this
- * banner), nothing switches under the user mid-session, and re-voicing the
- * whole namespace is exactly the rejected direction B. objectui#3844's body
- * records it.
+ * Scope note: `preview.empty.notReadyDescription` (es.ts:3286, `Revisa`) is
+ * still tú and is left that way here, because re-voicing the namespace is the
+ * rejected direction B and objectui#3844's ruling is this banner only. It is
+ * **not** harmless, and this file does not pin it: `PreviewDraftEmptyState`
+ * (`AppContent.tsx`, returned while `previewDrafts` and the app is not yet
+ * staged) renders in the content area *underneath* `DraftPreviewBar`
+ * (`ConsoleLayout.tsx`), so those two are on screen at the SAME time — usted in
+ * the bar, tú in the pane below it. That is sharper than objectui#3844's own
+ * sequential switch and is filed separately as objectui#3875. After this change
+ * the `preview` namespace is 23 usted to that 1 tú.
  *
  * Related: objectui#3546 (slice five measured this while ruling es register),
  * objectui#3810 / objectui#3582 / objectui#3625 (the other value-domain blind
