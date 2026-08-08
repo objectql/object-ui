@@ -1,11 +1,11 @@
 ---
 title: "PageHeader"
-description: "Page header component with title, description, and actions"
+description: "Page header component with title, subtitle, and actions"
 ---
 
 import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
 
-The PageHeader component provides a consistent header for pages with title, description, and action buttons.
+The PageHeader component provides a consistent header for pages with title, subtitle, and action buttons.
 
 ## Basic Usage
 
@@ -14,7 +14,7 @@ import { PageHeader } from '@object-ui/layout';
 
 <PageHeader
   title="Dashboard"
-  description="Welcome to your dashboard"
+  subtitle="Welcome to your dashboard"
 />
 ```
 
@@ -25,14 +25,42 @@ import { PageHeader } from '@object-ui/layout';
 ## Component Props
 
 ```plaintext
-interface PageHeaderComponentProps {
-  title: string;                 // Page title (required)
-  description?: string;          // Page description
-  action?: React.ReactNode;      // Action buttons or elements
-  children?: React.ReactNode;    // Additional content (actions)
-  className?: string;            // Additional CSS classes
+interface PageHeaderComponentProps extends React.HTMLAttributes<HTMLDivElement> {
+  title: string;                      // Page title (required); {field.path} tokens interpolated
+  subtitle?: string;                  // Secondary line under the title — the canonical key
+  icon?: React.ReactNode | string;    // Lucide icon name, or a pre-rendered node
+  action?: React.ReactNode;           // Action buttons or elements (right-aligned slot)
+  actions?: unknown[];                // ActionDef list (or action ids) → record:quick_actions
+  showBack?: boolean;                 // Back arrow; inferred from record context when omitted
+  schema?: { children?: unknown[]; actions?: unknown[]; properties?: { actions?: unknown[] } };
+  children?: React.ReactNode;         // Additional content (right-aligned slot)
+  className?: string;                 // Additional CSS classes
+
+  // DEPRECATED: legacy alias of `subtitle`. Still read, but do not author it.
+  description?: string;
 }
 ```
+
+`subtitle` is the canonical key: `@objectstack/spec/ui`'s `PageHeaderProps` — the contract
+for the authored `page:header` node — declares `title / subtitle / icon / breadcrumb /
+actions / aria` and has no `description`. Both `title` and `subtitle` interpolate
+`{field.path}` tokens against the surrounding record context.
+
+`description` is a **legacy alias** of `subtitle`, kept only for pages authored before
+`subtitle` existed; `subtitle` wins when both are set. It is scheduled for removal
+together with the ADR-0087 D2 conversion entry `page-header-subtitle-alias` (in the
+framework repo), which rewrites `description` → `subtitle` at load time. Until that
+conversion ships, dropping the read here would silently delete the second line on
+out-of-repo pages — so the prop stays, and new pages write `subtitle`.
+
+`actions` is delegated to the `record:quick_actions` widget with
+`location: 'record_header'`, so authors get the standard toolbar (icons, overflow menu,
+permission filtering, confirm dialogs) without declaring a sibling node. Precedence for
+the right-aligned slot is `action` → React `children` → `actions` → schema children.
+
+`showBack` renders a back arrow that navigates one level up the URL. When omitted it
+defaults to `true` on record pages (a `recordId` in scope) that are not embedded in a
+drawer or modal, and `false` otherwise.
 
 ## Examples
 
@@ -42,12 +70,12 @@ interface PageHeaderComponentProps {
 <PageHeader title="Settings" />
 ```
 
-### With Description
+### With Subtitle
 
 ```plaintext
 <PageHeader
   title="Analytics"
-  description="Track your key metrics and performance indicators"
+  subtitle="Track your key metrics and performance indicators"
 />
 ```
 
@@ -56,7 +84,7 @@ interface PageHeaderComponentProps {
 ```plaintext
 <PageHeader
   title="Projects"
-  description="Manage your projects and tasks"
+  subtitle="Manage your projects and tasks"
   action={
     <div className="flex gap-2">
       <Button variant="outline">
@@ -77,7 +105,7 @@ interface PageHeaderComponentProps {
 ```plaintext
 <PageHeader
   title="Team"
-  description="Manage your team members"
+  subtitle="Manage your team members"
 >
   <Button>Invite Member</Button>
   <Button variant="outline">Settings</Button>
@@ -91,11 +119,11 @@ The PageHeader uses a flex layout:
 ```
 ┌─────────────────────────────────────┐
 │ Title                     [Actions] │
-│ Description                         │
+│ Subtitle                            │
 └─────────────────────────────────────┘
 ```
 
-- **Left Side**: Title and description stacked vertically
+- **Left Side**: Title and subtitle stacked vertically
 - **Right Side**: Action buttons or custom content
 - **Responsive**: Actions move below title on mobile (if needed)
 
@@ -107,7 +135,7 @@ The PageHeader uses a flex layout:
 - Font weight: `font-bold`
 - Tracking: `tracking-tight`
 
-### Description
+### Subtitle
 
 - Font size: `text-sm`
 - Color: `text-muted-foreground` (gray)
@@ -132,6 +160,11 @@ The Page component includes built-in PageHeader support:
 />
 ```
 
+Note that `description` here is **the Page component's own prop**, not the header's — it
+renders the page's prose under the page title and is a declared input of the `page`
+renderer. It is unrelated to the legacy `description` alias above; do not rename it to
+`subtitle`.
+
 ## Complete Example
 
 ```plaintext
@@ -144,7 +177,7 @@ function UsersPage() {
     <div>
       <PageHeader
         title="Team Members"
-        description="Manage your team members and their roles"
+        subtitle="Manage your team members and their roles"
         action={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm">
