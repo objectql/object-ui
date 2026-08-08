@@ -52,6 +52,7 @@ const OBJECT_SCHEMA = {
     f_tags: { type: 'select', multiple: true },
     f_multiselect: { type: 'select', multiple: true },
     f_textarea: { type: 'textarea' },
+    f_email: { type: 'email' },
     f_date: { type: 'date' },
     owner: { type: 'user' },
   },
@@ -63,6 +64,7 @@ const RECORD = {
   f_tags: ['alpha', 'beta'],
   f_multiselect: ['red', 'blue'],
   f_textarea: 'please handle, urgent',
+  f_email: 'ada@example.com',
   f_date: '2020-01-01',
   owner: { id: 'U1', name: 'Ada Lovelace' },
 };
@@ -116,6 +118,29 @@ describe('page:header — CEL-only constructs in action predicates (#3521)', () 
       renderHeader(
         { name: 'zoo_contains_false', visible: 'record.f_textarea.contains("urgent")' },
         { ...RECORD, f_textarea: 'nothing to see here' },
+      );
+      expect(shown()).toBe(false);
+    });
+
+    // `.matches()` is CEL's regex method — the third method call the issue's
+    // table names, and the one closest to a legacy marker: `.match(` IS a
+    // legacy JS marker, `.matches(` deliberately is not (the marker requires
+    // `(` right after `match`), so this must reach the CEL engine.
+    it('evaluates `.matches()` — and is not mistaken for the legacy `.match()`', () => {
+      renderHeader({
+        name: 'zoo_matches_true',
+        visible: 'record.f_email != null && record.f_email.matches(".*@example[.]com")',
+      });
+      expect(shown()).toBe(true);
+    });
+
+    it('hides when `.matches()` is false', () => {
+      renderHeader(
+        {
+          name: 'zoo_matches_false',
+          visible: 'record.f_email != null && record.f_email.matches(".*@example[.]com")',
+        },
+        { ...RECORD, f_email: 'ada@other.org' },
       );
       expect(shown()).toBe(false);
     });
