@@ -14,6 +14,10 @@ import type {
   DatasetSelection as SpecDatasetSelection,
 } from '@objectstack/spec/contracts';
 import type { PercentScale as SpecPercentScale } from '@objectstack/spec/data';
+// The shared drill-filter builder + its range type (objectui#3813): the date
+// sidecar's only consumer, imported rather than reproduced so the assertions
+// below are about the SAME code the dashboard widget and report renderer run.
+import { buildDatasetDrillFilter, type DatasetDrillRange } from '@object-ui/core';
 import {
   ObjectStackAdapter,
   clearSharedDiscoveryCache,
@@ -317,6 +321,7 @@ describe('queryDataset result fields ARE @objectstack/spec AnalyticsResult field
     type _HasDrillObject = Assert<HasKey<DatasetEnvelope, 'object'>>;
     type _HasDimensionFields = Assert<HasKey<DatasetEnvelope, 'dimensionFields'>>;
     type _HasDrillRawRows = Assert<HasKey<DatasetEnvelope, 'drillRawRows'>>;
+    type _HasDrillRanges = Assert<HasKey<DatasetEnvelope, 'drillRanges'>>;
 
     expect(true).toBe(true);
   });
@@ -345,5 +350,194 @@ describe('queryDataset result fields ARE @objectstack/spec AnalyticsResult field
     expect(winRate.percentScale).toBe('fraction');
     const region = result.fields.find((f) => f.name === 'region')!;
     expect(region.percentScale).toBeUndefined();
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* objectui#3813 — the date-range drill sidecar reaches the caller.            */
+/*                                                                             */
+/* Third instance of the same family as #3613/#3752, this time on the RUNTIME   */
+/* face: `queryDataset` rebuilds its result by hand-picking keys off the        */
+/* payload, and `drillRanges` was never in the list — so the server's #1752     */
+/* date-bucket drill scope was silently dropped by the only real adapter, and   */
+/* a date-only dashboard/report lost its entire drill entry point (`canDrill`   */
+/* can only be true via these ranges when no equality drill dim exists).        */
+/*                                                                             */
+/* The envelopes below are the SHAPES THE SERVER ACTUALLY SENDS, not idealised  */
+/* ones — that distinction is why the existing consumer tests could not see the */
+/* bug (they mock a data source and feed `drillRanges` in directly):            */
+/*   - `POST /analytics/dataset/query` answers `res.json(result)` — a BARE      */
+/*     result, no `{ success, data }` wrapper (objectstack `rest-server.ts`);    */
+/*   - it carries `sql`, which this adapter deliberately does not return;       */
+/*   - for a DATE-ONLY grouping the server sets `object` + `drillRanges` and    */
+/*     NOTHING else drill-related: `service-analytics` excludes date dims from  */
+/*     `drillDims`, so `dimensionFields` / `drillRawRows` are absent entirely.  */
+/* -------------------------------------------------------------------------- */
+
+/** Sales bucketed by month only — no non-date dimension, so no equality drill. */
+const monthlyDataset = {
+  name: 'sales_by_month', label: 'Sales by month', object: 'opportunity',
+  dimensions: [{ name: 'closed_month', field: 'close_date', type: 'date', dateGranularity: 'month' }],
+  measures: [{ name: 'revenue', aggregate: 'sum', field: 'amount' }],
+};
+const monthlySelection = { dimensions: ['closed_month'], measures: ['revenue'] };
+
+/**
+ * `DatasetWidget`'s drill predicate, reproduced from the widget rather than
+ * restated: `drillDims` is `dimensions.filter((d) => d in dimensionFields)` and
+ * `canDrill = !!drillObject && (drillDims.length > 0 || !!drillRanges?.length)`
+ * (`packages/plugin-dashboard/src/DatasetWidget.tsx:590-593`; the report
+ * renderer's per-row `hasRange` gate at `DatasetReportRenderer.tsx:431` and its
+ * pivot twin at `:855` are the same fact per row). Fed straight from the
+ * adapter's return so the assertion is about what the ADAPTER produced.
+ */
+function consumerDrillView(
+  result: Awaited<ReturnType<ObjectStackAdapter['queryDataset']>>,
+  dimensions: string[],
+) {
+  const drillDims = result.dimensionFields ? dimensions.filter((d) => d in result.dimensionFields!) : [];
+  return {
+    drillDims,
+    canDrill: !!result.object && (drillDims.length > 0 || !!result.drillRanges?.length),
+  };
+}
+
+describe('queryDataset passes the server drillRanges sidecar through (#1752)', () => {
+  beforeEach(() => clearSharedDiscoveryCache());
+
+  it('keeps drillRanges verbatim for a DATE-ONLY grouping, so canDrill is true', async () => {
+    const { fetchImpl } = makeFetch({
+      ok: true,
+      // The real envelope: bare (no success/data wrapper), with `sql`, with
+      // `object` re-set by the range block, and WITHOUT dimensionFields /
+      // drillRawRows — the server emits none of those for a date-only grouping.
+      body: {
+        rows: [
+          { closed_month: '2026-05', revenue: 100 },
+          { closed_month: '2026-06', revenue: 250 },
+        ],
+        fields: [
+          { name: 'closed_month', type: 'date', label: 'Closed month' },
+          { name: 'revenue', type: 'number', label: 'Revenue', format: '$0,0' },
+        ],
+        sql: 'SELECT date_trunc(...) AS closed_month, SUM(amount) AS revenue FROM opportunity GROUP BY 1',
+        object: 'opportunity',
+        drillRanges: [
+          { closed_month: { field: 'close_date', gte: '2026-05-01', lt: '2026-06-01' } },
+          { closed_month: { field: 'close_date', gte: '2026-06-01', lt: '2026-07-01' } },
+        ],
+      },
+    });
+    const adapter = new ObjectStackAdapter({ baseUrl: 'http://localhost:3000', autoReconnect: false, fetch: fetchImpl as any });
+
+    const result = await adapter.queryDataset(monthlyDataset as any, monthlySelection);
+
+    // (1) The key arrives at the caller, untouched and row-aligned. Read through
+    // the DECLARED type, not `as any` — before the fix this line did not compile.
+    expect(result.drillRanges).toEqual([
+      { closed_month: { field: 'close_date', gte: '2026-05-01', lt: '2026-06-01' } },
+      { closed_month: { field: 'close_date', gte: '2026-06-01', lt: '2026-07-01' } },
+    ]);
+    expect(result.drillRanges).toHaveLength(result.rows.length);
+
+    // (2) The mock really is the server's date-only shape, not a convenient one:
+    // if these ever become defined, the fixture stopped exercising the case
+    // where `drillRanges` is the ONLY thing that can make a widget drillable.
+    expect(result.dimensionFields).toBeUndefined();
+    expect(result.drillRawRows).toBeUndefined();
+
+    // (3) The issue's acceptance anchor, evaluated with the consumers' own
+    // predicate: a date-only chart is drillable again.
+    const { drillDims, canDrill } = consumerDrillView(result, monthlySelection.dimensions);
+    expect(drillDims).toEqual([]);
+    expect(canDrill).toBe(true);
+
+    // (4) …and the drilled filter really scopes to the CLICKED bucket, built by
+    // the shared `buildDatasetDrillFilter` the widget and the report both call.
+    expect(buildDatasetDrillFilter(result.drillRawRows?.[1], drillDims, result.dimensionFields ?? {}, undefined, result.drillRanges?.[1]))
+      .toEqual({ close_date: { $gte: '2026-06-01', $lt: '2026-07-01' } });
+  });
+
+  it('keeps BOTH sidecars for a mixed date + non-date grouping (no superset drill)', async () => {
+    const { fetchImpl } = makeFetch({
+      ok: true,
+      body: {
+        rows: [{ region: 'North America', closed_month: '2026-06', revenue: 250 }],
+        fields: [
+          { name: 'region', type: 'string', label: 'Region' },
+          { name: 'closed_month', type: 'date', label: 'Closed month' },
+          { name: 'revenue', type: 'number', label: 'Revenue' },
+        ],
+        object: 'opportunity',
+        // Equality sidecars cover the non-date dim only (and carry the RAW value
+        // `NA`, not the row's resolved label "North America"); the date dim gets
+        // a range instead.
+        dimensionFields: { region: 'account.region' },
+        drillRawRows: [{ region: 'NA' }],
+        drillRanges: [{ closed_month: { field: 'close_date', gte: '2026-06-01', lt: '2026-07-01' } }],
+      },
+    });
+    const adapter = new ObjectStackAdapter({ baseUrl: 'http://localhost:3000', autoReconnect: false, fetch: fetchImpl as any });
+
+    const result = await adapter.queryDataset(monthlyDataset as any, { dimensions: ['region', 'closed_month'], measures: ['revenue'] });
+
+    const { drillDims, canDrill } = consumerDrillView(result, ['region', 'closed_month']);
+    expect(canDrill).toBe(true);
+    expect(drillDims).toEqual(['region']);
+
+    // Both halves in one filter. Without the range the drill was a SUPERSET —
+    // clicking June's bar opened every month for that region.
+    expect(buildDatasetDrillFilter(result.drillRawRows?.[0], drillDims, result.dimensionFields ?? {}, { stage: 'won' }, result.drillRanges?.[0]))
+      .toEqual({
+        stage: 'won',
+        'account.region': 'NA',
+        close_date: { $gte: '2026-06-01', $lt: '2026-07-01' },
+      });
+  });
+
+  it('leaves drillRanges undefined when the server sends none (non-date grouping)', async () => {
+    const { fetchImpl } = makeFetch({
+      ok: true,
+      body: {
+        rows: [{ region: 'NA', revenue: 100 }],
+        fields: [{ name: 'revenue', type: 'number' }],
+        object: 'opportunity',
+        dimensionFields: { region: 'account.region' },
+        drillRawRows: [{ region: 'NA' }],
+      },
+    });
+    const adapter = new ObjectStackAdapter({ baseUrl: 'http://localhost:3000', autoReconnect: false, fetch: fetchImpl as any });
+
+    const result = await adapter.queryDataset(inlineDataset as any, selection);
+
+    // Absent stays absent — the passthrough must not invent an empty array,
+    // which would flip `canDrill`'s `!!drillRanges?.length` reasoning nowhere
+    // but would make the two sidecars' index alignment meaningless.
+    expect(result.drillRanges).toBeUndefined();
+    expect(consumerDrillView(result, ['region']).canDrill).toBe(true);
+  });
+
+  it('is pinned at compile time as the SHARED DatasetDrillRange, not a restatement', () => {
+    type DrillRanges = NonNullable<DatasetEnvelope['drillRanges']>;
+    type RangeEntry = DrillRanges[number][string];
+
+    // THE pin. `@object-ui/core`'s `DatasetDrillRange` is the single in-repo
+    // declaration of this shape — it is what `buildDatasetDrillFilter` accepts
+    // and what `DatasetWidget` / `DatasetReportRenderer` type their state with.
+    // Nothing in `@objectstack/spec` owns it yet (the producer's own
+    // `AnalyticsResultWithDrill` is local to `service-analytics`), so identity
+    // with the shared interface is the strongest available contract pin: a local
+    // `{ field: string; gte: string; lt: string }` copy — the shape a reader is
+    // most tempted to write here — fails this line, per #3613's lesson that a
+    // restatement stays assignable while it drifts.
+    type _IsTheSharedType = Assert<Equal<RangeEntry, DatasetDrillRange>>;
+    type _SharedTypeNotAny = Assert<Equal<IsAny<DatasetDrillRange>, false>>;
+
+    // Row-aligned array of dimension NAME → range, mirroring `drillRawRows`.
+    type _IsRowAlignedArray = Assert<Equal<DrillRanges, Array<Record<string, DatasetDrillRange>>>>;
+    // Optional, because the server omits it whenever no date dim was bucketed.
+    type _IsOptional = Assert<Equal<DatasetEnvelope['drillRanges'], DrillRanges | undefined>>;
+
+    expect(true).toBe(true);
   });
 });

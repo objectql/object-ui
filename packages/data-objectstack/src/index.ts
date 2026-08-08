@@ -33,6 +33,7 @@ import {
   convertFiltersToAST,
   emulateBatchTransaction,
   normalizeSchemaReferenceKeys,
+  type DatasetDrillRange,
 } from '@object-ui/core';
 import { MetadataCache } from './cache/MetadataCache';
 import { MetadataClient } from './metadata-client';
@@ -3285,6 +3286,27 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     dimensionFields?: Record<string, string>;
     /** Raw grouped values per row (aligned to `rows` by index) for drill filters. */
     drillRawRows?: Array<Record<string, unknown>>;
+    /**
+     * Half-open date-range drill scope per row (framework#1752), aligned to
+     * `rows` by index: dimension NAME → the field and `[gte, lt)` bounds of that
+     * row's time bucket. The RANGE companion to `drillRawRows`, which handles
+     * equality dims only — a `dateGranularity` dimension groups a SPAN of
+     * records into one bucket, so the server excludes date dims from
+     * `dimensionFields`/`drillRawRows` and sends this sidecar instead.
+     *
+     * The entry type is `@object-ui/core`'s `DatasetDrillRange` BY REFERENCE,
+     * not a local restatement of it (objectui#3613/#3752 discipline): the same
+     * declaration is what `buildDatasetDrillFilter` — the single consumer that
+     * turns these bounds into an ObjectQL `{ $gte, $lt }` — accepts, and what
+     * `DatasetWidget` / `DatasetReportRenderer` type their state with. Nothing
+     * in `@objectstack/spec` owns this shape yet (the server's own
+     * `AnalyticsResultWithDrill` is local to `service-analytics`), so the shared
+     * in-repo interface is the one contract available; restating it here would
+     * make a third dialect of it. Like `drillRawRows`, only the ARRAY is
+     * validated below — the bounds are unvalidated payload, which is exactly why
+     * `DatasetDrillRange` declares them `unknown`.
+     */
+    drillRanges?: Array<Record<string, DatasetDrillRange>>;
     /** Server-computed marginal aggregates, one entry per requested grouping. */
     totals?: Array<{ dimensions: string[]; rows: Array<Record<string, unknown>> }>;
   }> {
@@ -3351,8 +3373,16 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         ? ((data as any).dimensionFields as Record<string, string>)
         : undefined;
     const drillRawRows = Array.isArray((data as any)?.drillRawRows) ? (data as any).drillRawRows : undefined;
+    // framework#1752 — the date-range sidecar. Dropping it here (objectui#3813)
+    // made date-bucket drill-through impossible through the only real adapter:
+    // a widget grouped ONLY by a date dimension gets no `dimensionFields` (the
+    // server excludes date dims from the equality drill), so `drillRanges` is
+    // the ONLY thing that can make `canDrill` true — with the key hand-picked
+    // away, the whole drill entry point disappeared, and a mixed grouping
+    // drilled to a superset (every bucket, not the clicked one).
+    const drillRanges = Array.isArray((data as any)?.drillRanges) ? (data as any).drillRanges : undefined;
     const totals = Array.isArray((data as any)?.totals) ? (data as any).totals : undefined;
-    return { rows, fields, object, dimensionFields, drillRawRows, totals };
+    return { rows, fields, object, dimensionFields, drillRawRows, drillRanges, totals };
   }
 
   /** Client-side aggregation fallback */
