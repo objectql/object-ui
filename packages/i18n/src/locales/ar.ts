@@ -22,7 +22,7 @@ const ar = {
   // صيغة العدد تتبع نمط الحزمة نفسه: «{{count}} مفرد(جمع)» كما في
   // appDesigner.objectManager.fieldCount و table.modified. المفتاح الأساسي هو
   // ما تلجأ إليه فئات two/few/many/zero غير المعرّفة، فيظل النص عربيًا.
-  // السهم ← يبقى → في روابط الإجراء، كما في marketplace.browseLink.
+  // لا نعكس سهم روابط الإجراء: يبقى كما في en، مثل marketplace.browseLink.
   perm: {
     facet: {
       none: "لا شيء",
