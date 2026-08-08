@@ -15,7 +15,6 @@ import {
   NumberField,
   CurrencyField,
   PercentField,
-  CapabilityMultiSelectField,
   ImageField,
   FileField,
   AvatarField,
@@ -77,11 +76,10 @@ export interface InlineFieldInputProps {
  * `DetailSection` so any record-level surface — the details body AND the
  * highlights strip (objectui#2407) — renders an identical editor. Covers every
  * widget the detail body handles: `SelectField`, `BooleanField`, `LookupField`,
- * `UserField`, `CapabilityMultiSelectField` (#2403), the `permission-facet-link`
- * read-only facet (#2403), the numeric widgets (`NumberField` /
- * `CurrencyField` / `PercentField`, objectui#2572), and the plain date/text
- * input (with ISO date coercion + object-value guarding so an unexpanded
- * reference never leaks "[object Object]").
+ * `UserField`, the `permission-facet-link` read-only facet (#2403), the numeric
+ * widgets (`NumberField` / `CurrencyField` / `PercentField`, objectui#2572), and
+ * the plain date/text input (with ISO date coercion + object-value guarding so
+ * an unexpanded reference never leaks "[object Object]").
  *
  * Editability GATING (computed types, `readonly`, system fields, object
  * lifecycle) stays with the host — this component only renders the editor once
@@ -95,25 +93,24 @@ export const InlineFieldInput: React.FC<InlineFieldInputProps> = ({
   autoFocus,
 }) => {
   const editType = field.type;
-  // Per-field widget override (ADR-0056 P2) — honor a `widget` hint before the
-  // type switch so a structured editor (e.g. the capability multi-select on
-  // sys_permission_set.system_permissions) replaces the raw type in inline
-  // edit too, matching the form path.
+  // Per-field widget override (ADR-0056 P1) — honor a `widget` hint before the
+  // type switch so a structured editor replaces the raw type in inline edit too,
+  // matching the form path.
+  //
+  // TOMBSTONE (objectui#3308): a `capability-multiselect` branch used to sit
+  // below, rendering `CapabilityMultiSelectField` for that hint. The hint was
+  // retired under ADR-0049 enforce-or-remove — nothing ever stamped it (P1
+  // stamps `permission-facet-link` on all six `sys_permission_set` facets,
+  // including `system_permissions`) and its registry key only existed on the
+  // docs-site-only `registerFields()` path, so the form path never honored it.
+  // Keeping the branch would have left one surviving special case for a name no
+  // producer emits and no form resolves. The component itself is unaffected —
+  // Studio's `PermissionMatrixEditor` renders it directly (P2).
   const editWidget = (field as any).widget;
   // Permission facets are designed in Studio, never edited in Setup — even in
   // section edit mode they stay a read-only summary + deep-link.
   if (editWidget === 'permission-facet-link') {
     return <PermissionFacetLink value={value} field={field as any} />;
-  }
-  if (editWidget === 'capability-multiselect') {
-    return (
-      <CapabilityMultiSelectField
-        value={value}
-        onChange={(v: any) => onChange(v)}
-        field={field as any}
-        dataSource={dataSource}
-      />
-    );
   }
   // Picklist → real Select widget so users see localized option labels and
   // can't free-type invalid values. A `multiple` picklist (spec canon: `select`

@@ -231,7 +231,11 @@ const resolveWidgetType = (f: any): string => f?.widget || f?.field?.widget || f
 
 const BUILTIN_FIELD_TYPES = new Set(['input', 'textarea', 'checkbox', 'switch', 'select']);
 const DATA_SOURCE_FIELD_TYPES = new Set([
-  'lookup', 'master_detail', 'tree', 'capability-multiselect',
+  // `capability-multiselect` was listed here until objectui#3308 retired the
+  // widget name (ADR-0049 enforce-or-remove): no producer stamped the hint and
+  // `field:capability-multiselect` was never registered on the live path, so the
+  // entry could never match a resolvable widget.
+  'lookup', 'master_detail', 'tree',
   // Widget-hint pickers that resolve records / object catalogs and read sibling
   // field values — they need both `dataSource` and `dependentValues` threaded.
   'object-ref', 'filter-condition', 'recipient-picker',

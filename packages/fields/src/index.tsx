@@ -297,7 +297,6 @@ import { CurrencyField } from './widgets/CurrencyField';
 import { TextAreaField } from './widgets/TextAreaField';
 import { RichTextField } from './widgets/RichTextField';
 import { LookupField } from './widgets/LookupField';
-import { CapabilityMultiSelectField } from './widgets/CapabilityMultiSelectField';
 import { DateTimeField } from './widgets/DateTimeField';
 import { TimeField } from './widgets/TimeField';
 import { PercentField } from './widgets/PercentField';
@@ -2060,7 +2059,11 @@ export function evaluateCondition(condition: any, formData: any): boolean {
   return true;
 }
 
-// Create wrapper renderers for field widgets to work with ComponentDemo
+// Create wrapper renderers for field widgets to work with ComponentDemo.
+// Docs-site only — it synthesizes the label/description chrome AND the local
+// value/onChange state a bare field node has no host for. See the note on
+// `registerFields()` (its only caller) for why the live app path does NOT use
+// this and why the two are not interchangeable.
 function createFieldRenderer(FieldWidget: React.ComponentType<any>) {
   const FieldRenderer: React.FC<any> = ({ schema, className, value: initialValue, ...props }) => {
     const [value, setValue] = React.useState(initialValue ?? schema?.value ?? '');
@@ -2331,8 +2334,34 @@ export function registerAllFields(): void {
 }
 
 /**
- * Legacy function - kept for backward compatibility
- * @deprecated Use registerAllFields() instead
+ * Register every field widget wrapped in the **docs-demo** renderer
+ * ({@link createFieldRenderer}) instead of the plain registration seam.
+ *
+ * ⚠️ This is NOT an interchangeable alias of {@link registerAllFields}, despite
+ * what its former `@deprecated Use registerAllFields() instead` note implied
+ * (objectui#3308 was dispatched on that reading). The two differ in what the
+ * registry entry *is*:
+ *
+ *  - `registerAllFields()` — the live path every app uses. Registers
+ *    `withFieldCarrier(lazy(widget))`: the bare widget, which renders a control
+ *    and nothing else. Label / description / value state belong to the host
+ *    (the form renderer, `FieldEditWidget`, an action dialog).
+ *  - `registerFields()` — registers `createFieldRenderer(widget)`, which ALSO
+ *    synthesizes the `<label>`, the description, and a local `useState` +
+ *    `onChange`. That chrome is what makes a **bare field node** (`{ type:
+ *    'currency', label: 'Amount' }`) renderable standalone by `SchemaRenderer`,
+ *    which is exactly how the docs site demos every `content/docs/fields/*.mdx`
+ *    example — `InteractiveDemo` passes no `value`/`onChange` of its own.
+ *
+ * Hence its only caller, `apps/site` (the docs site), cannot simply switch to
+ * `registerAllFields()`: `FieldWidgetComponentProps.onChange` is REQUIRED and
+ * widgets call it unguarded, so the demo inputs would go inert and throw
+ * `TypeError: onChange is not a function` per keystroke.
+ *
+ * Retiring this second path therefore needs a decision on where the demo chrome
+ * goes (docs-site-owned wrapper vs. form-hosted catalog examples) — tracked on
+ * objectui#3308. Until then: **apps use `registerAllFields()`**; this function
+ * is the docs-demo adapter and nothing else should call it.
  */
 export function registerFields() {
   // Basic fields - wrapped for documentation compatibility
@@ -2377,12 +2406,18 @@ export function registerFields() {
   // display widget remains the default for { type: 'html', content }.
   ComponentRegistry.register('html', createFieldRenderer(RichTextField), { namespace: 'field', skipFallback: true });
   ComponentRegistry.register('lookup', createFieldRenderer(LookupField), { namespace: 'field' });
-  // Capability multi-select (ADR-0056 P2) — reached only via the field
-  // `widget: 'capability-multiselect'` hint (see MetadataProvider), never a bare
-  // field type. Registered WITHOUT createFieldRenderer: it is a fully-controlled
-  // widget (value/onChange from RHF), so the wrapper's extra label + local value
-  // buffer would only duplicate the form's FormLabel and desync the value.
-  ComponentRegistry.register('capability-multiselect', withFieldCarrier(CapabilityMultiSelectField), { namespace: 'field', skipFallback: true });
+  // TOMBSTONE (objectui#3308, ADR-0049 enforce-or-remove) — `capability-multiselect`
+  // was registered here, and ONLY here, as `field:capability-multiselect`. Since
+  // this function is called by the docs site alone, the key never existed on the
+  // live `registerAllFields()` path, so a field authored with
+  // `widget: 'capability-multiselect'` resolved to nothing in every real app
+  // while the comment here advertised it as usable from a record form. Nothing
+  // stamped that hint either: ADR-0056 P1 stamps `permission-facet-link` on all
+  // six `sys_permission_set` facets (`data-objectstack/src/index.ts`
+  // applyFieldWidgetOverrides) and P2 put the capability editor in Studio. The
+  // widget NAME is retired; do not re-add it. `CapabilityMultiSelectField`
+  // itself lives on as a plain component — Studio's `PermissionMatrixEditor`
+  // imports and renders it directly, which is ADR-0056 P2's design.
   // master_detail = child-side FK lookup (single value, typically required). See
   // fieldWidgetMap above for rationale.
   ComponentRegistry.register('master_detail', createFieldRenderer(LookupField), { namespace: 'field' });
