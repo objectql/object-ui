@@ -9,9 +9,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type {
   AnalyticsQuery as SpecAnalyticsQuery,
+  AnalyticsResult as SpecAnalyticsResult,
   DatasetCompareTo as SpecDatasetCompareTo,
   DatasetSelection as SpecDatasetSelection,
 } from '@objectstack/spec/contracts';
+import type { PercentScale as SpecPercentScale } from '@objectstack/spec/data';
 import {
   ObjectStackAdapter,
   clearSharedDiscoveryCache,
@@ -252,5 +254,96 @@ describe('queryDataset(selection) is @objectstack/spec DatasetSelection itself',
     const sent = JSON.parse(post.init.body);
     expect(sent.selection.compareTo).toEqual({ kind: 'previousPeriod' });
     expect(sent.selection.compareTo).not.toHaveProperty('dimension');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* objectui#3752 — the RESULT's `fields` element is the spec type, not a copy.  */
+/*                                                                             */
+/* Same drift family as #3613 above, on the other side of the call: the return  */
+/* type hand-listed five keys and had already stopped at the contract of the    */
+/* day it was written — no `percentScale`. Compile-time pins, checked by        */
+/* `pnpm --filter @object-ui/data-objectstack type-check` for the reason that   */
+/* section documents (this package's tsconfig.json compiles its own tests).     */
+/* -------------------------------------------------------------------------- */
+
+/** What `queryDataset` RESOLVES to, read off the method. */
+type DatasetEnvelope = Awaited<ReturnType<ObjectStackAdapter['queryDataset']>>;
+/** …and the declared shape of one result column. */
+type ResultField = DatasetEnvelope['fields'][number];
+
+describe('queryDataset result fields ARE @objectstack/spec AnalyticsResult fields', () => {
+  it('is pinned at compile time', () => {
+    type _SpecNotAny = Assert<Equal<IsAny<SpecAnalyticsResult>, false>>;
+
+    // THE pin: structural identity with the spec's element, so the declaration
+    // cannot lag the contract again. `Equal` rather than `extends` for the
+    // #3613 reason — a narrower copy stays assignable while drifting.
+    type _IsTheSpecField = Assert<Equal<ResultField, SpecAnalyticsResult['fields'][number]>>;
+
+    // The single key the deleted copy was missing, named so a reader learns
+    // WHICH omission cost something rather than merely that one existed.
+    type _HasPercentScale = Assert<HasKey<ResultField, 'percentScale'>>;
+    type _PercentScaleIsTheSpecUnion = Assert<
+      Equal<ResultField['percentScale'], SpecPercentScale | undefined>
+    >;
+    // …and not a widened `string`: 'fraction' | 'whole' is the whole point —
+    // a renderer branches on it instead of guessing from the value (#3136).
+    type _PercentScaleIsNotString = Assert<
+      Equal<Equal<ResultField['percentScale'], string | undefined>, false>
+    >;
+
+    // The exact shape this replaced, kept as a NEGATIVE pin: restoring the
+    // hand-written five keys turns this red, so the sabotage direction is
+    // recorded in the test rather than in a commit message.
+    type _NotTheFiveKeyCopy = Assert<
+      Equal<
+        Equal<ResultField, { name: string; type: string; label?: string; format?: string; currency?: string }>,
+        false
+      >
+    >;
+
+    expect(true).toBe(true);
+  });
+
+  // Why only `fields` is spec-owned and the envelope is not (objectui#3752
+  // direction B). The REST route answers `AnalyticsResult` PLUS ADR-0021 D2
+  // drill sidecars, but this method rebuilds its own object from the payload
+  // and never copies `sql` — so declaring the envelope as `AnalyticsResult &
+  // {…}` would advertise a key the adapter structurally cannot return.
+  it('pins the envelope as NOT an AnalyticsResult (no `sql`)', () => {
+    type _NoSql = Assert<Equal<HasKey<DatasetEnvelope, 'sql'>, false>>;
+    // The drill sidecars the spec type does not carry stay locally declared.
+    type _HasDrillObject = Assert<HasKey<DatasetEnvelope, 'object'>>;
+    type _HasDimensionFields = Assert<HasKey<DatasetEnvelope, 'dimensionFields'>>;
+    type _HasDrillRawRows = Assert<HasKey<DatasetEnvelope, 'drillRawRows'>>;
+
+    expect(true).toBe(true);
+  });
+
+  // The runtime half: a column's `percentScale` must reach the caller verbatim.
+  // The adapter passes `fields` through untouched, so this guards against a
+  // future "normalisation" quietly dropping the key the declaration now shows.
+  it('returns a percentage column with its percentScale untouched', async () => {
+    const { fetchImpl } = makeFetch({
+      ok: true,
+      body: {
+        rows: [{ region: 'NA', winRate: 1 }],
+        fields: [
+          { name: 'region', type: 'string', label: 'Region' },
+          { name: 'winRate', type: 'number', label: 'Win rate', format: '0.0%', percentScale: 'fraction' },
+        ],
+      },
+    });
+    const adapter = new ObjectStackAdapter({ baseUrl: 'http://localhost:3000', autoReconnect: false, fetch: fetchImpl as any });
+
+    const result = await adapter.queryDataset(inlineDataset as any, selection);
+
+    // Read through the DECLARED type, not `as any`: this line is the reason the
+    // issue was filed — before the fix it did not compile.
+    const winRate = result.fields.find((f) => f.name === 'winRate')!;
+    expect(winRate.percentScale).toBe('fraction');
+    const region = result.fields.find((f) => f.name === 'region')!;
+    expect(region.percentScale).toBeUndefined();
   });
 });

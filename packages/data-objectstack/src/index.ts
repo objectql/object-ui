@@ -8,7 +8,7 @@
 
 import { ObjectStackClient, type QueryOptions as ObjectStackQueryOptions } from '@objectstack/client';
 import type { DroppedFieldsEvent } from '@objectstack/spec/data';
-import type { DatasetSelection } from '@objectstack/spec/contracts';
+import type { AnalyticsResult, DatasetSelection } from '@objectstack/spec/contracts';
 import type {
   DataSource,
   BatchTransactionOperation,
@@ -3259,9 +3259,26 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     selection: DatasetSelection,
   ): Promise<{
     rows: Array<Record<string, unknown>>;
-    /** Column metadata: a display `label` (dimensions and measures), and a
-     *  measure's numeral `format` + declared `currency` for value formatting. */
-    fields: Array<{ name: string; type: string; label?: string; format?: string; currency?: string }>;
+    /**
+     * Column metadata — the spec's `AnalyticsResult.fields[]` element BY
+     * REFERENCE, never a local restatement of it (objectui#3752). Read
+     * `@objectstack/spec` for what a column carries; this comment deliberately
+     * does not re-list the keys, because the enumeration it replaced was the
+     * bug: it named five (`name`/`type`/`label`/`format`/`currency`) and stopped
+     * at the contract of the day it was written, so it never grew
+     * `percentScale` — the server's answer to whether a percentage column is a
+     * 0–1 fraction or already percentage points. The spec says a renderer that
+     * receives it "must scale by it instead of guessing from the value"
+     * (objectui#3136), so a declaration that hides the key steers a typed
+     * consumer into exactly the guess-by-magnitude the issue banned. Pinned in
+     * `queryDataset.test.ts`.
+     *
+     * Only this element is spec-owned: the envelope around it (`object` /
+     * `dimensionFields` / `drillRawRows`) is ADR-0021 D2 drill metadata the REST
+     * route adds on top of `AnalyticsResult`, and this method never returns the
+     * result's `sql`, so the whole envelope is NOT an `AnalyticsResult`.
+     */
+    fields: Array<AnalyticsResult['fields'][number]>;
     /** ADR-0021 D2 drill-through: the dataset's base object (records to drill into). */
     object?: string;
     /** Drillable dimension NAME → underlying object FIELD name. */
