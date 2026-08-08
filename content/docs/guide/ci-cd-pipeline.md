@@ -23,11 +23,11 @@ one has its own section below.
 
 | Workflow file | Appears as | Runs on | Blocks a PR? |
 |---|---|---|---|
-| `ci.yml` | CI | Push / PR to `main`, `develop` | **Yes** — every job but `test-coverage` (push only) runs on PRs |
-| `lint.yml` | Lint | Push / PR to `main`, `develop`; manual | **Yes** — ESLint **errors** only |
+| `ci.yml` | CI | Push / PR to `main`, `develop`; merge-queue builds | **Yes** — every job but `test-coverage` (push only) runs on PRs and on queue builds |
+| `lint.yml` | Lint | Push / PR to `main`, `develop`; merge-queue builds; manual | **Yes** — ESLint **errors** only |
 | `changeset-guard.yml` | Changeset Bump Policy | PR / push touching `.changeset/**` | **Yes** |
-| `control-bytes.yml` | Control Byte Scan | Push / PR to `main`, `develop` — **no path filter**; manual | **Yes** |
-| `docs-links.yml` | Internal Docs Link Check | Push / PR to `main`, `develop` — **no path filter**; manual | **Yes** |
+| `control-bytes.yml` | Control Byte Scan | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
+| `docs-links.yml` | Internal Docs Link Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
 | `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane, `continue-on-error` |
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
@@ -43,18 +43,78 @@ one has its own section below.
 The path filters explain most "why did nothing run on my PR?" questions:
 
 - `ci.yml` and `lint.yml` both list `**/*.md`, `content/**`, `docs/**` and `.changeset/**` under
-  `paths-ignore` (`ci.yml` also ignores `apps/site/**`). A docs-only or changeset-only PR starts
-  neither of them.
+  `paths-ignore` (`ci.yml` also ignores `apps/site/**`) — but **only on their `push` trigger**.
+  Their `pull_request` trigger carries no filter at all since
+  [#3523](https://github.com/objectstack-ai/objectui/issues/3523): every pull request starts both workflows, and the same list decides *inside
+  each job* whether the expensive steps run. A docs-only PR therefore still installs nothing and
+  builds nothing, while **Lint**, **Type Check**, **Test (shard N/4)**, **Build & E2E** and
+  **Changeset Fixed Group Check** all appear in the checks list and all report. That difference is
+  the whole point: a check that is never *created* cannot be a required check — it leaves the PR
+  pending rather than failing it — so while the filter sat on the trigger, none of these could be
+  required at all.
 - `changeset-guard.yml` carries the inverse filter — it runs *only* when `.changeset/**` changes,
   which is precisely why it is a separate workflow instead of a job inside `ci.yml`.
 - `control-bytes.yml` and `docs-links.yml` carry **no** filter of any kind, which is equally
   deliberate: both guard markdown, and a gate that a markdown-only PR cannot start is no gate on
   the change most likely to trip it. Both cost a checkout plus one `node` call.
 
+## Merge Queue
+
+`main` sits behind an **enforced merge queue**: a direct push is rejected with
+405 `Changes must be made through the merge queue`. The queue takes each approved pull request,
+rebuilds it on top of whatever `main` has become in the meantime, and merges it only if the
+checks it requires are green **on that rebuilt commit**. Those runs are a distinct event,
+`merge_group`, on a throwaway `gh-readonly-queue/**` branch — a workflow that does not subscribe
+to that event simply does not run there.
+
+Four workflows subscribe: `ci.yml`, `lint.yml`, `control-bytes.yml` and `docs-links.yml`. None of
+them did until [#3523](https://github.com/objectstack-ai/objectui/issues/3523), and the consequence was not subtle. A queue whose required set
+is empty validates nothing: it rebuilds the PR, sees no failing required check because there are
+no required checks, and merges. On 2026-08-07 three pull requests
+([#3503](https://github.com/objectstack-ai/objectui/issues/3503), [#3510](https://github.com/objectstack-ai/objectui/issues/3510), [#3516](https://github.com/objectstack-ai/objectui/issues/3516)) merged with **Type Check** at
+`conclusion=failure`, onto a `main` that [#3498](https://github.com/objectstack-ai/objectui/issues/3498) had left with a type error;
+[#3505](https://github.com/objectstack-ai/objectui/issues/3505) hot-fixed the result.
+
+**The three steps have to happen in this order**, and reversing them deadlocks the repository:
+
+1. Subscribe the workflows to `merge_group`. Pure addition — nothing about pull requests changes.
+2. Make the contexts report on *every* pull request, by moving path filtering out of
+   `on.pull_request.paths-ignore` and into the jobs.
+3. Only then may a maintainer add context names to the branch-protection and merge-queue required
+   sets. This is a **repository-settings** change; nothing in this repository can do it, and
+   nothing here can read the current state of it either.
+
+Step 3 before step 1 is the deadlock: a required context that never reports does not fail a queue
+build, it stalls it until the ruleset's 60-minute status-check timeout assumes failure — every
+queued PR burns an hour and fails, with nothing red to point at.
+
+Two things follow for anyone editing this directory:
+
+- **A workflow producing a context that could ever be required must subscribe `merge_group`.**
+  `scripts/__tests__/merge-queue-reporting.test.ts` holds the list, along with the reason each
+  entry is on it, and fails when one drops the trigger.
+- **Some contexts can never be required, structurally**, and no amount of triggering changes that:
+  **Changeset Bump Policy** (`changeset-guard.yml`, inverse path filter — absent unless the PR
+  touches `.changeset/**`), **Bundle Analysis** (`performance-budget.yml`, path filter),
+  **Live E2E (informational)** (`continue-on-error: true`, so it is green whatever happens — it
+  cannot serve as a guarantee of anything), and **Close issues referenced in other repositories**
+  (`cross-repo-issue-closer.yml`, which runs only *after* a merge).
+
 ## Core CI Workflow (`ci.yml`)
 
-**Triggers:** Push and PR to `main` and `develop`, unless the change touches only `**/*.md`,
-`content/**`, `docs/**`, `apps/site/**` or `.changeset/**` (`paths-ignore`).
+**Triggers:** **Every** PR to `main`/`develop` (no path filter), every merge-queue build
+(`merge_group`), and pushes to `main`/`develop` unless the change touches only `**/*.md`,
+`content/**`, `docs/**`, `apps/site/**` or `.changeset/**` (`paths-ignore`, kept on the push
+trigger only — see [#3523](https://github.com/objectstack-ai/objectui/issues/3523) and the **Merge Queue** section below).
+
+The path list did not go away, it moved. `type-check`, `test` and `e2e` each open with a
+`Decide whether this change needs a full run` step that diffs the PR against its merge base with
+exactly that list excluded, and every following step carries
+`if: steps.relevant.outputs.should_run == 'true'`. The job always runs and always reports; the
+paths decide only whether it does any work. The `docs` job has worked this way since
+[#3450](https://github.com/objectstack-ai/objectui/pull/3450) and is where the shape comes from.
+The gate fails **open** — if the diff cannot be computed the job runs everything, rather than
+reporting green having built nothing.
 
 Every job runs in parallel — there are no `needs:` edges between them. As with the workflow
 inventory above, this page states **no job count**: the table *is* the list, and
@@ -73,11 +133,11 @@ it green — which is how two of `type-check`'s gates came to be missing from th
 | Job key | Appears as | What it runs | When |
 |---|---|---|---|
 | `changeset-check` | Changeset Fixed Group Check | `scripts/check-changeset-fixed.mjs` — every workspace package must be in the changeset `fixed` group or explicitly ignored. It checks group *membership*; it does **not** check whether the PR added a changeset. | Every run |
-| `type-check` | Type Check | `scripts/check-type-check-coverage.mjs`, then `pnpm check:spec-symbols`, then `pnpm check:i18n-keys`, then `pnpm check:i18n-drift`, then `pnpm type-check:scripts`, then `pnpm type-check`, then `pnpm type-check:vitest-setup`. The coverage guard runs first because turbo silently skips packages that have no `type-check` script, so a package without one would otherwise read as passing (#2911). The two locale gates sit in the middle because both parse the sources with `typescript`: they need the install and nothing built. `pnpm check:i18n-keys` fails when a `t()` call site asks for a key the `en` pack does not define ([#3530](https://github.com/objectstack-ai/objectui/issues/3530)); `pnpm check:i18n-drift` fails when a change to an `en` string is not accompanied by the nine translation packs ([#3650](https://github.com/objectstack-ai/objectui/issues/3650)), and it is why this job's checkout sets `fetch-depth: 0` — it diffs against the merge base, which a depth-1 clone cannot resolve. `pnpm type-check:scripts` (`tsconfig.scripts.json`) covers `scripts/**/*.ts`, which `pnpm type-check` cannot reach at all — `scripts/` has no package.json, so turbo never walks it, and the coverage guard decides coverage per *package*. Until [#3494](https://github.com/objectstack-ai/objectui/issues/3494) that left the pin tests in `scripts/__tests__/` — including the one pinning this very page — compiled by nothing. `pnpm type-check:vitest-setup` (`tsconfig.vitest-setup.json`) closes the same gap for the four repo-root `vitest.setup.*` files, uncovered until [#3515](https://github.com/objectstack-ai/objectui/issues/3515); it runs *last*, after `pnpm type-check`, because `vitest.setup.dom.tsx` side-effect-imports four `@object-ui/*` packages and resolves them through the declarations that turbo's `^build` produces. | Every run |
-| `test` | Test (shard N/4) | `pnpm test --shard=N/4` across a 4-runner matrix with `fail-fast: false`, so every shard reports its own failures. No coverage instrumentation — v8 adds 40–100% overhead. | **Pull requests only** |
+| `type-check` | Type Check | `scripts/check-type-check-coverage.mjs`, then `pnpm check:spec-symbols`, then `pnpm check:i18n-keys`, then `pnpm check:i18n-drift`, then `pnpm type-check:scripts`, then `pnpm type-check`, then `pnpm type-check:vitest-setup`. The coverage guard runs first because turbo silently skips packages that have no `type-check` script, so a package without one would otherwise read as passing (#2911). The two locale gates sit in the middle because both parse the sources with `typescript`: they need the install and nothing built. `pnpm check:i18n-keys` fails when a `t()` call site asks for a key the `en` pack does not define ([#3530](https://github.com/objectstack-ai/objectui/issues/3530)); `pnpm check:i18n-drift` fails when a change to an `en` string is not accompanied by the nine translation packs ([#3650](https://github.com/objectstack-ai/objectui/issues/3650)), and it is why this job's checkout sets `fetch-depth: 0` — it diffs against the merge base, which a depth-1 clone cannot resolve. `pnpm type-check:scripts` (`tsconfig.scripts.json`) covers `scripts/**/*.ts`, which `pnpm type-check` cannot reach at all — `scripts/` has no package.json, so turbo never walks it, and the coverage guard decides coverage per *package*. Until [#3494](https://github.com/objectstack-ai/objectui/issues/3494) that left the pin tests in `scripts/__tests__/` — including the one pinning this very page — compiled by nothing. `pnpm type-check:vitest-setup` (`tsconfig.vitest-setup.json`) closes the same gap for the four repo-root `vitest.setup.*` files, uncovered until [#3515](https://github.com/objectstack-ai/objectui/issues/3515); it runs *last*, after `pnpm type-check`, because `vitest.setup.dom.tsx` side-effect-imports four `@object-ui/*` packages and resolves them through the declarations that turbo's `^build` produces. | Every run; on a PR the steps short-circuit when only ignored paths changed |
+| `test` | Test (shard N/4) | `pnpm test --shard=N/4` across a 4-runner matrix with `fail-fast: false`, so every shard reports its own failures. No coverage instrumentation — v8 adds 40–100% overhead. | Pull requests and merge-queue builds (everything but `push`); steps short-circuit on a PR that changed only ignored paths |
 | `test-coverage` | Test (coverage) | One unsharded `pnpm test:coverage`, uploaded to Codecov. Nothing blocks on it, which is why it is not sharded. | **Push only** |
-| `e2e` | Build & E2E | Builds the console with `vite build` (`VITE_BASE_PATH=/console/`), verifies the artifact, then `pnpm test:e2e --project=chromium`. Uploads the Playwright report on failure. | Every run |
-| `docs` | Build Docs | `turbo run build --filter='@object-ui/site'`. On a PR it first diffs against the base and skips the build when nothing under `apps/site/` or `content/` changed. It does **not** check docs links any more — that moved to `docs-links.yml` (#3448), because this workflow's `paths-ignore` hides exactly the docs-only PRs a link check needs to see. | Every run (build itself conditional) |
+| `e2e` | Build & E2E | Builds the console with `vite build` (`VITE_BASE_PATH=/console/`), verifies the artifact, then `pnpm test:e2e --project=chromium`. Uploads the Playwright report on failure. | Every run; on a PR the steps short-circuit when only ignored paths changed |
+| `docs` | Build Docs | `turbo run build --filter='@object-ui/site'`. On a PR it first diffs against the base and skips the build when nothing under `apps/site/` or `content/` changed. It does **not** check docs links any more — that moved to `docs-links.yml` (#3448), because this workflow's `paths-ignore` then hid exactly the docs-only PRs a link check needs to see. #3523 has since removed that filter from the `pull_request` trigger, but the check stays in its own home: `docs-links.yml` still runs where this workflow does not (a docs-only push to `main`), and one gate with one home was the point of #3448. | Every run (build itself conditional) |
 
 Uses: Node 22.x, pnpm via `corepack`, `actions/cache` over `.turbo/cache`.
 
@@ -112,8 +172,11 @@ for them there is a dead end:
 
 ## Lint (`lint.yml`)
 
-**Triggers:** Push and PR to `main`/`develop` (same `paths-ignore` as `ci.yml`, minus
-`apps/site/**`), plus manual dispatch.
+**Triggers:** **Every** PR to `main`/`develop` (no path filter), every merge-queue build, pushes
+to `main`/`develop` under the same `paths-ignore` as `ci.yml` minus `apps/site/**`, plus manual
+dispatch. As in `ci.yml`, the path list moved into the job ([#3523](https://github.com/objectstack-ai/objectui/issues/3523)): the `Lint`
+context now reports on every pull request, and short-circuits to no install and no lint when only
+ignored paths changed.
 
 This is a **real PR gate**, and it is easy to miss because it is not part of CI — it is its own
 **Lint** entry in the checks list.
@@ -157,12 +220,17 @@ The two byte classes carry different harms and the report says which:
 Covering only U+0000 would reproduce a known miss: objectstack#5140 shipped a NUL *and* a U+0001
 fourteen bytes away, and the NUL-only scanner reported OK on the second one (objectstack#5157).
 
-**Why it is a separate workflow.** `ci.yml` and `lint.yml` both list `'**/*.md'`, `content/**`,
-`docs/**` and `.changeset/**` under `paths-ignore`, and GitHub has no per-job path filter. Markdown
+**Why it is a separate workflow.** `ci.yml` and `lint.yml` used to list `'**/*.md'`, `content/**`,
+`docs/**` and `.changeset/**` under `paths-ignore` on *every* trigger, and GitHub has no per-job
+path filter. Markdown
 is exactly the carrier the worst instance of this bug used — objectstack#4890 was a raw NUL in a
 `.claude/` skill file, emitted by the PR that was writing the rule forbidding it, leaving the agent
 instructions unfindable by `grep -r` with no signal that anything was missing. A path-filtered gate
-could not have seen that PR. `scripts/__tests__/check-control-bytes.test.ts` fails if a `paths` or
+could not have seen that PR. [#3523](https://github.com/objectstack-ai/objectui/issues/3523) has since taken that filter off their
+`pull_request` triggers, so a markdown-only PR does start them now — but their jobs short-circuit
+to nothing on such a change, and both keep the filter on `push`. This gate stays where it is, and
+its unfiltered trigger set is why it is one of only two contexts that audit found safe to make
+required today. `scripts/__tests__/check-control-bytes.test.ts` fails if a `paths` or
 `paths-ignore` key is ever added here.
 
 **If it fails:** write the escape sequence (backslash, lowercase `u`, four zeroes) instead of the
@@ -358,6 +426,11 @@ red check for one broken link, and a second place to forget.
 pull requests, must carry neither `paths` nor `paths-ignore`, and must remain the only workflow
 that runs the script.
 
+[#3523](https://github.com/objectstack-ai/objectui/issues/3523) removed `ci.yml`'s `pull_request` path filter, so the specific blindness above
+no longer exists there — but nothing moves back. `ci.yml` still filters its `push` lane, so it
+would miss a docs-only push to `main`; and this workflow is one of the two contexts that audit
+found safe to require today precisely because it has never had a filter to reason about.
+
 **If it fails:** it prints every offending `file -> href`. Either the link is misspelled, or the
 page it points at has moved or been renamed — fix the link, or restore the target. Links are
 checked as *routes*, so `/docs/guide/foo` is what belongs in the markdown, not
@@ -423,8 +496,11 @@ Uses [Changesets](https://github.com/changesets/changesets) for automated versio
 ### Changeset Guard (`changeset-guard.yml`)
 
 **Trigger:** PR to `main`/`develop`, and push to `main`, **when `.changeset/**` changes** — the
-inverse of every other workflow's filter. `ci.yml` and `lint.yml` both list `'**/*.md'` and
-`.changeset/**` under `paths-ignore`, so a PR that adds only a changeset starts nothing else.
+inverse of every other workflow's filter. It was carved out of `ci.yml` because `ci.yml` and
+`lint.yml` listed `'**/*.md'` and `.changeset/**` under `paths-ignore`, so a PR that added only a
+changeset started nothing at all. Since [#3523](https://github.com/objectstack-ai/objectui/issues/3523) such a PR does start both — and every
+job in them short-circuits, because `.changeset/**` is still on the in-job ignore list. The check
+that has to read the changeset therefore still lives here.
 
 Runs `scripts/check-changeset-no-major.mjs`, which fails if any pending changeset declares a
 `major` bump. Every publishable package is in one `fixed` group (39 packages), so a single

@@ -172,15 +172,31 @@ describe('lint.yml header comment — the claims it still makes', () => {
     ).toMatch(/^\s{2}pull_request:/m);
   });
 
-  it('does not paths-ignore the TypeScript sources those rules lint', () => {
+  it('does not skip the TypeScript sources those rules lint', () => {
     // A narrow tripwire, not a glob engine (the repo has no glob matcher at the
     // root, and vendoring one for this would cost more than it protects). The
     // realistic way to un-gate the ratchets without touching the triggers above
-    // is adding a TypeScript pattern to `paths-ignore`; today's entries are all
+    // is adding a TypeScript pattern to the ignore list; today's entries are all
     // markdown, `content/**`, `docs/**` and `.changeset/**`.
-    const ignored = [...onBlock().matchAll(/^\s*-\s*'([^']+)'/gm)].map((m) => m[1]);
+    //
+    // That list now lives in TWO places and both have to be read, which is the
+    // objectui#3523 change: `paths-ignore` stayed on the `push` trigger, but for
+    // pull requests it moved INTO the job, as `:(exclude,glob)…` pathspecs in
+    // the `Decide whether this change needs a full run` step. Reading only the
+    // `on:` block would have gone on passing while a `**/*.ts` exclusion was
+    // added to the job — the gate reporting green having linted nothing.
+    // `merge-queue-reporting.test.ts` pins the two lists to each other and pins
+    // why the trigger may not filter pull requests at all; this one stays on its
+    // own question, which is what may be in the list.
+    const ignored = [
+      ...[...onBlock().matchAll(/^\s*-\s*'([^']+)'/gm)].map((m) => m[1]),
+      ...[...workflow.matchAll(/':\(exclude,glob\)([^']+)'/g)].map((m) => m[1]),
+    ];
 
-    expect(ignored.length, 'lint.yml must still declare `paths-ignore` entries').toBeGreaterThan(0);
+    expect(
+      ignored.length,
+      'lint.yml must still declare an ignore list — on the `push` trigger, in the job, or both',
+    ).toBeGreaterThan(0);
 
     const swallowsSource = ignored.filter((pattern) => /\.tsx?$/.test(pattern));
     expect(
@@ -189,7 +205,8 @@ describe('lint.yml header comment — the claims it still makes', () => {
         swallowsSource.map((p) => `  - ${p}`).join('\n') +
         `\n\nEvery \`object-ui/*\` rule \`eslint.config.js\` sets to \`error\` only gates ` +
         `a PR because this workflow lints the .ts/.tsx it touches. Excluding them is the ` +
-        `pre-#2923 inert state with extra steps.`,
+        `pre-#2923 inert state with extra steps — and since objectui#3523 it is the quieter ` +
+        `version of it, because the \`Lint\` check still reports, green.`,
     ).toEqual([]);
   });
 });
