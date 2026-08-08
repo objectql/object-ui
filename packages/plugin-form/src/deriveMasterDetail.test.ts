@@ -21,10 +21,23 @@ describe('fieldTypeToColumnType', () => {
   it('maps object field types to grid column types', () => {
     expect(fieldTypeToColumnType('number')).toBe('number');
     expect(fieldTypeToColumnType('currency')).toBe('currency');
-    expect(fieldTypeToColumnType('datetime')).toBe('date');
     expect(fieldTypeToColumnType('select')).toBe('select');
     expect(fieldTypeToColumnType('master_detail')).toBe('lookup');
     expect(fieldTypeToColumnType('email')).toBe('text');
+  });
+
+  /**
+   * objectui#3569 — `date` / `datetime` / `time` used to collapse onto the ONE
+   * `date` column type, which put a datetime into an `<input type="date">`.
+   * That control emits a bare `YYYY-MM-DD`, so a user who merely re-picked the
+   * day wrote the record's time component out of existence. The grid cannot
+   * choose the right control (or the right read-only formatting) unless the
+   * distinction survives this mapping, so it is asserted here, at the producer.
+   */
+  it('keeps date / datetime / time as three distinct column types (#3569)', () => {
+    expect(fieldTypeToColumnType('date')).toBe('date');
+    expect(fieldTypeToColumnType('datetime')).toBe('datetime');
+    expect(fieldTypeToColumnType('time')).toBe('time');
   });
 
   it('maps the spec file-family media types to a file column', () => {

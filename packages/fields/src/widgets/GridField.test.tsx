@@ -169,6 +169,163 @@ describe('GridField / LineItemsField — editable line items', () => {
     });
   });
 
+  /**
+   * objectui#3569 — the type collapse behind #3566's symptom. `datetime` and
+   * `time` used to be mapped onto the ONE `date` column type, so a datetime
+   * cell rendered `<input type="date">`. That is not merely an under-render:
+   * the control emits a bare `YYYY-MM-DD`, so a user who only re-picked the
+   * DAY silently wrote the record's time component out of existence. The
+   * falsifiable claim of these tests is therefore the TIME COMPONENT, not the
+   * control's markup.
+   *
+   * Local-wall-clock expectations are computed here from `Date` rather than
+   * hard-coded, so the suite asserts the same thing in every timezone (and the
+   * day-shift arithmetic is done in LOCAL parts, so it is DST-safe too).
+   */
+  describe('datetime / time columns get their own control (#3569)', () => {
+    const pad2 = (n: number) => String(n).padStart(2, '0');
+    /** The local wall clock an `<input type="datetime-local">` must show for `iso`. */
+    const localInputValue = (iso: string | Date) => {
+      const d = iso instanceof Date ? iso : new Date(iso);
+      return (
+        `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` +
+        `T${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+      );
+    };
+
+    const temporalField = {
+      columns: [
+        { field: 'merchant', label: 'Merchant', type: 'text' as const },
+        { field: 'incurred_on', label: 'Incurred On', type: 'date' as const },
+        { field: 'incurred_at', label: 'Incurred At', type: 'datetime' as const },
+        { field: 'started_at', label: 'Started At', type: 'time' as const },
+      ],
+    } as any;
+
+    const STORED_ISO = '2026-06-17T14:30:00.000Z';
+
+    it('renders a datetime column as datetime-local, echoing the stored instant', () => {
+      render(
+        <GridField
+          value={[{ merchant: 'Chipotle', incurred_at: STORED_ISO }]}
+          onChange={() => {}}
+          field={temporalField}
+        />,
+      );
+      const cell = screen.getAllByLabelText('Incurred At')[0] as HTMLInputElement;
+      expect(cell.type).toBe('datetime-local');
+      expect(cell.value).toBe(localInputValue(STORED_ISO));
+    });
+
+    it('does NOT collapse the datetime column onto the date control', () => {
+      render(
+        <GridField
+          value={[{ merchant: 'Chipotle', incurred_on: '2026-06-17', incurred_at: STORED_ISO }]}
+          onChange={() => {}}
+          field={temporalField}
+        />,
+      );
+      // The sibling `date` column keeps its own control — the two are distinct
+      // now, which is exactly what was lost before.
+      expect((screen.getAllByLabelText('Incurred On')[0] as HTMLInputElement).type).toBe('date');
+      expect((screen.getAllByLabelText('Incurred At')[0] as HTMLInputElement).type).toBe('datetime-local');
+    });
+
+    /** THE regression: editing only the day must not destroy the time. */
+    it('keeps the time component when only the day is edited', () => {
+      const onChange = vi.fn();
+      render(
+        <GridField
+          value={[{ merchant: 'Chipotle', incurred_at: STORED_ISO }]}
+          onChange={onChange}
+          field={temporalField}
+        />,
+      );
+      const cell = screen.getAllByLabelText('Incurred At')[0] as HTMLInputElement;
+
+      // What a user does to correct a date: move the day forward one, leave
+      // the wall clock alone.
+      const before = new Date(STORED_ISO);
+      const nextDay = new Date(before);
+      nextDay.setDate(nextDay.getDate() + 1);
+      fireEvent.change(cell, { target: { value: localInputValue(nextDay) } });
+
+      const emitted = onChange.mock.calls[0][0][0].incurred_at;
+      const after = new Date(emitted);
+      expect(after.getHours()).toBe(before.getHours());
+      expect(after.getMinutes()).toBe(before.getMinutes());
+      // Round-tripped as ISO-8601 (`fromDateTimeInputValue`), NOT the control's
+      // naive zone-less string — read and write share one basis.
+      expect(emitted).toBe(nextDay.toISOString());
+    });
+
+    it('leaves an empty datetime cell empty', () => {
+      render(
+        <GridField value={[{ merchant: 'Chipotle', incurred_at: null }]} onChange={() => {}} field={temporalField} />,
+      );
+      expect((screen.getAllByLabelText('Incurred At')[0] as HTMLInputElement).value).toBe('');
+    });
+
+    it('renders a time column as a time control and round-trips HH:mm verbatim', () => {
+      const onChange = vi.fn();
+      render(
+        <GridField
+          value={[{ merchant: 'Chipotle', started_at: '14:30' }]}
+          onChange={onChange}
+          field={temporalField}
+        />,
+      );
+      const cell = screen.getAllByLabelText('Started At')[0] as HTMLInputElement;
+      expect(cell.type).toBe('time');
+      expect(cell.value).toBe('14:30');
+      // A `time` value is a zone-less wall clock — stored exactly as typed, the
+      // same contract `TimeField` follows. No conversion in either direction.
+      fireEvent.change(cell, { target: { value: '09:15' } });
+      expect(onChange).toHaveBeenCalledWith([{ merchant: 'Chipotle', started_at: '09:15' }]);
+    });
+
+    /**
+     * The read-only faces the issue calls out: `displayText()` and the
+     * read-only table both fell through to `String(value)`, printing the raw
+     * `2026-06-17T00:00:00.000Z` on screen. Neither could be fixed before the
+     * collapse was undone — with one column type the renderer had no way to
+     * know whether to show a day or a day plus a time.
+     */
+    describe('read-only display formats each temporal type as itself', () => {
+      const row = { merchant: 'Chipotle', incurred_on: '2026-06-17T00:00:00.000Z', incurred_at: STORED_ISO, started_at: '14:30' };
+      const expectedDay = new Date(2026, 5, 17).toLocaleDateString();
+      const dt = new Date(STORED_ISO);
+      const expectedInstant = `${dt.toLocaleDateString()} ${dt.toLocaleTimeString()}`;
+
+      it('formats date / datetime / time in the read-only table', () => {
+        render(<GridField value={[row]} onChange={() => {}} field={temporalField} readonly />);
+        const table = screen.getByTestId('line-items-readonly');
+        expect(table.textContent).toContain(expectedDay);
+        expect(table.textContent).toContain(expectedInstant);
+        expect(table.textContent).toContain('14:30');
+        // The raw stored ISO must never reach the screen.
+        expect(table.textContent).not.toContain('2026-06-17T00:00:00.000Z');
+        expect(table.textContent).not.toContain(STORED_ISO);
+      });
+
+      it('formats them the same way in list display mode', () => {
+        const { container } = render(
+          <GridField value={[row]} onChange={() => {}} field={temporalField} displayMode="list" onRowExpand={() => {}} />,
+        );
+        expect(container.textContent).toContain(expectedDay);
+        expect(container.textContent).toContain(expectedInstant);
+        expect(container.textContent).not.toContain(STORED_ISO);
+      });
+
+      it('shows a value it cannot parse rather than "Invalid Date"', () => {
+        render(
+          <GridField value={[{ merchant: 'X', incurred_at: 'not-a-date' }]} onChange={() => {}} field={temporalField} readonly />,
+        );
+        expect(screen.getByTestId('line-items-readonly').textContent).toContain('not-a-date');
+      });
+    });
+  });
+
   describe('trailing ghost row (start-with-one + auto-append)', () => {
     it('renders a trailing empty row so an empty grid still has one input line', () => {
       render(<GridField value={[]} onChange={() => {}} field={field} />);

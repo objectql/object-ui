@@ -19,7 +19,7 @@ import { Plus, Trash2, SlidersHorizontal, Maximize2, Copy, GripVertical } from '
 import { resolveFieldRuleState } from '@object-ui/core';
 import { LookupField } from './LookupField';
 import { FileCell } from './FileField';
-import { toDateInputValue } from './nativeDateValue';
+import { toDateInputValue, toDateTimeInputValue, fromDateTimeInputValue } from './nativeDateValue';
 
 /**
  * GridField / LineItemsField — editable child-grid ("line items") widget.
@@ -32,7 +32,8 @@ import { toDateInputValue } from './nativeDateValue';
  *
  * Column config (a subset of `GridColumnDefinition`):
  *   { field, label?, type?, options?, width?, required?, prefix?, step? }
- *   type ∈ 'text' | 'number' | 'currency' | 'date' | 'select' | 'lookup' | 'file'
+ *   type ∈ 'text' | 'number' | 'currency' | 'date' | 'datetime' | 'time'
+ *        | 'select' | 'lookup' | 'file'
  *
  * Field-level config (from `GridFieldMetadata`):
  *   columns, min_rows, max_rows, allow_add, allow_delete, total_field
@@ -41,7 +42,16 @@ import { toDateInputValue } from './nativeDateValue';
 export interface GridColumn {
   field: string;
   label?: string;
-  type?: 'text' | 'number' | 'currency' | 'date' | 'select' | 'lookup' | 'file';
+  /**
+   * Cell control + read/write adapter for the column.
+   *
+   * `date` / `datetime` / `time` are three DISTINCT controls, not one
+   * (objectui#3569). Collapsing `datetime` onto the `date` control did not
+   * merely under-render it — `<input type="date">` hands back a bare
+   * `YYYY-MM-DD` on change, so touching the day of a `datetime` cell silently
+   * DELETED its time component from the record.
+   */
+  type?: 'text' | 'number' | 'currency' | 'date' | 'datetime' | 'time' | 'select' | 'lookup' | 'file';
   options?: Array<{ label: string; value: string }>;
   width?: number;
   required?: boolean;
@@ -111,6 +121,10 @@ const MIN_WIDTH_BY_TYPE: Record<string, number> = {
   number: 104,
   currency: 116,
   date: 150,
+  // `<input type="datetime-local">` renders a day AND a wall clock, so it needs
+  // materially more room than a date cell before the browser starts eliding.
+  datetime: 200,
+  time: 116,
   file: 168,
 };
 const minWidthFor = (c: GridColumn): number => c.width ?? MIN_WIDTH_BY_TYPE[c.type ?? 'text'] ?? 132;
@@ -255,10 +269,48 @@ export function computeRow(columns: GridColumn[], row: Row): Row {
   return next;
 }
 
+/** True for the three temporal column types, which all need a formatter on the
+ *  read-only surfaces rather than the raw stored string (objectui#3569). */
+const isTemporal = (t?: string) => t === 'date' || t === 'datetime' || t === 'time';
+
+/**
+ * Read-only display text for a temporal cell (objectui#3569).
+ *
+ * The stored shapes differ per type and so must the rendering — which is only
+ * decidable now that `datetime`/`time` are no longer collapsed onto `date`:
+ *
+ * - `date` — a calendar day. Formatted from its VERBATIM `YYYY-MM-DD` parts via
+ *   a local `Date`, never by parsing the stored string: `new Date('2026-06-17')`
+ *   is UTC midnight, so reading local calendar components back out of it moves
+ *   the day to the 16th everywhere west of Greenwich.
+ * - `datetime` — an instant. Rendered as local day + local time, the same basis
+ *   `toDateTimeInputValue` uses for the editor, so the two never disagree (and
+ *   matching `DateTimeField`'s own read-only rendering).
+ * - `time` — a zone-less wall clock (`HH:mm[:ss]`); it is already display-ready.
+ *
+ * An unparseable value falls through to its raw string rather than rendering
+ * "Invalid Date" — showing the user what is actually stored beats hiding it.
+ */
+function temporalText(type: string | undefined, value: any): string {
+  const raw = String(value);
+  if (type === 'time') return raw;
+  if (type === 'date') {
+    const ymd = toDateInputValue(value);
+    if (!ymd) return raw;
+    const [y, m, d] = ymd.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString();
+  }
+  const dt = value instanceof Date ? value : new Date(raw);
+  if (Number.isNaN(dt.getTime())) return raw;
+  return `${dt.toLocaleDateString()} ${dt.toLocaleTimeString()}`;
+}
+
 /** Read-only display text for a cell in list mode (select → option label,
- *  currency/number → formatted, empty → em dash). Lookups render separately. */
+ *  currency/number → formatted, date/datetime/time → localized, empty → em
+ *  dash). Lookups render separately. */
 function displayText(c: GridColumn, value: any): string {
   if (value === null || value === undefined || value === '') return '—';
+  if (isTemporal(c.type)) return temporalText(c.type, value);
   if (c.type === 'file') {
     const files = Array.isArray(value) ? value : [value];
     if (files.length === 0) return '—';
@@ -284,6 +336,14 @@ function coerce(type: string | undefined, raw: string): any {
     const n = Number(raw);
     return Number.isNaN(n) ? raw : n;
   }
+  // `<input type="datetime-local">` hands back a ZONE-LESS local wall clock;
+  // storing that verbatim would put the write on a different basis from the
+  // read (`toDateTimeInputValue`), so a user in UTC+8 who picked 08:33 would
+  // store 08:33Z and see 16:33 back. The pair must be used as a pair — this is
+  // the same contract `DateTimeField` follows (objectui#3127 / #3569).
+  // `date` and `time` need no conversion: their controls already emit exactly
+  // the stored shape (`YYYY-MM-DD`, `HH:mm`).
+  if (type === 'datetime') return fromDateTimeInputValue(raw);
   return raw;
 }
 
@@ -627,7 +687,12 @@ export function GridField({
                           readonly
                           field={{ reference: c.reference, display_field: c.displayField, id_field: c.idField } as any}
                         />
-                      ) : c.type === 'file' ? (
+                      ) : c.type === 'file' || isTemporal(c.type) ? (
+                        // A temporal column printed with `String(value)` puts
+                        // the raw stored ISO on screen — `2026-06-17T00:00:00.000Z`
+                        // for a date, and for a datetime it would ALSO have been
+                        // wrong to render as a bare day (objectui#3569). Now that
+                        // the three types are distinct, each formats as itself.
                         displayText(c, row[c.field])
                       ) : row[c.field] != null && row[c.field] !== '' ? (
                         String(row[c.field])
@@ -758,16 +823,39 @@ export function GridField({
             c.type === 'currency' && 'pl-6',
             isNumeric(c.type) && 'text-right tabular-nums',
           )}
-          type={c.type === 'date' ? 'date' : isNumeric(c.type) ? 'number' : 'text'}
+          type={
+            c.type === 'date'
+              ? 'date'
+              : c.type === 'datetime'
+                ? 'datetime-local'
+                : c.type === 'time'
+                  ? 'time'
+                  : isNumeric(c.type)
+                    ? 'number'
+                    : 'text'
+          }
           step={isNumeric(c.type) ? c.step ?? 'any' : undefined}
           aria-label={c.label || c.field}
-          // A `date` cell holding the API's ISO shape (`2026-06-17T00:00:00.000Z`)
-          // is SILENTLY rejected by `<input type="date">` — the attribute lands in
+          // A temporal cell holding the API's ISO shape (`2026-06-17T14:30:00.000Z`)
+          // is SILENTLY rejected by the native control — the attribute lands in
           // the DOM but `input.value` reads back `''` and the cell paints empty
-          // (objectui#3566, the sub-grid face of #3127). The write-back shape is
-          // unchanged: the control's own plain `YYYY-MM-DD`, so no paired
-          // conversion is needed on the `onChange` side.
-          value={c.type === 'date' ? toDateInputValue(val) : val != null ? String(val) : ''}
+          // (objectui#3566, the sub-grid face of #3127). So each type reads
+          // through its own adapter:
+          //   date     → `YYYY-MM-DD`; the control writes that shape back
+          //              verbatim, so no paired conversion on `onChange`.
+          //   datetime → `YYYY-MM-DDTHH:mm` local; PAIRED with
+          //              `fromDateTimeInputValue` in `coerce` so read and write
+          //              share one basis (objectui#3569).
+          //   time     → `HH:mm[:ss]` is already the stored shape, both ways.
+          value={
+            c.type === 'date'
+              ? toDateInputValue(val)
+              : c.type === 'datetime'
+                ? toDateTimeInputValue(val)
+                : val != null
+                  ? String(val)
+                  : ''
+          }
           onChange={(e) => setCell(rowIdx, c, e.target.value)}
           disabled={locked}
         />

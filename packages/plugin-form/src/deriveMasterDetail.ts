@@ -52,10 +52,18 @@ export function fieldTypeToColumnType(type: string | undefined): GridColumn['typ
       return 'number';
     case 'currency':
       return 'currency';
+    // Three distinct controls, NOT one (objectui#3569). Collapsing `datetime`
+    // and `time` onto the `date` column type fed both into an
+    // `<input type="date">`: the time component was invisible on read, and
+    // because that control emits a bare `YYYY-MM-DD`, merely touching the day
+    // wrote the time OUT of the record. The grid can only pick the right
+    // control — and the right read-only formatting — if the type survives here.
     case 'date':
-    case 'datetime':
-    case 'time':
       return 'date';
+    case 'datetime':
+      return 'datetime';
+    case 'time':
+      return 'time';
     case 'select':
     case 'picklist':
     case 'radio':
@@ -146,6 +154,11 @@ const TYPE_FILL_PRIORITY: Record<string, number> = {
   number: 1,
   lookup: 2,
   date: 3,
+  // Same usefulness as `date` — they were literally the same column type until
+  // objectui#3569 split them, and omitting them here would have silently
+  // demoted every datetime/time column to the unknown-type bucket (5).
+  datetime: 3,
+  time: 3,
   text: 4,
 };
 
