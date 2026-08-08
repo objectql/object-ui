@@ -19,6 +19,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { isBuiltin } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -46,14 +47,26 @@ const VARS: PluginTemplateVars = {
   year: 2026
 };
 
-/** Bare (non-relative) module specifiers imported by a generated source file. */
-function bareImportsOf(source: string): string[] {
-  const specifiers = new Set<string>();
-  for (const match of source.matchAll(/(?:^|\n)\s*import\s[^;]*?from\s+'([^']+)'/g)) {
+/**
+ * Package names imported by a generated source file, excluding relative imports.
+ *
+ * Covers both `import x from 'pkg'` and the side-effect form `import 'pkg'`
+ * (which is how the generated Vitest setup file pulls the matchers in), and
+ * folds a subpath specifier back onto its package name so
+ * `@testing-library/jest-dom/vitest` is checked against
+ * `@testing-library/jest-dom`. Node builtins are dropped — the generated Vite
+ * config imports `path`, which nothing declares because nothing has to.
+ */
+function importedPackagesOf(source: string): string[] {
+  const packages = new Set<string>();
+  for (const match of source.matchAll(/(?:^|\n)\s*import\s+(?:[^;'"]*?from\s+)?'([^']+)'/g)) {
     const specifier = match[1];
-    if (!specifier.startsWith('.') && !specifier.startsWith('/')) specifiers.add(specifier);
+    if (specifier.startsWith('.') || specifier.startsWith('/')) continue;
+    if (isBuiltin(specifier)) continue;
+    const segments = specifier.split('/');
+    packages.add(specifier.startsWith('@') ? segments.slice(0, 2).join('/') : segments[0]);
   }
-  return [...specifiers].sort();
+  return [...packages].sort();
 }
 
 function declaredDependencies(vars: PluginTemplateVars): Record<string, string> {
@@ -103,11 +116,18 @@ describe('generated package.json', () => {
   });
 });
 
-describe('generated example test', () => {
-  it('imports nothing the generated package.json does not declare', () => {
+describe('generated sources', () => {
+  it('import nothing the generated package.json does not declare', () => {
+    // The defect behind objectui#3716, generalised over every generated file:
+    // the example test imported `@testing-library/react` and the manifest never
+    // declared it. Add an undeclared import to any template and this goes red.
     const declared = declaredDependencies(VARS);
-    for (const specifier of bareImportsOf(buildTestFile(VARS))) {
-      expect(declared[specifier], `${specifier} is imported but not declared`).toBeTruthy();
+    const files = buildPluginFiles(VARS);
+    for (const [relativePath, contents] of Object.entries(files)) {
+      if (!/\.tsx?$/.test(relativePath)) continue;
+      for (const pkg of importedPackagesOf(contents)) {
+        expect(declared[pkg], `${relativePath} imports ${pkg}, which is not declared`).toBeTruthy();
+      }
     }
   });
 
