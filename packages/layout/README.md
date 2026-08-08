@@ -17,9 +17,9 @@ pnpm add @object-ui/layout
 ```
 
 **Peer Dependencies:**
-- `react` >= 18.0.0
-- `react-dom` >= 18.0.0
-- `react-router-dom` >= 6.0.0
+- `react` ^18.0.0 || ^19.0.0
+- `react-dom` ^18.0.0 || ^19.0.0
+- `react-router-dom` ^6.0.0 || ^7.0.0
 
 ## Components
 

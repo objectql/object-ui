@@ -102,11 +102,11 @@ function MetadataRedirect() {
 }
 
 /**
- * Forwards the retired `system/{users,organizations,roles,positions}` console
- * pages onto the canonical object routes served by the generic
+ * Forwards the retired `system/{users,organizations,roles,positions,permissions}`
+ * console pages onto the canonical object routes served by the generic
  * `…/:objectName` route in `@object-ui/app-shell` (objectui#3655).
  *
- * These four were real routes until `apps/console` was slimmed for third-party
+ * These five were real routes until `apps/console` was slimmed for third-party
  * customisation (cccdf84d7): "Delete bespoke /system/* wrapper pages
  * (User/Role/Permission/Audit/Org) … these objects are now contributed by
  * framework plugins (plugin-auth, -security, -audit) into the Setup app
@@ -134,9 +134,11 @@ function MetadataRedirect() {
  *                                       and the hub's "Positions" are the same
  *                                       surface under old/new vocabulary)
  *   positions     -> sys_position      (`nav_positions`)
- *
- * `system/permissions` is deliberately NOT redirected here — see the route
- * block below.
+ *   permissions   -> sys_permission_set(`nav_permission_sets`; this one was
+ *                                       held back in PR #3673 and is resolved
+ *                                       by objectui#3655's decision A — the
+ *                                       reasoning is recorded at the route
+ *                                       block below)
  *
  * Same shape as `ObjectRedirect` / `MetadataRedirect` above (a legacy URL is
  * translated, the page is not resurrected), including their treatment of
@@ -188,22 +190,40 @@ export const systemRoutes = (
     <Route path="system/metadata/:metadataType" element={<MetadataRedirect />} />
     <Route path="system/metadata/:metadataType/:itemName" element={<MetadataRedirect />} />
     {/* Legacy URL redirects → the framework-owned system objects (objectui#3655).
-        `system/permissions` is absent on purpose: unlike the four above it has
-        no single measured equivalent. The framework splits what this console
-        calls "Permissions" into TWO Setup entries — `sys_capability`
-        (Capabilities: the definition registry, and the object whose own
-        docblock says it is what the ADR "loosely floats" as `sys_permission`,
-        which is the name the retired page and `SystemHubPage`'s count query
-        both use) and `sys_permission_set` (Permission Sets: the grant
-        container, which is what "Manage permission rules and assignments" and
-        admin CRUD describe). Picking one silently sends every future click and
-        bookmark to a surface the maintainer never chose, so it is left to be
-        decided rather than guessed; the test file pins its unchanged landing so
-        the gap stays visible instead of reading as an oversight. */}
+        All five resolve now. `system/permissions` was the one held back in PR
+        #3673: the framework splits what this console calls "Permissions" into
+        TWO Setup entries, and picking one on a hunch would have bound every
+        future click and bookmark to a surface nobody chose.
+
+          `sys_capability`     (nav "Capabilities") — ADR-0066 layer 1, the
+            DEFINITION registry of "what can be done". Its own docblock says it
+            is what the ADR "loosely floats" as `sys_permission` — the name the
+            retired page used — so LINEAGE points here.
+          `sys_permission_set` (nav "Permission Sets") — ADR-0066 layer 2, the
+            grant/assignment container the permissions docs call "the only
+            capability container" (object CRUD + field security + access depth
+            + system capabilities). FUNCTION points here.
+
+        Decided as A, `sys_permission_set` (objectui#3655): the card that emits
+        this URL reads "Manage permission rules and assignments", and
+        rules-and-assignments is layer 2 — the definition catalog is what you
+        reference BY NAME from a set, not what you assign. Deliberately a
+        transitional alias: option C (retiring this bespoke card wall together
+        with the hub, already `@deprecated`) stays open and does not conflict,
+        because a redirect keeps old bookmarks resolving either way.
+
+        One correction worth leaving here, since it circulated while this was
+        open: the "capabilities are platform-locked, permission sets are the
+        admin-CRUD one" reading does NOT survive a re-read of the framework.
+        BOTH objects are `managedBy: 'config'` with `protection.lock:
+        'no-overlay'`, and both docblocks say the lock is on the SCHEMA while
+        tenants/admins may add rows. The layer-1 / layer-2 split above is the
+        distinction that actually holds. */}
     <Route path="system/users" element={<SystemObjectRedirect objectName="sys_user" />} />
     <Route path="system/organizations" element={<SystemObjectRedirect objectName="sys_organization" />} />
     <Route path="system/roles" element={<SystemObjectRedirect objectName="sys_position" />} />
     <Route path="system/positions" element={<SystemObjectRedirect objectName="sys_position" />} />
+    <Route path="system/permissions" element={<SystemObjectRedirect objectName="sys_permission_set" />} />
   </>
 );
 

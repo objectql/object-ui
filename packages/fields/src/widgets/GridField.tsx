@@ -19,6 +19,7 @@ import { Plus, Trash2, SlidersHorizontal, Maximize2, Copy, GripVertical } from '
 import { resolveFieldRuleState } from '@object-ui/core';
 import { LookupField } from './LookupField';
 import { FileCell } from './FileField';
+import { toDateInputValue } from './nativeDateValue';
 
 /**
  * GridField / LineItemsField — editable child-grid ("line items") widget.
@@ -760,7 +761,13 @@ export function GridField({
           type={c.type === 'date' ? 'date' : isNumeric(c.type) ? 'number' : 'text'}
           step={isNumeric(c.type) ? c.step ?? 'any' : undefined}
           aria-label={c.label || c.field}
-          value={val != null ? String(val) : ''}
+          // A `date` cell holding the API's ISO shape (`2026-06-17T00:00:00.000Z`)
+          // is SILENTLY rejected by `<input type="date">` — the attribute lands in
+          // the DOM but `input.value` reads back `''` and the cell paints empty
+          // (objectui#3566, the sub-grid face of #3127). The write-back shape is
+          // unchanged: the control's own plain `YYYY-MM-DD`, so no paired
+          // conversion is needed on the `onChange` side.
+          value={c.type === 'date' ? toDateInputValue(val) : val != null ? String(val) : ''}
           onChange={(e) => setCell(rowIdx, c, e.target.value)}
           disabled={locked}
         />

@@ -113,6 +113,62 @@ describe('GridField / LineItemsField — editable line items', () => {
     expect(onChange).toHaveBeenCalledWith([{ description: 'Taxi', amount: 42.5 }]);
   });
 
+  /**
+   * objectui#3566 — the sub-grid face of #3127. `<input type="date">` accepts
+   * exactly `YYYY-MM-DD` and rejects every other shape SILENTLY: the attribute
+   * still lands in the DOM, so the value looks present in the markup, while
+   * `.value` reads back `''` and the cell paints its empty placeholder. Since
+   * the API hands back `2026-06-17T00:00:00.000Z` for a `date` field, every
+   * date cell in an inline child grid rendered blank on a row that has a value.
+   * Asserting `.value` (never `getAttribute('value')`) is the only way to see
+   * this bug at all.
+   */
+  describe('date columns echo the stored value (#3566)', () => {
+    const dateField = {
+      columns: [
+        { field: 'description', label: 'Description', type: 'text' as const },
+        { field: 'incurred_on', label: 'Incurred On', type: 'date' as const },
+      ],
+    } as any;
+
+    // Both spellings the API may hand back for a `date` field. The bare form
+    // must survive VERBATIM — re-parsing it as UTC midnight and reading local
+    // calendar components back out would move it to the 16th anywhere west of
+    // Greenwich, which is the off-by-one this fix must not introduce.
+    it.each(['2026-06-17', '2026-06-17T00:00:00.000Z'])(
+      'shows the stored calendar day for %s instead of an empty cell',
+      (stored) => {
+        render(
+          <GridField value={[{ description: 'Taxi', incurred_on: stored }]} onChange={() => {}} field={dateField} />,
+        );
+        const cell = screen.getAllByLabelText('Incurred On')[0] as HTMLInputElement;
+        expect(cell.type).toBe('date');
+        expect(cell.value).toBe('2026-06-17');
+      },
+    );
+
+    it('leaves an empty date cell empty', () => {
+      render(<GridField value={[{ description: 'Taxi', incurred_on: null }]} onChange={() => {}} field={dateField} />);
+      expect((screen.getAllByLabelText('Incurred On')[0] as HTMLInputElement).value).toBe('');
+    });
+
+    it('writes back the control\'s own YYYY-MM-DD, unchanged by the read fix', () => {
+      // No paired conversion on the write side: `onChange` hands over exactly
+      // what `<input type="date">` produces, matching DateField's contract. A
+      // conversion here would put read and write on different bases.
+      const onChange = vi.fn();
+      render(
+        <GridField
+          value={[{ description: 'Taxi', incurred_on: '2026-06-17T00:00:00.000Z' }]}
+          onChange={onChange}
+          field={dateField}
+        />,
+      );
+      fireEvent.change(screen.getAllByLabelText('Incurred On')[0], { target: { value: '2026-06-18' } });
+      expect(onChange).toHaveBeenCalledWith([{ description: 'Taxi', incurred_on: '2026-06-18' }]);
+    });
+  });
+
   describe('trailing ghost row (start-with-one + auto-append)', () => {
     it('renders a trailing empty row so an empty grid still has one input line', () => {
       render(<GridField value={[]} onChange={() => {}} field={field} />);

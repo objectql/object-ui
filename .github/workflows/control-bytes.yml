@@ -20,6 +20,16 @@ on:
     branches: [main, develop]
   push:
     branches: [main, develop]
+  # Merge queue (objectui#3523 — see `ci.yml`'s trigger block for the full note
+  # and the measurements behind it). This repository's queue is enforced by a
+  # ruleset but had zero `merge_group` subscribers, so its required-check set
+  # could only ever be empty. This gate is one of the two the audit found safe
+  # to require today — deliberately unfiltered, so it reports on every shape of
+  # pull request — and a required check that does not report on a queue build
+  # stalls the queue until the ruleset's 60-minute timeout fails it. `types:` is
+  # named although `checks_requested` is currently the only one GitHub defines.
+  merge_group:
+    types: [checks_requested]
   workflow_dispatch:
 
 concurrency:

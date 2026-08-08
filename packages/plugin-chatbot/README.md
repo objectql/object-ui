@@ -55,7 +55,7 @@ function App() {
 ### AI Streaming Mode (service-ai)
 
 When `api` is set in the schema, the chatbot connects to a backend SSE endpoint
-using `@ai-sdk/react` v3 (Vercel UI Message Stream protocol) for streaming,
+using `@ai-sdk/react` v4 (Vercel UI Message Stream protocol) for streaming,
 tool-calling, and production-grade chat:
 
 ```tsx

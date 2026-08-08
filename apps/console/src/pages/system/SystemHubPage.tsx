@@ -101,22 +101,25 @@ export function SystemHubPage() {
       // it only covers non-404 rejections.
       //
       // Verified against the framework's object registry:
-      //   sys_user         packages/platform-objects/src/identity/sys-user.object.ts
-      //   sys_organization packages/platform-objects/src/identity/sys-organization.object.ts
-      //   sys_position     packages/plugins/plugin-security/src/objects/sys-position.object.ts
-      //   sys_audit_log    packages/plugins/plugin-audit/src/objects/sys-audit-log.object.ts
+      //   sys_user           packages/platform-objects/src/identity/sys-user.object.ts
+      //   sys_organization   packages/platform-objects/src/identity/sys-organization.object.ts
+      //   sys_position       packages/plugins/plugin-security/src/objects/sys-position.object.ts
+      //   sys_permission_set packages/plugins/plugin-security/src/objects/sys-permission-set.object.ts
+      //   sys_audit_log      packages/plugins/plugin-audit/src/objects/sys-audit-log.object.ts
       //
-      // `sys_permission` is the one exception and is deliberately left alone.
-      // The framework has no such object; it splits that surface into
-      // `sys_capability` (lineage — its docblock names itself "not
-      // sys_permission as the ADR loosely floats") and `sys_permission_set`
-      // (function — the admin-managed grant container). Both would render, so
-      // picking one here would silently commit this card to a surface the
-      // maintainer has not chosen; that call is pending on objectui#3655
-      // (A: sys_permission_set / B: sys_capability / C: retire this bespoke
-      // card with the hub itself, which is already `@deprecated` above). Until
-      // it lands the Permissions count stays a known-wrong `0` — pinned by a
-      // MEASUREMENT case in this page's test rather than quietly re-aimed.
+      // Permissions used to ask for `sys_permission`, which the framework does
+      // NOT register, so this card read a known-wrong `0` on every deployment
+      // (objectui#3670 left it pinned rather than re-aimed). The framework
+      // splits that surface in two — `sys_capability` (ADR-0066 layer 1, the
+      // definition registry, and the object whose docblock says it is what the
+      // ADR "loosely floats" as `sys_permission`) and `sys_permission_set`
+      // (ADR-0066 layer 2, the grant container the permissions docs call "the
+      // only capability container"). Both exist, so either would have rendered
+      // a plausible number and quietly decided which surface this card means.
+      // objectui#3655 decided it: `sys_permission_set`, because the card says
+      // "Manage permission rules and assignments" and rules-and-assignments is
+      // layer 2. The same decision aimed this page's `system/permissions` link
+      // at that object, so badge and destination now describe one thing.
       //
       // TODO: Replace with count-specific API endpoint when available
       //
@@ -136,13 +139,15 @@ export function SystemHubPage() {
       //
       // A 404 still does not reach here and still renders `0`: the adapter
       // resolves unregistered objects as an empty page on purpose (see above).
-      // That is its contract, not a failure — the one card still riding on it
-      // is Permissions, which is objectui#3655's decision to close.
+      // That is its contract, not a failure. No card rides on it by mistake any
+      // more — every name below is registered — but a deployment that does not
+      // install a plugin (e.g. plugin-security, which owns `sys_position` and
+      // `sys_permission_set`) still gets `0` rather than "unavailable".
       const [usersRes, orgsRes, positionsRes, permsRes, logsRes] = await Promise.all([
         dataSource.find('sys_user').catch(() => null),
         dataSource.find('sys_organization').catch(() => null),
         dataSource.find('sys_position').catch(() => null),
-        dataSource.find('sys_permission').catch(() => null),
+        dataSource.find('sys_permission_set').catch(() => null),
         dataSource.find('sys_audit_log').catch(() => null),
       ]);
       setCounts({
