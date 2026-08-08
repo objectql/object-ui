@@ -17,6 +17,38 @@ on:
       - 'docs/**'
       - 'apps/site/**'
       - '.changeset/**'
+  # ── Merge queue (objectui#3523) ────────────────────────────────────────
+  # The merge queue is ENFORCED on this repository by a ruleset — a direct push
+  # to `main` returns 405 `Changes must be made through the merge queue`
+  # (measured in #3243). Until this trigger landed, not one of the repository's
+  # workflows subscribed `merge_group`: repo-wide `event=merge_group` runs stood
+  # at total_count = 0, historically. A queue with nothing subscribed to it can
+  # only have an EMPTY required-check set, so it rebuilt each PR on the current
+  # `main` and let it through without validating anything.
+  #
+  # That is not a theoretical hole; it was cashed in on 2026-08-07. #3498 landed
+  # a `scripts/` type gate, itself fully green, that left a TS2578 on `main`;
+  # #3503, #3510 and #3516 then merged between 02:11Z and 02:15Z with `Type
+  # Check` at conclusion=failure, and #3505 hot-fixed the result. objectstack
+  # went through the same frames (objectstack#6067 -> #5615).
+  #
+  # `types:` is spelled out although `checks_requested` is the ONLY activity
+  # type GitHub defines for `merge_group` today — the two spellings are
+  # equivalent right now (objectstack's `ci.yml` and `lint.yml` use the bare
+  # `merge_group:` form and produce queue builds normally, 3552 of them). Naming
+  # the type means a second activity type added later cannot silently start
+  # queue builds this workflow was never written for.
+  #
+  # `concurrency` below needs no merge-queue special case, and that was checked
+  # rather than assumed: on `merge_group` the `github.event.pull_request` half of
+  # the group expression is null, so the group falls back to `github.ref`, which
+  # on a queue build is the queue's own generation — measured on objectstack,
+  # `gh-readonly-queue/main/pr-6594-251e888ac9ace8226f3a8450951e5b40a0a84c2c`.
+  # It can collide with neither a pull-request group (a bare PR number) nor a
+  # push group (`refs/heads/main`), so a queue build and the PR build it came
+  # from never cancel each other.
+  merge_group:
+    types: [checks_requested]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -188,7 +220,14 @@ jobs:
     name: Test (shard ${{ matrix.shard }}/4)
     # Coverage instrumentation (v8 adds 40-100% overhead) is skipped on PRs;
     # the `test-coverage` job below keeps Codecov current on push.
-    if: github.event_name == 'pull_request'
+    #
+    # Written as "not push" rather than "is pull_request" (objectui#3523): the
+    # third event this workflow now sees is `merge_group`, and a queue build
+    # that runs no tests is the hole this repository just paid for. `push` is
+    # still excluded because `test-coverage` below is the push lane, unsharded
+    # so Codecov receives one complete report. PR and push behaviour is
+    # unchanged — only the previously impossible third case moves.
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     # Bound the job so a stalled runner / non-exiting test worker fails fast and
     # is retryable, instead of hanging up to GitHub's 6h default.
@@ -364,7 +403,11 @@ jobs:
       - name: Check for docs changes
         id: docs-changes
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
+          # `!= pull_request` covers `push` and `merge_group` alike
+          # (objectui#3523). A queue build has no `github.event.pull_request`,
+          # so the else-branch below would diff an empty revision range and
+          # skip the site build on the last check before `main`.
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
             echo "should_run=true" >> "$GITHUB_OUTPUT"
           else
             # Check if docs-related files changed in this PR
