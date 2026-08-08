@@ -8,6 +8,7 @@
 
 import { ObjectStackClient, type QueryOptions as ObjectStackQueryOptions } from '@objectstack/client';
 import type { DroppedFieldsEvent } from '@objectstack/spec/data';
+import type { DatasetSelection } from '@objectstack/spec/contracts';
 import type {
   DataSource,
   BatchTransactionOperation,
@@ -3190,25 +3191,21 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    * silently returning wrong numbers.
    *
    * @param dataset - An inline dataset definition (draft) OR a saved dataset name.
-   * @param selection - Dimension/measure names to project + runtime directives.
+   * @param selection - The spec's {@link DatasetSelection} — dimension/measure
+   *   names to project plus runtime directives. This parameter IS the spec type
+   *   by reference, never a local restatement of it (objectui#3613): a hand
+   *   copy of a contract is a second dialect of it, and the copy this replaced
+   *   had already drifted three ways from `@objectstack/spec` — it required
+   *   `compareTo.dimension` (optional since objectstack#5011, and resolved by
+   *   the EXECUTOR, so requiring it pushed callers into exactly the
+   *   consumer-side dimension guess AGENTS.md #0.1 forbids), it widened
+   *   `timeDimensions` to `unknown[]` and `runtimeFilter` to
+   *   `Record<string, unknown>`, and it had never grown `dateGranularity` at
+   *   all. Pinned in `queryDataset.test.ts`.
    */
   async queryDataset(
     dataset: Record<string, unknown> | string,
-    selection: {
-      dimensions?: string[];
-      measures: string[];
-      runtimeFilter?: Record<string, unknown>;
-      timeDimensions?: unknown[];
-      compareTo?: { kind: 'previousPeriod' | 'previousYear'; dimension: string };
-      order?: Record<string, 'asc' | 'desc'>;
-      limit?: number;
-      offset?: number;
-      timezone?: string;
-      /** Marginal-aggregate groupings (e.g. `[rows, [colDim], []]`) — server
-       *  computes each subtotal with the measure's TRUE aggregate (never client
-       *  re-derived). `[]` is the grand total. */
-      totals?: { groupings: string[][] };
-    },
+    selection: DatasetSelection,
   ): Promise<{
     rows: Array<Record<string, unknown>>;
     /** Column metadata: a display `label` (dimensions and measures), and a
