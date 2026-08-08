@@ -29,7 +29,7 @@
  * rejects it, the server's `.strict()` parse rejects it, and this resolver
  * names it via {@link RESOLVED_ONLY_PARAM_KEYS} rather than reading it.
  */
-import type { ActionParamDef } from '@object-ui/core';
+import type { ActionParamDef, ActionParamOption } from '@object-ui/core';
 
 /**
  * Resolved params keep raw `FieldType` values (`text` / `email` / `select` /
@@ -47,7 +47,13 @@ export interface RawActionParam {
   label?: string;
   type?: string;
   required?: boolean;
-  options?: Array<{ label: string; value: string }>;
+  /**
+   * Option list authored inline on the param. Speaks the same vocabulary as the
+   * resolved side ({@link ActionParamOption}): the two keys this resolver reads
+   * plus a catch-all for whatever else an option declares (`visibleWhen`,
+   * `color`, `icon`, `disabled`) — objectui#3559.
+   */
+  options?: ActionParamOption[];
   placeholder?: string;
   helpText?: string;
   defaultValue?: unknown;
@@ -177,7 +183,13 @@ interface RuntimeField {
   placeholder?: string;
   help?: string;
   description?: string;
-  options?: Array<{ label: string; value: string } | string>;
+  /**
+   * The field's own option list — `select` / `radio` / `checkboxes` metadata as
+   * `@objectstack/spec`'s `SelectOptionSchema` declares it, so entries may carry
+   * `visibleWhen` / `color` / `icon` / `disabled` alongside label and value. A
+   * bare string is shorthand for `{ label: s, value: s }`.
+   */
+  options?: Array<ActionParamOption | string>;
   multiple?: boolean;
   defaultValue?: unknown;
   // ── Upload widget config (file/image fields) ──
@@ -224,20 +236,37 @@ export interface ResolveActionParamsContext {
   row?: Record<string, unknown>;
 }
 
-/** Normalise an options entry (allowing bare strings) into label/value pairs. */
+/**
+ * Normalise a field's option list for a param: expand bare strings into
+ * `{ label, value }` and translate each label through `fieldOptionLabel`.
+ *
+ * Those are the only two jobs. Everything else the option declares is
+ * PRESERVED, not rebuilt (objectui#3559): this used to return a fresh
+ * `{ label, value }` per entry, which silently dropped a field's per-option
+ * `visibleWhen` — so a select field whose options narrow by predicate in the
+ * object form (`resolveVisibleOptions()` in `@object-ui/core`, ADR-0058 /
+ * #2284) offered the FULL list, predicate-hidden entries included, the moment
+ * an action param inherited that field via `{ field: '<name>' }`. Same field
+ * metadata, two surfaces, two behaviours, no diagnostic anywhere. `color` /
+ * `icon` / `disabled` were lost the same way.
+ *
+ * Only the field-inherited branch ever came through here; options authored
+ * inline on the param always passed through verbatim (see `resolvedOptions`
+ * below), which is precisely the asymmetry this restores.
+ */
 function normaliseOptions(
-  options: Array<{ label: string; value: string } | string> | undefined,
+  options: Array<ActionParamOption | string> | undefined,
   objectName: string,
   fieldName: string,
   optionLabel?: ResolveActionParamsContext['fieldOptionLabel'],
-): Array<{ label: string; value: string }> | undefined {
+): ActionParamOption[] | undefined {
   if (!Array.isArray(options) || options.length === 0) return undefined;
   return options.map((o) => {
-    const raw = typeof o === 'string' ? { label: o, value: o } : o;
+    const raw: ActionParamOption = typeof o === 'string' ? { label: o, value: o } : o;
     const label = optionLabel
       ? optionLabel(objectName, fieldName, raw.value, raw.label)
       : raw.label;
-    return { label, value: raw.value };
+    return { ...raw, label, value: raw.value };
   });
 }
 

@@ -1,0 +1,107 @@
+name: Changeset Presence
+
+# Demands the DECLARATION that objectstack#4731 / #4843 made the criterion for
+# "which frontend changes shipped": a change to the source of a package the
+# release covers must add a `.changeset/*.md`. An empty frontmatter counts — what
+# is required is one sentence written while the author still knows what the change
+# does, not a release. Full rationale, the measured history, and the exemption's
+# exact spelling: `scripts/check-changeset-presence.mjs`.
+#
+# Why this is a SECOND changeset workflow rather than a wider trigger on the
+# first. `changeset-guard.yml` runs only when `.changeset/**` changes, and that
+# inversion is deliberate and documented in its own header: `ci.yml` and
+# `lint.yml` both list `.changeset/**` under `paths-ignore`, so a PR that adds
+# ONLY a changeset starts nothing else, and that guard exists to see exactly that
+# PR. A PR which FORGOT its changeset does not touch `.changeset/**` at all, so
+# the one check that could notice is the one guaranteed not to run. Widening those
+# paths would break the case it was built for. Hence two workflows, opposite
+# directions: that one polices the level of a declaration that exists, this one
+# polices the existence of a declaration at all.
+#
+# Hence also: no `paths` and no `paths-ignore` here, deliberately — the same
+# choice `control-bytes.yml` and `docs-links.yml` made and for a stronger reason.
+# A path filter on the trigger skips the WHOLE workflow (GitHub has no per-job
+# path filter), so the context is never CREATED on a pull request that does not
+# match, and a required context that is never created leaves the PR pending rather
+# than failing it — in the queue, until the ruleset's 60-minute timeout. That is
+# objectui#3523's second half, and it is why the four gates moved their filters
+# into the jobs. This gate reports on every pull request instead: it decides from
+# the diff, inside the script, and says so when nothing is owed. A `paths` filter
+# would additionally be a second copy of the script's guarded surface, free to
+# drift from it — and the surface is derived from `.changeset/config.json`
+# precisely so there is only one. `scripts/__tests__/check-changeset-presence.test.ts`
+# fails if a filter is ever added.
+#
+# It needs no install and no build — a checkout, `setup-node`, and one `node` call
+# over `git diff` — so keep it that way if you add checks to it.
+
+on:
+  pull_request:
+    branches: [main, develop]
+  # Merge queue (objectui#3523 — see `ci.yml`'s trigger block for the full note
+  # and the measurements behind it). A required context that does not report on a
+  # queue build stalls the queue until the ruleset's 60-minute status-check
+  # timeout fails it, so a gate that carries no path filter — and therefore CAN
+  # be required — has to subscribe. `types:` is named although `checks_requested`
+  # is currently the only one GitHub defines.
+  #
+  # The script needs no per-event branch to work here: it resolves the base as
+  # the merge base with the target branch, and on a queue build (no
+  # `GITHUB_BASE_REF`, no `github.event.pull_request`) that falls through to the
+  # merge base with `origin/main`, which is the commit the queue built the group
+  # on. `ci.yml`'s `pnpm check:i18n-drift` step already resolves its base exactly
+  # this way on this event.
+  merge_group:
+    types: [checks_requested]
+
+# Deliberately NOT subscribed:
+#
+#   - `push` to `main`. There is nothing left to demand: the change has landed,
+#     and failing the push would only paint `main` red at the author of the next
+#     commit. The pull request and the queue build are where a declaration can
+#     still be written.
+#   - `workflow_dispatch`. A manual run has no revision range to judge, and this
+#     gate fails loudly rather than inventing one. Locally it is
+#     `node scripts/check-changeset-presence.mjs`, which defaults to this branch
+#     against its merge base and reads the working tree, so an author gets the
+#     answer before committing.
+
+concurrency:
+  group: changeset-presence-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  changeset-presence:
+    name: Changeset Declaration
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          # The gate compares this change against its MERGE BASE with the target
+          # branch, so it needs history — checkout's default is a depth-1 clone
+          # where `git merge-base` has nothing to find. An unresolvable base is a
+          # hard failure in the script, never a skip, so getting this wrong is a
+          # red build rather than a silent pass; it is spelled out here so it
+          # stays that way. Same requirement, same reason, as the `fetch-depth: 0`
+          # on `ci.yml`'s `type-check` job for `pnpm check:i18n-drift`.
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+
+      # Reads `.changeset/config.json` and `git diff`, and nothing else — no
+      # install, no network. The guarded surface is every workspace package named
+      # in the `fixed` group, so it follows the release configuration instead of
+      # being a hand-written glob: `@object-ui/console` lives at `apps/console`,
+      # outside `packages/`, and is both the most-edited published package here
+      # and the one the platform's `bump-objectui.sh` writes a changeset for.
+      - name: Verify a changeset declares this change
+        run: node scripts/check-changeset-presence.mjs

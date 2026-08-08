@@ -26,6 +26,7 @@ one has its own section below.
 | `ci.yml` | CI | Push / PR to `main`, `develop`; merge-queue builds | **Yes** — every job but `test-coverage` (push only) runs on PRs and on queue builds |
 | `lint.yml` | Lint | Push / PR to `main`, `develop`; merge-queue builds; manual | **Yes** — ESLint **errors** only |
 | `changeset-guard.yml` | Changeset Bump Policy | PR / push touching `.changeset/**` | **Yes** |
+| `changeset-presence.yml` | Changeset Declaration | PR to `main`, `develop` — **no path filter**; merge-queue builds | **Yes** — when a released package's `src/` changed and no changeset was added |
 | `control-bytes.yml` | Control Byte Scan | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
 | `docs-links.yml` | Internal Docs Link Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
@@ -54,6 +55,10 @@ The path filters explain most "why did nothing run on my PR?" questions:
   required at all.
 - `changeset-guard.yml` carries the inverse filter — it runs *only* when `.changeset/**` changes,
   which is precisely why it is a separate workflow instead of a job inside `ci.yml`.
+- `changeset-presence.yml` is that guard's mirror image and the reason there are two: a PR which
+  *forgot* its changeset does not touch `.changeset/**`, so the inverse filter guarantees the one
+  check that could notice never runs. It therefore carries **no** filter and decides from the diff
+  inside its script.
 - `control-bytes.yml` and `docs-links.yml` carry **no** filter of any kind, which is equally
   deliberate: both guard markdown, and a gate that a markdown-only PR cannot start is no gate on
   the change most likely to trip it. Both cost a checkout plus one `node` call.
@@ -67,8 +72,12 @@ checks it requires are green **on that rebuilt commit**. Those runs are a distin
 `merge_group`, on a throwaway `gh-readonly-queue/**` branch — a workflow that does not subscribe
 to that event simply does not run there.
 
-Four workflows subscribe: `ci.yml`, `lint.yml`, `control-bytes.yml` and `docs-links.yml`. None of
-them did until [#3523](https://github.com/objectstack-ai/objectui/issues/3523), and the consequence was not subtle. A queue whose required set
+Five workflows subscribe: `ci.yml`, `lint.yml`, `control-bytes.yml`, `docs-links.yml` and
+`changeset-presence.yml` (the last added with the gate itself, in
+[#3387](https://github.com/objectstack-ai/objectui/issues/3387) — a gate that carries no path
+filter reports on every pull request and is therefore requirable, which is exactly the property
+this list tracks). None of the first four did until
+[#3523](https://github.com/objectstack-ai/objectui/issues/3523), and the consequence was not subtle. A queue whose required set
 is empty validates nothing: it rebuilds the PR, sees no failing required check because there are
 no required checks, and merges. On 2026-08-07 three pull requests
 ([#3503](https://github.com/objectstack-ai/objectui/issues/3503), [#3510](https://github.com/objectstack-ai/objectui/issues/3510), [#3516](https://github.com/objectstack-ai/objectui/issues/3516)) merged with **Type Check** at
@@ -520,24 +529,82 @@ The one release that legitimately bumps the major is the one following `@objects
 its major; it sets `OBJECTUI_ALLOW_MAJOR=1`. `pnpm test` asserts the same repository state, so
 the rule survives this workflow being skipped.
 
-> **Nothing in CI requires a pull request to add a changeset, and there is no
-> `skip-changeset` label.** Both were documented for months, by a second workflow inventory
-> that lived at `.github/WORKFLOWS.md` — unpinned, therefore free to drift — until
-> [#3724](https://github.com/objectstack-ai/objectui/issues/3724) deleted it. That page gave
-> a "Changeset Check" workflow its own numbered section: it supposedly failed any PR touching
-> `packages/` without a `.changeset/*.md`, and was skippable with a `skip-changeset` or
-> `dependencies` label. None of it existed. No workflow file of that name has ever been in
-> `.github/workflows/`, and the repository has no `skip-changeset` label (checked against the
-> labels API, 2026-08-08 — the only one of the two names that exists is `dependencies`, which
-> the auto-labeler applies and no gate reads).
+> **A changeset IS now required, by `changeset-presence.yml` — but there is still no
+> `skip-changeset` label.** Until [#3387](https://github.com/objectstack-ai/objectui/issues/3387)
+> nothing in CI asked whether a PR had added one, and this note said so at length, because the
+> opposite had been documented for months: a second workflow inventory at `.github/WORKFLOWS.md`
+> — unpinned, therefore free to drift — gave a "Changeset Check" workflow its own numbered
+> section, failing any PR touching `packages/` without a `.changeset/*.md` and skippable with a
+> `skip-changeset` or `dependencies` label. None of it existed;
+> [#3724](https://github.com/objectstack-ai/objectui/issues/3724) deleted the page. The label
+> still does not exist (checked against the labels API, 2026-08-08 — of the two names only
+> `dependencies` exists, applied by the auto-labeler and read by no gate), and the real gate has
+> no label escape hatch by design: its exemption is a changeset with an **empty frontmatter**,
+> which lives in the repository where the next reader finds it, rather than a label that vanishes
+> from history.
 >
-> The two real things with adjacent names do something else. **This** workflow reads pending
-> changesets and rejects a `major` bump. `ci.yml`'s `changeset-check` job (**Changeset Fixed
-> Group Check**) checks `fixed`-group *membership*. Neither asks whether the PR added a
-> changeset, and no third thing does. Whether a change needs one is a judgement call — see
-> "When to Create a Changeset" in `CONTRIBUTING.md` — and it is enforced by review, not by a
-> check. This is the size-check lesson in a second place: a page that advertises a guardrail
-> CI does not have is worse than no page, because contributors trust it and stop checking.
+> The three real things with adjacent names each do something different, and none of them
+> subsumes another. `changeset-guard.yml` reads pending changesets and rejects a `major` bump.
+> `ci.yml`'s `changeset-check` job (**Changeset Fixed Group Check**) checks `fixed`-group
+> *membership*. `changeset-presence.yml` asks whether this change declared anything at all.
+
+### Changeset Presence (`changeset-presence.yml`)
+
+**Trigger:** PR to `main`/`develop`, and merge-queue builds. **No path filter** — see below.
+**Blocks a PR:** yes, when a released package's `src/` changed and the PR added no changeset.
+
+Runs `scripts/check-changeset-presence.mjs`, which compares the change against its merge base with
+the target branch and asks one question: did anything under the `src/` of a package the release
+covers change, and if so, does this change **add** a `.changeset/*.md`?
+
+- **The exemption is an empty frontmatter.** What is demanded is a declaration, once, by the person
+  who still knows what the change does — not a release. A changeset whose frontmatter names no
+  package is a first-class pass:
+
+  ```md
+  ---
+  ---
+
+  Test-only change to the grid column resolver; no published behaviour changes.
+  ```
+
+- **The changeset must be ADDED by this change.** `.changeset/` accumulates until a release, so "a
+  changeset exists in the tree" would be satisfied by somebody else's pending declaration and make
+  the gate vacuous for every change that followed one.
+- **The guarded surface is derived, not written down.** Every workspace package named in the
+  `fixed` group of `.changeset/config.json` contributes its `src/`; everything in `ignore` is
+  skipped. That matters more than it sounds: `@object-ui/console` lives at `apps/console`, outside
+  `packages/`, and is both the most-edited published package here and the one the platform's
+  `bump-objectui.sh` writes a changeset for — a hand-written `packages/*/src/**` glob would have
+  missed it. A changed source file whose package is in *neither* list fails the check rather than
+  being assumed unreleased; `check-changeset-fixed.mjs` is the gate that owns that classification.
+- **Every missing input fails loudly.** An unresolvable base commit, a `git diff` that errors, a
+  missing `.changeset/` directory: all red, none a silent pass. Note the direction is the *opposite*
+  of the filter gates in `ci.yml` — those decide whether to run work, so "cannot tell" means run;
+  here the work *is* the decision, so "cannot tell" means fail. Both refuse to report green having
+  looked at nothing ([objectstack#4928](https://github.com/objectstack-ai/objectstack/issues/4928)).
+- **No path filter, deliberately**, and it is the point of the whole workflow. A `paths:` filter
+  skips the entire workflow, so the context is never created on a PR that does not match — and a
+  required context that is never created leaves the PR pending rather than failing it
+  ([#3523](https://github.com/objectstack-ai/objectui/issues/3523)). It would also be a second copy
+  of the guarded surface, free to drift from the config the script reads.
+
+**Why this is separate from `changeset-guard.yml`, which also polices changesets:** that workflow's
+trigger is `paths: ['.changeset/**']`, and the inversion is deliberate — a PR adding *only* a
+changeset starts no other workflow, and that guard exists to see it. A PR that **forgot** its
+changeset does not touch `.changeset/**` at all, so the one check able to notice was the one check
+guaranteed not to run. Widening those paths would have broken the case that guard was built for.
+Two workflows, opposite directions: one polices the *level* of a declaration that exists, the other
+the *existence* of a declaration at all.
+
+Why it exists: [objectstack#4731](https://github.com/objectstack-ai/objectstack/issues/4731) /
+[#4843](https://github.com/objectstack-ai/objectstack/issues/4843) made the declared changesets the
+single criterion for which frontend changes shipped, and the premise underneath — published source
+changed, so a changeset was written — was enforced by nothing. Replaying this gate over the 80
+commits before it landed reports 10 that would have failed, two of them user-visible fixes
+(`918888a30` `fix(fields)`, `dcff16e06` `fix(cli,create-plugin)`) that reached a release with no
+CHANGELOG line anywhere. `scripts/__tests__/check-changeset-presence.test.ts` pins the verdicts, the derived
+surface, and every loud-failure path.
 
 ### Changelog Generation (`changelog.yml`)
 

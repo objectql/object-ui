@@ -148,7 +148,9 @@ export const SchemaRenderer = ({ schema }: { schema: UIComponent }) => {
 - `.gitignore` 已锚定 `/*.png` 等防兜底,并额外忽略根级 `/--*` —— 名字以 `--` 开头的根文件必然是把 CLI 参数当成了输出文件名(#3193:一张叫 `--full-page` 的 68KB 截图被提交进来,因为没有 `.png` 后缀,`/*.png` 兜不住)。兜底只是最后一道,仍要主动清。
   - 删这类文件要用 `--` 断开参数解析:`rm -- ./--full-page`、`git rm -- './--full-page'`。
 - 任务结束:停**自己起的**后台服务(见下方"服务纪律";别按端口杀别人的)、清 `.playwright-mcp/`。
-- 改完代码提交时:功能改进(feature)需写 changeset(`pnpm changeset`);纯 bug 修复不需要。
+- 改完代码提交时:**只要改了发版包的 `src/`(`.changeset/config.json` 的 `fixed` 组,含 `apps/console`),就必须新增一个 `.changeset/*.md`** —— 这一条由 `.github/workflows/changeset-presence.yml` 机械强制(objectui#3387),`pnpm changeset` 写正常 bump,**纯内部改动/只动测试就写空 frontmatter(`---` 紧跟 `---`)显式声明"不发版"**,那是合法的一等通过写法。要的是"声明一次",不是强制发版。
+  - 别再按"feature 要写、bug 修复不用"来判断 —— 正是这个旧判据让三条用户可见的修复(`19716b5bf` fix(charts)、`5e7ef1141` fix(i18n)、`0e50440` #3518)搭顺风车发了出去,任何 CHANGELOG/版本号/发布记录里都查不到:平台侧的发布判据(objectstack#4731/#4843)读的就是本仓声明的 changeset。
+  - 本地先自查:`node scripts/check-changeset-presence.mjs`(未提交的 changeset 也算)。
 
 ### 怎么跑测试(有两种写法会静默假绿 —— 现已机械拦截)
 

@@ -205,19 +205,36 @@ export function useObjectLabel() {
   /**
    * Build suffix candidates for a list-view scoped key.
    *
-   * The runtime uses qualified view ids (`<objectName>.<viewName>`) in URLs
-   * and metadata records, while translation bundles are keyed by the authored
-   * view name under `_views`. Resolve the unqualified name first so every
-   * surface can pass its canonical id without leaking the metadata fallback.
+   * The runtime uses qualified view ids (`<objectName>.<viewName>`) in URLs and
+   * metadata records, while translation bundles are keyed by the **bare** view
+   * name under `_views` — the runtime view identity's own name, stripped of the
+   * object prefix. That single spelling is canonical per the objectstack#5164
+   * ruling A (2026-08-06): the i18n extractor asks the view composer for the key
+   * (objectstack#6124) and `packages/lint` enforces exactly that spelling
+   * (objectstack#6038), so this resolver accepts exactly what those produce.
+   *
+   * Deliberately NOT a second candidate: the prefixed full name
+   * (`_views.<objectName>.<viewName>`). Accepting it made this client more
+   * lenient than the server-side resolver, which only ever reads the one key
+   * (objectstack#5165) — a bundle authored against the prefixed spelling showed
+   * translated labels in the Console while every consumer that does not run a
+   * second resolution pass (REST boundary, mobile, plain HTTP, SDUI) still got
+   * English. A prefixed key now simply misses, and the label falls back to the
+   * metadata default on every surface alike, so the authoring mistake is visible
+   * instead of half-hidden. It is caught at authoring time by `os lint`'s
+   * `translation-target-unknown`, not papered over here.
+   *
+   * The object-name candidates (`objects.<ns__obj>` then `objects.<obj>`) are a
+   * separate axis and stay: they let bundles written against short object names
+   * resolve when the runtime presents fully-qualified ones.
    */
   const viewSuffixes = (objectName: string, viewName: string, tail: string): string[] => {
     const objectNames = [objectName, stripNamespace(objectName)];
     const matchedPrefix = objectNames
       .map((name) => `${name}.`)
       .find((prefix) => viewName.startsWith(prefix));
-    const shortViewName = matchedPrefix ? viewName.slice(matchedPrefix.length) : viewName;
-    const viewNames = shortViewName === viewName ? [viewName] : [shortViewName, viewName];
-    return viewNames.flatMap((name) => objectSuffixes(objectName, `_views.${name}.${tail}`));
+    const bareViewName = matchedPrefix ? viewName.slice(matchedPrefix.length) : viewName;
+    return objectSuffixes(objectName, `_views.${bareViewName}.${tail}`);
   };
 
   return {
@@ -356,7 +373,10 @@ export function useObjectLabel() {
 
     /**
      * Resolve translated list-view label.
-     * Convention (per @objectstack/spec): `{ns}.objects.{objectName}._views.{viewName}.label`.
+     * Convention (per @objectstack/spec): `{ns}.objects.{objectName}._views.{viewName}.label`,
+     * where `{viewName}` is the **bare** view name — pass either the bare name or
+     * the qualified runtime id, the object prefix is stripped either way. A key
+     * that spells the prefix out does not resolve (see `viewSuffixes`).
      */
     viewLabel: (objectName: string, viewName: string, fallback: string) =>
       resolve(viewSuffixes(objectName, viewName, 'label'), fallback),

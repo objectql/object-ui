@@ -496,20 +496,43 @@ Changesets is a tool that helps us:
 
 ### When to Create a Changeset
 
-Create a changeset when your PR makes changes to any package in `packages/`:
+**If your PR changes the `src/` of a package the release covers, it must add a `.changeset/*.md` —
+this is enforced by CI** (`changeset-presence.yml`, objectui#3387). "The release covers it" means
+the package is named in the `fixed` group of `.changeset/config.json`, which includes
+`@object-ui/console` at `apps/console` as well as everything under `packages/`; `@object-ui/site`
+and the examples are in `ignore` and are not gated.
 
-- ✅ **DO create a changeset for**:
+What the gate asks for is a **declaration**, not a release:
+
+- ✅ **Score a bump** (`patch` / `minor` — never `major`, see below) for:
   - New features
   - Bug fixes
-  - Breaking changes
+  - Breaking changes (scored `minor`, with the break described in the body)
   - Performance improvements
   - API changes
 
-- ❌ **DON'T create a changeset for**:
-  - Documentation updates only
-  - Changes to examples or apps
-  - Internal refactoring with no user-facing changes
-  - Test updates without code changes
+- ✅ **Declare that it releases nothing** — a changeset with an **empty frontmatter** — for:
+  - Internal refactoring with no user-facing change
+  - Test-only changes under a package's `src/`
+  - Dead-code removal
+
+  ```md
+  ---
+  ---
+
+  Removed the orphaned SystemObjectViewPage; no published behaviour changes.
+  ```
+
+  This is a first-class pass, not a workaround. It costs one line and it puts the reason in the
+  repository, where the next reader finds it — which is the whole point: three user-visible fixes
+  shipped with no changeset and therefore appear in no CHANGELOG, version number or release note
+  anywhere (objectui#3387).
+
+- ❌ **No changeset is needed at all for** changes that touch no released package's `src/`:
+  documentation, CI configuration, repo-level scripts, the examples, `apps/site`.
+
+Run `node scripts/check-changeset-presence.mjs` locally to get the same answer CI will give,
+including for a changeset you have written but not yet committed.
 
 ### How to Create a Changeset
 

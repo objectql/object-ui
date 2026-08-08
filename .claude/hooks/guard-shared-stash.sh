@@ -46,7 +46,10 @@
 # for anyone who means it. Widening it to string-match anywhere in the command would block
 # every `grep "git stash"` run against this very file.
 #
-# Self-test (26 cases, no network, no build): .claude/hooks/guard-shared-stash.selftest.sh
+# Self-test (32 cases, no network, no build): .claude/hooks/guard-shared-stash.selftest.sh
+# 32 = 30 `expect ` lines + 2 inline specials (empty-tool_input fail-open, no-jq fallback).
+# Re-derive when the matrix changes: `grep -c '^expect ' <selftest>` + 2, and the run's own
+# tail prints the total ("N passed, N failed") — keep this number equal to it.
 
 set -uo pipefail
 
