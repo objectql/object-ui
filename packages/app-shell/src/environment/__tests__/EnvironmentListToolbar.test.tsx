@@ -9,6 +9,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
 
+const CREATE_LOADING = 'environment-create-cta-loading';
+
 vi.mock('@object-ui/react', async (importActual) => ({
   ...(await importActual<any>()),
   SchemaRenderer: ({ schema }: any) => (
@@ -30,9 +32,9 @@ import type { EnvironmentEntitlementsState } from '../entitlements';
  * without one would only be asserting the raw key. Pinned to `en` and
  * `detectBrowserLanguage: false` so the expectations stay deterministic.
  */
-const renderToolbar = (ui: React.ReactElement) =>
+const renderToolbar = (ui: React.ReactElement, language = 'en') =>
   render(
-    <I18nProvider config={{ defaultLanguage: 'en', detectBrowserLanguage: false }}>
+    <I18nProvider config={{ defaultLanguage: language, detectBrowserLanguage: false }}>
       {ui}
     </I18nProvider>,
   );
@@ -43,6 +45,15 @@ const CREATE = {
 };
 const st = (o: Partial<EnvironmentEntitlementsState>): EnvironmentEntitlementsState =>
   ({ ready: true, hasProductionEnv: true, upgradeUrl: '/settings/billing', source: 'summary', ...o });
+
+/**
+ * The settled-but-no-signal state: the entitlements endpoint was unusable AND
+ * the row derivation threw, so `useEnvironmentEntitlements` reports a resolved
+ * object that carries nothing. Distinct from `null` (still in flight).
+ */
+const UNRESOLVED: EnvironmentEntitlementsState = {
+  ready: false, hasProductionEnv: false, upgradeUrl: '/settings/billing', source: 'unknown',
+};
 
 describe('EnvironmentListToolbar', () => {
   it('no production env → "Set up your production environment" (primary)', () => {
@@ -70,10 +81,73 @@ describe('EnvironmentListToolbar', () => {
     expect(onUpgrade.mock.calls[0][0]).toMatchObject({ code: 'DEV_ENV_PLAN_LOCKED', cta: { url: '/settings/billing' } });
   });
 
-  it('still resolving (null) → neutral default label, no upgrade button', () => {
+});
+
+/**
+ * cloud#1049 ruling A (objectui#3482): while entitlements are in flight the
+ * create button must render NO text — the metadata label used to show and then
+ * get overwritten by the state-aware one, which the user saw as the button
+ * changing its wording mid-load.
+ */
+describe('EnvironmentListToolbar — loading state (objectui#3482)', () => {
+  it('still resolving (null) → skeleton, no label of any kind, no upgrade button', () => {
     renderToolbar(<EnvironmentListToolbar actions={[CREATE]} entitlements={null} onUpgrade={vi.fn()} />);
-    expect(screen.getByText('Create Environment')).toBeTruthy();
+    expect(screen.getByTestId(CREATE_LOADING)).toBeTruthy();
+    // The metadata label is the one that used to flash here.
+    expect(screen.queryByText('Create Environment')).toBeNull();
+    // …and no state-aware label is guessed at either — the bar isn't rendered.
+    expect(screen.queryByTestId('action-bar')).toBeNull();
     expect(screen.queryByTestId('environment-add-upgrade')).toBeNull();
+  });
+
+  it('non-create toolbar actions still render while resolving (they never re-label)', () => {
+    const REFRESH = { name: 'refresh_all', label: 'Refresh', type: 'api', locations: ['list_toolbar'] };
+    renderToolbar(
+      <EnvironmentListToolbar actions={[CREATE, REFRESH]} entitlements={null} onUpgrade={vi.fn()} />,
+    );
+    expect(screen.getByText('Refresh')).toBeTruthy();
+    expect(screen.getByTestId(CREATE_LOADING)).toBeTruthy();
+    expect(screen.queryByText('Create Environment')).toBeNull();
+  });
+
+  it('no create action in the toolbar → nothing can jump, so no skeleton', () => {
+    const REFRESH = { name: 'refresh_all', label: 'Refresh', type: 'api', locations: ['list_toolbar'] };
+    renderToolbar(<EnvironmentListToolbar actions={[REFRESH]} entitlements={null} onUpgrade={vi.fn()} />);
+    expect(screen.getByText('Refresh')).toBeTruthy();
+    expect(screen.queryByTestId(CREATE_LOADING)).toBeNull();
+  });
+
+  it('settled with NO usable signal (ready:false) → metadata label, skeleton gone', () => {
+    // The skeleton must never be terminal: when both entitlement signals fail
+    // the user still needs a working create button, and the producer's neutral
+    // wording is the only honest text for an unknown state.
+    renderToolbar(<EnvironmentListToolbar actions={[CREATE]} entitlements={UNRESOLVED} onUpgrade={vi.fn()} />);
+    expect(screen.getByText('Create Environment')).toBeTruthy();
+    expect(screen.queryByTestId(CREATE_LOADING)).toBeNull();
+    expect(screen.queryByTestId('environment-add-upgrade')).toBeNull();
+  });
+
+  it('resolving → resolved: the metadata label never appears in any render output', () => {
+    // The reported flash, as a transition on one mounted tree. Asserted in `en`
+    // because the mechanism is locale-independent (metadata label overwritten by
+    // `environment.setUpProduction`); it was reported against the zh console,
+    // whose key is covered by the all-locales key-parity test.
+    const tree = (entitlements: EnvironmentEntitlementsState | null) => (
+      <I18nProvider config={{ defaultLanguage: 'en', detectBrowserLanguage: false }}>
+        <EnvironmentListToolbar actions={[CREATE]} entitlements={entitlements} onUpgrade={vi.fn()} />
+      </I18nProvider>
+    );
+
+    const { rerender, container } = render(tree(null));
+    // Intermediate render output carries no button text at all.
+    expect(container.textContent).toBe('');
+    expect(screen.getByTestId(CREATE_LOADING)).toBeTruthy();
+
+    rerender(tree(st({ hasProductionEnv: false })));
+    expect(screen.getByText('Set up your production environment')).toBeTruthy();
+    expect(screen.queryByTestId(CREATE_LOADING)).toBeNull();
+    // The metadata label never appeared — not before, not after.
+    expect(container.textContent).not.toContain(CREATE.label);
   });
 });
 
