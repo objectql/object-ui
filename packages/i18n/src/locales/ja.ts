@@ -16,6 +16,26 @@ const ja = {
       other: 'その他',
     },
   },
+  // objectui#3546 slice six — PermissionFacetLink の授権ファセット要約。
+  // 数量ラベルは appDesigner.objectManager.fieldCount と同じ「{{count}} + 単位」形。
+  // 日本語に単複はないため `_one` は基底キーと同値(意図的)。
+  perm: {
+    facet: {
+      none: "なし",
+      more: "+{{count}} 件",
+      objects: "{{count}} オブジェクト",
+      objects_one: "{{count}} オブジェクト",
+      fields: "{{count}} フィールドルール",
+      fields_one: "{{count}} フィールドルール",
+      rls: "{{count}} RLS ポリシー",
+      rls_one: "{{count}} RLS ポリシー",
+      tabs: "{{count}} タブルール",
+      tabs_one: "{{count}} タブルール",
+      adminScope: "委任管理を設定済み",
+      designInStudio: "Studio でデザイン →",
+      designInStudioHint: "Studio でデザイン",
+    },
+  },
   lookup: {
     recentlyUsed: '最近使用したもの',
     allResults: 'すべての結果',
@@ -2205,6 +2225,14 @@ const ja = {
       publishing: "公開しています…",
       published: "公開しました。変更が反映されています。",
       publishFailed: "公開に失敗しました",
+      // objectui#3546 slice six — seedWarn は console.ai.seedWarn と同一の英文なので
+      // 同じ訳を流用。capabilityWarn の「：」は全角:後続が日本語の文だから
+      // (このパックの中間コロンは、値が単一トークンなら半角、文なら全角)。
+      nothing: "公開するものはありません。",
+      probeWarn: "公開しましたが、検証で問題が見つかりました。",
+      seedWarn: "公開しましたが、一部のサンプルデータを読み込めませんでした。",
+      publishedVerified: "公開して検証しました — サンプルデータ {{count}} 行が反映されています。",
+      capabilityWarn: "作成時チェック：{{count}} 件のケイパビリティ参照が解決できません。",
     },
     title: "ホーム",
     subtitle: "ワークスペースのダッシュボード",

@@ -21,6 +21,28 @@ const zh = {
       studio_access: '访问 Studio',
     },
   },
+  // objectui#3546 切片六 —— 权限集记录上六个授权面的只读摘要与 Studio 深链
+  // (ADR-0056 P1,plugin-detail 的 PermissionFacetLink)。
+  // 用词取自本仓权限集设计器(metadata-admin i18n 表):个对象 / 行级策略 /
+  // 标签页 / 委派管理范围 —— 与点进去的那个界面一致。
+  // 中文无单复数,四个计数 key 的 `_one` 与基础 key 同值(设计如此,不是漏改)。
+  perm: {
+    facet: {
+      none: '无',
+      more: '+{{count}} 更多',
+      objects: '{{count}} 个对象',
+      objects_one: '{{count}} 个对象',
+      fields: '{{count}} 条字段规则',
+      fields_one: '{{count}} 条字段规则',
+      rls: '{{count}} 条 RLS 策略',
+      rls_one: '{{count}} 条 RLS 策略',
+      tabs: '{{count}} 条标签页规则',
+      tabs_one: '{{count}} 条标签页规则',
+      adminScope: '已配置委派管理范围',
+      designInStudio: '在 Studio 中设计 →',
+      designInStudioHint: '在 Studio 中设计',
+    },
+  },
   lookup: {
     recentlyUsed: '最近使用',
     allResults: '全部结果',
@@ -2410,6 +2432,13 @@ const zh = {
       publishing: '发布中…',
       published: '已发布！更改已生效。',
       publishFailed: '发布失败',
+      // objectui#3546 切片六 —— usePublishAllDrafts 其余几条 toast。
+      // seedWarn 与 console.ai.seedWarn 同串,直接沿用该键既有译文。
+      nothing: '没有需要发布的内容。',
+      probeWarn: '已发布，但验证发现了问题。',
+      seedWarn: '已发布，但部分示例数据未能载入。',
+      publishedVerified: '已发布并验证 —— {{count}} 行示例数据已生效。',
+      capabilityWarn: '编写检查：{{count}} 个能力引用无法解析。',
     },
     createFirstApp: '手动创建应用',
     systemSettings: '系统设置',

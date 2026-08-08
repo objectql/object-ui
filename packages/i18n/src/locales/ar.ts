@@ -16,6 +16,30 @@ const ar = {
       other: 'أخرى',
     },
   },
+  // objectui#3546 slice six — ملخص للقراءة فقط لأوجه التخويل الستة في
+  // PermissionFacetLink، مع رابط التصميم في Studio.
+  //
+  // صيغة العدد تتبع نمط الحزمة نفسه: «{{count}} مفرد(جمع)» كما في
+  // appDesigner.objectManager.fieldCount و table.modified. المفتاح الأساسي هو
+  // ما تلجأ إليه فئات two/few/many/zero غير المعرّفة، فيظل النص عربيًا.
+  // السهم ← يبقى → في روابط الإجراء، كما في marketplace.browseLink.
+  perm: {
+    facet: {
+      none: "لا شيء",
+      more: "+{{count}} المزيد",
+      objects: "{{count}} كائن(كائنات)",
+      objects_one: "{{count}} كائن",
+      fields: "{{count}} قاعدة(قواعد) حقول",
+      fields_one: "{{count}} قاعدة حقول",
+      rls: "{{count}} سياسة(سياسات) RLS",
+      rls_one: "{{count}} سياسة RLS",
+      tabs: "{{count}} قاعدة(قواعد) تبويب",
+      tabs_one: "{{count}} قاعدة تبويب",
+      adminScope: "تم تكوين الإدارة المفوَّضة",
+      designInStudio: "التصميم في Studio →",
+      designInStudioHint: "التصميم في Studio",
+    },
+  },
   lookup: {
     recentlyUsed: 'المستخدمة مؤخرًا',
     allResults: 'كل النتائج',
@@ -2205,6 +2229,14 @@ const ar = {
       publishing: "جارٍ النشر…",
       published: "تم النشر! تغييراتك فعّالة الآن.",
       publishFailed: "فشل النشر",
+      // objectui#3546 slice six — seedWarn له النص الإنجليزي نفسه الذي في
+      // console.ai.seedWarn، فنعيد استخدام الترجمة ذاتها. علامة «(جمع)» تتبع
+      // grid.import.rowsWithErrors في هذه الحزمة.
+      nothing: "لا شيء للنشر.",
+      probeWarn: "تم النشر، لكن التحقق وجد مشكلات.",
+      seedWarn: "تم النشر، لكن تعذّر تحميل بعض البيانات التجريبية.",
+      publishedVerified: "تم النشر والتحقق — {{count}} صف(صفوف) من البيانات التجريبية فعّالة الآن.",
+      capabilityWarn: "فحص التأليف: {{count}} مرجع(مراجع) قدرات لا تشير إلى شيء.",
     },
     title: "الرئيسية",
     subtitle: "لوحة تحكم مساحة العمل",

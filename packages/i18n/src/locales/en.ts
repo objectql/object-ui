@@ -22,6 +22,34 @@ const en = {
       studio_access: 'Studio Access',
     },
   },
+  // objectui#3546 slice six — the read-only facet summary + Studio deep-link a
+  // `sys_permission_set` record shows for its six authorization facets
+  // (ADR-0056 P1, plugin-detail's PermissionFacetLink).
+  //
+  // The four count labels are plural families. `_one` is the singular; the BASE
+  // key (no suffix) is the form every OTHER CLDR plural category resolves to,
+  // which is what keeps `ru` (few/many) and `ar` (two/few/many/zero) in their own
+  // language instead of falling through to English — i18next only looks up the
+  // one suffix a language's rules ask for, and falls back to the base key when
+  // that suffix is absent. `perm-home-namespace-3546.test.tsx` renders every
+  // language at counts 1/2/3/5/11/21/100 to hold this.
+  perm: {
+    facet: {
+      none: 'None',
+      more: '+{{count}} more',
+      objects: '{{count}} objects',
+      objects_one: '{{count}} object',
+      fields: '{{count}} field rules',
+      fields_one: '{{count}} field rule',
+      rls: '{{count}} RLS policies',
+      rls_one: '{{count}} RLS policy',
+      tabs: '{{count}} tab rules',
+      tabs_one: '{{count}} tab rule',
+      adminScope: 'Delegated admin configured',
+      designInStudio: 'Design in Studio →',
+      designInStudioHint: 'Design in Studio',
+    },
+  },
   lookup: {
     recentlyUsed: 'Recently used',
     allResults: 'All results',
@@ -2485,6 +2513,15 @@ const en = {
       publishing: 'Publishing…',
       published: 'Published! Your changes are live.',
       publishFailed: 'Publish failed',
+      // objectui#3546 slice six — the rest of `usePublishAllDrafts`'s toasts
+      // (the ADR-0038 L3 probe / seed health report and the ADR-0066 ⑨
+      // capability-reference lint). Same banner, same publish button, so they
+      // live beside the five keys above rather than in a namespace of their own.
+      nothing: 'Nothing to publish.',
+      probeWarn: 'Published, but verification found problems.',
+      seedWarn: 'Published, but some sample data failed to load.',
+      publishedVerified: 'Published & verified — {{count}} sample row(s) live.',
+      capabilityWarn: 'Authoring check: {{count}} capability reference(s) resolve nowhere.',
     },
     createFirstApp: 'Create app manually',
     systemSettings: 'System Settings',

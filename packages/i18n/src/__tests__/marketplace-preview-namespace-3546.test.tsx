@@ -575,9 +575,10 @@ describe('objectui#3546 slice five — the marketplace and preview namespaces', 
         (k) => k.startsWith('marketplace.') || k.startsWith('preview.'),
       ),
     ).toEqual([]);
-    // 68 before this slice, 37 removed. The other namespaces' debt is not this
-    // slice's to spend; this number moves once per slice, and only downwards.
-    expect(Object.keys(baseline.missingKeys).length).toBe(31);
+    // 68 before this slice, 37 removed — then slice six (perm + home, 14 keys)
+    // took it to 17. The other namespaces' debt is not this slice's to spend;
+    // this number moves once per slice, and only downwards.
+    expect(Object.keys(baseline.missingKeys).length).toBe(17);
     // The prefix family this slice handled is GONE from the ratchet, and the two
     // that remain are untouched — neither belongs to these namespaces.
     expect(Object.keys(baseline.missingPrefixes).sort()).toEqual([

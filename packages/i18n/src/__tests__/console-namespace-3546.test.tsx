@@ -322,9 +322,10 @@ describe('objectui#3546 slice four — the console namespace', () => {
     };
     expect(Object.keys(baseline.missingKeys).filter((k) => k.startsWith('console.'))).toEqual([]);
     // 109 before this slice, 41 removed — then slice five (marketplace + preview,
-    // 37 keys) took it to 31. The other namespaces' debt is not this slice's to
-    // spend; this number moves once per slice, and only downwards.
-    expect(Object.keys(baseline.missingKeys).length).toBe(31);
+    // 37 keys) took it to 31 and slice six (perm + home, 14 keys) to 17. The other
+    // namespaces' debt is not this slice's to spend; this number moves once per
+    // slice, and only downwards.
+    expect(Object.keys(baseline.missingKeys).length).toBe(17);
     // The prefix family this slice handled is GONE from the ratchet, and the ones
     // that remain are untouched — none of them belongs to `console`. Slice five
     // then took `marketplace.disclosure.runtime.`, leaving two.

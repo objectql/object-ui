@@ -16,6 +16,25 @@ const pt = {
       other: 'Outro',
     },
   },
+  // objectui#3546 slice six — o resumo somente leitura das facetas de
+  // autorização de PermissionFacetLink. "aba" como em list.tabs.
+  perm: {
+    facet: {
+      none: "Nenhum",
+      more: "+{{count}} mais",
+      objects: "{{count}} objetos",
+      objects_one: "{{count}} objeto",
+      fields: "{{count}} regras de campo",
+      fields_one: "{{count}} regra de campo",
+      rls: "{{count}} políticas RLS",
+      rls_one: "{{count}} política RLS",
+      tabs: "{{count}} regras de aba",
+      tabs_one: "{{count}} regra de aba",
+      adminScope: "Administração delegada configurada",
+      designInStudio: "Projetar no Studio →",
+      designInStudioHint: "Projetar no Studio",
+    },
+  },
   lookup: {
     recentlyUsed: 'Usados recentemente',
     allResults: 'Todos os resultados',
@@ -2205,6 +2224,14 @@ const pt = {
       publishing: "Publicando…",
       published: "Publicado! Suas alterações estão ativas.",
       publishFailed: "Falha ao publicar",
+      // objectui#3546 slice six — seedWarn reaproveita a tradução de
+      // console.ai.seedWarn (mesma frase em inglês). Marcador "(s)" como em
+      // home.pendingDrafts.message, da mesma família.
+      nothing: "Nada para publicar.",
+      probeWarn: "Publicado, mas a verificação encontrou problemas.",
+      seedWarn: "Publicado, mas alguns dados de exemplo não puderam ser carregados.",
+      publishedVerified: "Publicado e verificado — {{count}} linha(s) de exemplo ativa(s).",
+      capabilityWarn: "Verificação de autoria: {{count}} referência(s) de capacidade não apontam para nada.",
     },
     title: "Início",
     subtitle: "Painel do seu espaço de trabalho",

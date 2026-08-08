@@ -16,6 +16,26 @@ const de = {
       other: 'Andere',
     },
   },
+  // objectui#3546 slice six — die schreibgeschützte Facetten-Zusammenfassung von
+  // PermissionFacetLink. "Registerkarte" (nicht "Tab") für In-App-Reiter, wie in
+  // console.objectView.ufTabs; "Tab" bleibt dem Browser-Tab vorbehalten.
+  perm: {
+    facet: {
+      none: "Keine",
+      more: "+{{count}} weitere",
+      objects: "{{count}} Objekte",
+      objects_one: "{{count}} Objekt",
+      fields: "{{count}} Feldregeln",
+      fields_one: "{{count}} Feldregel",
+      rls: "{{count}} RLS-Richtlinien",
+      rls_one: "{{count}} RLS-Richtlinie",
+      tabs: "{{count}} Registerkarten-Regeln",
+      tabs_one: "{{count}} Registerkarten-Regel",
+      adminScope: "Delegierte Administration konfiguriert",
+      designInStudio: "Im Studio gestalten →",
+      designInStudioHint: "Im Studio gestalten",
+    },
+  },
   lookup: {
     recentlyUsed: 'Zuletzt verwendet',
     allResults: 'Alle Ergebnisse',
@@ -2205,6 +2225,14 @@ const de = {
       publishing: "Wird veröffentlicht…",
       published: "Veröffentlicht! Ihre Änderungen sind live.",
       publishFailed: "Veröffentlichen fehlgeschlagen",
+      // objectui#3546 slice six — seedWarn ist derselbe englische Satz wie
+      // console.ai.seedWarn, also dieselbe Übersetzung. Der "(n)"-Marker folgt
+      // home.pendingDrafts.message ("Änderung(en)") in dieser Familie.
+      nothing: "Nichts zu veröffentlichen.",
+      probeWarn: "Veröffentlicht, aber die Überprüfung hat Probleme gefunden.",
+      seedWarn: "Veröffentlicht, aber einige Beispieldaten konnten nicht geladen werden.",
+      publishedVerified: "Veröffentlicht und geprüft — {{count}} Beispielzeile(n) sind live.",
+      capabilityWarn: "Autorenprüfung: {{count}} Capability-Verweis(e) verweisen ins Leere.",
     },
     title: "Startseite",
     subtitle: "Ihr Arbeitsbereich-Dashboard",

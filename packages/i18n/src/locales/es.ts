@@ -16,6 +16,25 @@ const es = {
       other: 'Otro',
     },
   },
+  // objectui#3546 slice six — el resumen de solo lectura de las facetas de
+  // autorización de PermissionFacetLink. "pestaña" como en list.tabs.
+  perm: {
+    facet: {
+      none: "Ninguno",
+      more: "+{{count}} más",
+      objects: "{{count}} objetos",
+      objects_one: "{{count}} objeto",
+      fields: "{{count}} reglas de campo",
+      fields_one: "{{count}} regla de campo",
+      rls: "{{count}} políticas RLS",
+      rls_one: "{{count}} política RLS",
+      tabs: "{{count}} reglas de pestaña",
+      tabs_one: "{{count}} regla de pestaña",
+      adminScope: "Administración delegada configurada",
+      designInStudio: "Diseñar en Studio →",
+      designInStudioHint: "Diseñar en Studio",
+    },
+  },
   lookup: {
     recentlyUsed: 'Usados recientemente',
     allResults: 'Todos los resultados',
@@ -2210,6 +2229,14 @@ const es = {
       publishing: "Publicando…",
       published: "¡Publicado! Sus cambios están activos.",
       publishFailed: "Error al publicar",
+      // objectui#3546 slice six — seedWarn reutiliza la traducción de
+      // console.ai.seedWarn (misma frase en inglés). Marcador "(s)" como en
+      // home.pendingDrafts.message, de esta misma familia.
+      nothing: "Nada que publicar.",
+      probeWarn: "Publicado, pero la verificación encontró problemas.",
+      seedWarn: "Publicado, pero no se pudieron cargar algunos datos de ejemplo.",
+      publishedVerified: "Publicado y verificado — {{count}} fila(s) de ejemplo activa(s).",
+      capabilityWarn: "Comprobación de autoría: {{count}} referencia(s) de capacidad no apuntan a nada.",
     },
     title: "Inicio",
     subtitle: "Panel de tu espacio de trabajo",

@@ -16,6 +16,26 @@ const ko = {
       other: '기타',
     },
   },
+  // objectui#3546 slice six — PermissionFacetLink 의 권한 파셋 요약.
+  // 수량 라벨은 appDesigner.objectManager.fieldCount 와 같은 "{{count}}개 + 단위" 형식.
+  // 한국어에는 단수/복수 구분이 없어 `_one` 은 기본 키와 같은 값(의도적).
+  perm: {
+    facet: {
+      none: "없음",
+      more: "+{{count}} 더보기",
+      objects: "{{count}}개 오브젝트",
+      objects_one: "{{count}}개 오브젝트",
+      fields: "{{count}}개 필드 규칙",
+      fields_one: "{{count}}개 필드 규칙",
+      rls: "{{count}}개 RLS 정책",
+      rls_one: "{{count}}개 RLS 정책",
+      tabs: "{{count}}개 탭 규칙",
+      tabs_one: "{{count}}개 탭 규칙",
+      adminScope: "위임 관리가 구성됨",
+      designInStudio: "Studio에서 디자인 →",
+      designInStudioHint: "Studio에서 디자인",
+    },
+  },
   lookup: {
     recentlyUsed: '최근 사용',
     allResults: '모든 결과',
@@ -2205,6 +2225,13 @@ const ko = {
       publishing: "게시하는 중…",
       published: "게시했습니다! 변경 사항이 반영되었습니다.",
       publishFailed: "게시에 실패했습니다",
+      // objectui#3546 slice six — seedWarn 은 console.ai.seedWarn 과 영문이 같아
+      // 기존 번역을 그대로 재사용.
+      nothing: "게시할 내용이 없습니다.",
+      probeWarn: "게시했지만 검증에서 문제를 발견했습니다.",
+      seedWarn: "게시했지만 일부 샘플 데이터를 불러오지 못했습니다.",
+      publishedVerified: "게시 및 검증 완료 — 샘플 데이터 {{count}}개 행이 반영되었습니다.",
+      capabilityWarn: "작성 검사: 기능 권한 참조 {{count}}개가 아무것도 가리키지 않습니다.",
     },
     title: "홈",
     subtitle: "워크스페이스 대시보드",

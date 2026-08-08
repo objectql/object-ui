@@ -16,6 +16,26 @@ const fr = {
       other: 'Autre',
     },
   },
+  // objectui#3546 slice six — le résumé en lecture seule des facettes
+  // d'autorisation de PermissionFacetLink. Apostrophe droite U+0027 comme dans
+  // le reste du paquet, et espace avant les deux-points.
+  perm: {
+    facet: {
+      none: "Aucun",
+      more: "+{{count}} de plus",
+      objects: "{{count}} objets",
+      objects_one: "{{count}} objet",
+      fields: "{{count}} règles de champ",
+      fields_one: "{{count}} règle de champ",
+      rls: "{{count}} politiques RLS",
+      rls_one: "{{count}} politique RLS",
+      tabs: "{{count}} règles d'onglet",
+      tabs_one: "{{count}} règle d'onglet",
+      adminScope: "Administration déléguée configurée",
+      designInStudio: "Concevoir dans Studio →",
+      designInStudioHint: "Concevoir dans Studio",
+    },
+  },
   lookup: {
     recentlyUsed: 'Récemment utilisés',
     allResults: 'Tous les résultats',
@@ -2205,6 +2225,14 @@ const fr = {
       publishing: "Publication…",
       published: "Publié ! Vos modifications sont actives.",
       publishFailed: "Échec de la publication",
+      // objectui#3546 slice six — seedWarn reprend mot pour mot la traduction de
+      // console.ai.seedWarn (même phrase anglaise). Marqueur "(s)" comme
+      // home.pendingDrafts.message dans cette même famille.
+      nothing: "Rien à publier.",
+      probeWarn: "Publié, mais la vérification a détecté des problèmes.",
+      seedWarn: "Publié, mais certaines données d'exemple n'ont pas pu être chargées.",
+      publishedVerified: "Publié et vérifié — {{count}} ligne(s) d'exemple active(s).",
+      capabilityWarn: "Contrôle de conception : {{count}} référence(s) de capacité ne mènent à rien.",
     },
     title: "Accueil",
     subtitle: "Tableau de bord de votre espace de travail",
