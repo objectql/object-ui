@@ -4,20 +4,38 @@
  * Zero-app console: the `component/metadata/*` destinations must resolve, and
  * anything unmatched must say so (objectui#3610).
  *
- * ## The defect
+ * ## The defect, as it stood at objectui#3610
  *
- * With zero published apps, the system fallback sidebar offers two entries that
- * both land inside `AppContent`'s no-`activeApp` branch:
+ * With zero published apps, the system fallback sidebar offered two entries
+ * that both landed inside `AppContent`'s no-`activeApp` branch:
  *
  *     sys-datasources -> /apps/setup/component/metadata/resource?type=datasource
  *     sys-objects     -> /apps/setup/system/metadata/object
  *
- * `isMetadataRoute` is a substring test (`pathname.includes('/metadata')`), so
- * both URLs pass the "no apps configured" guard and enter the no-`activeApp`
- * `<Routes>`. That branch declared `create-app`, `system/marketplace*` and
- * `metadata*` only — no `component/…` at all — and, unlike the with-`activeApp`
- * branch, no trailing `path="*"`. A `<Routes>` with no match renders `null`:
- * a fully blank screen, no 404, no error, no empty state.
+ * `isMetadataRoute` was a substring test (`pathname.includes('/metadata')`) at
+ * the time, so both URLs passed the "no apps configured" guard and entered the
+ * no-`activeApp` `<Routes>`. That branch declared `create-app`,
+ * `system/marketplace*` and `metadata*` only — no `component/…` at all — and,
+ * unlike the with-`activeApp` branch, no trailing `path="*"`. A `<Routes>` with
+ * no match renders `null`: a fully blank screen, no 404, no error, no empty
+ * state.
+ *
+ * ## What those two URLs are NOW (objectui#3660, #3739)
+ *
+ * Neither is anybody's navigation target any more. Both sidebar entries name
+ * the metadata-admin engine's canonical routes directly — `sys-datasources` ->
+ * `/apps/setup/metadata/datasource` (#3660), `sys-objects` ->
+ * `/apps/setup/metadata/object` (#3739) — as does the home QuickActions
+ * "Manage Objects" card. The two spellings above are ARRIVALS: bookmarks,
+ * external links, and, for the `system/metadata/:type` one, the host
+ * fragment's own alias route, which stays declared for exactly those.
+ *
+ * That is why this file still measures them, and why the `it` titles below name
+ * the alias URL and its rewriter rather than the sidebar entry that used to
+ * emit it: what is under test is that each alias still RESOLVES out of the
+ * zero-app branch, and still costs exactly one hop. `isMetadataRoute` is a
+ * segment test since #3638 (`pathSegments.includes('metadata')`), under which
+ * every URL here stays true.
  *
  * ## Which spelling is canonical — MEASURED, and the opposite of the guess
  *
@@ -49,17 +67,18 @@
  * `apps/console/src/AppContent.tsx` (`systemRoutes` + its `MetadataRedirect`).
  * app-shell cannot import from `apps/` — a different Vitest project — so the
  * rewrite is copied verbatim, including its `prefix` regex, and this comment is
- * the pointer back to the original. It is the `sys-objects` leg of the chain:
- * without it that URL's route into this branch is invisible here.
+ * the pointer back to the original. It is the `system/metadata/:type` leg of
+ * the chain: without it that URL's route into this branch is invisible here.
  *
  * ## Why the chain, not just the endpoint (objectui#3661)
  *
  * A transcription can go stale, and this one did. objectui#3658 re-pointed the
  * host straight at the canonical routes; the copy here kept emitting the
- * deprecated alias, so the `sys-objects` case went on measuring a two-hop chain
- * that production had stopped producing. Nothing went red — the assertions
- * pinned only the final pathname, and that is identical either way. Green, for
- * a reason that no longer had anything to do with the code under test.
+ * deprecated alias, so the `system/metadata/object` case went on measuring a
+ * two-hop chain that production had stopped producing. Nothing went red — the
+ * assertions pinned only the final pathname, and that is identical either way.
+ * Green, for a reason that no longer had anything to do with the code under
+ * test.
  *
  * So `renderConsoleAt` now returns every location the router settles on, and
  * all four redirect cases assert that list exactly. A stub that drifts back
@@ -265,15 +284,18 @@ describe('AppContent — zero-app component/metadata destinations (objectui#3610
     vi.clearAllMocks();
   });
 
-  it('sys-datasources: /apps/setup/component/metadata/resource?type=datasource renders the resource page', async () => {
+  it('shell alias: /apps/setup/component/metadata/resource?type=datasource resolves in the zero-app branch and hops ONCE to the canonical page', async () => {
     // The white screen this issue is about. The URL passes `isMetadataRoute`
-    // (substring `/metadata`) and so enters the no-`activeApp` branch, which
-    // used to declare nothing matching `component/…` and had no catch-all.
+    // (a `metadata` path segment; a substring test until #3638) and so enters
+    // the no-`activeApp` branch, which used to declare nothing matching
+    // `component/…` and had no catch-all.
     //
     // Unlike the two host-rewrite cases below, the alias here is the ENTRY, not
-    // an intermediate stop — the zero-app fallback sidebar's `sys-datasources`
-    // item still points straight at this spelling, so this chain is one this
-    // deployment really produces.
+    // an intermediate stop: nothing rewrites it on the way in, so this branch's
+    // own route table is the whole story. The `sys-datasources` sidebar item is
+    // what emitted it at #3610; since #3660 that item names the canonical route
+    // and this spelling arrives from bookmarks and external links instead —
+    // which is precisely why the redirect has to keep working.
     const chain = renderConsoleAt('/apps/setup/component/metadata/resource?type=datasource');
 
     const page = await screen.findByTestId('metadata-resource-list-page');
@@ -294,17 +316,20 @@ describe('AppContent — zero-app component/metadata destinations (objectui#3610
     expect(screen.queryByTestId('root-landing')).not.toBeInTheDocument();
   });
 
-  it('sys-objects: /apps/setup/system/metadata/object reaches this branch\'s metadata/:type in ONE hop', async () => {
+  it('host alias: /apps/setup/system/metadata/object reaches this branch\'s metadata/:type in ONE hop', async () => {
     // The non-obvious half, pinned on its own because it would regress
     // silently: this URL is rewritten by the HOST (`MetadataRedirect`) onto the
     // canonical route, which the zero-app branch declares itself. Two route
     // tables, one redirect, zero apps.
     //
     // It used to be two redirects — the host aimed at the legacy alias and the
-    // shell forwarded that on. objectui#3658 removed the middle stop; this case
-    // now measures what production actually does, and objectui#3661 is what it
-    // cost to notice that it had stopped doing so (the endpoint never moved, so
-    // nothing failed).
+    // shell forwarded that on. objectui#3658 removed the middle stop, and
+    // objectui#3661 is what it cost to notice that the transcribed stub had not
+    // followed (the endpoint never moved, so nothing failed). Since #3739 no
+    // click in this repo emits this URL either — `sys-objects` and the home
+    // "Manage Objects" card name the canonical route — so what is pinned here
+    // is the arrival path the host still declares for bookmarks and external
+    // links.
     const chain = renderConsoleAt('/apps/setup/system/metadata/object');
 
     const page = await screen.findByTestId('metadata-resource-list-page');

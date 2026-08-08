@@ -655,9 +655,12 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
               every one of them rendered a blank screen. #3610 mirrored the
               routes rather than re-point that navigation, because inventing a
               zero-app-only spelling would have given the alias a second
-              canonical destination. #3660 re-pointed it anyway — at the shared
-              `metadata/:type` routes above, so no second spelling was created —
-              which leaves these two serving bookmarks and external links, the
+              canonical destination. #3660 re-pointed `sys-datasources` anyway —
+              at the shared `metadata/:type` routes above, so no second spelling
+              was created — and #3739 did the same for `sys-objects` and the
+              home "Manage Objects" card, whose chain had already left these two
+              routes at #3658, when the host stopped rewriting onto the alias.
+              What is left for these two is bookmarks and external links: the
               arrivals that can never be re-pointed. */}
           <Route path="component/metadata/directory" element={<LegacyMetadataRedirect mode="directory" />} />
           <Route path="component/metadata/resource/*" element={<LegacyMetadataRedirect mode="resource" />} />

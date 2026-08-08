@@ -38,13 +38,26 @@
  *                                               metadata,metadata/:type,metadata/:type/:name}`
  *                                              (`developer/*` and `docs/*` are in the same
  *                                               fragment but flip NO flag — pinned below)
- *   navigation      AppSidebar / UnifiedSidebar `/apps/setup/system{,/apps,/marketplace,
- *                                               /metadata/object,/users,/organizations,
- *                                               /roles,/settings}`
- *                                              `/apps/setup/component/metadata/resource?type=`
- *                   QuickActions / HomePage /   `/apps/setup/system/{metadata/object,marketplace,
- *                   InboxPopover                approvals}`
+ *   navigation      AppSidebar / UnifiedSidebar `/apps/setup/system{,/apps,/marketplace,/users,
+ *                                               /organizations,/roles,/settings}`
+ *                                              `/apps/setup/metadata/{object,datasource}`
+ *                   QuickActions                `/apps/setup/metadata/object`, `/apps/setup/system`
+ *                   HomePage / InboxPopover     `/apps/setup/system/{marketplace,approvals}`
  *                   SystemRedirect (#3637)      bare `/system` -> `/apps/setup/system`
+ *
+ * The metadata-admin entries moved after #3638 landed: the sidebars'
+ * `sys-objects` / `sys-datasources` items and the QuickActions "Manage Objects"
+ * card once spelled `…/system/metadata/object` and
+ * `…/component/metadata/resource?type=datasource`; #3739 and #3660 re-pointed
+ * all three at the engine's canonical `…/metadata/:type` routes. Those two
+ * older spellings are still in this input surface, as ARRIVALS rather than
+ * emissions — declared in the two rows above
+ * (`component/metadata/{directory,resource/*}` in the shell,
+ * `system/metadata{,/:type}` in the host) and reached from bookmarks and
+ * external links. `metadata` is a whole path segment either way, so the claim
+ * below is indifferent to the move; the `navigation` row is re-read here
+ * because a producer list naming URLs nothing emits any more is the stale
+ * pointer objectui#3661 was paid for.
  *
  * In EVERY one of them `system` / `metadata` is a whole path segment, so a
  * segment test keeps all of them true. That is the claim this file's first two
