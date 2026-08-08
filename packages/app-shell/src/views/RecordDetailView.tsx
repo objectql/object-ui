@@ -364,6 +364,26 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   const notifyRecordChanged = useCallback(() => {
     if (objectName) notifyDataChanged({ objectName, recordId: pureRecordId || undefined });
   }, [objectName, pureRecordId]);
+  // Manual refresh (objectui#3460) — the producer for `RecordContext.refresh`,
+  // which `page:header` turns into the ⟳ button at the end of the header row.
+  //
+  // Scope is deliberately `'*'`, not this record: the reason a user reaches for
+  // refresh is a write made by SOMEONE ELSE (another operator started the work
+  // order, a child row got reported) — a write this client never saw, so it
+  // cannot know which objects it touched. `'*'` treats everything mounted as
+  // stale, so the main record, every related child list and the tab-count
+  // badges all refetch in place over the #2269 bus: no remount, so tab /
+  // scroll / in-progress inline-edit state all survive.
+  const handleManualRefresh = useCallback(() => {
+    notifyDataChanged({ objectName: '*' });
+  }, []);
+  // First phase covers the standalone record ROUTE only. Embedded hosts — the
+  // list drawer and the split-pane preview (ObjectView / ObjectDataPage /
+  // InterfaceListPage all mount this same view with `embedded`) — wrap it in
+  // overlay chrome that already owns its own controls, and the #3460 ruling
+  // keeps ⟳ off those surfaces for now. `undefined` is the opt-out
+  // `page:header` reads, so nothing renders there.
+  const headerRefresh = embedded ? undefined : handleManualRefresh;
 
   // Record-scoped presence ("who else is viewing this record"). The default
   // PresenceProvider source is a no-op, so this resolves to `[]` until a
@@ -2110,6 +2130,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         objectSchema={objectDef}
         dataSource={dataSource}
         embedded={embedded}
+        refresh={headerRefresh}
         headerSystemActions={synthSystemActions}
         isFavorite={isRecordFavorite}
         onToggleFavorite={favoriteRecord ? handleToggleRecordFavorite : undefined}

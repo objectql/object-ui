@@ -45,10 +45,26 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from '../../ui';
 import { RecordTitleChip } from '../../custom/RecordTitleChip';
 import { useObjectLabel, useSafeFieldLabel, useObjectTranslation, useSafeTranslate, createSafeTranslation, pickLocalized } from '@object-ui/i18n';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, RefreshCw } from 'lucide-react';
+
+/**
+ * How long the header's manual-refresh icon keeps spinning after a click
+ * (objectui#3460).
+ *
+ * The refresh itself is fire-and-forget — it publishes on the #2269
+ * invalidation bus and every mounted reader refetches in place, so there is no
+ * completion signal to spin until. Against a warm backend the whole round trip
+ * can finish inside one frame, which would render the click as "nothing
+ * happened". This floor makes the click visibly land.
+ */
+const MANUAL_REFRESH_SPIN_MS = 650;
 
 /**
  * Copy for the `page:tabs` count badge (objectstack#5506).
@@ -914,6 +930,31 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   // the SAME key `action:menu`'s overflow trigger already reads, so the two
   // `⋯` buttons a record page can show cannot read differently per locale.
   const tt = useSafeTranslate();
+  // ── Manual refresh (objectui#3460) ────────────────────────────────────────
+  // Rendered as page CHROME at the far end of the header row, NOT as a header
+  // action: business/system actions come and go per object and record state,
+  // while refresh has to sit in the same place on every record page. Keeping it
+  // out of the action pipeline also keeps it out of that pipeline's capability
+  // gating and `maxVisible` overflow budget — reading a record you are already
+  // looking at is not a permissioned operation, and the button must never be
+  // the one that gets collapsed into `⋯`.
+  //
+  // The host opts in by providing `RecordContext.refresh`; hosts that don't
+  // (previews, embedded drawers, non-record pages) render exactly as before.
+  const hostRefresh = ctx?.refresh;
+  const [manualRefreshing, setManualRefreshing] = React.useState(false);
+  const refreshSpinTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  React.useEffect(() => () => clearTimeout(refreshSpinTimer.current), []);
+  const handleManualRefresh = React.useCallback(() => {
+    if (!hostRefresh) return;
+    void hostRefresh();
+    setManualRefreshing(true);
+    clearTimeout(refreshSpinTimer.current);
+    refreshSpinTimer.current = setTimeout(
+      () => setManualRefreshing(false),
+      MANUAL_REFRESH_SPIN_MS,
+    );
+  }, [hostRefresh]);
   // Spec bridge may either inline `properties.*` onto the node or preserve
   // the raw bag (see record:quick_actions for the same pattern). Read from
   // both so a `{ properties: { title } }` schema is rendered correctly.
@@ -1327,6 +1368,60 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     );
   };
 
+  /**
+   * The ⟳ button (objectui#3460), or `null` when the host provides no
+   * `refresh`.
+   *
+   * Styled as the `⋯` overflow trigger's twin — same `outline` variant, same
+   * `size="sm"`, same padding — so the whole row reads as ONE button family
+   * (`[Start][Expedite][Edit][⋯][⟳]`). A bare ghost icon next to a row of
+   * bordered pills read as detached from it.
+   */
+  const renderRefreshButton = (): React.ReactNode => {
+    if (!hostRefresh) return null;
+    const refreshLabel = tt('common.refresh', 'Refresh');
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1 px-2"
+              onClick={handleManualRefresh}
+              aria-label={refreshLabel}
+              data-page-refresh
+            >
+              <RefreshCw className={cn('h-4 w-4', manualRefreshing && 'animate-spin')} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{refreshLabel}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
+
+  /**
+   * The header's trailing slot: the action row (or the empty layout slot that
+   * stands in for it) followed by the refresh chrome.
+   *
+   * Both header layouts below funnel through this so the ⟳ keeps the same
+   * position whether or not the record chip is rendered — including the first
+   * paint of a record page, before `ctx.data` lands. When no host provides
+   * `refresh` the slot is returned untouched, byte for byte what it was.
+   */
+  const renderHeaderTail = (emptySlot: React.ReactNode): React.ReactNode => {
+    const actions = renderHeaderActions() ?? emptySlot;
+    const refreshButton = renderRefreshButton();
+    if (!refreshButton) return actions;
+    return (
+      <div className="flex items-center gap-2 shrink-0">
+        {actions}
+        {refreshButton}
+      </div>
+    );
+  };
+
   // Decide whether to render the record chip. Conditions:
   //   1. There's a live RecordContext with data + an object schema.
   //   2. Author hasn't opted out via `recordChrome: false`.
@@ -1420,7 +1515,7 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
             <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
           )}
         </div>
-        {renderHeaderActions() ?? <div data-page-actions-slot className="shrink-0" />}
+        {renderHeaderTail(<div data-page-actions-slot className="shrink-0" />)}
       </header>
     );
   }
@@ -1442,7 +1537,7 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
           )}
           {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
         </div>
-        {renderHeaderActions() ?? <div data-page-actions-slot />}
+        {renderHeaderTail(<div data-page-actions-slot />)}
       </div>
     </header>
   );

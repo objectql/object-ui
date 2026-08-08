@@ -509,11 +509,18 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   // e.g. a child row action executed through the host retargets `api` and
   // dispatches `objectui:related-changed`. Only meaningful on the auto-fetch
   // path (parent-provided data is refreshed by the parent).
+  //
+  // `'*'` is the invalidation bus's "unknown scope — everything is stale"
+  // wildcard (undo of an unknown operation, the record header's manual ⟳ in
+  // objectui#3460): it must match EVERY list, exactly as `dataChangeMatches` in
+  // `@object-ui/react` already does for the bus's own readers. A concrete
+  // object name still has to be this list's own — a write to some other object
+  // is not a reason to refetch here.
   React.useEffect(() => {
     if (!api || dataProvided) return;
     const onChanged = (ev: Event) => {
       const detail = (ev as CustomEvent).detail || {};
-      if (detail.objectName && detail.objectName !== api) return;
+      if (detail.objectName && detail.objectName !== '*' && detail.objectName !== api) return;
       setRefreshNonce((n) => n + 1);
     };
     window.addEventListener('objectui:related-changed', onChanged as EventListener);
