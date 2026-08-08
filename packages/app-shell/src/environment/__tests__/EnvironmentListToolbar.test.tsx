@@ -32,9 +32,9 @@ import type { EnvironmentEntitlementsState } from '../entitlements';
  * without one would only be asserting the raw key. Pinned to `en` and
  * `detectBrowserLanguage: false` so the expectations stay deterministic.
  */
-const renderToolbar = (ui: React.ReactElement, language = 'en') =>
+const renderToolbar = (ui: React.ReactElement) =>
   render(
-    <I18nProvider config={{ defaultLanguage: language, detectBrowserLanguage: false }}>
+    <I18nProvider config={{ defaultLanguage: 'en', detectBrowserLanguage: false }}>
       {ui}
     </I18nProvider>,
   );
@@ -80,7 +80,6 @@ describe('EnvironmentListToolbar', () => {
     expect(onUpgrade).toHaveBeenCalledTimes(1);
     expect(onUpgrade.mock.calls[0][0]).toMatchObject({ code: 'DEV_ENV_PLAN_LOCKED', cta: { url: '/settings/billing' } });
   });
-
 });
 
 /**
