@@ -669,9 +669,13 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     const measureColumns = values.flatMap((m) =>
       comparedValues.includes(m) ? [m, compareColumn(m)] : [m],
     );
-    // The cross-tab does not spread comparison columns (that would key every
-    // cell by bucket × measure × window); its export stays the plain grid.
-    const exportColumns = [...dimensions, ...(isMatrix ? values : measureColumns)];
+    // The cross-tab exports its comparison columns too (objectui#3614), even
+    // though its DISPLAY stacks them inside the cell: a CSV is data, not a
+    // picture of the table. So each compared measure keeps its own flat
+    // `<measure>__compare` column here and every exported cell stays the bare
+    // number a spreadsheet can compute on — serializing the stacked cell would
+    // emit strings like "$120 $100 20%", which is a screenshot in CSV clothing.
+    const exportColumns = [...dimensions, ...measureColumns];
     const exportCsv = () => downloadCsv(String(widget?.title ?? datasetName ?? 'export'), [
       exportColumns.map((c) => columnLabel(c)),
       ...state.rows.map((r) => exportColumns.map((c) => {
@@ -705,6 +709,76 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
         values.map((m) => ({ col, measure: m, header: values.length === 1 ? col.label : `${col.label} · ${headerLabel(m)}` })),
       );
       const fmtMeasure = (v: unknown, m: string) => formatMeasure(v, measureField(m)?.format, measureField(m)?.currency, measureField(m)?.percentScale);
+      // ── The comparison, stacked inside the cell (objectui#3614) ───────────
+      // A cross-tab's columns are already `bucket × measure`; giving the
+      // comparison a column of its own would make them `bucket × measure ×
+      // window` — twice the width and a third header level — on the one widget
+      // family whose width is already the scarce resource. So the comparison
+      // stacks INSIDE the cell instead: the current value on top, the
+      // comparison value and its delta beneath in smaller type. Column
+      // structure, header depth and the row/column subtotal correspondence all
+      // stay exactly as they were.
+      //
+      // Presence is read from the DATA — the `<measure>__compare` column the
+      // executor attaches — via the same `comparedValues` the KPI, flat-table
+      // and chart paths read, so there is no widget flag to set and a pivot the
+      // executor sent no comparison for renders exactly as it did before.
+      //
+      // Subtotals get the same treatment as data cells, deliberately: a Total
+      // column that alone showed no comparison reads as "this row has none",
+      // which is a different — and false — statement.
+      const compareStack = (row: Row | undefined, measure: string) => {
+        if (!comparedValues.includes(measure)) return null;
+        const previous = row?.[compareColumn(measure)];
+        if (previous == null) return null;
+        const current = row?.[measure];
+        // The SAME delta helper the KPI path uses, so a dataset KPI and a
+        // cross-tab cell over the same two windows agree on sign and rounding
+        // instead of each rolling their own percentage.
+        const delta = computeMetricDelta(
+          typeof current === 'number' ? current : null,
+          typeof previous === 'number' ? previous : null,
+        );
+        return (
+          <div
+            className="flex items-center justify-end gap-1 text-[10px] font-normal leading-tight text-muted-foreground"
+            data-testid="matrix-cell-compare"
+            data-direction={delta?.direction}
+            title={compareLabel}
+          >
+            {/* A comparison is the same measure over an earlier window, so it
+                carries that measure's own format — never a bare number. */}
+            <span className="tabular-nums">{fmtMeasure(previous, measure)}</span>
+            {delta && (
+              <span
+                className={cn(
+                  'flex shrink-0 items-center tabular-nums font-medium',
+                  delta.direction === 'up' && 'text-emerald-600 dark:text-emerald-400',
+                  delta.direction === 'down' && 'text-rose-600 dark:text-rose-400',
+                )}
+              >
+                {delta.direction === 'up' && <ArrowUpIcon className="h-2.5 w-2.5" />}
+                {delta.direction === 'down' && <ArrowDownIcon className="h-2.5 w-2.5" />}
+                {delta.direction === 'neutral' && <MinusIcon className="h-2.5 w-2.5" />}
+                {delta.value}%
+              </span>
+            )}
+          </div>
+        );
+      };
+      // One caption names the comparison window for the whole table. The
+      // stacked numbers are otherwise unlabeled, and repeating "vs last year"
+      // in every cell would drown the grid it annotates. The flat table
+      // qualifies its comparison COLUMN header instead; a cross-tab has no
+      // per-window header to qualify, which is exactly what stacking traded.
+      const compareCaption = comparedValues.length > 0 ? (
+        <caption
+          className="px-2 pb-1 text-left text-[10px] font-normal text-muted-foreground"
+          data-testid="matrix-compare-caption"
+        >
+          {compareLabel}
+        </caption>
+      ) : null;
       // Server-supplied marginal totals (ADR-0021): match each grouping by its
       // dimension array, then its rows to the pivot headers via the same bucket
       // ids. Absent (older server) → maps stay empty and no totals UI renders.
@@ -721,6 +795,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
       return (
         <div className="relative h-full w-full overflow-auto p-1" data-testid="dataset-matrix">{exportBtn}
           <table className="w-full text-xs">
+            {compareCaption}
             <thead className="bg-muted/40">
               <tr>
                 {rowDims.map((d) => (
@@ -755,14 +830,19 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
                         onClick={clickable ? () => openDrill(index as number, title) : undefined}
                       >
                         {fr ? fmtMeasure(fr[cc.measure], cc.measure) : '—'}
+                        {compareStack(fr, cc.measure)}
                       </td>
                     );
                   })}
-                  {showTotalCol && values.map((m) => (
-                    <td key={`total-${m}`} className="px-2 py-1 text-right tabular-nums whitespace-nowrap font-medium" data-testid="matrix-row-total">
-                      {fmtMeasure(rowTotalById.get(rh.id)?.[m], m)}
-                    </td>
-                  ))}
+                  {showTotalCol && values.map((m) => {
+                    const rowTotal = rowTotalById.get(rh.id);
+                    return (
+                      <td key={`total-${m}`} className="px-2 py-1 text-right tabular-nums whitespace-nowrap font-medium" data-testid="matrix-row-total">
+                        {fmtMeasure(rowTotal?.[m], m)}
+                        {compareStack(rowTotal, m)}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
               {showTotalRow && (
@@ -770,14 +850,19 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
                   {rowDims.length > 0 && (
                     <td colSpan={rowDims.length} className="px-2 py-1 whitespace-nowrap">{totalLabel}</td>
                   )}
-                  {cellCols.map((cc) => (
-                    <td key={`${cc.col.id}-${cc.measure}`} className="px-2 py-1 text-right tabular-nums whitespace-nowrap">
-                      {fmtMeasure(colTotalById.get(cc.col.id)?.[cc.measure], cc.measure)}
-                    </td>
-                  ))}
+                  {cellCols.map((cc) => {
+                    const colTotal = colTotalById.get(cc.col.id);
+                    return (
+                      <td key={`${cc.col.id}-${cc.measure}`} className="px-2 py-1 text-right tabular-nums whitespace-nowrap">
+                        {fmtMeasure(colTotal?.[cc.measure], cc.measure)}
+                        {compareStack(colTotal, cc.measure)}
+                      </td>
+                    );
+                  })}
                   {showTotalCol && values.map((m) => (
                     <td key={`grand-${m}`} className="px-2 py-1 text-right tabular-nums whitespace-nowrap" data-testid="matrix-grand-total">
                       {fmtMeasure(grandTotal?.[m], m)}
+                      {compareStack(grandTotal, m)}
                     </td>
                   ))}
                 </tr>

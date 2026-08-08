@@ -16,7 +16,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, waitFor, within, fireEvent } from '@testing-library/react';
 
 let lastChartSchema: any = null;
 
@@ -321,5 +321,206 @@ describe('DatasetWidget — showing the comparison the executor returned', () =>
     await waitFor(() => expect(lastChartSchema).not.toBeNull());
     expect(lastChartSchema.series).toHaveLength(1);
     expect(lastChartSchema.series[0].variant).toBeUndefined();
+  });
+});
+
+/**
+ * objectui#3614 — the cross-tab was the one render path PR #3612 left out, so a
+ * `type: 'pivot'` widget with ≥2 dimensions ran a correct comparison query,
+ * received the `<measure>__compare` columns, and showed none of them.
+ *
+ * Maintainer ruling 2026-08-07 chose **form 2, in-cell stacking**: the columns
+ * stay `bucket × measure` (a comparison column would make them
+ * `bucket × measure × window`), the comparison rides underneath the value in
+ * smaller type, all three subtotals get the same treatment, and the CSV export
+ * stays DATA-shaped — flat `<measure>__compare` columns, never a stacked
+ * string. These tests pin all four.
+ */
+const PIVOT_FIELDS = [
+  { name: 'status', type: 'string', label: 'Status' },
+  { name: 'priority', type: 'string', label: 'Priority' },
+  { name: 'amount', type: 'number', label: 'Amount', format: '$0,0' },
+  { name: 'amount__compare', type: 'number' },
+];
+
+/**
+ * Open/High rises (120 vs 100), Open/Low falls (30 vs 60), Done/High is flat
+ * (200 vs 200) and Done/Low has no row at all — one fixture covering every
+ * direction `computeMetricDelta` can return plus the empty cell. Subtotals are
+ * the SERVER's aggregates (ADR-0021), comparison included, and deliberately not
+ * re-derivable from the cells: 150/160, 200/200, 320/300, 30/60, 350/360.
+ */
+const comparedPivotResult = {
+  rows: [
+    { status: 'Open', priority: 'High', amount: 120, amount__compare: 100 },
+    { status: 'Open', priority: 'Low', amount: 30, amount__compare: 60 },
+    { status: 'Done', priority: 'High', amount: 200, amount__compare: 200 },
+  ],
+  fields: PIVOT_FIELDS,
+  totals: [
+    { dimensions: ['status'], rows: [
+      { status: 'Open', amount: 150, amount__compare: 160 },
+      { status: 'Done', amount: 200, amount__compare: 200 },
+    ] },
+    { dimensions: ['priority'], rows: [
+      { priority: 'High', amount: 320, amount__compare: 300 },
+      { priority: 'Low', amount: 30, amount__compare: 60 },
+    ] },
+    { dimensions: [], rows: [{ amount: 350, amount__compare: 360 }] },
+  ],
+};
+
+const pivotWidget = (extra: Record<string, unknown> = {}) => ({
+  type: 'pivot', dataset: 'deals', dimensions: ['status', 'priority'], values: ['amount'],
+  filter: { ...Q2 }, title: 'Deals',
+  ...extra,
+});
+
+/** The row whose first cell reads `label`, as a live element. */
+const rowOf = (matrix: HTMLElement, label: string) =>
+  within(matrix).getByText(label).closest('tr') as HTMLElement;
+const cellsOf = (row: HTMLElement) => [...row.querySelectorAll('td')] as HTMLElement[];
+
+describe('DatasetWidget — the cross-tab’s in-cell comparison (#3614)', () => {
+  it('stacks the comparison value + delta under each cross-tab cell', async () => {
+    const src = makeSource(async () => comparedPivotResult);
+    render(<DatasetWidget widget={pivotWidget({ compareTo: { kind: 'previousYear' } })} dataSource={src} />);
+    const m = await screen.findByTestId('dataset-matrix');
+
+    // Columns are still bucket × measure — the ruling's whole point. Two
+    // buckets (High, Low) + one Total column, no third header level.
+    expect(within(m).getAllByRole('columnheader').map((h) => h.textContent))
+      .toEqual(['Status', 'High', 'Low', 'Total']);
+
+    const cells = cellsOf(rowOf(m, 'Open'));
+    const rising = within(cells[1]).getByTestId('matrix-cell-compare');
+    // The current value stays the cell's own top line; the comparison is a
+    // separate node under it, NOT concatenated into the value.
+    expect(cells[1].textContent?.replace(rising.textContent ?? '', '')).toBe('$120');
+    // The comparison carries the base measure's format ($0,0) — it is the same
+    // measure over an earlier window, so "$100", never a bare 100.
+    expect(rising).toHaveTextContent('$100');
+    expect(rising).toHaveTextContent('20%');
+    expect(rising).toHaveAttribute('data-direction', 'up');
+    // The window is named once per table (caption), and on the stack itself for
+    // hover — the cross-tab has no per-window column header to qualify.
+    expect(rising.getAttribute('title')).toMatch(/vs last year/i);
+    expect(within(m).getByTestId('matrix-compare-caption').textContent).toMatch(/vs last year/i);
+
+    // A fall and a flat cell — same delta helper as the KPI path, so the sign
+    // and rounding come from one place.
+    const falling = within(cells[2]).getByTestId('matrix-cell-compare');
+    expect(falling).toHaveTextContent('$60');
+    expect(falling).toHaveTextContent('50%');
+    expect(falling).toHaveAttribute('data-direction', 'down');
+
+    const doneCells = cellsOf(rowOf(m, 'Done'));
+    expect(within(doneCells[1]).getByTestId('matrix-cell-compare')).toHaveAttribute('data-direction', 'neutral');
+    // Done/Low has no row: an empty cell gains no comparison out of nowhere.
+    expect(doneCells[2].textContent).toBe('—');
+    expect(within(doneCells[2]).queryByTestId('matrix-cell-compare')).not.toBeInTheDocument();
+  });
+
+  it('stacks the comparison in the row, column and grand subtotals too', async () => {
+    const src = makeSource(async () => comparedPivotResult);
+    render(<DatasetWidget widget={pivotWidget({ compareTo: { kind: 'previousYear' } })} dataSource={src} />);
+    const m = await screen.findByTestId('dataset-matrix');
+
+    // Row subtotals (Open 150 vs 160 → down 6%, Done 200 vs 200 → flat).
+    const rowTotals = within(m).getAllByTestId('matrix-row-total');
+    expect(rowTotals.map((t) => within(t).getByTestId('matrix-cell-compare').textContent))
+      .toEqual(['$1606%', '$2000%']);
+    expect(within(rowTotals[0]).getByTestId('matrix-cell-compare')).toHaveAttribute('data-direction', 'down');
+
+    // Column subtotals live in the Total row, before the grand total.
+    const totalRow = within(m).getByTestId('matrix-total-row');
+    const colTotals = cellsOf(totalRow).slice(1, 3);
+    expect(colTotals.map((t) => within(t).getByTestId('matrix-cell-compare').textContent))
+      .toEqual(['$3007%', '$6050%']);
+
+    // Grand total (350 vs 360 → down 3%).
+    const grand = within(m).getByTestId('matrix-grand-total');
+    expect(grand.textContent).toContain('$350');
+    const grandCompare = within(grand).getByTestId('matrix-cell-compare');
+    expect(grandCompare).toHaveTextContent('$360');
+    expect(grandCompare).toHaveTextContent('3%');
+    expect(grandCompare).toHaveAttribute('data-direction', 'down');
+  });
+
+  it('exports FLAT metric__compare columns — the CSV is data, not the stacked cell', async () => {
+    const origCreate = URL.createObjectURL;
+    const origRevoke = URL.revokeObjectURL;
+    const blobs: any[] = [];
+    (URL as any).createObjectURL = (b: any) => { blobs.push(b); return 'blob:x'; };
+    (URL as any).revokeObjectURL = () => {};
+    try {
+      const src = makeSource(async () => comparedPivotResult);
+      render(<DatasetWidget widget={pivotWidget({ compareTo: { kind: 'previousYear' } })} dataSource={src} />);
+      fireEvent.click(await screen.findByTestId('dataset-export'));
+      expect(blobs).toHaveLength(1);
+      const text: string = await blobs[0].text();
+
+      // One flat column per compared measure, labelled like the flat table's
+      // comparison column header.
+      // downloadCsv prepends a UTF-8 BOM (U+FEFF) so Excel reads non-ASCII
+      // labels; strip it before comparing the header line.
+      const [header, ...body] = text.replace(/^\uFEFF/, '').split('\r\n');
+      expect(header).toBe('Status,Priority,Amount,Amount · vs last year');
+      expect(body).toEqual(['Open,High,120,100', 'Open,Low,30,60', 'Done,High,200,200']);
+      // Not a stacked string anywhere: no display formatting survives into the
+      // data ("$120", "20%"), so a spreadsheet can still compute on it.
+      expect(text).not.toContain('$');
+      expect(text).not.toContain('%');
+    } finally {
+      (URL as any).createObjectURL = origCreate;
+      (URL as any).revokeObjectURL = origRevoke;
+    }
+  });
+
+  // ── Regression pins: nothing appears where no comparison exists ───────────
+  it('renders a pivot WITHOUT compareTo exactly as before', async () => {
+    const src = makeSource(async () => ({
+      rows: [
+        { status: 'Open', priority: 'High', amount: 120 },
+        { status: 'Done', priority: 'High', amount: 200 },
+      ],
+      fields: PIVOT_FIELDS.filter((f) => f.name !== 'amount__compare'),
+      totals: [
+        { dimensions: ['status'], rows: [{ status: 'Open', amount: 120 }, { status: 'Done', amount: 200 }] },
+        { dimensions: ['priority'], rows: [{ priority: 'High', amount: 320 }] },
+        { dimensions: [], rows: [{ amount: 320 }] },
+      ],
+    }));
+    render(<DatasetWidget widget={pivotWidget()} dataSource={src} />);
+    const m = await screen.findByTestId('dataset-matrix');
+    expect(cellsOf(rowOf(m, 'Open')).map((c) => c.textContent)).toEqual(['Open', '$120', '$120']);
+    expect(cellsOf(within(m).getByTestId('matrix-total-row')).map((c) => c.textContent))
+      .toEqual(['Total', '$320', '$320']);
+    expect(within(m).queryAllByTestId('matrix-cell-compare')).toHaveLength(0);
+    expect(within(m).queryByTestId('matrix-compare-caption')).not.toBeInTheDocument();
+  });
+
+  it('stacks nothing when compareTo is set but the executor attached no comparison', async () => {
+    const src = makeSource(async () => ({
+      rows: [{ status: 'Open', priority: 'High', amount: 120 }],
+      fields: PIVOT_FIELDS.filter((f) => f.name !== 'amount__compare'),
+    }));
+    render(<DatasetWidget widget={pivotWidget({ compareTo: { kind: 'previousYear' } })} dataSource={src} />);
+    const m = await screen.findByTestId('dataset-matrix');
+    expect(within(m).getByText('$120')).toBeInTheDocument();
+    expect(within(m).queryAllByTestId('matrix-cell-compare')).toHaveLength(0);
+    expect(within(m).queryByTestId('matrix-compare-caption')).not.toBeInTheDocument();
+  });
+
+  it('stacks nothing for __compare columns the widget never asked to compare', async () => {
+    // Detection is data-driven but still gated on `compareTo` (the same gate the
+    // KPI / flat-table / chart paths use): a stray `<measure>__compare` column
+    // in the result is not a comparison this widget asked for, and rendering it
+    // would put an unexplained second number in every cell.
+    const src = makeSource(async () => comparedPivotResult);
+    render(<DatasetWidget widget={pivotWidget()} dataSource={src} />);
+    const m = await screen.findByTestId('dataset-matrix');
+    expect(within(m).queryAllByTestId('matrix-cell-compare')).toHaveLength(0);
+    expect(within(m).queryByTestId('matrix-compare-caption')).not.toBeInTheDocument();
   });
 });

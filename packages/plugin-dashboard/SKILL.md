@@ -14,7 +14,7 @@ table, pivot, etc.) with drag/resize, drill-down, and async data binding.
 
 ## Period-over-period comparison (`compareTo`)
 
-Any dataset-bound widget (metric / gauge / chart / table) can opt into a
+Any dataset-bound widget (metric / gauge / chart / table / pivot) can opt into a
 period-over-period comparison by adding a `compareTo` field. The dataset
 executor re-runs the same selection over the shifted window and attaches a
 `<measure>__compare` column to each row, which the widget shows as:
@@ -25,6 +25,21 @@ executor re-runs the same selection over the shifted window and attaches a
   a muted second series (dashed line, lower fill opacity). Pie, donut, and
   funnel charts ignore `compareTo`.
 - For **table** widgets, a comparison column beside each compared measure.
+- For a **pivot** cross-tab (`type: 'pivot'` with ≥2 dimensions), the comparison
+  is stacked **inside** the cell — current value on top, comparison value and
+  delta beneath in smaller type — because those columns are already
+  `bucket × measure` and a comparison column would double the width. Row,
+  column and grand subtotals stack it the same way, and one caption names the
+  window for the whole table (objectui#3614).
+
+Nothing is opted into per render path: every path detects the comparison from
+the `<measure>__compare` column in the returned data, so a selection the
+executor sent no comparison for renders exactly as it does without `compareTo`.
+
+**CSV export is data, not a picture of the table.** The export always emits a
+flat `<measure>__compare` column per compared measure — including the cross-tab,
+whose display stacks them — so exported cells stay bare numbers a spreadsheet
+can compute on.
 
 ### Accepted value
 
