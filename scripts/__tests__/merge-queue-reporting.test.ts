@@ -60,6 +60,12 @@ const MUST_SUBSCRIBE_MERGE_GROUP = new Map<string, string>([
   ['lint.yml', 'produces Lint — the ESLint error ratchets'],
   ['control-bytes.yml', 'produces Control Byte Scan, one of the two contexts #3523 found safe to require today'],
   ['docs-links.yml', 'produces Internal Docs Link Check, the other one'],
+  [
+    'changeset-presence.yml',
+    'produces Changeset Declaration — added by objectui#3387 with no path filter at all, for the ' +
+      'reason this list exists: it reports on every pull request, so it is requirable, and a ' +
+      'requirable context that skips the queue build stalls it',
+  ],
 ]);
 
 /** Workflows whose path filtering had to move from the trigger into the jobs. */
