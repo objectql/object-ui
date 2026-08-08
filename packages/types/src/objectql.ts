@@ -284,8 +284,34 @@ export interface BulkActionParam {
   required?: boolean;
   /** Default value applied when the dialog opens. */
   default?: unknown;
-  /** Static options for select-style fields. */
-  options?: Array<{ label: string; value: string | number | boolean }>;
+  /**
+   * Static options for select-style fields.
+   *
+   * The ENTRY is open for the same reason this interface is (see the catch-all
+   * at the bottom): `bulkParamToField` spreads each entry into the field
+   * metadata it hands the widget (`{ ...o, value: String(o.value) }`), so every
+   * extra key survives, and the option widgets read `color` / `icon` /
+   * `disabled` / `visibleWhen` beyond the declared pair (`SelectOptionMetadata`
+   * in `./field-types` declares them; `@object-ui/fields` reads them). While
+   * this entry was closed, the type was the ONLY layer rejecting a configuration
+   * the renderer honours — `@objectstack/spec`'s `BulkActionParamSchema` makes
+   * the same entry `.passthrough()` (objectstack#4001) — and an author (an AI
+   * author especially) trusts the type absolutely (objectui#3309).
+   *
+   * Structurally identical to `@object-ui/core`'s `ActionParamOption`
+   * (objectui#3559), deliberately restated inline rather than imported: this
+   * package is the protocol layer and takes no workspace dependency.
+   *
+   * Naming the two keys this layer itself uses and passing the rest through is
+   * NOT an invitation to author new option keys — the authoring gate is the
+   * spec's `SelectOptionSchema`, and it is strict.
+   */
+  options?: Array<{
+    label: string;
+    value: string | number | boolean;
+    /** Extra option config forwarded to the field widget as-is (see above). */
+    [key: string]: unknown;
+  }>;
   /** For lookup widgets — the related object name (e.g. 'user'). */
   object?: string;
   /**
