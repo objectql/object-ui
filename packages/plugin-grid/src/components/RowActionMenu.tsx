@@ -93,6 +93,12 @@ export interface RowActionMenuProps {
    * before the rest fold into the "⋮" overflow menu. Bounds the row's inline
    * width so multiple primary actions (e.g. Open + Upgrade Plan) can't crowd
    * and clip each other in the narrow actions column. Defaults to 1.
+   *
+   * Counts the primaries that actually RENDER for this row, not the ones
+   * declared: a primary suppressed by its own `visible` occupies no slot
+   * (objectui#3762). The bound is a width budget for real buttons, so spending
+   * it on an action that renders nothing helps no layout and hides the row's CTA
+   * behind the "⋮".
    */
   maxInlineActions?: number;
   /**
@@ -207,13 +213,21 @@ export function isCustomRowActionVisible(
 
 /** What this row's action cell will actually render. */
 export interface RowActionMenuPlan {
-  /** Inline `variant:'primary'` buttons surviving their own `visible`. */
+  /**
+   * The `variant:'primary'` actions rendering as inline buttons: the first
+   * `maxInlineActions` primaries that SURVIVE their own `visible` for this row,
+   * in declared order (objectui#3762).
+   */
   inline: RowActionDef[];
   /** The built-in Edit item renders in the menu for this row. */
   edit: boolean;
   /** The built-in Delete item renders in the menu for this row. */
   remove: boolean;
-  /** Menu-bound defs surviving their own `visible`, in declared order. */
+  /**
+   * Menu-bound defs surviving their own `visible`: the surviving primaries that
+   * did not fit an inline slot, then the surviving non-primaries — each group in
+   * declared order, primaries above secondaries as before.
+   */
   custom: RowActionDef[];
   /** Legacy string row actions. Predicate-free, so all of them render. */
   legacy: string[];
@@ -243,18 +257,33 @@ export interface RowActionMenuPlan {
  * (ADR-0066 D4 / framework#3923) happens upstream of this call, on the declared
  * set, so its verdict reaches the guard the same way.
  *
- * Inline slot allocation is deliberately NOT re-derived from visibility: the
- * `maxInlineActions` slice runs on the declared primaries, exactly as before,
- * so a suppressed primary does not promote the next one into its slot. Which
- * items render, and where, is unchanged — only whether the trigger renders.
+ * Inline slot allocation happens HERE, after visibility, and that ordering is
+ * the whole of objectui#3762: an inline slot is spent only on a primary that
+ * actually renders for this row. It used to be sliced off the DECLARED primaries
+ * before any predicate ran, so a suppressed leading primary held a slot that
+ * rendered nothing (`RowActionInlineButton` returned `null` into it) while the
+ * next primary — the one that DID survive — had already been folded into the "⋮".
+ * A row with exactly one visible primary and a budget of one inline button
+ * showed no button and a "⋮" hiding its main CTA. Deciding survival and
+ * placement in one function is also why they cannot drift: there is no second
+ * place that partitions the defs.
  */
 export function planRowActionMenu(input: {
   row: any;
   scope: Record<string, unknown>;
-  /** Primaries occupying the inline slots, already sliced by `maxInlineActions`. */
-  inlineDefs: readonly RowActionDef[];
-  /** Defs bound for the "⋮" menu (folded primaries + non-primaries). */
-  menuDefs: readonly RowActionDef[];
+  /**
+   * The row's action defs in DECLARED order, already capability-gated
+   * (ADR-0066 D4) but NOT partitioned — this function splits primary from
+   * non-primary and allocates the inline slots, because both decisions depend on
+   * which defs survive `visible` (objectui#3762).
+   */
+  actionDefs?: readonly RowActionDef[];
+  /**
+   * Inline-button budget, i.e. how many SURVIVING primaries render inline before
+   * the rest fold into the menu. Defaults to 1, matching
+   * {@link RowActionMenuProps.maxInlineActions}; negative values are clamped to 0.
+   */
+  maxInlineActions?: number;
   /** Legacy string row actions (no predicates). */
   rowActions?: readonly string[];
   canEdit?: boolean;
@@ -266,12 +295,24 @@ export function planRowActionMenu(input: {
   objectFields?: unknown;
 }): RowActionMenuPlan {
   const { row, scope, objectFields } = input;
-  const inline = input.inlineDefs.filter((def) => isCustomRowActionVisible(def, row, scope, objectFields));
   const edit = Boolean(input.canEdit && input.onEdit)
     && isBuiltinRowActionVisible(input.editPredicates, 'edit', row, scope, objectFields);
   const remove = Boolean(input.canDelete && input.onDelete)
     && isBuiltinRowActionVisible(input.deletePredicates, 'delete', row, scope, objectFields);
-  const custom = input.menuDefs.filter((def) => isCustomRowActionVisible(def, row, scope, objectFields));
+  // One `visible` evaluation per def, as before — the partition below is pure
+  // array work on the survivors, so honoring the fix costs nothing extra.
+  const surviving = (input.actionDefs ?? []).filter(
+    (def) => isCustomRowActionVisible(def, row, scope, objectFields),
+  );
+  const survivingPrimaries = surviving.filter((def) => def.variant === 'primary');
+  const inlineBudget = Math.max(0, input.maxInlineActions ?? 1);
+  const inline = survivingPrimaries.slice(0, inlineBudget);
+  const custom = [
+    // Primaries that outran the inline budget stay above the secondaries, the
+    // menu order this surface has always had.
+    ...survivingPrimaries.slice(inlineBudget),
+    ...surviving.filter((def) => def.variant !== 'primary'),
+  ];
   const legacy = [...(input.rowActions ?? [])];
   return {
     inline,
@@ -456,33 +497,22 @@ export const RowActionMenu: React.FC<RowActionMenuProps> = ({
     () => (rowActionDefs ?? []).filter(d => mayInvoke((d as any)?.requiredPermissions)),
     [rowActionDefs, mayInvoke],
   );
-  // Surface `variant: 'primary'` row actions inline (as the row's main CTA);
-  // everything else stays in the "⋮" overflow menu. Only the first
-  // `maxInlineActions` primaries render inline — any extra primaries fold into
-  // the menu (kept above secondary actions) so a row never renders more inline
-  // buttons than the actions column can show, which previously clipped the
-  // leftmost button (e.g. "Open" hidden behind "Upgrade Plan").
-  //
-  // The slice runs on the DECLARED primaries, before any `visible` predicate is
-  // evaluated — unchanged on purpose. Re-deriving the slots from the surviving
-  // primaries would promote the next primary into a suppressed one's slot, i.e.
-  // change WHERE an item renders; #3562 is only about whether the "⋮" renders.
-  const { inlineDefs, menuDefs } = React.useMemo(() => {
-    const primaryDefs = gatedActionDefs.filter(d => d.variant === 'primary');
-    const max = Math.max(0, maxInlineActions);
-    return {
-      inlineDefs: primaryDefs.slice(0, max),
-      menuDefs: [
-        ...primaryDefs.slice(max),
-        ...gatedActionDefs.filter(d => d.variant !== 'primary'),
-      ],
-    };
-  }, [gatedActionDefs, maxInlineActions]);
   // What this row will ACTUALLY render, per-record predicates applied — the
   // guard and the items read one visibility source, so they cannot disagree.
   //
+  // `variant: 'primary'` actions surface inline (as the row's main CTA) and
+  // everything else stays in the "⋮" overflow menu; only `maxInlineActions` of
+  // them render inline, so a row never shows more inline buttons than the actions
+  // column can fit — which previously clipped the leftmost button ("Open" hidden
+  // behind "Upgrade Plan"). That partition lives inside `planRowActionMenu`
+  // rather than here (objectui#3762) precisely because the budget must be spent
+  // on the primaries that SURVIVE this row's predicates: slicing the declared
+  // primaries first left a suppressed one holding an empty slot while the
+  // surviving next primary was already folded behind the "⋮".
+  //
   // objectui#3562: the old guard asked whether handlers were supplied and how
-  // many actions were DECLARED (`(canEdit && onEdit) || … || menuDefs.length > 0`),
+  // many actions were DECLARED (`(canEdit && onEdit) || … || menuDefs.length > 0`
+  // — `menuDefs` being the pre-partitioned slice that #3762 moved into the plan),
   // while the items were filtered a second time, per row, by `visibleWhen` /
   // `visible`. Handlers present + every item suppressed for this record = a "⋮"
   // that opens an empty box — measured at 128×10 with zero `[role=menu]`
@@ -496,8 +526,8 @@ export const RowActionMenu: React.FC<RowActionMenuProps> = ({
       planRowActionMenu({
         row,
         scope,
-        inlineDefs,
-        menuDefs,
+        actionDefs: gatedActionDefs,
+        maxInlineActions,
         rowActions,
         canEdit,
         canDelete,
@@ -510,8 +540,8 @@ export const RowActionMenu: React.FC<RowActionMenuProps> = ({
     [
       row,
       scope,
-      inlineDefs,
-      menuDefs,
+      gatedActionDefs,
+      maxInlineActions,
       rowActions,
       canEdit,
       canDelete,

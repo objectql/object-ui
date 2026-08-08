@@ -14,6 +14,13 @@
  * the leftmost ("Open") overflowed the fixed-width cell and was clipped to a
  * sliver. Only the first `maxInlineActions` primaries now stay inline; the rest
  * fold into the "⋮" overflow menu.
+ *
+ * The budget counts the primaries that SURVIVE their own `visible` for the row
+ * (objectui#3762). Every fixture in this file is ungated, so declared order and
+ * surviving order coincide and these cases pin the same behavior as before —
+ * which is the point of leaving them untouched: the fix must not move the
+ * clipping regression this suite exists for. The gated cases live in
+ * `RowActionMenu.emptyGuard.test.tsx`.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';

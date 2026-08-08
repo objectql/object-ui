@@ -175,19 +175,74 @@ describe('RowActionMenu — the inline primary button shares one visibility sour
     expect(trigger()).not.toBeInTheDocument();
   });
 
-  it('a suppressed primary does NOT promote the next primary into its inline slot', () => {
-    // Slot allocation still runs on the DECLARED primaries: #3562 is about
-    // whether the trigger renders, not about relocating items. `upgrade` stays
-    // folded into the menu (and so the menu, holding one item, keeps its "⋮").
+  // objectui#3762 replaced the fixture that used to live here. It pinned the
+  // status quo — `a suppressed primary does NOT promote the next primary into its
+  // inline slot` — because slot allocation ran on the DECLARED primaries and
+  // #3562's ruling covered only whether the trigger renders, not where an item
+  // lands. #3762 then decided the placement question, the other way: a slot is a
+  // width budget for a button that renders, so a suppressed primary holds none.
+  // The old expectations (`upgrade` not inline, a "⋮" present) are now the wrong
+  // verdicts, so the case is replaced rather than re-spelled — see the describe
+  // below, which asserts the opposite direction on the same fixture.
+});
+
+/**
+ * objectui#3762 — the inline budget belongs to the primaries that RENDER.
+ *
+ * Same shape as the cloud `sys_environment` list that motivated
+ * `maxInlineActions` in the first place (two `variant:'primary'` actions, Open +
+ * Upgrade Plan), with the leading one gated for this row. Slicing the declared
+ * primaries left that suppressed action holding the single inline slot —
+ * `RowActionInlineButton` returned `null` into it — while the surviving primary
+ * had already been folded into the "⋮". The row then showed no inline button at
+ * all and hid its main CTA one click deep, even though exactly one primary was
+ * visible and the budget was exactly one.
+ */
+describe('RowActionMenu — inline slots go to SURVIVING primaries (objectui#3762)', () => {
+  const APPROVE_IF_APPROVER = {
+    name: 'approve',
+    label: 'Approve',
+    variant: 'primary' as const,
+    visible: IS_APPROVER,
+  };
+  const UPGRADE = { name: 'upgrade', label: 'Upgrade', variant: 'primary' as const };
+
+  it('a suppressed leading primary yields its inline slot to the surviving one', () => {
+    renderMenu({ rowActionDefs: [APPROVE_IF_APPROVER, UPGRADE] });
+    // The gated primary renders nowhere, as before.
+    expect(screen.queryByTestId('row-action-inline-approve')).not.toBeInTheDocument();
+    // …and the primary that DOES survive now takes the slot instead of folding.
+    expect(screen.getByTestId('row-action-inline-upgrade')).toBeInTheDocument();
+    // With the budget spent on a real button there is nothing left to fold, so
+    // this row has no "⋮" at all. Before #3762 this row rendered ONLY a "⋮".
+    expect(trigger()).not.toBeInTheDocument();
+  });
+
+  it('both primaries surviving → the second still folds into the menu (budget unchanged)', () => {
+    // The guard against over-correcting: #3762 changes WHICH primaries compete
+    // for the slots, never how many there are. `maxInlineActions` still defaults
+    // to 1, so the clipped-column regression the budget exists for stays fixed.
     renderMenu({
-      rowActionDefs: [
-        OPEN_IF_APPROVER,
-        { name: 'upgrade', label: 'Upgrade', variant: 'primary' },
-      ],
+      row: { ...DRAFT, approver: 'u-me' },
+      rowActionDefs: [APPROVE_IF_APPROVER, UPGRADE],
+    });
+    expect(screen.getByTestId('row-action-inline-approve')).toBeInTheDocument();
+    expect(screen.queryByTestId('row-action-inline-upgrade')).not.toBeInTheDocument();
+    // `upgrade` is folded, so the trigger is back — and holds it.
+    expect(trigger()).toBeInTheDocument();
+  });
+
+  it('every primary suppressed → no inline button and no "⋮" (guard cross-check)', () => {
+    // The empty-guard invariant (#3562) still holds under survivor-based slots:
+    // reallocating slots must not conjure a trigger for a row with nothing to
+    // show. Both primaries gate on being the approver, and FROZEN is not.
+    renderMenu({
+      rowActionDefs: [APPROVE_IF_APPROVER, { ...UPGRADE, visible: IS_APPROVER }],
     });
     expect(screen.queryByTestId('row-action-inline-approve')).not.toBeInTheDocument();
     expect(screen.queryByTestId('row-action-inline-upgrade')).not.toBeInTheDocument();
-    expect(trigger()).toBeInTheDocument();
+    expect(trigger()).not.toBeInTheDocument();
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 });
 
@@ -285,14 +340,21 @@ describe('ObjectGrid actions column stays aligned when a row loses its menu (#35
 
 /**
  * The resolution the guard counts with, exercised directly: the DOM tests above
- * pin whether a trigger exists, these pin WHICH items it would hold. Both read
- * the same `planRowActionMenu`, and the item components re-read the same
- * visibility functions — so the trigger and its contents cannot drift apart.
+ * pin whether a trigger exists, these pin WHICH items it would hold — and, since
+ * objectui#3762, WHERE each one lands. Both read the same `planRowActionMenu`,
+ * and the item components re-read the same visibility functions — so the trigger
+ * and its contents cannot drift apart.
+ *
+ * `actionDefs` is the whole declared (capability-gated) set in declared order;
+ * the function partitions primary from non-primary itself, because the inline
+ * budget may only be spent on defs that survive `visible` (#3762). Defs without
+ * a `variant` are non-primary, so the menu-side cases below read the same as when
+ * this suite handed the split in pre-sliced.
  */
 describe('planRowActionMenu', () => {
   const scope = {};
   const noop = () => {};
-  const base = { scope, inlineDefs: [], menuDefs: [] } as const;
+  const base = { scope, actionDefs: [] } as const;
 
   it('counts nothing when nothing is wired', () => {
     expect(planRowActionMenu({ ...base, row: DRAFT })).toMatchObject({
@@ -349,7 +411,7 @@ describe('planRowActionMenu', () => {
   it('keeps the menu defs whose `visible` passes, in declared order', () => {
     const plan = planRowActionMenu({
       ...base,
-      menuDefs: [
+      actionDefs: [
         { name: 'unfreeze', visible: 'record.frozen == true' },
         { name: 'publish', visible: NOT_FROZEN },
         { name: 'view' },
@@ -363,7 +425,7 @@ describe('planRowActionMenu', () => {
   it('filters the inline primaries too, without counting them toward the trigger', () => {
     const plan = planRowActionMenu({
       ...base,
-      inlineDefs: [{ name: 'approve', variant: 'primary', visible: IS_APPROVER }],
+      actionDefs: [{ name: 'approve', variant: 'primary', visible: IS_APPROVER }],
       row: FROZEN,
     });
     expect(plan.inline).toEqual([]);
@@ -372,7 +434,7 @@ describe('planRowActionMenu', () => {
     expect(plan.menuCount).toBe(0);
     const passing = planRowActionMenu({
       ...base,
-      inlineDefs: [{ name: 'approve', variant: 'primary', visible: IS_APPROVER }],
+      actionDefs: [{ name: 'approve', variant: 'primary', visible: IS_APPROVER }],
       row: { ...DRAFT, approver: 'u-me' },
     });
     expect(passing.inline.map((a) => a.name)).toEqual(['approve']);
@@ -403,7 +465,7 @@ describe('planRowActionMenu', () => {
         canEdit: true,
         onEdit: noop,
         editPredicates: { visibleWhen: 'record.frozen ==' },
-        menuDefs: [{ name: 'broken', visible: 'record.frozen ==' }],
+        actionDefs: [{ name: 'broken', visible: 'record.frozen ==' }],
       })).toMatchObject({ edit: false, custom: [], menuCount: 0 });
     } finally {
       warn.mockRestore();
@@ -421,7 +483,7 @@ describe('planRowActionMenu', () => {
     const plan = planRowActionMenu({
       ...base,
       row: FROZEN,
-      menuDefs: [{ name: 'ghost', visible: false }],
+      actionDefs: [{ name: 'ghost', visible: false }],
     });
     expect(plan.custom).toEqual([]);
     expect(plan.menuCount).toBe(0);
@@ -433,7 +495,7 @@ describe('planRowActionMenu', () => {
     const plan = planRowActionMenu({
       ...base,
       row: FROZEN,
-      menuDefs: [{ name: 'always', visible: true }],
+      actionDefs: [{ name: 'always', visible: true }],
     });
     expect(plan.custom.map((a) => a.name)).toEqual(['always']);
     expect(plan.menuCount).toBe(1);
@@ -443,10 +505,76 @@ describe('planRowActionMenu', () => {
     const plan = planRowActionMenu({
       ...base,
       row: FROZEN,
-      menuDefs: [{ name: 'compiled_away', visible: '' }],
+      actionDefs: [{ name: 'compiled_away', visible: '' }],
     });
     expect(plan.custom.map((a) => a.name)).toEqual(['compiled_away']);
     expect(plan.menuCount).toBe(1);
+  });
+
+  // --- inline slot allocation (objectui#3762) --------------------------------
+  // `base` declares no `maxInlineActions`, so these read the default budget of
+  // 1 — the same default `RowActionMenuProps` documents.
+
+  it('spends the inline slot on the surviving primary, not the declared first', () => {
+    const plan = planRowActionMenu({
+      ...base,
+      row: FROZEN,
+      actionDefs: [
+        { name: 'approve', variant: 'primary', visible: IS_APPROVER },
+        { name: 'upgrade', variant: 'primary' },
+      ],
+    });
+    expect(plan.inline.map((a) => a.name)).toEqual(['upgrade']);
+    // Nothing folded, so nothing is left for the "⋮" to hold.
+    expect(plan.custom).toEqual([]);
+    expect(plan.menuCount).toBe(0);
+  });
+
+  it('two surviving primaries still put the second in the menu', () => {
+    const plan = planRowActionMenu({
+      ...base,
+      row: { ...DRAFT, approver: 'u-me' },
+      actionDefs: [
+        { name: 'approve', variant: 'primary', visible: IS_APPROVER },
+        { name: 'upgrade', variant: 'primary' },
+      ],
+    });
+    expect(plan.inline.map((a) => a.name)).toEqual(['approve']);
+    expect(plan.custom.map((a) => a.name)).toEqual(['upgrade']);
+    expect(plan.menuCount).toBe(1);
+  });
+
+  it('fills EVERY slot from the survivors, and keeps folded primaries above secondaries', () => {
+    const plan = planRowActionMenu({
+      ...base,
+      row: FROZEN,
+      maxInlineActions: 2,
+      actionDefs: [
+        { name: 'approve', variant: 'primary', visible: IS_APPROVER },
+        { name: 'open', variant: 'primary' },
+        { name: 'upgrade', variant: 'primary' },
+        { name: 'archive', variant: 'secondary' },
+      ],
+    });
+    // Both slots go to survivors — the suppressed leading primary consumes none.
+    expect(plan.inline.map((a) => a.name)).toEqual(['open', 'upgrade']);
+    expect(plan.custom.map((a) => a.name)).toEqual(['archive']);
+    expect(plan.menuCount).toBe(1);
+  });
+
+  it('maxInlineActions: 0 keeps every surviving primary in the menu, above the secondaries', () => {
+    const plan = planRowActionMenu({
+      ...base,
+      row: FROZEN,
+      maxInlineActions: 0,
+      actionDefs: [
+        { name: 'archive', variant: 'secondary' },
+        { name: 'upgrade', variant: 'primary' },
+      ],
+    });
+    expect(plan.inline).toEqual([]);
+    expect(plan.custom.map((a) => a.name)).toEqual(['upgrade', 'archive']);
+    expect(plan.menuCount).toBe(2);
   });
 });
 
