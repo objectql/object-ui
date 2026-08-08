@@ -832,6 +832,33 @@ function withoutNoOpDrops(
 }
 
 /**
+ * Resolve which object a `type='view'` metadata item belongs to.
+ *
+ * The metadata index is name-only, not field-typed: `GET /api/v1/meta/view`
+ * accepts `?package=` and `?preview=draft` and nothing else (measured on
+ * framework `packages/rest/src/rest-server.ts` — the `GET /meta/:type`
+ * handler — and on `client.meta.getItems(type, { packageId })`). So every
+ * reader of the view namespace enumerates `type='view'` once and narrows to
+ * one object HERE, client-side.
+ *
+ * ONE spelling, one place, deliberately: {@link ObjectStackAdapter.listViews}
+ * and {@link ObjectStackAdapter.listViewOverrides} read the same rows out of
+ * the same namespace, and two private copies of "which object is this?" is a
+ * drift waiting to happen — the switcher showing a view whose override the
+ * grid cannot find, or the reverse.
+ *
+ * `object` is the identity field the write path stamps (and that the
+ * framework's overlay heals onto identity-less personalization rows —
+ * objectstack#2555); `data.object` is the config's data-provider target and
+ * `objectName` the legacy artifact spelling.
+ */
+function viewItemObjectName(item: any): string | undefined {
+  // Handle both bare view spec and `{list: {...}}` artifact wrapper
+  const spec = item?.list ?? item;
+  return spec?.data?.object ?? spec?.object ?? spec?.objectName;
+}
+
+/**
  * ObjectStack Data Source Adapter
  *
  * Bridges the ObjectStack Client SDK with the ObjectUI DataSource interface.
@@ -2618,40 +2645,63 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   /**
    * Batch-fetch all persisted view overrides for an object.
    *
-   * Per-view runtime overrides (density, column widths, sort, …) are
-   * stored in the metadata registry under key `<objectName>/<viewName>`.
-   * Loading them per-view fires N HTTP GETs that return 404 for views
-   * the user has never customized — generates console noise on every
-   * page load. This batch method performs a single
-   * `GET /api/v1/meta/<objectName>` (returns `{type, items}`) and
-   * returns a `{viewName: override}` map. Returns an empty map if the
-   * server doesn't expose the listing or returns no items.
+   * Per-view runtime overrides (density, column widths, sort, hidden
+   * columns, inlineEdit …) live in the SAME metadata namespace the
+   * write path uses: `type='view'`, `name=<viewId>` (see
+   * {@link updateViewConfig}). Loading them per-view fires N HTTP GETs
+   * that 404 for every view the user never customized — console noise on
+   * every page load. This batch method performs a single
+   * `GET /api/v1/meta/view` (returns `{type, items}`) and narrows the
+   * result to `objectName` client-side, exactly as {@link listViews}
+   * does over the same rows (shared accessor: {@link viewItemObjectName}).
+   *
+   * objectui#3774 — this used to enumerate `GET /api/v1/meta/<objectName>`,
+   * putting the OBJECT name in the metadata TYPE slot. That key space is
+   * disjoint from the one the write path lands in, so the batch map came
+   * back empty for every object, forever, and every saved personalization
+   * read back as "setting didn't save".
+   *
+   * FAILURES REJECT — they are not answered as `{}`. An empty map is an
+   * authoritative "this object has no overrides" (callers may trust it and
+   * skip the per-view reads); a transport/permission failure is "I could
+   * not tell", and reporting the two as the same value is what made
+   * ObjectView's per-view {@link getView} fallback unreachable code. When
+   * we cannot tell, we do not pretend we can. Rejections are not cached
+   * (the cache stores on success only), so a transient failure does not
+   * pin an empty answer for the TTL.
    *
    * Result is cached identically to {@link getView}; saving a view via
    * {@link updateViewConfig} invalidates the cache.
    *
    * @param objectName - Object name (e.g. 'lead')
    * @returns Map keyed by view name with the persisted override config
+   * @throws whatever the metadata transport throws — callers that have a
+   *   per-view fallback should catch and use it.
    */
   async listViewOverrides(objectName: string): Promise<Record<string, any>> {
     await this.connect();
 
-    try {
-      const cacheKey = `view-overrides:${objectName}`;
-      return await this.metadataCache.get(cacheKey, async () => {
-        const result: any = await this.client.meta.getItems(objectName);
-        const items: any[] = Array.isArray(result?.items) ? result.items : [];
-        const out: Record<string, any> = {};
-        for (const it of items) {
-          if (!it || typeof it !== 'object') continue;
-          const key = it.name ?? it.id ?? it._name;
-          if (typeof key === 'string' && key) out[key] = it;
-        }
-        return out;
-      });
-    } catch {
-      return {};
-    }
+    const cacheKey = `view-overrides:${objectName}`;
+    return await this.metadataCache.get(cacheKey, async () => {
+      const result: any = await this.client.meta.getItems('view');
+      const items: any[] = Array.isArray(result?.items)
+        ? result.items
+        : Array.isArray(result) ? result : [];
+      const out: Record<string, any> = {};
+      for (const it of items) {
+        if (!it || typeof it !== 'object') continue;
+        if (viewItemObjectName(it) !== objectName) continue;
+        // Keyed by the item's canonical `name` — the SAME identity
+        // `updateViewConfig` writes under and `getView` reads back by, which
+        // is what makes this a drop-in substitute for the per-view fetch.
+        // No `?? id ?? _name` alias chain: those are not view identities on
+        // any route (`/meta/view/:name` is name-addressed), and a batch map
+        // keyed by something no caller can ask for is dead weight.
+        const key = it.name;
+        if (typeof key === 'string' && key) out[key] = it;
+      }
+      return out;
+    });
   }
 
   /**
@@ -2734,8 +2784,10 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    * match the view spec shape.
    *
    * Returns view spec objects with their canonical `name` as identifier.
-   * Filters by `data.object === objectName` (or top-level `object`)
-   * client-side because the metadata index is name-only, not field-typed.
+   * Narrows to one object client-side via {@link viewItemObjectName} —
+   * the metadata index is name-only, not field-typed, so the route has no
+   * `?object=` to push the filter down into. {@link listViewOverrides}
+   * reads the same rows through the same accessor.
    */
   async listViews(
     objectName: string,
@@ -2774,8 +2826,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         if (!v) return false;
         // Handle both bare view spec and `{list: {...}}` artifact wrapper
         const spec = v.list ?? v;
-        const obj = spec?.data?.object ?? spec?.object ?? spec?.objectName;
-        if (obj !== objectName) return false;
+        if (viewItemObjectName(v) !== objectName) return false;
         const viewKind = v.viewKind ?? spec?.viewKind;
         return !(viewKind && FORM_FAMILY.has(viewKind));
       }).map((v: any) => {

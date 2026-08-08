@@ -467,14 +467,26 @@ export interface DataSource<T = any> {
    * Batch-fetch all persisted view overrides for an object in one call.
    *
    * Optional companion to {@link getView} that returns a `{viewName: override}`
-   * map instead of fetching each view individually. Adapters should
-   * implement this when the underlying transport supports a list-by-type
-   * query (e.g. `GET /api/v1/meta/<object>` returning all `<object>/<view>`
-   * items). When not implemented, callers should fall back to per-view
+   * map instead of fetching each view individually. Adapters should implement
+   * this when the underlying transport can enumerate the view namespace in one
+   * request. When not implemented, callers fall back to per-view
    * {@link getView}.
+   *
+   * TWO CONTRACT TERMS, and they are not the same value (objectui#3774):
+   *
+   * - The map MUST be keyed by the SAME view identity {@link updateViewConfig}
+   *   persists under and {@link getView} reads back by. An implementation that
+   *   enumerates a different key space than the one it writes to answers `{}`
+   *   forever, and every saved preference reads back as "didn't save".
+   * - An empty map means "no overrides exist" and is AUTHORITATIVE — callers
+   *   may trust it and skip the per-view reads. A failure MUST therefore
+   *   REJECT, never resolve to `{}`: swallowing it into an empty map is
+   *   indistinguishable from the authoritative answer, which silently disables
+   *   the caller's per-view fallback instead of triggering it.
    *
    * @param objectName - Object name (e.g. 'lead')
    * @returns Promise resolving to a map of view name → override config
+   * @throws on transport/permission failure — do NOT resolve `{}` instead
    */
   listViewOverrides?(objectName: string): Promise<Record<string, any>>;
 

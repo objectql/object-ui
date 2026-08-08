@@ -293,8 +293,16 @@ export function InterfaceListPage({ page, className, onConfigChange, reserveEdit
         const ds: any = dataSource;
         let full: any = null;
         if (typeof ds?.listViewOverrides === 'function') {
-          const all = await ds.listViewOverrides(cfg.source);
-          full = all?.[resolvedViewKey] ?? null;
+          // Scoped catch: the batch enumeration REJECTS on a transport failure
+          // rather than answering an authoritative-looking `{}` (objectui#3774
+          // / the `DataSource.listViewOverrides` contract). That failure must
+          // not skip the per-view `getView` below — it is precisely the case
+          // the fallback exists for. Without this the outer catch would abort
+          // the whole hydration and the view would stay hollow.
+          try {
+            const all = await ds.listViewOverrides(cfg.source);
+            full = all?.[resolvedViewKey] ?? null;
+          } catch { /* fall through to the per-view read */ }
         }
         if (!hasColumns(full) && typeof ds?.getView === 'function') {
           full = await ds.getView(cfg.source, resolvedViewKey);

@@ -156,6 +156,67 @@ export function defaultListColumnsFromObject(
     return [];
 }
 
+/**
+ * Read the persisted per-view overrides (density, column widths, sort, hidden
+ * columns, inlineEdit …) for `ids`, preferring the adapter's one-request batch
+ * enumeration and falling back to a per-view `getView`.
+ *
+ * Extracted from the effect below so the three-way branch is pinnable on its
+ * own (objectui#3774) — the file's existing precedent for this is
+ * {@link defaultListColumnsFromObject}.
+ *
+ * The batch/fallback choice hangs entirely on how `listViewOverrides` ANSWERS,
+ * so the two are spelled out:
+ *
+ * - RESOLVES (including to an empty map) → authoritative. The adapter looked
+ *   and reports what exists; an object whose views were never customized
+ *   legitimately has no overrides, and we take that answer and skip N GETs.
+ *   That is the whole point of the batch call — do not "helpfully" re-probe
+ *   per view on an empty map, that reinstates the 404 flurry it removes.
+ * - REJECTS → the adapter could not tell, which is NOT the same fact as
+ *   "nothing is there". Fall through to the per-view reads.
+ *
+ * An adapter that swallows its own failures into `{}` collapses those two into
+ * the authoritative branch and makes the fallback below unreachable code —
+ * that was objectui#3774's second half, fixed in `@object-ui/data-objectstack`.
+ */
+export async function loadViewOverrides(
+    dataSource: any,
+    objectName: string,
+    ids: string[],
+): Promise<Record<string, any>> {
+    if (typeof dataSource?.listViewOverrides === 'function') {
+        try {
+            const all = await dataSource.listViewOverrides(objectName);
+            if (all && typeof all === 'object') {
+                const map: Record<string, any> = {};
+                for (const id of ids) {
+                    if (all[id]) map[id] = all[id];
+                }
+                return map;
+            }
+        } catch {
+            // fall through to per-view fetch
+        }
+    }
+    if (typeof dataSource?.getView !== 'function') return {};
+    const entries = await Promise.all(
+        ids.map(async (id) => {
+            try {
+                const v = await dataSource.getView(objectName, id);
+                return [id, v] as const;
+            } catch {
+                return [id, null] as const;
+            }
+        })
+    );
+    const map: Record<string, any> = {};
+    for (const [id, v] of entries) {
+        if (v && typeof v === 'object') map[id] = v;
+    }
+    return map;
+}
+
 export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: any) {
     const { objectName } = useParams();
     const { t } = useObjectTranslation();
@@ -543,11 +604,9 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     // `dataSource.updateViewConfig` and read back here so toggle preferences
     // survive a hard reload. Keyed by viewId → partial view config to merge.
     //
-    // Use the batch listViewOverrides() when available — fires one HTTP
-    // GET per object instead of N (one per defined view), avoiding a flurry
-    // of 404s for objects whose views have never been customized. Falls
-    // back to per-view getView() for adapters that don't support the batch
-    // method.
+    // Reading strategy (batch first, per-view fallback) lives in the exported
+    // `loadViewOverrides` above so it can be pinned directly — see its doc for
+    // why an empty batch result is authoritative but a rejected one is not.
     const [viewOverrides, setViewOverrides] = useState<Record<string, any>>({});
     useEffect(() => {
         let cancelled = false;
@@ -567,40 +626,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             return;
         }
 
-        const loadBatch = async (): Promise<Record<string, any>> => {
-            if (typeof (dataSource as any).listViewOverrides === 'function') {
-                try {
-                    const all = await (dataSource as any).listViewOverrides(objectName);
-                    if (all && typeof all === 'object') {
-                        const map: Record<string, any> = {};
-                        for (const id of ids) {
-                            if (all[id]) map[id] = all[id];
-                        }
-                        return map;
-                    }
-                } catch {
-                    // fall through to per-view fetch
-                }
-            }
-            if (typeof dataSource.getView !== 'function') return {};
-            const entries = await Promise.all(
-                ids.map(async (id) => {
-                    try {
-                        const v = await dataSource.getView!(objectName, id);
-                        return [id, v] as const;
-                    } catch {
-                        return [id, null] as const;
-                    }
-                })
-            );
-            const map: Record<string, any> = {};
-            for (const [id, v] of entries) {
-                if (v && typeof v === 'object') map[id] = v;
-            }
-            return map;
-        };
-
-        loadBatch().then((map) => {
+        loadViewOverrides(dataSource, objectName, ids).then((map) => {
             if (!cancelled) setViewOverrides(map);
         });
         return () => { cancelled = true; };
