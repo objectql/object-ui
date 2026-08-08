@@ -278,8 +278,26 @@ ComponentRegistry.register('highlights', RecordHighlightsRenderer, {
   label: 'Highlights Panel',
   icon: 'Star',
   // Mirrors @objectstack/spec RecordHighlightsProps.
+  //
+  // `readonly` is documented INSIDE the `fields` description, not declared as
+  // an input of its own, because that is where the contract puts it: the spec's
+  // `RecordHighlightsField` carries `readonly` on each ENTRY, while
+  // `RecordHighlightsProps` has exactly three top-level keys (fields, layout,
+  // aria). A top-level `{ name: 'readonly', type: 'boolean' }` here would look
+  // like the fix for "the manifest never mentions readonly" and would instead
+  // publish a key the platform silently discards: the generated
+  // `sdui.manifest.json` and `sdui-intrinsics.d.ts` would advertise
+  // `<RecordHighlights readonly>`, the manifest gate validates top-level props
+  // only and would raise no diagnostic, the spec strips the unknown key on
+  // parse without error, and the renderer — which reads `field.readonly` per
+  // entry — would never see it. An author who trusted that surface would be
+  // left with the machine-owned column still hand-editable and nothing
+  // anywhere saying why. `ComponentInput` is flat by design (`name` = "must
+  // match schema property"), so an array-of-objects input publishes its member
+  // keys in prose, the same way `record:path.stages` and `record:alert.action`
+  // do. objectui#3407 / objectstack#5176.
   inputs: [
-    { name: 'fields', type: 'array', label: 'Fields', required: true, description: 'Key fields to highlight (1-7), bare names or {name,label?,icon?,type?}' },
+    { name: 'fields', type: 'array', label: 'Fields', required: true, description: 'Key fields to highlight (1-7), bare names or {name,label?,icon?,type?,readonly?}. Set readonly: true on an entry to render that chip read-only — it suppresses the inline-edit affordance and the HeaderHighlight editability gate enforces it. Use it for hook/automation-maintained columns that must not be hand-edited from the record header; marking the OBJECT field readonly instead would also strip the hook\'s own write-back.' },
     { name: 'layout', type: 'enum', label: 'Layout', enum: ['horizontal', 'vertical'], defaultValue: 'horizontal', description: 'Layout orientation for highlight fields' },
   ],
 });
