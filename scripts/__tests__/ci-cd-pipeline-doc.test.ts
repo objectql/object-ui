@@ -177,6 +177,33 @@ describe('ci-cd-pipeline.md — workflow inventory', () => {
     }
   });
 
+  /**
+   * objectui#3724: this page was not the only workflow inventory. `.github/WORKFLOWS.md`
+   * held a second one — hand-maintained, linked from nowhere, and pinned by nothing —
+   * which had drifted to documenting 5 workflows that did not exist (including a
+   * changeset gate skippable with a `skip-changeset` label; neither the workflow nor the
+   * label was ever real) while omitting 9 that did, `lint.yml` among them. That is #3212
+   * verbatim, on a page no test could see.
+   *
+   * A duplicate inventory is a drift generator by construction: the pins above make *this*
+   * page track `.github/workflows/` in both directions, and a second copy inherits none of
+   * that while reading just as authoritative. So the resolution was deletion, not a second
+   * ratchet, and this asserts the deletion holds.
+   *
+   * Scope, stated so it is not mistaken for more: it pins the one path that existed. A new
+   * inventory under a different name evades it — the durable protection is that adding a
+   * workflow already forces an edit *here*, so a second page earns nothing.
+   */
+  it('keeps this page as the only workflow inventory', () => {
+    expect(
+      fs.existsSync(path.join(repoRoot, '.github/WORKFLOWS.md')),
+      '`.github/WORKFLOWS.md` is back. It was deleted by objectui#3724 because an unpinned ' +
+        'second copy of the workflow inventory drifts to 5 phantom workflows and 9 omissions ' +
+        'while nothing checks it. Document workflows in content/docs/guide/ci-cd-pipeline.md, ' +
+        'which the tests in this file hold to `.github/workflows/` in both directions.',
+    ).toBe(false);
+  });
+
   it('does not resurrect the never-existent size-check.yml', () => {
     // Checked over the whole file, fences included — the stale claim lived in the
     // ASCII overview box as well as in its own section. (The page may still say
@@ -184,6 +211,106 @@ describe('ci-cd-pipeline.md — workflow inventory', () => {
     // must never do again is name the file.)
     expect(doc).not.toMatch(/size-check\.yml/);
     expect(workflowFiles).not.toContain('size-check.yml');
+  });
+});
+
+/**
+ * objectui#3724: the `pnpm-lock.yaml` merge driver is repository configuration
+ * (`.gitattributes`) that only works where a workflow defines the driver, so "which
+ * workflows define it" is a claim about three files at once — and it was wrong in both
+ * copies that made it. This page named `changeset-release.yml` and
+ * `dependabot-auto-merge.yml`; the deleted `.github/WORKFLOWS.md` named
+ * `changeset-release.yml` and `changelog.yml`. Each omitted a different third, and both
+ * read as complete.
+ *
+ * The content survived the deletion — the `.gitattributes` half and the add-it-to-a-new-
+ * workflow half existed nowhere else — so it moved onto this page. Moving an already-drifted
+ * hand-maintained list into unpinned prose would just relocate the drift generator, which is
+ * the whole reason #3724 chose deletion over a second copy. Hence this pin: both directions,
+ * so a workflow that gains the step without a row is as red as a row whose workflow lost it.
+ */
+describe('ci-cd-pipeline.md — lockfile merge driver', () => {
+  /** Workflows that actually configure the driver, by grepping for the git config key. */
+  function workflowsConfiguringDriver(): string[] {
+    return fs
+      .readdirSync(workflowDir)
+      .filter((f) => f.endsWith('.yml'))
+      .filter((f) => /merge\.pnpm-merge/.test(fs.readFileSync(path.join(workflowDir, f), 'utf8')))
+      .sort();
+  }
+
+  const DRIVER_TABLE_HEADER = '| Workflow | Why it needs the driver |';
+
+  /**
+   * The workflows named in that section's table. Scoped to the table rows on purpose: the
+   * surrounding prose names all three again while recounting the drift, and a set built from
+   * the whole section would stay green after the table itself was gutted.
+   */
+  function workflowsNamedInDoc(): string[] {
+    const start = doc.indexOf('## Lockfile Merge Driver');
+    expect(start, 'the page must keep a "## Lockfile Merge Driver" section').toBeGreaterThan(-1);
+    const rest = doc.slice(start + 2);
+    const next = rest.search(/^## /m);
+    const section = next === -1 ? rest : rest.slice(0, next);
+
+    const at = section.indexOf(DRIVER_TABLE_HEADER);
+    expect(at, `that section must keep the table header \`${DRIVER_TABLE_HEADER}\``).toBeGreaterThan(-1);
+
+    const named = new Set<string>();
+    for (const line of section.slice(at).split('\n').slice(1)) {
+      if (!line.startsWith('|')) break;
+      if (/^\|[\s|:-]+\|$/.test(line)) continue; // separator
+      for (const m of line.matchAll(/([a-z0-9][a-z0-9-]*\.yml)\b/g)) named.add(m[1]);
+    }
+    return [...named].sort();
+  }
+
+  it('lists exactly the workflows that configure merge.pnpm-merge — in both directions', () => {
+    const configuring = workflowsConfiguringDriver();
+    // A grep that matched nothing would make both directions vacuously green — the failure
+    // mode the retired `dev-server` job demonstrated for the job table below.
+    expect(
+      configuring.length,
+      'no workflow appears to configure `merge.pnpm-merge` — if the driver was genuinely ' +
+        'retired, delete the "Lockfile Merge Driver" section and the `.gitattributes` line ' +
+        'with it rather than leaving a page describing a mechanism nothing installs',
+    ).toBeGreaterThan(0);
+
+    const named = workflowsNamedInDoc();
+    const missing = configuring.filter((f) => !named.includes(f));
+    const phantom = named.filter((f) => !configuring.includes(f));
+
+    expect(
+      missing,
+      `these workflows configure the pnpm-lock.yaml merge driver but have no row in the ` +
+        `"Lockfile Merge Driver" table of content/docs/guide/ci-cd-pipeline.md:\n` +
+        missing.map((f) => `  - ${f}`).join('\n') +
+        `\n\nAdd a row saying why that workflow merges. An incomplete list is how this claim ` +
+        `was wrong on two pages at once before objectui#3724.`,
+    ).toEqual([]);
+
+    expect(
+      phantom,
+      `the "Lockfile Merge Driver" table names workflows that do NOT configure ` +
+        `\`merge.pnpm-merge\`:\n` +
+        phantom.map((f) => `  - ${f}`).join('\n') +
+        `\n\nEither the step was dropped from that workflow — in which case its lockfile ` +
+        `conflicts are being resolved as a text merge, and that is the bug — or the row is ` +
+        `stale and should go.`,
+    ).toEqual([]);
+  });
+
+  it('keeps the .gitattributes half of the mechanism true', () => {
+    // The driver only ever runs because an attribute asks for it. Half the mechanism living
+    // in a file the workflows do not mention is exactly why this was documented nowhere
+    // complete; if the attribute goes, the section is describing dead configuration.
+    const attributes = fs.readFileSync(path.join(repoRoot, '.gitattributes'), 'utf8');
+    expect(
+      attributes,
+      '.gitattributes no longer routes pnpm-lock.yaml through the `pnpm-merge` driver, so the ' +
+        '"Lockfile Merge Driver" section on content/docs/guide/ci-cd-pipeline.md now describes ' +
+        'a driver nothing invokes — the workflows would be configuring it for nothing.',
+    ).toMatch(/^pnpm-lock\.yaml\s+merge=pnpm-merge\s*$/m);
   });
 });
 

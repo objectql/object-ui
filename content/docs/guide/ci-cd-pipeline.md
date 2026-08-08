@@ -270,6 +270,14 @@ Exactly one bundle-size number in this repository is enforced — this one:
 - Posts a PR comment with the budget report and pass/fail status — but **only when the bundle was actually measured**. A run that was cancelled (a second push supersedes the first via `cancel-in-progress`) posts nothing, and a run whose build never produced a bundle posts a neutral "not measured" note instead of a verdict. A `FAIL` verdict therefore always carries the measured size that exceeded the budget.
 - The comment is rendered by `scripts/render-budget-comment.mjs` (unit-tested), not by logic inlined in YAML.
 
+**If it fails:** the step prints `BUDGET EXCEEDED: Main entry is <n> KB gzip (limit: 350 KB)`
+and the PR comment carries the same two numbers, so the log already tells you the size and the
+overshoot. Read the package size report appended to that comment next: the entry chunk is
+`apps/console`'s own code plus everything it imports eagerly, so a jump usually traces to one
+new eager import pulling a dependency in. Fix it at that import. Raising `MAX_ENTRY_GZIP_KB`
+is a deliberate decision, not a workaround for a red check — and it cannot be done quietly,
+because the pin above fails until this page states the new number too.
+
 ### Package size report — advisory, not a gate
 
 The same workflow's `Generate package size report` step writes a markdown table of every
@@ -512,11 +520,31 @@ The one release that legitimately bumps the major is the one following `@objects
 its major; it sets `OBJECTUI_ALLOW_MAJOR=1`. `pnpm test` asserts the same repository state, so
 the rule survives this workflow being skipped.
 
+> **Nothing in CI requires a pull request to add a changeset, and there is no
+> `skip-changeset` label.** Both were documented for months, by a second workflow inventory
+> that lived at `.github/WORKFLOWS.md` — unpinned, therefore free to drift — until
+> [#3724](https://github.com/objectstack-ai/objectui/issues/3724) deleted it. That page gave
+> a "Changeset Check" workflow its own numbered section: it supposedly failed any PR touching
+> `packages/` without a `.changeset/*.md`, and was skippable with a `skip-changeset` or
+> `dependencies` label. None of it existed. No workflow file of that name has ever been in
+> `.github/workflows/`, and the repository has no `skip-changeset` label (checked against the
+> labels API, 2026-08-08 — the only one of the two names that exists is `dependencies`, which
+> the auto-labeler applies and no gate reads).
+>
+> The two real things with adjacent names do something else. **This** workflow reads pending
+> changesets and rejects a `major` bump. `ci.yml`'s `changeset-check` job (**Changeset Fixed
+> Group Check**) checks `fixed`-group *membership*. Neither asks whether the PR added a
+> changeset, and no third thing does. Whether a change needs one is a judgement call — see
+> "When to Create a Changeset" in `CONTRIBUTING.md` — and it is enforced by review, not by a
+> check. This is the size-check lesson in a second place: a page that advertises a guardrail
+> CI does not have is worse than no page, because contributors trust it and stop checking.
+
 ### Changelog Generation (`changelog.yml`)
 
 **Trigger:** `release` event (when a GitHub Release is published), or manual dispatch.
 
-Uses [git-cliff](https://git-cliff.org/) with `cliff.toml` configuration to auto-generate `CHANGELOG.md` and commit it to the repository.
+Uses [git-cliff](https://git-cliff.org/) with `cliff.toml` configuration to auto-generate `CHANGELOG.md` and commit it to the repository. Because it commits back to a branch that may have
+moved, it configures the lockfile merge driver first (see **Lockfile Merge Driver** below).
 
 ## Repository Maintenance
 
@@ -559,12 +587,16 @@ and calls the issues API.
 
 **Trigger:** Daily at 00:00 UTC (cron), or manual dispatch.
 
-| Resource | Stale after | Close after |
-|----------|-------------|-------------|
-| Issues | 60 days | 7 days |
-| Pull Requests | 45 days | 14 days |
+| Resource | Stale after | Close after | Exempt labels |
+|----------|-------------|-------------|---------------|
+| Issues | 60 days | 7 days | `pinned`, `security`, `critical`, `bug`, `enhancement` |
+| Pull Requests | 45 days | 14 days | `pinned`, `security`, `in-progress`, `blocked` |
 
-Exempt labels: `pinned`, `security`, `critical`, `in-progress`.
+The two exemption lists are set separately (`exempt-issue-labels` and `exempt-pr-labels`) and
+neither is a subset of the other: `critical`, `bug` and `enhancement` exempt issues only,
+`in-progress` and `blocked` exempt pull requests only. This page used to state one merged list
+— `pinned`, `security`, `critical`, `in-progress` — which was wrong in both directions for
+both resources ([#3724](https://github.com/objectstack-ai/objectui/issues/3724)).
 
 ### Dependabot Auto-Merge (`dependabot-auto-merge.yml`)
 
@@ -581,6 +613,51 @@ Exempt labels: `pinned`, `security`, `critical`, `in-progress`.
 - Runs offline and online analysis of shadcn/ui components.
 - Creates or updates a GitHub issue if components need review or updating.
 - Uploads analysis artifacts for reference.
+
+## Lockfile Merge Driver
+
+`pnpm-lock.yaml` is never merged line by line — it is regenerated. `.gitattributes` asks for
+that:
+
+```
+pnpm-lock.yaml merge=pnpm-merge
+```
+
+Git does not ship a `pnpm-merge` driver, and an attribute naming a driver nothing defines falls
+back to an ordinary text merge. So every workflow that merges, rebases, or commits onto a branch
+that may have moved defines it immediately after checkout:
+
+```yaml
+- name: Configure Git merge driver for pnpm-lock.yaml
+  run: |
+    git config merge.pnpm-merge.name "pnpm-lock.yaml merge driver"
+    git config merge.pnpm-merge.driver "pnpm install --no-frozen-lockfile"
+```
+
+Three workflows carry that step, for three different reasons:
+
+| Workflow | Why it needs the driver |
+|---|---|
+| `changeset-release.yml` | version bumps rewrite the lockfile on the release branch |
+| `changelog.yml` | commits a regenerated `CHANGELOG.md` back to the branch |
+| `dependabot-auto-merge.yml` | squash-merges dependency PRs whose entire content is often a lockfile change |
+
+`scripts/__tests__/ci-cd-pipeline-doc.test.ts` pins that table against the workflows that
+actually configure `merge.pnpm-merge`, in both directions. It is pinned because the claim had
+already drifted two ways at once, and neither copy was checked by anything: this page named
+`changeset-release.yml` and `dependabot-auto-merge.yml`, while the deleted `.github/WORKFLOWS.md`
+named `changeset-release.yml` and `changelog.yml`. Each was missing a different one
+([#3724](https://github.com/objectstack-ai/objectui/issues/3724)).
+
+`--no-frozen-lockfile` is spelled out because Actions sets `CI=true`, under which pnpm refuses
+to modify the lockfile — a driver that cannot write the file it exists to rewrite would fail the
+merge it was installed to resolve. That default is off locally, which is why the same driver is
+configured with a plain `pnpm install` under **Configure Git Merge Driver for pnpm-lock.yaml** in
+`CONTRIBUTING.md`; contributors want it for the same reason CI does, on rebases of long-lived
+branches.
+
+Adding a workflow that merges or pushes? Add the step **after checkout and before the merge**,
+and add its row above — the pin fails otherwise.
 
 ## Adding a New Workflow
 
