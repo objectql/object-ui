@@ -2984,6 +2984,7 @@ const ar = {
       dismiss: "رفض",
       openOnCloud: "فتح في السحابة",
       backHome: "العودة إلى الرئيسية",
+      updateTo: "تحديث",
     },
     install: {
       dialogTitle: "تثبيت {{name}}",
@@ -3000,6 +3001,37 @@ const ar = {
       localManifestConflict: "{{message}}\nملاحظة: تطبيق محلي يمتلك بالفعل هذا المعرف. أزله أولاً من objectstack.config.ts.",
       localUnauthorized: "سجل الدخول إلى هذا الوقت التشغيل أولاً.",
       localMarketplaceUnavailable: "هذا الوقت التشغيل لا يحتوي على OS_CLOUD_URL مُهيأ.",
+      updateTo: "تحديث → v{{version}}",
+      installedVersion: "مثبت v{{version}}",
+    },
+    // objectui#3546 — the MarketplacePage "Your organization" strip.
+    org: {
+      heading: "مؤسستك",
+      install: "تثبيت",
+      installed: "تم تثبيت {{name}}",
+      installedBadge: "مثبت",
+      installing: "جارٍ التثبيت…",
+    },
+    // ADR-0025 PD4 §3.5/§3.11 — the pre-install consent panel
+    // (PluginDisclosure.tsx). `runtime` is a CLOSED enum: spec
+    // PluginRuntimeSchema = z.enum(['node', 'sandbox', 'worker']).
+    disclosure: {
+      containsCode: "تحتوي هذه الحزمة على تعليمات برمجية",
+      reviewed: "تمت المراجعة والموافقة",
+      unreviewed: "لم تتم المراجعة بعد",
+      signed: "موقَّع",
+      grantsIntro: "عند التثبيت، ستُمنح هذه الحزمة:",
+      services: "خدمات المنصة",
+      hooks: "خطافات دورة الحياة",
+      network: "الوصول إلى الشبكة",
+      fs: "الوصول إلى نظام الملفات",
+      noPermissions: "لا تطلب أي أذونات خاصة.",
+      acknowledge: "أفهم أن هذه الحزمة تنفّذ تعليمات برمجية وتحصل على الأذونات المذكورة أعلاه.",
+      runtime: {
+        node: "داخل العملية · ثقة كاملة",
+        sandbox: "في بيئة معزولة",
+        worker: "خارج العملية",
+      },
     },
     uninstall: {
       confirm: "إلغاء تثبيت {{manifestId}} v{{version}} من هذا الوقت التشغيل؟\n\nسيتم إزالة المانيفست المخزن مؤقتاً.",
@@ -3248,6 +3280,32 @@ const ar = {
       detailChangedKeys: 'تغييرات أخرى:',
       confirmNote: 'النشر يُصدر كل المسودات المعلقة ({{count}}) لهذه الحزمة دفعة واحدة.',
       publishConfirm: 'نشر الكل',
+    },
+    // ADR-0045 — the materialized-but-unlisted app banner
+    // (UnpublishedAppBar.tsx), sibling of draftBar above.
+    unpublishedBar: {
+      message: 'تطبيق غير منشور — يعمل بالكامل، لكن لا يراه سوى المنشئين. انشره ليصبح مرئياً لمستخدميك.',
+      publish: 'نشر',
+      publishing: 'جارٍ النشر…',
+      published: 'تم النشر! التطبيق مرئي الآن لمستخدميك.',
+      publishFailed: 'فشل النشر',
+    },
+    // ADR-0067 — the append-only build/revert timeline (CommitTimeline.tsx);
+    // `button` is the banner's entry point into it.
+    history: {
+      button: 'السجل',
+      title: 'سجل البناء',
+      description: 'كل تغيير في هذا التطبيق، الأحدث أولاً. تراجع عن أي خطوة لإلغائها — لا حاجة لتأكيد النشر.',
+      loadFailed: 'تعذر تحميل السجل:',
+      loading: 'جارٍ تحميل السجل…',
+      empty: 'لا يوجد سجل لهذا التطبيق بعد.',
+      revertLabel: 'تم التراجع عن تغيير',
+      applyLabel: 'تغيير من البناء',
+      revert: 'تراجع',
+      items: 'عنصر',
+      revertAction: 'تراجع',
+      reverted: 'تم التراجع — أُلغي التغيير.',
+      revertFailed: 'فشل التراجع',
     },
   },
   filterBuilder: {

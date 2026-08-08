@@ -2643,6 +2643,32 @@ const en = {
       confirmNote: 'Publishing releases all {{count}} pending drafts of this package atomically.',
       publishConfirm: 'Publish all',
     },
+    // ADR-0045 — the materialized-but-unlisted app banner
+    // (UnpublishedAppBar.tsx), sibling of draftBar above.
+    unpublishedBar: {
+      message: 'Unpublished app — fully functional, but only builders can see it. Publish to make it visible to your users.',
+      publish: 'Publish',
+      publishing: 'Publishing…',
+      published: 'Published! The app is now visible to your users.',
+      publishFailed: 'Publish failed',
+    },
+    // ADR-0067 — the append-only build/revert timeline (CommitTimeline.tsx);
+    // `button` is the banner's entry point into it.
+    history: {
+      button: 'History',
+      title: 'Build history',
+      description: 'Every change to this app, newest first. Revert any step to undo it — no publish confirmation needed.',
+      loadFailed: 'Could not load history:',
+      loading: 'Loading history…',
+      empty: 'No history yet for this app.',
+      revertLabel: 'Reverted a change',
+      applyLabel: 'Build change',
+      revert: 'revert',
+      items: 'item(s)',
+      revertAction: 'Revert',
+      reverted: 'Reverted — the change has been undone.',
+      revertFailed: 'Revert failed',
+    },
   },
   renderer: {
     noPageSchema: 'No page schema provided',
@@ -3158,6 +3184,7 @@ const en = {
         dismiss: 'Dismiss',
         openOnCloud: 'Open on cloud',
         backHome: 'Back to home',
+        updateTo: 'Update',
       },
       install: {
         dialogTitle: 'Install {{name}}',
@@ -3174,6 +3201,37 @@ const en = {
         localManifestConflict: '{{message}}\nTip: a local app already owns this manifest_id. Remove it from objectstack.config.ts first.',
         localUnauthorized: 'Sign in to this runtime first, then try again.',
         localMarketplaceUnavailable: 'This runtime has no OS_CLOUD_URL configured, so the marketplace catalog is unreachable.',
+        updateTo: 'Update → v{{version}}',
+        installedVersion: 'Installed v{{version}}',
+      },
+      // objectui#3546 — the MarketplacePage "Your organization" strip.
+      org: {
+        heading: 'Your organization',
+        install: 'Install',
+        installed: 'Installed {{name}}',
+        installedBadge: 'Installed',
+        installing: 'Installing…',
+      },
+      // ADR-0025 PD4 §3.5/§3.11 — the pre-install consent panel
+      // (PluginDisclosure.tsx). `runtime` is a CLOSED enum: spec
+      // PluginRuntimeSchema = z.enum(['node', 'sandbox', 'worker']).
+      disclosure: {
+        containsCode: 'This package contains code',
+        reviewed: 'Reviewed & approved',
+        unreviewed: 'Not yet reviewed',
+        signed: 'Signed',
+        grantsIntro: 'On install, this package will be granted:',
+        services: 'Platform services',
+        hooks: 'Lifecycle hooks',
+        network: 'Network access',
+        fs: 'Filesystem access',
+        noPermissions: 'Requests no special permissions.',
+        acknowledge: 'I understand this package runs code and grants the permissions above.',
+        runtime: {
+          node: 'In-process · full trust',
+          sandbox: 'Sandboxed',
+          worker: 'Out-of-process',
+        },
       },
       // ADR-0090 D5/D9 — a package's isDefault permission set is an
       // install-time suggestion to bind it to the everyone/guest position;

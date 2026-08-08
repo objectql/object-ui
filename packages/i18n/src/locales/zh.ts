@@ -2565,6 +2565,32 @@ const zh = {
       confirmNote: '发布将一次性（原子地）发布此包全部 {{count}} 个待发布草稿。',
       publishConfirm: '全部发布',
     },
+    // ADR-0045 — the materialized-but-unlisted app banner
+    // (UnpublishedAppBar.tsx), sibling of draftBar above.
+    unpublishedBar: {
+      message: '未发布的应用 —— 功能完整，但只有构建者能看到。发布后即可让您的用户看到。',
+      publish: '发布',
+      publishing: '发布中…',
+      published: '已发布！应用现在对您的用户可见。',
+      publishFailed: '发布失败',
+    },
+    // ADR-0067 — the append-only build/revert timeline (CommitTimeline.tsx);
+    // `button` is the banner's entry point into it.
+    history: {
+      button: '历史',
+      title: '构建历史',
+      description: '此应用的每一次变更，最新的在最前。撤销任一步骤即可回退 —— 无需确认发布。',
+      loadFailed: '无法加载历史记录：',
+      loading: '正在加载历史记录…',
+      empty: '此应用暂无历史记录。',
+      revertLabel: '已撤销一处变更',
+      applyLabel: '构建变更',
+      revert: '撤销',
+      items: '项',
+      revertAction: '撤销',
+      reverted: '已撤销 —— 该变更已还原。',
+      revertFailed: '撤销失败',
+    },
   },
   renderer: {
     noPageSchema: '未提供页面 schema',
@@ -3063,6 +3089,7 @@ const zh = {
         dismiss: '关闭',
         openOnCloud: '在云端打开',
         backHome: '返回首页',
+        updateTo: '更新',
       },
       install: {
         dialogTitle: '安装 {{name}}',
@@ -3079,6 +3106,37 @@ const zh = {
         localManifestConflict: '{{message}}\n提示：本地已有应用占用此 manifest_id，请先从 objectstack.config.ts 中移除。',
         localUnauthorized: '请先登录本运行时再试。',
         localMarketplaceUnavailable: '本运行时未配置 OS_CLOUD_URL，无法访问应用市场目录。',
+        updateTo: '更新 → v{{version}}',
+        installedVersion: '已安装 v{{version}}',
+      },
+      // objectui#3546 — the MarketplacePage "Your organization" strip.
+      org: {
+        heading: '你的组织',
+        install: '安装',
+        installed: '已安装 {{name}}',
+        installedBadge: '已安装',
+        installing: '安装中…',
+      },
+      // ADR-0025 PD4 §3.5/§3.11 — the pre-install consent panel
+      // (PluginDisclosure.tsx). `runtime` is a CLOSED enum: spec
+      // PluginRuntimeSchema = z.enum(['node', 'sandbox', 'worker']).
+      disclosure: {
+        containsCode: '此软件包包含代码',
+        reviewed: '已审核并批准',
+        unreviewed: '尚未审核',
+        signed: '已签名',
+        grantsIntro: '安装后，此软件包将获得以下权限：',
+        services: '平台服务',
+        hooks: '生命周期钩子',
+        network: '网络访问',
+        fs: '文件系统访问',
+        noPermissions: '不请求任何特殊权限。',
+        acknowledge: '我了解此软件包会运行代码，并将获得上述权限。',
+        runtime: {
+          node: '进程内 · 完全信任',
+          sandbox: '沙箱隔离',
+          worker: '进程外',
+        },
       },
       // ADR-0090 D5/D9 — 安装时建议：包声明 isDefault 的权限集建议绑定到
       // everyone/guest 岗位，由管理员在此确认，服务端绝不自动绑定。

@@ -2984,6 +2984,7 @@ const ja = {
       dismiss: "閉じる",
       openOnCloud: "クラウドで開く",
       backHome: "ホームに戻る",
+      updateTo: "更新",
     },
     install: {
       dialogTitle: "{{name}} をインストール",
@@ -3000,6 +3001,37 @@ const ja = {
       localManifestConflict: "{{message}}\nヒント：ローカルアプリがすでにこのmanifest_idを使用しています。最初にobjectstack.config.tsから削除してください。",
       localUnauthorized: "最初にこのランタイムにサインインしてから再試行してください。",
       localMarketplaceUnavailable: "このランタイムにはOS_CLOUD_URLが設定されていないため、マーケットプレイスカタログにアクセスできません。",
+      updateTo: "更新 → v{{version}}",
+      installedVersion: "インストール済み v{{version}}",
+    },
+    // objectui#3546 — the MarketplacePage "Your organization" strip.
+    org: {
+      heading: "組織",
+      install: "インストール",
+      installed: "{{name}} をインストールしました",
+      installedBadge: "インストール済み",
+      installing: "インストール中…",
+    },
+    // ADR-0025 PD4 §3.5/§3.11 — the pre-install consent panel
+    // (PluginDisclosure.tsx). `runtime` is a CLOSED enum: spec
+    // PluginRuntimeSchema = z.enum(['node', 'sandbox', 'worker']).
+    disclosure: {
+      containsCode: "このパッケージにはコードが含まれています",
+      reviewed: "審査・承認済み",
+      unreviewed: "未審査",
+      signed: "署名済み",
+      grantsIntro: "インストール時に、このパッケージには次の権限が付与されます：",
+      services: "プラットフォームサービス",
+      hooks: "ライフサイクルフック",
+      network: "ネットワークアクセス",
+      fs: "ファイルシステムアクセス",
+      noPermissions: "特別な権限は要求しません。",
+      acknowledge: "このパッケージがコードを実行し、上記の権限を取得することを理解しました。",
+      runtime: {
+        node: "プロセス内 · 完全信頼",
+        sandbox: "サンドボックス",
+        worker: "プロセス外",
+      },
     },
     uninstall: {
       confirm: "このランタイムから {{manifestId}} v{{version}} をアンインストールしますか？\n\nキャッシュされたマニフェストが削除されます。アプリは次の再起動まで実行中のカーネルに読み込まれたままになります。",
@@ -3248,6 +3280,32 @@ const ja = {
       detailChangedKeys: 'その他の変更：',
       confirmNote: '公開すると、このパッケージの保留中ドラフト {{count}} 件がまとめて（アトミックに）公開されます。',
       publishConfirm: 'すべて公開',
+    },
+    // ADR-0045 — the materialized-but-unlisted app banner
+    // (UnpublishedAppBar.tsx), sibling of draftBar above.
+    unpublishedBar: {
+      message: '未公開のアプリ — 機能はすべて使えますが、ビルダーにしか表示されません。公開するとユーザーに表示されます。',
+      publish: '公開',
+      publishing: '公開中…',
+      published: '公開しました。アプリがユーザーに表示されます。',
+      publishFailed: '公開に失敗しました',
+    },
+    // ADR-0067 — the append-only build/revert timeline (CommitTimeline.tsx);
+    // `button` is the banner's entry point into it.
+    history: {
+      button: '履歴',
+      title: 'ビルド履歴',
+      description: 'このアプリのすべての変更を新しい順に表示します。任意のステップを取り消して元に戻せます — 公開の確認は不要です。',
+      loadFailed: '履歴を読み込めませんでした:',
+      loading: '履歴を読み込み中…',
+      empty: 'このアプリの履歴はまだありません。',
+      revertLabel: '変更を取り消しました',
+      applyLabel: 'ビルドによる変更',
+      revert: '取り消し',
+      items: '件',
+      revertAction: '取り消す',
+      reverted: '取り消しました — 変更を元に戻しました。',
+      revertFailed: '取り消しに失敗しました',
     },
   },
   filterBuilder: {

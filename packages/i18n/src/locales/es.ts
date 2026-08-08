@@ -2989,6 +2989,7 @@ const es = {
       dismiss: "Descartar",
       openOnCloud: "Abrir en la nube",
       backHome: "Volver al inicio",
+      updateTo: "Actualizar",
     },
     install: {
       dialogTitle: "Instalar {{name}}",
@@ -3005,6 +3006,37 @@ const es = {
       localManifestConflict: "{{message}}\nNota: Una aplicación local ya tiene este manifest_id. Primero elimínela de objectstack.config.ts.",
       localUnauthorized: "Primero inicie sesión en este runtime.",
       localMarketplaceUnavailable: "Este runtime no tiene configurado OS_CLOUD_URL.",
+      updateTo: "Actualizar → v{{version}}",
+      installedVersion: "Instalado v{{version}}",
+    },
+    // objectui#3546 — the MarketplacePage "Your organization" strip.
+    org: {
+      heading: "Su organización",
+      install: "Instalar",
+      installed: "{{name}} instalado",
+      installedBadge: "Instalado",
+      installing: "Instalando…",
+    },
+    // ADR-0025 PD4 §3.5/§3.11 — the pre-install consent panel
+    // (PluginDisclosure.tsx). `runtime` is a CLOSED enum: spec
+    // PluginRuntimeSchema = z.enum(['node', 'sandbox', 'worker']).
+    disclosure: {
+      containsCode: "Este paquete contiene código",
+      reviewed: "Revisado y aprobado",
+      unreviewed: "Sin revisar todavía",
+      signed: "Firmado",
+      grantsIntro: "Al instalarlo, este paquete recibirá:",
+      services: "Servicios de la plataforma",
+      hooks: "Hooks de ciclo de vida",
+      network: "Acceso a la red",
+      fs: "Acceso al sistema de archivos",
+      noPermissions: "No solicita permisos especiales.",
+      acknowledge: "Entiendo que este paquete ejecuta código y recibe los permisos anteriores.",
+      runtime: {
+        node: "En el proceso · confianza total",
+        sandbox: "En sandbox",
+        worker: "Fuera del proceso",
+      },
     },
     uninstall: {
       confirm: "¿Desinstalar {{manifestId}} v{{version}} de este runtime?\n\nEl manifiesto en caché será eliminado.",
@@ -3253,6 +3285,32 @@ const es = {
       detailChangedKeys: 'También cambió:',
       confirmNote: 'Publicar libera atómicamente los {{count}} borradores pendientes de este paquete.',
       publishConfirm: 'Publicar todo',
+    },
+    // ADR-0045 — the materialized-but-unlisted app banner
+    // (UnpublishedAppBar.tsx), sibling of draftBar above.
+    unpublishedBar: {
+      message: 'Aplicación sin publicar — totalmente funcional, pero solo la ven los creadores. Publíquela para que sus usuarios la vean.',
+      publish: 'Publicar',
+      publishing: 'Publicando…',
+      published: '¡Publicado! La aplicación ya es visible para sus usuarios.',
+      publishFailed: 'Error al publicar',
+    },
+    // ADR-0067 — the append-only build/revert timeline (CommitTimeline.tsx);
+    // `button` is the banner's entry point into it.
+    history: {
+      button: 'Historial',
+      title: 'Historial de compilaciones',
+      description: 'Todos los cambios de esta aplicación, los más recientes primero. Deshaga cualquier paso para revertirlo — no hace falta confirmar la publicación.',
+      loadFailed: 'No se pudo cargar el historial:',
+      loading: 'Cargando historial…',
+      empty: 'Aún no hay historial para esta aplicación.',
+      revertLabel: 'Se deshizo un cambio',
+      applyLabel: 'Cambio de compilación',
+      revert: 'deshacer',
+      items: 'elemento(s)',
+      revertAction: 'Deshacer',
+      reverted: 'Deshecho — el cambio se ha revertido.',
+      revertFailed: 'Error al deshacer',
     },
   },
   filterBuilder: {

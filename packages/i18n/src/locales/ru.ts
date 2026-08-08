@@ -2984,6 +2984,7 @@ const ru = {
       dismiss: "Закрыть",
       openOnCloud: "Открыть в облаке",
       backHome: "На главную",
+      updateTo: "Обновить",
     },
     install: {
       dialogTitle: "Установить {{name}}",
@@ -3000,6 +3001,37 @@ const ru = {
       localManifestConflict: "{{message}}\nПримечание: Локальное приложение уже имеет этот manifest_id. Сначала удалите его из objectstack.config.ts.",
       localUnauthorized: "Сначала войдите в этот рантайм.",
       localMarketplaceUnavailable: "OS_CLOUD_URL не настроен.",
+      updateTo: "Обновить → v{{version}}",
+      installedVersion: "Установлено v{{version}}",
+    },
+    // objectui#3546 — the MarketplacePage "Your organization" strip.
+    org: {
+      heading: "Ваша организация",
+      install: "Установить",
+      installed: "Установлено {{name}}",
+      installedBadge: "Установлено",
+      installing: "Установка…",
+    },
+    // ADR-0025 PD4 §3.5/§3.11 — the pre-install consent panel
+    // (PluginDisclosure.tsx). `runtime` is a CLOSED enum: spec
+    // PluginRuntimeSchema = z.enum(['node', 'sandbox', 'worker']).
+    disclosure: {
+      containsCode: "Этот пакет содержит код",
+      reviewed: "Проверено и одобрено",
+      unreviewed: "Ещё не проверено",
+      signed: "Подписано",
+      grantsIntro: "При установке пакет получит:",
+      services: "Сервисы платформы",
+      hooks: "Хуки жизненного цикла",
+      network: "Доступ к сети",
+      fs: "Доступ к файловой системе",
+      noPermissions: "Не запрашивает особых разрешений.",
+      acknowledge: "Я понимаю, что этот пакет выполняет код и получает указанные выше разрешения.",
+      runtime: {
+        node: "В процессе · полное доверие",
+        sandbox: "В песочнице",
+        worker: "Вне процесса",
+      },
     },
     uninstall: {
       confirm: "Удалить {{manifestId}} v{{version}}?\n\nКэшированный манифест будет удалён.",
@@ -3248,6 +3280,32 @@ const ru = {
       detailChangedKeys: 'Также изменено:',
       confirmNote: 'Публикация атомарно выпускает все {{count}} ожидающих черновиков этого пакета.',
       publishConfirm: 'Опубликовать всё',
+    },
+    // ADR-0045 — the materialized-but-unlisted app banner
+    // (UnpublishedAppBar.tsx), sibling of draftBar above.
+    unpublishedBar: {
+      message: 'Неопубликованное приложение — полностью работает, но видно только создателям. Опубликуйте, чтобы его увидели ваши пользователи.',
+      publish: 'Опубликовать',
+      publishing: 'Публикация…',
+      published: 'Опубликовано! Приложение теперь видно вашим пользователям.',
+      publishFailed: 'Не удалось опубликовать',
+    },
+    // ADR-0067 — the append-only build/revert timeline (CommitTimeline.tsx);
+    // `button` is the banner's entry point into it.
+    history: {
+      button: 'История',
+      title: 'История сборок',
+      description: 'Все изменения этого приложения, новые сверху. Любой шаг можно отменить — подтверждать публикацию не нужно.',
+      loadFailed: 'Не удалось загрузить историю:',
+      loading: 'Загрузка истории…',
+      empty: 'Истории для этого приложения пока нет.',
+      revertLabel: 'Изменение отменено',
+      applyLabel: 'Изменение сборки',
+      revert: 'отмена',
+      items: 'элемент(ов)',
+      revertAction: 'Отменить',
+      reverted: 'Отменено — изменение возвращено.',
+      revertFailed: 'Не удалось отменить',
     },
   },
   filterBuilder: {

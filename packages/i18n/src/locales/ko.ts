@@ -2984,6 +2984,7 @@ const ko = {
       dismiss: "닫기",
       openOnCloud: "클라우드에서 열기",
       backHome: "홈으로 돌아가기",
+      updateTo: "업데이트",
     },
     install: {
       dialogTitle: "{{name}} 설치",
@@ -3000,6 +3001,37 @@ const ko = {
       localManifestConflict: "{{message}}\n참고: 로컬 앱이 이미 이 manifest_id를 가지고 있습니다. 먼저 objectstack.config.ts에서 제거하세요.",
       localUnauthorized: "먼저 이 런타임에 로그인하세요.",
       localMarketplaceUnavailable: "이 런타임에 OS_CLOUD_URL이 구성되지 않았습니다.",
+      updateTo: "업데이트 → v{{version}}",
+      installedVersion: "v{{version}} 설치됨",
+    },
+    // objectui#3546 — the MarketplacePage "Your organization" strip.
+    org: {
+      heading: "조직",
+      install: "설치",
+      installed: "{{name}} 설치됨",
+      installedBadge: "설치됨",
+      installing: "설치 중…",
+    },
+    // ADR-0025 PD4 §3.5/§3.11 — the pre-install consent panel
+    // (PluginDisclosure.tsx). `runtime` is a CLOSED enum: spec
+    // PluginRuntimeSchema = z.enum(['node', 'sandbox', 'worker']).
+    disclosure: {
+      containsCode: "이 패키지에는 코드가 포함되어 있습니다",
+      reviewed: "검토 및 승인됨",
+      unreviewed: "아직 검토되지 않음",
+      signed: "서명됨",
+      grantsIntro: "설치하면 이 패키지에 다음 권한이 부여됩니다:",
+      services: "플랫폼 서비스",
+      hooks: "라이프사이클 후크",
+      network: "네트워크 액세스",
+      fs: "파일 시스템 액세스",
+      noPermissions: "특별한 권한을 요청하지 않습니다.",
+      acknowledge: "이 패키지가 코드를 실행하고 위 권한을 부여받는다는 점을 이해합니다.",
+      runtime: {
+        node: "프로세스 내 · 완전 신뢰",
+        sandbox: "샌드박스",
+        worker: "프로세스 외부",
+      },
     },
     uninstall: {
       confirm: "이 런타임에서 {{manifestId}} v{{version}}을(를) 제거하시겠습니까?\n\n캐시된 매니페스트가 삭제됩니다.",
@@ -3248,6 +3280,32 @@ const ko = {
       detailChangedKeys: '기타 변경:',
       confirmNote: '게시하면 이 패키지의 대기 중인 초안 {{count}}개가 한 번에(원자적으로) 게시됩니다.',
       publishConfirm: '모두 게시',
+    },
+    // ADR-0045 — the materialized-but-unlisted app banner
+    // (UnpublishedAppBar.tsx), sibling of draftBar above.
+    unpublishedBar: {
+      message: '게시되지 않은 앱 — 기능은 모두 작동하지만 빌더만 볼 수 있습니다. 게시하면 사용자에게 표시됩니다.',
+      publish: '게시',
+      publishing: '게시 중…',
+      published: '게시했습니다! 이제 사용자에게 앱이 표시됩니다.',
+      publishFailed: '게시에 실패했습니다',
+    },
+    // ADR-0067 — the append-only build/revert timeline (CommitTimeline.tsx);
+    // `button` is the banner's entry point into it.
+    history: {
+      button: '기록',
+      title: '빌드 기록',
+      description: '이 앱의 모든 변경을 최신순으로 표시합니다. 어떤 단계든 되돌려 취소할 수 있습니다 — 게시 확인은 필요하지 않습니다.',
+      loadFailed: '기록을 불러올 수 없습니다:',
+      loading: '기록을 불러오는 중…',
+      empty: '이 앱의 기록이 아직 없습니다.',
+      revertLabel: '변경을 되돌렸습니다',
+      applyLabel: '빌드 변경',
+      revert: '되돌림',
+      items: '개',
+      revertAction: '되돌리기',
+      reverted: '되돌렸습니다 — 변경이 취소되었습니다.',
+      revertFailed: '되돌리기 실패',
     },
   },
   filterBuilder: {

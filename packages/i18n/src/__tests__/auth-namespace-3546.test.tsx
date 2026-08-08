@@ -256,17 +256,18 @@ describe('objectui#3546 slice three — the auth / oauth / acceptInvitation name
     );
     expect(stillBaselined).toEqual([]);
     // 163 before this slice, 54 removed — then slice four (console, 41 keys) took
-    // it to 68. The other namespaces' debt is not this slice's to spend, and this
-    // number is what catches a slice that overreaches; it moves once per slice,
-    // and only downwards.
-    expect(Object.keys(baseline.missingKeys).length).toBe(68);
+    // it to 68 and slice five (marketplace + preview, 37 keys) to 31. The other
+    // namespaces' debt is not this slice's to spend, and this number is what
+    // catches a slice that overreaches; it moves once per slice, and only
+    // downwards.
+    expect(Object.keys(baseline.missingKeys).length).toBe(31);
     // None of the template-key FAMILIES belonged to the auth family, so this slice
     // left all four. Slice four then took `console.ai.group.` (it is a `console`
-    // key), leaving three. This assertion is what stops a later slice from
-    // thinking one of the remaining three was already handled.
+    // key) and slice five `marketplace.disclosure.runtime.`, leaving two. This
+    // assertion is what stops a later slice from thinking one of the remaining
+    // two was already handled.
     expect(Object.keys(baseline.missingPrefixes).sort()).toEqual([
       'gantt.linkEnd.',
-      'marketplace.disclosure.runtime.',
       'organization.invitations.status.',
     ]);
   });

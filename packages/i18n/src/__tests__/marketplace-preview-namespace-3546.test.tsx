@@ -1,0 +1,629 @@
+/**
+ * The `marketplace` and `preview` namespaces — objectui#3546 slice five —
+ * resolve **from the locale packs, with a provider mounted**.
+ *
+ * ## What was broken, precisely
+ *
+ * `scripts/check-i18n-call-site-keys.mjs` (#3530's gate) measured **37 distinct
+ * keys at 37 call sites** under `marketplace.*` / `preview.*` that a `t()` call
+ * site asks for and that NO pack defined, plus **one** `missing-prefix` family
+ * (`marketplace.disclosure.runtime.`, whose static head matched no `en` key at
+ * all so every expansion missed). Unlike slices two through four this slice has
+ * no multi-site key: the denominator is 1:1 — still measured, never counted by
+ * hand, because slice two predicted 90 and the truth was 93.
+ *
+ * All 37 carried an inline `t(key, { defaultValue: 'English' })`, so this is the
+ * milder objectui#3517 class: English rendered correctly and **all ten
+ * languages were stuck on it**. Nothing rendered a raw key here — slice one
+ * (PR #3583) held the sites that did — and an AST sweep of the whole
+ * `marketplace.*`/`preview.*` call-site surface (172 sites in 11 files, not just
+ * this slice's 37) found 16 dead `t(key) || 'English'` fallbacks, every one of
+ * them on a key that already resolves in `en` and NOT in this slice, so this
+ * slice touches no component. (They are filed; see the PR body.)
+ *
+ * Consequence for test design, same as slices two through four: `en` output was
+ * already correct before the change, so **an `en` assertion cannot discriminate
+ * before from after**. Every assertion that pins the fix is a non-`en` one; the
+ * `en` cases only prove the key is reachable through the real binding.
+ *
+ * ## The template-key family
+ *
+ * `marketplace.disclosure.runtime.` is the plugin trust tier badge in
+ * `PluginDisclosure.tsx:70`:
+ *
+ *     t(`marketplace.disclosure.runtime.${version.runtime}`, {
+ *       defaultValue: RUNTIME_FALLBACK[version.runtime] ?? version.runtime,
+ *     })
+ *
+ * Its value surface is a CLOSED enumeration — `PluginRuntimeSchema` in
+ * objectstack `packages/spec/src/kernel/manifest.zod.ts` is
+ * `z.enum(['node', 'sandbox', 'worker'])` (ADR-0025 §3.6) — so the repair is an
+ * enumeration of three members, not a wildcard, and the family leaves
+ * `missingPrefixes` (3 → 2). The spec lives in a sibling repo and cannot be read
+ * from here, so the in-repo authority this test reads is the component's own
+ * `RUNTIME_FALLBACK` map, which is what `defaultValue` reads; a fourth tier
+ * added to either side fails the test, which is the job the prefix entry used to
+ * do.
+ *
+ * ## Why a provider is mounted
+ *
+ * All five components behind these keys — `MarketplacePage`,
+ * `MarketplacePackagePage`, `PluginDisclosure`, `CommitTimeline` and
+ * `UnpublishedAppBar` — bind `t` from a bare `useObjectTranslation()`. None sits
+ * behind a `createSafeTranslation` defaults map, so there is no provider-less
+ * path to be green on: without `I18nProvider`, i18next is not the thing
+ * answering and the test would describe a binding the console never uses.
+ */
+import { describe, it, expect, beforeEach } from 'vitest';
+import { renderHook } from '@testing-library/react';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import React from 'react';
+import { I18nProvider, useObjectTranslation } from '../provider';
+import { builtInLocales } from '../locales/index';
+
+/** The 40 keys this slice backfilled, grouped as the packs group them. */
+const KEYS = [
+  // marketplace.action / marketplace.install — the package page's buttons (3)
+  'marketplace.action.updateTo',
+  'marketplace.install.updateTo',
+  'marketplace.install.installedVersion',
+  // marketplace.org — MarketplacePage's "Your organization" strip (5)
+  'marketplace.org.heading',
+  'marketplace.org.install',
+  'marketplace.org.installed',
+  'marketplace.org.installedBadge',
+  'marketplace.org.installing',
+  // marketplace.disclosure — the ADR-0025 PD4 pre-install consent panel (11)
+  'marketplace.disclosure.containsCode',
+  'marketplace.disclosure.reviewed',
+  'marketplace.disclosure.unreviewed',
+  'marketplace.disclosure.signed',
+  'marketplace.disclosure.grantsIntro',
+  'marketplace.disclosure.services',
+  'marketplace.disclosure.hooks',
+  'marketplace.disclosure.network',
+  'marketplace.disclosure.fs',
+  'marketplace.disclosure.noPermissions',
+  'marketplace.disclosure.acknowledge',
+  // marketplace.disclosure.runtime — the template-key FAMILY, enumerated (3)
+  'marketplace.disclosure.runtime.node',
+  'marketplace.disclosure.runtime.sandbox',
+  'marketplace.disclosure.runtime.worker',
+  // preview.unpublishedBar — the ADR-0045 banner (5)
+  'preview.unpublishedBar.message',
+  'preview.unpublishedBar.publish',
+  'preview.unpublishedBar.publishing',
+  'preview.unpublishedBar.published',
+  'preview.unpublishedBar.publishFailed',
+  // preview.history — the ADR-0067 commit timeline (13)
+  'preview.history.button',
+  'preview.history.title',
+  'preview.history.description',
+  'preview.history.loadFailed',
+  'preview.history.loading',
+  'preview.history.empty',
+  'preview.history.revertLabel',
+  'preview.history.applyLabel',
+  'preview.history.revert',
+  'preview.history.items',
+  'preview.history.revertAction',
+  'preview.history.reverted',
+  'preview.history.revertFailed',
+] as const;
+
+/** The 37 the guard measured; the other 3 are the prefix family. */
+const MEASURED_KEYS = KEYS.filter((k) => !k.startsWith('marketplace.disclosure.runtime.'));
+
+const LANGS = Object.keys(builtInLocales);
+
+const DISCLOSURE = 'packages/app-shell/src/console/marketplace/PluginDisclosure.tsx';
+const PACKAGE_PAGE = 'packages/app-shell/src/console/marketplace/MarketplacePackagePage.tsx';
+const ORG_PAGE = 'packages/app-shell/src/console/marketplace/MarketplacePage.tsx';
+
+const at = (pack: unknown, path: string): unknown =>
+  path.split('.').reduce<unknown>((n, k) => (n as Record<string, unknown> | undefined)?.[k], pack);
+
+const wrapperFor = (lang: string) =>
+  function Wrapper({ children }: { children: React.ReactNode }) {
+    return (
+      <I18nProvider config={{ defaultLanguage: lang, detectBrowserLanguage: false }}>
+        {children}
+      </I18nProvider>
+    );
+  };
+
+/**
+ * Read a component's source. `import.meta.url` is not a file: URL in the dom
+ * project, so resolve from the vitest root (which the invocation guard pins to
+ * the repo root) — and prove the read landed, or every assertion on it is
+ * vacuous.
+ */
+function sourceOf(rel: string): string {
+  const path = join(process.cwd(), rel);
+  expect(existsSync(path), `source not found at ${path}`).toBe(true);
+  return readFileSync(path, 'utf8');
+}
+
+beforeEach(() => {
+  // The provider persists the last language (objectstack#5406); without this a
+  // stale locale leaks into the `en` cases.
+  window.localStorage.clear();
+});
+
+describe('objectui#3546 slice five — the marketplace and preview namespaces', () => {
+  it('covers all ten packs and all forty keys (guards the loops from emptying)', () => {
+    expect(LANGS).toHaveLength(10);
+    expect(KEYS).toHaveLength(40);
+    expect(new Set(KEYS).size).toBe(40);
+    // 37 measured missing keys + 3 that came from the prefix family. Splitting
+    // the two apart here is what stops a later reader reading "40" off the
+    // ratchet, which only ever held 37 + one prefix line.
+    expect(MEASURED_KEYS).toHaveLength(37);
+    const perArea = KEYS.reduce<Record<string, number>>((acc, k) => {
+      const area = k.split('.').slice(0, 2).join('.');
+      acc[area] = (acc[area] ?? 0) + 1;
+      return acc;
+    }, {});
+    expect(perArea).toEqual({
+      'marketplace.action': 1,
+      'marketplace.install': 2,
+      'marketplace.org': 5,
+      'marketplace.disclosure': 14,
+      'preview.unpublishedBar': 5,
+      'preview.history': 13,
+    });
+  });
+
+  it.each(LANGS)('%s defines every key in this slice as a non-empty string', (lang) => {
+    for (const key of KEYS) {
+      const value = at(builtInLocales[lang], key);
+      expect(typeof value, `${lang}.${key}`).toBe('string');
+      expect((value as string).trim().length, `${lang}.${key} is empty`).toBeGreaterThan(0);
+    }
+  });
+
+  it('the nine non-en packs carry real translations, not the English strings', () => {
+    // The failure this catches is a backfill that copy-pastes `en` into the other
+    // nine packs: full key parity, ten packs green, nine languages still reading
+    // English. `all-locales-key-parity.test.ts` cannot see it — it compares key
+    // sets and placeholder shape, and never looks at what a value SAYS.
+    //
+    // Set equality against the EMPTY set, not a subset: unlike slice two (12
+    // pairs), three (18) and four (1 — French "Assistant"), this slice has no
+    // legitimate cognate at all. 0 of 360 pairs is identical to `en`. A first
+    // identical pair fails here and must be justified on the line below, the way
+    // those slices justified theirs.
+    const identical: string[] = [];
+    for (const lang of LANGS.filter((l) => l !== 'en')) {
+      for (const key of KEYS) {
+        if (at(builtInLocales[lang], key) === at(builtInLocales.en, key)) identical.push(`${lang} :: ${key}`);
+      }
+    }
+    expect(identical.sort()).toEqual([]);
+  });
+
+  it('the empty cognate set is not vacuous — the loanwords are there and still differ', () => {
+    // An empty set-equality is green when the packs are green AND when they are
+    // empty (slice two's B1 lesson). The presence assertion above covers
+    // emptiness; this one covers the other way the set could be empty for the
+    // wrong reason — a pack that dodged every English-looking word. These four
+    // DO embed the loanword and are still not byte-identical to `en`, which is
+    // what shows the zero is a real zero and not an avoidance.
+    expect(at(builtInLocales.de, 'marketplace.disclosure.hooks')).toBe('Lifecycle-Hooks');
+    expect(at(builtInLocales.fr, 'marketplace.disclosure.hooks')).toBe('Hooks de cycle de vie');
+    expect(at(builtInLocales.es, 'marketplace.disclosure.runtime.sandbox')).toBe('En sandbox');
+    expect(at(builtInLocales.pt, 'marketplace.disclosure.runtime.sandbox')).toBe('Em sandbox');
+    for (const [lang, key] of [
+      ['de', 'marketplace.disclosure.hooks'],
+      ['fr', 'marketplace.disclosure.hooks'],
+      ['es', 'marketplace.disclosure.runtime.sandbox'],
+      ['pt', 'marketplace.disclosure.runtime.sandbox'],
+    ] as const) {
+      expect(at(builtInLocales[lang], key)).not.toBe(at(builtInLocales.en, key));
+    }
+  });
+
+  it('exactly three keys interpolate, and every pack carries the same holes', () => {
+    // Unlike slice four (where not one of the 46 strings took an option), three
+    // of these do, and the rest must NOT: a translator who invents `{{name}}`
+    // renders the braces to the user verbatim, and one who drops `{{version}}`
+    // from `install.updateTo` leaves the dropdown saying "Update →" with no
+    // version. `all-locales-key-parity` compares placeholder shape too — this
+    // states the intended shape by name so a wrong one is legible here.
+    // Deliberately two regexes: a `/g` one is stateful, and reusing it for
+    // `.test()` inside a `filter` silently skips every other match through
+    // `lastIndex`. (It did, on the first run of this file.)
+    const HOLES = /\{\{?\w+\}?\}/g;
+    const HAS_HOLE = /\{\{?\w+\}?\}/;
+    const INTERPOLATED: Record<string, string> = {
+      'marketplace.install.updateTo': '{{version}}',
+      'marketplace.install.installedVersion': '{{version}}',
+      'marketplace.org.installed': '{{name}}',
+    };
+    expect(KEYS.filter((k) => HAS_HOLE.test(at(builtInLocales.en, k) as string)).sort()).toEqual(
+      Object.keys(INTERPOLATED).sort(),
+    );
+    for (const lang of LANGS) {
+      for (const key of KEYS) {
+        const holes = ((at(builtInLocales[lang], key) as string).match(HOLES) ?? []).join(',');
+        expect(holes, `${lang}.${key}`).toBe(INTERPOLATED[key] ?? '');
+      }
+    }
+  });
+
+  it('the ellipsis, middle-dot and arrow characters follow en in every pack', () => {
+    // The packs mirror `en`'s typographic bytes rather than picking their own.
+    // Three keys end in U+2026 (the two "…ing" progress labels and the history
+    // loader); one carries U+00B7 (following `marketplace.detail.installedV`,
+    // "Installed · v{{version}}"); one carries U+2192 (following
+    // `marketplace.browseLink`, which every pack including `ar` keeps as "→").
+    const ellipsised = KEYS.filter((k) => (at(builtInLocales.en, k) as string).endsWith('…'));
+    expect(ellipsised.sort()).toEqual([
+      'marketplace.org.installing',
+      'preview.history.loading',
+      'preview.unpublishedBar.publishing',
+    ]);
+    for (const lang of LANGS) {
+      for (const key of ellipsised) {
+        const value = at(builtInLocales[lang], key) as string;
+        expect(value.endsWith('…'), `${lang}.${key} = ${value}`).toBe(true);
+        expect(value.includes('...'), `${lang}.${key} mixes "..." into an … string`).toBe(false);
+      }
+      expect(
+        (at(builtInLocales[lang], 'marketplace.disclosure.runtime.node') as string).includes(' · '),
+        `${lang} runtime.node lost the middle dot`,
+      ).toBe(true);
+      expect(
+        (at(builtInLocales[lang], 'marketplace.install.updateTo') as string).includes(' → '),
+        `${lang} install.updateTo lost the arrow`,
+      ).toBe(true);
+    }
+  });
+
+  describe('the marketplace.disclosure.runtime. template-key family', () => {
+    it('is enumerated from the trust-tier enum, not guessed', () => {
+      // The family left `missingPrefixes` because all three members now exist.
+      // The canonical enum is objectstack spec `PluginRuntimeSchema`
+      // (z.enum(['node','sandbox','worker']), ADR-0025 §3.6) which is in another
+      // repo; the in-repo authority is the component's own fallback map, and a
+      // fourth tier on either side fails here — the job the prefix entry did.
+      const src = sourceOf(DISCLOSURE);
+      const block = src.match(/const RUNTIME_FALLBACK: Record<string, string> = \{([^}]+)\}/);
+      expect(block, 'RUNTIME_FALLBACK not found — did the map move?').not.toBeNull();
+      const members = [...block![1].matchAll(/(\w+):\s*'([^']*)'/g)].map((m) => m[1]);
+      expect(members.sort()).toEqual(['node', 'sandbox', 'worker']);
+      const packMembers = Object.keys(at(builtInLocales.en, 'marketplace.disclosure.runtime') as object);
+      expect(packMembers.sort()).toEqual(['node', 'sandbox', 'worker']);
+      // And the call site really is the template shape this family describes.
+      expect(src).toContain('t(`marketplace.disclosure.runtime.${version.runtime}`');
+    });
+
+    it("each en value is byte-identical to the component's own fallback label", () => {
+      // `RUNTIME_FALLBACK` is the map i18next's `defaultValue` reads. The two
+      // paths must not diverge: with the pack present i18next answers, without it
+      // the map does, and a user must not be able to tell which one ran.
+      const block = sourceOf(DISCLOSURE).match(
+        /const RUNTIME_FALLBACK: Record<string, string> = \{([^}]+)\}/,
+      );
+      const labels = Object.fromEntries(
+        [...block![1].matchAll(/(\w+):\s*'([^']*)'/g)].map((m) => [m[1], m[2]]),
+      );
+      expect(Object.keys(labels)).toHaveLength(3);
+      for (const [tier, label] of Object.entries(labels)) {
+        expect(
+          at(builtInLocales.en, `marketplace.disclosure.runtime.${tier}`),
+          `en marketplace.disclosure.runtime.${tier}`,
+        ).toBe(label);
+      }
+    });
+
+    it.each(['en', 'zh'])('%s renders every tier through the real template call', (lang) => {
+      const { result } = renderHook(() => useObjectTranslation(), { wrapper: wrapperFor(lang) });
+      for (const tier of ['node', 'sandbox', 'worker']) {
+        const full = `marketplace.disclosure.runtime.${tier}`;
+        const value = result.current.t(full);
+        expect(value, `${lang} rendered the raw key for ${full}`).not.toBe(full);
+        expect(value, `${lang}.${full}`).toBe(at(builtInLocales[lang], full));
+      }
+    });
+
+    it('zh tiers are Chinese — the half that was red before the backfill', () => {
+      const { result } = renderHook(() => useObjectTranslation(), { wrapper: wrapperFor('zh') });
+      const { t } = result.current;
+      expect(t('marketplace.disclosure.runtime.node')).toBe('进程内 · 完全信任');
+      expect(t('marketplace.disclosure.runtime.sandbox')).toBe('沙箱隔离');
+      expect(t('marketplace.disclosure.runtime.worker')).toBe('进程外');
+    });
+  });
+
+  it("marketplace.org.installed's en value is the template literal's sentence, hole for hole", () => {
+    // The one call site whose `defaultValue` is not a static string:
+    // `` t('marketplace.org.installed', { defaultValue: `Installed ${pkg.display_name}`, name: pkg.display_name }) ``.
+    // A byte comparison is structurally impossible against a template literal, so
+    // the equivalence pinned instead is: the literal's static head plus the
+    // interpolated identifier === the pack's head plus i18next's hole, driven by
+    // the `name` option the site ALREADY passes. Anything else and the toast
+    // changes wording the moment the pack starts answering.
+    const src = sourceOf(ORG_PAGE);
+    const call = src.match(
+      /t\('marketplace\.org\.installed',\s*\{\s*defaultValue:\s*`([^`]*)`,\s*name:\s*([\w.]+)\s*\}\)/,
+    );
+    expect(call, 'the marketplace.org.installed call site moved — recheck the mapping').not.toBeNull();
+    const [, template, option] = call!;
+    expect(template).toBe('Installed ${pkg.display_name}');
+    expect(option).toBe('pkg.display_name');
+    expect(at(builtInLocales.en, 'marketplace.org.installed')).toBe('Installed {{name}}');
+  });
+
+  it("marketplace.action.updateTo's `version` option is inert, and en does not pretend otherwise", () => {
+    // `MarketplacePackagePage.tsx:555` passes `version` next to a `defaultValue`
+    // that has no hole for it, so nothing has ever been interpolated there and
+    // the primary button reads a bare "Update". Its sibling
+    // `marketplace.install.updateTo` (the environment dropdown, same file) DOES
+    // render the version — the two were plainly meant to match.
+    //
+    // Deliberately NOT repaired by giving `en` a `{{version}}` hole: that would
+    // change a string the user sees today, on a call site whose intent is
+    // ambiguous, in a slice whose contract is that `en` equals the inline
+    // `defaultValue` byte for byte. Filed as a finding; this assertion is what
+    // makes the next reader see the choice instead of "fixing" it silently.
+    const src = sourceOf(PACKAGE_PAGE);
+    expect(src).toContain("t('marketplace.action.updateTo', { defaultValue: 'Update', version: latestVersion })");
+    for (const lang of LANGS) {
+      expect(at(builtInLocales[lang], 'marketplace.action.updateTo')).not.toContain('{{');
+    }
+    expect(at(builtInLocales.en, 'marketplace.install.updateTo')).toContain('{{version}}');
+  });
+
+  it('the two revert labels collapse only in the packs with no letter case', () => {
+    // `en` distinguishes the row's KIND chip ('revert', lowercase) from the
+    // button ('Revert') by case alone. Packs with a bicameral script keep that
+    // contrast; `zh` and `ar` have no case and necessarily render one string for
+    // both. `ja`/`ko` have no case either and still contrast, because their words
+    // differ in kind (noun vs verb) rather than in case. Pinning the exact set
+    // stops a reviewer reading the zh/ar duplication as a copy-paste slip.
+    const collapsed = LANGS.filter(
+      (l) => at(builtInLocales[l], 'preview.history.revert') === at(builtInLocales[l], 'preview.history.revertAction'),
+    );
+    expect(collapsed.sort()).toEqual(['ar', 'zh']);
+    expect(at(builtInLocales.ja, 'preview.history.revert')).toBe('取り消し');
+    expect(at(builtInLocales.ja, 'preview.history.revertAction')).toBe('取り消す');
+    expect(at(builtInLocales.ko, 'preview.history.revert')).toBe('되돌림');
+    expect(at(builtInLocales.ko, 'preview.history.revertAction')).toBe('되돌리기');
+  });
+
+  it('the register split between the two namespaces is deliberate, per pack neighbourhood', () => {
+    // "Same rule, different answer" (slice two's es ruling). Measured on the
+    // packs as they stood before this slice:
+    //   zh marketplace uses 你 (3 strings, 0 with 您) — marketplace.subtitle;
+    //   zh preview     uses 您 (2 strings, 0 with 你) — preview.draftBar.*.
+    //   es marketplace is unanimously usted (9 / 0).
+    // So the two namespaces get DIFFERENT second persons in zh, on purpose. The
+    // es `preview` neighbourhood is genuinely split before this slice
+    // (draftBar.message is tú while draftBar.messageClean / sampleDataBody are
+    // usted — filed as a finding), and the tie-break taken is usted, on the
+    // strength of home.pendingDrafts.published ("¡Publicado! Sus cambios…"), the
+    // structural twin of preview.unpublishedBar.published.
+    expect(at(builtInLocales.zh, 'marketplace.org.heading')).toBe('你的组织');
+    expect(at(builtInLocales.zh, 'preview.unpublishedBar.message')).toContain('您的用户');
+    expect(at(builtInLocales.zh, 'preview.unpublishedBar.published')).toContain('您的用户');
+    expect(at(builtInLocales.es, 'marketplace.org.heading')).toBe('Su organización');
+    expect(at(builtInLocales.es, 'preview.unpublishedBar.published')).toContain('sus usuarios');
+    expect(at(builtInLocales.es, 'preview.unpublishedBar.message')).toContain('Publíquela');
+    // ...and the neighbours that ruling was read off are still what it claims.
+    expect(at(builtInLocales.zh, 'marketplace.subtitle')).toContain('你的');
+    expect(at(builtInLocales.zh, 'preview.draftBar.sampleDataBody')).toContain('您');
+    expect(at(builtInLocales.es, 'home.pendingDrafts.published')).toBe('¡Publicado! Sus cambios están activos.');
+  });
+
+  it('reused strings are the neighbours own translations, not second renderings', () => {
+    // Where this slice's `en` string already existed verbatim elsewhere, the
+    // existing row is reused rather than re-translated, so one English string
+    // never renders as two different sentences in the same language. These are
+    // the pairs; a drift on either side fails here.
+    const REUSED: Array<[newKey: string, neighbour: string]> = [
+      ['marketplace.action.updateTo', 'form.update'],
+      ['marketplace.install.installedVersion', 'marketplace.installedBadge'],
+      ['marketplace.org.install', 'marketplace.action.install'],
+      ['marketplace.org.installedBadge', 'marketplace.installed'],
+      ['marketplace.org.installing', 'marketplace.action.installing'],
+      ['preview.unpublishedBar.publish', 'preview.draftBar.publish'],
+      ['preview.unpublishedBar.publishing', 'preview.draftBar.publishing'],
+      ['preview.unpublishedBar.publishFailed', 'home.pendingDrafts.publishFailed'],
+      ['preview.history.button', 'detail.history'],
+    ];
+    for (const [newKey, neighbour] of REUSED) {
+      // the premise: the two really are the same English string
+      expect(at(builtInLocales.en, newKey), `en ${newKey} vs ${neighbour}`).toBe(
+        at(builtInLocales.en, neighbour),
+      );
+      for (const lang of LANGS) {
+        expect(at(builtInLocales[lang], newKey), `${lang} ${newKey} diverged from ${neighbour}`).toBe(
+          at(builtInLocales[lang], neighbour),
+        );
+      }
+    }
+    // The two rows deliberately NOT reused, and why: `marketplace.action.installed`
+    // carries the feminine/diacritised agreement with "aplicación" ("Instalada" /
+    // "مثبَّت") while the org badge labels a package, and
+    // `home.pendingDrafts.publishing` differs from the same-namespace
+    // `preview.draftBar.publishing` in ja/ko.
+    expect(at(builtInLocales.es, 'marketplace.action.installed')).toBe('Instalada');
+    expect(at(builtInLocales.es, 'marketplace.org.installedBadge')).toBe('Instalado');
+    expect(at(builtInLocales.ja, 'home.pendingDrafts.publishing')).not.toBe(
+      at(builtInLocales.ja, 'preview.unpublishedBar.publishing'),
+    );
+  });
+
+  it("revertAction borrows the packs' undo VERB even though its en string differs", () => {
+    // A different and weaker claim than the table above, stated separately
+    // rather than smuggled into it: `en` says "Revert" where `grid.bulk.undo`
+    // says "Undo", so these are NOT the same English string and the reuse rule
+    // does not apply automatically. What is reused is each pack's existing verb
+    // for this user action (撤销 / 取り消す / 되돌리기 / Rückgängig / Annuler /
+    // Deshacer / Desfazer / Отменить / تراجع), because no pack has a distinct
+    // word for git-style "revert" and coining a second verb for the same button
+    // would teach the user two names for one thing. If `en` ever gains a real
+    // revert/undo distinction, this assertion is the place that has to be
+    // revisited — which is why it says so out loud.
+    expect(at(builtInLocales.en, 'preview.history.revertAction')).toBe('Revert');
+    expect(at(builtInLocales.en, 'grid.bulk.undo')).toBe('Undo');
+    for (const lang of LANGS.filter((l) => l !== 'en')) {
+      expect(at(builtInLocales[lang], 'preview.history.revertAction'), `${lang} revertAction`).toBe(
+        at(builtInLocales[lang], 'grid.bulk.undo'),
+      );
+    }
+  });
+
+  it('the ratchet actually shrank — no marketplace/preview key is still baselined', () => {
+    // `scripts/i18n-call-site-key-baseline.json` fails the build both ways: an
+    // unfixed key missing from it, AND a fixed key still listed. Pinning the
+    // absence here means a revert of the packs cannot quietly restore the entries
+    // and go green again.
+    const baselinePath = join(process.cwd(), 'scripts/i18n-call-site-key-baseline.json');
+    expect(existsSync(baselinePath), `baseline not found at ${baselinePath}`).toBe(true);
+    const baseline = JSON.parse(readFileSync(baselinePath, 'utf8')) as {
+      missingKeys: Record<string, unknown>;
+      missingPrefixes: Record<string, unknown>;
+    };
+    expect(
+      Object.keys(baseline.missingKeys).filter(
+        (k) => k.startsWith('marketplace.') || k.startsWith('preview.'),
+      ),
+    ).toEqual([]);
+    // 68 before this slice, 37 removed. The other namespaces' debt is not this
+    // slice's to spend; this number moves once per slice, and only downwards.
+    expect(Object.keys(baseline.missingKeys).length).toBe(31);
+    // The prefix family this slice handled is GONE from the ratchet, and the two
+    // that remain are untouched — neither belongs to these namespaces.
+    expect(Object.keys(baseline.missingPrefixes).sort()).toEqual([
+      'gantt.linkEnd.',
+      'organization.invitations.status.',
+    ]);
+    expect(Object.keys(baseline.missingPrefixes)).not.toContain('marketplace.disclosure.runtime.');
+  });
+
+  describe('through the real binding — bare useObjectTranslation, provider mounted', () => {
+    /** One key per component that owns a group of these keys. */
+    const SAMPLE: Array<[key: string, owner: string]> = [
+      ['marketplace.org.heading', 'MarketplacePage (org strip)'],
+      ['marketplace.action.updateTo', 'MarketplacePackagePage (primary button)'],
+      ['marketplace.disclosure.containsCode', 'PluginDisclosure'],
+      ['marketplace.disclosure.grantsIntro', 'PluginDisclosure (permission groups)'],
+      ['preview.unpublishedBar.message', 'UnpublishedAppBar'],
+      ['preview.history.title', 'CommitTimeline'],
+    ];
+
+    it('all five owning components bind t from a bare useObjectTranslation', () => {
+      // The premise of mounting a provider at all. If one of them ever moves
+      // behind a `createSafeTranslation` defaults map, the map would answer in
+      // provider-less tests and this suite would stop describing the console's
+      // path — so assert the binding, do not assume it.
+      for (const rel of [
+        ORG_PAGE,
+        PACKAGE_PAGE,
+        DISCLOSURE,
+        'packages/app-shell/src/preview/CommitTimeline.tsx',
+        'packages/app-shell/src/preview/UnpublishedAppBar.tsx',
+      ]) {
+        const src = sourceOf(rel);
+        expect(src, `${rel} no longer imports useObjectTranslation`).toContain(
+          "import { useObjectTranslation } from '@object-ui/i18n'",
+        );
+        expect(src, `${rel} gained a defaults-map translator`).not.toContain('createSafeTranslation');
+      }
+    });
+
+    it.each(['en', 'zh'])('%s resolves every sampled key from the pack', (lang) => {
+      const { result } = renderHook(() => useObjectTranslation(), { wrapper: wrapperFor(lang) });
+      for (const [key, owner] of SAMPLE) {
+        const value = result.current.t(key);
+        expect(value, `${lang} ${owner} rendered the raw key for ${key}`).not.toBe(key);
+        expect(value, `${lang}.${key}`).toBe(at(builtInLocales[lang], key));
+      }
+    });
+
+    it('zh is Chinese — the half that was red before the backfill', () => {
+      // Pre-fix each of these returned the inline English `defaultValue`, in a zh
+      // session. That is the whole defect, and only a non-en assertion sees it.
+      const { result } = renderHook(() => useObjectTranslation(), { wrapper: wrapperFor('zh') });
+      const { t } = result.current;
+      expect(t('marketplace.disclosure.containsCode')).toBe('此软件包包含代码');
+      expect(t('marketplace.disclosure.acknowledge')).toBe('我了解此软件包会运行代码，并将获得上述权限。');
+      expect(t('preview.history.title')).toBe('构建历史');
+      expect(t('preview.unpublishedBar.published')).toBe('已发布！应用现在对您的用户可见。');
+    });
+
+    it('en interpolates the version and name holes through the real binding', () => {
+      // The three interpolating keys, exercised the way their call sites call
+      // them — a pack value with the hole spelled wrongly renders the braces.
+      const { result } = renderHook(() => useObjectTranslation(), { wrapper: wrapperFor('en') });
+      const { t } = result.current;
+      expect(t('marketplace.install.updateTo', { version: '2.1.0' })).toBe('Update → v2.1.0');
+      expect(t('marketplace.install.installedVersion', { version: '1.4.2' })).toBe('Installed v1.4.2');
+      expect(t('marketplace.org.installed', { name: 'Acme CRM' })).toBe('Installed Acme CRM');
+    });
+
+    it('zh interpolates the same holes — the nine packs kept them', () => {
+      const { result } = renderHook(() => useObjectTranslation(), { wrapper: wrapperFor('zh') });
+      const { t } = result.current;
+      expect(t('marketplace.install.updateTo', { version: '2.1.0' })).toBe('更新 → v2.1.0');
+      expect(t('marketplace.org.installed', { name: 'Acme CRM' })).toBe('已安装 Acme CRM');
+    });
+
+    it.each([
+      ['fr', 'preview.history.title', 'Historique des générations'],
+      ['de', 'marketplace.disclosure.noPermissions', 'Fordert keine besonderen Berechtigungen an.'],
+      ['es', 'preview.history.empty', 'Aún no hay historial para esta aplicación.'],
+      ['pt', 'marketplace.disclosure.fs', 'Acesso ao sistema de arquivos'],
+      ['ru', 'marketplace.disclosure.unreviewed', 'Ещё не проверено'],
+      ['ja', 'preview.history.revertFailed', '取り消しに失敗しました'],
+      ['ko', 'marketplace.disclosure.grantsIntro', '설치하면 이 패키지에 다음 권한이 부여됩니다:'],
+      ['ar', 'preview.unpublishedBar.published', 'تم النشر! التطبيق مرئي الآن لمستخدميك.'],
+    ])('%s renders a user-visible string from the pack', (lang, key, expected) => {
+      // One pinned surface per remaining pack, across four writing systems, so a
+      // pack that silently reverts to English is caught by name and not only by
+      // the aggregate above.
+      const { result } = renderHook(() => useObjectTranslation(), { wrapper: wrapperFor(lang) });
+      expect(result.current.t(key)).toBe(expected);
+    });
+
+    it('the ru pack keeps ё, matching its own neighbours', () => {
+      // The pack writes ё in 161 places (`grid.import.undoConfirm` has
+      // «обновлённые», `console.shortcuts.toggleDarkMode` «тёмный»), and
+      // "Ещё не проверено" is exactly where a backfill would collapse it to е.
+      const { result } = renderHook(() => useObjectTranslation(), { wrapper: wrapperFor('ru') });
+      expect(result.current.t('marketplace.disclosure.unreviewed')).toContain('Ещё');
+    });
+
+    it('the ar pack does not open an RTL sentence with a Latin token', () => {
+      // Same rule slices three and four applied. These strings are about code,
+      // sandboxes and processes — the places a Latin technical token would most
+      // easily have led the sentence and put the bidi boundary in the wrong place.
+      const { result } = renderHook(() => useObjectTranslation(), { wrapper: wrapperFor('ar') });
+      for (const key of KEYS) {
+        const value = result.current.t(key);
+        expect(/^[A-Za-z]/.test(value), `${key} starts with a Latin token: ${value}`).toBe(false);
+      }
+      // The one place a Latin run is unavoidable is the interpolated version, and
+      // it stays inside the string rather than leading it.
+      expect(result.current.t('marketplace.install.updateTo', { version: '2.1.0' })).toBe('تحديث → v2.1.0');
+    });
+
+    it('fr keeps its straight apostrophe and its space before punctuation', () => {
+      // The pack writes U+0027 (502 occurrences against 21 U+2019) and puts a
+      // narrow space before `:` and `!` (6/0 and 49/0), which is where a
+      // copy-paste from `en` shows up first.
+      const { result } = renderHook(() => useObjectTranslation(), { wrapper: wrapperFor('fr') });
+      const { t } = result.current;
+      expect(t('preview.history.loadFailed')).toBe("Impossible de charger l'historique :");
+      expect(t('preview.unpublishedBar.published')).toBe(
+        "Publié ! L'application est maintenant visible par vos utilisateurs.",
+      );
+      for (const key of KEYS) {
+        expect((t(key) as string).includes('’'), `fr ${key} used a curly apostrophe`).toBe(false);
+      }
+    });
+  });
+});
