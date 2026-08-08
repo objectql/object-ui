@@ -58,6 +58,7 @@ import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
 import { BarChart3, AlertTriangle, Download, ArrowUpIcon, ArrowDownIcon, MinusIcon } from 'lucide-react';
 import { useFilterScope } from '@object-ui/react';
 import { resolveFilterPlaceholders, computeMetricDelta } from './utils';
+import { metricAccentTextClass } from './colorVariants';
 import { DrillDownDrawer } from './DrillDownDrawer';
 
 type Row = Record<string, unknown>;
@@ -620,9 +621,27 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
           typeof previous === 'number' ? previous : null,
         )
       : null;
+    // ── The declared accent (objectui#3359, objectstack#5010 ruling B) ──────
+    // `widget.colorVariant` has been spec-declared and authored for a long time
+    // (16 live authorizations across platform-objects' system_overview and
+    // app-showcase's dashboards, every one of them a dataset-bound `metric`) —
+    // and `dataset` being REQUIRED on DashboardWidgetSchema means every legal
+    // widget lands here, in a component that read the key nowhere. So the
+    // renderer painted all sixteen identically and the key was declared but
+    // never enforced.
+    //
+    // It maps onto the accent system this package already has rather than a new
+    // one: no icon chip and no card chrome is rendered here, exactly like
+    // MetricWidget's `bare` layout, so the accent lands where that layout puts
+    // it — on the big number, via the same shared `VARIANT_TEXT_CLASSES`. A
+    // dataset-bound KPI and an inline `bare` KPI declaring the same variant now
+    // read the same. No declaration (and the enum's own `'default'`) resolves to
+    // `undefined`, which `cn` drops: the markup of every widget that never
+    // declared the key stays byte-identical.
+    const accentClass = metricAccentTextClass(widget?.colorVariant);
     return (
       <div className="flex h-full w-full flex-col items-start justify-center gap-1 p-2">
-        <span className="text-2xl font-semibold tabular-nums">{formatMeasure(value, f?.format, f?.currency, f?.percentScale)}</span>
+        <span className={cn('text-2xl font-semibold tabular-nums', accentClass)}>{formatMeasure(value, f?.format, f?.currency, f?.percentScale)}</span>
         {delta && (
           <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground" data-testid="dataset-compare-trend">
             <span className={cn(

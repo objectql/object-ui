@@ -267,6 +267,39 @@ Notes:
   warning instead of emitting a query that matches nothing. Explicit
   `filterBindings` strings are always honoured as written.
 
+## Widget accent colour (`colorVariant`)
+
+A KPI widget can declare a semantic accent. The vocabulary is
+`@objectstack/spec`'s `WidgetColorVariantSchema` enum — `default`, `blue`,
+`teal`, `orange`, `purple`, `success`, `warning`, `danger` — the same eight
+tokens the designer's swatch picker offers:
+
+```typescript
+{
+  id: 'kpi_at_risk',
+  type: 'metric',
+  title: 'At-Risk Projects',
+  dataset: 'project_health',
+  values: ['project_count'],
+  filter: { health: 'red' },
+  colorVariant: 'danger',   // tints the value; card chrome stays neutral
+}
+```
+
+Where the accent lands depends on the layout, not on the token:
+
+| Layout | Accent |
+| --- | --- |
+| Card chrome (`MetricWidget`, inline `object-metric`) | the icon chip's background + foreground |
+| Chrome-less (`MetricWidget variant: 'bare'`, and every dataset-bound `metric`) | the big number's text colour |
+
+Both read one shared table (`src/colorVariants.ts`), so the same declaration
+reads the same on either surface. `default` — and omitting the key — means "no
+accent"; the widget renders in the ambient foreground colour. A token outside
+the enum gets no accent and is not aliased to a nearby colour: it is invalid
+metadata, rejected where it is authored and published rather than reinterpreted
+here.
+
 ## TypeScript Support
 
 ```typescript

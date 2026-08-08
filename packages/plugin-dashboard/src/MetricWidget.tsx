@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, getLazyIcon } from '@object-u
 import { cn } from '@object-ui/components';
 import { createSafeTranslation } from '@object-ui/i18n';
 import { ArrowDownIcon, ArrowUpIcon, MinusIcon, AlertCircle, Loader2 } from 'lucide-react';
+import { VARIANT_ICON_CLASSES, VARIANT_TEXT_CLASSES, type MetricColorVariant } from './colorVariants';
 
 const TREND_LABEL_DEFAULTS: Record<string, string> = {
   'dashboard.trend.vsLastQuarter': 'vs last quarter',
@@ -121,39 +122,14 @@ function resolveLabel(label: string | { key?: string; defaultValue?: string } | 
   return label.defaultValue || label.key;
 }
 
-export type MetricColorVariant =
-  | 'default' | 'blue' | 'teal' | 'orange' | 'purple'
-  | 'success' | 'warning' | 'danger';
-
 /**
- * Static map of color variants → Tailwind class strings.
- * Defined statically so Tailwind v4's content scanner picks them up.
- * Each variant tints the icon container with a soft background + bold foreground,
- * keeping the rest of the card in the neutral Shadcn palette.
+ * The variant vocabulary and its two class tables now live in
+ * `./colorVariants` — the dataset-bound KPI (`DatasetWidget`, objectui#3359)
+ * paints the SAME accents, and two copies of a palette is how a
+ * declared-but-unenforced key becomes two disagreeing declarations. Re-exported
+ * here because this module was the type's original home.
  */
-const VARIANT_ICON_CLASSES: Record<MetricColorVariant, string> = {
-  default: 'bg-muted text-muted-foreground',
-  blue:    'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-  teal:    'bg-teal-500/10 text-teal-600 dark:text-teal-400',
-  orange:  'bg-orange-500/10 text-orange-600 dark:text-orange-400',
-  purple:  'bg-purple-500/10 text-purple-600 dark:text-purple-400',
-  success: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-  warning: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-  danger:  'bg-rose-500/10 text-rose-600 dark:text-rose-400',
-};
-
-/** Text-colour per variant — used by the `bare` layout to tint the big number
- *  (data-screen KPIs) instead of an icon chip. */
-const VARIANT_TEXT_CLASSES: Record<MetricColorVariant, string> = {
-  default: 'text-foreground',
-  blue:    'text-blue-600 dark:text-blue-400',
-  teal:    'text-teal-600 dark:text-teal-400',
-  orange:  'text-orange-600 dark:text-orange-400',
-  purple:  'text-purple-600 dark:text-purple-400',
-  success: 'text-emerald-600 dark:text-emerald-400',
-  warning: 'text-amber-600 dark:text-amber-400',
-  danger:  'text-rose-600 dark:text-rose-400',
-};
+export type { MetricColorVariant };
 
 export interface MetricWidgetProps {
   label: string | { key?: string; defaultValue?: string };
