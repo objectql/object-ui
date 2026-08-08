@@ -243,10 +243,36 @@ ComponentRegistry.register('details', RecordDetailsRenderer, {
   label: 'Record Details',
   icon: 'FileText',
   // Designer inputs mirror @objectstack/spec RecordDetailsProps (component.zod).
+  //
+  // `sections` publishes its ENTRY shape in prose, derived from the spec's own
+  // `.describe()` on each member key — `ComponentInput` is flat by design and
+  // has no slot for a member shape, so an array-of-objects input can only
+  // document its elements here (same as `record:highlights.fields`,
+  // `record:path.stages`, `record:alert.action`). It says "object, not string"
+  // out loud because the string spelling is exactly what this text used to
+  // teach: until 17.x the spec declared `sections: z.array(z.string())` and
+  // this description read "Section IDs to show". objectstack#5611 deleted that
+  // arm rather than unioning it in (no producer, no consumer — one shape, not
+  // two de-facto contracts), and nothing in the four layers between the
+  // manifest and the screen reports a leftover ID list: the manifest gate
+  // checks top-level prop names and coarse types only (`['a','b']` is a valid
+  // `array`), `validateComponentProps` upstream is advisory, and
+  // `RecordDetailsRenderer` maps every entry as an object (`s.name` /
+  // `s.label` / `s.fields`), so a string entry contributes no fields at all.
+  // With `layout: 'custom'` sections are the ONLY source of the body, so the
+  // author who trusted the old text got a blank detail page. objectui#3807.
+  //
+  // Documented member keys are exactly the spec's four (`name`, `label`,
+  // `columns`, `fields`) — deliberately NOT the extras `RecordDetailsRenderer`
+  // also honours on a section (`title`, `showBorder`, `hideEmpty`). Those are
+  // undeclared upstream, so the spec's section object STRIPS them on parse:
+  // publishing them here would advertise keys the contract throws away, the
+  // same trap as declaring a top-level `readonly` on `record:highlights`
+  // below. The renderer tolerating them is not a licence to teach them.
   inputs: [
     { name: 'columns', type: 'enum', label: 'Columns', enum: ['1', '2', '3', '4'], defaultValue: '2', description: 'Number of columns for field layout (1-4)' },
     { name: 'layout', type: 'enum', label: 'Layout', enum: ['auto', 'custom'], defaultValue: 'auto', description: 'auto uses the object highlightFields; custom uses explicit sections' },
-    { name: 'sections', type: 'array', label: 'Sections', description: 'Section IDs to show (required when layout is "custom")' },
+    { name: 'sections', type: 'array', label: 'Sections', description: 'Field groups rendered as the detail body, in order. Every entry is an OBJECT — `{ name?, label?, columns?, fields }` — a bare section-id string is NOT accepted (the spec retired that spelling in objectstack#5611, and the renderer reads name/label/fields off each entry, so a string entry renders no fields at all). `fields` (required) are the field names shown in this section, in order. `label` is the section heading; omit it for an untitled, borderless section. `name` is a stable snake_case identifier and the i18n anchor — the heading resolves through objects.<object>._sections.<name>.label, so a section without a name shows its authored label in every locale. `columns` (1-4) is THIS section\'s field-grid width; omit it and the renderer derives the width. Required when layout is "custom", where sections are the only source of the detail body.' },
     { name: 'fields', type: 'array', label: 'Fields', description: 'Explicit field list (overrides highlightFields)' },
   ],
 });
