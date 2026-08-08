@@ -138,8 +138,17 @@ function repoWithCommits(commits: Array<Record<string, string>>): { root: string
   return { root, shas };
 }
 
-/** Runs the real gate as CI runs it. Returns the exit code and the merged output. */
-function runGate(root: string, args: string[]): { code: number; output: string } {
+/**
+ * Runs the real gate as CI runs it. Returns the exit code and the merged output.
+ *
+ * `envOverrides` re-supplies one of the two vars the gate reads, for the tests
+ * that are ABOUT those vars; everything else keeps them cleared.
+ */
+function runGate(
+  root: string,
+  args: string[],
+  envOverrides: Record<string, string> = {},
+): { code: number; output: string } {
   const result = execFileSync(
     process.execPath,
     [gateScript, '--root', root, ...args],
@@ -149,7 +158,7 @@ function runGate(root: string, args: string[]): { code: number; output: string }
       cwd: root,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, OS_I18N_DRIFT_BASE: '', GITHUB_BASE_REF: '' },
+      env: { ...process.env, OS_I18N_DRIFT_BASE: '', GITHUB_BASE_REF: '', ...envOverrides },
     },
     // `execFileSync` throws on a non-zero exit; the status and both streams are
     // on the error, so the two paths are unified here rather than at each site.
@@ -157,9 +166,13 @@ function runGate(root: string, args: string[]): { code: number; output: string }
   return { code: 0, output: result };
 }
 
-function runGateExpectingFailure(root: string, args: string[]): { code: number; output: string } {
+function runGateExpectingFailure(
+  root: string,
+  args: string[],
+  envOverrides: Record<string, string> = {},
+): { code: number; output: string } {
   try {
-    runGate(root, args);
+    runGate(root, args, envOverrides);
   } catch (error) {
     const failure = error as { status: number; stdout: string; stderr: string };
     return { code: failure.status, output: `${failure.stdout}${failure.stderr}` };
@@ -561,6 +574,128 @@ describe('resolving the commit to compare against', () => {
       ok: true,
       ref: shas[0],
       how: 'merge-base with origin/main',
+    });
+  });
+
+  // ── an explicitly named base is authoritative (objectui#3766) ─────────────
+
+  /** Well-formed, forty hex digits, and in no clone anywhere. */
+  const ABSENT_SHA = '0123456789abcdef0123456789abcdef01234567';
+
+  it('FAILS on an explicitly named --base that does not exist — it does NOT fall back', () => {
+    // The defect objectui#3766 filed, in the shape it was measured. `--base` used
+    // to be merely the FIRST link of the candidate chain, so a sha missing from
+    // this clone (a shallow checkout, an unfetched sha, a typo) fell through to
+    // `merge-base with main` — which in this fixture repo resolves to HEAD. The
+    // gate then compared the packs at HEAD against the identical working tree,
+    // found no changed en value, and printed a confident green (measured: exit 0,
+    // with `(--base …)` in the summary line replaced by the candidate it actually
+    // used, so the log gave the reader nothing to notice). Restoring the
+    // fallthrough turns this case green again — exit 0 and the "followed by all
+    // nine" line below — which is the reverse verification for the fix.
+    //
+    // "The base you named is missing" and "you named no base" are different
+    // facts, and only the second may be answered by guessing. Ported verbatim in
+    // spirit from `check-changeset-presence.test.ts`, where the sibling gate's
+    // own tests caught this first (objectui#3762).
+    const { root } = reconstructed3625();
+
+    const { code, output } = runGateExpectingFailure(root, [...FIXTURE_FLOOR, '--base', ABSENT_SHA]);
+    expect(code).toBe(1);
+    expect(output).toContain('Cannot resolve the commit to compare against');
+    expect(output).toContain(`--base ${ABSENT_SHA} (unresolved)`);
+    expect(output).toContain('named EXPLICITLY');
+    expect(output).toContain('a diff gate with no diff would pass while');
+    // And specifically NOT the pass it used to produce by comparing against main.
+    expect(output).not.toContain('Every changed en value was followed');
+  });
+
+  it('FAILS the same way on an OS_I18N_DRIFT_BASE that does not exist', () => {
+    // The env var is the other documented explicit entrypoint — same authority,
+    // same failure, and it is the one CI-adjacent callers reach for. Driven
+    // through the real CLI with the var actually set, because `runGate` clears it
+    // for every other test in this file.
+    const { root } = reconstructed3625();
+
+    const { code, output } = runGateExpectingFailure(root, FIXTURE_FLOOR, {
+      OS_I18N_DRIFT_BASE: ABSENT_SHA,
+    });
+    expect(code).toBe(1);
+    expect(output).toContain(`OS_I18N_DRIFT_BASE=${ABSENT_SHA} (unresolved)`);
+    expect(output).toContain('named EXPLICITLY');
+    expect(output).not.toContain('Every changed en value was followed');
+  });
+
+  it('consults NOTHING but the named base — not even a candidate that would resolve', () => {
+    // The mechanism, asserted directly rather than through an exit code: `tried`
+    // holds exactly one entry. `GITHUB_BASE_REF=main` plus a real `origin/main`
+    // here means the discovery candidate WOULD have produced a base, so a single
+    // `tried` entry is the proof that it was never asked.
+    const { root, shas } = repoWithCommits([
+      packFiles(treesFor((lang) => ({ a: `x-${lang}` }))),
+      packFiles(treesFor((lang) => ({ a: `y-${lang}` }))),
+    ]);
+    execFileSync('git', ['remote', 'add', 'origin', root], { cwd: root });
+    execFileSync('git', ['update-ref', 'refs/remotes/origin/main', shas[0]], { cwd: root });
+
+    const outcome = resolveBaseRef(root, { explicit: ABSENT_SHA, env: { GITHUB_BASE_REF: 'main' } });
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) {
+      expect(outcome.named).toBe(true);
+      expect(outcome.tried).toEqual([`--base ${ABSENT_SHA} (unresolved)`]);
+    }
+    // Sanity: the same repo, same env, WITHOUT a named base still finds one.
+    expect(resolveBaseRef(root, { env: { GITHUB_BASE_REF: 'main' } })).toMatchObject({ ok: true });
+  });
+
+  it('still resolves a named base that DOES exist, and --base outranks the env var', () => {
+    const { root, shas } = repoWithCommits([
+      packFiles(treesFor((lang) => ({ a: `x-${lang}` }))),
+      packFiles(treesFor((lang) => ({ a: `y-${lang}` }))),
+    ]);
+
+    expect(resolveBaseRef(root, { explicit: shas[0], env: {} })).toMatchObject({
+      ok: true,
+      ref: shas[0],
+      how: `--base ${shas[0]}`,
+    });
+    expect(resolveBaseRef(root, { env: { OS_I18N_DRIFT_BASE: shas[0] } })).toMatchObject({
+      ok: true,
+      ref: shas[0],
+      how: `OS_I18N_DRIFT_BASE=${shas[0]}`,
+    });
+    // `--base` outranks the env var: both name a real commit, and the flag's is
+    // the one compared against.
+    const both = resolveBaseRef(root, { explicit: shas[0], env: { OS_I18N_DRIFT_BASE: shas[1] } });
+    expect(both).toMatchObject({ ok: true, ref: shas[0], how: `--base ${shas[0]}` });
+  });
+
+  it('keeps guessing through the whole chain when NO base was named', () => {
+    // The other half of objectui#3766, and the half CI depends on: only "you
+    // named one and it is missing" became a failure. With nothing named, an
+    // unresolvable `GITHUB_BASE_REF` still falls through to `origin/main` exactly
+    // as before — `pnpm check:i18n-drift` passes no `--base`, so this is the path
+    // every real CI run takes.
+    const { root, shas } = repoWithCommits([
+      packFiles(treesFor((lang) => ({ a: `x-${lang}` }))),
+      packFiles(treesFor((lang) => ({ a: `y-${lang}` }))),
+    ]);
+    execFileSync('git', ['remote', 'add', 'origin', root], { cwd: root });
+    execFileSync('git', ['update-ref', 'refs/remotes/origin/main', shas[0]], { cwd: root });
+
+    // `GITHUB_BASE_REF` names a branch this clone does not have; the chain moves
+    // on and `origin/main` answers.
+    expect(resolveBaseRef(root, { env: { GITHUB_BASE_REF: 'no-such-branch' } })).toMatchObject({
+      ok: true,
+      ref: shas[0],
+      how: 'merge-base with origin/main',
+    });
+    // And in a clone with no `origin` at all, the last link — the local `main` —
+    // still answers, so the chain is intact end to end and not just at its head.
+    const solo = repoWithCommits([packFiles(treesFor((lang) => ({ a: `x-${lang}` })))]);
+    expect(resolveBaseRef(solo.root, { env: {} })).toMatchObject({
+      ok: true,
+      how: 'merge-base with main',
     });
   });
 

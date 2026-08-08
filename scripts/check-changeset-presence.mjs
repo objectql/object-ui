@@ -185,8 +185,9 @@ function gitQuiet(root, args) {
  * silently judged the change against `main`'s tip instead and printed a
  * confident green. "The base you named is missing" and "you named no base" are
  * different facts, and only the second one may be answered by guessing. (The
- * sibling gate `check-i18n-en-drift.mjs` still has the fallthrough shape — filed
- * separately, not fixed here.)
+ * sibling gate `check-i18n-en-drift.mjs` inherited the fallthrough shape from
+ * this gate's first draft; it was fixed to match under objectui#3766, so the two
+ * resolvers are the same shape again — keep them that way.)
  *
  * @returns {{ ok: true, ref: string, how: string } | { ok: false, tried: string[], shallow: boolean, named: boolean }}
  */

@@ -340,16 +340,52 @@ export function readPacks(root, ref) {
 /**
  * Which commit this branch should be judged against.
  *
- * Order: an explicit `--base`, then `OS_I18N_DRIFT_BASE`, then the merge base
- * with the PR's own base branch (`GITHUB_BASE_REF`), then `origin/main`, then a
- * local `main`. A base that cannot be resolved is a HARD FAILURE, never a skip:
- * a diff gate that quietly finds nothing to diff reports green while checking
- * nothing, which is the failure this whole family of gates exists to stop.
+ * An explicitly NAMED base (`--base`, `OS_I18N_DRIFT_BASE`) is authoritative and
+ * is the only thing consulted when given. Otherwise the base is DISCOVERED: the
+ * merge base with the pull request's own base branch (`GITHUB_BASE_REF`), then
+ * `origin/main`, then a local `main`. The merge base — rather than the target
+ * branch's tip — is what makes a branch answer for the edits IT made and not for
+ * whatever landed on `main` after it forked.
  *
- * @returns {{ ok: true, ref: string, how: string } | { ok: false, tried: string[], shallow: boolean }}
+ * A base that cannot be resolved is a HARD FAILURE, never a skip: a diff gate
+ * that quietly finds nothing to diff reports green while checking nothing, which
+ * is the failure this whole family of gates exists to stop. And an explicit one
+ * that cannot be resolved does NOT fall through to the discovery candidates —
+ * with the fallthrough, a `--base` sha absent from this clone (a shallow clone,
+ * an unfetched sha, a typo) silently judged the packs against whatever the
+ * discovery chain answered next instead (`merge-base with origin/main` on this
+ * repo, as measured) and printed a confident green, with the `(--base …)` in the
+ * summary line replaced by the candidate actually used so the log gave the
+ * reader nothing to notice (objectui#3766, measured: exit 0 → exit 1). "The base
+ * you named is missing" and "you named no base" are different facts, and only
+ * the second one may be answered by guessing. `check-changeset-presence.mjs`
+ * resolves its base from the same sources and had this same defect caught by its
+ * own tests first (objectui#3762) — the two `resolveBaseRef`s are deliberately
+ * the same shape.
+ *
+ * @param {string} root
+ * @param {{ explicit?: string | null, env?: Record<string, string | undefined> }} [options]
+ * @returns {{ ok: true, ref: string, how: string } | { ok: false, tried: string[], shallow: boolean, named: boolean }}
  */
 export function resolveBaseRef(root, { explicit = null, env = process.env } = {}) {
   const tried = [];
+  const verify = (ref) => gitQuiet(root, ['rev-parse', '--verify', `${ref}^{commit}`]);
+  const shallow = () => gitQuiet(root, ['rev-parse', '--is-shallow-repository']) === 'true';
+
+  const named = explicit
+    ? { how: `--base ${explicit}`, ref: explicit }
+    : env.OS_I18N_DRIFT_BASE
+      ? { how: `OS_I18N_DRIFT_BASE=${env.OS_I18N_DRIFT_BASE}`, ref: env.OS_I18N_DRIFT_BASE }
+      : null;
+
+  if (named) {
+    const resolved = verify(named.ref);
+    tried.push(`${named.how}${resolved ? '' : ' (unresolved)'}`);
+    return resolved
+      ? { ok: true, ref: resolved, how: named.how }
+      : { ok: false, tried, shallow: shallow(), named: true };
+  }
+
   const attempt = (how, compute) => {
     const value = compute();
     tried.push(`${how}${value ? '' : ' (unresolved)'}`);
@@ -357,10 +393,6 @@ export function resolveBaseRef(root, { explicit = null, env = process.env } = {}
   };
 
   const candidates = [
-    explicit ? () => attempt(`--base ${explicit}`, () => gitQuiet(root, ['rev-parse', '--verify', `${explicit}^{commit}`])) : null,
-    env.OS_I18N_DRIFT_BASE
-      ? () => attempt(`OS_I18N_DRIFT_BASE=${env.OS_I18N_DRIFT_BASE}`, () => gitQuiet(root, ['rev-parse', '--verify', `${env.OS_I18N_DRIFT_BASE}^{commit}`]))
-      : null,
     env.GITHUB_BASE_REF
       ? () => attempt(`merge-base with origin/${env.GITHUB_BASE_REF}`, () => gitQuiet(root, ['merge-base', 'HEAD', `origin/${env.GITHUB_BASE_REF}`]))
       : null,
@@ -372,7 +404,7 @@ export function resolveBaseRef(root, { explicit = null, env = process.env } = {}
     const hit = candidate();
     if (hit) return hit;
   }
-  return { ok: false, tried, shallow: gitQuiet(root, ['rev-parse', '--is-shallow-repository']) === 'true' };
+  return { ok: false, tried, shallow: shallow(), named: false };
 }
 
 // -- the comparison -----------------------------------------------------------
@@ -536,10 +568,15 @@ if (invokedDirectly) {
     console.error(
       'Cannot resolve the commit to compare against, so there is nothing to diff.\n' +
         `  tried: ${base.tried.join(', ')}\n` +
-        (base.shallow
-          ? '  This clone is SHALLOW. In CI, give the checkout `fetch-depth: 0`; locally,\n' +
-            '  run `git fetch --no-tags origin main` (or `git fetch --unshallow`).\n'
-          : '  Fetch the base branch (`git fetch --no-tags origin main`) and re-run.\n') +
+        (base.named
+          ? '  That base was named EXPLICITLY, so it is not guessed around: comparing the packs\n' +
+            '  against some other commit instead would answer a question nobody asked, and\n' +
+            '  answer it confidently. Name a commit that exists in this clone, or pass none and\n' +
+            '  let the merge base with the target branch be found.\n'
+          : base.shallow
+            ? '  This clone is SHALLOW. In CI, give the checkout `fetch-depth: 0`; locally,\n' +
+              '  run `git fetch --no-tags origin main` (or `git fetch --unshallow`).\n'
+            : '  Fetch the base branch (`git fetch --no-tags origin main`) and re-run.\n') +
         '  This is a failure, not a skip: a diff gate with no diff would pass while\n' +
         '  checking nothing. See the header of scripts/check-i18n-en-drift.mjs.',
     );
