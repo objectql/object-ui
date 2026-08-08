@@ -39,6 +39,7 @@
     "check:control-bytes": "node scripts/check-control-bytes.mjs",
     "check:i18n-keys": "node scripts/check-i18n-call-site-keys.mjs",
     "check:i18n-drift": "node scripts/check-i18n-en-drift.mjs",
+    "check:skills-paths": "node scripts/check-skills-paths.mjs",
     "cli": "node packages/cli/dist/cli.js",
     "objectui": "node packages/cli/dist/cli.js",
     "create-plugin": "node packages/create-plugin/dist/index.js",

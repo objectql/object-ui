@@ -66,6 +66,12 @@ const MUST_SUBSCRIBE_MERGE_GROUP = new Map<string, string>([
       'reason this list exists: it reports on every pull request, so it is requirable, and a ' +
       'requirable context that skips the queue build stalls it',
   ],
+  [
+    'skills-paths.yml',
+    'produces Skill Guide Path Check — added by objectui#3735, same shape as the two above: its ' +
+      'entire scan surface is markdown, so it carries no path filter, reports on every pull ' +
+      'request, and is therefore requirable',
+  ],
 ]);
 
 /** Workflows whose path filtering had to move from the trigger into the jobs. */

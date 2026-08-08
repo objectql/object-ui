@@ -29,6 +29,7 @@ one has its own section below.
 | `changeset-presence.yml` | Changeset Declaration | PR to `main`, `develop` — **no path filter**; merge-queue builds | **Yes** — when a released package's `src/` changed and no changeset was added |
 | `control-bytes.yml` | Control Byte Scan | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
 | `docs-links.yml` | Internal Docs Link Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
+| `skills-paths.yml` | Skill Guide Path Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a path stated in a `skills/` guide does not exist |
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
 | `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane, `continue-on-error` |
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
@@ -452,6 +453,62 @@ found safe to require today precisely because it has never had a filter to reaso
 page it points at has moved or been renamed — fix the link, or restore the target. Links are
 checked as *routes*, so `/docs/guide/foo` is what belongs in the markdown, not
 `content/docs/guide/foo.md`. Run it locally with `pnpm docs:check-links`.
+
+## Skill Guide Paths (`skills-paths.yml`)
+
+**Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — with **no
+path filter at all**, for the same reason as the two sections above: this gate's entire scan surface
+is markdown, and `ci.yml` still lists `'**/*.md'` under the `paths-ignore` of its `push` trigger. It
+appears in the checks list as **Skill Guide Path Check**.
+
+Runs `scripts/check-skills-paths.mjs`, which reads every markdown file under `skills/` and asks, of
+each in-repo path the prose states inside a backtick code span, whether it exists on disk. Those
+guides are a direct input to every agent that writes code in this repository, and their prose gives
+paths as coordinates.
+
+**Why a dead coordinate costs more than its size suggests:** the symbol named next to it is usually
+real and only the location is wrong, so nobody gets a compile error — an agent gets "file not found"
+from a `Read`, assumes its own search was clumsy, and spends a full lap re-locating something the
+guide claimed to have located for it. Two rounds were found by eye while reading:
+[#3713](https://github.com/objectstack-ai/objectui/issues/3713) (PR #3729) and
+[#3730](https://github.com/objectstack-ai/objectui/issues/3730) (PR #3734), the second one 13 real
+symbols at coordinates that did not exist. It also recurs by construction — the app-shell extraction
+commits moved code with nothing anywhere to say the guides had gone stale
+([#3735](https://github.com/objectstack-ai/objectui/issues/3735)).
+
+**What counts as a stated path:** a backtick span that opens with one of five top-level directories
+(`apps/`, `packages/`, `examples/`, `scripts/`, `content/`) and contains no whitespace. Three
+exclusions, each a *rule* rather than an exemption, because none of them claims that a file exists:
+
+| Excluded | Example in the guides today | Why |
+|---|---|---|
+| whitespace inside the span | a `grep -rn … packages/app-shell/src` self-check command line | prose, a command line or a type — not a path |
+| glob or placeholder segment | the protected-primitive glob under `packages/components/src/ui`, a schema path with a placeholder domain segment | a shape, not a location; `existsSync` on it would mean nothing |
+| fenced code blocks | a `bash` block that creates a file | a worked example may legitimately name a file the reader is about to create |
+
+Measured on `main@6422aa891`: 18 guide files, 91 candidate spans, 5 of them patterns — **86 stated
+paths, of which 85 resolve**.
+
+**The one exemption, and why it cannot rot.** `scripts/skills-path-baseline.json` lists paths a guide
+states *deliberately as absent*. Today there is exactly one: the Key contexts section of
+`console-development.md` exists to correct a recurring wrong guess and says there is no
+`apps/console/src/context/` directory at all. That entry is a ratchet, red in **both** directions —
+if the path ever appears on disk the gate fails and names it (the sentence has become false), and if
+the scan stops meeting the entry the gate fails too (the prose was rewritten, so the entry is dead
+weight). Entries are keyed by file and token, never by line number, because guide prose moves
+constantly.
+
+**Scope, stated so it is not mistaken for an oversight.** `content/docs/**` carries backtick paths
+too and is **not** scanned here. Widening a scan surface arrives with its own batch of red to clear,
+which `check-doc-links.mjs` learned three times over (#3479, #3490, #3545) — measure it first, in its
+own change. The five-prefix list is the same kind of decision: adding this repository's other five
+top-level directories was measured at +2 candidates and 0 new red, so it is cheap, but it stays
+deliberate rather than assumed.
+
+**If it fails:** it prints every `file:line — token`. Fix the prose. Add a baseline entry only when
+the sentence's whole point is that the path does not exist. Run it locally with
+`pnpm check:skills-paths`, or `node scripts/check-skills-paths.mjs --list` to see every candidate and
+how it was classified.
 
 ## Link Checking (`check-links.yml`)
 
