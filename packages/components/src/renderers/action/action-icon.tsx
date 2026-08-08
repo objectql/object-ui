@@ -93,10 +93,25 @@ const ActionIconRenderer = forwardRef<HTMLButtonElement, ActionIconProps>(
         variant={variant as any}
         size={size}
         className={cn('h-8 w-8', schema.className, className)}
+        // Is a `disabled` / `enabled` gate DECLARED? The same question the
+        // `visible` gate above asks, so it reads the same definition — the name
+        // is historic (objectui#3492 arrived through `visible`), the predicate
+        // is key-neutral: "declared" is `!= null && !== ''`. Deliberately NOT
+        // renamed or aliased (objectui#3842 ruling, applied here by #3849).
+        //
+        // `!= null` alone was a live defect on `disabled` in a way it is not on
+        // `visible`: the evaluation entry reads an empty predicate as "no
+        // condition → true", which means SHOW on `visible` (harmless) but
+        // DISABLE here — `disabled: ''` was a permanently greyed-out button.
+        // The legacy `enabled` leg is negated, so its `''` case already landed
+        // on "not disabled"; routing it through the same definition is
+        // behaviour-preserving (derivation table in
+        // `__tests__/action-disabled-declared-gate.test.tsx`) and leaves one
+        // spelling of "declared" on both legs.
         disabled={(
-          (schema as any).disabled != null
+          hasDeclaredVisibilityGate((schema as any).disabled)
             ? isDisabledPred
-            : schema.enabled != null
+            : hasDeclaredVisibilityGate(schema.enabled)
               ? !isEnabled
               : false
         ) || loading}

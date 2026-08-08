@@ -102,10 +102,19 @@ const InlineActionButton: React.FC<{
       variant={btnVariant as any}
       size={btnSize as any}
       className={action.className}
+      // Is a `disabled` / `enabled` gate DECLARED? Same question as the
+      // `visible` gate above, so it reads the same definition (historic name
+      // kept, not aliased — objectui#3842 ruling, applied here by #3849). On
+      // this key `!= null` alone was a live defect: an empty predicate reaches
+      // the evaluation entry as "no condition → true", which means DISABLE
+      // here, so `disabled: ''` greyed the button out forever. The legacy
+      // `enabled` leg is negated and therefore behaviour-preserving under the
+      // same definition — derivation in
+      // `__tests__/action-disabled-declared-gate.test.tsx`.
       disabled={(
-        (action as any).disabled != null
+        hasDeclaredVisibilityGate((action as any).disabled)
           ? isDisabledPred
-          : action.enabled != null
+          : hasDeclaredVisibilityGate(action.enabled)
             ? !isEnabled
             : false
       ) || loading}
@@ -145,9 +154,14 @@ export const DropdownActionItem: React.FC<{
   // hidden in one display mode and shown in the other (objectui#3812).
   if (hasDeclaredVisibilityGate(action.visible) && !isVisible) return null;
   const Icon = resolveIcon(action.icon);
-  const isDisabled = (action as any).disabled != null
+  // Declared-gate test, same definition as `InlineActionButton` above: one
+  // action cannot be greyed out in one display mode and clickable in the other
+  // (objectui#3842 / #3849). `disabled: ''` is not a declared gate — an empty
+  // predicate is nothing to evaluate, and on this key the evaluation entry's
+  // "no condition → true" means DISABLE.
+  const isDisabled = hasDeclaredVisibilityGate((action as any).disabled)
     ? isDisabledPred
-    : action.enabled != null
+    : hasDeclaredVisibilityGate(action.enabled)
       ? !isEnabled
       : false;
   const showSeparator = action.tags?.includes('separator-before') && index > 0;

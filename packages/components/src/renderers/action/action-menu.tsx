@@ -95,9 +95,16 @@ export const ActionMenuItem: React.FC<{
 
   return (
     <DropdownMenuItem
-      disabled={(action as any).disabled != null
+      // Declared-gate test, the same definition the `visible` gate above reads
+      // and the same one `action:group`'s two leaves read (objectui#3842 ruling
+      // applied here by #3849 — historic name kept, no alias). `disabled: ''`
+      // is not a gate: the evaluation entry reads an empty predicate as "no
+      // condition → true", which on this key means DISABLE, so `!= null` alone
+      // greyed the item out forever. The negated legacy `enabled` leg is
+      // behaviour-preserving under the same definition.
+      disabled={hasDeclaredVisibilityGate((action as any).disabled)
         ? isDisabledPred
-        : action.enabled != null
+        : hasDeclaredVisibilityGate(action.enabled)
           ? !isEnabled
           : false}
       onSelect={(e) => {
