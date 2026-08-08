@@ -51,7 +51,7 @@ export default defineConfig({
       //     <(grep -rhP "(?<![@\w])(?:from|import)\s*\(?\s*['\"]@object-ui/" \
       //         packages/runner/src \
       //         $(grep -oP 'packages/\K[a-z0-9-]+(?=/src")' packages/runner/vite.config.ts \
-      //           | sort -u | sed 's|^|packages/|;s|$|/src|') 2>/dev/null \
+      //           | sort -u | sed 's|^|packages/|;s|$|/src|') \
       //       | grep -vP '^\s*(\*|//)' \
       //       | grep -oP "['\"]\K@object-ui/[a-z0-9-]+" | sort -u)
       //
@@ -65,15 +65,27 @@ export default defineConfig({
       //   - `grep -vP '^\s*(\*|//)'` drops JSDoc/line-comment examples such as
       //     `* () => import('@object-ui/plugin-grid')` in react/LazyPluginLoader
       //     and core/registry/Registry.ts, which are documentation, not edges;
-      //   - `2>/dev/null` tolerates a table entry whose package dir no longer
-      //     exists (`data-objectql` is such a leftover — objectui#3593).
+      //   - stderr is deliberately NOT redirected to /dev/null. The inner
+      //     `grep -r` walks exactly the dirs this table names, so a
+      //     `No such file or directory` from it is not noise: it means the
+      //     *other* direction of the invariant is broken — an entry below points
+      //     at a package dir that does not exist. Fix the table; never silence
+      //     the message. (objectui#3593: a `data-objectql` entry outlived its
+      //     package because a `2>/dev/null` here kept it quiet.)
+      //
+      // That second direction, checkable on its own — prints nothing when the
+      // table is clean, one line per dead entry otherwise:
+      //
+      //   grep -oP 'packages/\K[a-z0-9-]+(?=/src")' packages/runner/vite.config.ts \
+      //     | sort -u | sed 's|^|packages/|;s|$|/src|' \
+      //     | while read -r d; do [ -d "$d" ] || echo "dead table entry: $d"; done
+      //
       // Type-only imports are invisible to Vite's esbuild dependency scan but
       // still belong in the table — see `data-objectstack` below.
       "@object-ui/components": path.resolve(__dirname, "../../packages/components/src"),
       "@object-ui/react": path.resolve(__dirname, "../../packages/react/src"),
       "@object-ui/core": path.resolve(__dirname, "../../packages/core/src"),
       "@object-ui/types": path.resolve(__dirname, "../../packages/types/src"),
-      "@object-ui/data-objectql": path.resolve(__dirname, "../../packages/data-objectql/src"),
       "@object-ui/plugin-kanban": path.resolve(__dirname, "../../packages/plugin-kanban/src"),
       "@object-ui/plugin-charts": path.resolve(__dirname, "../../packages/plugin-charts/src"),
 
