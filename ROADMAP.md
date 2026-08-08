@@ -855,21 +855,21 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] `/system/` → SystemHubPage
 - [x] `/system/apps` → AppManagementPage
 - [ ] `/system/permissions` — no route is declared at this URL; the `PermissionManagementPage` it named was deleted when `apps/console` was slimmed for third-party customisation (commit cccdf84d), and the successor surface is pending maintainer decision, see #3655
-- [x] `/system/metadata/:metadataType` → MetadataManagerPage (generic, registry-driven)
+- [x] `/system/metadata/:metadataType` — the URL still resolves, but as a legacy alias: its route element is `MetadataRedirect` (`apps/console/src/AppContent.tsx`), which forwards in one hop to the metadata-admin engine's own `metadata/:type`. The `MetadataManagerPage` named here has zero files and zero references under `apps/console/src/`; the generic, registry-driven list that route lands on is `MetadataResourceListPage` (`packages/app-shell/src/views/metadata-admin/ResourceListPage.tsx`), mounted by `packages/app-shell/src/console/AppContent.tsx` (#3639)
 
 **Unified Metadata Management (P1.12.3):**
 - [x] Metadata type registry (`config/metadataTypeRegistry.ts`) — centralized config for all metadata types
-- [x] Generic `MetadataManagerPage` for listing/managing items of any registered type
+- [x] Generic `MetadataManagerPage` for listing/managing items of any registered type — shipped, then deleted when `apps/console` was slimmed for third-party customisation. The generic list is now `MetadataResourceListPage` (`packages/app-shell/src/views/metadata-admin/ResourceListPage.tsx`), driven by the engine's own `MetadataResourceRegistry` (`registry.ts` in that directory) rather than by a console-side config, and it covers every registered metadata type from one shell
 - [x] SystemHubPage auto-generates metadata type cards from registry (dashboard, page, report)
 - [x] Dynamic `/system/metadata/:metadataType` routes in all route contexts
 - [x] Generic `MetadataService` methods: `getItems()`, `saveMetadataItem()`, `deleteMetadataItem()`
 - [x] Types with custom pages (`app`, `object`) link to existing dedicated routes
 - [x] Legacy routes preserved — no breaking changes
-- [x] 40+ new tests (registry, MetadataManagerPage, MetadataService generic, SystemHubPage registry)
+- [x] New tests for the registry-driven metadata surface — no total is carried here, because none of the four suites named survives in that form: the `MetadataManagerPage` and `config/metadataTypeRegistry.ts` suites went with the code they covered, `MetadataService` has no test file in the tree at all, and `SystemHubPage`'s remaining suites test its two hand-written cards, not registry-generated ones. What covers this surface today is the metadata-admin engine's own tests under `packages/app-shell/src/views/metadata-admin/`, plus the console's hub-card and legacy-redirect suites under `apps/console/src/`
 
 **Tests:**
 - [x] New tests for the system pages — of the three suites named here, only `SystemHubPage`'s is still in the tree; nothing tests `AppManagementPage` today, and `PermissionManagementPage` has no tests because the page itself is gone (commit cccdf84d)
-- [x] Total: 20 system page tests passing
+- [x] The system page suites that remain are green — no total is carried here: "system page tests" has no fixed referent, the suites being split across `apps/console` and `packages/app-shell`, and the count this line used to state matched neither the narrow reading (`apps/console/src/pages/system/__tests__/`) nor the wide one (that directory plus the console's system-hub route suite). Measure the group you mean instead of trusting a number written down once, see #3712
 
 ### P1.13 Airtable Grid/List UX Optimization ✅
 
@@ -996,8 +996,8 @@ Enterprise-grade visual designers for managing object definitions and configurin
 **MetadataDetailPage & Provider Enhancements:**
 - [x] Auto-redirect for custom page types (object → `/system/objects/:name`) — removed; object now uses metadata pipeline
 - [x] `getItemsByType(type)` method on MetadataProvider for dynamic registry access
-- [x] Object type merged into MetadataManagerPage pipeline — `ObjectManagerPage` removed, replaced by `ObjectManagerListAdapter` via `listComponent` extension point
-- [x] `listComponent` extension point on MetadataTypeConfig for injecting custom list UIs
+- [x] Object type merged into the generic metadata pipeline — `ObjectManagerPage` removed (only stale docblock mentions of it remain, in the two `utils/metadataConverters.ts`). Neither vehicle named here survived the move onto the metadata-admin engine: `ObjectManagerListAdapter` has zero hits, and `object` needs no custom list at all — it is listed by the engine's generic shell, configured by `registerMetadataResource({ type: 'object', … })` in `packages/app-shell/src/services/builtinComponents.tsx`
+- [x] Per-type override slot for injecting a custom list UI — `listComponent` on `MetadataTypeConfig` went with that console-side registry (both names have zero hits today). The engine's equivalent is `ListPage` on `MetadataResourceConfig` (`packages/app-shell/src/views/metadata-admin/registry.ts`), which bypasses the generic shell for one type; `datasource` is the only type overriding it
 - [x] All entry points (sidebar, QuickActions, hub cards) unified to `/system/metadata/object`
 
 **Technical Debt Cleanup:**
