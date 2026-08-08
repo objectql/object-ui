@@ -30,6 +30,7 @@ import {
 import { cn } from '../../lib/utils';
 import { Loader2, MoreHorizontal } from 'lucide-react';
 import { resolveIcon } from './resolve-icon';
+import { hasDeclaredVisibilityGate } from './visibility-gate';
 
 function useMoreActionsLabel(): string {
   // useObjectTranslation is provider-safe (never throws); no try/catch, which
@@ -59,7 +60,12 @@ export interface ActionMenuSchema {
   [key: string]: any;
 }
 
-const ActionMenuItem: React.FC<{
+/**
+ * One action inside an `action:menu`. Exported for its pin tests only (it is
+ * not re-exported from the package index) — mirrors `DropdownActionItem` in
+ * `action-group.tsx`, whose gate is the same one.
+ */
+export const ActionMenuItem: React.FC<{
   action: ActionSchema;
   onExecute: (action: ActionSchema) => Promise<void>;
 }> = ({ action, onExecute }) => {
@@ -81,7 +87,11 @@ const ActionMenuItem: React.FC<{
     return Icon ? <Icon className="mr-2 h-4 w-4" /> : null;
   }, [action.icon]);
 
-  if (action.visible && !isVisible) return null;
+  // A DECLARED gate decides; truthiness would read `visible: false` as ungated
+  // and render it (objectui#3812) — the same gate `action:group`'s two member
+  // leaves read. `false` short-circuits at the evaluation entry, so the
+  // `throwOnError` posture above still only applies to real predicates.
+  if (hasDeclaredVisibilityGate(action.visible) && !isVisible) return null;
 
   return (
     <DropdownMenuItem

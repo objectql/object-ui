@@ -33,6 +33,7 @@ import {
 import { cn } from '../../lib/utils';
 import { Loader2, ChevronDown } from 'lucide-react';
 import { resolveIcon } from './resolve-icon';
+import { hasDeclaredVisibilityGate } from './visibility-gate';
 
 export interface ActionGroupSchema {
   type: 'action:group';
@@ -91,7 +92,9 @@ const InlineActionButton: React.FC<{
     }
   }, [action, onExecute, loading]);
 
-  if (action.visible && !isVisible) return null;
+  // A DECLARED gate decides; truthiness would read `visible: false` as ungated
+  // and render it (objectui#3812) — see `hasDeclaredVisibilityGate`.
+  if (hasDeclaredVisibilityGate(action.visible) && !isVisible) return null;
 
   return (
     <Button
@@ -138,7 +141,9 @@ export const DropdownActionItem: React.FC<{
   // InlineActionButton above — #1885 follow-through).
   const isDisabledPred = useCondition(toPredicateInput((action as any).disabled));
   const isEnabled = useCondition(toPredicateInput(action.enabled));
-  if (action.visible && !isVisible) return null;
+  // Same declared-gate rule as `InlineActionButton` above — one action cannot be
+  // hidden in one display mode and shown in the other (objectui#3812).
+  if (hasDeclaredVisibilityGate(action.visible) && !isVisible) return null;
   const Icon = resolveIcon(action.icon);
   const isDisabled = (action as any).disabled != null
     ? isDisabledPred
