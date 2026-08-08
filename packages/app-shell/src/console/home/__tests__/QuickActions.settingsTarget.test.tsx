@@ -24,6 +24,25 @@
  * Configured" empty state's own URL on a zero-app deployment. The card's
  * sibling ("Manage Objects") already spelled `/apps/setup/system/...`, which is
  * what made this one the odd entry out.
+ *
+ * ## The "Manage Objects" card (objectui#3739)
+ *
+ * That sibling's `/apps/setup/system/...` prefix is what made it the anchor for
+ * #3611 — and it was the wrong URL for a different reason, unnoticed at the
+ * time. `…/system/metadata/object` is not a page: `apps/console`'s host fragment
+ * serves it with `MetadataRedirect`, a bare `<Navigate>` onto
+ * `/apps/setup/metadata/object`, so the card bought a redundant hop plus a
+ * re-render. It is the third of the three producers #3739 re-points; the other
+ * two are the `sys-objects` entries in both sidebars
+ * (`layout/__tests__/systemNavSettingsTarget.test.tsx`).
+ *
+ * So the third case below is REWRITTEN, not extended: it used to assert this
+ * card as the untouched consistency anchor, and that premise is what #3739
+ * falsified. It now pins the canonical target — the same discipline as the
+ * sidebar suites, which replace the old shape rather than keeping the bug and
+ * the fix side by side. Whether that URL resolves in one hop is a property of
+ * the URL rather than of this producer, and is measured in
+ * `layout/__tests__/systemNavObjectsHop.test.tsx`.
  */
 
 import '@testing-library/jest-dom/vitest';
@@ -59,6 +78,9 @@ function renderQuickActions() {
 }
 
 const SYSTEM_HUB = '/apps/setup/system';
+
+/** Where the metadata-admin engine really serves the object list (objectui#3739). */
+const OBJECTS_TARGET = '/apps/setup/metadata/object';
 
 describe('QuickActions system-settings card (objectui#3611, dormant)', () => {
   it('DORMANCY PRECONDITION: nothing renders this component, so the fix is a guard, not a user-visible change', async () => {
@@ -99,12 +121,23 @@ describe('QuickActions system-settings card (objectui#3611, dormant)', () => {
     expect(screen.getByTestId('landing')).toHaveTextContent(SYSTEM_HUB);
   });
 
-  it('REGRESSION: the sibling card that was already hub-scoped is unchanged', async () => {
+  it('the Manage Objects card targets the canonical metadata route, not the system alias (objectui#3739)', async () => {
+    // Replaces #3611's "the sibling is unchanged" anchor. That assertion was
+    // true of the URL and wrong about it: `…/system/metadata/object` is an alias
+    // the host only forwards, so pinning it froze the extra hop in place.
     const user = userEvent.setup();
     renderQuickActions();
 
     await user.click(screen.getByTestId('quick-action-manage-objects'));
 
-    expect(screen.getByTestId('landing')).toHaveTextContent(`${SYSTEM_HUB}/metadata/object`);
+    expect(screen.getByTestId('landing')).toHaveTextContent(OBJECTS_TARGET);
+    // `toHaveTextContent` matches on substring, and neither spelling contains
+    // the other (`/apps/setup/system/metadata/object` has the extra segment in
+    // the MIDDLE), so the assertion above already separates them. This second
+    // one adds nothing to the logic and is kept for the diff: a revert then
+    // fails naming the alias, instead of reporting two similar-looking paths.
+    expect(screen.getByTestId('landing')).not.toHaveTextContent(
+      `${SYSTEM_HUB}/metadata/object`,
+    );
   });
 });

@@ -327,12 +327,22 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
       // `/system` form resolves in BOTH branches (`extraRoutesNoApp` with no
       // active app, `extraRoutes` once one exists), so an app-bearing deployment
       // now reaches the hub here instead of whatever app `/apps/setup` fell back
-      // to. Every sibling below already spells `/apps/setup/system/...`.
+      // to. Every sibling below already spelled `/apps/setup/system/...` — the
+      // two metadata-admin entries excepted, and only since: they name the
+      // engine's canonical `/apps/setup/metadata/:type` routes (#3660, #3739),
+      // because for THOSE two the `system/...` spelling is a redirect rather
+      // than a page.
       const adminItems: NavigationItem[] = [
         { id: 'sys-settings', label: t('layout.systemNav.systemSettings', { defaultValue: 'System Settings' }), type: 'url' as const, url: '/apps/setup/system', icon: 'settings' },
         { id: 'sys-apps', label: t('layout.systemNav.applications', { defaultValue: 'Applications' }), type: 'url' as const, url: '/apps/setup/system/apps', icon: 'layout-grid' },
         { id: 'sys-marketplace', label: t('layout.systemNav.appMarketplace', { defaultValue: 'App Marketplace' }), type: 'url' as const, url: '/apps/setup/system/marketplace', icon: 'store' },
-        { id: 'sys-objects', label: t('layout.systemNav.objectManager', { defaultValue: 'Object Manager' }), type: 'url' as const, url: '/apps/setup/system/metadata/object', icon: 'database' },
+        // #3739 — canonical `…/metadata/object`, not the legacy
+        // `…/system/metadata/object` alias. See the twin entry in
+        // `AppSidebar.systemFallbackNavigation` for the full note: the alias is
+        // served by `apps/console`'s `MetadataRedirect`, a bare `<Navigate>`
+        // onto this very URL, so pointing here removes a hop without moving the
+        // landing page. The alias routes themselves are untouched.
+        { id: 'sys-objects', label: t('layout.systemNav.objectManager', { defaultValue: 'Object Manager' }), type: 'url' as const, url: '/apps/setup/metadata/object', icon: 'database' },
         // #3660 — canonical `…/metadata/datasource`, not the legacy
         // `…/component/metadata/resource?type=datasource` alias. See the twin
         // entry in `AppSidebar.systemFallbackNavigation` for the full note: the

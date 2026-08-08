@@ -316,7 +316,12 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
   // `/apps/setup` renders `AppContent`'s "No Apps Configured" empty state (its
   // `isSystemRoute` guard needs a `/system` segment), so the cluster's head entry
   // was a dead link in the one situation the cluster exists for. Every sibling
-  // below already spells `/apps/setup/system/...`.
+  // below already spelled `/apps/setup/system/...` — the two metadata-admin
+  // entries excepted, and only since: they name the engine's canonical
+  // `/apps/setup/metadata/:type` routes (#3660, #3739), because for THOSE two
+  // the `system/...` spelling is a redirect rather than a page. Consistency of
+  // prefix is not the invariant here; naming the route that actually renders
+  // is.
   const systemFallbackNavigation: NavigationItem[] = React.useMemo(() => {
     const items: NavigationItem[] = [
       { id: 'sys-settings', label: t('layout.systemNav.systemSettings', { defaultValue: 'System Settings' }), type: 'url' as const, url: '/apps/setup/system', icon: 'settings' },
@@ -326,7 +331,17 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
       items.push({ id: 'sys-marketplace', label: t('layout.systemNav.appMarketplace', { defaultValue: 'App Marketplace' }), type: 'url' as const, url: '/apps/setup/system/marketplace', icon: 'store' });
     }
     items.push(
-      { id: 'sys-objects', label: t('layout.systemNav.objectManager', { defaultValue: 'Object Manager' }), type: 'url' as const, url: '/apps/setup/system/metadata/object', icon: 'database' },
+      // #3739 — `sys-objects` names the metadata-admin engine's CANONICAL route
+      // `/apps/setup/metadata/object`, not the legacy
+      // `…/system/metadata/object` alias it used to carry. That alias is not a
+      // page either: `apps/console`'s host fragment declares it as
+      // `MetadataRedirect`, which `<Navigate>`s onto exactly the URL spelled
+      // here, so every click paid a redundant hop plus a re-render — the same
+      // defect #3660 fixed one line below, on the entry immediately after this
+      // one, and the same remedy. The alias routes stay declared in the host
+      // (bookmarks and external links still arrive on them) — we simply stop
+      // aiming our own navigation at them.
+      { id: 'sys-objects', label: t('layout.systemNav.objectManager', { defaultValue: 'Object Manager' }), type: 'url' as const, url: '/apps/setup/metadata/object', icon: 'database' },
       // #3660 — `sys-datasources` names the metadata-admin engine's CANONICAL
       // route `/apps/setup/metadata/datasource`, not the legacy
       // `…/component/metadata/resource?type=datasource` alias it used to carry.

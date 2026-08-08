@@ -56,6 +56,23 @@
  * as above: replace the old shape, do not keep it alongside). The AppSidebar
  * test below gained the matching assertion at the same time — that sidebar
  * carries its own copy of the literal and had none.
+ *
+ * ## The `Object Manager` entry (objectui#3739)
+ *
+ * #3660 re-pointed `sys-datasources` and stopped there; `sys-objects`, the entry
+ * declared on the line immediately ABOVE it in both sidebars, kept spelling
+ * `/apps/setup/system/metadata/object`. That is a legacy alias too — served by
+ * `apps/console`'s `MetadataRedirect`, which `<Navigate>`s onto
+ * `/apps/setup/metadata/object` — so the same redundant hop survived on the
+ * neighbouring click target. Both literals now name the destination, and the
+ * expectation here is REWRITTEN rather than kept alongside, exactly as the
+ * `Datasources` note above describes.
+ *
+ * Note what this file does NOT claim: that the URL resolves in one hop. That is
+ * a property of the URL, not of the producer, and is measured once per family in
+ * `systemNavDatasourcesHop.test.tsx` / `systemNavObjectsHop.test.tsx`. Here the
+ * assertion is string equality on the href each sidebar emits — which is the
+ * half that can drift per copy, since each sidebar holds its own literal.
  */
 
 import '@testing-library/jest-dom/vitest';
@@ -173,6 +190,15 @@ const SYSTEM_HUB = '/apps/setup/system';
 const DATASOURCES_TARGET = '/apps/setup/metadata/datasource';
 
 /**
+ * `Object Manager` names the same engine's canonical route (objectui#3739). This
+ * entry used to read `${SYSTEM_HUB}/metadata/object` — an alias served by
+ * `apps/console`'s `MetadataRedirect`, a bare `<Navigate>` onto the URL below.
+ * Replaced here rather than kept alongside, for the reason spelled out in this
+ * file's header: the repo pins the fix, not both the bug and the fix.
+ */
+const OBJECTS_TARGET = '/apps/setup/metadata/object';
+
+/**
  * Every entry of the `/home` Administration cluster, in declaration order.
  * Asserted whole rather than by sample: the defect was that the group's
  * children were never visited at all, so "some of them render" is not the
@@ -182,7 +208,7 @@ const ADMINISTRATION_ENTRIES: ReadonlyArray<readonly [string, string]> = [
   ['System Settings', SYSTEM_HUB],
   ['Applications', `${SYSTEM_HUB}/apps`],
   ['App Marketplace', `${SYSTEM_HUB}/marketplace`],
-  ['Object Manager', `${SYSTEM_HUB}/metadata/object`],
+  ['Object Manager', OBJECTS_TARGET],
   ['Datasources', DATASOURCES_TARGET],
   ['Users', `${SYSTEM_HUB}/users`],
   ['Organizations', `${SYSTEM_HUB}/organizations`],
@@ -244,6 +270,20 @@ describe('sidebar system-settings target (objectui#3590)', () => {
     expect(screen.getByRole('link', { name: 'Datasources' })).toHaveAttribute(
       'href',
       DATASOURCES_TARGET,
+    );
+
+    // objectui#3739 — `sys-objects`, the twin one line above `sys-datasources`
+    // in this same array. Pinned in both sidebars for the same reason: two
+    // independent literals, either of which can drift back to the alias alone.
+    expect(screen.getByRole('link', { name: 'Object Manager' })).toHaveAttribute(
+      'href',
+      OBJECTS_TARGET,
+    );
+    // The alias spelling by name, so a revert is named in the diff rather than
+    // showing up as an unexplained string difference.
+    expect(screen.getByRole('link', { name: 'Object Manager' })).not.toHaveAttribute(
+      'href',
+      `${SYSTEM_HUB}/metadata/object`,
     );
   });
 
