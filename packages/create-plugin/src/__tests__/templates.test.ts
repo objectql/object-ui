@@ -16,6 +16,19 @@
  *   dependency of the generated package (the exact defect, generalised);
  * - the `setupFiles` path in the generated Vitest config must name a file the
  *   generator actually writes.
+ *
+ * Two more structural gates close the blind spot on the OTHER side of that
+ * import check, which only ever caught undeclared imports and never declared
+ * things nothing used (objectui#3755, objectui#3759):
+ *
+ * - no versioned runtime dependency may be declared that no generated source
+ *   imports (`workspace:*` exempt — it cannot drift);
+ * - no generated `src/**` module may be unreachable from `src/index.tsx`, the
+ *   single entry the generated `exports` map exposes.
+ *
+ * Both would pass over an empty result on today's templates, so each is paired
+ * with a self-test that plants the removed defect back and asserts the rule
+ * names it. A gate that is green because it produces nothing is not a gate.
  */
 import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
@@ -25,6 +38,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   VITEST_SETUP_FILE,
+  buildIndexFile,
   buildPackageJson,
   buildPluginFiles,
   buildTestFile,
@@ -155,6 +169,101 @@ function generatedDevDependencies(vars: PluginTemplateVars): Record<string, stri
   return (buildPackageJson(vars) as { devDependencies: Record<string, string> }).devDependencies;
 }
 
+function generatedDependencies(vars: PluginTemplateVars): Record<string, string> {
+  return (buildPackageJson(vars) as { dependencies: Record<string, string> }).dependencies;
+}
+
+/**
+ * Runtime dependencies pinned to a VERSION that no generated source imports.
+ *
+ * The reverse of the `import nothing the manifest does not declare` gate below.
+ * That one is one-way — objectui#3733 added it against undeclared imports, so
+ * `'lucide-react': '^0.563.0'` sat in the generated `dependencies` for as long
+ * as it did precisely because nothing looked in this direction (objectui#3755).
+ *
+ * `workspace:*` entries are exempt by design, not by oversight: they resolve to
+ * whatever this workspace currently builds, so an unused one costs nothing and
+ * cannot drift. A versioned range is the opposite — it is installed as written,
+ * and `^0.563.0` could not even float within `0.x` (a `0.x` caret is
+ * `>=0.563.0 <0.564.0`), so it stayed two majors behind the repo's own
+ * `^1.28.0` indefinitely.
+ *
+ * Returned rather than asserted so the rule can be exercised against a manifest
+ * that DOES violate it — see the self-test beside its use. Without that, the
+ * gate would pass by producing nothing (there are no versioned runtime ranges
+ * left) and would keep passing if it were broken.
+ */
+function unusedVersionedDependencies(
+  dependencies: Record<string, string>,
+  files: Record<string, string>
+): string[] {
+  const imported = new Set<string>();
+  for (const [relativePath, contents] of Object.entries(files)) {
+    if (!/\.tsx?$/.test(relativePath)) continue;
+    for (const pkg of importedPackagesOf(contents)) imported.add(pkg);
+  }
+  return Object.entries(dependencies)
+    .filter(([name, range]) => !range.startsWith('workspace:') && !imported.has(name))
+    .map(([name]) => name)
+    .sort();
+}
+
+/**
+ * Generated `src/**` modules NOT reachable from the entry the `exports` map names.
+ *
+ * objectui#3759's criterion, structurally. The generated manifest exposes one
+ * `exports` key (`.` → `dist/*`), so `src/index.tsx` is a consumer's only door;
+ * a module the entry does not pull in transitively is unreachable no matter what
+ * it contains. `src/types.ts` was written to disk in exactly that state — the
+ * deep paths that would have reached it (`<pkg>/types`, `<pkg>/dist/types`) are
+ * closed by the same `exports` map, so the plugin's schema contract shipped
+ * dead. The pre-existing file-map test asserted only that the path EXISTS,
+ * which is what let it stay dead.
+ *
+ * Test files are excluded from the roots on purpose: Vitest loads them
+ * directly, so entry-reachability is not required of them — and if they counted
+ * as roots, a module reachable only from a test would read as live while still
+ * being unreachable for every consumer.
+ */
+function unreachableGeneratedSources(files: Record<string, string>): string[] {
+  const isSource = (path: string) => /^src\/.*\.tsx?$/.test(path) && !/\.test\.tsx?$/.test(path);
+
+  const resolveRelative = (fromPath: string, specifier: string): string | undefined => {
+    const fromDir = fromPath.slice(0, fromPath.lastIndexOf('/'));
+    const segments = `${fromDir}/${specifier}`.split('/');
+    const stack: string[] = [];
+    for (const segment of segments) {
+      if (segment === '.' || segment === '') continue;
+      if (segment === '..') stack.pop();
+      else stack.push(segment);
+    }
+    const base = stack.join('/');
+    return [base, `${base}.tsx`, `${base}.ts`, `${base}/index.tsx`, `${base}/index.ts`].find(
+      (candidate) => files[candidate] !== undefined
+    );
+  };
+
+  const reached = new Set<string>();
+  const queue = ['src/index.tsx'];
+  while (queue.length > 0) {
+    const current = queue.pop() as string;
+    if (reached.has(current) || files[current] === undefined) continue;
+    reached.add(current);
+    // Covers `import … from './x'`, `import './x'` and `export … from './x'`,
+    // including the `export type { … } from './types'` form the entry uses.
+    for (const match of files[current].matchAll(
+      /(?:^|\n)\s*(?:import|export)\s+(?:type\s+)?(?:[^;'"]*?from\s+)?'(\.[^']*)'/g
+    )) {
+      const target = resolveRelative(current, match[1]);
+      if (target !== undefined) queue.push(target);
+    }
+  }
+
+  return Object.keys(files)
+    .filter((path) => isSource(path) && !reached.has(path))
+    .sort();
+}
+
 function declaredDependencies(vars: PluginTemplateVars): Record<string, string> {
   const pkg = buildPackageJson(vars) as {
     dependencies: Record<string, string>;
@@ -178,6 +287,49 @@ describe('generated package.json', () => {
     expect(Object.keys(pkg.devDependencies)).toEqual(
       expect.arrayContaining(['@testing-library/react', '@testing-library/jest-dom', 'jsdom'])
     );
+  });
+
+  it('declares exactly the four workspace platform packages as runtime dependencies', () => {
+    // objectui#3755. The whole map, not `arrayContaining`: a versioned runtime
+    // range added here has to fail this test and be argued for, which is what
+    // `'lucide-react': '^0.563.0'` never was. `workspace:*` throughout is the
+    // property that makes the generated manifest undriftable by construction —
+    // no anchor table needed, unlike the devDependencies above.
+    expect(generatedDependencies(VARS)).toEqual({
+      '@object-ui/components': 'workspace:*',
+      '@object-ui/core': 'workspace:*',
+      '@object-ui/react': 'workspace:*',
+      '@object-ui/types': 'workspace:*'
+    });
+  });
+
+  it('declares no versioned runtime dependency that the generated sources never import', () => {
+    // The other half of objectui#3733's one-way import gate. That gate rejects
+    // an import nothing declares; this one rejects a versioned declaration
+    // nothing imports — the direction that let lucide-react be installed by
+    // every scaffolded plugin for code that never referenced it (objectui#3755).
+    expect(unusedVersionedDependencies(generatedDependencies(VARS), buildPluginFiles(VARS))).toEqual(
+      []
+    );
+  });
+
+  it('catches an unused versioned runtime dependency when one is present', () => {
+    // Self-test, because the assertion above currently passes over an EMPTY
+    // set — there are no versioned runtime ranges left to judge. Without this,
+    // that gate would go green on a broken rule just as readily as on a clean
+    // manifest. Plants back the exact declaration objectui#3755 removed.
+    const files = buildPluginFiles(VARS);
+    const withLucide = { ...generatedDependencies(VARS), 'lucide-react': '^0.563.0' };
+    expect(unusedVersionedDependencies(withLucide, files)).toEqual(['lucide-react']);
+
+    // And does not fire on a versioned range the sources really do import, so
+    // the rule rejects unused declarations rather than versioned ones.
+    const withImported = { ...generatedDependencies(VARS), 'lucide-react': '^1.28.0' };
+    const importingFiles = {
+      ...files,
+      'src/Icon.tsx': `import { Flame } from 'lucide-react';\nexport const Icon = Flame;\n`
+    };
+    expect(unusedVersionedDependencies(withImported, importingFiles)).toEqual([]);
   });
 
   it('anchors every devDependency range, leaving none unpinned', () => {
@@ -251,6 +403,23 @@ describe('generated sources', () => {
     }
   });
 
+  it('derives the published schema interface from the protocols BaseSchema', () => {
+    // objectui#3759's second half. Reachable-from-the-entry made this interface
+    // the plugin's published contract; a hand-rolled `{ type; id?; className? }`
+    // in that position is a second dialect of a base node `@object-ui/types`
+    // already defines (AGENTS.md #0.1). It also silently omits everything else
+    // `BaseSchema` carries (`name`, `label`, `visible`, …). Every in-repo plugin
+    // that ships a `src/types.ts` extends it; `packages/plugin-markdown` is the
+    // closest model. Narrowing `type` to the registry key is the only local part.
+    const typesFile = buildPluginFiles(VARS)['src/types.ts'];
+    expect(typesFile).toContain(`import type { BaseSchema } from '@object-ui/types';`);
+    expect(typesFile).toContain('export interface HeatmapSchema extends BaseSchema {');
+    expect(typesFile).toContain(`type: 'heatmap';`);
+    // The copied subset is gone rather than kept alongside `extends`.
+    expect(typesFile).not.toContain('id?: string;');
+    expect(typesFile).not.toContain('className?: string;');
+  });
+
   it('has its jest-dom matchers registered by the setup file', () => {
     expect(buildTestFile(VARS)).toContain('toBeInTheDocument');
     expect(buildVitestSetup()).toContain('@testing-library/jest-dom');
@@ -313,6 +482,45 @@ describe('generated file map', () => {
       'vitest.setup.ts'
     ]);
     expect(files[VITEST_SETUP_FILE]).toContain(`import '@testing-library/jest-dom/vitest';`);
+  });
+
+  it('writes no source file that is unreachable from the packages only entry point', () => {
+    // objectui#3759. `src/types.ts` used to be written and then reachable from
+    // nowhere: no generated source imported it, and the `exports` map exposes
+    // only `.`, so `<pkg>/types` and `<pkg>/dist/types` were closed too. The
+    // interface in it is the plugin's schema contract — the one thing a
+    // metadata author needs from the package — and it shipped dead.
+    //
+    // Structural rather than a grep for the re-export line: any future template
+    // file added to the map has to be wired up to the entry (or be a test),
+    // instead of quietly becoming the next dead artifact.
+    expect(unreachableGeneratedSources(buildPluginFiles(VARS))).toEqual([]);
+  });
+
+  it('pins that entry-reachability is what makes a type consumable, via the exports map', () => {
+    // The premise the test above rests on. If a `./types` subpath were ever
+    // added to `exports`, entry-reachability would stop being the criterion —
+    // so the premise is asserted rather than assumed.
+    const pkg = buildPackageJson(VARS) as { exports: Record<string, unknown> };
+    expect(Object.keys(pkg.exports)).toEqual(['.']);
+    expect(buildIndexFile(VARS)).toContain(`export type { HeatmapSchema } from './types';`);
+  });
+
+  it('reports the schema module as unreachable when the entry stops re-exporting it', () => {
+    // Self-test for the gate above, which passes over an empty result: with the
+    // re-export line stripped, `src/types.ts` must be NAMED. This is the
+    // reverse verification of objectui#3759 encoded in the suite — restore the
+    // pre-fix entry and the gate goes red, rather than silently green because
+    // it stopped looking.
+    const files = buildPluginFiles(VARS);
+    const preFixEntry = files['src/index.tsx'].replace(
+      `export type { HeatmapSchema } from './types';\n`,
+      ''
+    );
+    expect(preFixEntry).not.toContain(`from './types'`);
+    expect(unreachableGeneratedSources({ ...files, 'src/index.tsx': preFixEntry })).toEqual([
+      'src/types.ts'
+    ]);
   });
 
   it('keeps every path inside the generated plugin directory', () => {

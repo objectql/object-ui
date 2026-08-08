@@ -94,6 +94,39 @@ const DEV_DEPENDENCIES: Record<string, string> = {
   vitest: '^4.1.10'
 };
 
+/**
+ * Runtime `dependencies` written into the generated plugin.
+ *
+ * EVERY entry is a `workspace:*` platform package — the four `@object-ui/*` the
+ * scaffold's own sources build against. That is not an accident of the list, it
+ * is the rule: a generated plugin is written into `<cwd>/packages/plugin-<name>`
+ * and shares this workspace, so `workspace:*` always resolves to the version the
+ * repo currently builds and tests with, and can never drift.
+ *
+ * A VERSIONED runtime range here can drift, and one did. Until objectui#3755 the
+ * map also carried `'lucide-react': '^0.563.0'` — a declaration no generated
+ * source file imported, nailed two majors behind the 23 in-repo declarations
+ * (all `^1.28.0`) and unable to float off it, because a `0.x` caret does not
+ * cross minors: `^0.563.0` is `>=0.563.0 <0.564.0`. Every scaffolded plugin
+ * really installed lucide 0.563.x for code that never referenced it.
+ *
+ * It is gone rather than re-anchored because this repo declares an icon library
+ * where it imports one: of the 24 manifests that mention `lucide-react`, 23
+ * import it, and no package pre-declares it for code not yet written. An author
+ * who wants icons runs `pnpm add lucide-react` and lands the current version by
+ * construction — no anchor table has to be maintained to keep an unused
+ * declaration honest. `templates.test.ts` pins both halves: this map is exactly
+ * the four `workspace:*` entries, and no versioned runtime range may be
+ * declared without a generated source importing it (the reverse of the one-way
+ * import gate objectui#3733 added, which only ever caught the other direction).
+ */
+const DEPENDENCIES: Record<string, string> = {
+  '@object-ui/components': 'workspace:*',
+  '@object-ui/core': 'workspace:*',
+  '@object-ui/react': 'workspace:*',
+  '@object-ui/types': 'workspace:*'
+};
+
 /** The generated plugin's `package.json`, as an object (not yet serialised). */
 export function buildPackageJson(vars: PluginTemplateVars): Record<string, unknown> {
   return {
@@ -117,13 +150,7 @@ export function buildPackageJson(vars: PluginTemplateVars): Record<string, unkno
       test: 'vitest run',
       lint: 'eslint .'
     },
-    dependencies: {
-      '@object-ui/components': 'workspace:*',
-      '@object-ui/core': 'workspace:*',
-      '@object-ui/react': 'workspace:*',
-      '@object-ui/types': 'workspace:*',
-      'lucide-react': '^0.563.0'
-    },
+    dependencies: { ...DEPENDENCIES },
     peerDependencies: {
       react: '^18.0.0 || ^19.0.0',
       'react-dom': '^18.0.0 || ^19.0.0'
@@ -265,7 +292,26 @@ MIT © ${vars.author}
 `;
 }
 
-/** The generated plugin's `src/index.tsx` (entry point + registry registration). */
+/**
+ * The generated plugin's `src/index.tsx` (entry point + registry registration).
+ *
+ * The `./types` re-export is load-bearing, not tidiness (objectui#3759). The
+ * generated `package.json` exposes exactly one `exports` key — `.` → `dist/*` —
+ * so the entry is the ONLY door a consumer has. Until this line existed,
+ * `buildTypesFile`'s schema interface was written to disk and reachable from
+ * nowhere: no generated source imported it, and the deep paths that would have
+ * reached it (`<pkg>/types`, `<pkg>/dist/types`) are closed by that same
+ * `exports` map. The author's schema contract — the one thing a metadata
+ * producer needs from a renderer package — was a dead file.
+ *
+ * Named type-only re-export rather than `export * from './types'`, matching all
+ * four in-repo plugins that ship a `src/types.ts` (`plugin-charts`,
+ * `plugin-editor`, `plugin-kanban`, `plugin-markdown` — each
+ * `export type { XSchema } from './types';` behind the same `.`-only exports
+ * map) and the worked example in `content/docs/guide/plugin-development.md`.
+ * A star export would make every future local type public by accident; the
+ * named form keeps the published surface a deliberate act.
+ */
 export function buildIndexFile(vars: PluginTemplateVars): string {
   return `/**
  * ObjectUI
@@ -281,6 +327,7 @@ import { ${vars.pascalName} } from './${vars.pascalName}Impl';
 
 export { ${vars.pascalName} };
 export type { ${vars.pascalName}Props } from './${vars.pascalName}Impl';
+export type { ${vars.pascalName}Schema } from './types';
 
 // Register component with ComponentRegistry
 const ${vars.pascalName}Renderer: React.FC<{ schema: any }> = ({ schema }) => {
@@ -331,7 +378,25 @@ export const ${vars.pascalName}: React.FC<${vars.pascalName}Props> = ({ classNam
 `;
 }
 
-/** The generated plugin's `src/types.ts`. */
+/**
+ * The generated plugin's `src/types.ts`.
+ *
+ * Extends `BaseSchema` from `@object-ui/types` instead of re-declaring the base
+ * node's fields. This became mandatory the moment objectui#3759 made the file
+ * reachable from the entry: an unreachable interface is only dead weight, but a
+ * PUBLISHED one is the plugin's schema contract, and shipping a hand-rolled
+ * `{ type; id?; className? }` as that contract would hand every scaffolded
+ * plugin a second dialect of a base node the protocol already defines —
+ * precisely the "one strict contract beats N dialects" failure in AGENTS.md
+ * commandment #0.1. `BaseSchema` already carries `id?` and `className?` (plus
+ * `name`, `label`, `visible`, … which a copied subset silently omits), so only
+ * the `type` literal is narrowed here. Same shape as every in-repo plugin that
+ * ships one — `packages/plugin-markdown/src/types.ts` is the closest model —
+ * and as the anatomy table in `content/docs/guide/plugin-development.md`.
+ *
+ * This is also what makes the generated `@object-ui/types` dependency a used
+ * declaration rather than a third unused one beside objectui#3755's.
+ */
 export function buildTypesFile(vars: PluginTemplateVars): string {
   return `/**
  * ObjectUI
@@ -341,13 +406,16 @@ export function buildTypesFile(vars: PluginTemplateVars): string {
  * LICENSE file in the root directory of this source tree.
  */
 
+import type { BaseSchema } from '@object-ui/types';
+
 /**
- * Schema definition for ${vars.pascalName}
+ * Schema definition for ${vars.pascalName}.
+ *
+ * This is the contract between a metadata author and the renderer: it is
+ * re-exported from \`src/index.tsx\`, which is the package's only entry point.
  */
-export interface ${vars.pascalName}Schema {
+export interface ${vars.pascalName}Schema extends BaseSchema {
   type: '${vars.pluginName}';
-  id?: string;
-  className?: string;
   // Add schema properties here
 }
 `;
