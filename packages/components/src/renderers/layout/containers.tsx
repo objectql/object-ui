@@ -18,7 +18,7 @@
  */
 
 import React from 'react';
-import { ComponentRegistry, ExpressionEvaluator, getRecordDisplayName, toPredicateRecord } from '@object-ui/core';
+import { ComponentRegistry, ExpressionEvaluator, evalRowPredicate, getRecordDisplayName, toPredicateRecord } from '@object-ui/core';
 import { actionRendersAt } from '@object-ui/types';
 import { useRecordContext, useAction, useCapabilityGate, usePredicateScope, usePageVariables, useInlineEdit } from '@object-ui/react';
 import { renderChildren, cn } from '../../lib/utils';
@@ -857,23 +857,18 @@ export function cleanupTitleSeparators(s: string): string {
 
 /**
  * One-time diagnostics for header-action `visible` / `hidden` predicates
- * (#2358). Both warn-once per (action, predicate) pair so re-renders don't
- * spam the console, mirroring ActionEngine's `warnHiddenPredicate` (#2183).
+ * (#2358). Warn-once per (action, predicate) pair so re-renders don't spam the
+ * console, mirroring ActionEngine's `warnHiddenPredicate` (#2183).
+ *
+ * The *fault* half of these diagnostics is no longer written here: since
+ * objectui#3521 the predicates run through `evalRowPredicate`, whose own
+ * warn-once machinery reports a faulting predicate under the label this file
+ * passes (`page:header action "…" visible`) — one report per broken predicate,
+ * identical in wording to the row kebab and the selection bar. What stays local
+ * is the missing-field diagnostic below, which explains a *cause* the engine
+ * cannot see (fields stripped from the payload server-side).
  */
 const _warnedHeaderPredicates = new Set<string>();
-
-/** Warn when a predicate THREW — the action is fail-closed hidden. */
-function warnHeaderActionPredicate(name: unknown, source: string, err: unknown): void {
-  const key = `throw::${String(name)}::${source}`;
-  if (_warnedHeaderPredicates.has(key)) return;
-  _warnedHeaderPredicates.add(key);
-  const msg = err instanceof Error ? err.message : String(err);
-  console.warn(
-    `[page:header] action "${String(name)}" hidden: its predicate threw — ${msg}. ` +
-    `Predicate: ${source}. Header-action predicates evaluate against ` +
-    `{ record, user, os.user, ctx.user, app, features, <record fields> }.`,
-  );
-}
 
 /**
  * Warn when a predicate references `record.<field>` keys that are absent from
@@ -997,37 +992,53 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   // synthesised. Authored pages may opt out by omitting them at the host
   // or by adding a name-clashing action of their own.
   const hostSystemActions = (ctx as any)?.headerSystemActions as any[] | undefined;
-  const headerActions = React.useMemo<any[]>(() => {
-    const recordData: any = ctx?.data;
-    // Spread record fields as top-level bindings so author-friendly CEL like
-    // `status == "active"` or `is_default != true` resolves directly. Without
-    // this, bare identifiers fall through to the JS global scope and silently
-    // resolve to e.g. `window.status` (empty string), causing every action
-    // with a `visible` expression to be filtered out.
-    // Carry the ambient host scope (user / app / features) and expose the
-    // canonical `ctx.*` namespace so `ctx.user.isPlatformAdmin`-style
-    // predicates resolve — alongside the record fields spread for bare
-    // `status`/`is_default` CEL.
+
+  // ── Action predicates: ONE dialect, ONE entry (objectui#3521) ──────────────
+  //
+  // `visible` / `hidden` / `disabled` on a header action are evaluated by
+  // `evalRowPredicate` — the SAME entry the row kebab (`RowActionMenu`), the
+  // selection bar (`partitionBulkRows`) and conditional formatting have used
+  // since objectui#1584 / ADR-0058. A bare string is therefore CEL, which is
+  // what `@objectstack/spec` types `ActionSchema.visible` as and what the
+  // server enforces with, so the CEL-only constructs an author writes once
+  // (`record.tags.size() > 0`, `'"red" in record.f_multiselect'`,
+  // `record.f_date < today()`) now reach a verdict here instead of throwing in
+  // a JS parser and fail-closed hiding the button. Before this, the header was
+  // the last surface still handing EVERY predicate to the legacy JS evaluator,
+  // so one piece of metadata meant two different things depending on whether
+  // the reader was a list row or a record page.
+  //
+  // A legacy-dialect string (`${…}`, `===`/`!==`, `?.`, `??`, JS-only methods
+  // like `.includes()`) still routes to the legacy evaluator inside
+  // `evalRowPredicate` via `isLegacyDialectSource`, with its one-time
+  // deprecation warning — existing authored pages do not regress.
+  //
+  // Fail-closed and warn-once come from that same entry (`fallback: false`,
+  // `warnOnError: true`), so a broken predicate hides its button here exactly
+  // as it does on the other surfaces, and says so once.
+  const headerPredicateFields = headerObjectSchema?.fields;
+  const headerPredicateScope = React.useMemo(() => {
     const scopeUser = (predicateScope as any)?.user;
     // Relation fields bind as the FOREIGN KEY the server stores, not as the
-    // record `$expand` substituted for them: the detail fetch expands every
-    // relation it can, so `record.owner == os.user.id` — the spelling that
-    // works server-side and in a bare list — could only ever be false here,
-    // while `record.owner.id` throws on any record whose lookup is empty. See
-    // `toPredicateRecord`. Display (`interpolate` above) still reads the raw
-    // `ctx.data`, which is what renders the related record's NAME.
-    // `toPredicateRecord` passes a null/undefined record straight through, so
-    // "no record loaded yet" stays distinguishable from "an empty record" —
-    // spreading either into `evalCtx` is a no-op.
-    const predicateRecord = toPredicateRecord(recordData, headerObjectSchema?.fields);
-    const evalCtx = {
-      ...predicateRecord,
-      record: predicateRecord,
-      data: predicateRecord,
+    // record `$expand` substituted for them (objectui#3501): the detail fetch
+    // expands every relation it can, so `record.owner == os.user.id` — the
+    // spelling that works server-side and in a bare list — could only ever be
+    // false here, while `record.owner.id` faults on an empty lookup. The
+    // top-level `record` / bare-field / `data.*` bindings get this same
+    // normalization from `evalRowPredicate`'s `fields` option below; this copy
+    // is for the `ctx.*` namespace, which the engine does not build. Display
+    // (`interpolate` above) still reads the raw `ctx.data`, which is what
+    // renders the related record's NAME.
+    const predicateRecord = toPredicateRecord(ctx?.data, headerPredicateFields);
+    return {
+      // The ambient host scope (`features` / `app` / `current_user` / …) binds
+      // top-level, the way it does for a row predicate — the header used to
+      // expose it only under `ctx.*`.
+      ...(predicateScope && typeof predicateScope === 'object' ? predicateScope : {}),
       user: scopeUser,
       // Server-CEL-parity identity alias (#2358 trap 1): the spec's canonical
       // CEL identity scope is `os.user.*`, so a predicate authored against the
-      // server dialect resolves here too instead of throwing (fail-closed).
+      // server dialect resolves here too instead of faulting (fail-closed).
       os: (predicateScope as any)?.os ?? { user: scopeUser },
       ctx: {
         user: scopeUser,
@@ -1037,20 +1048,38 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
         features: (predicateScope as any)?.features,
       },
     };
-    const evaluator = new ExpressionEvaluator(evalCtx);
-    // Fail-closed BUT diagnosable (#2358): a throwing `visible`/`hidden`
-    // predicate still hides the action, but now warns once (action name +
-    // predicate + reason) instead of silently swallowing the error — a
-    // predicate that throws is almost always an authoring bug (wrong scope
-    // variable, bare field reference), not a real precondition.
-    const evalExpr = (src: string, actionName: unknown): any => {
-      try {
-        return evaluator.evaluateExpression(src);
-      } catch (err) {
-        warnHeaderActionPredicate(actionName, src, err);
-        return undefined;
-      }
-    };
+  }, [predicateScope, ctx?.data, headerPredicateFields]);
+
+  /**
+   * Evaluate one header-action predicate. `label` is the locator carried into
+   * the fault warning, so a hidden button names itself in the console.
+   *
+   * `fallback: false` is what preserves both historical fail directions: a
+   * faulting `visible`/`disabled` hides/enables nothing new (fail-closed), and
+   * a faulting `hidden` leaves the action rendered exactly as the old
+   * `catch → undefined` did.
+   */
+  const evalHeaderPredicate = React.useCallback(
+    (pred: unknown, label: string): boolean =>
+      evalRowPredicate(pred as never, ctx?.data ?? {}, {
+        fallback: false,
+        scope: headerPredicateScope,
+        fields: headerPredicateFields,
+        warnOnError: true,
+        label,
+      }),
+    [ctx?.data, headerPredicateScope, headerPredicateFields],
+  );
+
+  const headerActions = React.useMemo<any[]>(() => {
+    const recordData: any = ctx?.data;
+    // The record binds three ways inside `evalRowPredicate` — `record.status`
+    // (spec/canonical), bare `status` (the row-action shorthand) and
+    // `data.status` (legacy) — so no authoring convention silently falls
+    // through to the JS global scope the way a bare identifier used to
+    // (`window.status`, an empty string, filtering the action out). The host
+    // scope and the `ctx.*` / `os.user` namespaces come from
+    // `headerPredicateScope` above. See `evalHeaderPredicate`.
     const filterAction = (a: any): boolean => {
       // [ADR-0066 D4 / framework#3923] Capability gate — the UI half of the
       // dual-surface `requiredPermissions` contract.
@@ -1084,10 +1113,15 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
                 : null;
           if (src) {
             warnMissingRecordFields(a?.name, src, recordData);
-            const result = evalExpr(src, a?.name);
-            // On evaluation error (undefined), hide the action rather than
-            // risk surfacing a destructive button in the wrong state.
-            if (!result) return false;
+            // The predicate is handed over WHOLE, not as its `source`: a
+            // `{ dialect: 'cel' }` envelope is authoritative CEL and must not
+            // be flattened onto a dialect guess — the same rule the row kebab
+            // applies by passing `def.visible` through untouched.
+            // On a fault (`fallback: false`) the action hides rather than risk
+            // surfacing a destructive button in the wrong state.
+            if (!evalHeaderPredicate(v, `page:header action "${String(a?.name)}" visible`)) {
+              return false;
+            }
           }
         }
       }
@@ -1105,8 +1139,12 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
                 : null;
           if (src) {
             warnMissingRecordFields(a?.name, src, recordData);
-            const result = evalExpr(src, a?.name);
-            if (result) return false;
+            // `fallback: false` keeps `hidden`'s historical fail direction: a
+            // predicate that cannot be evaluated does NOT hide the action (the
+            // old `catch → undefined` read as "not hidden").
+            if (evalHeaderPredicate(h, `page:header action "${String(a?.name)}" hidden`)) {
+              return false;
+            }
           }
         }
       }
@@ -1162,7 +1200,10 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       const bp = b?.variant === 'primary' ? 0 : 1;
       return ap - bp; // equal → stable sort preserves registration order
     });
-  }, [rawHeaderActions, hostSystemActions, ctx?.data, predicateScope]);
+    // `evalHeaderPredicate` closes over `predicateScope` (via
+    // `headerPredicateScope`) and the object's fields, so it replaces the raw
+    // scope in this list rather than adding to it.
+  }, [rawHeaderActions, hostSystemActions, ctx?.data, evalHeaderPredicate]);
 
   // Dispatch shape for record-page header actions (objectui#3391) — the same
   // shape ObjectGrid row actions, RelatedRecordActionsBridge, and
@@ -1245,46 +1286,31 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       ...moreOnlyActions,
     ];
     const useOverflow = overflowActions.length > 0;
-    // Resolve a `disabled` predicate against the record. Mirrors the `visible`
-    // evaluation above — a boolean OR a CEL expression (`'record.status == …'`
-    // or the `{ dialect, source }` envelope). Without this a CEL `disabled`
-    // silently did nothing (only boolean was honoured).
-    // Same relation normalization the `visible` evaluation above applies, so a
-    // `disabled` predicate over a lookup reaches the same verdict (and the same
-    // one the server would) instead of throwing on `record.owner.id`.
-    const dRecord: any = toPredicateRecord(ctx?.data, headerObjectSchema?.fields);
-    const dScopeUser = (predicateScope as any)?.user;
-    const dEvaluator = new ExpressionEvaluator({
-      ...(dRecord && typeof dRecord === 'object' ? dRecord : {}),
-      record: dRecord,
-      data: dRecord,
-      // Same identity scope as the `visible` evaluation above so a
-      // user-gated `disabled` predicate resolves instead of faulting.
-      user: dScopeUser,
-      os: (predicateScope as any)?.os ?? { user: dScopeUser },
-      ctx: {
-        user: dScopeUser,
-        record: dRecord,
-        data: dRecord,
-        app: (predicateScope as any)?.app,
-        features: (predicateScope as any)?.features,
-      },
-    });
-    const resolveDisabled = (d: any): boolean => {
+    // Resolve a `disabled` predicate against the record — a boolean OR an
+    // expression (`'record.status == …'` or the `{ dialect, source }`
+    // envelope). Without this a CEL `disabled` silently did nothing (only
+    // boolean was honoured).
+    //
+    // Same entry, same bindings and same fail direction as `visible` above:
+    // ONE evaluator for this surface, so a `disabled` predicate cannot speak a
+    // different dialect from the `visible` predicate sitting next to it in the
+    // same action (objectui#3521). A faulting predicate still leaves the button
+    // enabled (`fallback: false`), it just says so once now.
+    const resolveDisabled = (d: any, actionName: unknown): boolean => {
       if (d === undefined || d === null) return false;
       if (typeof d === 'boolean') return d;
       const src = typeof d === 'string'
         ? d
         : (d && typeof d === 'object' && typeof (d as any).source === 'string' ? (d as any).source : undefined);
       if (!src) return false;
-      try { return !!dEvaluator.evaluateExpression(src); } catch { return false; }
+      return evalHeaderPredicate(d, `page:header action "${String(actionName)}" disabled`);
     };
     // A live inline-edit session disables actions the host flagged with
     // `disableDuringInlineEdit` (objectui#2572 item 4) — see `inlineEditing`
     // at the top of the renderer.
     const isActionDisabled = (action: any): boolean =>
       (inlineEditing && action?.disableDuringInlineEdit === true) ||
-      resolveDisabled(action?.disabled);
+      resolveDisabled(action?.disabled, action?.name ?? action?.id);
     const renderButton = (action: any, idx: number) => {
       const label = resolveLabel(action, idx);
       // `variant: 'primary'` is valid ActionSchema but not a Shadcn Button

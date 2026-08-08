@@ -99,11 +99,13 @@ const heavyDomTests = [
   'packages/components/src/__tests__/page-header-actions.test.tsx',
   'packages/components/src/__tests__/page-header-capability-gate.test.tsx',
   'packages/components/src/__tests__/page-header-lookup-predicate.test.tsx',
+  'packages/components/src/__tests__/page-header-predicate-dialect.test.tsx',
   'packages/components/src/__tests__/page-header-title.test.tsx',
   'packages/plugin-calendar/src/registration.test.tsx',
   'packages/plugin-dashboard/src/__tests__/DashboardRenderer.designMode.test.tsx',
   'packages/plugin-dashboard/src/__tests__/DashboardRenderer.filters.test.tsx',
   'packages/plugin-dashboard/src/__tests__/DashboardRenderer.legacyRetired.test.tsx',
+  'packages/plugin-grid/src/__tests__/predicate-surface-parity.test.tsx',
   'packages/plugin-kanban/src/registration.test.tsx',
   'packages/plugin-kanban/src/KanbanRenderer.uncolumned.test.tsx',
 ];
