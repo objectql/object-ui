@@ -44,12 +44,21 @@ import { fileURLToPath } from 'node:url';
  *
  *   221 files scanned, 38 literals matched, 11 structurally exempt, 27 inventoried.
  *
- * Of the 27, NINE are measurably wrong today and are recorded as `stale` below —
+ * Of the 27, NINE were measurably wrong at that cut and were recorded as `stale` —
  * including `@objectstack/spec ^4.0.4` in the architecture overview's layer diagram,
- * thirteen majors behind the `^17.0.0-rc.5` every manifest declares. None is fixed
- * here: objectui#3697 is a test-only task and every repair is a docs edit. They are
- * filed separately; inventorying a known-false line with `kind: 'stale'` records the
- * debt instead of blessing it, and still stops a tenth from joining them silently.
+ * thirteen majors behind the `^17.0.0-rc.5` every manifest declares. None was fixed by
+ * objectui#3697 itself: that was a test-only task and every repair is a docs edit, so
+ * they were filed separately. Inventorying a known-false line with `kind: 'stale'`
+ * recorded the debt instead of blessing it, and still stopped a tenth from joining
+ * them silently.
+ *
+ * EIGHT of those nine have since been paid off — objectui#3708 (the two spec claims and
+ * the TypeScript one), #3709 (the three scaffolder-output lines) and #3710 (layout's
+ * peer line and plugin-chatbot's `@ai-sdk/react` major). Their entries left this file in
+ * the same change, which is the downward half of the ratchet doing its job rather than
+ * a courtesy. One `stale` entry remains, `packages/plugin-report/README.md`, and it is
+ * the one repair that belongs on the MANIFEST side: objectui#3690 widens the package's
+ * `peerDependencies.react`, after which the README is correct without being touched.
  *
  * ## Fences are SCANNED — the opposite of `check-doc-links.mjs`, on purpose
  *
@@ -63,13 +72,16 @@ import { fileURLToPath } from 'node:url';
  * be designed out. This gate has one, so a false positive costs a single line saying
  * "illustrative sample, not a claim" — while a miss costs the whole #3645 family again.
  * The measurement makes the trade concrete: stripping fences drops 12 of the 38 hits,
- * and among the dropped are two of the worst live defects —
+ * and among the dropped were the two worst defects the census found — both of them
+ * since repaired, which is the argument's strongest evidence rather than a reason to
+ * delete it. A fence-stripping gate would have reported green over both of these:
  *
- *   - `architecture-overview.md:16`, the layer diagram, states `@objectstack/spec ^4.0.4`
- *     inside an ASCII box (a fence), 13 majors stale;
- *   - `create-plugin.mdx:152` documents the scaffolder's output as pinning
- *     `@object-ui/core` `^0.3.0`, when `packages/create-plugin/src/index.ts:143` actually
- *     writes `workspace:*` dependencies and no such peer at all.
+ *   - `architecture-overview.md`, the layer diagram, stated `@objectstack/spec ^4.0.4`
+ *     inside an ASCII box (a fence), 13 majors stale — fixed by objectui#3708;
+ *   - `create-plugin.mdx` documented the scaffolder's output as pinning
+ *     `@object-ui/core` `^0.3.0`, when the manifest literal in
+ *     `packages/create-plugin/src/index.ts` actually writes workspace-link dependencies
+ *     and no such peer at all — fixed by objectui#3709.
  *
  * So: scan fences, absorb the samples in the inventory. The residual hole is stated
  * rather than implied — a version literal in a file OUTSIDE the two scan roots is
@@ -313,10 +325,14 @@ const keyOf = (c: Pick<Claim, 'file' | 'claim'>): string => `${c.file} :: ${c.cl
  *
  * `anchored`     - true today AND checkable against a machine-readable truth in this
  *                  tree, so a reviewer can re-verify it in one command.
- * `restatement`  - a package README restating its OWN package.json. Formally a subclass
- *                  of `anchored`, kept separate because it is the largest class (11 of
- *                  27) and the one already drifting: this is where a gate that pinned
- *                  README to manifest would pay off next.
+ * `restatement`  - a README restating its OWN package.json. Formally a subclass of
+ *                  `anchored`, kept separate because it is the largest class (12 of 21)
+ *                  and the one that had already drifted: the two drifted members were
+ *                  repaired by objectui#3710 and re-filed here as restatements. Note
+ *                  what this class does and does not buy — the equality it names is
+ *                  re-verified by a HUMAN reading the manifest, not by this gate, which
+ *                  only asks whether a literal was recorded at all. Pinning README to
+ *                  manifest mechanically is still the payoff this class is pointing at.
  * `sample`       - illustrative or template content. NOT an assertion about this
  *                  repository's versions: a changelog a plugin renders as demo data, or
  *                  a package.json skeleton the reader owns after copying it.
@@ -325,10 +341,11 @@ const keyOf = (c: Pick<Claim, 'file' | 'claim'>): string => `${c.file} :: ${c.cl
  *                  can tell us when it stops being true.
  * `stale`        - measured WRONG at the time of writing. Recorded, not blessed.
  *
- * Nine of the 27 are `stale`. None is fixed here: objectui#3697 is a test-only task and
- * every one of them is a docs edit. They are filed separately. Inventorying a
- * known-false line records the debt where the next reader will trip over it, and the
- * ratchet still stops a tenth from joining them unnoticed.
+ * Nine of the 27 were `stale` at the census. Eight have been paid off (objectui#3708,
+ * #3709, #3710) and their entries deleted in the same change; ONE remains, and it is
+ * the one whose repair is a manifest edit rather than a docs edit (objectui#3690).
+ * Inventorying a known-false line records the debt where the next reader will trip over
+ * it, and the ratchet still stops a tenth from joining them unnoticed.
  */
 type ClaimKind = 'anchored' | 'restatement' | 'sample' | 'unanchored' | 'stale';
 
@@ -339,31 +356,18 @@ interface KnownClaim {
   why: string;
 }
 
-/** The peer-dependency line 9 package READMEs carry, verbatim from their manifests. */
+/**
+ * The peer-dependency line 10 package READMEs carry verbatim from their manifests —
+ * `layout` joined them in objectui#3710, which narrowed its over-promising `>=` spelling
+ * to the range its manifest actually declares. An eleventh README, `plugin-report`,
+ * carries the same line WITHOUT the manifest to back it; that one stays `stale` below.
+ */
 const PEER_18_19 = 'react' + TICK + ' ^18.0.0';
 const PEER_RESTATEMENT_OK =
   'Restates this package peerDependencies.react verbatim; re-verify with a one-line read of the manifest.';
 
 const KNOWN_CLAIMS: KnownClaim[] = [
   // --- content/docs ------------------------------------------------------------
-  {
-    file: 'content/docs/guide/architecture-overview.md',
-    claim: '@objectstack/spec ^4.0.4',
-    kind: 'stale',
-    why: 'The layer diagram pins spec ^4.0.4; all 29 manifests declare ^17.0.0-rc.5. Thirteen majors stale, and inside a fence, which is why fences are scanned here.',
-  },
-  {
-    file: 'content/docs/guide/architecture-overview.md',
-    claim: '@objectstack/spec ^4.0.0',
-    kind: 'stale',
-    why: 'Same page, prose this time ("consumed as @objectstack/spec ^4.0.0"); the truth is ^17.0.0-rc.5 in every packages manifest.',
-  },
-  {
-    file: 'content/docs/guide/architecture.md',
-    claim: 'TypeScript 5.0',
-    kind: 'stale',
-    why: 'Says "built with TypeScript 5.0+ in strict mode"; all 34 typescript declarations in this repo are ^6.0.3. One major behind.',
-  },
   {
     file: 'content/docs/guide/ci-cd-pipeline.md',
     claim: 'Node 22.x',
@@ -412,30 +416,13 @@ const KNOWN_CLAIMS: KnownClaim[] = [
     kind: 'sample',
     why: 'Second row of the same fake changelog demo string.',
   },
-  {
-    file: 'content/docs/utilities/create-plugin.mdx',
-    claim: '@object-ui/core": "^0.3.0',
-    kind: 'stale',
-    why: 'Documents the scaffolder output as a ^0.3.0 peer, but packages/create-plugin/src/index.ts writes @object-ui/core as a workspace:* DEPENDENCY and no such peer exists. Wrong version and wrong field.',
-  },
-  {
-    file: 'content/docs/utilities/create-plugin.mdx',
-    claim: '@object-ui/components": "^0.3.0',
-    kind: 'stale',
-    why: 'Same block, same defect: the scaffolder emits @object-ui/components as workspace:* under dependencies, never as a ^0.3.0 peer.',
-  },
-  {
-    file: 'content/docs/utilities/create-plugin.mdx',
-    claim: 'react": "^18.0.0',
-    kind: 'stale',
-    why: 'The scaffolder writes react ^18.0.0 || ^19.0.0 (and a react-dom peer this block omits entirely), so the documented output understates what it generates.',
-  },
 
   // --- packages/<name>/README.md ----------------------------------------------
   { file: 'packages/auth/README.md', claim: PEER_18_19, kind: 'restatement', why: PEER_RESTATEMENT_OK },
   { file: 'packages/collaboration/README.md', claim: PEER_18_19, kind: 'restatement', why: PEER_RESTATEMENT_OK },
   { file: 'packages/components/README.md', claim: PEER_18_19, kind: 'restatement', why: PEER_RESTATEMENT_OK },
   { file: 'packages/i18n/README.md', claim: PEER_18_19, kind: 'restatement', why: PEER_RESTATEMENT_OK },
+  { file: 'packages/layout/README.md', claim: PEER_18_19, kind: 'restatement', why: PEER_RESTATEMENT_OK },
   { file: 'packages/mobile/README.md', claim: PEER_18_19, kind: 'restatement', why: PEER_RESTATEMENT_OK },
   { file: 'packages/permissions/README.md', claim: PEER_18_19, kind: 'restatement', why: PEER_RESTATEMENT_OK },
   { file: 'packages/plugin-ai/README.md', claim: PEER_18_19, kind: 'restatement', why: PEER_RESTATEMENT_OK },
@@ -448,12 +435,6 @@ const KNOWN_CLAIMS: KnownClaim[] = [
     why: 'Restates this package peerDependencies.react, which is literally ">=18" — the one README whose looser spelling is the manifest spelling.',
   },
   {
-    file: 'packages/layout/README.md',
-    claim: 'react' + TICK + ' >= 18.0.0',
-    kind: 'stale',
-    why: 'Claims ">= 18.0.0", which admits React 20; the manifest peer is ^18.0.0 || ^19.0.0 and rejects it. The README is broader than what npm will install.',
-  },
-  {
     file: 'packages/plugin-report/README.md',
     claim: PEER_18_19,
     kind: 'stale',
@@ -461,9 +442,9 @@ const KNOWN_CLAIMS: KnownClaim[] = [
   },
   {
     file: 'packages/plugin-chatbot/README.md',
-    claim: '@ai-sdk/react' + TICK + ' v3',
-    kind: 'stale',
-    why: 'Prose says the streaming mode uses @ai-sdk/react v3; the manifest dependency is ^4.0.47. A whole major behind, and the only third-party version claim in the corpus.',
+    claim: '@ai-sdk/react' + TICK + ' v4',
+    kind: 'restatement',
+    why: 'Names the major of this package own dependencies["@ai-sdk/react"], which is ^4.0.47. Kept rather than deleted because the reader follows it to the streaming protocol docs; re-verify with a one-line read of the manifest.',
   },
 ];
 

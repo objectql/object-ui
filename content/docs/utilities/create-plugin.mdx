@@ -133,28 +133,22 @@ export interface AwesomeComponentProps {
 
 ### `package.json`
 
-Pre-configured with all necessary settings:
+Pre-configured with all necessary settings: the package identity (`name`, `version`,
+`type`, `license`, `description`), the build entry points (`main`, `module`, `types` and
+an `exports` map covering both the ES and the UMD bundle), and its `scripts`.
 
-```json
-{
-  "name": "@object-ui/plugin-awesome",
-  "version": "0.1.0",
-  "description": "An awesome plugin for ObjectUI",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "files": ["dist"],
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "test": "vitest"
-  },
-  "peerDependencies": {
-    "@object-ui/core": "^0.3.0",
-    "@object-ui/components": "^0.3.0",
-    "react": "^18.0.0"
-  }
-}
-```
+It also writes three dependency groups:
+
+- `dependencies` — four `@object-ui` workspace packages plus an icon library, written as
+  workspace links rather than as published version ranges. Note the field: the generator
+  puts these under **`dependencies`**, not under `peerDependencies`.
+- `peerDependencies` — `react` and `react-dom`, left for the host application to supply.
+- `devDependencies` — what the generated Vite build and its tests need.
+
+Do not transcribe version ranges out of this page into a hand-written manifest. They are
+written by one template — the manifest literal in
+[`packages/create-plugin/src/index.ts`](https://github.com/objectstack-ai/objectui/blob/main/packages/create-plugin/src/index.ts) —
+and reading them there is the only way to see what your scaffold will actually contain.
 
 ## Development Workflow
 
