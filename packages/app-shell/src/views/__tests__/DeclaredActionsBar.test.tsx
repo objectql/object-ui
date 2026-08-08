@@ -24,7 +24,7 @@ const executeSpy = vi.fn().mockResolvedValue({ success: true });
 // It used to be stubbed constant-true, with a comment saying our test actions
 // omit `visible` "so this is unused" — which made the component's `visible`
 // gate unreachable from this suite for as long as it existed, so the truthiness
-// bug objectui#3835 reports lived here untouched (the objectui#4984 family: a
+// bug objectui#3835 reports lived here untouched (the objectstack#4984 family: a
 // fixture keeping a broken rule green). A re-spelled stub would not fix that:
 // `visible: false` only reaches "hidden" if `toPredicateInput` passes the
 // boolean through and `evaluateCondition` short-circuits it, so a stub is a

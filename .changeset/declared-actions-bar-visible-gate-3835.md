@@ -51,7 +51,7 @@ all, and the bar still renders no chrome when its located set is empty.
 The suite that covered this component could not have caught it: it stubbed the
 whole predicate entry constant-true (`useCondition: () => true`), with a comment
 saying the test actions omit `visible` "so this is unused" — which made the gate
-unreachable from the only tests that mount this component (the objectui#4984
+unreachable from the only tests that mount this component (the objectstack#4984
 family, where a fixture keeps a broken rule green). That stub is gone; the suite
 now runs the real `useCondition` / `toPredicateInput` and doubles only the action
 dispatch, so all four shapes (`false` hides / `true` renders / undeclared renders
