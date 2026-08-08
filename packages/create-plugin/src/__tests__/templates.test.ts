@@ -12,7 +12,7 @@
  * green on a template that no longer produces a runnable artifact. The two
  * that matter most are structural rather than string-matching:
  *
- * - every bare import in the generated example test must be a declared
+ * - every bare import in every generated source file must be a declared
  *   dependency of the generated package (the exact defect, generalised);
  * - the `setupFiles` path in the generated Vitest config must name a file the
  *   generator actually writes.
