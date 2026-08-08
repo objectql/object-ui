@@ -1782,6 +1782,18 @@ const ko = {
         invalidCredentials: "잘못된 이메일 또는 비밀번호입니다. 다시 시도하세요.",
         emailNotVerified: "로그인하기 전에 이메일을 확인하세요.",
       },
+      // objectui#3546 slice three — phone/OTP sign-in. `{seconds}` is LoginForm's own
+      // literal `.replace()` hole, not i18next interpolation: keep the single braces.
+      emailOrPhoneLabel: "이메일 또는 전화번호",
+      emailOrPhonePlaceholder: "name@example.com 또는 +1 555 000 0000",
+      phoneLabel: "전화번호",
+      phonePlaceholder: "+1 555 000 0000",
+      otpCodeLabel: "인증 코드",
+      otpCodePlaceholder: "6자리 코드",
+      sendOtpButton: "코드 받기",
+      resendOtpCountdownText: "{seconds}초 후 재전송",
+      usePhoneOtpText: "인증 코드로 로그인",
+      usePasswordSignInText: "비밀번호로 로그인하기",
     },
     register: {
       title: "계정 만들기",
@@ -1824,6 +1836,20 @@ const ko = {
       backToSignInText: "로그인으로 돌아가기",
       rememberPasswordText: "비밀번호가 기억나시나요?",
       signInText: "로그인",
+      // objectui#3546 slice three — the SMS reset branch of the same form.
+      phoneLabel: "전화번호",
+      phonePlaceholder: "+1 555 000 0000",
+      otpCodeLabel: "인증 코드",
+      otpCodePlaceholder: "6자리 코드",
+      sendOtpButton: "코드 받기",
+      resendOtpCountdownText: "{seconds}초 후 재전송",
+      newPasswordLabel: "새 비밀번호",
+      newPasswordPlaceholder: "새 비밀번호를 입력하세요",
+      resetButton: "비밀번호 재설정",
+      usePhoneResetText: "SMS 코드로 재설정",
+      useEmailResetText: "이메일로 재설정하기",
+      phoneSuccessTitle: "비밀번호가 재설정되었습니다",
+      phoneSuccessDescription: "비밀번호가 재설정되었습니다. 이제 새 비밀번호로 로그인할 수 있습니다.",
     },
     resetPassword: {
       title: "새 비밀번호 설정",
@@ -1862,6 +1888,8 @@ const ko = {
       backToLogin: "로그인으로 돌아가기",
       checkSpam: "이메일을 받지 못하셨나요? 스팸 폴더를 확인하거나 지원팀에 문의하세요.",
       or: "또는",
+      // objectui#3546 slice three.
+      resendUnavailable: "이 환경에서는 이메일 발송이 구성되지 않았을 수 있습니다. 문제가 계속되면 지원팀에 문의하세요.",
     },
     setup: {
       welcomeTitle: "ObjectStack에 오신 것을 환영합니다",
@@ -1900,6 +1928,9 @@ const ko = {
       invalidDescription: "URL에 장치 코드가 제공되지 않았습니다.",
       loading: "로딩 중…",
       cancel: "취소",
+      // objectui#3546 slice three — device-authorization plugin switched off.
+      disabledTitle: "장치 승인이 활성화되지 않았습니다",
+      disabledDescription: "이 배포에는 장치 승인이 활성화되어 있지 않으므로 여기에서 이 장치를 승인할 수 없습니다.",
     },
     shell: {
       tenantHostHint: "이 작업 공간에 로그인하는 중입니다",
@@ -1938,6 +1969,45 @@ const ko = {
         invalidCode: "코드가 올바르지 않습니다. 다시 시도하세요.",
       },
     },
+  },
+  // objectui#3546 slice three — the /oauth/consent screen.
+  oauth: {
+    consent: {
+      title: "{{appName}}이(가) 계정에 액세스하려고 합니다",
+      request: "{{appName}}이(가) 권한을 요청합니다{{suffix}}.",
+      unknownApp: "어떤 애플리케이션",
+      willAllow: "이 앱은 다음을 할 수 있습니다:",
+      scope: {
+        openid: "본인 확인",
+        profile: "기본 프로필(이름, 사진) 읽기",
+        email: "이메일 주소 읽기",
+        offlineAccess: "로그인 상태 유지(액세스 갱신)",
+      },
+      deny: "거부",
+      authorize: "허용",
+      submitting: "허용 중…",
+      granted: "액세스가 허용되었습니다",
+      denied: "액세스 거부됨",
+      noRedirect: "서버가 리디렉션 URL을 반환하지 않았습니다.",
+      failed: "동의 실패",
+      footer: "계정 설정에서 언제든지 액세스를 취소할 수 있습니다.",
+    },
+  },
+  // objectui#3546 slice three — the console's own /accept-invitation page.
+  // Distinct from `organization.accept.*` (app-shell's richer page, same route).
+  acceptInvitation: {
+    title: "조직 초대 수락",
+    description: "조직에 초대되었습니다.",
+    accept: "초대 수락",
+    accepting: "수락 중…",
+    accepted: "초대를 수락함",
+    acceptFailed: "수락할 수 없습니다",
+    decline: "거절",
+    declining: "거절 중…",
+    declined: "초대를 거절함",
+    declineFailed: "거절할 수 없습니다",
+    invalidTitle: "잘못된 초대 링크",
+    invalidDescription: "URL에 초대 ID가 없습니다.",
   },
   profile: {
     title: "프로필",

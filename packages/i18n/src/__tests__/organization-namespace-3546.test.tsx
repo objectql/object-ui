@@ -262,8 +262,10 @@ describe('objectui#3546 slice two — the organization namespace', () => {
     // literal keys, and it is still missing. Deliberately left for the
     // prefix-family slice — this assertion is what stops it being forgotten.
     expect(Object.keys(baseline.missingPrefixes)).toContain('organization.invitations.status.');
-    // The other namespaces' debt is not this slice's to spend.
-    expect(Object.keys(baseline.missingKeys).length).toBe(163);
+    // The other namespaces' debt is not this slice's to spend. Slice three
+    // (auth/oauth/acceptInvitation, 54 keys) took it from 163 to 109; this
+    // number moves once per slice, and only downwards.
+    expect(Object.keys(baseline.missingKeys).length).toBe(109);
   });
 
   describe('through the real binding — bare useObjectTranslation, provider mounted', () => {

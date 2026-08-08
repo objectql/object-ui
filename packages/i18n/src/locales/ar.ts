@@ -1782,6 +1782,18 @@ const ar = {
         invalidCredentials: "بريد إلكتروني أو كلمة مرور غير صحيحة. يرجى المحاولة مرة أخرى.",
         emailNotVerified: "يرجى التحقق من بريدك الإلكتروني قبل تسجيل الدخول.",
       },
+      // objectui#3546 slice three — phone/OTP sign-in. `{seconds}` is LoginForm's own
+      // literal `.replace()` hole, not i18next interpolation: keep the single braces.
+      emailOrPhoneLabel: "البريد الإلكتروني أو رقم الهاتف",
+      emailOrPhonePlaceholder: "name@example.com أو +1 555 000 0000",
+      phoneLabel: "رقم الهاتف",
+      phonePlaceholder: "+1 555 000 0000",
+      otpCodeLabel: "رمز التحقق",
+      otpCodePlaceholder: "رمز مكوّن من 6 أرقام",
+      sendOtpButton: "الحصول على رمز",
+      resendOtpCountdownText: "إعادة الإرسال بعد {seconds} ثانية",
+      usePhoneOtpText: "تسجيل الدخول برمز التحقق",
+      usePasswordSignInText: "تسجيل الدخول بكلمة المرور بدلاً من ذلك",
     },
     register: {
       title: "إنشاء حساب",
@@ -1824,6 +1836,20 @@ const ar = {
       backToSignInText: "العودة إلى تسجيل الدخول",
       rememberPasswordText: "تتذكر كلمة المرور؟",
       signInText: "تسجيل الدخول",
+      // objectui#3546 slice three — the SMS reset branch of the same form.
+      phoneLabel: "رقم الهاتف",
+      phonePlaceholder: "+1 555 000 0000",
+      otpCodeLabel: "رمز التحقق",
+      otpCodePlaceholder: "رمز مكوّن من 6 أرقام",
+      sendOtpButton: "الحصول على رمز",
+      resendOtpCountdownText: "إعادة الإرسال بعد {seconds} ثانية",
+      newPasswordLabel: "كلمة المرور الجديدة",
+      newPasswordPlaceholder: "أدخل كلمة مرور جديدة",
+      resetButton: "إعادة تعيين كلمة المرور",
+      usePhoneResetText: "إعادة التعيين برمز SMS",
+      useEmailResetText: "إعادة التعيين بالبريد الإلكتروني بدلاً من ذلك",
+      phoneSuccessTitle: "تمت إعادة تعيين كلمة المرور",
+      phoneSuccessDescription: "تمت إعادة تعيين كلمة المرور. يمكنك الآن تسجيل الدخول بكلمة المرور الجديدة.",
     },
     resetPassword: {
       title: "تعيين كلمة مرور جديدة",
@@ -1862,6 +1888,8 @@ const ar = {
       backToLogin: "العودة إلى تسجيل الدخول",
       checkSpam: "لم تستلم البريد؟ تحقق من مجلد البريد غير المرغوب أو تواصل مع الدعم.",
       or: "أو",
+      // objectui#3546 slice three.
+      resendUnavailable: "قد يكون إرسال البريد الإلكتروني غير مُهيأ في هذه البيئة. تواصل مع الدعم إذا استمرت المشكلة.",
     },
     setup: {
       welcomeTitle: "مرحباً بك في ObjectStack",
@@ -1900,6 +1928,9 @@ const ar = {
       invalidDescription: "لم يتم تقديم رمز جهاز في URL.",
       loading: "جارٍ التحميل…",
       cancel: "إلغاء",
+      // objectui#3546 slice three — device-authorization plugin switched off.
+      disabledTitle: "تفويض الأجهزة غير مُمكَّن",
+      disabledDescription: "لم يتم تمكين تفويض الأجهزة في هذا النشر، لذا لا يمكن الموافقة على هذا الجهاز هنا.",
     },
     shell: {
       tenantHostHint: "تسجل الدخول إلى مساحة العمل هذه",
@@ -1938,6 +1969,45 @@ const ar = {
         invalidCode: "رمز غير صالح. حاول مرة أخرى.",
       },
     },
+  },
+  // objectui#3546 slice three — the /oauth/consent screen.
+  oauth: {
+    consent: {
+      title: "يطلب {{appName}} الوصول إلى حسابك",
+      request: "يطلب {{appName}} الإذن{{suffix}}.",
+      unknownApp: "تطبيق ما",
+      willAllow: "سيتمكن هذا التطبيق من:",
+      scope: {
+        openid: "تأكيد هويتك",
+        profile: "قراءة ملفك الشخصي الأساسي (الاسم، الصورة)",
+        email: "قراءة عنوان بريدك الإلكتروني",
+        offlineAccess: "البقاء مسجّلاً للدخول (تحديث الوصول)",
+      },
+      deny: "رفض",
+      authorize: "تفويض",
+      submitting: "جارٍ التفويض…",
+      granted: "تم منح الوصول",
+      denied: "تم رفض الوصول",
+      noRedirect: "لم يُرجع الخادم أي عنوان URL لإعادة التوجيه.",
+      failed: "فشلت الموافقة",
+      footer: "يمكنك إلغاء الوصول في أي وقت من إعدادات حسابك.",
+    },
+  },
+  // objectui#3546 slice three — the console's own /accept-invitation page.
+  // Distinct from `organization.accept.*` (app-shell's richer page, same route).
+  acceptInvitation: {
+    title: "قبول دعوة المؤسسة",
+    description: "تمت دعوتك للانضمام إلى مؤسسة.",
+    accept: "قبول الدعوة",
+    accepting: "جارٍ القبول…",
+    accepted: "تم قبول الدعوة",
+    acceptFailed: "تعذّر القبول",
+    decline: "رفض",
+    declining: "جارٍ الرفض…",
+    declined: "تم رفض الدعوة",
+    declineFailed: "تعذّر الرفض",
+    invalidTitle: "رابط دعوة غير صالح",
+    invalidDescription: "معرّف الدعوة غير موجود في عنوان URL.",
   },
   profile: {
     title: "الملف الشخصي",

@@ -1787,6 +1787,18 @@ const es = {
         invalidCredentials: "Correo o contraseña inválidos. Inténtelo de nuevo.",
         emailNotVerified: "Verifique su correo electrónico antes de iniciar sesión.",
       },
+      // objectui#3546 slice three — phone/OTP sign-in. `{seconds}` is LoginForm's own
+      // literal `.replace()` hole, not i18next interpolation: keep the single braces.
+      emailOrPhoneLabel: "Correo electrónico o número de teléfono",
+      emailOrPhonePlaceholder: "name@example.com o +1 555 000 0000",
+      phoneLabel: "Número de teléfono",
+      phonePlaceholder: "+1 555 000 0000",
+      otpCodeLabel: "Código de verificación",
+      otpCodePlaceholder: "Código de 6 dígitos",
+      sendOtpButton: "Obtener código",
+      resendOtpCountdownText: "Reenviar en {seconds} s",
+      usePhoneOtpText: "Iniciar sesión con código de verificación",
+      usePasswordSignInText: "Iniciar sesión con contraseña en su lugar",
     },
     register: {
       title: "Crear una cuenta",
@@ -1829,6 +1841,20 @@ const es = {
       backToSignInText: "Volver a iniciar sesión",
       rememberPasswordText: "¿Recuerdas tu contraseña?",
       signInText: "Iniciar sesión",
+      // objectui#3546 slice three — the SMS reset branch of the same form.
+      phoneLabel: "Número de teléfono",
+      phonePlaceholder: "+1 555 000 0000",
+      otpCodeLabel: "Código de verificación",
+      otpCodePlaceholder: "Código de 6 dígitos",
+      sendOtpButton: "Obtener código",
+      resendOtpCountdownText: "Reenviar en {seconds} s",
+      newPasswordLabel: "Nueva contraseña",
+      newPasswordPlaceholder: "Ingresa una nueva contraseña",
+      resetButton: "Restablecer contraseña",
+      usePhoneResetText: "Restablecer con código SMS",
+      useEmailResetText: "Restablecer por correo electrónico en su lugar",
+      phoneSuccessTitle: "Contraseña restablecida",
+      phoneSuccessDescription: "Tu contraseña ha sido restablecida. Ahora puedes iniciar sesión con tu nueva contraseña.",
     },
     resetPassword: {
       title: "Establecer nueva contraseña",
@@ -1867,6 +1893,8 @@ const es = {
       backToLogin: "Volver al inicio de sesión",
       checkSpam: "¿No recibió el correo? Revise su carpeta de spam o contacte soporte.",
       or: "O",
+      // objectui#3546 slice three.
+      resendUnavailable: "Puede que el envío de correos no esté configurado en este entorno. Contacte soporte si el problema persiste.",
     },
     setup: {
       welcomeTitle: "Bienvenido a ObjectStack",
@@ -1905,6 +1933,9 @@ const es = {
       invalidDescription: "No se proporcionó código de dispositivo en la URL.",
       loading: "Cargando…",
       cancel: "Cancelar",
+      // objectui#3546 slice three — device-authorization plugin switched off.
+      disabledTitle: "La autorización de dispositivos no está habilitada",
+      disabledDescription: "Esta implementación no tiene habilitada la autorización de dispositivos, por lo que este dispositivo no puede aprobarse aquí.",
     },
     shell: {
       tenantHostHint: "Está iniciando sesión en este espacio de trabajo",
@@ -1943,6 +1974,45 @@ const es = {
         invalidCode: "Código no válido. Inténtelo de nuevo.",
       },
     },
+  },
+  // objectui#3546 slice three — the /oauth/consent screen.
+  oauth: {
+    consent: {
+      title: "{{appName}} quiere acceder a su cuenta",
+      request: "{{appName}} solicita permiso{{suffix}}.",
+      unknownApp: "una aplicación",
+      willAllow: "Esta aplicación podrá:",
+      scope: {
+        openid: "Confirmar su identidad",
+        profile: "Leer su perfil básico (nombre, foto)",
+        email: "Leer su dirección de correo electrónico",
+        offlineAccess: "Mantener la sesión abierta (renovar el acceso)",
+      },
+      deny: "Denegar",
+      authorize: "Autorizar",
+      submitting: "Autorizando…",
+      granted: "Acceso concedido",
+      denied: "Acceso denegado",
+      noRedirect: "El servidor no devolvió ninguna URL de redirección.",
+      failed: "Error en el consentimiento",
+      footer: "Puede revocar el acceso en cualquier momento desde la configuración de su cuenta.",
+    },
+  },
+  // objectui#3546 slice three — the console's own /accept-invitation page.
+  // Distinct from `organization.accept.*` (app-shell's richer page, same route).
+  acceptInvitation: {
+    title: "Aceptar la invitación a la organización",
+    description: "Te han invitado a unirte a una organización.",
+    accept: "Aceptar invitación",
+    accepting: "Aceptando…",
+    accepted: "Invitación aceptada",
+    acceptFailed: "No se pudo aceptar",
+    decline: "Rechazar",
+    declining: "Rechazando…",
+    declined: "Invitación rechazada",
+    declineFailed: "No se pudo rechazar",
+    invalidTitle: "Enlace de invitación inválido",
+    invalidDescription: "Falta el identificador de la invitación en la URL.",
   },
   profile: {
     title: "Perfil",

@@ -1945,6 +1945,18 @@ const zh = {
         emailNotVerified: '请先验证您的邮箱后再登录。',
         oauthCallbackFailed: '单点登录未能完成——登录链接已过期或已被使用，请重新发起登录。',
       },
+      // objectui#3546 slice three — phone/OTP sign-in. `{seconds}` is LoginForm's own
+      // literal `.replace()` hole, not i18next interpolation: keep the single braces.
+      emailOrPhoneLabel: '邮箱或手机号',
+      emailOrPhonePlaceholder: 'name@example.com 或 +1 555 000 0000',
+      phoneLabel: '手机号',
+      phonePlaceholder: '+1 555 000 0000',
+      otpCodeLabel: '验证码',
+      otpCodePlaceholder: '6 位验证码',
+      sendOtpButton: '获取验证码',
+      resendOtpCountdownText: '{seconds} 秒后可重新发送',
+      usePhoneOtpText: '使用验证码登录',
+      usePasswordSignInText: '改用密码登录',
     },
     register: {
       title: '创建账户',
@@ -1987,6 +1999,20 @@ const zh = {
       backToSignInText: '返回登录',
       rememberPasswordText: '记住密码了？',
       signInText: '登录',
+      // objectui#3546 slice three — the SMS reset branch of the same form.
+      phoneLabel: '手机号',
+      phonePlaceholder: '+1 555 000 0000',
+      otpCodeLabel: '验证码',
+      otpCodePlaceholder: '6 位验证码',
+      sendOtpButton: '获取验证码',
+      resendOtpCountdownText: '{seconds} 秒后可重新发送',
+      newPasswordLabel: '新密码',
+      newPasswordPlaceholder: '输入新密码',
+      resetButton: '重置密码',
+      usePhoneResetText: '通过短信验证码重置',
+      useEmailResetText: '改用邮箱重置',
+      phoneSuccessTitle: '密码已重置',
+      phoneSuccessDescription: '您的密码已重置，现在可以使用新密码登录了。',
     },
     setPassword: {
       title: '设置一个备用密码',
@@ -2039,6 +2065,8 @@ const zh = {
       backToLogin: '返回登录',
       checkSpam: '没有收到邮件？请检查垃圾邮件文件夹或联系支持。',
       or: '或',
+      // objectui#3546 slice three.
+      resendUnavailable: '此环境可能未配置邮件发送服务。如果问题持续存在，请联系支持。',
     },
     setup: {
       welcomeTitle: '欢迎使用 ObjectStack',
@@ -2077,6 +2105,9 @@ const zh = {
       invalidDescription: 'URL 中未提供设备代码。',
       loading: '加载中…',
       cancel: '取消',
+      // objectui#3546 slice three — device-authorization plugin switched off.
+      disabledTitle: '未启用设备授权',
+      disabledDescription: '此部署未启用设备授权，因此无法在此批准该设备。',
     },
     shell: {
       tenantHostHint: '您正在登录此工作区',
@@ -2115,6 +2146,45 @@ const zh = {
         invalidCode: '验证码无效，请重试。',
       },
     },
+  },
+  // objectui#3546 slice three — the /oauth/consent screen.
+  oauth: {
+    consent: {
+      title: '{{appName}} 请求访问您的账户',
+      request: '{{appName}} 正在请求授权{{suffix}}。',
+      unknownApp: '某个应用',
+      willAllow: '此应用将能够：',
+      scope: {
+        openid: '确认您的身份',
+        profile: '读取您的基本资料（姓名、头像）',
+        email: '读取您的邮箱地址',
+        offlineAccess: '保持登录状态（刷新访问权限）',
+      },
+      deny: '拒绝',
+      authorize: '授权',
+      submitting: '授权中…',
+      granted: '已授予访问权限',
+      denied: '访问被拒绝',
+      noRedirect: '服务器未返回跳转地址。',
+      failed: '授权失败',
+      footer: '您可以随时在账户设置中撤销访问权限。',
+    },
+  },
+  // objectui#3546 slice three — the console's own /accept-invitation page.
+  // Distinct from `organization.accept.*` (app-shell's richer page, same route).
+  acceptInvitation: {
+    title: '接受组织邀请',
+    description: '您受邀加入一个组织。',
+    accept: '接受邀请',
+    accepting: '接受中…',
+    accepted: '邀请已接受',
+    acceptFailed: '接受失败',
+    decline: '拒绝',
+    declining: '拒绝中…',
+    declined: '邀请已拒绝',
+    declineFailed: '拒绝失败',
+    invalidTitle: '无效的邀请链接',
+    invalidDescription: 'URL 中缺少邀请 ID。',
   },
   profile: {
     title: '个人资料',

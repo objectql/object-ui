@@ -1782,6 +1782,18 @@ const ru = {
         invalidCredentials: "Неверный email или пароль. Попробуйте ещё раз.",
         emailNotVerified: "Пожалуйста, подтвердите email перед входом.",
       },
+      // objectui#3546 slice three — phone/OTP sign-in. `{seconds}` is LoginForm's own
+      // literal `.replace()` hole, not i18next interpolation: keep the single braces.
+      emailOrPhoneLabel: "Электронная почта или номер телефона",
+      emailOrPhonePlaceholder: "name@example.com или +1 555 000 0000",
+      phoneLabel: "Номер телефона",
+      phonePlaceholder: "+1 555 000 0000",
+      otpCodeLabel: "Код подтверждения",
+      otpCodePlaceholder: "6-значный код",
+      sendOtpButton: "Получить код",
+      resendOtpCountdownText: "Отправить снова через {seconds} с",
+      usePhoneOtpText: "Войти по коду подтверждения",
+      usePasswordSignInText: "Войти с паролем",
     },
     register: {
       title: "Создать аккаунт",
@@ -1824,6 +1836,20 @@ const ru = {
       backToSignInText: "Вернуться к входу",
       rememberPasswordText: "Помните свой пароль?",
       signInText: "Войти",
+      // objectui#3546 slice three — the SMS reset branch of the same form.
+      phoneLabel: "Номер телефона",
+      phonePlaceholder: "+1 555 000 0000",
+      otpCodeLabel: "Код подтверждения",
+      otpCodePlaceholder: "6-значный код",
+      sendOtpButton: "Получить код",
+      resendOtpCountdownText: "Отправить снова через {seconds} с",
+      newPasswordLabel: "Новый пароль",
+      newPasswordPlaceholder: "Введите новый пароль",
+      resetButton: "Сбросить пароль",
+      usePhoneResetText: "Сбросить по SMS-коду",
+      useEmailResetText: "Сбросить по электронной почте",
+      phoneSuccessTitle: "Пароль сброшен",
+      phoneSuccessDescription: "Ваш пароль сброшен. Теперь вы можете войти с новым паролем.",
     },
     resetPassword: {
       title: "Установить новый пароль",
@@ -1862,6 +1888,8 @@ const ru = {
       backToLogin: "Вернуться ко входу",
       checkSpam: "Не получили письмо? Проверьте папку \"Спам\" или обратитесь в поддержку.",
       or: "Или",
+      // objectui#3546 slice three.
+      resendUnavailable: "Возможно, отправка писем не настроена для этой среды. Если проблема повторяется, обратитесь в поддержку.",
     },
     setup: {
       welcomeTitle: "Добро пожаловать в ObjectStack",
@@ -1900,6 +1928,9 @@ const ru = {
       invalidDescription: "В URL не указан код устройства.",
       loading: "Загрузка…",
       cancel: "Отмена",
+      // objectui#3546 slice three — device-authorization plugin switched off.
+      disabledTitle: "Авторизация устройств не включена",
+      disabledDescription: "В этой инсталляции авторизация устройств не включена, поэтому это устройство здесь одобрить нельзя.",
     },
     shell: {
       tenantHostHint: "Вы входите в это рабочее пространство",
@@ -1938,6 +1969,45 @@ const ru = {
         invalidCode: "Неверный код. Попробуйте ещё раз.",
       },
     },
+  },
+  // objectui#3546 slice three — the /oauth/consent screen.
+  oauth: {
+    consent: {
+      title: "{{appName}} запрашивает доступ к вашему аккаунту",
+      request: "{{appName}} запрашивает разрешение{{suffix}}.",
+      unknownApp: "приложение",
+      willAllow: "Это приложение сможет:",
+      scope: {
+        openid: "Подтверждать вашу личность",
+        profile: "Читать основной профиль (имя, фото)",
+        email: "Читать ваш адрес электронной почты",
+        offlineAccess: "Оставаться в системе (обновление доступа)",
+      },
+      deny: "Отклонить",
+      authorize: "Разрешить",
+      submitting: "Авторизация…",
+      granted: "Доступ предоставлен",
+      denied: "Доступ запрещён",
+      noRedirect: "Сервер не вернул URL для перенаправления.",
+      failed: "Не удалось выдать согласие",
+      footer: "Вы можете отозвать доступ в любое время в настройках аккаунта.",
+    },
+  },
+  // objectui#3546 slice three — the console's own /accept-invitation page.
+  // Distinct from `organization.accept.*` (app-shell's richer page, same route).
+  acceptInvitation: {
+    title: "Принять приглашение в организацию",
+    description: "Вас пригласили присоединиться к организации.",
+    accept: "Принять приглашение",
+    accepting: "Принятие…",
+    accepted: "Приглашение принято",
+    acceptFailed: "Не удалось принять",
+    decline: "Отклонить",
+    declining: "Отклонение…",
+    declined: "Приглашение отклонено",
+    declineFailed: "Не удалось отклонить",
+    invalidTitle: "Недействительная ссылка приглашения",
+    invalidDescription: "В URL отсутствует идентификатор приглашения.",
   },
   profile: {
     title: "Профиль",

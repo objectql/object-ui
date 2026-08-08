@@ -1782,6 +1782,18 @@ const ja = {
         invalidCredentials: "メールアドレスまたはパスワードが正しくありません。再試行してください。",
         emailNotVerified: "サインインする前にメールアドレスを確認してください。",
       },
+      // objectui#3546 slice three — phone/OTP sign-in. `{seconds}` is LoginForm's own
+      // literal `.replace()` hole, not i18next interpolation: keep the single braces.
+      emailOrPhoneLabel: "メールアドレスまたは電話番号",
+      emailOrPhonePlaceholder: "name@example.com または +1 555 000 0000",
+      phoneLabel: "電話番号",
+      phonePlaceholder: "+1 555 000 0000",
+      otpCodeLabel: "確認コード",
+      otpCodePlaceholder: "6 桁のコード",
+      sendOtpButton: "コードを取得",
+      resendOtpCountdownText: "{seconds} 秒後に再送信",
+      usePhoneOtpText: "確認コードでサインイン",
+      usePasswordSignInText: "パスワードでサインインする",
     },
     register: {
       title: "アカウントを作成",
@@ -1824,6 +1836,20 @@ const ja = {
       backToSignInText: "サインインに戻る",
       rememberPasswordText: "パスワードを覚えていますか？",
       signInText: "サインイン",
+      // objectui#3546 slice three — the SMS reset branch of the same form.
+      phoneLabel: "電話番号",
+      phonePlaceholder: "+1 555 000 0000",
+      otpCodeLabel: "確認コード",
+      otpCodePlaceholder: "6 桁のコード",
+      sendOtpButton: "コードを取得",
+      resendOtpCountdownText: "{seconds} 秒後に再送信",
+      newPasswordLabel: "新しいパスワード",
+      newPasswordPlaceholder: "新しいパスワードを入力",
+      resetButton: "パスワードをリセット",
+      usePhoneResetText: "SMS コードでリセット",
+      useEmailResetText: "メールでリセットする",
+      phoneSuccessTitle: "パスワードをリセットしました",
+      phoneSuccessDescription: "パスワードをリセットしました。新しいパスワードでサインインできます。",
     },
     resetPassword: {
       title: "新しいパスワードを設定",
@@ -1862,6 +1888,8 @@ const ja = {
       backToLogin: "ログインに戻る",
       checkSpam: "メールが届きませんか？スパムフォルダーを確認するか、サポートに連絡してください。",
       or: "または",
+      // objectui#3546 slice three.
+      resendUnavailable: "この環境ではメール配信が設定されていない可能性があります。問題が続く場合はサポートに連絡してください。",
     },
     setup: {
       welcomeTitle: "ObjectStackへようこそ",
@@ -1900,6 +1928,9 @@ const ja = {
       invalidDescription: "URLにデバイスコードが指定されていません。",
       loading: "読み込み中…",
       cancel: "キャンセル",
+      // objectui#3546 slice three — device-authorization plugin switched off.
+      disabledTitle: "デバイス認証が有効になっていません",
+      disabledDescription: "このデプロイメントではデバイス認証が有効になっていないため、ここでこのデバイスを承認できません。",
     },
     shell: {
       tenantHostHint: "このワークスペースにサインインしています",
@@ -1938,6 +1969,45 @@ const ja = {
         invalidCode: "コードが無効です。もう一度お試しください。",
       },
     },
+  },
+  // objectui#3546 slice three — the /oauth/consent screen.
+  oauth: {
+    consent: {
+      title: "{{appName}} がアカウントへのアクセスを求めています",
+      request: "{{appName}} が許可を求めています{{suffix}}。",
+      unknownApp: "あるアプリケーション",
+      willAllow: "このアプリは次のことができます:",
+      scope: {
+        openid: "本人確認を行う",
+        profile: "基本プロフィール（名前、画像）を読み取る",
+        email: "メールアドレスを読み取る",
+        offlineAccess: "サインインしたままにする（アクセスの更新）",
+      },
+      deny: "拒否",
+      authorize: "許可",
+      submitting: "許可中…",
+      granted: "アクセスを許可しました",
+      denied: "アクセスが拒否されました",
+      noRedirect: "サーバーからリダイレクト URL が返されませんでした。",
+      failed: "同意に失敗しました",
+      footer: "アクセス権はアカウント設定からいつでも取り消せます。",
+    },
+  },
+  // objectui#3546 slice three — the console's own /accept-invitation page.
+  // Distinct from `organization.accept.*` (app-shell's richer page, same route).
+  acceptInvitation: {
+    title: "組織への招待を承諾",
+    description: "組織に招待されています。",
+    accept: "招待を承諾",
+    accepting: "承諾中…",
+    accepted: "招待を承諾しました",
+    acceptFailed: "承諾できませんでした",
+    decline: "辞退",
+    declining: "辞退中…",
+    declined: "招待を辞退しました",
+    declineFailed: "辞退できませんでした",
+    invalidTitle: "無効な招待リンク",
+    invalidDescription: "URL に招待 ID が含まれていません。",
   },
   profile: {
     title: "プロフィール",

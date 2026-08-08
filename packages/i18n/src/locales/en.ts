@@ -1985,6 +1985,20 @@ const en = {
       signUpText: 'Sign up',
       signingIn: 'Signing you in…',
       ssoHandoff: 'Continue to {{target}}',
+      // Phone/OTP sign-in labels. `LoginForm` interpolates `{seconds}` with a
+      // literal `.replace()` of its own (packages/auth/src/LoginForm.tsx:429),
+      // so those SINGLE braces must survive translation — i18next never sees
+      // them.
+      emailOrPhoneLabel: 'Email or phone number',
+      emailOrPhonePlaceholder: 'name@example.com or +1 555 000 0000',
+      phoneLabel: 'Phone number',
+      phonePlaceholder: '+1 555 000 0000',
+      otpCodeLabel: 'Verification code',
+      otpCodePlaceholder: '6-digit code',
+      sendOtpButton: 'Get code',
+      resendOtpCountdownText: 'Resend in {seconds}s',
+      usePhoneOtpText: 'Sign in with verification code',
+      usePasswordSignInText: 'Sign in with password instead',
       devAdminHint: {
         title: 'Development instance',
         body: 'Sign in with the seeded dev admin:',
@@ -2037,6 +2051,22 @@ const en = {
       backToSignInText: 'Back to sign in',
       rememberPasswordText: 'Remember your password?',
       signInText: 'Sign in',
+      // The SMS branch of the same form: request an OTP, then set the new
+      // password inline instead of following an emailed link. `{seconds}` is
+      // ForgotPasswordForm's own hole (packages/auth/src/ForgotPasswordForm.tsx:367).
+      phoneLabel: 'Phone number',
+      phonePlaceholder: '+1 555 000 0000',
+      otpCodeLabel: 'Verification code',
+      otpCodePlaceholder: '6-digit code',
+      sendOtpButton: 'Get code',
+      resendOtpCountdownText: 'Resend in {seconds}s',
+      newPasswordLabel: 'New password',
+      newPasswordPlaceholder: 'Enter a new password',
+      resetButton: 'Reset Password',
+      usePhoneResetText: 'Reset via SMS code',
+      useEmailResetText: 'Reset via email instead',
+      phoneSuccessTitle: 'Password reset',
+      phoneSuccessDescription: 'Your password has been reset. You can now sign in with your new password.',
     },
     resetPassword: {
       title: 'Set a new password',
@@ -2071,6 +2101,8 @@ const en = {
       resentSuccess: 'Verification email sent!',
       resentDescription: 'Please check your inbox and click the verification link.',
       resendFailed: 'Cannot resend verification email',
+      resendUnavailable:
+        'Email delivery may not be configured for this environment. Contact support if this persists.',
       signInLink: 'Go to sign in',
       backToSignIn: 'Back to sign in',
       backToLogin: 'Back to login',
@@ -2112,6 +2144,11 @@ const en = {
       denyFailed: 'Failed to deny request',
       invalidTitle: 'Invalid device link',
       invalidDescription: 'No device code was provided in the URL.',
+      // Shown when the deployment has the device-authorization plugin off, so
+      // the endpoints 404 (framework#2874 / objectui#2513).
+      disabledTitle: 'Device authorization not enabled',
+      disabledDescription:
+        'This deployment does not have device authorization enabled, so this device cannot be approved here.',
       loading: 'Loading…',
       cancel: 'Cancel',
     },
@@ -2172,6 +2209,56 @@ const en = {
         invalidCode: 'Invalid code. Try again.',
       },
     },
+  },
+  // The OAuth authorization-code consent screen (`/oauth/consent`). A third
+  // party asks for scopes and the signed-in user grants or denies them, so
+  // every string here is a security decision the user must read in their own
+  // language — objectui#3546 slice three.
+  oauth: {
+    consent: {
+      // `{{appName}}` is the client's registered name, or `unknownApp` when the
+      // client metadata carries none. `{{suffix}}` is the parenthesised account
+      // hint the page passes (empty when no user is loaded), so it must stay
+      // attached to the sentence's last word.
+      title: '{{appName}} wants to access your account',
+      request: '{{appName}} is requesting permission{{suffix}}.',
+      unknownApp: 'an application',
+      willAllow: 'This app will be able to:',
+      // Only the four scopes the page maps by name; anything else renders the
+      // raw scope string, which is why there is no generic entry here.
+      scope: {
+        openid: 'Confirm your identity',
+        profile: 'Read your basic profile (name, picture)',
+        email: 'Read your email address',
+        offlineAccess: 'Stay signed in (refresh access)',
+      },
+      deny: 'Deny',
+      authorize: 'Authorize',
+      submitting: 'Authorizing…',
+      granted: 'Access granted',
+      denied: 'Access denied',
+      noRedirect: 'No redirect URL returned by the server.',
+      failed: 'Consent failed',
+      footer: 'You can revoke access at any time from your account settings.',
+    },
+  },
+  // The console's own `/accept-invitation/:invitationId` page. Distinct from
+  // `organization.accept.*`, which belongs to app-shell's richer page for the
+  // same route (it fetches the invitation and shows org/role/expiry). Two
+  // components, two namespaces — see the note in the slice-three test.
+  acceptInvitation: {
+    title: 'Accept organization invitation',
+    description: "You've been invited to join an organization.",
+    accept: 'Accept invitation',
+    accepting: 'Accepting…',
+    accepted: 'Invitation accepted',
+    acceptFailed: 'Could not accept',
+    decline: 'Decline',
+    declining: 'Declining…',
+    declined: 'Invitation declined',
+    declineFailed: 'Could not decline',
+    invalidTitle: 'Invalid invitation link',
+    invalidDescription: 'The invitation id is missing from the URL.',
   },
   profile: {
     title: 'Profile',

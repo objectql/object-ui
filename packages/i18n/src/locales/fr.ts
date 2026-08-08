@@ -1782,6 +1782,18 @@ const fr = {
         invalidCredentials: "E-mail ou mot de passe invalide. Veuillez réessayer.",
         emailNotVerified: "Veuillez vérifier votre adresse e-mail avant de vous connecter.",
       },
+      // objectui#3546 slice three — phone/OTP sign-in. `{seconds}` is LoginForm's own
+      // literal `.replace()` hole, not i18next interpolation: keep the single braces.
+      emailOrPhoneLabel: "E-mail ou numéro de téléphone",
+      emailOrPhonePlaceholder: "name@example.com ou +1 555 000 0000",
+      phoneLabel: "Numéro de téléphone",
+      phonePlaceholder: "+1 555 000 0000",
+      otpCodeLabel: "Code de vérification",
+      otpCodePlaceholder: "Code à 6 chiffres",
+      sendOtpButton: "Obtenir un code",
+      resendOtpCountdownText: "Renvoyer dans {seconds} s",
+      usePhoneOtpText: "Se connecter avec un code de vérification",
+      usePasswordSignInText: "Se connecter avec un mot de passe à la place",
     },
     register: {
       title: "Créer un compte",
@@ -1824,6 +1836,20 @@ const fr = {
       backToSignInText: "Retour à la connexion",
       rememberPasswordText: "Vous vous souvenez de votre mot de passe ?",
       signInText: "Se connecter",
+      // objectui#3546 slice three — the SMS reset branch of the same form.
+      phoneLabel: "Numéro de téléphone",
+      phonePlaceholder: "+1 555 000 0000",
+      otpCodeLabel: "Code de vérification",
+      otpCodePlaceholder: "Code à 6 chiffres",
+      sendOtpButton: "Obtenir un code",
+      resendOtpCountdownText: "Renvoyer dans {seconds} s",
+      newPasswordLabel: "Nouveau mot de passe",
+      newPasswordPlaceholder: "Entrez un nouveau mot de passe",
+      resetButton: "Réinitialiser le mot de passe",
+      usePhoneResetText: "Réinitialiser par code SMS",
+      useEmailResetText: "Réinitialiser par e-mail à la place",
+      phoneSuccessTitle: "Mot de passe réinitialisé",
+      phoneSuccessDescription: "Votre mot de passe a été réinitialisé. Vous pouvez maintenant vous connecter avec votre nouveau mot de passe.",
     },
     resetPassword: {
       title: "Définir un nouveau mot de passe",
@@ -1862,6 +1888,8 @@ const fr = {
       backToLogin: "Retour à la connexion",
       checkSpam: "E-mail non reçu ? Vérifiez votre dossier spam ou contactez le support.",
       or: "Ou",
+      // objectui#3546 slice three.
+      resendUnavailable: "L'envoi d'e-mails n'est peut-être pas configuré pour cet environnement. Contactez le support si le problème persiste.",
     },
     setup: {
       welcomeTitle: "Bienvenue sur ObjectStack",
@@ -1900,6 +1928,9 @@ const fr = {
       invalidDescription: "Aucun code d'appareil n'a été fourni dans l'URL.",
       loading: "Chargement…",
       cancel: "Annuler",
+      // objectui#3546 slice three — device-authorization plugin switched off.
+      disabledTitle: "Autorisation d'appareil non activée",
+      disabledDescription: "L'autorisation d'appareil n'est pas activée sur ce déploiement, cet appareil ne peut donc pas être approuvé ici.",
     },
     shell: {
       tenantHostHint: "Vous vous connectez à cet espace de travail",
@@ -1938,6 +1969,45 @@ const fr = {
         invalidCode: "Code invalide. Veuillez réessayer.",
       },
     },
+  },
+  // objectui#3546 slice three — the /oauth/consent screen.
+  oauth: {
+    consent: {
+      title: "{{appName}} souhaite accéder à votre compte",
+      request: "{{appName}} demande une autorisation{{suffix}}.",
+      unknownApp: "une application",
+      willAllow: "Cette application pourra :",
+      scope: {
+        openid: "Confirmer votre identité",
+        profile: "Lire votre profil de base (nom, photo)",
+        email: "Lire votre adresse e-mail",
+        offlineAccess: "Rester connecté (renouveler l'accès)",
+      },
+      deny: "Refuser",
+      authorize: "Autoriser",
+      submitting: "Autorisation…",
+      granted: "Accès accordé",
+      denied: "Accès refusé",
+      noRedirect: "Le serveur n'a renvoyé aucune URL de redirection.",
+      failed: "Échec du consentement",
+      footer: "Vous pouvez révoquer cet accès à tout moment dans les paramètres de votre compte.",
+    },
+  },
+  // objectui#3546 slice three — the console's own /accept-invitation page.
+  // Distinct from `organization.accept.*` (app-shell's richer page, same route).
+  acceptInvitation: {
+    title: "Accepter l'invitation à l'organisation",
+    description: "Vous avez été invité à rejoindre une organisation.",
+    accept: "Accepter l'invitation",
+    accepting: "Acceptation…",
+    accepted: "Invitation acceptée",
+    acceptFailed: "Impossible d'accepter",
+    decline: "Refuser",
+    declining: "Refus…",
+    declined: "Invitation refusée",
+    declineFailed: "Impossible de refuser",
+    invalidTitle: "Lien d'invitation invalide",
+    invalidDescription: "L'identifiant d'invitation est absent de l'URL.",
   },
   profile: {
     title: "Profil",
