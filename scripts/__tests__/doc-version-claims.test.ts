@@ -17,10 +17,11 @@ import { fileURLToPath } from 'node:url';
  *
  * ## What this gate actually promises, and what it does not
  *
- * It is a RATCHET, not a correctness check. It cannot know whether "Tailwind CSS v3.3+"
- * is true — that would need a per-claim anchor, and most claims here have none. What it
- * can decide is the EVENT: a version literal appeared in a doc surface and nobody wrote
- * down why. Every literal on the two scanned surfaces is either
+ * It is a RATCHET first, and a correctness check for exactly ONE class (the section after
+ * next). It cannot know whether "Tailwind CSS v3.3+" is true — that would need a per-claim
+ * anchor, and most claims here have none. What it can decide is the EVENT: a version
+ * literal appeared in a doc surface and nobody wrote down why. Every literal on the two
+ * scanned surfaces is either
  *
  *   - structurally exempt, because it sits under a version heading (release notes are
  *     history: `## v3.3.0` sections describe what was true at that release and must stay
@@ -35,6 +36,43 @@ import { fileURLToPath } from 'node:url';
  * in the tree also fails, so cleaning a doc forces the list to shrink and the list can
  * never rot into a permanent hole (same stance as `DOCUMENTATION_EXEMPT` in
  * `ci-cd-pipeline-doc.test.ts`).
+ *
+ * ## The one class this file ASSERTS instead of recording (objectui#3717)
+ *
+ * The paragraph above holds for four of the five classes below. `restatement` is the
+ * exception, and it can be one for a structural reason the others lack: a README restating
+ * its OWN peer range has a machine-readable anchor lying next to it. Every peer-line
+ * restatement entry is therefore resolved to the line it was matched on, the dep name and
+ * the FULL range are parsed off that line, the manifest beside that README is read, and
+ * the two ranges must be equal. That is `describe('the peer-line assertion')` below, and
+ * it is the whole of objectui#3710's ruling B — which landed only its first half, the
+ * prose narrowing; the `why` strings kept saying "re-verify with a one-line read of the
+ * manifest", i.e. a human, until this test replaced that sentence with a run.
+ *
+ * The hole it closes is one the ratchet is STRUCTURALLY blind to, not merely lazy about.
+ * The inventory key is the matched literal, and a match stops at the FIRST version token:
+ * the key for a line reading `^18.0.0 || ^19.0.0` records only `^18.0.0`. So widen a
+ * manifest to a third arm, or narrow it to one, and the literal is untouched, the entry is
+ * untouched, and both directions of the ratchet report green over a README that now
+ * misstates the range. objectui#3690 was exactly that shape, found by a human census
+ * (there the README was right and the MANIFEST lagged it — the assertion is symmetric, it
+ * names the disagreement, not the guilty side). objectui#3741, still open, proposes
+ * narrowing react-runtime's manifest range; the day someone does, this test goes red until
+ * that README follows.
+ *
+ * Two boundaries, both deliberate, both pinned below:
+ *
+ *   - PEER lines only. plugin-chatbot's entry restates the MAJOR of its own
+ *     dependencies["@ai-sdk/react"], which is not a peer range and not verbatim, so it
+ *     carries `notAPeerRestatement` and is skipped BY NAME. One rule judges one kind of
+ *     fact: a rule mixing verbatim equality with major-compatibility would leave the next
+ *     reader unable to say what its red means.
+ *   - Whitespace inside a range is insignificant; nothing else is. See `sameRange`.
+ *
+ * Still not promised, stated so it is not mistaken for covered: a literal with no
+ * same-package anchor (`unanchored`, `sample`) is recorded and not checked, and the peer
+ * BLOCK is judged only where the ledger has an entry — narrower than the block itself,
+ * whose other 16 lines include a live drift. Measured and filed as objectui#3750.
  *
  * ## The census that set the design (measured on d46b40324, the merge of PR #3698)
  *
@@ -337,11 +375,11 @@ const keyOf = (c: Pick<Claim, 'file' | 'claim'>): string => `${c.file} :: ${c.cl
  *                  and the one that had already drifted: the two drifted members were
  *                  repaired by objectui#3710 and re-filed here as restatements, and a
  *                  third joined from `stale` when objectui#3690 widened the manifest its
- *                  README already described. Note what this class does and does not buy
- *                  — the equality it names is re-verified by a HUMAN reading the
- *                  manifest, not by this gate, which only asks whether a literal was
- *                  recorded at all. Pinning README to manifest mechanically is still the
- *                  payoff this class is pointing at.
+ *                  README already described. Since objectui#3717 this is the one class
+ *                  whose named equality is MACHINE-checked: the peer-line assertion below
+ *                  reads the manifest and demands the ranges match. An entry that does
+ *                  not restate a peer range cannot join quietly — it must say so in
+ *                  `notAPeerRestatement`.
  * `sample`       - illustrative or template content. NOT an assertion about this
  *                  repository's versions: a changelog a plugin renders as demo data, or
  *                  a package.json skeleton the reader owns after copying it.
@@ -364,6 +402,17 @@ interface KnownClaim {
   claim: string;
   kind: ClaimKind;
   why: string;
+  /**
+   * Only legal on a `restatement`, and it is how such an entry opts OUT of the verbatim
+   * peer assertion — carrying the reason, not a boolean, so the opt-out is as documented
+   * as the entry itself.
+   *
+   * The assertion refuses to let this field and real coverage coexist: an entry either
+   * resolves to a peer statement that is checked, or names why it cannot, never both and
+   * never neither. So a future `restatement` with no peer anchor cannot drift out of
+   * coverage by simply not parsing — it goes red until someone writes the sentence.
+   */
+  notAPeerRestatement?: string;
 }
 
 /**
@@ -376,7 +425,7 @@ interface KnownClaim {
  */
 const PEER_18_19 = 'react' + TICK + ' ^18.0.0';
 const PEER_RESTATEMENT_OK =
-  'Restates this package peerDependencies.react verbatim; re-verify with a one-line read of the manifest.';
+  'Restates this package peerDependencies.react verbatim; asserted against the manifest by the peer-line assertion below (objectui#3717), no longer by a human reading it.';
 
 const KNOWN_CLAIMS: KnownClaim[] = [
   // --- content/docs ------------------------------------------------------------
@@ -452,8 +501,163 @@ const KNOWN_CLAIMS: KnownClaim[] = [
     claim: '@ai-sdk/react' + TICK + ' v4',
     kind: 'restatement',
     why: 'Names the major of this package own dependencies["@ai-sdk/react"], which is ^4.0.47. Kept rather than deleted because the reader follows it to the streaming protocol docs; re-verify with a one-line read of the manifest.',
+    notAPeerRestatement:
+      'Restates a dependencies entry, not a peerDependencies range, and restates its MAJOR ("v4" for ^4.0.47) rather than the range verbatim. Both facts put it outside the peer-line assertion, which judges verbatim equality of a peer range and nothing else. Covering it would need a second, weaker rule ("same major"), and one rule that returns two kinds of red is a rule whose failures nobody can read.',
   },
 ];
+
+/**
+ * The one file shape with a manifest lying next to it. A `restatement` entry naming any
+ * other file has nothing to be checked against, and the assertion reports that rather
+ * than skipping it — a restatement of a manifest that cannot be located is not a
+ * restatement.
+ */
+const PACKAGE_README = /^packages\/([^/]+)\/README\.md$/;
+
+/** Wraps text in the backticks markdown quotes it with, without writing one raw. */
+const ticked = (text: string): string => TICK + text + TICK;
+
+interface PeerStatement {
+  dep: string;
+  range: string;
+}
+
+/** A range must OPEN with an operator or a digit. See `parsePeerStatement`. */
+const RANGE_OPENS = /^[\^~><=\d]/;
+
+/**
+ * The dep and the FULL range one README line states as a peer requirement, or null when
+ * the line states none. Two spellings, both measured on the corpus rather than assumed:
+ *
+ *   - a bullet in a peer-dependency list — 11 of the 12 entries, one spelling between them:
+ *       - `react` ^18.0.0 || ^19.0.0
+ *   - one code span read as prose, `packages/react-runtime/README.md` alone:
+ *       `react >= 18` is a peer dependency.
+ *
+ * Note what the range is here and is not in the inventory key: the key stops at the first
+ * version token (`^18.0.0`), this reads the range to end of line (`^18.0.0 || ^19.0.0`).
+ * That difference is the entire added reach of the assertion.
+ *
+ * `RANGE_OPENS` is load-bearing, not tidiness. Without it the bullet shape swallows every
+ * list item that opens with a backticked identifier — an API bullet parses as dep
+ * "useChat()" with range "returns a stream", and the manifest lookup then fails for a
+ * reason that has nothing to do with drift. A gate that goes red for the wrong reason
+ * teaches people to stop reading it.
+ */
+function parsePeerStatement(line: string): PeerStatement | null {
+  const bullet = new RegExp(
+    '^\\s*[-*]\\s+' + TICK + '([^' + TICK + ']+)' + TICK + '\\s+(\\S.*?)\\s*$',
+  ).exec(line);
+  if (bullet !== null && RANGE_OPENS.test(bullet[2])) {
+    return { dep: bullet[1].trim(), range: bullet[2] };
+  }
+
+  const prose = new RegExp(
+    TICK + '([^' + TICK + '\\s]+)\\s+([^' + TICK + ']+)' + TICK + '\\s+is a peer dependency',
+  ).exec(line);
+  if (prose !== null && RANGE_OPENS.test(prose[2].trim())) {
+    return { dep: prose[1], range: prose[2].trim() };
+  }
+
+  return null;
+}
+
+/**
+ * Range equality: VERBATIM, up to whitespace INSIDE the range.
+ *
+ * That one-space normalisation is not a softening, and it exists for a measured reason.
+ * `packages/react-runtime/README.md` writes `react >= 18` while its manifest writes
+ * `>=18`. Nothing is drifted there — the two spell the same single comparator and npm
+ * parses them identically — so byte-strict equality would paint that entry red on a tree
+ * where nothing is wrong. The only two answers to such a red are to rewrite one side for
+ * the gate's benefit, or to declare the entry uncovered: a cosmetic edit, or lost
+ * coverage, in exchange for nothing.
+ *
+ * Everything this assertion exists to catch survives, because whitespace is the only
+ * thing dropped: a bumped major, a `||` arm added or removed, `^` turning into `~`, a
+ * vanished upper bound all still compare unequal. Pinned by its own test below — a
+ * normaliser that quietly grew to strip operators would make the whole assertion vacuous
+ * while every other test in this file stayed green.
+ */
+const sameRange = (a: string, b: string): boolean =>
+  a.replace(/\s+/g, '') === b.replace(/\s+/g, '');
+
+function manifestPeers(pkgDir: string): Record<string, string> | null {
+  const abs = path.join(repoRoot, 'packages', pkgDir, 'package.json');
+  let raw: string;
+  try {
+    raw = fs.readFileSync(abs, 'utf8');
+  } catch {
+    return null;
+  }
+  const json: unknown = JSON.parse(raw);
+  const peers = (json as { peerDependencies?: Record<string, string> }).peerDependencies;
+  return peers ?? {};
+}
+
+const readmeLines = new Map<string, string[]>();
+function linesOf(rel: string): string[] {
+  let cached = readmeLines.get(rel);
+  if (cached === undefined) {
+    cached = fs.readFileSync(path.join(repoRoot, rel), 'utf8').split('\n');
+    readmeLines.set(rel, cached);
+  }
+  return cached;
+}
+
+interface ComparedPeer {
+  line: number;
+  dep: string;
+  readme: string;
+  /** `undefined` when the manifest does not declare this dep as a peer at all. */
+  manifest: string | undefined;
+}
+
+interface PeerCheck {
+  entry: KnownClaim;
+  /** Every line carrying this entry's literal that reads as a peer statement. */
+  compared: ComparedPeer[];
+  /** The entry's file has no manifest beside it. */
+  noManifest: boolean;
+  /** The literal is not in the tree — the downward ratchet above is its single reporter. */
+  absent: boolean;
+}
+
+/**
+ * Resolution goes through `flaggedClaims`, the same scan the ratchet judges, rather than
+ * re-grepping the READMEs. Two reasons, both about composing with what is already here:
+ * the scan already turned the whitespace-normalised inventory key back into concrete line
+ * numbers, and keying off it means "the literal is not in the tree" is the SAME fact in
+ * both tests, so the two can agree on who reports it.
+ */
+const claimsByKey = new Map<string, Claim[]>();
+for (const claim of flaggedClaims) {
+  const bucket = claimsByKey.get(keyOf(claim));
+  if (bucket === undefined) claimsByKey.set(keyOf(claim), [claim]);
+  else bucket.push(claim);
+}
+
+const peerChecks: PeerCheck[] = KNOWN_CLAIMS.filter((e) => e.kind === 'restatement').map((entry) => {
+  const occurrences = claimsByKey.get(keyOf(entry)) ?? [];
+  const pkgDir = PACKAGE_README.exec(entry.file)?.[1];
+  const peers = pkgDir === undefined ? null : manifestPeers(pkgDir);
+  const compared: ComparedPeer[] = [];
+
+  if (peers !== null) {
+    for (const occurrence of occurrences) {
+      const stated = parsePeerStatement(linesOf(entry.file)[occurrence.line - 1] ?? '');
+      if (stated === null) continue;
+      compared.push({
+        line: occurrence.line,
+        dep: stated.dep,
+        readme: stated.range,
+        manifest: peers[stated.dep],
+      });
+    }
+  }
+
+  return { entry, compared, noManifest: peers === null, absent: occurrences.length === 0 };
+});
 
 describe('doc version claims - the scan itself', () => {
   it('reads a plausible corpus, so a broken scan cannot report green', () => {
@@ -549,5 +753,164 @@ describe('doc version claims - the ratchet', () => {
     // Duplicate keys would let one entry silently excuse a second claim.
     const keys = KNOWN_CLAIMS.map(keyOf);
     expect(new Set(keys).size, 'KNOWN_CLAIMS has duplicate entries').toBe(keys.length);
+  });
+});
+
+describe('doc version claims - the peer-line assertion', () => {
+  it('pins every peer-line restatement to the range its own manifest declares', () => {
+    const failures: string[] = [];
+
+    for (const check of peerChecks) {
+      // Skipped by name, with its reason on the entry. The closure test below is what
+      // stops this branch from becoming a way out.
+      if (check.entry.notAPeerRestatement !== undefined) continue;
+
+      // A literal that is no longer in the tree is an inventory defect, and the downward
+      // ratchet above already names it in its own red. Reporting it here too would read
+      // as two problems where there is one; the coverage floor at the end of this test is
+      // what keeps the skip from becoming a hole.
+      if (check.absent) continue;
+
+      if (check.noManifest) {
+        failures.push(
+          `${check.entry.file} :: is not a package README, so there is no manifest beside ` +
+            `it to restate - reclassify the entry or point it at the package`,
+        );
+        continue;
+      }
+
+      if (check.compared.length === 0) {
+        failures.push(
+          `${check.entry.file} :: the literal ${JSON.stringify(check.entry.claim)} is present, ` +
+            `but the line carrying it does not read as a peer statement, so NOTHING was ` +
+            `compared - teach parsePeerStatement the spelling, or set notAPeerRestatement`,
+        );
+        continue;
+      }
+
+      for (const stated of check.compared) {
+        if (stated.manifest === undefined) {
+          failures.push(
+            `${check.entry.file}:${stated.line}  ${stated.dep}: the README states a peer ` +
+              `range, but this package's peerDependencies does not declare ${stated.dep} at all`,
+          );
+        } else if (!sameRange(stated.readme, stated.manifest)) {
+          failures.push(
+            `${check.entry.file}:${stated.line}  ${stated.dep}: README says ` +
+              `${JSON.stringify(stated.readme)}, manifest says ${JSON.stringify(stated.manifest)}`,
+          );
+        }
+      }
+    }
+
+    expect(
+      failures,
+      `A README restates its own package's peer range and the two no longer agree:\n` +
+        failures.map((f) => `  - ${f}`).join('\n') +
+        `\n\nThis assertion does not decide which side is wrong. objectui#3710 narrowed the ` +
+        `PROSE to the manifest; objectui#3690 widened the MANIFEST to the prose, because ` +
+        `there the README was right. Read the package and fix the side that is actually ` +
+        `stale, then run this again.\n\n` +
+        `Note that the ratchet above cannot see this class of drift: the inventory key stops ` +
+        `at the first version token, so changing the second arm of a range leaves the key, ` +
+        `the literal and the entry all untouched and both directions of the ratchet green.`,
+    ).toEqual([]);
+
+    // Vacuity floor. Everything above is a loop over entries: delete the entries, or break
+    // the line parser, and the loop reports success over nothing. Measured at 12 comparisons
+    // on 8ad6070fb (11 bullet-spelled READMEs plus react-runtime's prose sentence); a floor
+    // rather than a pin, because this list legitimately shrinks when a README stops
+    // restating its manifest.
+    const compared = peerChecks.flatMap((c) => c.compared);
+    expect(
+      compared.length,
+      'the peer-line assertion compared implausibly few lines - the parser or the ' +
+        'inventory collapsed, and the assertion is now green over nothing',
+    ).toBeGreaterThanOrEqual(10);
+  });
+
+  it('lets no restatement entry sit outside the assertion without saying so', () => {
+    // The facts this test owns, none of which the assertion above reports: that an opt-out
+    // carries a real reason, that it has not gone stale, and that it cannot appear on a
+    // kind it does not apply to. "Covered by neither" is deliberately left to the
+    // assertion above, so each defect has exactly one reporter.
+    for (const check of peerChecks) {
+      const excluded = check.entry.notAPeerRestatement;
+      if (excluded === undefined) continue;
+
+      expect(
+        excluded.length,
+        `${keyOf(check.entry)} opts out of the peer assertion and must say why, at length`,
+      ).toBeGreaterThan(25);
+
+      expect(
+        check.compared,
+        `${keyOf(check.entry)} carries notAPeerRestatement, but its line DOES read as a peer ` +
+          `statement now - the opt-out is stale and is suppressing a real check`,
+      ).toEqual([]);
+    }
+
+    for (const entry of KNOWN_CLAIMS) {
+      if (entry.kind === 'restatement') continue;
+      expect(
+        entry.notAPeerRestatement,
+        `${keyOf(entry)} is ${entry.kind}, not a restatement - notAPeerRestatement opts out ` +
+          `of a check that never applied to it, so it reads as coverage that was never there`,
+      ).toBeUndefined();
+    }
+  });
+
+  it('reads a peer statement in the two spellings the corpus uses, and refuses the rest', () => {
+    expect(parsePeerStatement('- ' + ticked('react') + ' ^18.0.0 || ^19.0.0')).toEqual({
+      dep: 'react',
+      range: '^18.0.0 || ^19.0.0',
+    });
+    expect(parsePeerStatement('- ' + ticked('react-router-dom') + ' ^6.0.0 || ^7.0.0')).toEqual({
+      dep: 'react-router-dom',
+      range: '^6.0.0 || ^7.0.0',
+    });
+    expect(parsePeerStatement(ticked('react >= 18') + ' is a peer dependency.')).toEqual({
+      dep: 'react',
+      range: '>= 18',
+    });
+
+    for (const notAPeerLine of [
+      // A listed peer with no range: there is nothing to compare, and pretending
+      // otherwise would compare "" against the manifest and always be red.
+      '- ' + ticked('@object-ui/core'),
+      // An API bullet. The shape RANGE_OPENS exists to reject.
+      '- ' + ticked('useChat()') + ' returns a stream of message parts',
+      '**Peer Dependencies:**',
+      // plugin-chatbot's own claim line, which is why that entry is opted out by name.
+      'using ' + ticked('@ai-sdk/react') + ' v4 (Vercel UI Message Stream protocol) for streaming,',
+    ]) {
+      expect(
+        parsePeerStatement(notAPeerLine),
+        `${JSON.stringify(notAPeerLine)} must not read as a peer statement`,
+      ).toBeNull();
+    }
+  });
+
+  it('treats whitespace inside a range as insignificant, and nothing else', () => {
+    // The one pair the normalisation exists for, and the only place in the corpus where
+    // README and manifest differ by anything at all.
+    expect(sameRange('>= 18', '>=18')).toBe(true);
+    expect(sameRange('^18.0.0 || ^19.0.0', '^18.0.0||^19.0.0')).toBe(true);
+
+    for (const [readme, manifest] of [
+      // The manifest gained an arm and the README did not follow. This is the objectui#3690
+      // shape, and the one the ratchet above is structurally blind to.
+      ['^18.0.0 || ^19.0.0', '^18.0.0 || ^19.0.0 || ^20.0.0'],
+      ['^18.0.0 || ^19.0.0', '^19.0.0'],
+      ['^18.0.0', '~18.0.0'],
+      ['^18.0.0', '^18.0.1'],
+      ['>= 18', '>= 19'],
+      ['>=18', '>18'],
+    ]) {
+      expect(
+        sameRange(readme, manifest),
+        `${readme} and ${manifest} are different ranges and must not compare equal`,
+      ).toBe(false);
+    }
   });
 });
