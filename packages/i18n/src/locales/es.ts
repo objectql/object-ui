@@ -3288,11 +3288,11 @@ const es = {
       retry: 'Reintentar',
     },
     draftBar: {
-      messageClean: "Vista previa del borrador: no hay cambios sin publicar; todo lo que ve aquí ya está activo.",
+      messageClean: "Vista previa del borrador — no hay cambios sin publicar; todo lo que ve aquí ya está activo.",
       sampleDataTitle: "Los datos de ejemplo aparecen tras publicar",
       sampleDataBody: "Está viendo la estructura de su aplicación. Publíquela para cargar registros de ejemplo y activarla.",
       publishCta: "Publicar para verlo activo",
-      message: 'Vista previa de borrador — estás viendo cambios sin publicar. Nada está en producción hasta que publiques.',
+      message: 'Vista previa del borrador — está viendo cambios sin publicar. Nada de lo que ve aquí está activo hasta que publique.',
       publish: 'Publicar',
       publishing: 'Publicando…',
       exit: 'Salir de la vista previa',
