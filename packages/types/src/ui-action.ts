@@ -450,6 +450,26 @@ export interface ActionSchema {
    */
   bodyExtra?: SpecAction['bodyExtra'];
 
+  /**
+   * Request-body WRAPPING for a `type: 'api'` action: `'flat'` (the default —
+   * collected params ride at the top level) or `{ wrap: key }` to nest the
+   * collected params under `key` (better-auth `organization/update` is the
+   * shape it exists for).
+   *
+   * Per the spec's own wording the wrap covers the **collected params only** —
+   * `recordIdParam` and every other top-level key stay flat, {@link bodyExtra}
+   * among them. Both console read-sites (`useConsoleActionRuntime.apiHandler`,
+   * `RecordDetailView.apiHandler`) and the runner's own `executeAPI` implement
+   * exactly that, so the key has one meaning everywhere it is honoured.
+   *
+   * Declared here for the same reason as {@link bodyExtra}: the action
+   * renderers forward it off a typed `ActionSchema` instead of an `as any`
+   * cast, and dropping it from those whitelists is what made a declared wrap
+   * degrade silently to a flat body (objectstack#6938). Typed by derivation
+   * from the spec so the union cannot drift from the contract.
+   */
+  bodyShape?: SpecAction['bodyShape'];
+
   // === Feedback ===
   
   /** Confirmation text to show before execution */

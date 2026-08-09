@@ -108,6 +108,13 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
           // dropping it here left a declared action whose payload lives only in
           // `bodyExtra` POSTing nothing (objectstack#6837).
           bodyExtra: schema.bodyExtra,
+          // How that body is SHAPED — `'flat'` or `{ wrap: key }`. Read
+          // unconditionally by the console apiHandler and by the runner's own
+          // executeAPI, so dropping it here did not fail: the action POSTed a
+          // flat body while its declaration said `{ wrap: 'data' }`
+          // (objectstack#6938). Sibling of `bodyExtra` above, same whitelist,
+          // same failure mode.
+          bodyShape: schema.bodyShape,
           confirmText: schema.confirmText,
           successMessage: schema.successMessage,
           errorMessage: schema.errorMessage,

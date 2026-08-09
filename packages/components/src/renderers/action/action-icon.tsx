@@ -68,6 +68,8 @@ const ActionIconRenderer = forwardRef<HTMLButtonElement, ActionIconProps>(
           params: schema.params as Record<string, any> | undefined,
           // See action-button.tsx — the `type: 'api'` payload key (objectstack#6837).
           bodyExtra: schema.bodyExtra,
+          // See action-button.tsx — the body-WRAPPING key (objectstack#6938).
+          bodyShape: schema.bodyShape,
           confirmText: schema.confirmText,
           successMessage: schema.successMessage,
           errorMessage: schema.errorMessage,

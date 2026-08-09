@@ -222,6 +222,8 @@ const ActionGroupRenderer = forwardRef<HTMLDivElement, { schema: ActionGroupSche
           params: action.params as Record<string, any> | undefined,
           // See action-button.tsx — the `type: 'api'` payload key (objectstack#6837).
           bodyExtra: action.bodyExtra,
+          // See action-button.tsx — the body-WRAPPING key (objectstack#6938).
+          bodyShape: action.bodyShape,
           confirmText: action.confirmText,
           successMessage: action.successMessage,
           errorMessage: action.errorMessage,

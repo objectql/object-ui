@@ -1384,6 +1384,15 @@ export class ActionRunner {
    * only when no `paramCollectionHandler` is mounted, and POSTing the definitions
    * as the request body was never a payload any endpoint wanted. It now falls
    * through to the context record like an absent `params` does.
+   *
+   * `bodyShape` then decides how that payload is WRAPPED, and the wrap covers the
+   * collected payload ONLY — `bodyExtra` stays at the top level. That is the
+   * spec's own wording for the key ("`{ wrap: 'data' }` nests the user-collected
+   * params under that key, while `recordIdParam` and other top-level keys stay
+   * flat") and what both console read-sites already do, so the key means one
+   * thing on every path that honours it. Until objectstack#6938 this path did not
+   * read it at all: the console `apiHandler` wrapped and the runner's own fallback
+   * did not, so the same action changed body shape with the host it ran under.
    */
   private buildApiRequestBody(action: ActionDef): unknown {
     const asRecord = (value: unknown): Record<string, unknown> | undefined => (
@@ -1393,6 +1402,20 @@ export class ActionRunner {
     );
     const bodyExtra = asRecord(action.bodyExtra);
     const base = asRecord(action.params) ?? this.context.data;
+    // `'flat'` (and an absent//malformed value) means no wrapping — the same
+    // predicate the console read-sites use, so an off-spec `bodyShape` degrades
+    // to the documented default here too instead of producing a `{ undefined: … }`
+    // key on the wire.
+    const shape = action.bodyShape;
+    const wrap = shape && typeof shape === 'object' && typeof shape.wrap === 'string' && shape.wrap
+      ? shape.wrap
+      : undefined;
+    if (wrap) {
+      // The payload nests; `bodyExtra` rides flat beside it. No key collision to
+      // resolve in this branch — that is the point of the wrap — so "merged last"
+      // is preserved by construction.
+      return { [wrap]: base ?? {}, ...bodyExtra };
+    }
     // Nothing to merge: hand back the historical value as-is, so a host passing a
     // non-object `context.data` still serializes exactly what it used to.
     if (!bodyExtra) return base ?? {};
