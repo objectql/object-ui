@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PageComponentType } from '@objectstack/spec/ui';
+import { PageComponentType, RecordDetailsProps } from '@objectstack/spec/ui';
 import { BLOCK_CONFIG, blockHasConfig } from '../block-config';
 import { BLOCK_TYPE_META, PALETTE_EXCLUSIONS } from '../block-types';
 
@@ -47,6 +47,86 @@ describe('block-config', () => {
     for (const [type, fields] of Object.entries(BLOCK_CONFIG)) {
       for (const f of fields) check(f, type);
     }
+  });
+});
+
+/**
+ * `record:details.sections` ↔ the spec's own section-entry shape (#3819).
+ *
+ * The designer offered `label` / `columns` / `fields` and silently omitted
+ * `name` — which the spec describes as the section's i18n ANCHOR ("resolves
+ * `objects.<object>._sections.<name>.label`; a nameless section renders its
+ * authored label in every locale") and which the renderer really reads
+ * (`record-details.tsx`: `s.name && objectName ? sectionLabel(objectName,
+ * s.name, …)`). Every section Studio produced was therefore untranslatable by
+ * construction, and carried an upstream `translation-section-name-missing`
+ * diagnostic no designer control could clear.
+ *
+ * The coverage half is DERIVED from `RecordDetailsProps`, not hand-listed, for
+ * the reason the palette suite below states: a hand-written
+ * `expect(name).toBeDefined()` pins today's gap closed but stays green the next
+ * time the spec grows a section key the inspector never learns to author.
+ */
+describe('record:details sections ↔ spec section-entry coverage (#3819)', () => {
+  /** The spec's authorable keys for one `sections[]` entry, read off the Zod shape. */
+  const specSectionKeys: string[] = (() => {
+    const props = RecordDetailsProps as unknown as { shape?: Record<string, unknown> };
+    const sections = props.shape?.sections as { _def?: Record<string, any> } | undefined;
+    // sections: ZodOptional< ZodArray< ZodObject > > — unwrap to the element object.
+    let node: any = sections;
+    for (let i = 0; i < 6 && node; i++) {
+      const def = node._def ?? {};
+      if (def.innerType) { node = def.innerType; continue; }
+      if (def.element) { node = def.element; continue; }
+      break;
+    }
+    const shape = node?.shape;
+    return shape ? Object.keys(shape) : [];
+  })();
+
+  /** The inspector's item editors for one section. */
+  const sectionsField = BLOCK_CONFIG['record:details'].find((f) => f.name === 'sections') as
+    | { kind: 'array'; itemFields: Array<{ name: string; label: string; kind: string; placeholder?: string }> }
+    | undefined;
+
+  it('reads a non-empty section-entry shape from the spec', () => {
+    // Guards the derivation itself: a spec refactor that moves the shape must
+    // fail here loudly rather than turn the coverage assertion into a no-op
+    // that passes over an empty list.
+    expect(specSectionKeys, 'could not read RecordDetailsProps.sections[] shape').not.toEqual([]);
+    expect(specSectionKeys).toContain('name');
+  });
+
+  it('exposes an editor for every key the spec declares on a section', () => {
+    expect(sectionsField?.kind).toBe('array');
+    const authored = (sectionsField?.itemFields ?? []).map((f) => f.name);
+    const missing = specSectionKeys.filter((k) => !authored.includes(k));
+    // If this fails: the spec declares a section key the block designer gives
+    // authors no way to write. Add the itemField — a key that only source-mode
+    // editing can reach is a key Studio-built pages structurally cannot carry.
+    expect(missing, 'section keys with no designer control').toEqual([]);
+  });
+
+  it('the `name` editor is a text box carrying the snake_case convention', () => {
+    const nameField = sectionsField?.itemFields.find((f) => f.name === 'name');
+    expect(nameField, 'record:details sections must expose the i18n anchor `name`').toBeDefined();
+    expect(nameField!.kind).toBe('text');
+    // `BlockPropField` has no description/pattern affordance, so the
+    // placeholder is the only place the snake_case convention can be stated —
+    // the same argument the json-placeholder test below makes.
+    expect(nameField!.placeholder, '`name` needs a placeholder stating snake_case').toMatch(/snake_case/);
+    // The label must say what the box is FOR. A bare "Name" next to "Label"
+    // reads as a second display string, which is how an author ends up typing
+    // a heading into the anchor.
+    expect(nameField!.label).toMatch(/i18n/i);
+  });
+
+  it('lists `name` before `label` — the entry identity comes first', () => {
+    // Matches `page:tabs` (`key`) and `page:accordion` (`value`), where the
+    // stable identifier precedes the human label.
+    const order = (sectionsField?.itemFields ?? []).map((f) => f.name);
+    expect(order.indexOf('name')).toBeGreaterThanOrEqual(0);
+    expect(order.indexOf('name')).toBeLessThan(order.indexOf('label'));
   });
 });
 

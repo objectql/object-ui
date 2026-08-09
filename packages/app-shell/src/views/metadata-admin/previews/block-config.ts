@@ -309,11 +309,29 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
   ],
   'record:details': [
     {
+      // A section's `name` is its i18n anchor, not decoration: the renderer
+      // resolves the heading through `objects.<object>._sections.<name>.label`
+      // (`record-details.tsx` → `sectionLabel`; key convention in
+      // `i18n/useObjectLabel.ts`), and a nameless section shows its authored
+      // label in every locale. While this field was missing the designer could
+      // only produce structurally untranslatable sections, and every page it
+      // built carried an upstream `translation-section-name-missing`
+      // diagnostic its author had no UI to clear (objectui#3819). It is listed
+      // first because it is the entry's identity — same order as
+      // `page:tabs`/`page:accordion`, where the key precedes the label.
+      //
+      // Deliberately NOT derived from `label`: an author who already localized
+      // the heading would get that translated text frozen into the anchor, and
+      // the anchor is the one value that must stay stable across locales. The
+      // placeholder carries the snake_case convention because `BlockPropField`
+      // has no pattern/validate affordance — see the type above — and adding
+      // one for a single field is outside this fix.
       name: 'sections',
       label: 'Sections',
       kind: 'array',
       addLabel: 'Add section',
       itemFields: [
+        { name: 'name', label: 'Name (i18n key)', kind: 'text', placeholder: 'snake_case, e.g. contact_info' },
         { name: 'label', label: 'Label', kind: 'text' },
         { name: 'columns', label: 'Columns', kind: 'number', placeholder: '2' },
         { name: 'fields', label: 'Fields', kind: 'field-list', objectFrom: 'page' },
