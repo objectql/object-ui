@@ -196,7 +196,12 @@ describe('contract ↔ realistic value agreement', () => {
     [{ type: 'number' }, 42],
     [{ type: 'boolean' }, true],
     [{ type: 'date' }, '2026-07-20'],
-    [{ type: 'datetime' }, '2026-07-20T14:30'],
+    // A zoned ISO instant — the real emitted form since objectstack#5061. Note
+    // this row DOCUMENTS the sample; it cannot guard the change, because the
+    // zone-less string it replaced classifies to the same `'string'` tag. The
+    // guard lives in `ActionParamDialog.test.tsx`, which runs the sample past
+    // the platform's own `validateActionParams`.
+    [{ type: 'datetime' }, '2026-07-20T06:30:00.000Z'],
     [{ type: 'select' }, 'prod'],
     [{ type: 'select', multiple: true }, ['prod', 'stage']],
     [{ type: 'multiselect' }, ['a', 'b']],

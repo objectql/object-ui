@@ -2536,11 +2536,14 @@ export type { DomProps } from './widgets/toDomProps';
 
 // The native date/time control value adapters (objectui#3127). `DateTimeField`
 // is ISO-canonical on BOTH sides — it takes the record's ISO instant and hands
-// an ISO instant back — so a caller whose own endpoint contract is the control's
-// zone-less local wall clock (`ActionParamDialog`'s `datetime` param, pinned by
-// #2714) needs `toDateTimeInputValue` to convert at its serialization boundary.
-// Exported rather than duplicated so the two surfaces cannot drift on what the
-// local wall clock of an instant is.
+// an ISO instant back, which is also the wire form the platform's `datetime`
+// value contract requires (`InstantValueSchema`: an ISO-8601 instant with an
+// explicit zone), so no consumer has to convert at its own serialization
+// boundary. `ActionParamDialog` used to (objectstack#5061 removed it — the
+// zone-less wall clock it produced was the one shape the validator rejects).
+// Exported for the same reason as `toDomProps` above: a widget authored outside
+// this repo needs the same pair, and a second copy of "what the local wall clock
+// of an instant is" would drift from this one.
 export {
   toDateInputValue,
   toDateTimeInputValue,
