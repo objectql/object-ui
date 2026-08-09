@@ -24,6 +24,15 @@
  *   disabled absent                    | handler ran: true  | {"success":true}
  *   disabled false                     | handler ran: true  | {"success":true}
  *
+ * …and two rows that stayed BLOCKED after this card's fix, until objectui#3960
+ * widened the shared definition to blank predicate text in either spelling.
+ * Measured by running these two rows against `ab3ad4f3f`'s scope — the string-only
+ * `value.trim() === ''` half of the definition, which is what the reverse
+ * verification below restores:
+ *
+ *   disabled {dialect:'cel',source:'   '} | handler ran: false | {"success":false,"error":"Action is disabled"}
+ *   disabled {source:'   '}               | handler ran: false | {"success":false,"error":"Action is disabled"}
+ *
  * So this was not "the click did nothing" — execution was refused and the caller
  * got an error naming a state the metadata never declared.
  *
@@ -33,6 +42,14 @@
  *     the handler must run. THE defect; each is an independent mutation
  *     detector, since the three arrive at "nothing to evaluate" by three
  *     different routes (string identity, `trim()`, envelope `source`).
+ *   • the FOURTH empty shape, added by objectui#3960 — an envelope whose `source`
+ *     is blank but not empty, in both its dialect spellings. It was still BLOCKED
+ *     after this card's own fix: the normalizer folds a `source` of `''` and does
+ *     not trim, so the value reached `evaluateCondition`, which calls a blank
+ *     source "no condition" and answers `true` — and on this key `true` means
+ *     "Action is disabled". Same defect, same mechanism, blank moved inside the
+ *     envelope; behaviour change, and the same fail-open direction as the rows
+ *     above.
  *   • `true` / a truthy expression / a truthy CEL envelope → still blocked.
  *     Anti-mutation guards: "never block anything" satisfies most of this table
  *     on its own, and these are what refuse it.
@@ -85,11 +102,17 @@
  * ## Reverse verification (direction predicted before running)
  *
  * Restoring the old gate (`action.disabled != null && action.disabled !== false`)
- * while leaving evaluation untouched must turn exactly the five
- * nothing-to-evaluate rows RED — `''`, `'   '`, the empty envelope, `0`, `{}` —
- * each naming its own shape, and leave `absent` / `false` / `true` / both
- * expression rows / both non-empty envelope rows GREEN. That is the whole diff:
- * this change can only stop blocking things, never start.
+ * while leaving evaluation untouched must turn exactly the seven
+ * nothing-to-evaluate rows RED — `''`, `'   '`, the empty envelope, both
+ * blank-`source` envelopes, `0`, `{}` — each naming its own shape, and leave
+ * `absent` / `false` / `true` / both expression rows / both non-empty envelope
+ * rows GREEN. That is the whole diff: this change can only stop blocking things,
+ * never start.
+ *
+ * Reverting objectui#3960 alone (dropping the envelope half of the shared
+ * definition's `isBlankPredicateText`) must turn RED exactly the two
+ * blank-`source` rows and nothing else — including the parity test, whose column
+ * for those rows is a claim about the renderer face reading the SAME definition.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -129,6 +152,30 @@ const SHAPES: Shape[] = [
     // is nothing to evaluate on both faces.
     label: "disabled: { dialect: 'cel', source: '' } (empty envelope)",
     disabled: { dialect: 'cel', source: '' },
+    blocked: false,
+    rendererDisabled: false,
+  },
+  // ── behaviour change (objectui#3960): the FOURTH empty spelling ───────────
+  // A `source` that is blank but not empty. Measured as BLOCKED on this gate
+  // before objectui#3960 — `toPredicateInput` folds a `source` of `''` and does
+  // not trim, so the envelope reached `evaluateCondition`, whose CEL entry
+  // answers `if (!source.trim()) return true`, and on this key that `true` means
+  // "Action is disabled". Declaredness now decides blankness in both spellings,
+  // so the handler runs. Parity is claimed on the same footing as the rows above:
+  // one definition, read by the renderer face too.
+  {
+    label: "disabled: { dialect: 'cel', source: '   ' } (blank source — objectui#3960)",
+    disabled: { dialect: 'cel', source: '   ' },
+    blocked: false,
+    rendererDisabled: false,
+  },
+  {
+    // The dialect-less spelling takes the other route through the normalizer
+    // (unwrapped and wrapped into `'${   }'`), so it is its own mutation
+    // detector — and its verdict came out the same way, `true` = blocked, via
+    // `evaluateCondition`'s `if (!trimmed) return true` instead of the CEL entry.
+    label: "disabled: { source: '   ' } (blank source, no dialect)",
+    disabled: { source: '   ' },
     blocked: false,
     rendererDisabled: false,
   },
@@ -266,14 +313,17 @@ describe('why the gate cannot delegate "is there a condition?" to the verdict (o
     expect(ev.evaluateCondition({ dialect: 'cel', source: '' })).toBe(true);
   });
 
-  it('toPredicateInput collapses two of the three empty shapes, and wraps the third', () => {
-    // Why the gate is not simply `toPredicateInput(x) !== undefined`: the
-    // whitespace string survives normalization as an evaluable-looking template,
-    // so the gate names it explicitly (same blank-source rule `evalRowPredicate`
-    // applies in `evaluator/listConditional.ts`).
+  it('toPredicateInput collapses the EMPTY shapes and passes the BLANK ones through', () => {
+    // Why the gate is not simply `toPredicateInput(x) !== undefined`: blank
+    // predicate text survives normalization as an evaluable-looking value in both
+    // its spellings — a wrapped template for the bare string, an intact envelope
+    // for a blank `source` — so the shared definition names blankness explicitly
+    // (objectui#3960; the same blank rule `evalRowPredicate` applies in
+    // `evaluator/listConditional.ts`).
     expect(toPredicateInput('')).toBeUndefined();
     expect(toPredicateInput({ dialect: 'cel', source: '' })).toBeUndefined();
     expect(toPredicateInput('   ')).toBe('${   }');
+    expect(toPredicateInput({ dialect: 'cel', source: '   ' })).toEqual({ dialect: 'cel', source: '   ' });
   });
 
   it('normalizing a `${…}` predicate now agrees with the raw value (was objectui#3871)', () => {

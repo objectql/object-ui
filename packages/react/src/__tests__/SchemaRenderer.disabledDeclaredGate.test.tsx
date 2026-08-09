@@ -52,19 +52,26 @@
  *     precedence is load-bearing and its `true` is benign), so `visible: ''`
  *     still renders and `visible: false` still hides.
  *   • the `hidden` / `hiddenOn` legs of that same chain, which are NOT negated
- *     and therefore have this defect with the polarity that makes the node
+ *     and therefore HAD this defect with the polarity that makes the node
  *     VANISH. Measured while writing the equivalence cases, out of this ruling's
  *     scope, filed as objectui#3955 and pinned here as a documented divergence
- *     rather than left for the next reader to rediscover.
+ *     rather than left for the next reader to rediscover; that divergence case is
+ *     now a convergence case, and the full table for both legs lives in
+ *     `SchemaRenderer.hiddenDeclaredGate.test.tsx`.
+ *   • the empty shapes include the blank-`source` envelope since objectui#3960
+ *     widened the shared definition — the same rows, one spelling longer.
  *
  * ## Reverse verification (direction predicted before running)
  *
  * Restoring `newSchema.disabled !== undefined` / `disabledOn !== undefined` must
- * turn RED exactly the five empty-shape cases on each key (`disabled`,
+ * turn RED exactly the seven empty-shape cases on each key (`disabled`,
  * `disabledOn`), their forwarding cases, the `0` junk case and the precedence
  * case — and leave every `true` / `false` / expression / `visible` case GREEN.
  * Nothing here can go red in the other direction: the change only ever removes a
  * `disabled` prop, never adds one.
+ *
+ * Reverting the objectui#3960 half alone (envelope blankness, in core's shared
+ * definition) turns RED only the two blank-`source` rows on each key.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -108,6 +115,13 @@ const EMPTY_SHAPES: Array<{ label: string; value: unknown }> = [
   { label: "'   ' (whitespace only)", value: '   ' },
   { label: "{ dialect: 'cel', source: '' } (what `objectstack build` emits)", value: { dialect: 'cel', source: '' } },
   { label: "{ source: '' } (envelope without a dialect)", value: { source: '' } },
+  // objectui#3960 — the fourth empty spelling, arriving through the same shared
+  // definition. It was still a declared gate after this card's fix (the
+  // normalizer folds a `source` of `''` and does not trim), so the generic path
+  // greyed the control out for a predicate that says nothing; blankness is now
+  // decided for the envelope spelling too.
+  { label: "{ dialect: 'cel', source: '   ' } (blank source — objectui#3960)", value: { dialect: 'cel', source: '   ' } },
+  { label: "{ source: '   ' } (blank source, no dialect)", value: { source: '   ' } },
 ];
 
 describe('SchemaRenderer `disabled` — an empty predicate is not a declared gate (objectui#3862)', () => {
@@ -220,24 +234,28 @@ describe('SchemaRenderer `visible` chain is untouched by this change (objectui#3
     expect(screen.getByTestId('probe')).toBeInTheDocument();
   });
 
-  it('DOCUMENTED DIVERGENCE (objectui#3955): the `hidden` leg is NOT negated, so an empty predicate still hides', () => {
-    // The other polarity exit of the same asymmetry, in the same `useMemo`:
-    // `hidden` / `hiddenOn` return `evaluateCondition(...)` UN-negated, so
-    // "nothing to evaluate → true" means HIDE — the node vanishes for
-    // `hidden: ''` / `null` / `'   '` / `{ dialect, source: '' }`. Measured, and
-    // deliberately out of this PR's ruling (objectui#3850's placement clause
-    // names the `disabled` / `disabledOn` legs; the `visible` family keeps
-    // `!== undefined` and its alias precedence). Pinned as the current state so
-    // the next reader sees it is known, with the issue that owns it — this
-    // expectation is what goes RED when objectui#3955 is fixed, which is the
-    // signal to move these rows into the fixed column.
-    renderNode({ hidden: '' });
-    expect(screen.queryByTestId('probe')).toBeNull();
-    const { unmount } = renderNode({ hidden: { dialect: 'cel', source: '' } });
-    expect(screen.queryByTestId('probe')).toBeNull();
+  it('CONVERGED (objectui#3955): the `hidden` leg reads the same definition, so an empty predicate no longer hides', () => {
+    // This case used to be a DOCUMENTED DIVERGENCE. The other polarity exit of the
+    // same asymmetry, in the same `useMemo`: `hidden` / `hiddenOn` return
+    // `evaluateCondition(...)` UN-negated, so "nothing to evaluate → true" meant
+    // HIDE and the node vanished for `hidden: ''` / `null` / `'   '` /
+    // `{ dialect, source: '' }`. It was measured here while writing the
+    // equivalence cases and left out of objectui#3850's ruling on purpose (its
+    // placement clause named the `disabled` / `disabledOn` legs), then fixed as
+    // objectui#3955 — the assertions below flipped from "the node is gone" to
+    // "the node renders".
+    //
+    // The full table for both legs, including precedence and the anti-mutation
+    // guards, is in `SchemaRenderer.hiddenDeclaredGate.test.tsx`; these three
+    // lines stay here because this file is where the divergence was recorded.
+    const { unmount } = renderNode({ hidden: '' });
+    expect(screen.getByTestId('probe')).toBeInTheDocument();
     unmount();
-    // The `visible` legs of the same chain ARE negated, which is why the same
-    // empty value is benign there — the cases above this one.
+    renderNode({ hidden: { dialect: 'cel', source: '' } });
+    expect(screen.getByTestId('probe')).toBeInTheDocument();
+  });
+
+  it('… while the `visible` legs are unchanged, which is why the same empty value was benign there', () => {
     renderNode({ visible: '' });
     expect(screen.getByTestId('probe')).toBeInTheDocument();
   });

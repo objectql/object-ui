@@ -9,6 +9,33 @@
 import { toPredicateInput } from './predicateInput';
 
 /**
+ * Is the predicate TEXT blank — in EITHER spelling? (objectui#3960)
+ *
+ * `'   '` and `{ dialect: 'cel', source: '   ' }` are the same author mistake
+ * written two ways, and {@link toPredicateInput} folds neither: it wraps a
+ * whitespace-only string into `'${   }'`, and it only folds an envelope whose
+ * `source` is exactly `''`. So blankness cannot be derived from the normalizer's
+ * answer and has to be stated once, here, for both spellings — trimming one and
+ * not the other is the asymmetry objectui#3960 measured (`disabled` greyed out,
+ * `ActionRunner` refused to execute, for a predicate that says nothing).
+ *
+ * This is not a fourth dialect of "empty": it is the SAME rule core's evaluation
+ * entries already apply on the value side — `evaluateCondition`
+ * (`if (!trimmed) return true`), `evaluateCelCondition` (`if (!source.trim())
+ * return true`), `evalRowPredicate` (`listConditional.ts`) — brought to the one
+ * place that answers "is there a condition at all?", so the two halves cannot
+ * disagree about the same blank.
+ */
+function isBlankPredicateText(value: unknown): boolean {
+  if (typeof value === 'string') return value.trim() === '';
+  if (value !== null && typeof value === 'object') {
+    const source = (value as { source?: unknown }).source;
+    if (typeof source === 'string') return source.trim() === '';
+  }
+  return false;
+}
+
+/**
  * Is a predicate gate DECLARED on this value — i.e. after normalization, is
  * there still a CONDITION for {@link ExpressionEvaluator.evaluateCondition} to
  * reach a verdict on? (objectui#3850's ruling, key-neutral: `visible` /
@@ -29,15 +56,20 @@ import { toPredicateInput } from './predicateInput';
  *
  * ## What counts as "nothing to evaluate"
  *
- * Exactly the shapes {@link toPredicateInput} folds to `undefined`, plus the one
- * it wraps instead of folding:
+ * Exactly the shapes {@link toPredicateInput} folds to `undefined`, plus the two
+ * BLANK spellings it wraps or passes through instead of folding:
  *
  *   - `null` / `undefined` — no key at all.
  *   - `''` — an empty predicate (objectui#3492 / objectui#3842).
- *   - a whitespace-only string — the shape the normalizer does NOT collapse
- *     (`'   '` becomes `'${   }'`), named here so it cannot slip through. Core's
- *     other predicate entries already treat it as blank: `evaluateCondition`
- *     (`if (!trimmed) return true`) and `evalRowPredicate`
+ *   - blank predicate TEXT, in either spelling — a whitespace-only string
+ *     (`'   '`, which the normalizer wraps into `'${   }'`) and an envelope whose
+ *     `source` is whitespace-only (`{ dialect: 'cel', source: '   ' }`, which the
+ *     normalizer passes through because it only folds a `source` of `''`).
+ *     Neither can be read off the normalizer's answer, so both are named here —
+ *     see {@link isBlankPredicateText} for why this is the layer that says it.
+ *     Core's other predicate entries already treat both as blank:
+ *     `evaluateCondition` (`if (!trimmed) return true`), `evaluateCelCondition`
+ *     (`if (!source.trim()) return true`) and `evalRowPredicate`
  *     (`evaluator/listConditional.ts`, `if (!source.trim())`).
  *   - `{ dialect, source: '' }` — the empty ENVELOPE. This is not an exotic
  *     spelling: `@objectstack/spec`'s `ExpressionInputSchema` normalizes every
@@ -54,18 +86,31 @@ import { toPredicateInput } from './predicateInput';
  * routing them to the evaluator — which short-circuits booleans — is the point
  * of asking "declared?" rather than "truthy?".
  *
- * ## The one blank shape this scope does NOT cover (objectui#3960)
+ * ## Why blankness is decided HERE and not in the normalizer (objectui#3960)
  *
- * An envelope whose `source` is blank but not EMPTY —
- * `{ dialect: 'cel', source: '   ' }` — is still "declared" here, because
- * `toPredicateInput` folds a `source` of `''` and does not trim. So the string
- * spelling of a blank predicate is trimmed and the envelope spelling is not,
- * which means `disabled` still greys out for that one value while core's own CEL
- * entry calls it "no predicate" (`evaluateCelCondition`: `if (!source.trim())
- * return true`). objectui#3850's ruling enumerated three empty spellings and this
- * is a fourth, so it is filed rather than widened in here — the asymmetry is
- * pinned in `__tests__/declaredPredicate.test.ts` so it cannot be mistaken for
- * a covered case.
+ * The blank-`source` envelope arrived one release late: objectui#3850's ruling
+ * enumerated three empty spellings, `toPredicateInput` folds a `source` of `''`
+ * and does not trim, so `{ dialect: 'cel', source: '   ' }` stayed "declared"
+ * while core's own CEL entry called that exact value "no predicate" — `disabled`
+ * greyed out and `ActionRunner` refused to execute for a predicate that says
+ * nothing (objectui#3960). The asymmetry was that this definition trimmed the
+ * STRING spelling of a blank predicate and not the ENVELOPE spelling of the same
+ * blank.
+ *
+ * Fixing it at the normalizer instead (`if (!src.trim()) return undefined`) would
+ * have aligned every `evaluateCondition(toPredicateInput(x))` consumer at once,
+ * and that is precisely why it is the wider, wrong lever: it changes what
+ * normalization MEANS, which is a shape question ("what does the evaluator
+ * accept"), to answer a declaredness question ("is there a condition"). Those are
+ * different concepts on purpose — a blank `source` is a shape the evaluator
+ * accepts and answers `true` for, by its own documented rule. The blast radius is
+ * the concrete difference: at the normalizer, a NON-cel blank envelope
+ * (`{ source: '   ' }` → `'${   }'` → falsy) flips verdict for every
+ * `useCondition(toPredicateInput(…))` call site including the container-level
+ * `visible` reads in `action-bar` / `action-group` / `action-menu` /
+ * `RelatedList` / `record-alert`, none of which ask this question at all; here it
+ * flips only for the consumers that DO ask it, and only on the inverted-polarity
+ * keys where "declared" is what turns a control off.
  *
  * ## Why the callers still evaluate the RAW value
  *
@@ -91,8 +136,17 @@ import { toPredicateInput } from './predicateInput';
  * renderer call sites are unchanged), `SchemaRenderer`'s `disabled` /
  * `disabledOn` chain reads it, and `ActionRunner`'s two gates read it instead of
  * a private twin.
+ *
+ * Two more consumers joined afterwards, and with them the last two places that
+ * answered this question with a range of their own:
+ * `SchemaRenderer`'s `hidden` / `hiddenOn` legs, whose verdict is NOT negated so
+ * an empty predicate made the node VANISH (objectui#3955), and
+ * `ActionEngine.getActionsForLocation`'s `visible` filter, which folded some
+ * empty spellings by hand and coerced the rest with `Boolean(raw)`, so
+ * `visible: 0` hid an action the renderers showed (objectui#3957). Nothing in the
+ * repo now asks "is a gate declared?" anywhere but here.
  */
 export function hasDeclaredPredicate(value: unknown): boolean {
-  if (typeof value === 'string' && value.trim() === '') return false;
+  if (isBlankPredicateText(value)) return false;
   return toPredicateInput(value) !== undefined;
 }

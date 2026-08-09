@@ -19,6 +19,7 @@
 
 import { ActionRunner, type ActionDef, type ActionContext, type ActionResult } from './ActionRunner';
 import { toPredicateInput } from '../evaluator/predicateInput.js';
+import { hasDeclaredPredicate } from '../evaluator/declaredPredicate.js';
 
 /**
  * Action location types — re-exported from `@objectstack/spec/ui` so the
@@ -187,13 +188,18 @@ export class ActionEngine {
    * Filtering applied (in order):
    *   1. `locations.includes(location)` — location/region match
    *   2. `action.visible` — evaluated against the runner's current context
-   *      ({ record, recordId, objectName, user, … }). Missing or `true`
-   *      passes; any other value is coerced to boolean. Evaluator errors
-   *      hide the action (fail-closed) rather than throwing — this matches
-   *      the contract used by every individual action renderer
-   *      (`action-button`, `action-menu`, `action-bar`, …) so the same
-   *      action behaves identically whether surfaced via the engine or
-   *      consumed standalone.
+   *      ({ record, recordId, objectName, user, … }) whenever a gate is
+   *      DECLARED, which is asked through core's one definition
+   *      `hasDeclaredPredicate` (objectui#3850's ruling, adopted here by
+   *      objectui#3957). No gate — absent, `''`, blank predicate text in either
+   *      spelling, an envelope with no evaluable `source`, or a value that is
+   *      not a predicate at all — means visible. Evaluator errors hide the
+   *      action (fail-closed) rather than throwing — this matches the contract
+   *      used by every individual action renderer (`action-button`,
+   *      `action-menu`, `action-bar`, …) so the same action behaves identically
+   *      whether surfaced via the engine or consumed standalone, which is now
+   *      true of the gate in front of the verdict as well as the verdict
+   *      (objectui#3314: one value, one answer, whichever entry reads it).
    *
    *   Predicate normalization goes through the shared `toPredicateInput`
    *   (`@object-ui/core`'s canonical helper — semantically identical to
@@ -227,20 +233,35 @@ export class ActionEngine {
       })
       .filter(ra => {
         const raw = ra.action.visible;
-        if (raw == null || raw === '' || raw === true) return true;
-        if (raw === false) return false;
+        // Ask "is a `visible` gate DECLARED?" through the repo's ONE definition
+        // (`evaluator/declaredPredicate.ts`, objectui#3850's ruling), which is
+        // what the renderers, `SchemaRenderer` and `ActionRunner`'s execution
+        // gates ask. This filter used to answer it with a range of its own —
+        // three empty spellings folded by hand (`null` / `''` / an envelope with
+        // an empty `source`) and everything else coerced with `Boolean(raw)` —
+        // and it was the LAST consumer to do so, so the same value got two
+        // answers depending on which entry read it: `visible: 0` / `NaN` hid the
+        // action here and showed it on the renderer face, and `visible: '   '`
+        // hid it here because the normalizer wraps a blank string into `'${   }'`
+        // whose verdict is falsy. That is the shape objectui#3314's invariant
+        // forbids, and it is fixed by deleting a range, not by adding one
+        // (objectui#3957). A value that is not a predicate, or a predicate that
+        // says nothing, must not be the reason an action is hidden from
+        // everyone — the same fail-open posture `ActionRunner` already committed
+        // to for `disabled` (`catch { isDisabled = false }`).
+        //
+        // Booleans need no branch of their own: they are DECLARED (`visible:
+        // false` is a verdict, objectui#3812) and `evaluateCondition`
+        // short-circuits them.
+        if (!hasDeclaredPredicate(raw)) return true;
         // #3314 — one shared normalization, not two. Hand-rolling the envelope
         // unwrap here is what dropped `dialect: 'cel'` and demoted the
         // predicate to the legacy JS engine; `toPredicateInput` keeps the
         // envelope so `evaluateCondition` can route it to `@objectstack/formula`
         // (the engine the server enforces with), exactly as the renderers do.
+        // Declared ⇒ the normalizer left something to evaluate, so there is no
+        // `undefined` case left to handle here.
         const expr = toPredicateInput(raw);
-        if (expr === undefined) {
-          // Not an evaluable predicate: an envelope with an empty `source`
-          // (→ nothing declared → visible), or a stray non-predicate value,
-          // which keeps the historical `Boolean(raw)` coercion.
-          return typeof raw === 'object' ? true : Boolean(raw);
-        }
         try {
           // `throwOnError: true` is required for fail-closed semantics: the
           // evaluator's default behavior swallows expression errors and

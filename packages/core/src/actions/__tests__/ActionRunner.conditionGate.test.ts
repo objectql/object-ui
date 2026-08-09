@@ -47,9 +47,16 @@
  *     (string identity, `trim()`, envelope `source`), so each is its own
  *     mutation detector.
  *   • the non-predicate junk rows (`0`, `{}`) → still run, and NOT because the
- *     old truthiness test skipped them. See the divergence test below: this is
- *     a deliberate departure from `ActionEngine.getActionsForLocation`'s
- *     `Boolean(raw)` junk branch, which would have `0` block here.
+ *     old truthiness test skipped them. This used to be a deliberate departure
+ *     from `ActionEngine.getActionsForLocation`'s `Boolean(raw)` junk branch,
+ *     which would have `0` block here; objectui#3957 moved that filter onto the
+ *     same shared definition, so the case below is now a CONVERGENCE pin rather
+ *     than a documented divergence.
+ *   • `condition: { dialect: 'cel', source: '   ' }` → still runs, and after
+ *     objectui#3960 for the sound reason rather than the accidental one: it was
+ *     declared-and-`true` (a blank CEL source evaluates to "no condition →
+ *     `true`"), which on THIS key happens to mean "execute" — the same value on
+ *     `disabled` was blocking execution. Nothing declared now, same verdict.
  *
  * ## Scope: what this change does NOT touch
  *
@@ -87,6 +94,7 @@ import { ActionRunner, type ActionContext, type ActionDef } from '../ActionRunne
 import { ActionEngine } from '../ActionEngine';
 import { ExpressionEvaluator } from '../../evaluator/ExpressionEvaluator';
 import { toPredicateInput } from '../../evaluator/predicateInput';
+import { hasDeclaredPredicate } from '../../evaluator/declaredPredicate';
 
 const CONTEXT: ActionContext = {
   data: { id: 1 },
@@ -153,6 +161,17 @@ const SHAPES: Shape[] = [
   {
     label: "condition: { dialect: 'cel', source: '' } (empty envelope)",
     condition: { dialect: 'cel', source: '' },
+    blocked: false,
+  },
+  {
+    // objectui#3960's fourth empty spelling. Unchanged VERDICT on this key and a
+    // changed reason: it was a declared gate whose blank CEL source evaluated to
+    // `true` ("no condition → visible/enabled"), which on `condition` means
+    // execute; now nothing is declared. The same value on `disabled` was blocking
+    // execution, which is why the fix belongs to the shared definition and not to
+    // either gate — see `ActionRunner.disabledGate.test.ts`.
+    label: "condition: { dialect: 'cel', source: '   ' } (blank source — objectui#3960)",
+    condition: { dialect: 'cel', source: '   ' },
     blocked: false,
   },
   // ── unchanged: non-predicate junk fails open ────────────────────────────
@@ -245,17 +264,20 @@ describe('ActionRunner.execute — declared `condition` gate (objectui#3872)', (
 
 describe('why the `condition` gate cannot ask truthiness (objectui#3872)', () => {
   it('truthiness and declaredness disagree on exactly the declared booleans', () => {
-    // The mechanism in one table. `hasDeclaredPredicate` is module-private, so
-    // its two ingredients are exercised through their public spellings.
-    const declared = (v: unknown) =>
-      typeof v === 'string' && v.trim() === '' ? false : toPredicateInput(v) !== undefined;
+    // The mechanism in one table, asked through the REAL definition. It used to
+    // be re-spelled inline here (`typeof v === 'string' && v.trim() === '' ? …`)
+    // because the helper was module-private; objectui#3850 sank it into
+    // `evaluator/declaredPredicate.ts`, and a copy of a definition that has moved
+    // is a twin that drifts — objectui#3960 widened the real one and the copy
+    // would have kept answering the old way.
+    const declared = hasDeclaredPredicate;
 
     // `false` is the divergence: not truthy, yet plainly declared.
     expect(Boolean(false)).toBe(false);
     expect(declared(false)).toBe(true);
 
     // Everywhere else the two questions agree, which is why one row changed.
-    for (const v of ['', '   ', 0, {}, { dialect: 'cel', source: '' }]) {
+    for (const v of ['', '   ', 0, {}, { dialect: 'cel', source: '' }, { dialect: 'cel', source: '   ' }]) {
       expect(declared(v), `${JSON.stringify(v)} declares no gate`).toBe(false);
     }
     for (const v of [true, 'user.role == "admin"', { dialect: 'cel', source: 'false' }]) {
@@ -288,25 +310,34 @@ describe('why the `condition` gate cannot ask truthiness (objectui#3872)', () =>
     expect(ev.evaluateCondition(toPredicateInput(truePredicate) as never)).toBe(true);
   });
 
-  it('DOCUMENTED DIVERGENCE: the engine `visible` filter coerces junk, this gate does not', () => {
-    // `ActionEngine.getActionsForLocation` is the in-repo template this fix took
-    // its shape from, but its non-predicate branch keeps a historical
-    // `Boolean(raw)` coercion, so `visible: 0` HIDES. This gate deliberately
-    // does not copy that: `catch { isDisabled = false }` already committed this
-    // module to fail-OPEN on junk, and a value that is not a predicate must not
-    // decide an action's fate. Pinned so the next reader sees the difference is
-    // chosen, not overlooked.
+  it('CONVERGED (objectui#3957): the engine `visible` filter no longer coerces junk either', () => {
+    // This case used to be a DOCUMENTED DIVERGENCE. `ActionEngine.
+    // getActionsForLocation` is the in-repo template this gate took its shape
+    // from, but its non-predicate branch kept a historical `Boolean(raw)`
+    // coercion, so `visible: 0` HID an action the renderer face showed — one
+    // value, two answers, the shape objectui#3314's invariant forbids. This gate
+    // deliberately did not copy it (`catch { isDisabled = false }` had already
+    // committed this module to fail-OPEN on junk), and objectui#3850 landed
+    // without unifying the engine: its ruling covered the "declared?" definition
+    // and its placement, not that filter's own range.
     //
-    // Ownership, corrected: objectui#3850 landed WITHOUT unifying this — its
-    // ruling covered the "declared?" definition and its placement (core, with
-    // the renderer face and `SchemaRenderer` reading it), not the engine filter's
-    // own scope. `ActionEngine` is now the last consumer answering this question
-    // with its own range, measured on both faces and filed as objectui#3957.
+    // objectui#3957 moved the engine onto the same definition, so `0` is "no
+    // gate" at every entry. Kept here, converged, because the divergence is what
+    // this file documented — the assertion flipped from `toHaveLength(0)` to
+    // `toHaveLength(1)` and is now the pin that the two faces agree.
     const engine = new ActionEngine(CONTEXT);
     engine.registerAction(
       { name: 'junk_visible', type: 'script', target: '"ran"', visible: 0 } as unknown as ActionDef,
       { locations: ['record_section'] },
     );
-    expect(engine.getActionsForLocation('record_section')).toHaveLength(0);
+    expect(engine.getActionsForLocation('record_section').map(a => a.name)).toEqual(['junk_visible']);
+    // Anti-mutation: "the filter passes everything" satisfies the line above. A
+    // declared-and-false gate still hides, at the engine as at this gate.
+    const gated = new ActionEngine(CONTEXT);
+    gated.registerAction(
+      { name: 'off', type: 'script', target: '"ran"', visible: false } as unknown as ActionDef,
+      { locations: ['record_section'] },
+    );
+    expect(gated.getActionsForLocation('record_section')).toHaveLength(0);
   });
 });
