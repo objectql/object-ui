@@ -91,6 +91,36 @@ describe('the `page-header` registration declares the spec key, not a dialect', 
   });
 });
 
+describe('the `page-header` registration declares the child slot it renders (objectui#3900)', () => {
+  // Same principle as the `inputs` narrowing above, other direction: the
+  // declaration face must not DENY a surface the component serves either.
+  // `PageHeader.tsx:182` deliberately renders `schema.children` into the
+  // right-hand slot, `content/docs/layout/page-header.mdx` publishes that slot's
+  // precedence, and the docs page's only live demo is exactly that shape — while
+  // the registration omitted `isContainer`, so `sdui-parser`'s `not-a-container`
+  // diagnostic fired on it. Nothing on the render path reads the flag, so the
+  // omission broke no rendering; it made the validator tell authors (AI authors
+  // especially) that a documented, demo-verified schema was invalid, which is
+  // how the true `not-a-container` reports lose their credibility.
+  //
+  // Not an extension of the spec's authoring surface: `children` is a base
+  // property of every node in objectui's JSON protocol (`BASE_PROPS` in
+  // `sdui-parser/src/validate.ts`), not a key of `PageHeaderProps` — hence the
+  // `specKeys` cross-check above neither covers nor contradicts this.
+  //
+  // The end-to-end half of this pin — the real demo JSON through the manifest
+  // the app actually builds, plus the control proving the diagnostic still fires
+  // for a genuinely childless component — lives in
+  // `examples/schema-catalog/test/pageheader-with-actions.test.tsx`, next to the
+  // fixture it validates.
+  it.each([
+    ['page-header', undefined],
+    ['page-header', 'layout'],
+  ])('marks %s (namespace: %s) as a container', (type, namespace) => {
+    expect(ComponentRegistry.getConfig(type, namespace)?.isContainer).toBe(true);
+  });
+});
+
 describe('the runtime `description` fallback stays until the conversion entry lands', () => {
   // NOT an endorsement of the alias — a guard on the ORDER. Removing this read
   // before `page-header-subtitle-alias` exists is the deletion route that was

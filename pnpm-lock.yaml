@@ -642,6 +642,9 @@ importers:
       '@object-ui/react':
         specifier: workspace:*
         version: link:../../packages/react
+      '@object-ui/sdui-parser':
+        specifier: workspace:*
+        version: link:../../packages/sdui-parser
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
