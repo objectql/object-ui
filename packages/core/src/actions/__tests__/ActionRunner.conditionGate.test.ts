@@ -71,8 +71,10 @@
  *      does, so the `evaluateCondition` spy is never called with `false`.
  *
  * The two purely tabular tests (the changed-row set, the truthiness-vs-
- * declaredness table) and both tripwires stay GREEN by construction — they
- * assert about `Boolean` / `toPredicateInput` / the engine, not about the gate —
+ * declaredness table) and the normalizer case below stay GREEN by construction —
+ * they assert about `Boolean` / `toPredicateInput` / the engine, not about the
+ * gate (that case was the objectui#3871 tripwire, replaced by its converged
+ * pin when the normalizer was fixed) —
  * and every other execution row stays GREEN too, including `0`, `{}` and all
  * three empty shapes, because the truthy test and the declaredness test agree on
  * every shape except a declared boolean. That is the whole diff, and it is a TIGHTENING:
@@ -262,20 +264,28 @@ describe('why the `condition` gate cannot ask truthiness (objectui#3872)', () =>
     }
   });
 
-  it('TRIPWIRE (objectui#3871): normalizing the VERDICT would make every template-spelled condition always execute', () => {
+  it('normalizing a `${…}` condition now agrees with the raw value (was objectui#3871)', () => {
+    // Replaces the objectui#3871 TRIPWIRE that stood here. It pinned the defect
+    // — `toPredicateInput('${x}')` was `'${${x}}'`, unparseable, returned
+    // verbatim, `Boolean(…)` = a constant `true`, which on THIS key would have
+    // run every template-spelled `condition` regardless of its verdict — and its
+    // note said the day it went red was the day to delete it and (only then) let
+    // the gate evaluate the normalized value.
+    //
+    // It went red as predicted (PR for objectui#3871), and is replaced rather
+    // than deleted for the reasons written out next to its `disabled` twin in
+    // `ActionRunner.disabledGate.test.ts`: the repaired property (the normalizer
+    // is idempotent, so normalized and raw reach one verdict) is what makes
+    // "normalize to decide, evaluate the raw value" safe, and it should be
+    // pinned beside the gate that relies on it. The gate itself is unchanged.
     const ev = new ExpressionEvaluator(CONTEXT);
     const falsePredicate = '${record.status === "inactive"}';
-    // Raw — the correct verdict, and what this gate evaluates.
     expect(ev.evaluateCondition(falsePredicate)).toBe(false);
-    // Normalized — wrapped a second time, unparseable, returned verbatim, truthy.
-    // On `disabled` this constant `true` blocks everything (PR #3873's tripwire);
-    // on `condition` it does the opposite and RUNS everything, so this key must
-    // keep reading the raw value for the same reason.
-    expect(toPredicateInput(falsePredicate)).toBe('${${record.status === "inactive"}}');
-    expect(ev.evaluateCondition(toPredicateInput(falsePredicate) as never)).toBe(true);
-    // When objectui#3871 is fixed this goes RED on the last two expectations —
-    // the signal to delete this tripwire and (only then) let the gate evaluate
-    // the normalized value.
+    expect(toPredicateInput(falsePredicate)).toBe(falsePredicate);
+    expect(ev.evaluateCondition(toPredicateInput(falsePredicate) as never)).toBe(false);
+    const truePredicate = '${record.status === "active"}';
+    expect(ev.evaluateCondition(truePredicate)).toBe(true);
+    expect(ev.evaluateCondition(toPredicateInput(truePredicate) as never)).toBe(true);
   });
 
   it('DOCUMENTED DIVERGENCE: the engine `visible` filter coerces junk, this gate does not', () => {

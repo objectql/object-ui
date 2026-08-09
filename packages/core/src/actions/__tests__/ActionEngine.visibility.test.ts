@@ -310,4 +310,58 @@ describe('ActionEngine.getActionsForLocation — visibility filter', () => {
     });
   });
 
+  /**
+   * objectui#3871 — the legacy `${…}` spelling on the engine's own filter.
+   *
+   * This filter normalizes with `toPredicateInput` and evaluates with
+   * `throwOnError: true`, so the double wrap did NOT read as truthy here: the
+   * unparseable `'${${…}}'` threw, the `catch` below fail-closed HID the action,
+   * and `warnHiddenPredicate` blamed the author's expression. Measured before
+   * the fix on this tree: BOTH actions below were dropped, including the one
+   * whose predicate holds — the direction the issue card mis-predicted (it
+   * expected a constant "visible" here, which is what the fail-SOFT renderer
+   * legs did).
+   *
+   * Reverse verification: restore the unconditional wrap and `tpl_true` goes red
+   * (it was hidden); `tpl_false` stays green, because "hidden because the
+   * predicate is false" and "hidden because the predicate could not be parsed"
+   * are indistinguishable from the outside. Hence both, and hence the warn
+   * assertion — a fail-closed hide is loud, so its ABSENCE is what separates the
+   * two reasons.
+   */
+  describe('the legacy `${…}` template spelling (objectui#3871)', () => {
+    const OPEN = { record: { status: 'open' } };
+
+    it('evaluates a `${…}` predicate to its real verdict on both polarities', () => {
+      const engine = new ActionEngine(OPEN);
+      engine.registerAction(
+        { name: 'tpl_true', type: 'api', visible: '${record.status === "open"}' } as any,
+        { locations: ['record_section'] },
+      );
+      engine.registerAction(
+        { name: 'tpl_false', type: 'api', visible: '${record.status === "closed"}' } as any,
+        { locations: ['record_section'] },
+      );
+      expect(engine.getActionsForLocation('record_section').map(a => a.name)).toEqual(['tpl_true']);
+    });
+
+    it('drops the false one WITHOUT the fail-closed warning (it is a verdict, not a fault)', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const engine = new ActionEngine(OPEN);
+        engine.registerAction(
+          { name: 'tpl_quiet', type: 'api', visible: '${record.status === "closed"}' } as any,
+          { locations: ['record_section'] },
+        );
+        expect(engine.getActionsForLocation('record_section')).toHaveLength(0);
+        // Before the fix this same call warned about `tpl_quiet` — the predicate
+        // faulted rather than answering. A genuine `false` is silent, so this is
+        // the assertion that distinguishes the two ways of being hidden.
+        expect(warn.mock.calls.filter(c => String(c[0]).includes('tpl_quiet'))).toHaveLength(0);
+      } finally {
+        warn.mockRestore();
+      }
+    });
+  });
+
 });

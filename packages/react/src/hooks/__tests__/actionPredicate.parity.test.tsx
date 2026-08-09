@@ -130,6 +130,22 @@ describe('action `visible` — engine path vs renderer path parity (#3314)', () 
       visible: { dialect: 'cel', source: 'record.status == "closed"' },
       expected: false,
     },
+    // objectui#3871 — the legacy `${…}` spelling. Both paths normalize with
+    // `toPredicateInput` and both opt into `throwOnError`, so the double wrap
+    // made them agree on a constant "hidden": this table was GREEN for the
+    // `false` row and could only have caught the defect on the `true` row,
+    // which is why that row is the one added first. Parity was never the
+    // question here — the shared verdict was simply wrong on both paths.
+    {
+      what: 'legacy `${…}` template that holds → shown on both paths',
+      visible: '${record.status === "open"}',
+      expected: true,
+    },
+    {
+      what: 'legacy `${…}` template that fails → hidden on both paths',
+      visible: '${record.status === "closed"}',
+      expected: false,
+    },
     { what: 'literal true', visible: true, expected: true },
     { what: 'literal false', visible: false, expected: false },
     { what: 'absent predicate', visible: undefined, expected: true },

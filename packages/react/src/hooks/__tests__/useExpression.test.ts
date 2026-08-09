@@ -197,6 +197,23 @@ describe('toPredicateInput — CEL envelope preservation (#2661)', () => {
     expect(toPredicateInput('')).toBeUndefined();
     expect(toPredicateInput({ dialect: 'cel', source: '' })).toBeUndefined();
   });
+
+  it('does NOT re-wrap a string that is already a `${…}` template (objectui#3871)', () => {
+    // Through the react export, because that is the name every renderer calls.
+    // Wrapping twice produced `'${${…}}'`, which the evaluator cannot parse, so
+    // the action-face verdict stopped depending on the predicate — constant
+    // `true` on the fail-soft legs, a throw (→ constant "hidden") on the
+    // `throwOnError` ones. Full shape + verdict coverage lives next to the
+    // implementation, in `packages/core/src/evaluator/__tests__/predicateInput.test.ts`.
+    expect(toPredicateInput('${data.age >= 18}')).toBe('${data.age >= 18}');
+  });
+
+  it('evaluates a `${…}`-spelled predicate to its real verdict (objectui#3871)', () => {
+    const { result } = renderHook(() =>
+      useCondition(toPredicateInput('${record.status === "closed"}'), { record: { status: 'open' } }),
+    );
+    expect(result.current).toBe(false);
+  });
 });
 
 describe('useCondition — CEL envelope routes to the canonical engine (#2661)', () => {

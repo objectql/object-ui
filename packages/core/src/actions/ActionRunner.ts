@@ -592,27 +592,30 @@ function withIdentityAlias(context: ActionContext): ActionContext {
  *
  * ## Why the gate normalizes but the VERDICT still reads the raw value
  *
- * `evaluateCondition(toPredicateInput(raw))` is NOT interchangeable with
- * `evaluateCondition(raw)` for a string that is ALREADY a `${…}` template:
- * `toPredicateInput` assumes a bare expression and wraps unconditionally, so
- * `'${x}'` becomes `'${${x}}'`, which no longer matches the single-template
- * fast path, fails to parse, and comes back as the original NON-EMPTY STRING —
- * `Boolean(…)` = `true`. A `${…}`-spelled `disabled` predicate evaluated that
- * way is therefore ALWAYS "disabled", whatever it says. Measured on this tree:
- * `disabled: '${user.role === "guest"}'` (false, admin context) → blocked.
- * On `condition` the same trap points the other way — a constant `true` would
- * make every template-spelled `condition` always EXECUTE — so that gate also
- * normalizes only to decide declaredness and evaluates the RAW value, keeping
- * the verdict `ActionRunner.test.ts` has pinned for that spelling all along.
+ * Historically the two were NOT interchangeable for a string already spelled as
+ * a `${…}` template: `toPredicateInput` assumed a bare expression and wrapped
+ * unconditionally, so `'${x}'` became `'${${x}}'`, which no longer matched the
+ * single-template fast path and did not parse — leaving a constant verdict whose
+ * direction was set by the caller's error policy (fail-soft got the unparsed
+ * string back, `Boolean(…)` = `true`; fail-closed got a throw). On `disabled`
+ * that meant "always blocked", on `condition` the opposite ("always execute"),
+ * so both gates here normalize only to decide DECLAREDNESS and evaluate the raw
+ * value. That defect was objectui#3871, fixed at the normalizer: an
+ * already-`${…}` string is now returned untouched, the normalizer is idempotent,
+ * and `evaluateCondition(toPredicateInput(raw))` agrees with
+ * `evaluateCondition(raw)` on every shape these gates accept.
+ *
+ * The gates still read the raw value. Nothing forces the change now that the two
+ * agree, and it would be churn on the execution path rather than a fix — but the
+ * reason has shifted from "must" to "no reason to", so the equality is pinned
+ * next to each gate's suite (`ActionRunner.disabledGate.test.ts` /
+ * `ActionRunner.conditionGate.test.ts`, the two cases that replaced the
+ * objectui#3871 tripwires) instead of being assumed.
  *
  * So the value handed to the evaluator is left exactly as it was. Every
  * non-empty shape — boolean, bare CEL, `${…}` template, `{ dialect, source }`
  * envelope — keeps the verdict it reaches today, and this change can only stop
- * blocking things, never start. The double-wrap itself is a defect of
- * `toPredicateInput`, live at the action renderers and `ActionEngine` (which do
- * compose it that way) and filed separately; `SchemaRenderer` and `page:header`
- * both evaluate the raw value and both pin the correct verdict for that
- * spelling, which is the behaviour preserved here.
+ * blocking things, never start.
  *
  * Scope note: `hasDeclaredVisibilityGate`
  * (`components/renderers/action/visibility-gate.ts`, `!= null && !== ''`) is
@@ -783,9 +786,9 @@ export class ActionRunner {
       // short-circuits booleans, so once the gate asks the right question the
       // verdict needs no boolean branch of its own. See `hasDeclaredPredicate`
       // for the shared "declared?" scope (objectui#3850) and for why the verdict
-      // still reads the RAW value (`toPredicateInput` double-wraps an
-      // already-`${…}` string into a constant true — objectui#3871 — which on
-      // THIS key would mean "always execute").
+      // still reads the RAW value (`toPredicateInput` used to double-wrap an
+      // already-`${…}` string into a constant verdict — objectui#3871, fixed at
+      // the normalizer; on THIS key that constant meant "always execute").
       if (hasDeclaredPredicate(action.condition)) {
         const shouldExecute = this.evaluator.evaluateCondition(action.condition);
         if (!shouldExecute) {
@@ -799,8 +802,9 @@ export class ActionRunner {
       // this key means BLOCKED: `disabled: ''` / `'   '` /
       // `{ dialect: 'cel', source: '' }` all returned `Action is disabled` with
       // the handler never invoked. See `hasDeclaredPredicate` above for why the
-      // gate normalizes to decide but the verdict below still reads the RAW
-      // value (`toPredicateInput` double-wraps an already-`${…}` string).
+      // gate normalizes to decide while the verdict below reads the RAW value
+      // (historically load-bearing: `toPredicateInput` double-wrapped an
+      // already-`${…}` string — objectui#3871, now fixed, so the two agree).
       if (hasDeclaredPredicate(action.disabled)) {
         // `disabled` may be a boolean, a CEL string, or the normalized envelope
         // `{ dialect, source }` (what `objectstack build` emits). The previous

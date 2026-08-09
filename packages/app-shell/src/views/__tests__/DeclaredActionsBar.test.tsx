@@ -512,6 +512,28 @@ describe('DeclaredActionsBar — declared `visible` on a server-declared action 
     expect(screen.getByTestId('declared-action-approval_approve')).toBeInTheDocument();
   });
 
+  it('a `${…}`-spelled `visible` keeps its verdict — true shows, false hides (objectui#3871)', () => {
+    // This leg opts into `throwOnError`, so the double wrap did not read as
+    // truthy here: `'${${…}}'` THREW inside the evaluator and `useCondition`'s
+    // fail-closed branch turned that into "hidden". Measured before the fix:
+    // Approve was absent in BOTH halves below, i.e. a server-declared approval
+    // action gated with the documented template spelling was invisible to every
+    // approver even while its gate held. That is the direction objectui#3871's
+    // card did not predict (it expected a constant "shown", which is what the
+    // fail-SOFT legs in `packages/components` did).
+    //
+    // Reverse verification: the `pending` half is the detector; the `approved`
+    // half stays green either way (hidden is hidden), and the companion
+    // assertion is what keeps that half from meaning "the bar vanished".
+    const gated = { ...APPROVE, visible: '${status === "pending"}' };
+    const { unmount } = renderWithGate(gated, { ...REQUEST, status: 'approved' });
+    expect(screen.queryByTestId('declared-action-approval_approve')).toBeNull();
+    expect(screen.getByTestId('declared-action-approval_reassign')).toBeInTheDocument();
+    unmount();
+    renderWithGate(gated, { ...REQUEST, status: 'pending' });
+    expect(screen.getByTestId('declared-action-approval_approve')).toBeInTheDocument();
+  });
+
   it('a hidden action leaves NO clickable surface in the toolbar', async () => {
     // Hiding is not cosmetic on this surface: this component's own click handler
     // is what POSTs the approve/reject call, so what matters is that the gated
@@ -594,6 +616,26 @@ describe('DeclaredActionsBar — declared `disabled` on a server-declared action
 
   it('an expression-valued `disabled` keeps its verdict — true disables, false does not', () => {
     const gated = { ...APPROVE, disabled: 'status == "approved"' };
+    const { unmount } = renderWithGate(gated, { ...REQUEST, status: 'approved' });
+    expect(approve()).toBeDisabled();
+    unmount();
+    renderWithGate(gated, { ...REQUEST, status: 'pending' });
+    expect(approve()).not.toBeDisabled();
+  });
+
+  it('a `${…}`-spelled `disabled` keeps its verdict — false leaves Approve clickable (objectui#3871)', () => {
+    // `toPredicateInput` used to wrap EVERY string, so `'${…}'` — a spelling
+    // AGENTS.md §4 documents and this bar's own `visible` sibling accepts —
+    // became `'${${…}}'`, unparseable, returned verbatim, `Boolean(…)` = a
+    // constant `true`. On THIS key that constant means Approve / Reject greyed
+    // out permanently on a server-declared action, with nothing the metadata
+    // author could write to un-grey it.
+    //
+    // Reverse verification: the `pending` half below is the detector (it was
+    // disabled before the fix); the `approved` half was green already, since
+    // "disabled because the predicate holds" and "disabled because it could not
+    // be parsed" look identical from here.
+    const gated = { ...APPROVE, disabled: '${status === "approved"}' };
     const { unmount } = renderWithGate(gated, { ...REQUEST, status: 'approved' });
     expect(approve()).toBeDisabled();
     unmount();
