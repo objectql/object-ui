@@ -65,6 +65,7 @@ function ChartContainer({
   children,
   config,
   disableSettleRemount,
+  style,
   ...props
 }: React.ComponentProps<"div"> & {
   config: ChartContainerConfig
@@ -140,6 +141,33 @@ function ChartContainer({
     }
   }, [disableSettleRemount])
 
+  // The min-size fallback exists so Recharts' ResponsiveContainer always has a
+  // non-zero box to measure: a consumer that overrides our `h-[350px]` class
+  // (e.g. a dashboard widget wrapping the chart in flex/grid without an explicit
+  // child height) would otherwise leave the container at 0, Recharts would
+  // measure width/height = -1, and the chart would render invisibly.
+  //
+  // The merge is written out explicitly and `style` is destructured out of the
+  // rest props above, so which side wins is no longer decided by JSX attribute
+  // order. It used to be: `style={{ minHeight: 280, ... }}` was written BEFORE
+  // `{...props}`, and `props` still carried the consumer's `style`, so the later
+  // spread replaced the whole object — both fallbacks silently vanished and the
+  // `...props.style` merge inside it never ran at all (objectstack#7026).
+  //
+  // Precedence: an author's explicit size WINS. Injecting `minHeight: 280`
+  // next to an authored `height: 100` would floor that 100 to 280, so each half
+  // of the fallback applies only when the consumer style declares neither of its
+  // own keys — `height`/`minHeight` for the height half, `width`/`minWidth` for
+  // the width half. A key set to `undefined`/`null` counts as not declared. All
+  // other consumer style keys pass through untouched.
+  const hasDeclaredHeight = style?.height != null || style?.minHeight != null
+  const hasDeclaredWidth = style?.width != null || style?.minWidth != null
+  const containerStyle: React.CSSProperties = {
+    ...(hasDeclaredHeight ? {} : { minHeight: 280 }),
+    ...(hasDeclaredWidth ? {} : { minWidth: 0 }),
+    ...style,
+  }
+
   return (
     <ChartContext.Provider value={{ config }}>
       <div
@@ -155,12 +183,9 @@ function ChartContainer({
           "block w-full h-[350px] text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground",
           className
         )}
-        // Guarantee a non-zero box for Recharts' ResponsiveContainer even when
-        // the consumer-supplied className overrides our h-[350px] (e.g. dashboard
-        // widgets that wrap the chart in flex/grid layouts without an explicit
-        // child height). Without this min-size the chart computes
-        // width/height = -1 and renders invisibly.
-        style={{ minHeight: 280, minWidth: 0, ...props.style }}
+        // Merged above, NOT here: `style` is destructured out of `props`, so the
+        // spread below can no longer replace it (objectstack#7026).
+        style={containerStyle}
         {...props}
       >
         <ChartStyle id={chartId} config={config} />
