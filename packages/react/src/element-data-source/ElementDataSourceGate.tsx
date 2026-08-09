@@ -67,7 +67,11 @@
  */
 
 import * as React from 'react';
-import { mergeFilterNodes, type ElementDataSourceConfig } from '@object-ui/core';
+import {
+  isElementDataSourceConfig,
+  mergeFilterNodes,
+  type ElementDataSourceConfig,
+} from '@object-ui/core';
 import {
   useElementDataSource,
   type ElementDataSourceStatus,
@@ -173,7 +177,14 @@ export function useElementDataSourceSchema<S>(
   mapping: ElementDataSourceMapping = {},
   dataSource?: unknown,
 ): UseElementDataSourceSchemaResult<S> {
-  const binding = useElementDataSource(schema, dataSource);
+  // Defence in depth for the collision the binding and the adapter share by
+  // NAME: even though `SchemaRenderer` no longer spreads `schema.dataSource` as
+  // a prop, a host (or an older cached bundle) handing us the spec BINDING under
+  // this argument must never be mistaken for an adapter — that is how a
+  // spec-compliant page reported "this data source cannot list the saved views".
+  // Same guard `ListViewBlock` carries, applied for every block at once.
+  const adapter = isElementDataSourceConfig(dataSource) ? undefined : dataSource;
+  const binding = useElementDataSource(schema, adapter);
   const { object: objectKey = 'objectName', columns, filter, sort, limit, viewType } = mapping;
 
   const mapped = React.useMemo(() => {

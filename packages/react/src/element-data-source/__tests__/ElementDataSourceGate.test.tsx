@@ -78,6 +78,26 @@ describe('useElementDataSourceSchema — no binding', () => {
     expect(result.current.schema).toBe(schema);
   });
 
+  it('never mistakes the spec BINDING passed as the adapter for an adapter', async () => {
+    // The name collision, from the other side: a host (or an older cached
+    // bundle) handing the gate the binding under the adapter argument used to
+    // make a real saved view report as unresolvable ("this data source cannot
+    // list the saved views"). The context adapter is used instead.
+    const { result } = renderHook(() =>
+      useBound(
+        { dataSource: { object: 'account', view: 'hot' } },
+        FULL,
+        { object: 'account', view: 'hot' },
+      ),
+    );
+    await waitFor(() => expect(result.current.status).not.toBe('loading'));
+    // No context provider in this harness, so the honest answer is "nobody here
+    // can list views" — but crucially NOT via the binding-as-adapter path, and
+    // the message names that fact rather than claiming the view is absent.
+    expect(result.current.status).toBe('missing');
+    expect(result.current.error).toContain('cannot list the saved views');
+  });
+
   it('treats a runtime ADAPTER parked under `dataSource` as no binding', () => {
     // The two collide by name; `isElementDataSourceConfig` is what tells them
     // apart, and a host handing us the adapter must not be read as metadata.
