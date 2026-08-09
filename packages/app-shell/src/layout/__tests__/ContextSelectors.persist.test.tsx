@@ -26,6 +26,35 @@
  * whole, which is why it asserts the published template var too and not merely
  * two empty stores (an all-empty assertion would pass for a selector that
  * produced nothing at all).
+ *
+ * ## Settle before you click (objectstack#6979)
+ *
+ * Every case that mounts a param-less, storage-less URL gets a value it did not
+ * ask for first: `SelectorControl` auto-selects `options[0]` (`billing`) as soon
+ * as the option list resolves, because a context selector is a *mandatory*
+ * scope. So `mount` → `optionsReady()` → `fireEvent.click(other option)` is two
+ * writes racing, and `optionsReady` is not a barrier for the first of them —
+ * it only waits for the option rows to be in the DOM, which happens one commit
+ * BEFORE the auto-select is done reacting to them. On a loaded CI worker the
+ * pick therefore landed first and the auto-select second, overwriting it
+ * (`expected 'billing' to be 'crm_core'`, twice in CI).
+ *
+ * Hence the shape below: **wait for the auto-select to land in the selector's
+ * own medium, then click.** It costs one `waitFor` and buys two things — the
+ * case stops depending on machine load, and it now pins a fact none of these
+ * cases pinned before: a user's pick OVERRIDES the auto-selected first option
+ * (previously a case could have passed with the pick never applied at all, as
+ * long as the auto-selected value happened to be the expected one).
+ *
+ * Only the param-less mounts need it, and they need it in the medium `persist`
+ * names — the auto-select goes through the same one-medium `setValue` as a
+ * pick, so it is the URL for `'query'`, `sessionStorage` for `'session'`, and
+ * the published value alone for `'none'`. A case that mounts a URL param, or
+ * seeds storage for a `'session'` selector, hands the control a concrete value
+ * on its very first render: auto-select never fires there and there is nothing
+ * to settle. The load-independent counterpart of this race — a pick delivered
+ * inside the gap, which no amount of waiting in a test can prevent for a real
+ * user — is pinned in `ContextSelectors.autoSelectRace.test.tsx`.
  */
 
 import '@testing-library/jest-dom/vitest';
@@ -139,6 +168,9 @@ describe("persist: 'query' — the URL query string, and nothing else", () => {
   it('writes the pick to the URL and leaves sessionStorage untouched', async () => {
     mount(QUERY_SEL);
     await optionsReady();
+    // Settle the auto-selected first option before picking, so this asserts a
+    // pick that overrode `billing` — not a pick racing it (objectstack#6979).
+    await waitFor(() => expect(query().get(URL_KEY)).toBe('billing'));
 
     fireEvent.click(screen.getByTestId('opt-crm_core'));
 
@@ -175,6 +207,9 @@ describe("persist: 'query' — the URL query string, and nothing else", () => {
   it("applies the spec's `'query'` default when `persist` is omitted", async () => {
     mount(DEFAULT_SEL);
     await optionsReady();
+    // Same settle-then-click as the first case: an omitted `persist` resolves to
+    // `'query'`, so the auto-select lands in the URL here too.
+    await waitFor(() => expect(query().get(URL_KEY)).toBe('billing'));
 
     fireEvent.click(screen.getByTestId('opt-crm_core'));
 
@@ -187,6 +222,10 @@ describe("persist: 'session' — sessionStorage, and nothing else", () => {
   it('writes the pick to sessionStorage and never to the URL', async () => {
     mount(SESSION_SEL);
     await optionsReady();
+    // The auto-select races the pick here too — it just races it in storage,
+    // because auto-select and pick share one `setValue` and this selector's
+    // medium is storage (objectstack#6979).
+    await waitFor(() => expect(sessionStorage.getItem(STORAGE_KEY)).toBe('billing'));
 
     fireEvent.click(screen.getByTestId('opt-crm_core'));
 
@@ -227,6 +266,9 @@ describe("persist: 'none' — not persisted at all", () => {
   it('writes neither the URL nor sessionStorage, and still publishes the pick', async () => {
     mount(NONE_SEL);
     await optionsReady();
+    // `'none'` has no store to settle in, so the published value IS the medium
+    // to wait on before picking (objectstack#6979).
+    await waitFor(() => expect(snapshot.contextValues.active_package).toBe('billing'));
 
     fireEvent.click(screen.getByTestId('opt-crm_core'));
 
@@ -254,6 +296,7 @@ describe("persist: 'none' — not persisted at all", () => {
   it('drops the pick when the shell remounts', async () => {
     const first = mount(NONE_SEL);
     await optionsReady();
+    await waitFor(() => expect(snapshot.contextValues.active_package).toBe('billing'));
     fireEvent.click(screen.getByTestId('opt-crm_core'));
     await waitFor(() => expect(snapshot.contextValues.active_package).toBe('crm_core'));
 
@@ -279,6 +322,9 @@ describe('collision warning follows the URL medium', () => {
     ]);
     await optionsReady(2);
 
+    // No settle needed even though both selectors auto-select: the warning is
+    // emitted from the collision effect at mount and keyed off the declared
+    // ids, so no value write — pick or auto-select — can add or remove it.
     expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('both map to the URL scope key'));
     warn.mockRestore();
   });

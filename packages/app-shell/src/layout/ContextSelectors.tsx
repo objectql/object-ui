@@ -423,7 +423,21 @@ function SelectorControl({
   // nothing). We never render an "All" row, and auto-select the first option
   // as soon as the list resolves when nothing concrete is selected yet.
   const hasConcrete = !!value && value !== (def.allValue ?? '');
-  React.useEffect(() => {
+  // A LAYOUT effect, deliberately — this one is not interchangeable with
+  // `useEffect` (objectstack#6979). As a passive effect the repair was queued
+  // for a task AFTER the commit that rendered the options, so it carried a
+  // closure captured before that gap: `hasConcrete` still `false`, and (via
+  // `onChange`) a `location.search` that predated anything the gap contained.
+  // A pick made inside the gap — a user clicking an option the instant it
+  // appears, on a loaded machine or a slow device — was therefore navigated
+  // away again by this effect firing second with `options[0]`, silently
+  // replacing the user's choice with the first row. Running in the commit phase
+  // closes the gap at its source: the repair lands in the same synchronous
+  // flush as the options it reacts to, so no event can be delivered in
+  // between, and the control is never painted with an empty value while
+  // options exist. Everything else is unchanged — same trigger, same deps, so
+  // a scope dropped later by a param-less nav link is still re-established.
+  React.useLayoutEffect(() => {
     if (hasConcrete) {
       return;
     }
