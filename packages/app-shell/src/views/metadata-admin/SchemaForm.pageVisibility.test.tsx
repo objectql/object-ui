@@ -17,10 +17,17 @@ afterEach(cleanup);
  *
  * This test pins the renderer side of that contract: given the PR-#1817 form
  * shape and a draft carrying `type: 'list'`, `SectionedSchemaForm` evaluates
- * each `visibleOn` against `value` and renders the right sections. (The bug
+ * each predicate against `value` and renders the right sections. (The bug
  * report's "still shows Data Context + Layout" symptom turned out to be a
- * stale backend serving the pre-#1817 form — see the section labels below for
- * the exact predicates the backend must serve.)
+ * stale backend serving the pre-#1817 form.)
+ *
+ * NOTE (objectstack#6331): the `visibleOn` spelling below is the DEPRECATED
+ * ADR-0089 alias, so this file pins the legacy limb, not the shape a current
+ * backend serves — the spec normaliser rewrites the alias and ships
+ * `visibleWhen`. Because these fixtures spell the alias they stayed green while
+ * the reader was alias-only and every spec-served predicate was dead. The
+ * canonical key (and the bundled `pageForm` itself) is pinned in
+ * `SchemaForm.visibleWhen.test.tsx`.
  */
 
 // Minimal JSONSchema mirroring the page item fields the form references.

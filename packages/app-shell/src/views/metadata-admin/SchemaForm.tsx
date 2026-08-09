@@ -392,13 +392,44 @@ export interface FormViewSpec {
   sections?: FormSectionSpec[];
 }
 
+/** Wire shapes a visibility predicate arrives in: bare CEL, or `{dialect, source}`. */
+export type VisibilityPredicate = string | { dialect?: string; source: string };
+
+/**
+ * Read a visibility predicate off a spec node — **canonical key first**.
+ *
+ * ADR-0089 renamed the FormView predicate `visibleOn` → `visibleWhen`, and the
+ * spec's normaliser REWRITES the alias instead of keeping both: a parsed
+ * `FormView` carries `visibleWhen` and no `visibleOn` at all
+ * (`@objectstack/spec` `shared/visibility.ts`). Reading only `visibleOn` — what
+ * this admin engine did until objectstack#6331 — therefore found `undefined` on
+ * every spec-served form and short-circuited each predicate to "always
+ * visible", so conditional fields/sections rendered unconditionally.
+ *
+ * Spelling and precedence mirror the runtime record-form adapter
+ * (`@object-ui/plugin-form` `sectionFields.ts`: `fd.visibleWhen ?? fd.visibleOn`)
+ * so metadata-admin and the runtime form speak ONE dialect. The deprecated
+ * alias stays honoured because it still has live producers: hand-written
+ * layouts, and this app's own create schemas, which set `visibleOn` directly on
+ * raw JSONSchema properties (`view-create-body.ts`) — those never pass through
+ * the spec normaliser.
+ */
+function readVisibility(
+  node: { visibleWhen?: VisibilityPredicate; visibleOn?: VisibilityPredicate } | undefined | null,
+): VisibilityPredicate | undefined {
+  return node?.visibleWhen ?? node?.visibleOn;
+}
+
 export interface FormSectionSpec {
   label?: string;
   description?: string;
   collapsible?: boolean;
   collapsed?: boolean;
   columns?: 1 | 2 | 3 | 4;
-  visibleOn?: string | { dialect?: string; source: string };
+  /** Canonical section visibility predicate (ADR-0089). */
+  visibleWhen?: VisibilityPredicate;
+  /** @deprecated ADR-0089 alias of `visibleWhen`; still read for legacy layouts. */
+  visibleOn?: VisibilityPredicate;
   fields: Array<string | FormFieldSpec>;
 }
 
@@ -440,7 +471,10 @@ export interface FormFieldSpec {
   disclosure?: 'inline' | 'popover';
   /** For `type: 'code'` — syntax highlighting language (e.g. 'javascript', 'sql', 'json'). */
   language?: string;
-  visibleOn?: string | { dialect?: string; source: string };
+  /** Canonical field visibility predicate (ADR-0089). */
+  visibleWhen?: VisibilityPredicate;
+  /** @deprecated ADR-0089 alias of `visibleWhen`; still read for legacy layouts. */
+  visibleOn?: VisibilityPredicate;
   /** Sub-fields for `composite` (single embedded object) and `repeater`
    * (array of embedded objects) types. Recursive. */
   fields?: Array<string | FormFieldSpec>;
@@ -530,16 +564,16 @@ export function SchemaForm({
   // Resolve top-level object properties.
   const props = (effectiveSchema.properties ?? {}) as Record<string, JsonSchema>;
   const required: string[] = Array.isArray(effectiveSchema.required) ? effectiveSchema.required : [];
-  // Per-property `visibleOn` predicate context — the current draft under
+  // Per-property visibility predicate context — the current draft under
   // `data`, mirroring the sectioned form's field-level filtering. Lets a flat
   // (create) schema gate a field on a sibling value (e.g. show the list layout
-  // picker only when `data.viewKind == 'list'`). No `visibleOn` → always shown.
+  // picker only when `data.viewKind == 'list'`). No predicate → always shown.
   const predicateData = (value ?? {}) as Record<string, unknown>;
   const keys = orderKeys(Object.keys(props), fieldOrder)
     .filter((k) => !hiddenFields.includes(k))
     .filter((k) => {
-      const visibleOn = (props[k] as any)?.visibleOn;
-      return !visibleOn || evaluatePredicate(visibleOn, { data: predicateData });
+      const visibility = readVisibility(props[k] as any);
+      return !visibility || evaluatePredicate(visibility, { data: predicateData });
     });
 
   const v = value ?? {};
@@ -652,9 +686,10 @@ function SectionedSchemaForm({
   onChange: (key: string, val: unknown) => void;
 }) {
   const locale = useMetadataLocale();
-  const sections = (form.sections ?? []).filter(
-    (s) => !s.visibleOn || evaluatePredicate(s.visibleOn, { data: value }),
-  );
+  const sections = (form.sections ?? []).filter((s) => {
+    const visibility = readVisibility(s);
+    return !visibility || evaluatePredicate(visibility, { data: value });
+  });
 
   // Decide whether to render as tabs or stacked sections.
   const isTabbed = form.type === 'tabbed' && sections.length > 1;
@@ -665,7 +700,8 @@ function SectionedSchemaForm({
       .filter((f) => {
         if (f.hidden) return false;
         if (hiddenFields.includes(f.field)) return false;
-        if (f.visibleOn && !evaluatePredicate(f.visibleOn, { data: value })) {
+        const visibility = readVisibility(f);
+        if (visibility && !evaluatePredicate(visibility, { data: value })) {
           return false;
         }
         return true;
@@ -777,13 +813,12 @@ function SectionedSchemaForm({
       (s) =>
         s.fields
           .map(normaliseField)
-          .some(
-            (f) =>
-              !f.hidden &&
-              !hiddenFields.includes(f.field) &&
-              (!f.visibleOn ||
-                evaluatePredicate(f.visibleOn, { data: value })),
-          ),
+          .some((f) => {
+            if (f.hidden) return false;
+            if (hiddenFields.includes(f.field)) return false;
+            const visibility = readVisibility(f);
+            return !visibility || evaluatePredicate(visibility, { data: value });
+          }),
     );
     if (tabSections.length === 0) return null;
     const defaultTab = (tabSections[0].label ?? 'section-0').toLowerCase();
@@ -1890,7 +1925,8 @@ function RecordField({
                   onChange={(v) => renameItem(key, String(v ?? '').trim())}
                 />
                 {specs.map((s) => {
-                  if (s.visibleOn && !evaluatePredicate(s.visibleOn, { data: row })) return null;
+                  const visibility = readVisibility(s);
+                  if (visibility && !evaluatePredicate(visibility, { data: row })) return null;
                   const sub = pickSubSchema(schema, 'record', s.field);
                   return (
                     <FieldRow
