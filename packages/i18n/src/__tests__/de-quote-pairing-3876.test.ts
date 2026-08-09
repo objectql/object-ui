@@ -52,12 +52,13 @@ import { describe, expect, it } from 'vitest';
 
 import { builtInLocales } from '../locales/index';
 
-// Written as escapes in the constants and as literals only inside the
-// byte-exact expectation table, so a reader can tell the four apart at a glance.
-const OPEN = '„'; // „ German opening quote (low-9)
-const CLOSE = '“'; // “ German closing quote
-const RDQ = '”'; // ” English closing quote
-const STRAIGHT = '"'; // " ASCII straight quote
+// The four quote characters this file is about, each named next to its literal
+// so a reader can tell them apart at a glance — U+201E and U+201C in particular
+// are one pixel apart in most editor fonts, which is how the bug survived.
+const OPEN = '„'; // „ U+201E German opening quote (low-9)
+const CLOSE = '“'; // “ U+201C German closing quote
+const RDQ = '”'; // ” U+201D English closing quote
+const STRAIGHT = '"'; // " U+0022 ASCII straight quote
 const QUOTEISH = [OPEN, CLOSE, RDQ, STRAIGHT];
 
 const at = (pack: unknown, path: string): unknown =>
