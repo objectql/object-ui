@@ -636,6 +636,9 @@ importers:
       '@object-ui/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@object-ui/fields':
+        specifier: workspace:*
+        version: link:../../packages/fields
       '@object-ui/layout':
         specifier: workspace:*
         version: link:../../packages/layout
