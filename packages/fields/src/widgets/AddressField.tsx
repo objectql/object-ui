@@ -10,9 +10,13 @@ import { toDomProps } from './toDomProps';
  *
  * The postal code is spelled `postalCode` (objectstack#5143). This widget used
  * to read and write `zipCode`, a key that appears nowhere in the spec, so the
- * stored postal code never reached the input and the next save wrote an address
- * without it — a silent data loss on every edit of an existing record, however
- * unrelated the edited part. One name, on both sides: the contract's.
+ * stored postal code never reached the input — and whatever the user then typed
+ * into that apparently-empty box was written under a key `AddressValueSchema`
+ * strips: lost outright on a new record, and on an existing one silently
+ * discarded while the stale stored value survived. (A postal code nobody
+ * touched did survive an unrelated edit, because the write spread the whole
+ * stored object through; the issue's account of that half is corrected in
+ * `AddressField.postalCode.test.tsx`.) One name, on both sides: the contract's.
  */
 export interface AddressValue {
   street?: string;
