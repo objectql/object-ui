@@ -431,14 +431,14 @@ describe('serializeParamValues', () => {
       // The authoring-time rejection that SHOULD catch it is objectstack#6970.
       const naive = '2026-07-20T14:30';
       expect(serializeParamValues([dtParam('when')], { when: naive })).toEqual({ when: naive });
-      expect(validateActionParams(dtDecl('when'), { when: naive })).toEqual([
-        {
-          param: 'when',
-          code: 'invalid_shape',
-          message:
-            'Action param "when" (datetime): expected an ISO-8601 instant with explicit zone (e.g. 2026-03-15T14:30:00.000Z)',
-        },
-      ]);
+      // Asserted structurally, plus the one phrase that identifies the rule.
+      // Pinning the validator's full sentence would couple this suite to a
+      // message owned by `@objectstack/spec`, so a reword there would red this
+      // repo's CI for a reason that has nothing to do with the renderer.
+      const issues = validateActionParams(dtDecl('when'), { when: naive });
+      expect(issues).toHaveLength(1);
+      expect(issues[0]).toMatchObject({ param: 'when', code: 'invalid_shape' });
+      expect(issues[0].message).toMatch(/explicit zone/);
     });
   });
 });
