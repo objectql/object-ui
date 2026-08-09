@@ -52,6 +52,24 @@
  * values used to be the surplus, and an assertion that passes because nothing
  * is produced is exactly the shape this suite exists to avoid.
  *
+ * ## objectui#3919 took the last straight quotes out — the pin is now "zero"
+ *
+ * Three `approvalsInbox` values (`rejectOneTitle`, `inlineApproved`,
+ * `inlineRejected`) quoted with ASCII on **both** sides. Being self-consistent,
+ * they were a second defect shape that the pairing scan below structurally cannot
+ * see: there is no `„` in them to scan forward from. This file recorded them as
+ * an explicit three-key list while that finding waited its turn, and a German
+ * approver meanwhile read two typographies on one screen — `„…“` on the approve
+ * confirmation, `"…"` on the reject one and on both inline toasts.
+ *
+ * objectui#3919 germanised the three, which takes the census to `„` 50, `“` 50,
+ * `”` 0, `"` **0** and lets that list become the strictly stronger invariant it
+ * now is: **no value in the de pack holds a U+0022 at all**. Stronger because it
+ * catches both defect shapes — one side of a mismatched pair and both sides of a
+ * self-consistent ASCII pair — and it needs no per-key maintenance: a new value
+ * arriving with a typewriter quote fails by key name without anyone editing a
+ * list. The three counts below moved 47 → 50 with that change.
+ *
  * ## Why the three i18n gates cannot see any of this
  *
  * `all-locales-key-parity` compares key sets and placeholder shapes,
@@ -233,8 +251,9 @@ describe('objectui#3876 — de pack closes „ with “ and not with a straight 
     }
     expect(found, `„…" mismatches:\n${found.join('\n')}`).toEqual([]);
     // 45 at objectui#3876's landing, 47 once objectui#3920 gave
-    // `grid.import.savedMappingHint` / `savedMappingPreviewNote` German quotes.
-    expect(okSpans, 'correctly paired spans').toBe(47);
+    // `grid.import.savedMappingHint` / `savedMappingPreviewNote` German quotes,
+    // 50 once objectui#3919 germanised the three `approvalsInbox` values.
+    expect(okSpans, 'correctly paired spans').toBe(50);
   });
 
   it('keeps the count identity that replaces the card’s count(„) === count(“)', () => {
@@ -244,11 +263,12 @@ describe('objectui#3876 — de pack closes „ with “ and not with a straight 
     const rdq = count(whole, RDQ);
 
     // 45 / 47 / 2 at objectui#3876's landing; 47 / 47 / 0 after objectui#3920
-    // translated the two English values. See the header for why the naive
-    // equality was false on the file #3876 left behind — and note that it is
+    // translated the two English values; 50 / 50 / 0 after objectui#3919 gave the
+    // three `approvalsInbox` values German quotes. See the header for why the
+    // naive equality was false on the file #3876 left behind — and note that it is
     // now true for a *different* reason (rdq went to zero), which is why the
     // identity below is asserted as arithmetic rather than as `close === open`.
-    expect({ open, close, rdq }).toEqual({ open: 47, close: 47, rdq: 0 });
+    expect({ open, close, rdq }).toEqual({ open: 50, close: 50, rdq: 0 });
     // The durable shape: every „ closed by a “, every surplus “ an English
     // opener answered by a ”. Survived translating the two English values.
     expect(close).toBe(open + rdq);
@@ -295,18 +315,57 @@ describe('objectui#3876 — de pack closes „ with “ and not with a straight 
     expect(count(JSON.stringify(builtInLocales.en), OPEN)).toBe(0);
   });
 
-  it('records the remaining straight quotes in de: the approvalsInbox trio, filed separately', () => {
-    // A different defect shape, deliberately NOT fixed here (this issue is the
-    // mismatched pair): these three quote with ASCII on BOTH sides while their
-    // own sibling `approvalsInbox.approveOneTitle` is correctly „…“. Pinned so
-    // the number cannot drift unnoticed while that finding waits its turn — and
-    // so a future fix has to come back and update this list.
+  it('holds pack-wide: no de value quotes with a U+0022 at all (objectui#3919)', () => {
+    // This used to be an explicit three-key list of the `approvalsInbox` values
+    // that were still ASCII-quoted on both sides. objectui#3919 fixed them, so the
+    // list collapses to the strictly stronger form: `„…“` is this pack's
+    // convention, therefore ANY U+0022 in a German value is the defect — whether
+    // it is one side of a mismatched pair (the objectui#3876 shape, which the
+    // scanner above also catches) or both sides of a self-consistent ASCII pair
+    // (the objectui#3919 shape, which the scanner structurally cannot catch).
+    // No per-key list to maintain: the next such value fails here by name.
     const straight = DE.filter(([, v]) => v.includes(STRAIGHT)).map(([k]) => k);
-    expect(straight).toEqual([
-      'approvalsInbox.rejectOneTitle',
-      'approvalsInbox.inlineApproved',
-      'approvalsInbox.inlineRejected',
-    ]);
+    expect(straight, `de values still quoting with U+0022:\n${straight.join('\n')}`).toEqual([]);
+
+    // `toEqual([])` is precisely the assertion shape that also passes when nothing
+    // was produced, so the predicate must be shown to still be able to find
+    // something. `en` quotes with ASCII by design (see the `it` below), so the
+    // same filter over `en` returns a long list; a broken `flatten`, an emptied
+    // pack or a renamed export would take that to zero and fail here instead of
+    // reading green above. 40 en values at objectui#3919's landing.
+    expect(DE.length, 'de pack looks empty — the scan would be vacuous').toBeGreaterThan(2000);
+    const enStraight = flatten(builtInLocales.en).filter(([, v]) => v.includes(STRAIGHT));
+    expect(
+      enStraight.length,
+      'the U+0022 predicate finds nothing in en either — it is broken, not the pack clean',
+    ).toBeGreaterThan(20);
+  });
+
+  it('pins the approvalsInbox quartet objectui#3919 converged, byte-for-byte', () => {
+    // The four sentences a German approver meets in one screen: the approve and
+    // reject confirmation titles, and the twin inline toasts. Three were ASCII on
+    // both sides while `approveOneTitle` alone was correct — one operation pair,
+    // two typographies, which is the whole substance of the card. Pinned whole
+    // here because the `it` above deliberately no longer names any key, and an
+    // invariant that names nothing would stop recording what this fix touched.
     expect(at(builtInLocales.de, 'approvalsInbox.approveOneTitle')).toBe('„{{title}}“ genehmigen?');
+    expect(at(builtInLocales.de, 'approvalsInbox.rejectOneTitle')).toBe('„{{title}}“ ablehnen?');
+    expect(at(builtInLocales.de, 'approvalsInbox.inlineApproved')).toBe('„{{title}}“ genehmigt');
+    expect(at(builtInLocales.de, 'approvalsInbox.inlineRejected')).toBe('„{{title}}“ abgelehnt');
+
+    // The fix was value-domain typography only. `{{title}}` is what makes these
+    // sentences work at runtime and `all-locales-key-parity` compares placeholder
+    // shapes, so losing one would break far more than typography.
+    for (const key of ['approveOneTitle', 'rejectOneTitle', 'inlineApproved', 'inlineRejected']) {
+      const v = at(builtInLocales.de, `approvalsInbox.${key}`) as string;
+      expect(v.includes('{{title}}'), `de approvalsInbox.${key} lost {{title}}`).toBe(true);
+      expect(v.includes('„{{title}}“'), `de approvalsInbox.${key} span is not paired`).toBe(true);
+    }
+
+    // `en` is untouched and still ASCII on both sides — the shape de diverges from
+    // on purpose, and the cheap local proof this fix did not leak across packs.
+    expect(at(builtInLocales.en, 'approvalsInbox.rejectOneTitle')).toBe('Reject "{{title}}"?');
+    expect(at(builtInLocales.en, 'approvalsInbox.inlineApproved')).toBe('Approved "{{title}}"');
+    expect(at(builtInLocales.en, 'approvalsInbox.inlineRejected')).toBe('Rejected "{{title}}"');
   });
 });
