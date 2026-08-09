@@ -256,6 +256,21 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
                   <div className="flex items-start gap-2">
                     <Suspense fallback={<div className="size-4 mt-0.5 animate-pulse rounded-sm bg-muted" aria-hidden="true" />}>
                       <Widget
+                        // The HOST owns the control id (objectui#3962), exactly
+                        // as the generic branch below does. Omitting it made
+                        // this branch's `<Label htmlFor>` association IMPLICIT:
+                        // it only resolved because `BooleanField`'s id fallback
+                        // chain reaches `config.name`, which `paramToField`
+                        // seeds from `param.name` — a host living off another
+                        // package's fallback. Worse, a widget that receives no
+                        // host id cannot know the host already rendered a label,
+                        // so it emitted its own `sr-only` copy too, and two
+                        // label elements referencing one control CONCATENATE
+                        // into the accessible name (accname §2D): the checkbox
+                        // announced "Confirm This Confirm This". Passing the id
+                        // makes the association explicit and suppresses the
+                        // duplicate (PR #3959's `emitOwnLabel = !hostId`).
+                        id={param.name}
                         value={values[param.name] === true}
                         onChange={(checked: unknown) => updateValue(param.name, checked === true)}
                         field={field}
