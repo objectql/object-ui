@@ -445,7 +445,7 @@ const fr = {
       savedMapping: "Correspondance enregistrée :",
       chooseSavedMapping: "Choisir une correspondance enregistrée…",
       manualMapping: "— Faire correspondre les colonnes manuellement —",
-      transform: 'Transform',
+      transform: 'Transformation',
       savedMappingHint: "La correspondance « {{name}} » applique le renommage + les transformations + la conversion de type côté serveur. La correspondance des colonnes est en lecture seule.",
       savedMappingPreviewNote: "L'aperçu affiche vos colonnes source ; à l'import, la correspondance « {{name}} » applique le renommage, les transformations et la conversion de type côté serveur.",
       csvColumn: "Colonne",

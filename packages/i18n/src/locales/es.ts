@@ -449,7 +449,7 @@ const es = {
       savedMapping: 'Asignación guardada:',
       chooseSavedMapping: 'Elegir una asignación guardada…',
       manualMapping: '— Asignar columnas manualmente —',
-      transform: 'Transform',
+      transform: 'Transformación',
       savedMappingHint: 'La asignación "{{name}}" aplica el cambio de nombre + las transformaciones + la conversión de tipos en el servidor. La asignación de columnas es de solo lectura.',
       savedMappingPreviewNote: 'La vista previa muestra sus columnas de origen; al importar, la asignación "{{name}}" aplica el cambio de nombre, las transformaciones y la conversión de tipos en el servidor.',
       csvColumn: "Columna",

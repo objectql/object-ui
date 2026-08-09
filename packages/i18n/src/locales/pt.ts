@@ -444,7 +444,7 @@ const pt = {
       savedMapping: 'Mapeamento salvo:',
       chooseSavedMapping: 'Escolher um mapeamento salvo…',
       manualMapping: '— Mapear colunas manualmente —',
-      transform: 'Transform',
+      transform: 'Transformação',
       savedMappingHint: 'O mapeamento "{{name}}" aplica renomeação + transformações + conversão de tipos no servidor. O mapeamento de colunas é somente leitura.',
       savedMappingPreviewNote: 'A pré-visualização mostra suas colunas de origem; na importação, o mapeamento "{{name}}" aplica renomeação, transformações e conversão de tipos no servidor.',
       csvColumn: "Coluna",

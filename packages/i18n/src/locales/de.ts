@@ -445,7 +445,7 @@ const de = {
       savedMapping: 'Gespeicherte Zuordnung:',
       chooseSavedMapping: 'Gespeicherte Zuordnung auswählen…',
       manualMapping: '— Spalten manuell zuordnen —',
-      transform: 'Transform',
+      transform: 'Transformation',
       savedMappingHint: 'Die Zuordnung „{{name}}“ wendet auf dem Server Umbenennung + Transformationen + Typkonvertierung an. Die Spaltenzuordnung ist schreibgeschützt.',
       savedMappingPreviewNote: 'Die Vorschau zeigt Ihre Quellspalten; beim Import wendet die Zuordnung „{{name}}“ auf dem Server Umbenennung, Transformationen und Typkonvertierung an.',
       csvColumn: "Spalte",

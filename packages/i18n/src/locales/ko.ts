@@ -445,7 +445,7 @@ const ko = {
       savedMapping: '저장된 매핑:',
       chooseSavedMapping: '저장된 매핑 선택…',
       manualMapping: '— 열 수동 매핑 —',
-      transform: 'Transform',
+      transform: '변환',
       savedMappingHint: '매핑 "{{name}}"은(는) 서버에서 이름 변경 + 변환 + 형 변환을 적용합니다. 열 매핑은 읽기 전용입니다.',
       savedMappingPreviewNote: '미리보기에는 원본 열이 표시됩니다. 가져올 때 매핑 "{{name}}"이(가) 서버에서 이름 변경, 변환, 형 변환을 적용합니다.',
       csvColumn: "열",

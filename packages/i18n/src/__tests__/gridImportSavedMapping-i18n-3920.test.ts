@@ -351,27 +351,88 @@ describe('objectui#3920 — grid.import saved-mapping keys are translated in all
     expect(value('ja', 'savedMappingHint')).toContain('＋');
   });
 
-  it('grid.import.transform is still English in these packs — objectui#3938, not fixed here', () => {
-    // Recorded, not repaired. `transform` sits between `manualMapping` and
-    // `savedMappingHint` in every one of these files and has the same defect
-    // shape, but objectui#3920 enumerated five keys and 35 values; widening the
-    // count here would make this file's own census unverifiable against the
-    // card. Pinned so the number cannot drift unnoticed while objectui#3938
-    // waits its turn — and so whoever fixes it has to come back and DELETE this
-    // test rather than flip its expectation.
+  it('grid.import.transform is translated too — objectui#3938 repaired what this file only recorded', () => {
+    // This block REPLACES objectui#3920's recording pin, which asserted that
+    // `still` was all seven packs and told whoever fixed objectui#3938 to come
+    // back and rewrite this rather than flip an expectation. That is what this
+    // is: the same key, pinned as repaired instead of as counted.
     //
-    // It is the sharper half of the two, and objectui#3938 says why: this value
-    // is the third column header of `SavedMappingSummary`, rendered directly
-    // under the `savedMappingHint` this change just translated, next to two
-    // headers (`csvColumn`, `mapsTo`) that were always translated. Before this
-    // change the whole panel was English and therefore consistent; after it,
-    // the one English header stands alone.
-    const english = at(builtInLocales.en, `${NS}.transform`);
-    const still = PACKS.filter((lang) => at(builtInLocales[lang], `${NS}.transform`) === english);
-    expect(still).toEqual(['ko', 'de', 'fr', 'es', 'pt', 'ru', 'ar']);
+    // It stays in this file because that is where the defect was recorded and
+    // because `transform` sits between `manualMapping` and `savedMappingHint`
+    // in all ten packs. It is deliberately NOT folded into `KEYS` — that census
+    // is checked against objectui#3920's card at five keys / 35 values, and
+    // widening it would make the card unverifiable. Six keys are fixed in this
+    // namespace now; only five of them are that census.
+    const english = value('en', 'transform');
+
+    // Anti-vacuous guard first, as in this file's opening `it`: `not.toBe(en)`
+    // would pass on `undefined` versus a string if the key were ever renamed.
+    for (const lang of [...PACKS, 'en', 'zh', 'ja']) {
+      const v = value(lang, 'transform');
+      expect(typeof v, `${lang} ${NS}.transform`).toBe('string');
+      expect(v.trim().length, `${lang} ${NS}.transform is empty`).toBeGreaterThan(0);
+    }
+
+    // THE assertion, the mirror image of the one this replaced: 7 of 7 no
+    // longer serve the English header.
+    const englishStill = PACKS.filter((lang) => value(lang, 'transform') === english);
+    expect(englishStill, `packs still serving the en header:\n${englishStill.join('\n')}`).toEqual([]);
+
+    // en is untouched and zh/ja remain the control set that ruled out the
+    // "deliberately untranslated term" reading for this key as well.
     expect(english).toBe('Transform');
-    // zh and ja did translate it, which is the same control set as above.
-    expect(at(builtInLocales.zh, `${NS}.transform`)).toBe('转换');
-    expect(at(builtInLocales.ja, `${NS}.transform`)).toBe('変換');
+    expect(value('zh', 'transform')).toBe('转换');
+    expect(value('ja', 'transform')).toBe('変換');
+
+    // objectui#3938's criterion is about the ROW, not the key: all three
+    // headers of the `SavedMappingSummary` table must read in one language.
+    // `csvColumn` and `mapsTo` were always translated, so pinning them here is
+    // what makes "two languages in one header row" the thing that goes red.
+    for (const lang of PACKS) {
+      for (const key of ['csvColumn', 'mapsTo', 'transform'] as const) {
+        expect(value(lang, key), `${lang} ${NS}.${key} serves the en header`).not.toBe(value('en', key));
+      }
+    }
+
+    // Terminology, same discipline as the ANCHORS block above. The header is
+    // the SINGULAR of the word each pack already uses for `en`'s plural
+    // "transforms" in `savedMappingHint` — the sentence rendered directly above
+    // this header in `SavedMappingSummary`, translated by objectui#3920.
+    //
+    // That is the anchor, and NOT the `legacyFallbackNotice` term the card
+    // suggested: `en`'s own sentence lists "transforms" and "type coercion" as
+    // two DIFFERENT server-side operations, and `legacyFallbackNotice` is about
+    // the second one. So each pack's coercion term is asserted present in the
+    // same sentence and absent from the header — the one substitution a
+    // translator reaching for the nearest glossary entry would make.
+    const HEADER: Record<
+      (typeof PACKS)[number],
+      { header: string; stem: string; coercion: string }
+    > = {
+      ko: { header: '변환', stem: '변환', coercion: '형 변환' },
+      de: { header: 'Transformation', stem: 'transformation', coercion: 'Typkonvertierung' },
+      fr: { header: 'Transformation', stem: 'transformation', coercion: 'conversion de type' },
+      es: { header: 'Transformación', stem: 'transformaci', coercion: 'conversión de tipos' },
+      pt: { header: 'Transformação', stem: 'transforma', coercion: 'conversão de tipos' },
+      ru: { header: 'Преобразование', stem: 'преобразовани', coercion: 'приведение типов' },
+      ar: { header: 'التحويل', stem: 'التحويل', coercion: 'تحويل الأنواع' },
+    };
+    for (const lang of PACKS) {
+      const { header, stem, coercion } = HEADER[lang];
+      expect(value(lang, 'transform'), `${lang} header`).toBe(header);
+      expect(header.toLowerCase(), `${lang} header is not built on its own stem`).toContain(stem);
+      // The plural in the pack's own sentence carries the same stem…
+      expect(
+        value(lang, 'savedMappingHint').toLowerCase(),
+        `${lang} savedMappingHint dropped the stem "${stem}" the header follows`,
+      ).toContain(stem);
+      // …and that sentence names type coercion separately, which is what makes
+      // "reuse the coercion term for the header" a wrong answer rather than a
+      // synonym. ko is the pack where this matters most mechanically: its
+      // coercion term CONTAINS the header word, so only the inequality below
+      // distinguishes them.
+      expect(value(lang, 'savedMappingHint'), `${lang} hint lost its coercion term`).toContain(coercion);
+      expect(header, `${lang} header reused the type-coercion term`).not.toBe(coercion);
+    }
   });
 });
