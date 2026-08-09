@@ -323,6 +323,35 @@ function normalizeFieldType(type: string): string {
   return type.startsWith('field:') ? type.slice('field:'.length) : type;
 }
 
+/**
+ * How this field's label must be associated with what the widget renders
+ * (`ComponentMeta.labelling`, objectui#3961) — `'control'` for a labelable
+ * element (plain `<label for>`), `'group'` for a composite container or another
+ * non-labelable control (`aria-labelledby` by IDREF).
+ *
+ * The DECLARATION is authoritative; this function only resolves WHOSE
+ * declaration applies, and it mirrors `renderFieldComponent`'s resolution
+ * exactly so producer and consumer cannot disagree about which component will
+ * actually render:
+ *
+ *  - the builtin test is on the RAW type, exactly as there: a bare `select`
+ *    renders the builtin `<Select>` branch and the registry is never consulted,
+ *    while a `field:`-qualified `field:select` DOES resolve to the registered
+ *    widget. Normalizing before this test would let a widget's declaration
+ *    re-address the label of a builtin that renders in its place;
+ *  - only then is the `field:` prefix stripped, to the key `getMeta` stores.
+ *
+ * Anything undeclared — third-party widgets, bare-name SDUI components, an
+ * unregistered type — resolves to `'control'`: the single-control path, byte for
+ * byte what this renderer emitted before the declaration existed.
+ */
+function resolveFieldLabelling(type: string): 'control' | 'group' {
+  if (BUILTIN_FIELD_TYPES.has(type)) return 'control';
+  return ComponentRegistry.getMeta(normalizeFieldType(type), 'field')?.labelling === 'group'
+    ? 'group'
+    : 'control';
+}
+
 function stripRegisteredFieldProps(type: string, props: RenderFieldProps): RenderFieldProps {
   const {
     dataSource,
@@ -508,6 +537,15 @@ function FullscreenTextarea({
 ComponentRegistry.register('form',
   ({ schema, className, onAction, ...props }: { schema: FormSchema; className?: string; onAction?: (action: any) => void; [key: string]: any }) => {
     const { t } = useSafeFormTranslation();
+    // Prefix for the label ids the GROUP-labelled fields need (objectui#3961).
+    // Owned here, not derived from `<FormItem>`'s own `useId()`: that id lives in
+    // a context published INSIDE `FormItem`, and this renderer builds the label
+    // element as a child of it — one render too early to read it. It is also the
+    // reason the fix needs no change to `ui/form.tsx` (AGENTS.md #7 no-touch):
+    // `<FormLabel>` spreads its props onto `Label` AFTER its own `htmlFor`, so
+    // both halves — give the label an `id`, take its `for` away — travel as
+    // ordinary props.
+    const labelIdPrefix = React.useId();
     const {
       defaultValues: authoredDefaultValues = {},
       // The persisted record being edited (absent ⇒ this is an insert). Binds
@@ -1576,6 +1614,22 @@ ComponentRegistry.register('form',
       // the form schema has no owning object.
       const fieldTestId = `field:${schema.objectName ? `${schema.objectName}.` : ''}${name}`;
 
+      // Group-labelled widget (objectui#3961)? Then the visible label is
+      // associated by IDREF instead of `for`: it gets an `id`, the widget gets
+      // `aria-labelledby`. `undefined` on the single-control path, and every use
+      // below is a conditional spread, so that path emits not one changed
+      // attribute — no second naming channel for the widgets that never needed
+      // one (the #3290 / #3222 / #3952 rule: one fact, one author).
+      //
+      // Whitespace is squeezed out of the field name because this id is consumed
+      // as an `aria-labelledby` IDREF, and that attribute is a SPACE-SEPARATED
+      // list: an id containing a space would silently resolve to two ids,
+      // neither of which exists.
+      const groupLabelId =
+        label && resolveFieldLabelling(resolvedType) === 'group'
+          ? `${labelIdPrefix}${String(name).replace(/\s+/g, '_')}-group-label`
+          : undefined;
+
       return (
         <FormField
           key={fieldKey}
@@ -1589,7 +1643,18 @@ ComponentRegistry.register('form',
               data-field={name}
             >
               {label && (
-                <FormLabel className="text-xs font-normal text-muted-foreground">
+                <FormLabel
+                  className="text-xs font-normal text-muted-foreground"
+                  // A group-labelled widget (objectui#3961) is named by IDREF:
+                  // publish the label's own `id` and drop the `for`. `htmlFor:
+                  // undefined` is not a no-op — `<FormLabel>` sets
+                  // `htmlFor={formItemId}` BEFORE spreading its props, so this
+                  // key removes the attribute. It has to go: a `for` naming a
+                  // `div` (or nothing at all) is inert HTML, and leaving it
+                  // beside the `aria-labelledby` would give one label two
+                  // association channels, one of which is broken.
+                  {...(groupLabelId ? { id: groupLabelId, htmlFor: undefined } : null)}
+                >
                   {label}
                   {required && (
                     // Purely visual redundancy now that `aria-required` rides
@@ -1716,6 +1781,19 @@ ComponentRegistry.register('form',
                   // UIs, one field. `aria-required` reports the state without
                   // triggering native validation.
                   'aria-required': required || undefined,
+                  // The IDREF half of the group-labelled association
+                  // (objectui#3961). Like `aria-required` this needs no new key
+                  // in the widget contract — `aria-*` is declared on it as
+                  // React's `AriaAttributes`, neither strip touches the prefix,
+                  // and `toDomProps` forwards the whole `aria-` family — so the
+                  // widget's existing spread carries it to the element it puts
+                  // the host's `id` on. The widgets that render a real composite
+                  // additionally answer with `role="group"`; `file`, whose single
+                  // control is a `div[role="button"]`, just takes the name.
+                  //
+                  // Spread conditionally so the single-control path receives no
+                  // such key at all: absent, not `undefined`.
+                  ...(groupLabelId ? { 'aria-labelledby': groupLabelId } : null),
                 })}
               </FormControl>
               {description && (

@@ -23,7 +23,19 @@ export function GeolocationField({ value, onChange, field, readonly, error, ...p
   // DOM pass-through (objectui#3318): the whitelist spread goes onto the FIRST
   // sub-input (latitude); the composite's validation state goes onto BOTH
   // focusable sub-inputs via `aria-invalid={!!error}`.
-  const domProps = toDomProps(props);
+  //
+  // `id` and `aria-labelledby` are held back and land on the group CONTAINER
+  // instead (objectui#3961) — they address the whole field, not the latitude box.
+  // The host `id` never reached the DOM before: it was overwritten one line later
+  // by `id={subId('latitude')}` (objectui#3343), leaving the form's group label
+  // pointing at nothing. And `aria-labelledby` on the latitude input would
+  // OVERRIDE its own "Latitude" label with the field name. `aria-describedby` and
+  // the rest stay on the first sub-input, where focus can reach them.
+  const {
+    id: hostId,
+    'aria-labelledby': hostLabelledBy,
+    ...domProps
+  } = toDomProps(props);
   // Sub-input ids (objectui#3343): `useId()` prefix + sub-field name — the
   // `groupId` paradigm of RadioField / CheckboxesField. Hardcoded literals
   // ("latitude" / "longitude") collide as soon as a form renders two
@@ -100,7 +112,14 @@ export function GeolocationField({ value, onChange, field, readonly, error, ...p
   }
 
   return (
-    <div className="space-y-3">
+    // `role="group"` only when a host actually named this container
+    // (objectui#3961); standalone rendering stays exactly as it was.
+    <div
+      className="space-y-3"
+      id={hostId}
+      role={hostLabelledBy ? 'group' : undefined}
+      aria-labelledby={hostLabelledBy}
+    >
       <div className="flex items-center gap-2">
         <Button
           type="button"

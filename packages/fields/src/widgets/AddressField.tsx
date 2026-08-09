@@ -54,7 +54,28 @@ export function AddressField({ value, onChange, field, readonly, error, ...props
   // the composite's validation state goes onto EVERY focusable sub-input via
   // `aria-invalid={!!error}` (a form-level failure means the whole address is
   // missing/invalid, and whichever sub-input the user reaches must announce it).
-  const domProps = toDomProps(props);
+  //
+  // Two keys are held back from that spread and land on the group CONTAINER
+  // instead (objectui#3961), because they address the field as a WHOLE:
+  //
+  //  - `id` — the host's control id. It never reached the DOM at all: it was
+  //    spread here and then overwritten one line later by `id={subId('street')}`
+  //    (objectui#3343), which is why the form's "Shipping Address" label pointed
+  //    at an id no element carried. The sub-input ids stay exactly as they are;
+  //    only the host id moves out to the element it was always meant to name.
+  //  - `aria-labelledby` — the host's label, associated by IDREF. On the street
+  //    input it would be actively wrong: `aria-labelledby` OVERRIDES a control's
+  //    `<label for>`, so the first sub-input would be announced as "Shipping
+  //    Address" and its own "Street Address" label would vanish.
+  //
+  // Everything else (`aria-describedby`, `name`, focus handlers …) deliberately
+  // stays on the first sub-input: a description or error must be announced when
+  // focus lands on something focusable, and a container is not.
+  const {
+    id: hostId,
+    'aria-labelledby': hostLabelledBy,
+    ...domProps
+  } = toDomProps(props);
   // Sub-input ids (objectui#3343): `useId()` prefix + sub-field name — the
   // `groupId` paradigm of RadioField / CheckboxesField. Hardcoded literals
   // ("street", "city", …) collide as soon as a form renders two address
@@ -96,7 +117,16 @@ export function AddressField({ value, onChange, field, readonly, error, ...props
   }
 
   return (
-    <div className="space-y-3">
+    // `role="group"` only when a host actually named this container
+    // (objectui#3961): an unnamed group adds nothing for assistive tech, and
+    // standalone rendering — the inline grid editor, a bare SDUI node — must stay
+    // byte-identical to what it was before.
+    <div
+      className="space-y-3"
+      id={hostId}
+      role={hostLabelledBy ? 'group' : undefined}
+      aria-labelledby={hostLabelledBy}
+    >
       <div>
         <Label htmlFor={subId('street')} className="text-xs">Street Address</Label>
         <Input

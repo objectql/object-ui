@@ -45,6 +45,30 @@ export type ComponentMeta = {
    * registry.register('form', FormView, { namespace: 'view', skipFallback: true });
    */
   skipFallback?: boolean;
+  /**
+   * How a HOST must associate its own visible label with what this component
+   * renders (objectui#3961). Read by the form renderer; absent ⇒ `'control'`.
+   *
+   * - `'control'` — the component's outermost rendered element is a LABELABLE
+   *   HTML element (`input` / `textarea` / `select` / `button` / …), so the host
+   *   associates its label the plain way: `<label for>` → the id the host handed
+   *   down. This is the default and covers every single-control widget.
+   * - `'group'` — it is NOT labelable: either a real composite (several inputs
+   *   under one container, e.g. `address`) or a single control that is not a
+   *   labelable element (a `div[role="button"]` dropzone, e.g. `file`). A
+   *   `<label for>` pointing at such an element is inert in HTML — it activates
+   *   nothing and contributes no accessible name (`HTMLLabelElement.control` is
+   *   `null`) — so the host must instead give its label an `id` and hand the
+   *   component `aria-labelledby`, which associates by IDREF and works on any
+   *   element.
+   *
+   * This is a DECLARATION, not a guess: the host cannot infer it from the DOM a
+   * widget happens to render, and a widget that fails to declare it falls back
+   * to the `'control'` path where the dangling/inert `for` is caught by the
+   * label-association tests (objectui#3952) instead of silently producing an
+   * unlabelled group.
+   */
+  labelling?: 'control' | 'group';
   inputs?: ComponentInput[];
   defaultProps?: Record<string, any>; // Default props when dropped
   defaultChildren?: SchemaNode[]; // Default children when dropped
