@@ -26,7 +26,7 @@ import {
   InspectorEmptyState,
   moveArray,
 } from './_shared';
-import { BLOCK_CONFIG, blockHasConfig, type BlockPropField } from '../previews/block-config';
+import { BLOCK_CONFIG, blockHasConfig, type BlockPropField, type PlaceholderSpec } from '../previews/block-config';
 import { ColorVariantPicker } from '../color-variant-field';
 import { ConditionBuilder } from './ConditionBuilder';
 import { expressionSource, writeExpressionSource } from './expression-envelope';
@@ -398,6 +398,16 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
   /** Option labels are keys too — translate before handing them to a picker. */
   const optionLabels = <T extends { value: string; label: string }>(options: T[]) =>
     options.map((o) => ({ ...o, label: t(o.label, locale) }));
+  /**
+   * Placeholders are a MIXED column (#3979) and the table says which kind each
+   * one is: `{ key }` is prose about the value and goes through `t()`, `{ literal }`
+   * is the value itself (a number, `https://…`, a JSON sample) and must reach the
+   * DOM untouched. Resolving in one place is what keeps the four `placeholder=`
+   * sites below from drifting apart — the panel's contents were English in a
+   * zh-CN panel precisely because one column skipped the accessor.
+   */
+  const placeholderText = (p: PlaceholderSpec | undefined): string | undefined =>
+    p === undefined ? undefined : p.key !== undefined ? t(p.key, locale) : p.literal;
 
   // Generic, recursive field renderer. `read`/`write` abstract the value source
   // (the block's `properties` at the top level, or an item object inside an
@@ -414,7 +424,7 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
         return (
           <InspectorNumberField key={k} label={fieldLabel(f.label)}
             value={typeof read(f.name) === 'number' ? (read(f.name) as number) : undefined}
-            placeholder={f.placeholder} onCommit={(v) => write(f.name, v)} disabled={readOnly} />
+            placeholder={placeholderText(f.placeholder)} onCommit={(v) => write(f.name, v)} disabled={readOnly} />
         );
       case 'boolean':
         return (
@@ -445,7 +455,7 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
         // without this a curated JSON prop could be edited and never added.
         return (
           <InspectorJsonField key={k} label={fieldLabel(f.label)} value={read(f.name)}
-            placeholder={f.placeholder} locale={locale}
+            placeholder={placeholderText(f.placeholder)} locale={locale}
             onCommit={(v) => write(f.name, v)} disabled={readOnly} />
         );
       case 'string-list': {
@@ -455,7 +465,7 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
             <Label className="text-xs text-muted-foreground">{fieldLabel(f.label)}</Label>
             {arr.map((s, i) => (
               <div key={i} className="flex items-center gap-1.5">
-                <Input className="h-8 text-sm" value={String(s ?? '')} placeholder={f.placeholder} disabled={readOnly}
+                <Input className="h-8 text-sm" value={String(s ?? '')} placeholder={placeholderText(f.placeholder)} disabled={readOnly}
                   onChange={(e) => { const next = [...arr]; next[i] = e.target.value; write(f.name, next); }} />
                 <Button type="button" variant="ghost" size="icon" className="h-8 w-8" disabled={readOnly}
                   aria-label={t('engine.inspector.pageBlock.list.remove', locale)}
@@ -529,7 +539,8 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
         return (
           <InspectorTextField key={k} label={fieldLabel(f.label)}
             value={read(f.name) != null ? String(read(f.name)) : ''}
-            placeholder={(f as any).placeholder} onCommit={(v) => write(f.name, v)} disabled={readOnly} />
+            placeholder={placeholderText((f as { placeholder?: PlaceholderSpec }).placeholder)}
+            onCommit={(v) => write(f.name, v)} disabled={readOnly} />
         );
     }
   };

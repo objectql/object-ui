@@ -489,12 +489,19 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.pageBlock.list.removeItem': 'Remove item',
   'engine.inspector.pageBlock.objectPlaceholder': 'snake_case object',
   'engine.inspector.pageBlock.fieldPlaceholder': 'field name',
-  // Page block inspector — curated property labels (#3913).
+  // Page block inspector — curated property labels (#3913) and the prose
+  // placeholders (#3979).
   // These are the `label` / `addLabel` / option-label values of
   // `previews/block-config.ts`; that file stores the KEY and the inspector
   // resolves it through `t()` at render. Key shape is derived from the label's
   // position in BLOCK_CONFIG and pinned by
   // `previews/__tests__/block-config-i18n.test.ts` — see that file's header.
+  //
+  // `placeholder.*` is the same derivation for a field's input hint, and it is
+  // deliberately only PART of that column: a placeholder holding an example
+  // VALUE (`20`, `https://…`, a JSON sample) stays a literal in block-config and
+  // has no key here, because translating it would corrupt what the author is
+  // being told to type. `block-config.ts` declares which kind each one is.
   'engine.inspector.pageBlock.field.object-grid.objectName': 'Object',
   'engine.inspector.pageBlock.field.object-grid.columns': 'Columns',
   'engine.inspector.pageBlock.field.object-grid.pageSize': 'Page size',
@@ -525,6 +532,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.pageBlock.field.object-metric.label': 'Label',
   'engine.inspector.pageBlock.field.object-metric.description': 'Description',
   'engine.inspector.pageBlock.field.object-metric.icon': 'Icon',
+  'engine.inspector.pageBlock.placeholder.object-metric.icon': 'lucide icon name',
   'engine.inspector.pageBlock.field.object-metric.colorVariant': 'Color',
   'engine.inspector.pageBlock.option.colorVariant.default': 'Default',
   'engine.inspector.pageBlock.option.colorVariant.blue': 'Blue',
@@ -547,6 +555,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.pageBlock.field.grid.columns': 'Columns',
   'engine.inspector.pageBlock.field.grid.gap': 'Gap',
   'engine.inspector.pageBlock.field.element:text.content': 'Content',
+  'engine.inspector.pageBlock.placeholder.element:text.content': 'Text…',
   'engine.inspector.pageBlock.field.element:text.variant': 'Variant',
   'engine.inspector.pageBlock.option.variant.heading': 'Heading',
   'engine.inspector.pageBlock.option.variant.subheading': 'Subheading',
@@ -597,10 +606,12 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.pageBlock.option.size.medium': 'Medium',
   'engine.inspector.pageBlock.option.size.large': 'Large',
   'engine.inspector.pageBlock.field.element:button.icon': 'Icon',
+  'engine.inspector.pageBlock.placeholder.element:button.icon': 'lucide icon name',
   'engine.inspector.pageBlock.field.element:button.action': 'Action',
   'engine.inspector.pageBlock.field.page:header.title': 'Title',
   'engine.inspector.pageBlock.field.page:header.subtitle': 'Subtitle',
   'engine.inspector.pageBlock.field.page:header.icon': 'Icon',
+  'engine.inspector.pageBlock.placeholder.page:header.icon': 'lucide icon name',
   'engine.inspector.pageBlock.field.page:header.breadcrumb': 'Show breadcrumb',
   'engine.inspector.pageBlock.field.page:card.title': 'Title',
   'engine.inspector.pageBlock.field.page:card.bordered': 'Bordered',
@@ -621,6 +632,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.pageBlock.field.record:details.sections': 'Sections',
   'engine.inspector.pageBlock.add.record:details.sections': 'Add section',
   'engine.inspector.pageBlock.field.record:details.sections.name': 'Name (i18n key)',
+  'engine.inspector.pageBlock.placeholder.record:details.sections.name': 'snake_case, e.g. contact_info',
   'engine.inspector.pageBlock.field.record:details.sections.label': 'Label',
   'engine.inspector.pageBlock.field.record:details.sections.columns': 'Columns',
   'engine.inspector.pageBlock.field.record:details.sections.fields': 'Fields',
@@ -632,6 +644,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.pageBlock.field.record:alert.title': 'Title',
   'engine.inspector.pageBlock.field.record:alert.body': 'Body',
   'engine.inspector.pageBlock.field.record:alert.icon': 'Icon',
+  'engine.inspector.pageBlock.placeholder.record:alert.icon': 'lucide icon name',
   'engine.inspector.pageBlock.field.record:alert.dismissible': 'Dismissible',
   'engine.inspector.pageBlock.field.record:path.statusField': 'Status field',
   'engine.inspector.pageBlock.field.record:path.stages': 'Stages',
@@ -639,6 +652,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.pageBlock.field.record:path.stages.value': 'Value',
   'engine.inspector.pageBlock.field.record:path.stages.label': 'Label',
   'engine.inspector.pageBlock.field.record:quick_actions.actionNames': 'Action names',
+  'engine.inspector.pageBlock.placeholder.record:quick_actions.actionNames': 'action name',
   'engine.inspector.pageBlock.field.record:quick_actions.location': 'Location',
   'engine.inspector.pageBlock.option.location.record_header': 'Record header',
   'engine.inspector.pageBlock.option.location.record_more': 'Record more menu',
@@ -648,6 +662,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.pageBlock.option.location.list_item': 'List item',
   'engine.inspector.pageBlock.option.location.global_nav': 'Global nav',
   'engine.inspector.pageBlock.field.ai:input.agentName': 'Agent',
+  'engine.inspector.pageBlock.placeholder.ai:input.agentName': 'agent name',
   'engine.inspector.pageBlock.field.ai:input.placeholder': 'Input placeholder',
   // Report default ("home") inspector
   'engine.inspector.report.kind': 'Report',
@@ -2247,6 +2262,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.pageBlock.field.object-metric.label': '标签',
   'engine.inspector.pageBlock.field.object-metric.description': '描述',
   'engine.inspector.pageBlock.field.object-metric.icon': '图标',
+  'engine.inspector.pageBlock.placeholder.object-metric.icon': 'lucide 图标名',
   'engine.inspector.pageBlock.field.object-metric.colorVariant': '颜色',
   'engine.inspector.pageBlock.option.colorVariant.default': '默认',
   'engine.inspector.pageBlock.option.colorVariant.blue': '蓝色',
@@ -2269,6 +2285,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.pageBlock.field.grid.columns': '列数',
   'engine.inspector.pageBlock.field.grid.gap': '间距',
   'engine.inspector.pageBlock.field.element:text.content': '内容',
+  'engine.inspector.pageBlock.placeholder.element:text.content': '文本…',
   'engine.inspector.pageBlock.field.element:text.variant': '样式',
   'engine.inspector.pageBlock.option.variant.heading': '标题',
   'engine.inspector.pageBlock.option.variant.subheading': '副标题',
@@ -2319,10 +2336,12 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.pageBlock.option.size.medium': '中',
   'engine.inspector.pageBlock.option.size.large': '大',
   'engine.inspector.pageBlock.field.element:button.icon': '图标',
+  'engine.inspector.pageBlock.placeholder.element:button.icon': 'lucide 图标名',
   'engine.inspector.pageBlock.field.element:button.action': '动作',
   'engine.inspector.pageBlock.field.page:header.title': '标题',
   'engine.inspector.pageBlock.field.page:header.subtitle': '副标题',
   'engine.inspector.pageBlock.field.page:header.icon': '图标',
+  'engine.inspector.pageBlock.placeholder.page:header.icon': 'lucide 图标名',
   'engine.inspector.pageBlock.field.page:header.breadcrumb': '显示面包屑',
   'engine.inspector.pageBlock.field.page:card.title': '标题',
   'engine.inspector.pageBlock.field.page:card.bordered': '显示边框',
@@ -2343,6 +2362,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.pageBlock.field.record:details.sections': '分区',
   'engine.inspector.pageBlock.add.record:details.sections': '添加分区',
   'engine.inspector.pageBlock.field.record:details.sections.name': '名称（i18n 键）',
+  'engine.inspector.pageBlock.placeholder.record:details.sections.name': 'snake_case，例如：contact_info',
   'engine.inspector.pageBlock.field.record:details.sections.label': '标签',
   'engine.inspector.pageBlock.field.record:details.sections.columns': '列数',
   'engine.inspector.pageBlock.field.record:details.sections.fields': '字段',
@@ -2354,6 +2374,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.pageBlock.field.record:alert.title': '标题',
   'engine.inspector.pageBlock.field.record:alert.body': '正文',
   'engine.inspector.pageBlock.field.record:alert.icon': '图标',
+  'engine.inspector.pageBlock.placeholder.record:alert.icon': 'lucide 图标名',
   'engine.inspector.pageBlock.field.record:alert.dismissible': '可关闭',
   'engine.inspector.pageBlock.field.record:path.statusField': '状态字段',
   'engine.inspector.pageBlock.field.record:path.stages': '阶段',
@@ -2361,6 +2382,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.pageBlock.field.record:path.stages.value': '值',
   'engine.inspector.pageBlock.field.record:path.stages.label': '标签',
   'engine.inspector.pageBlock.field.record:quick_actions.actionNames': '动作名称',
+  'engine.inspector.pageBlock.placeholder.record:quick_actions.actionNames': '动作名称',
   'engine.inspector.pageBlock.field.record:quick_actions.location': '位置',
   'engine.inspector.pageBlock.option.location.record_header': '记录头部',
   'engine.inspector.pageBlock.option.location.record_more': '记录更多菜单',
@@ -2370,6 +2392,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.pageBlock.option.location.list_item': '列表行',
   'engine.inspector.pageBlock.option.location.global_nav': '全局导航',
   'engine.inspector.pageBlock.field.ai:input.agentName': '智能体',
+  'engine.inspector.pageBlock.placeholder.ai:input.agentName': '智能体名称',
   'engine.inspector.pageBlock.field.ai:input.placeholder': '输入框占位提示',
   // Report default ("home") inspector
   'engine.inspector.report.kind': '报表',

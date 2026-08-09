@@ -33,6 +33,7 @@
  *   nested item label    engine.inspector.pageBlock.field.<blockType>.<array>.<name>
  *   array add button     engine.inspector.pageBlock.add.<blockType>.<name>
  *   select/color option  engine.inspector.pageBlock.option.<fieldName>.<value>
+ *   placeholder prose    engine.inspector.pageBlock.placeholder.<blockType>.<name>
  *
  * Option keys omit the block type on purpose (so `format`'s number/currency/
  * percent are translated once and shared by `object-metric` and
@@ -44,18 +45,34 @@
  * `t()` returns the key unchanged on a miss, so `t(key, locale) === key` is
  * exactly "this locale has no translation" — measured through the same accessor
  * the component uses, not a private table this test would have to be given.
+ *
+ * ## objectui#3979 — the `placeholder` column, and why it is only PARTLY keyed
+ *
+ * #3913 stopped at labels, so the hints under them stayed English: 「图标」 over
+ * a box reading `lucide icon name`. The column joins the walk above as a fifth
+ * family, with the SAME positional derivation — but only for the 8 placeholders
+ * that are prose. The other 10 are example VALUES (`20`, `https://…`, a JSON
+ * sample) and are `{ literal: … }` in `block-config.ts`, never keys: translating
+ * them would corrupt the thing the author is being told to type.
+ *
+ * Which kind a placeholder is, is declared in the TYPE (`PlaceholderSpec`), not
+ * inferred here — a bare `placeholder: 'lucide icon name'` no longer compiles.
+ * What this file adds on top is the part a type cannot state: that the key side
+ * is complete in both locales (with the rest of the walk), and that the literal
+ * side is an inventory somebody has to argue with before "helpfully" translating
+ * a JSON sample. The last describe holds that inventory.
  */
 
 import { describe, it, expect } from 'vitest';
-import { BLOCK_CONFIG, type BlockPropField } from '../block-config';
+import { BLOCK_CONFIG, type BlockPropField, type PlaceholderSpec } from '../block-config';
 import { t } from '../../i18n';
 
 const PREFIX = 'engine.inspector.pageBlock';
 
 /** One translatable label site: where it lives, what key that implies, what is stored. */
 interface LabelSite {
-  /** `field` | `add` | `option` — which key family. */
-  family: 'field' | 'add' | 'option';
+  /** `field` | `add` | `option` | `placeholder` — which key family. */
+  family: 'field' | 'add' | 'option' | 'placeholder';
   /** The key the site's position implies. */
   derived: string;
   /** The key `block-config.ts` actually stores there. */
@@ -64,9 +81,21 @@ interface LabelSite {
   where: string;
 }
 
-/** Walk BLOCK_CONFIG and derive a key for every label / addLabel / option label. */
-function labelSites(): LabelSite[] {
+/** Every placeholder in the table, with its position — both kinds (#3979). */
+interface PlaceholderSite {
+  /** Human-readable position: `<blockType>.<dotted field path>`. */
+  where: string;
+  /** The key a keyed placeholder's position implies. */
+  derived: string;
+  /** What `block-config.ts` declares there. */
+  spec: PlaceholderSpec;
+}
+
+/** Walk BLOCK_CONFIG and derive a key for every label / addLabel / option label
+ *  / prose placeholder, and collect every placeholder spec of either kind. */
+function labelSites(): { sites: LabelSite[]; placeholders: PlaceholderSite[] } {
   const sites: LabelSite[] = [];
+  const placeholders: PlaceholderSite[] = [];
 
   const walk = (f: BlockPropField, blockType: string, path: string[]) => {
     const dotted = [...path, f.name].join('.');
@@ -76,6 +105,23 @@ function labelSites(): LabelSite[] {
       stored: f.label,
       where: `${blockType}.${dotted} (label)`,
     });
+
+    // A placeholder is either prose (a key — same positional derivation as the
+    // label it sits under) or a locale-invariant value literal. Only the first
+    // kind is a translation site; the second is inventoried further down.
+    const ph = (f as { placeholder?: PlaceholderSpec }).placeholder;
+    if (ph !== undefined) {
+      const derived = `${PREFIX}.placeholder.${blockType}.${dotted}`;
+      placeholders.push({ where: `${blockType}.${dotted}`, derived, spec: ph });
+      if (ph.key !== undefined) {
+        sites.push({
+          family: 'placeholder',
+          derived,
+          stored: ph.key,
+          where: `${blockType}.${dotted} (placeholder)`,
+        });
+      }
+    }
 
     if (f.kind === 'array') {
       sites.push({
@@ -104,10 +150,10 @@ function labelSites(): LabelSite[] {
   for (const [blockType, fields] of Object.entries(BLOCK_CONFIG)) {
     for (const f of fields) walk(f, blockType, []);
   }
-  return sites;
+  return { sites, placeholders };
 }
 
-const SITES = labelSites();
+const { sites: SITES, placeholders: PLACEHOLDERS } = labelSites();
 
 /**
  * Keys whose two locales are deliberately identical (an acronym, a symbol —
@@ -132,6 +178,12 @@ describe('block-config labels are translation keys (#3913)', () => {
     expect(families.field).toBeGreaterThan(80);
     expect(families.add).toBe(5);
     expect(families.option).toBeGreaterThan(50);
+    // Exact, like `add`: the keyed half of the placeholder column is 8 of 18
+    // (#3979). A 9th prose placeholder should fail here and be translated; a
+    // 9th VALUE placeholder does not reach this family at all and is caught by
+    // the literal inventory instead. Either way the new one gets classified
+    // rather than defaulting to English-on-screen.
+    expect(families.placeholder).toBe(8);
   });
 
   it('stores exactly the key its position implies', () => {
@@ -188,8 +240,11 @@ describe('block-config labels are translation keys (#3913)', () => {
       .map(([key, families]) => `${key}: ${[...families].join('+')}`);
     expect(crossFamily).toEqual([]);
 
-    // A `field`/`add` key is positional and must therefore be unique outright;
-    // only `option` keys may legitimately repeat.
+    // A `field`/`add`/`placeholder` key is positional and must therefore be
+    // unique outright; only `option` keys may legitimately repeat. Note the four
+    // `lucide icon name` placeholders are four DISTINCT keys with equal English
+    // text — same reason field keys carry the block type: the blocks may want
+    // different wording later, and one key cannot say two things.
     const positional = SITES.filter((s) => s.family !== 'option').map((s) => s.derived);
     expect(positional.length).toBe(new Set(positional).size);
   });
@@ -237,6 +292,21 @@ describe('en-US labels are unchanged by the key migration (#3913)', () => {
     'engine.inspector.pageBlock.option.align.center': 'Center',
     'engine.inspector.pageBlock.option.location.record_more': 'Record more menu',
     'engine.inspector.pageBlock.option.severity.warning': 'Warning',
+    // ── the placeholder family (#3979) ───────────────────────────────────────
+    // ALL EIGHT, not a sample: this column was migrated by hand rather than
+    // mechanically, and the en side is the only thing standing between "the key
+    // resolves" and "the key resolves to what the box used to say". Each value
+    // below is byte-identical to the literal `block-config.ts` held at
+    // `origin/main` 6bd6a4d76 — including the U+2026 ellipsis in `Text…`, which
+    // a re-typed `...` would silently replace.
+    'engine.inspector.pageBlock.placeholder.object-metric.icon': 'lucide icon name',
+    'engine.inspector.pageBlock.placeholder.element:text.content': 'Text…',
+    'engine.inspector.pageBlock.placeholder.element:button.icon': 'lucide icon name',
+    'engine.inspector.pageBlock.placeholder.page:header.icon': 'lucide icon name',
+    'engine.inspector.pageBlock.placeholder.record:details.sections.name': 'snake_case, e.g. contact_info',
+    'engine.inspector.pageBlock.placeholder.record:alert.icon': 'lucide icon name',
+    'engine.inspector.pageBlock.placeholder.record:quick_actions.actionNames': 'action name',
+    'engine.inspector.pageBlock.placeholder.ai:input.agentName': 'agent name',
   };
 
   it('renders the pre-change English text for every sampled key', () => {
@@ -251,5 +321,102 @@ describe('en-US labels are unchanged by the key migration (#3913)', () => {
     const derived = new Set(SITES.map((s) => s.derived));
     const orphans = Object.keys(EXPECTED).filter((k) => !derived.has(k));
     expect(orphans).toEqual([]);
+  });
+});
+
+/**
+ * The OTHER half of the placeholder column: the ones that must stay literal
+ * (#3979).
+ *
+ * Everything above pins the keys. This describe pins the decision NOT to key the
+ * rest, because that is the half a future reader is most likely to "finish": the
+ * column is half translated, ten English-looking strings remain, and translating
+ * `{ "type": "url", … }` or `https://…` looks like completing somebody's
+ * unfinished work. It is not — those characters are the value the author is being
+ * shown, and a localized JSON sample produces metadata the spec rejects.
+ *
+ * So the literal side is an inventory with a stated reason per entry, and adding
+ * to it is a deliberate act. The prose tripwire below is the cheaper half of the
+ * same guard: it can catch `{ literal: 'lucide icon name' }` (two adjacent words)
+ * but not a single-word hint, which is exactly why the inventory is exhaustive
+ * rather than a heuristic.
+ */
+describe('placeholders that must NOT be translated (#3979)', () => {
+  /** Position → the literal it declares, and why that is not a translation gap. */
+  const INVARIANT: Record<string, { literal: string; because: string }> = {
+    'object-grid.pageSize': { literal: '20', because: 'a default row count' },
+    'object-form.columns': { literal: '2', because: 'a grid column count' },
+    'grid.columns': { literal: '3', because: 'a grid column count' },
+    'grid.gap': { literal: '4', because: 'a spacing step' },
+    'element:image.src': { literal: 'https://…', because: 'a URL scheme — the value starts this way in every locale' },
+    'element:definition-list.columns': { literal: '1', because: 'a column count' },
+    'element:repeater.limit': { literal: '10', because: 'a row limit' },
+    'element:button.action': {
+      literal: '{ "type": "url", "target": "/environments" }',
+      because: 'a JSON sample the author copies — translated keys would fail InlineActionSchema',
+    },
+    'record:related_list.limit': { literal: '10', because: 'a row limit' },
+    'record:details.sections.columns': { literal: '2', because: 'a column count' },
+  };
+
+  it('collects all 18 placeholders — 8 keyed, 10 literal', () => {
+    // Guards the walk: if placeholder collection silently found nothing, every
+    // assertion here would pass over an empty list.
+    expect(PLACEHOLDERS.length).toBe(18);
+    expect(PLACEHOLDERS.filter((p) => p.spec.key !== undefined).length).toBe(8);
+    expect(PLACEHOLDERS.filter((p) => p.spec.literal !== undefined).length).toBe(10);
+  });
+
+  it('every placeholder declares exactly one of key / literal', () => {
+    // `PlaceholderSpec`'s mutual `never`s make this a type error already. Pinned
+    // at runtime too, because the table is also reached from JS-shaped places
+    // (JSON fixtures, tests) where the type is not consulted.
+    const bad = PLACEHOLDERS.filter(
+      (p) => (p.spec.key === undefined) === (p.spec.literal === undefined),
+    ).map((p) => `${p.where}: ${JSON.stringify(p.spec)}`);
+    expect(bad).toEqual([]);
+  });
+
+  it('the literal inventory is exactly the declared one', () => {
+    const actual = Object.fromEntries(
+      PLACEHOLDERS.filter((p) => p.spec.literal !== undefined).map((p) => [p.where, p.spec.literal]),
+    );
+    const expected = Object.fromEntries(
+      Object.entries(INVARIANT).map(([where, v]) => [where, v.literal]),
+    );
+    // If this fails, one of three things happened, and they need different fixes:
+    //   - a new placeholder was added as a literal → is it a VALUE? add it here
+    //     with its reason. Is it prose? make it a `{ key }` instead.
+    //   - a literal changed → the en baseline moved; say so in a changeset.
+    //   - a literal became a key → drop it here and add the key to the
+    //     `en-US labels are unchanged` sample above.
+    expect(actual).toEqual(expected);
+  });
+
+  it('no invariant literal is prose — that would be a missed translation', () => {
+    // Two adjacent alphabetic words is the signature of a sentence, and every
+    // value in the inventory is a number, a URL scheme or JSON — none of which
+    // can match. `lucide icon name` parked here as a literal would.
+    const prose = Object.entries(INVARIANT)
+      .filter(([, v]) => /[A-Za-z]{2,}\s+[A-Za-z]{2,}/.test(v.literal))
+      .map(([where, v]) => `${where}: '${v.literal}'`);
+    expect(prose).toEqual([]);
+  });
+
+  it('every inventory entry carries a reason', () => {
+    // The ledger is only worth anything if each line says why. A bare list
+    // becomes a place to append to without thinking.
+    for (const [where, v] of Object.entries(INVARIANT)) {
+      expect(v.because.length, `${where} needs a reason`).toBeGreaterThan(10);
+    }
+  });
+
+  it('no literal placeholder accidentally holds a translation key', () => {
+    // The mirror of "no label is left as display text": a key parked on the
+    // literal side renders `engine.inspector.pageBlock.…` into the box.
+    const keys = PLACEHOLDERS.filter((p) => p.spec.literal?.startsWith(`${PREFIX}.`)).map(
+      (p) => `${p.where}: '${p.spec.literal}'`,
+    );
+    expect(keys).toEqual([]);
   });
 });

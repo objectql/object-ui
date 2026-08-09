@@ -3,6 +3,7 @@
 /**
  * objectui#3913 — the PROPERTIES panel renders in the session's language.
  * objectui#3963 — and so does the panel's OWN chrome (see the second describe).
+ * objectui#3979 — and so do the input HINTS inside it, the prose ones (third).
  *
  * The sibling `previews/__tests__/block-config-i18n.test.ts` pins the TABLE
  * (every label is a key its position implies, and both locales define it). That
@@ -61,6 +62,19 @@ function renderInspector(draft: Record<string, unknown>, locale: 'en-US' | 'zh-C
 /** No raw translation key may reach the DOM in any locale. */
 function expectNoRawKeys() {
   expect(document.body.textContent ?? '').not.toContain('engine.inspector.pageBlock.');
+}
+
+/**
+ * The same guard for `placeholder` attributes (#3979) — and it has to be its own
+ * function, because `textContent` cannot see an attribute. A key forwarded raw
+ * into a placeholder is invisible to `expectNoRawKeys` above, which is the exact
+ * blind spot that let #3963's two placeholder literals through #3913's review.
+ */
+function expectNoRawKeyPlaceholders() {
+  const raw = [...document.querySelectorAll('[placeholder]')]
+    .map((el) => el.getAttribute('placeholder') ?? '')
+    .filter((v) => v.startsWith('engine.inspector.pageBlock.'));
+  expect(raw).toEqual([]);
 }
 
 describe('PageBlockInspector PROPERTIES labels follow the locale (#3913)', () => {
@@ -261,6 +275,105 @@ describe("PageBlockInspector's own chrome follows the locale (#3963)", () => {
     fireEvent.change(enArea!, { target: { value: '{ not json' } });
     fireEvent.blur(enArea!);
     expect(screen.getByText('Invalid JSON')).toBeTruthy();
+  });
+});
+
+/**
+ * objectui#3979 — the block-config PLACEHOLDER column, on screen.
+ *
+ * Third mechanism in this file, and the third time the same defect shape came
+ * back one column over: #3913 keyed the labels, #3963 keyed the panel's own
+ * chrome, and the hints inside block-config's own boxes stayed English until
+ * here. `renderField` reaches `f.placeholder` from four branches — number, json,
+ * string-list and the default text field — and each was handing the table's value
+ * straight to the input.
+ *
+ * What makes this column different from the two before it is that translating
+ * ALL of it would be wrong. Ten of the eighteen placeholders are example VALUES,
+ * and the assertions come in matching pairs: the prose ones must change with the
+ * locale, the value ones must NOT. Both halves are pinned here because both are
+ * regressions a reader could introduce while believing they were finishing the
+ * job — and neither is visible to `expectNoRawKeys`, since a placeholder is an
+ * attribute.
+ */
+describe('PageBlockInspector placeholders follow the locale — but only the prose ones (#3979)', () => {
+  it('translates the text-field hint under an already-Chinese label', () => {
+    // The issue's headline symptom: 「图标」 over a box hinting `lucide icon name`.
+    renderInspector(pageDraft('page:header'), 'zh-CN');
+
+    expect(screen.getByText('图标')).toBeTruthy(); // #3913's half, still working
+    expect(screen.getByPlaceholderText('lucide 图标名')).toBeTruthy();
+    expect(screen.queryByPlaceholderText('lucide icon name')).toBeNull();
+    expectNoRawKeyPlaceholders();
+    expectNoRawKeys();
+  });
+
+  it('renders the same panel in English under en-US, unchanged', () => {
+    // en-US is the baseline: the new keys carry the exact literals the table
+    // used to hold, so nothing an English admin sees may have moved.
+    renderInspector(pageDraft('page:header'), 'en-US');
+
+    expect(screen.getByPlaceholderText('lucide icon name')).toBeTruthy();
+    expectNoRawKeyPlaceholders();
+  });
+
+  it('translates the nested array-item hint, and leaves the count beside it alone', () => {
+    // One fixture, both halves: `sections.name` is prose (a key) while
+    // `sections.columns` is a column count (a literal). Nested items recurse
+    // through `renderField` with a different read/write pair, so a fix applied
+    // only at the top level would leave these English.
+    renderInspector(pageDraft('record:details', { sections: [{ label: 'Contact info' }] }), 'zh-CN');
+
+    expect(screen.getByPlaceholderText('snake_case，例如：contact_info')).toBeTruthy();
+    expect(screen.queryByPlaceholderText('snake_case, e.g. contact_info')).toBeNull();
+    // The `2` box is untouched — a "translated" default count is meaningless.
+    expect(screen.getByPlaceholderText('2')).toBeTruthy();
+    expectNoRawKeyPlaceholders();
+  });
+
+  it('translates the string-list branch too — its own copy of the placeholder site', () => {
+    // `string-list` builds its rows inline in `renderField` rather than through a
+    // field component, so it is a separate forwarding of `f.placeholder` and no
+    // other fixture in this file renders one with a hint.
+    renderInspector(pageDraft('record:quick_actions', { actionNames: ['send_email'] }), 'zh-CN');
+
+    expect(screen.getAllByPlaceholderText('动作名称').length).toBeGreaterThan(0);
+    expect(screen.queryByPlaceholderText('action name')).toBeNull();
+    expectNoRawKeyPlaceholders();
+  });
+
+  it('translates element:text and ai:input, the remaining prose sites', () => {
+    renderInspector(pageDraft('element:text'), 'zh-CN');
+    expect(screen.getByPlaceholderText('文本…')).toBeTruthy();
+    expect(screen.queryByPlaceholderText('Text…')).toBeNull();
+
+    cleanup();
+    renderInspector(pageDraft('ai:input'), 'zh-CN');
+    expect(screen.getByPlaceholderText('智能体名称')).toBeTruthy();
+    expect(screen.queryByPlaceholderText('agent name')).toBeNull();
+    expectNoRawKeyPlaceholders();
+  });
+
+  it('passes example VALUES through untranslated in zh-CN', () => {
+    // The half that must NOT move. A number, a URL scheme and a JSON sample:
+    // these are the characters the author is being shown to type, and the JSON
+    // one would fail `InlineActionSchema` if its keys were localized.
+    renderInspector(pageDraft('object-grid'), 'zh-CN');
+    expect(screen.getByPlaceholderText('20')).toBeTruthy();
+
+    cleanup();
+    renderInspector(pageDraft('element:image'), 'zh-CN');
+    expect(screen.getByPlaceholderText('https://…')).toBeTruthy();
+
+    cleanup();
+    renderInspector(pageDraft('element:button'), 'zh-CN');
+    const sample = '{ "type": "url", "target": "/environments" }';
+    expect(screen.getByPlaceholderText(sample)).toBeTruthy();
+
+    // …and identical in en-US: a locale-invariant placeholder is invariant.
+    cleanup();
+    renderInspector(pageDraft('element:button'), 'en-US');
+    expect(screen.getByPlaceholderText(sample)).toBeTruthy();
   });
 });
 

@@ -36,12 +36,33 @@
  *   nested item label    engine.inspector.pageBlock.field.<blockType>.<array>.<name>
  *   array add button     engine.inspector.pageBlock.add.<blockType>.<name>
  *   select/color option  engine.inspector.pageBlock.option.<fieldName>.<value>
+ *   placeholder prose    engine.inspector.pageBlock.placeholder.<blockType>.<name>
  *
- * `previews/__tests__/block-config-i18n.test.ts` re-derives all four shapes from
+ * `previews/__tests__/block-config-i18n.test.ts` re-derives all five shapes from
  * the table's own structure and asserts (a) the stored key equals the derived
  * one and (b) both locales define it. So a field added here without a
  * translation is red, and so is a key copy-pasted from a neighbouring block —
  * the second is the failure a bare "does the key exist?" check cannot see.
+ *
+ * ## `placeholder` is a KEY *or* a LITERAL, declared per field (#3979)
+ *
+ * #3913 moved `label`/`addLabel`/option labels and stopped there, so the
+ * placeholder column stayed display text: a zh-CN admin opening `page:header`
+ * read 「图标」 over a box hinting `lucide icon name`, in the panel #3913 had
+ * just finished translating.
+ *
+ * The column could not simply follow `label`, because it is a MIXED surface —
+ * of the 18 placeholders, 8 are prose telling the author what to type and 10 are
+ * example VALUES (`20`, `https://…`, a JSON sample). Translating the second kind
+ * is a defect, not a courtesy: those characters are what the author is meant to
+ * enter, and a "translated" JSON sample yields metadata the schema rejects. So
+ * the two meanings are separated in the TYPE (`PlaceholderSpec` below) rather
+ * than by a convention plus a list of exceptions — the author of a new field
+ * states which kind it is and cannot leave it implicit.
+ *
+ * The literal side is inventoried in the same test, so a later "helpful"
+ * translation of `lucide icon name`'s neighbours has to argue with a pin instead
+ * of quietly landing.
  *
  * Option keys deliberately omit the block type, so `format`'s number/currency/
  * percent are translated once for `object-metric` and `element:number`. Field
@@ -58,27 +79,50 @@
 export type ObjectSource = { objectFrom: 'page' } | { objectFrom: 'self'; objectProp: string };
 
 /**
- * One curated property editor. Every `label` is a translation key — see the
- * file header for the four key shapes and the test that enforces them.
+ * A field's input hint — EXACTLY ONE of two shapes, chosen where the field is
+ * written (#3979):
+ *
+ *   { key: '…' }      prose telling the author what to type ("lucide icon
+ *                     name"). A translation key into `../i18n.ts`, resolved by
+ *                     `PageBlockInspector` through `t()` at render, exactly like
+ *                     `label`.
+ *   { literal: '…' }  a locale-invariant example VALUE — a number, a URL scheme,
+ *                     a JSON sample. Passed through untranslated, because those
+ *                     characters are what the author is meant to type.
+ *
+ * A bare string is deliberately NOT assignable. `placeholder: 'lucide icon
+ * name'` — this file's own shape until #3979, and the first thing anything
+ * generating a new field will reach for — is a TYPE error now, caught by
+ * `type-check` in every lane and in the editor, instead of an English string
+ * that renders into a Chinese panel and waits for a test somebody remembers to
+ * run. The mutual `never`s reject "both at once" too, so the renderer never has
+ * to pick a winner between them.
+ */
+export type PlaceholderSpec = { key: string; literal?: never } | { literal: string; key?: never };
+
+/**
+ * One curated property editor. Every `label` is a translation key, and every
+ * `placeholder` declares whether it is one — see the file header for the five
+ * key shapes and the tests that enforce them.
  */
 export type BlockPropField =
-  | { name: string; label: string; kind: 'text'; placeholder?: string }
-  | { name: string; label: string; kind: 'number'; placeholder?: string }
+  | { name: string; label: string; kind: 'text'; placeholder?: PlaceholderSpec }
+  | { name: string; label: string; kind: 'number'; placeholder?: PlaceholderSpec }
   | { name: string; label: string; kind: 'boolean' }
   | { name: string; label: string; kind: 'select'; options: Array<{ value: string; label: string }> }
-  | { name: string; label: string; kind: 'string-list'; placeholder?: string }
+  | { name: string; label: string; kind: 'string-list'; placeholder?: PlaceholderSpec }
   // `addLabel` is REQUIRED (#3913). It was optional, and the inspector rendered
   // a bare English `'Add'` when it was absent — an untranslatable literal that
   // no locale table could reach. Making the contract require it is the fix that
   // deletes the fallback instead of translating it: a new array field cannot
   // compile without naming its add-button key.
   | { name: string; label: string; kind: 'array'; itemFields: BlockPropField[]; addLabel: string }
-  | { name: string; label: string; kind: 'json'; placeholder?: string }
+  | { name: string; label: string; kind: 'json'; placeholder?: PlaceholderSpec }
   | { name: string; label: string; kind: 'color'; options?: Array<{ value: string; label: string }> }
   // Schema-driven pickers — dropdowns populated from the live metadata.
-  | { name: string; label: string; kind: 'object-picker'; placeholder?: string }
-  | ({ name: string; label: string; kind: 'field-picker'; placeholder?: string } & ObjectSource)
-  | ({ name: string; label: string; kind: 'field-list'; placeholder?: string } & ObjectSource);
+  | { name: string; label: string; kind: 'object-picker'; placeholder?: PlaceholderSpec }
+  | ({ name: string; label: string; kind: 'field-picker'; placeholder?: PlaceholderSpec } & ObjectSource)
+  | ({ name: string; label: string; kind: 'field-list'; placeholder?: PlaceholderSpec } & ObjectSource);
 
 /** Shared alignment options. The keys name the field (`align`), so reusing this
  *  const on a field called anything else turns the key-derivation pin red. */
@@ -98,7 +142,8 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
   'object-grid': [
     { name: 'objectName', label: 'engine.inspector.pageBlock.field.object-grid.objectName', kind: 'object-picker' },
     { name: 'columns', label: 'engine.inspector.pageBlock.field.object-grid.columns', kind: 'field-list', objectFrom: 'self', objectProp: 'objectName' },
-    { name: 'pageSize', label: 'engine.inspector.pageBlock.field.object-grid.pageSize', kind: 'number', placeholder: '20' },
+    // `{ literal: … }` — an example VALUE, not prose: see `PlaceholderSpec`.
+    { name: 'pageSize', label: 'engine.inspector.pageBlock.field.object-grid.pageSize', kind: 'number', placeholder: { literal: '20' } },
     { name: 'striped', label: 'engine.inspector.pageBlock.field.object-grid.striped', kind: 'boolean' },
     { name: 'bordered', label: 'engine.inspector.pageBlock.field.object-grid.bordered', kind: 'boolean' },
   ],
@@ -132,7 +177,7 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
         { value: 'grid', label: 'engine.inspector.pageBlock.option.layout.grid' },
       ],
     },
-    { name: 'columns', label: 'engine.inspector.pageBlock.field.object-form.columns', kind: 'number', placeholder: '2' },
+    { name: 'columns', label: 'engine.inspector.pageBlock.field.object-form.columns', kind: 'number', placeholder: { literal: '2' } },
     { name: 'fields', label: 'engine.inspector.pageBlock.field.object-form.fields', kind: 'field-list', objectFrom: 'self', objectProp: 'objectName' },
     { name: 'title', label: 'engine.inspector.pageBlock.field.object-form.title', kind: 'text' },
     { name: 'description', label: 'engine.inspector.pageBlock.field.object-form.description', kind: 'text' },
@@ -141,7 +186,7 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
     { name: 'objectName', label: 'engine.inspector.pageBlock.field.object-metric.objectName', kind: 'object-picker' },
     { name: 'label', label: 'engine.inspector.pageBlock.field.object-metric.label', kind: 'text' },
     { name: 'description', label: 'engine.inspector.pageBlock.field.object-metric.description', kind: 'text' },
-    { name: 'icon', label: 'engine.inspector.pageBlock.field.object-metric.icon', kind: 'text', placeholder: 'lucide icon name' },
+    { name: 'icon', label: 'engine.inspector.pageBlock.field.object-metric.icon', kind: 'text', placeholder: { key: 'engine.inspector.pageBlock.placeholder.object-metric.icon' } },
     {
       name: 'colorVariant', label: 'engine.inspector.pageBlock.field.object-metric.colorVariant', kind: 'color',
       options: [
@@ -177,13 +222,13 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
 
   // ── Layout grid ───────────────────────────────────────────────────────────
   grid: [
-    { name: 'columns', label: 'engine.inspector.pageBlock.field.grid.columns', kind: 'number', placeholder: '3' },
-    { name: 'gap', label: 'engine.inspector.pageBlock.field.grid.gap', kind: 'number', placeholder: '4' },
+    { name: 'columns', label: 'engine.inspector.pageBlock.field.grid.columns', kind: 'number', placeholder: { literal: '3' } },
+    { name: 'gap', label: 'engine.inspector.pageBlock.field.grid.gap', kind: 'number', placeholder: { literal: '4' } },
   ],
 
   // ── Content elements ──────────────────────────────────────────────────────
   'element:text': [
-    { name: 'content', label: 'engine.inspector.pageBlock.field.element:text.content', kind: 'text', placeholder: 'Text…' },
+    { name: 'content', label: 'engine.inspector.pageBlock.field.element:text.content', kind: 'text', placeholder: { key: 'engine.inspector.pageBlock.placeholder.element:text.content' } },
     {
       name: 'variant',
       label: 'engine.inspector.pageBlock.field.element:text.variant',
@@ -198,7 +243,7 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
     { name: 'align', label: 'engine.inspector.pageBlock.field.element:text.align', kind: 'select', options: ALIGN_OPTS },
   ],
   'element:image': [
-    { name: 'src', label: 'engine.inspector.pageBlock.field.element:image.src', kind: 'text', placeholder: 'https://…' },
+    { name: 'src', label: 'engine.inspector.pageBlock.field.element:image.src', kind: 'text', placeholder: { literal: 'https://…' } },
     { name: 'alt', label: 'engine.inspector.pageBlock.field.element:image.alt', kind: 'text' },
     {
       name: 'fit',
@@ -224,14 +269,14 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
         { name: 'value', label: 'engine.inspector.pageBlock.field.element:definition-list.items.value', kind: 'text' },
       ],
     },
-    { name: 'columns', label: 'engine.inspector.pageBlock.field.element:definition-list.columns', kind: 'number', placeholder: '1' },
+    { name: 'columns', label: 'engine.inspector.pageBlock.field.element:definition-list.columns', kind: 'number', placeholder: { literal: '1' } },
     { name: 'inline', label: 'engine.inspector.pageBlock.field.element:definition-list.inline', kind: 'boolean' },
   ],
   'element:repeater': [
     { name: 'object', label: 'engine.inspector.pageBlock.field.element:repeater.object', kind: 'object-picker' },
     { name: 'titleField', label: 'engine.inspector.pageBlock.field.element:repeater.titleField', kind: 'field-picker', objectFrom: 'self', objectProp: 'object' },
     { name: 'fields', label: 'engine.inspector.pageBlock.field.element:repeater.fields', kind: 'field-list', objectFrom: 'self', objectProp: 'object' },
-    { name: 'limit', label: 'engine.inspector.pageBlock.field.element:repeater.limit', kind: 'number', placeholder: '10' },
+    { name: 'limit', label: 'engine.inspector.pageBlock.field.element:repeater.limit', kind: 'number', placeholder: { literal: '10' } },
     { name: 'emptyText', label: 'engine.inspector.pageBlock.field.element:repeater.emptyText', kind: 'text' },
     { name: 'divided', label: 'engine.inspector.pageBlock.field.element:repeater.divided', kind: 'boolean' },
   ],
@@ -287,7 +332,7 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
         { value: 'large', label: 'engine.inspector.pageBlock.option.size.large' },
       ],
     },
-    { name: 'icon', label: 'engine.inspector.pageBlock.field.element:button.icon', kind: 'text', placeholder: 'lucide icon name' },
+    { name: 'icon', label: 'engine.inspector.pageBlock.field.element:button.icon', kind: 'text', placeholder: { key: 'engine.inspector.pageBlock.placeholder.element:button.icon' } },
     // Without `action` a button renders inert, and the generic "Advanced"
     // section can only edit properties the block ALREADY has — so a button
     // created in Studio had no way to become interactive at all. The spec
@@ -297,7 +342,10 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
       name: 'action',
       label: 'engine.inspector.pageBlock.field.element:button.action',
       kind: 'json',
-      placeholder: '{ "type": "url", "target": "/environments" }',
+      // A literal on purpose: this is the JSON an author copies, and a
+      // "translated" `"type"`/`"target"` would produce metadata the spec
+      // rejects. Pinned as locale-invariant in `block-config.test.ts`.
+      placeholder: { literal: '{ "type": "url", "target": "/environments" }' },
     },
   ],
 
@@ -305,7 +353,7 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
   'page:header': [
     { name: 'title', label: 'engine.inspector.pageBlock.field.page:header.title', kind: 'text' },
     { name: 'subtitle', label: 'engine.inspector.pageBlock.field.page:header.subtitle', kind: 'text' },
-    { name: 'icon', label: 'engine.inspector.pageBlock.field.page:header.icon', kind: 'text', placeholder: 'lucide icon name' },
+    { name: 'icon', label: 'engine.inspector.pageBlock.field.page:header.icon', kind: 'text', placeholder: { key: 'engine.inspector.pageBlock.placeholder.page:header.icon' } },
     { name: 'breadcrumb', label: 'engine.inspector.pageBlock.field.page:header.breadcrumb', kind: 'boolean' },
   ],
   'page:card': [
@@ -343,7 +391,7 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
     { name: 'objectName', label: 'engine.inspector.pageBlock.field.record:related_list.objectName', kind: 'object-picker' },
     { name: 'relationshipField', label: 'engine.inspector.pageBlock.field.record:related_list.relationshipField', kind: 'field-picker', objectFrom: 'self', objectProp: 'objectName' },
     { name: 'title', label: 'engine.inspector.pageBlock.field.record:related_list.title', kind: 'text' },
-    { name: 'limit', label: 'engine.inspector.pageBlock.field.record:related_list.limit', kind: 'number', placeholder: '10' },
+    { name: 'limit', label: 'engine.inspector.pageBlock.field.record:related_list.limit', kind: 'number', placeholder: { literal: '10' } },
   ],
   'record:highlights': [
     { name: 'fields', label: 'engine.inspector.pageBlock.field.record:highlights.fields', kind: 'field-list', objectFrom: 'page' },
@@ -366,15 +414,17 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
       // the anchor is the one value that must stay stable across locales. The
       // placeholder carries the snake_case convention because `BlockPropField`
       // has no pattern/validate affordance — see the type above — and adding
-      // one for a single field is outside this fix.
+      // one for a single field is outside this fix. That convention is prose
+      // ABOUT the value, so the placeholder is a key (#3979) and both locales
+      // must keep the `snake_case` token verbatim inside it.
       name: 'sections',
       label: 'engine.inspector.pageBlock.field.record:details.sections',
       kind: 'array',
       addLabel: 'engine.inspector.pageBlock.add.record:details.sections',
       itemFields: [
-        { name: 'name', label: 'engine.inspector.pageBlock.field.record:details.sections.name', kind: 'text', placeholder: 'snake_case, e.g. contact_info' },
+        { name: 'name', label: 'engine.inspector.pageBlock.field.record:details.sections.name', kind: 'text', placeholder: { key: 'engine.inspector.pageBlock.placeholder.record:details.sections.name' } },
         { name: 'label', label: 'engine.inspector.pageBlock.field.record:details.sections.label', kind: 'text' },
-        { name: 'columns', label: 'engine.inspector.pageBlock.field.record:details.sections.columns', kind: 'number', placeholder: '2' },
+        { name: 'columns', label: 'engine.inspector.pageBlock.field.record:details.sections.columns', kind: 'number', placeholder: { literal: '2' } },
         { name: 'fields', label: 'engine.inspector.pageBlock.field.record:details.sections.fields', kind: 'field-list', objectFrom: 'page' },
       ],
     },
@@ -393,7 +443,7 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
     },
     { name: 'title', label: 'engine.inspector.pageBlock.field.record:alert.title', kind: 'text' },
     { name: 'body', label: 'engine.inspector.pageBlock.field.record:alert.body', kind: 'text' },
-    { name: 'icon', label: 'engine.inspector.pageBlock.field.record:alert.icon', kind: 'text', placeholder: 'lucide icon name' },
+    { name: 'icon', label: 'engine.inspector.pageBlock.field.record:alert.icon', kind: 'text', placeholder: { key: 'engine.inspector.pageBlock.placeholder.record:alert.icon' } },
     { name: 'dismissible', label: 'engine.inspector.pageBlock.field.record:alert.dismissible', kind: 'boolean' },
   ],
   'record:path': [
@@ -410,7 +460,7 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
     },
   ],
   'record:quick_actions': [
-    { name: 'actionNames', label: 'engine.inspector.pageBlock.field.record:quick_actions.actionNames', kind: 'string-list', placeholder: 'action name' },
+    { name: 'actionNames', label: 'engine.inspector.pageBlock.field.record:quick_actions.actionNames', kind: 'string-list', placeholder: { key: 'engine.inspector.pageBlock.placeholder.record:quick_actions.actionNames' } },
     {
       name: 'location',
       label: 'engine.inspector.pageBlock.field.record:quick_actions.location',
@@ -432,7 +482,7 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
   // renderer — see block-types.ts PALETTE_EXCLUSIONS, #2943). A config panel
   // for an unauthorable block is how the contradiction stayed invisible.
   'ai:input': [
-    { name: 'agentName', label: 'engine.inspector.pageBlock.field.ai:input.agentName', kind: 'text', placeholder: 'agent name' },
+    { name: 'agentName', label: 'engine.inspector.pageBlock.field.ai:input.agentName', kind: 'text', placeholder: { key: 'engine.inspector.pageBlock.placeholder.ai:input.agentName' } },
     { name: 'placeholder', label: 'engine.inspector.pageBlock.field.ai:input.placeholder', kind: 'text' },
   ],
 };

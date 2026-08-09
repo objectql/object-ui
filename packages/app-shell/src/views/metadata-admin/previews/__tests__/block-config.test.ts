@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { PageComponentType, RecordDetailsProps } from '@objectstack/spec/ui';
-import { BLOCK_CONFIG, blockHasConfig } from '../block-config';
+import { BLOCK_CONFIG, blockHasConfig, type PlaceholderSpec } from '../block-config';
 import { BLOCK_TYPE_META, PALETTE_EXCLUSIONS } from '../block-types';
 import { t } from '../../i18n';
 
@@ -87,7 +87,10 @@ describe('record:details sections ↔ spec section-entry coverage (#3819)', () =
 
   /** The inspector's item editors for one section. */
   const sectionsField = BLOCK_CONFIG['record:details'].find((f) => f.name === 'sections') as
-    | { kind: 'array'; itemFields: Array<{ name: string; label: string; kind: string; placeholder?: string }> }
+    | {
+        kind: 'array';
+        itemFields: Array<{ name: string; label: string; kind: string; placeholder?: PlaceholderSpec }>;
+      }
     | undefined;
 
   it('reads a non-empty section-entry shape from the spec', () => {
@@ -115,7 +118,17 @@ describe('record:details sections ↔ spec section-entry coverage (#3819)', () =
     // `BlockPropField` has no description/pattern affordance, so the
     // placeholder is the only place the snake_case convention can be stated —
     // the same argument the json-placeholder test below makes.
-    expect(nameField!.placeholder, '`name` needs a placeholder stating snake_case').toMatch(/snake_case/);
+    //
+    // Asserted on the RESOLVED hint in both locales, for the same reason the
+    // label assertion below is: since #3979 the placeholder holds a translation
+    // key, and matching /snake_case/ against the KEY would pass on the key's
+    // spelling while a zh-CN author read whatever the table happens to say. The
+    // convention has to survive translation — `snake_case` is a literal token
+    // both locales must keep verbatim, not a word to render as 「蛇形命名」.
+    const namePlaceholder = nameField!.placeholder;
+    expect(namePlaceholder?.key, '`name`s placeholder must be a translation key (#3979)').toBeTruthy();
+    expect(t(namePlaceholder!.key!, 'en-US'), 'en hint must state snake_case').toMatch(/snake_case/);
+    expect(t(namePlaceholder!.key!, 'zh-CN'), 'zh hint must state snake_case').toMatch(/snake_case/);
     // The label must say what the box is FOR. A bare "Name" next to "Label"
     // reads as a second display string, which is how an author ends up typing
     // a heading into the anchor.
@@ -207,12 +220,18 @@ describe('page palette ↔ spec PageComponentType coverage', () => {
     // An empty JSON textarea tells an author nothing. The placeholder is the
     // only affordance a raw-JSON editor has, so a json field without one is a
     // blank box.
-    const missing = Object.entries(BLOCK_CONFIG).flatMap(([type, fields]) =>
+    const jsonFields = Object.entries(BLOCK_CONFIG).flatMap(([type, fields]) =>
       fields
-        .filter((f) => f.kind === 'json' && !(f as { placeholder?: string }).placeholder)
-        .map((f) => `${type}.${f.name}`),
+        .filter((f) => f.kind === 'json')
+        .map((f) => ({ where: `${type}.${f.name}`, spec: (f as { placeholder?: PlaceholderSpec }).placeholder })),
     );
-    expect(missing).toEqual([]);
+    expect(jsonFields.length, 'no json field found — the filter is vacuous').toBeGreaterThan(0);
+    expect(jsonFields.filter((f) => !f.spec).map((f) => f.where)).toEqual([]);
+    // …and it stays a LITERAL (#3979). A JSON sample is the text the author
+    // copies: a "translated" `"type"` / `"target"` yields metadata
+    // `InlineActionSchema` rejects, so this is the one placeholder kind where
+    // going through `t()` would be the bug rather than the fix.
+    expect(jsonFields.filter((f) => f.spec?.key !== undefined).map((f) => f.where)).toEqual([]);
   });
 
   it('a block with a config panel is a block the palette offers', () => {
