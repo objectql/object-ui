@@ -296,17 +296,42 @@ describe('objectui#3546 slice four — the console namespace', () => {
     });
   });
 
-  it("zh planBuilding matches AiChatPage's hard-coded Chinese branch byte for byte", () => {
-    // `AiChatPage.tsx` gates `planBuildingLabel` on `convZh` (the CONVERSATION's
-    // language, #772/#2884) and hands back a literal '正在搭建…' instead of the
-    // pack. That ternary is a separate defect — the label is a LABEL and should
-    // follow the UI locale like every other label on the card, filed as a finding
-    // and NOT fixed here. Until it is, the two sources of that one string must
-    // agree, or a zh reader sees the pack's wording change nothing.
+  it('zh planBuilding is REACHABLE — no conversation-language gate shadows the pack (#3837)', () => {
+    // Slice four measured `planBuildingLabel` in `AiChatPage.tsx` gated on
+    // `convZh` (the CONVERSATION's language, #772/#2884) handing back a literal
+    // '正在搭建…' instead of the pack, which made the zh value below DEAD for every
+    // Chinese conversation — the pack could be re-worded and no zh reader would
+    // see it. That was filed as #3837 and fixed there; this assertion used to pin
+    // the literal and the pack byte-identical (the containment measure while the
+    // defect stood) and now pins its removal, which is the state that makes the
+    // pack the single source of the badge's text.
     const src = sourceOf('packages/app-shell/src/console/ai/AiChatPage.tsx');
-    const literal = src.match(/convZh \? '([^']+)' : t\('console\.ai\.planBuilding'/);
-    expect(literal, 'the convZh planBuilding branch moved — recheck the finding').not.toBeNull();
-    expect(at(builtInLocales.zh, 'console.ai.planBuilding')).toBe(literal![1]);
+    expect(
+      src,
+      'the convZh gate is back over planBuildingLabel — the zh pack value is dead again (#3837)',
+    ).not.toMatch(/convZh \? '[^']*' : t\('console\.ai\.planBuilding'/);
+    expect(src, 'planBuildingLabel no longer reads the pack directly (#3837)').toMatch(
+      /planBuildingLabel=\{t\('console\.ai\.planBuilding'/,
+    );
+    // Same invariant one step wider, so the next label to drift in is caught too:
+    // `convZh` may gate OUTBOUND message text only — the cloud confirm gate reads
+    // those two languages (see outbound-agent-messages.test.ts) — never anything
+    // RENDERED. Whole-line comments are stripped first so prose naming the
+    // identifier (there is some, right above it) can't be counted as a read.
+    const code = src.replace(/^\s*\/\/.*$/gm, '');
+    const gated = [...code.matchAll(/const (\w+) = convZh\b/g)].map((m) => m[1]);
+    expect(gated).toEqual([
+      'planApproveMessage',
+      'planApproveDefaultsMessage',
+      'changesConfirmMessage',
+    ]);
+    expect(
+      [...code.matchAll(/\bconvZh\b/g)],
+      'a convZh read appeared outside the outbound-message consts — if it feeds anything rendered, it follows the UI locale instead (#3837)',
+    ).toHaveLength(1 /* the useMemo that defines it */ + gated.length);
+    // And zh still spells the badge the way the deleted literal did, so the fix
+    // changed WHICH source answers a zh-UI reader, not what they read.
+    expect(at(builtInLocales.zh, 'console.ai.planBuilding')).toBe('正在搭建…');
   });
 
   it('the ratchet actually shrank — no console key is still baselined', () => {

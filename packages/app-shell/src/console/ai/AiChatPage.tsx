@@ -1584,6 +1584,13 @@ export function ChatPane({
   // gate (service-ai-studio) accepts both languages, so this is a cosmetic —
   // but jarring — mismatch. Override the sent strings to Chinese when the
   // conversation is Chinese; button LABELS stay on the UI locale.
+  //
+  // That last clause is load-bearing: `planBuildingLabel` had drifted into this
+  // gate (#2632) and shipped the plan card's only Chinese word to English-UI
+  // readers while making the zh pack's `console.ai.planBuilding` unreachable for
+  // zh conversations (#3837). Nothing but OUTBOUND message text belongs below —
+  // a pin in `packages/i18n/src/__tests__/console-namespace-3546.test.tsx` fails
+  // if a `*Label` rejoins the gate.
   const convZh = useMemo(
     () => isConversationZh(messages as ChatMessage[]) || isConversationZh(initialMessages),
     [messages, initialMessages],
@@ -2191,9 +2198,7 @@ export function ChatPane({
         planApproveLabel={t('console.ai.planApprove', { defaultValue: 'Build it' })}
         planAdjustLabel={t('console.ai.planAdjust', { defaultValue: 'Adjust' })}
         planBuiltLabel={t('console.ai.planBuilt', { defaultValue: 'Built' })}
-        planBuildingLabel={
-          convZh ? '正在搭建…' : t('console.ai.planBuilding', { defaultValue: 'Building…' })
-        }
+        planBuildingLabel={t('console.ai.planBuilding', { defaultValue: 'Building…' })}
         planReadyLabel={t('console.ai.planReady', {
           defaultValue: 'The plan is ready. Build it now, or tell me what to adjust.',
         })}
