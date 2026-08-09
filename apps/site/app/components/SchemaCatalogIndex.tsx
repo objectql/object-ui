@@ -103,16 +103,26 @@ interface CardProps {
   onOpen: (e: Example) => void;
 }
 
+/**
+ * One gallery card.
+ *
+ * The shell is deliberately NON-interactive and the click target is an overlay
+ * sibling, never an ancestor of the thumbnail (objectui#3903). `SchemaThumbnail`
+ * renders the example itself through a real `SchemaRenderer`, and 85 of the 423
+ * catalog examples contain `"type": "button"` nodes — with a `button` shell those
+ * cards shipped `button` inside `button`, which React classifies as a hydration
+ * error (the HTML parser hoists the inner button out of the outer one, so the
+ * server HTML and the client tree disagree) on top of being an accessibility
+ * defect in its own right. A `div role="button"` shell would keep both problems;
+ * an absolutely positioned overlay removes them without giving up a real,
+ * natively focusable control.
+ */
 const GalleryCard = React.memo(function GalleryCard({
   entry,
   onOpen,
 }: CardProps) {
   return (
-    <button
-      type="button"
-      onClick={() => onOpen(entry)}
-      className="group flex flex-col gap-2 rounded-lg border border-fd-border bg-fd-card p-3 text-left transition hover:border-fd-primary hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-fd-ring"
-    >
+    <div className="group relative flex flex-col gap-2 rounded-lg border border-fd-border bg-fd-card p-3 text-left transition hover:border-fd-primary hover:shadow-sm">
       <SchemaThumbnail schema={entry.schema as SchemaNode} />
       <div className="flex flex-col gap-0.5">
         <div className="line-clamp-1 text-sm font-medium text-fd-foreground">
@@ -122,7 +132,20 @@ const GalleryCard = React.memo(function GalleryCard({
           {entry.id}
         </code>
       </div>
-    </button>
+      {/*
+        The card's only focusable node: it covers the whole card (`inset-0`
+        resolves against the shell's padding box), so the focus ring still reads
+        as "the card is focused", and its accessible name carries both labels the
+        card shows — title and id — which keeps WCAG 2.5.3 (label in name)
+        satisfied. The `button` role itself announces what activation does.
+      */}
+      <button
+        type="button"
+        onClick={() => onOpen(entry)}
+        aria-label={`Open ${entry.meta.title} (${entry.id})`}
+        className="absolute inset-0 cursor-pointer rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-fd-ring"
+      />
+    </div>
   );
 });
 
