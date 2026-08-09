@@ -295,7 +295,13 @@ describe('why the `condition` gate cannot ask truthiness (objectui#3872)', () =>
     // does not copy that: `catch { isDisabled = false }` already committed this
     // module to fail-OPEN on junk, and a value that is not a predicate must not
     // decide an action's fate. Pinned so the next reader sees the difference is
-    // chosen, not overlooked — objectui#3850's follow-up owns unifying it.
+    // chosen, not overlooked.
+    //
+    // Ownership, corrected: objectui#3850 landed WITHOUT unifying this — its
+    // ruling covered the "declared?" definition and its placement (core, with
+    // the renderer face and `SchemaRenderer` reading it), not the engine filter's
+    // own scope. `ActionEngine` is now the last consumer answering this question
+    // with its own range, measured on both faces and filed as objectui#3957.
     const engine = new ActionEngine(CONTEXT);
     engine.registerAction(
       { name: 'junk_visible', type: 'script', target: '"ran"', visible: 0 } as unknown as ActionDef,

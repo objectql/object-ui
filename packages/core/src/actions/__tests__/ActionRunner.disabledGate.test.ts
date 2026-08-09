@@ -43,23 +43,30 @@
  *     = false }`): a value that is not a predicate at all must not decide that
  *     an action is disabled.
  *
- * ## The parity claim, and the one row it deliberately does NOT make
+ * ## The parity claim, now made for EVERY row (objectui#3850 closed the last three)
  *
  * `rendererDisabled` is transcribed from objectui#3848's divergence table (the
  * action face as it stands after #3842 + #3849), NOT recomputed here:
  * `@object-ui/core` is the dependency of the renderer packages, so it cannot
- * import them, and the live renderer-side pins are in those two PRs' tests. The
+ * import them, and the live renderer-side pins are in those PRs' tests. The
  * parity test below therefore asserts that the verdicts THIS suite pins equal
  * the verdicts recorded from the renderers — the #3314 invariant (one predicate
- * value, one answer, whichever entry reads it) — for every row where that claim
- * is honest. ONE row is excluded, with its owning issue:
+ * value, one answer, whichever entry reads it).
  *
- *   • `{ dialect: 'cel', source: '' }` — the renderer still greys this out
- *     (`hasDeclaredVisibilityGate` is `!= null && !== ''`, which an envelope
- *     passes). That residual is objectui#3850, the queued ruling on how wide
- *     "empty predicate" is across the sites; the execution side pins the
- *     normalized semantics (an envelope with no source is nothing to evaluate).
- *     Not fixed here — objectui#3850 owns the renderer half.
+ * Three rows used to be excluded, all of them the renderer's "is a gate
+ * DECLARED?" scope: `{ dialect: 'cel', source: '' }` (an envelope passes
+ * `!= null && !== ''`, so the renderer greyed the button out while this side read
+ * the same value as nothing to evaluate) and the two junk rows `0` / `{}` (same
+ * mechanism, coerced instead of folded). objectui#3850 ruled that scope — a gate
+ * is declared when normalization still leaves a condition — and the definition
+ * this file's gate asked privately moved into
+ * `evaluator/declaredPredicate.ts` as `hasDeclaredPredicate`, which the renderer
+ * side now re-exports as `hasDeclaredVisibilityGate`. So the three rows claim
+ * parity, backed by live renderer-side pins rather than transcription alone:
+ * `packages/components/src/renderers/action/__tests__/action-empty-predicate-scope.test.tsx`
+ * (the action leaf, all five empty spellings plus the junk rows) and
+ * `packages/react/src/__tests__/SchemaRenderer.disabledDeclaredGate.test.tsx`
+ * (the generic path, objectui#3862).
  *
  * The two `${…}`-spelled rows used to be excluded as well, and no longer are.
  * The action-face renderers compose `evaluateCondition(toPredicateInput(x))`,
@@ -117,11 +124,13 @@ const SHAPES: Shape[] = [
   { label: "disabled: '' (empty predicate)", disabled: '', blocked: false, rendererDisabled: false },
   { label: "disabled: '   ' (whitespace-only predicate)", disabled: '   ', blocked: false, rendererDisabled: false },
   {
+    // Parity claimed since objectui#3850 moved the "declared?" definition into
+    // core and the renderer side started reading it: an envelope with no source
+    // is nothing to evaluate on both faces.
     label: "disabled: { dialect: 'cel', source: '' } (empty envelope)",
     disabled: { dialect: 'cel', source: '' },
     blocked: false,
-    rendererDisabled: null,
-    divergence: 'objectui#3850 — the renderer still reads an empty-source envelope as a declared gate',
+    rendererDisabled: false,
   },
   // ── unchanged: ungated stays ungated ────────────────────────────────────
   { label: 'disabled absent (undeclared)', absent: true, blocked: false, rendererDisabled: false },
@@ -167,8 +176,10 @@ const SHAPES: Shape[] = [
     rendererDisabled: false,
   },
   // ── behaviour change: non-predicate junk fails open ─────────────────────
-  { label: 'disabled: 0 (not a predicate)', disabled: 0, blocked: false, rendererDisabled: null, divergence: 'objectui#3850 — the renderers read a non-predicate as a declared gate and coerce it' },
-  { label: 'disabled: {} (not a predicate)', disabled: {}, blocked: false, rendererDisabled: null, divergence: 'objectui#3850 — the renderers read a non-predicate as a declared gate and coerce it' },
+  // Parity claimed since objectui#3850: the renderers stopped reading a
+  // non-predicate as a declared gate, so junk fails open on both faces.
+  { label: 'disabled: 0 (not a predicate)', disabled: 0, blocked: false, rendererDisabled: false },
+  { label: 'disabled: {} (not a predicate)', disabled: {}, blocked: false, rendererDisabled: false },
 ];
 
 /** Execute one shape and report whether the handler ran. */
@@ -211,11 +222,12 @@ describe('ActionRunner.execute — declared `disabled` gate (objectui#3848)', ()
 
   it('the execution verdict equals the renderer verdict for every shape where parity is claimed', () => {
     const claimed = SHAPES.filter(s => s.rendererDisabled !== null);
-    // Guard the guard: if a future edit nulls out the whole column, this test
-    // would pass by asserting nothing. Raised from 8 to 10 when objectui#3871
-    // brought the two `${…}` rows into the claim — a floor that does not move
-    // with the table is a floor that stops guarding it.
-    expect(claimed.length).toBeGreaterThanOrEqual(10);
+    // Guard the guard: if a future edit nulls out the column, this test would
+    // pass by asserting nothing. 8 → 10 when objectui#3871 brought the two `${…}`
+    // rows into the claim, 10 → the whole table when objectui#3850 brought the
+    // envelope and junk rows in. A floor that does not move with the table is a
+    // floor that stops guarding it.
+    expect(claimed.length).toBe(SHAPES.length);
     for (const shape of claimed) {
       expect(
         shape.blocked,
@@ -224,20 +236,22 @@ describe('ActionRunner.execute — declared `disabled` gate (objectui#3848)', ()
     }
   });
 
-  it('records which shapes are knowingly still divergent, and who owns each', () => {
+  it('no shape is exempt from the parity claim any more, and a future exemption must name its issue', () => {
+    // This replaces the "which rows are knowingly divergent" case, which after
+    // objectui#3850 would have asserted an EMPTY list — green because nothing is
+    // produced, not because the invariant holds. The claim now is the stronger
+    // one: every shape in the table is compared, and the `divergence` escape
+    // hatch stays exercised — re-introducing one without an owning issue fails
+    // here rather than quietly shrinking the comparison.
     const divergent = SHAPES.filter(s => s.rendererDisabled === null);
-    for (const shape of divergent) {
-      expect(shape.divergence, `${shape.label} must name the issue that owns it`).toMatch(/objectui#\d+/);
+    expect(divergent.map(s => s.label)).toEqual([]);
+    for (const shape of SHAPES) {
+      if (shape.rendererDisabled === null) {
+        expect(shape.divergence, `${shape.label} must name the issue that owns it`).toMatch(/objectui#\d+/);
+      } else {
+        expect(shape.divergence, `${shape.label} claims parity, so it must not also claim a divergence`).toBeUndefined();
+      }
     }
-    // The two `${…}` rows left this list when objectui#3871 was fixed — the
-    // renderer face stopped answering with a constant, so there is no longer a
-    // difference to own. What remains is one family: the renderer's "is a gate
-    // DECLARED?" scope, which objectui#3850 owns for all three shapes.
-    expect(divergent.map(s => s.label)).toEqual([
-      "disabled: { dialect: 'cel', source: '' } (empty envelope)",
-      'disabled: 0 (not a predicate)',
-      'disabled: {} (not a predicate)',
-    ]);
   });
 });
 

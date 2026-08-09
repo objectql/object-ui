@@ -9,6 +9,7 @@
 export * from './ExpressionContext.js';
 export * from './ExpressionEvaluator.js';
 export * from './predicateInput.js';
+export * from './declaredPredicate.js';
 export * from './fieldRules.js';
 export * from './listConditional.js';
 export * from './optionRules.js';

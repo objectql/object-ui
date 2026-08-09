@@ -24,7 +24,7 @@
 import type { RunnableActionType } from '@object-ui/types';
 import type { ActionInput as SpecActionInput } from '@objectstack/spec/ui';
 import { ExpressionEvaluator } from '../evaluator/ExpressionEvaluator';
-import { toPredicateInput } from '../evaluator/predicateInput';
+import { hasDeclaredPredicate } from '../evaluator/declaredPredicate';
 import { globalUndoManager, type UndoableOperation } from './UndoManager';
 import { warnOnDeprecatedObjectParams, warnOnUnknownActionKeys } from './actionKeys';
 
@@ -536,19 +536,19 @@ function withIdentityAlias(context: ActionContext): ActionContext {
   return { ...context, os: { ...(os && typeof os === 'object' ? os : {}), user } };
 }
 
-/**
- * Did this action declare a gate at all — i.e. is there a CONDITION for the
- * evaluator to reach a verdict on? (objectui#3848 for `disabled`, objectui#3872
- * for `condition`)
+/*
+ * ## The two predicate gates in `execute`, and the one question they ask first
  *
- * ## One definition, two gates — why this is not two helpers
- *
- * `execute` has two predicate gates, and both need this ONE question answered
- * before evaluating. They need it for OPPOSITE reasons, which is exactly why the
- * question has to be asked separately from the verdict:
+ * `execute` gates on `condition` and on `disabled`, and both need ONE question
+ * answered before evaluating — "is a gate DECLARED here, i.e. is there a
+ * condition to reach a verdict on?" — for OPPOSITE reasons, which is exactly why
+ * the question has to be asked separately from the verdict:
  *
  *   - `disabled` (objectui#3848): an EMPTY predicate must not be handed to
  *     `evaluateCondition`, whose answer for "no condition" is `true` = BLOCKED.
+ *     Measured consequence of asking `!= null && !== false` instead:
+ *     `disabled: ''` returned `{ success: false, error: 'Action is disabled' }`
+ *     and the handler never ran.
  *   - `condition` (objectui#3872): a DECLARED-FALSE predicate must not be
  *     skipped by a truthiness test. `if (action.condition)` never asked whether
  *     a gate was declared, so `condition: false` — the most explicit "never
@@ -560,49 +560,28 @@ function withIdentityAlias(context: ActionContext): ActionContext {
  *     short-circuits booleans (`if (typeof condition === 'boolean') return
  *     condition`) and blocks.
  *
- * The scope of "empty predicate" below is objectui#3850's ruling (`''` /
- * whitespace-only / empty-`source` envelope are NOT declared), so both gates
- * read the same one. A second module-private twin of the same question in this
- * one file is the drift the closing scope note refuses; the name is therefore
- * key-neutral, and the `disabled` gate's semantics and message are unchanged by
- * objectui#3872.
+ * Both read {@link hasDeclaredPredicate} — the repo's one definition of that
+ * question, in `evaluator/declaredPredicate.ts` beside the normalizer it is
+ * derived from, with the scope objectui#3850 ruled on (`''` / whitespace-only /
+ * empty-`source` envelope / non-predicate junk are NOT declared; a declared
+ * `false` IS). This gate arrived here first as a module-private helper with a
+ * scope note saying it stayed private until that ruling landed; it has, so the
+ * definition moved down a layer and the renderer side reads the same one
+ * (`components/renderers/action/visibility-gate.ts` re-exports it as
+ * `hasDeclaredVisibilityGate`, `SchemaRenderer`'s `disabled` chain calls it).
  *
- * `ExpressionEvaluator.evaluateCondition` documents and implements one default
- * for "there is no condition here": it returns `true`, meaning
- * *visible/enabled*. That default is correct on `visible` / `enabled`, and
- * INVERTED on `disabled`, where `true` means "blocked". So the execution gate
- * must decide "is there a condition?" itself, BEFORE evaluating — asking
- * `!= null && !== false` (what it used to ask) hands every empty predicate to a
- * function whose answer for "nothing to evaluate" is the strongest possible
- * "yes, disabled". Measured consequence: `disabled: ''` returned
- * `{ success: false, error: 'Action is disabled' }` and the handler never ran.
+ * ## Why the gates normalize to DECIDE but evaluate the RAW value
  *
- * The shapes `evaluateCondition` itself calls "no condition" are `null` /
- * `undefined` / `''` / a whitespace-only string (`if (!trimmed) return true`) /
- * an envelope whose `source` is blank. This gate excludes exactly those:
- *
- *   - `toPredicateInput` is core's single predicate normalizer and already maps
- *     `''`, `null`, `undefined`, an empty-`source` envelope, and any
- *     non-predicate junk (`0`, `{}`) to `undefined` = "nothing to evaluate".
- *   - the whitespace-only string is the one shape it does NOT collapse (it
- *     wraps it as `'${   }'`), so it is named here. This is the same blank-source
- *     rule core's other predicate entry already applies —
- *     `evalRowPredicate` (`evaluator/listConditional.ts`) returns its fallback
- *     for `!source.trim()`.
- *
- * ## Why the gate normalizes but the VERDICT still reads the raw value
- *
- * Historically the two were NOT interchangeable for a string already spelled as
+ * Historically the two were not interchangeable for a string already spelled as
  * a `${…}` template: `toPredicateInput` assumed a bare expression and wrapped
  * unconditionally, so `'${x}'` became `'${${x}}'`, which no longer matched the
  * single-template fast path and did not parse — leaving a constant verdict whose
  * direction was set by the caller's error policy (fail-soft got the unparsed
  * string back, `Boolean(…)` = `true`; fail-closed got a throw). On `disabled`
- * that meant "always blocked", on `condition` the opposite ("always execute"),
- * so both gates here normalize only to decide DECLAREDNESS and evaluate the raw
- * value. That defect was objectui#3871, fixed at the normalizer: an
- * already-`${…}` string is now returned untouched, the normalizer is idempotent,
- * and `evaluateCondition(toPredicateInput(raw))` agrees with
+ * that meant "always blocked", on `condition` the opposite ("always execute").
+ * That defect was objectui#3871, fixed at the normalizer: an already-`${…}`
+ * string is returned untouched, the normalizer is idempotent, and
+ * `evaluateCondition(toPredicateInput(raw))` agrees with
  * `evaluateCondition(raw)` on every shape these gates accept.
  *
  * The gates still read the raw value. Nothing forces the change now that the two
@@ -610,33 +589,18 @@ function withIdentityAlias(context: ActionContext): ActionContext {
  * reason has shifted from "must" to "no reason to", so the equality is pinned
  * next to each gate's suite (`ActionRunner.disabledGate.test.ts` /
  * `ActionRunner.conditionGate.test.ts`, the two cases that replaced the
- * objectui#3871 tripwires) instead of being assumed.
- *
- * So the value handed to the evaluator is left exactly as it was. Every
- * non-empty shape — boolean, bare CEL, `${…}` template, `{ dialect, source }`
- * envelope — keeps the verdict it reaches today, and this change can only stop
- * blocking things, never start.
- *
- * Scope note: `hasDeclaredVisibilityGate`
- * (`components/renderers/action/visibility-gate.ts`, `!= null && !== ''`) is
- * the renderer-side spelling of this question. It is deliberately NOT reused or
- * moved: it lives in a package that depends on this one, it does not cover the
- * empty-`source` envelope (objectui#3850) or the whitespace string, and
- * objectui#3850 is the queued ruling on unifying the scope of "empty
- * predicate" across the sites. Kept module-private until that lands — one
- * definition, one module, no new exported dialect of the same question.
+ * objectui#3871 tripwires) instead of being assumed. Every non-empty shape —
+ * boolean, bare CEL, `${…}` template, `{ dialect, source }` envelope — keeps the
+ * verdict it reaches today.
  *
  * Nor is the `visible`-filter template in `ActionEngine.getActionsForLocation`
- * copied wholesale: its non-predicate branch keeps a historical
- * `Boolean(raw)` coercion, so `0` there means "hidden" — fail-CLOSED on junk,
- * the opposite of what this module already committed to for `disabled`
+ * copied wholesale: its non-predicate branch keeps a historical `Boolean(raw)`
+ * coercion, so `0` there means "hidden" — fail-CLOSED on junk, the opposite of
+ * what this module already committed to for `disabled`
  * (`catch { isDisabled = false }`). A value that is not a predicate at all must
- * not decide an action's fate, on either key, so `0` / `{}` are "no gate" here.
+ * not decide an action's fate, on either key, so `0` / `{}` are "no gate" here
+ * and in the shared definition.
  */
-function hasDeclaredPredicate(value: unknown): boolean {
-  if (typeof value === 'string' && value.trim() === '') return false;
-  return toPredicateInput(value) !== undefined;
-}
 
 export class ActionRunner {
   private handlers = new Map<string, ActionRunnerHandler>();

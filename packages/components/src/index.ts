@@ -42,9 +42,12 @@ export { cva } from 'class-variance-authority';
 export { getLazyIcon, isLucideIconName, LazyIcon, toKebabIconName } from './lib/lazy-icon';
 
 // The member-action visibility gate — "did this action DECLARE a `visible` gate
-// at all?" (`!= null && !== ''`), the single definition objectui#3492
-// established and PR #3816 / #3825 / #3836 applied to every member-action gate
-// in this package and in `plugin-grid`.
+// at all?", the single definition objectui#3492 established and PR #3816 /
+// #3825 / #3836 applied to every member-action gate in this package and in
+// `plugin-grid`. Since objectui#3850 the answer is "normalization still leaves a
+// condition to evaluate" (so an empty-`source` envelope is NOT a gate, where the
+// older `!= null && !== ''` counted every object), and this name is a re-export
+// of core's one definition, `hasDeclaredPredicate`.
 //
 // Exported because the family has a member OUTSIDE these packages: app-shell's
 // `DeclaredActionsBar` mounts an object's server-declared actions as plain JSX
