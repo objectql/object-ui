@@ -2,6 +2,7 @@
 
 /**
  * objectui#3913 — the PROPERTIES panel renders in the session's language.
+ * objectui#3963 — and so does the panel's OWN chrome (see the second describe).
  *
  * The sibling `previews/__tests__/block-config-i18n.test.ts` pins the TABLE
  * (every label is a key its position implies, and both locales define it). That
@@ -18,9 +19,13 @@
  */
 
 import { describe, it, expect, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { PageSchema } from '@objectstack/spec/ui';
 import { PageBlockInspector } from './PageBlockInspector';
+import { t } from '../i18n';
 
 afterEach(cleanup);
 
@@ -99,28 +104,18 @@ describe('PageBlockInspector PROPERTIES labels follow the locale (#3913)', () =>
   });
 
   /**
-   * NOT asserted anywhere above, deliberately: that this panel contains no
-   * English at all. It still does, and the boundary is worth pinning.
+   * The boundary this describe deliberately did NOT cover used to be pinned
+   * here, as an assertion that the panel's own chrome was still English —
+   * `<Plus /> Add`, the "Remove" / "Remove item" aria-labels, "Invalid JSON",
+   * and two placeholders were literals in `PageBlockInspector.tsx` itself,
+   * never `block-config` labels, so they were outside objectui#3913 and filed
+   * as objectui#3963.
    *
-   * `FieldListField` and the `string-list` branch render their row-adder as a
-   * hardcoded `<Plus /> Add`, and `aria-label`s ("Remove", "Remove item"), the
-   * JSON parse error ("Invalid JSON") and two placeholders ("field name",
-   * "snake_case object") are literals in `PageBlockInspector.tsx` itself. None
-   * of them was ever a `block-config` label — different mechanism, different
-   * surface — so they are outside objectui#3913 and filed as objectui#3963.
-   *
-   * Asserting their PRESENCE (rather than quietly not mentioning them) means the
-   * day objectui#3963 lands, this case fails and has to be tightened, instead of
-   * the two fixes silently overlapping and leaving nobody sure what is covered.
+   * That case did its job: objectui#3963 landing turned it red instead of the
+   * two fixes silently overlapping. It is now the second describe below, which
+   * asserts the same sites resolve THROUGH the catalog in both locales — the
+   * boundary moved rather than disappeared.
    */
-  it('leaves only the known non-block-config chrome in English (objectui#3963)', () => {
-    renderInspector(pageDraft('record:details', { sections: [{ label: 'Contact info' }] }), 'zh-CN');
-
-    // The section's `fields` item editor is a `field-list`; its adder is chrome.
-    const adders = screen.getAllByRole('button').filter((b) => b.textContent?.trim() === 'Add');
-    expect(adders.length).toBeGreaterThan(0);
-    expect(screen.getAllByLabelText('Remove item').length).toBeGreaterThan(0);
-  });
 
   it('translates nested array-item labels, not just the container', () => {
     // Item fields recurse through `renderField` with a different read/write
@@ -168,5 +163,164 @@ describe('PageBlockInspector PROPERTIES labels follow the locale (#3913)', () =>
     expect(screen.getByText('显示面包屑')).toBeTruthy();
     expect(screen.queryByText('Subtitle')).toBeNull();
     expect(screen.queryByText('Show breadcrumb')).toBeNull();
+  });
+});
+
+/**
+ * objectui#3963 — the panel's OWN chrome follows the locale too.
+ *
+ * A different mechanism from the describe above: these strings were never
+ * `block-config` data, they were literals inside `PageBlockInspector.tsx`'s
+ * JSX. The visible symptom was one panel in two languages the other way round
+ * — after #3913 a zh-CN admin read 「分区」/「字段」 with an English `Add`
+ * underneath each list.
+ *
+ * Two of the sites are `aria-label`s and two are placeholders, i.e. invisible
+ * to a text query and to a screenshot; that is why they survived #3913's
+ * review and why the assertions below use `getByLabelText` /
+ * `getByPlaceholderText` rather than reading the rendered text.
+ */
+describe("PageBlockInspector's own chrome follows the locale (#3963)", () => {
+  /** `record:details` with one populated section: array card + field-list rows. */
+  const detailsDraft = () =>
+    pageDraft('record:details', { sections: [{ label: 'Contact info', fields: ['name'] }] });
+
+  it('renders every chrome site in Chinese under zh-CN', () => {
+    renderInspector(detailsDraft(), 'zh-CN');
+
+    // Row adder of the `field-list` editor (was a bare `<Plus /> Add`).
+    const adders = screen.getAllByRole('button').filter((b) => b.textContent?.trim() === '添加');
+    expect(adders.length).toBeGreaterThan(0);
+    // Per-row remove (aria-label only) and the array item card's remove.
+    expect(screen.getAllByLabelText('删除').length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText('删除项').length).toBeGreaterThan(0);
+    // The free-text fallback row of a `field-list` — a placeholder, invisible
+    // to `getByText`.
+    expect(screen.getAllByPlaceholderText('字段名').length).toBeGreaterThan(0);
+
+    // The English literals are gone, not merely joined by Chinese ones.
+    expect(screen.queryAllByRole('button').filter((b) => b.textContent?.trim() === 'Add')).toEqual([]);
+    expect(screen.queryByLabelText('Remove')).toBeNull();
+    expect(screen.queryByLabelText('Remove item')).toBeNull();
+    expect(screen.queryByPlaceholderText('field name')).toBeNull();
+    expectNoRawKeys();
+  });
+
+  it('renders the same chrome in English under en-US, unchanged', () => {
+    // en-US is this repo's baseline language: the new keys carry exactly the
+    // literals that used to be hardcoded, so this panel must not have moved.
+    renderInspector(detailsDraft(), 'en-US');
+
+    const adders = screen.getAllByRole('button').filter((b) => b.textContent?.trim() === 'Add');
+    expect(adders.length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText('Remove').length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText('Remove item').length).toBeGreaterThan(0);
+    expect(screen.getAllByPlaceholderText('field name').length).toBeGreaterThan(0);
+    expectNoRawKeys();
+  });
+
+  it('translates the string-list branch too, not only FieldListField', () => {
+    // Two independent copies of the same adder/remove chrome: `FieldListField`
+    // (a component) and `renderField`'s `string-list` case (inline JSX). A fix
+    // applied to one only would leave the other English, and no fixture in the
+    // describe above renders `string-list` at all.
+    renderInspector(pageDraft('record:quick_actions', { actionNames: ['send_email'] }), 'zh-CN');
+
+    const adders = screen.getAllByRole('button').filter((b) => b.textContent?.trim() === '添加');
+    expect(adders.length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText('删除').length).toBeGreaterThan(0);
+    expect(screen.queryByLabelText('Remove')).toBeNull();
+    expectNoRawKeys();
+  });
+
+  it("translates the object picker's free-text placeholder", () => {
+    // `ObjectPickerField` degrades to a free-text input when the object list is
+    // unavailable — which is the state every offline session starts in.
+    renderInspector(pageDraft('object-grid'), 'zh-CN');
+
+    expect(screen.getByPlaceholderText('snake_case 对象名')).toBeTruthy();
+    expect(screen.queryByPlaceholderText('snake_case object')).toBeNull();
+  });
+
+  it('reuses the catalog key for the JSON parse error instead of a literal', () => {
+    // `engine.form.invalidJson` already existed and `translateValidationMessage()`
+    // already mapped `'invalid json'` onto it — this site had bypassed it. Asserting
+    // the RESOLVED value in both locales is what distinguishes "reused the key"
+    // from "hardcoded the same English words".
+    renderInspector(pageDraft('element:button'), 'zh-CN');
+    const zhArea = document.querySelector('textarea');
+    expect(zhArea).toBeTruthy();
+    fireEvent.change(zhArea!, { target: { value: '{ not json' } });
+    fireEvent.blur(zhArea!);
+    expect(screen.getByText(t('engine.form.invalidJson', 'zh-CN'))).toBeTruthy();
+    expect(screen.queryByText('Invalid JSON')).toBeNull();
+
+    cleanup();
+    renderInspector(pageDraft('element:button'), 'en-US');
+    const enArea = document.querySelector('textarea');
+    fireEvent.change(enArea!, { target: { value: '{ not json' } });
+    fireEvent.blur(enArea!);
+    expect(screen.getByText('Invalid JSON')).toBeTruthy();
+  });
+});
+
+/**
+ * Key completeness for the panel's own chrome — the same shape as the
+ * structural pin `previews/__tests__/block-config-i18n.test.ts` uses for the
+ * table, adapted to the one thing that differs: these keys have no position to
+ * be derived from, they are `t('…')` call sites in one file. So the list is
+ * read back OUT of that file instead of hand-copied here, and the day someone
+ * adds a chrome key with only an en translation this is red without anybody
+ * remembering to extend a list.
+ *
+ * Completeness is measured through `t()` — it returns the key unchanged on a
+ * miss, so `t(key, locale) === key` is exactly "this locale has no entry".
+ */
+describe("PageBlockInspector's chrome keys resolve in both locales (#3963)", () => {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const source = readFileSync(path.join(here, 'PageBlockInspector.tsx'), 'utf8');
+  /** Literal keys passed to `t()`. Dynamic `t(f.label)` sites are block-config's. */
+  const KEYS = [...new Set([...source.matchAll(/\bt\(\s*'([^']+)'/g)].map((m) => m[1]))];
+
+  /**
+   * Keys whose two locales are deliberately identical, with the reason. A
+   * ledger, not a rule — everything else staying red is the point.
+   */
+  const LOCALE_INVARIANT = new Set<string>([
+    'engine.inspector.pageBlock.id', // 'ID' — an acronym, not translated in zh-CN
+  ]);
+
+  it('finds the call sites at all — the scan is not vacuous', () => {
+    expect(KEYS.length).toBeGreaterThan(12);
+    // The five keys #3963 added, plus the existing one it reuses rather than
+    // duplicating. Named explicitly so a regex that silently stops matching
+    // (e.g. after a reformat) fails here instead of passing over nothing.
+    for (const key of [
+      'engine.inspector.pageBlock.list.add',
+      'engine.inspector.pageBlock.list.remove',
+      'engine.inspector.pageBlock.list.removeItem',
+      'engine.inspector.pageBlock.objectPlaceholder',
+      'engine.inspector.pageBlock.fieldPlaceholder',
+      'engine.form.invalidJson',
+    ]) {
+      expect(KEYS).toContain(key);
+    }
+  });
+
+  it('every key resolves in en-US', () => {
+    expect(KEYS.filter((k) => t(k, 'en-US') === k)).toEqual([]);
+  });
+
+  it('every key resolves in zh-CN', () => {
+    expect(KEYS.filter((k) => t(k, 'zh-CN') === k)).toEqual([]);
+  });
+
+  it('zh-CN is actually translated, not a copy of en-US', () => {
+    const untranslated = KEYS.filter(
+      (k) => !LOCALE_INVARIANT.has(k) && t(k, 'zh-CN') === t(k, 'en-US'),
+    ).map((k) => `${k} = '${t(k, 'en-US')}'`);
+    // If a chrome string really is locale-invariant, add it to
+    // LOCALE_INVARIANT above with its reason — do not weaken this assertion.
+    expect(untranslated).toEqual([]);
   });
 });

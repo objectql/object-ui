@@ -478,6 +478,17 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.pageBlock.advanced': 'Advanced',
   'engine.inspector.pageBlock.remove': 'Remove block',
   'engine.inspector.pageBlock.outlineLabel': 'Blocks',
+  // Chrome of the panel's own list/JSON editors (#3963) — NOT block-config
+  // data. These live beside the keys above (not under `.field.`, which is
+  // reserved for keys derived from a BLOCK_CONFIG position) because they are
+  // one shared control repeated across every list field, with no per-field
+  // wording. `list.*` mirrors `engine.inspector.flowNode.list.*`, the same
+  // editor shape in a sibling panel.
+  'engine.inspector.pageBlock.list.add': 'Add',
+  'engine.inspector.pageBlock.list.remove': 'Remove',
+  'engine.inspector.pageBlock.list.removeItem': 'Remove item',
+  'engine.inspector.pageBlock.objectPlaceholder': 'snake_case object',
+  'engine.inspector.pageBlock.fieldPlaceholder': 'field name',
   // Page block inspector — curated property labels (#3913).
   // These are the `label` / `addLabel` / option-label values of
   // `previews/block-config.ts`; that file stores the KEY and the inspector
@@ -2197,6 +2208,12 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.pageBlock.advanced': '高级属性',
   'engine.inspector.pageBlock.remove': '删除区块',
   'engine.inspector.pageBlock.outlineLabel': '区块',
+  // 面板自身列表/JSON 编辑器的 chrome(#3963)—— 不是 block-config 表数据。
+  'engine.inspector.pageBlock.list.add': '添加',
+  'engine.inspector.pageBlock.list.remove': '删除',
+  'engine.inspector.pageBlock.list.removeItem': '删除项',
+  'engine.inspector.pageBlock.objectPlaceholder': 'snake_case 对象名',
+  'engine.inspector.pageBlock.fieldPlaceholder': '字段名',
   // 页面区块检查器 —— curated 属性 label(#3913)。
   // 键形状与 en 侧一一对应,由 `previews/__tests__/block-config-i18n.test.ts`
   // 按 BLOCK_CONFIG 的结构重新推导并断言两语齐备。

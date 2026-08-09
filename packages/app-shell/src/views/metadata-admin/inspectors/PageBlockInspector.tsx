@@ -14,7 +14,7 @@
 import * as React from 'react';
 import type { MetadataInspectorProps } from '../inspector-registry';
 import type { ExpressionInput } from '@objectstack/spec/shared';
-import { t } from '../i18n';
+import { t, type SupportedLocale } from '../i18n';
 import {
   InspectorShell,
   InspectorReorderButtons,
@@ -53,12 +53,13 @@ function useFieldOptions(objectName: string | undefined): Array<{ value: string;
 }
 
 /** Object dropdown; falls back to a free-text input when the list is empty. */
-function ObjectPickerField({ label, value, onCommit, disabled }: {
+function ObjectPickerField({ label, value, onCommit, disabled, locale }: {
   label: string; value: string | undefined; onCommit: (v: string) => void; disabled?: boolean;
+  locale: SupportedLocale;
 }) {
   const { options } = useObjectOptions();
   if (options.length === 0) {
-    return <InspectorTextField label={label} value={value ?? ''} placeholder="snake_case object" onCommit={onCommit} disabled={disabled} mono />;
+    return <InspectorTextField label={label} value={value ?? ''} placeholder={t('engine.inspector.pageBlock.objectPlaceholder', locale)} onCommit={onCommit} disabled={disabled} mono />;
   }
   return <InspectorSelectField label={label} value={value || undefined} options={options} onCommit={onCommit} disabled={disabled} />;
 }
@@ -75,8 +76,9 @@ function FieldPickerField({ label, objectName, value, onCommit, disabled }: {
 }
 
 /** Editable list of field names — each row a field dropdown (or text fallback). */
-function FieldListField({ label, objectName, value, onChange, disabled }: {
+function FieldListField({ label, objectName, value, onChange, disabled, locale }: {
   label: string; objectName: string | undefined; value: unknown; onChange: (v: string[]) => void; disabled?: boolean;
+  locale: SupportedLocale;
 }) {
   const options = useFieldOptions(objectName);
   const arr: string[] = Array.isArray(value) ? (value as string[]) : [];
@@ -95,10 +97,11 @@ function FieldListField({ label, objectName, value, onChange, disabled }: {
               </Select>
             </div>
           ) : (
-            <Input className="h-8 text-sm" value={String(s ?? '')} placeholder="field name" disabled={disabled}
+            <Input className="h-8 text-sm" value={String(s ?? '')} placeholder={t('engine.inspector.pageBlock.fieldPlaceholder', locale)} disabled={disabled}
               onChange={(e) => { const n = [...arr]; n[i] = e.target.value; onChange(n); }} />
           )}
-          <Button type="button" variant="ghost" size="icon" className="h-8 w-8" disabled={disabled} aria-label="Remove"
+          <Button type="button" variant="ghost" size="icon" className="h-8 w-8" disabled={disabled}
+            aria-label={t('engine.inspector.pageBlock.list.remove', locale)}
             onClick={() => onChange(arr.filter((_, j) => j !== i))}>
             <X className="h-4 w-4" />
           </Button>
@@ -106,7 +109,7 @@ function FieldListField({ label, objectName, value, onChange, disabled }: {
       ))}
       {!disabled && (
         <Button type="button" variant="outline" size="sm" onClick={() => onChange([...arr, ''])}>
-          <Plus className="mr-1 h-3.5 w-3.5" /> Add
+          <Plus className="mr-1 h-3.5 w-3.5" /> {t('engine.inspector.pageBlock.list.add', locale)}
         </Button>
       )}
     </div>
@@ -125,26 +128,30 @@ function safeStringify(value: unknown): string {
 
 /** Editable JSON field for object/array properties — commits on blur so a
  *  half-typed value never trips the parser. Empty clears the property. */
-function InspectorJsonField({ label, value, onCommit, disabled, placeholder }: {
+function InspectorJsonField({ label, value, onCommit, disabled, placeholder, locale }: {
   label: string; value: unknown; onCommit: (v: unknown) => void; disabled?: boolean;
   /** Shown while the property is unset — the expected shape, since an empty
    *  JSON textarea tells an author nothing about what to type. */
   placeholder?: string;
+  locale: SupportedLocale;
 }) {
   const initial = React.useMemo(() => safeStringify(value), [value]);
   const [text, setText] = React.useState(initial);
-  const [error, setError] = React.useState<string | null>(null);
-  React.useEffect(() => { setText(initial); setError(null); }, [initial]);
+  // State holds the FACT (the text does not parse), not the wording — so the
+  // message is resolved at render and follows a locale switch instead of
+  // freezing whatever language was active when the parse failed.
+  const [invalid, setInvalid] = React.useState(false);
+  React.useEffect(() => { setText(initial); setInvalid(false); }, [initial]);
   const commit = () => {
     if (disabled) return;
     const trimmed = text.trim();
-    if (trimmed === '') { setError(null); onCommit(undefined); return; }
+    if (trimmed === '') { setInvalid(false); onCommit(undefined); return; }
     try {
       const parsed = JSON.parse(trimmed);
-      setError(null);
+      setInvalid(false);
       onCommit(parsed);
     } catch {
-      setError('Invalid JSON');
+      setInvalid(true);
     }
   };
   return (
@@ -160,7 +167,10 @@ function InspectorJsonField({ label, value, onCommit, disabled, placeholder }: {
         rows={Math.min(12, Math.max(2, text.split('\n').length))}
         className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs font-mono outline-none focus:ring-1 focus:ring-primary resize-y disabled:opacity-60"
       />
-      {error && <div className="text-[11px] text-destructive">{error}</div>}
+      {/* Reuses the catalog's existing `engine.form.invalidJson` — the same key
+          the shared `translateValidationMessage()` already maps `'invalid
+          json'` onto — rather than minting a second wording for one fact. */}
+      {invalid && <div className="text-[11px] text-destructive">{t('engine.form.invalidJson', locale)}</div>}
     </div>
   );
 }
@@ -168,8 +178,9 @@ function InspectorJsonField({ label, value, onCommit, disabled, placeholder }: {
 /** Renders one arbitrary block property by inferring an editor from its
  *  runtime type. Guarantees the inspector can edit anything visible in the
  *  source, even block types with no curated BLOCK_CONFIG entry. */
-function GenericPropField({ name, value, onCommit, disabled }: {
+function GenericPropField({ name, value, onCommit, disabled, locale }: {
   name: string; value: unknown; onCommit: (v: unknown) => void; disabled?: boolean;
+  locale: SupportedLocale;
 }) {
   if (typeof value === 'boolean') {
     return <InspectorCheckboxField label={name} value={value} onCommit={onCommit} disabled={disabled} />;
@@ -180,7 +191,7 @@ function GenericPropField({ name, value, onCommit, disabled }: {
   if (value === null || typeof value === 'string') {
     return <InspectorTextField label={name} value={value == null ? '' : value} onCommit={onCommit} disabled={disabled} mono />;
   }
-  return <InspectorJsonField label={name} value={value} onCommit={onCommit} disabled={disabled} />;
+  return <InspectorJsonField label={name} value={value} onCommit={onCommit} disabled={disabled} locale={locale} />;
 }
 
 /** Block `properties` keys whose values are nested block trees — these are
@@ -434,7 +445,7 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
         // without this a curated JSON prop could be edited and never added.
         return (
           <InspectorJsonField key={k} label={fieldLabel(f.label)} value={read(f.name)}
-            placeholder={f.placeholder}
+            placeholder={f.placeholder} locale={locale}
             onCommit={(v) => write(f.name, v)} disabled={readOnly} />
         );
       case 'string-list': {
@@ -447,14 +458,15 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
                 <Input className="h-8 text-sm" value={String(s ?? '')} placeholder={f.placeholder} disabled={readOnly}
                   onChange={(e) => { const next = [...arr]; next[i] = e.target.value; write(f.name, next); }} />
                 <Button type="button" variant="ghost" size="icon" className="h-8 w-8" disabled={readOnly}
-                  aria-label="Remove" onClick={() => write(f.name, arr.filter((_, j) => j !== i))}>
+                  aria-label={t('engine.inspector.pageBlock.list.remove', locale)}
+                  onClick={() => write(f.name, arr.filter((_, j) => j !== i))}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
             ))}
             {!readOnly && (
               <Button type="button" variant="outline" size="sm" onClick={() => write(f.name, [...arr, ''])}>
-                <Plus className="mr-1 h-3.5 w-3.5" /> Add
+                <Plus className="mr-1 h-3.5 w-3.5" /> {t('engine.inspector.pageBlock.list.add', locale)}
               </Button>
             )}
           </div>
@@ -472,7 +484,8 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">#{i + 1}</span>
                     <Button type="button" variant="ghost" size="icon" className="h-7 w-7" disabled={readOnly}
-                      aria-label="Remove item" onClick={() => write(f.name, arr.filter((_, j) => j !== i))}>
+                      aria-label={t('engine.inspector.pageBlock.list.removeItem', locale)}
+                      onClick={() => write(f.name, arr.filter((_, j) => j !== i))}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -497,7 +510,7 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
       }
       case 'object-picker':
         return (
-          <ObjectPickerField key={k} label={fieldLabel(f.label)}
+          <ObjectPickerField key={k} label={fieldLabel(f.label)} locale={locale}
             value={read(f.name) != null ? String(read(f.name)) : undefined}
             onCommit={(v) => write(f.name, v)} disabled={readOnly} />
         );
@@ -509,7 +522,7 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
         );
       case 'field-list':
         return (
-          <FieldListField key={k} label={fieldLabel(f.label)} objectName={resolveObject(f)}
+          <FieldListField key={k} label={fieldLabel(f.label)} objectName={resolveObject(f)} locale={locale}
             value={read(f.name)} onChange={(v) => write(f.name, v)} disabled={readOnly} />
         );
       default:
@@ -617,6 +630,7 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
               value={blockProps[key]}
               onCommit={(v) => patchProp(key, v)}
               disabled={readOnly}
+              locale={locale}
             />
           ))}
         </div>
