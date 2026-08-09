@@ -67,11 +67,22 @@
  * objectui#3546 slices used ASCII, older values used guillemets), which is why
  * the majority and not a meaning-based rule is the tiebreak here.
  *
+ * The `de` row's "ASCII 3" was **the objectui#3919 trio** — `approvalsInbox`
+ * `rejectOneTitle` / `inlineApproved` / `inlineRejected`, the only ASCII-quoted
+ * spans left in that pack. objectui#3919 germanised them, so that column is now
+ * **0** and de's ruling is unanimous rather than 38-to-3. No new `„…“` figure is
+ * quoted here on purpose: this table was measured *excluding* the two English
+ * carry-ins the change below removes, so a post-#3919 count taken over the
+ * present pack is a different unit and the two must not be compared. The table
+ * stays as measured, being the evidence for the ruling at the time it was taken;
+ * the live invariant lives in `de-quote-pairing-3876.test.ts`, which now asserts
+ * that no `de` value holds a U+0022 at all.
+ *
  * Related: objectui#3876 / PR #3918 (de quote mispairing — the census this
  * change moves 45/47/2 to 47/47/0, see `de-quote-pairing-3876.test.ts`),
- * objectui#3919 (de `approvalsInbox` ASCII quotes, a separate card and
- * deliberately untouched here), objectui#3880, objectui#3844 (the `es` register
- * ruling these translations follow: usted).
+ * objectui#3919 (de `approvalsInbox` ASCII quotes — a separate card, untouched
+ * by this change and since fixed), objectui#3880, objectui#3844 (the `es`
+ * register ruling these translations follow: usted).
  */
 import { describe, expect, it } from 'vitest';
 
