@@ -104,8 +104,17 @@ export interface ActionDef {
   confirmText?: string;
   /** Structured confirmation (from crud.ts) */
   confirm?: { title?: string; message?: string; confirmText?: string; cancelText?: string };
-  /** Condition expression — if falsy, skip action */
-  condition?: string;
+  /**
+   * Condition predicate — the action executes only while it holds.
+   *
+   * A boolean, a bare CEL string, a `${…}` template, or the normalized
+   * `{ dialect, source }` envelope `objectstack build` emits. Declared and
+   * FALSE skips the action; not declared at all (absent / empty predicate)
+   * executes. `boolean` is spelled out here because the execution gate now
+   * honours `condition: false` as the verdict it plainly is (objectui#3872) —
+   * the same widening `disabled` already carries below.
+   */
+  condition?: string | boolean;
   /** Disabled expression — if truthy, skip action */
   disabled?: string | boolean;
   /**
@@ -528,8 +537,35 @@ function withIdentityAlias(context: ActionContext): ActionContext {
 }
 
 /**
- * Did this action declare a `disabled` gate at all — i.e. is there a CONDITION
- * for the evaluator to reach a verdict on? (objectui#3848)
+ * Did this action declare a gate at all — i.e. is there a CONDITION for the
+ * evaluator to reach a verdict on? (objectui#3848 for `disabled`, objectui#3872
+ * for `condition`)
+ *
+ * ## One definition, two gates — why this is not two helpers
+ *
+ * `execute` has two predicate gates, and both need this ONE question answered
+ * before evaluating. They need it for OPPOSITE reasons, which is exactly why the
+ * question has to be asked separately from the verdict:
+ *
+ *   - `disabled` (objectui#3848): an EMPTY predicate must not be handed to
+ *     `evaluateCondition`, whose answer for "no condition" is `true` = BLOCKED.
+ *   - `condition` (objectui#3872): a DECLARED-FALSE predicate must not be
+ *     skipped by a truthiness test. `if (action.condition)` never asked whether
+ *     a gate was declared, so `condition: false` — the most explicit "never
+ *     execute" an author can write — landed on `if (false)`, the evaluator was
+ *     never consulted, and the action RAN. Measured on `origin/main` @
+ *     `2937bcf7d`: `condition: false` → `{"success":true}`, handler ran, while
+ *     the semantically identical `{ dialect: 'cel', source: 'false' }` was
+ *     refused. Asking "declared?" routes `false` to `evaluateCondition`, which
+ *     short-circuits booleans (`if (typeof condition === 'boolean') return
+ *     condition`) and blocks.
+ *
+ * The scope of "empty predicate" below is objectui#3850's ruling (`''` /
+ * whitespace-only / empty-`source` envelope are NOT declared), so both gates
+ * read the same one. A second module-private twin of the same question in this
+ * one file is the drift the closing scope note refuses; the name is therefore
+ * key-neutral, and the `disabled` gate's semantics and message are unchanged by
+ * objectui#3872.
  *
  * `ExpressionEvaluator.evaluateCondition` documents and implements one default
  * for "there is no condition here": it returns `true`, meaning
@@ -564,6 +600,10 @@ function withIdentityAlias(context: ActionContext): ActionContext {
  * `Boolean(…)` = `true`. A `${…}`-spelled `disabled` predicate evaluated that
  * way is therefore ALWAYS "disabled", whatever it says. Measured on this tree:
  * `disabled: '${user.role === "guest"}'` (false, admin context) → blocked.
+ * On `condition` the same trap points the other way — a constant `true` would
+ * make every template-spelled `condition` always EXECUTE — so that gate also
+ * normalizes only to decide declaredness and evaluates the RAW value, keeping
+ * the verdict `ActionRunner.test.ts` has pinned for that spelling all along.
  *
  * So the value handed to the evaluator is left exactly as it was. Every
  * non-empty shape — boolean, bare CEL, `${…}` template, `{ dialect, source }`
@@ -580,10 +620,17 @@ function withIdentityAlias(context: ActionContext): ActionContext {
  * moved: it lives in a package that depends on this one, it does not cover the
  * empty-`source` envelope (objectui#3850) or the whitespace string, and
  * objectui#3850 is the queued ruling on unifying the scope of "empty
- * predicate" across the sites. Kept module-private until that lands — one gate,
- * one site, no new exported dialect of the same question.
+ * predicate" across the sites. Kept module-private until that lands — one
+ * definition, one module, no new exported dialect of the same question.
+ *
+ * Nor is the `visible`-filter template in `ActionEngine.getActionsForLocation`
+ * copied wholesale: its non-predicate branch keeps a historical
+ * `Boolean(raw)` coercion, so `0` there means "hidden" — fail-CLOSED on junk,
+ * the opposite of what this module already committed to for `disabled`
+ * (`catch { isDisabled = false }`). A value that is not a predicate at all must
+ * not decide an action's fate, on either key, so `0` / `{}` are "no gate" here.
  */
-function hasDisabledCondition(value: unknown): boolean {
+function hasDeclaredPredicate(value: unknown): boolean {
   if (typeof value === 'string' && value.trim() === '') return false;
   return toPredicateInput(value) !== undefined;
 }
@@ -717,8 +764,21 @@ export class ActionRunner {
       // Resolve the action type
       const actionType = action.type || action.actionType || action.name || '';
 
-      // Conditional execution
-      if (action.condition) {
+      // Conditional execution. Ask "is a `condition` gate DECLARED?" — not "is
+      // the raw value truthy?" (objectui#3872). Truthiness cannot answer that
+      // question, and on this key it answered it in the OVER-PERMISSIVE
+      // direction: `condition: false` (the most explicit "never execute" an
+      // author can write, and what a template that switches an action off
+      // emits) fell on `if (false)`, so the evaluator was never consulted and
+      // the action executed anyway — while the semantically identical
+      // `{ dialect: 'cel', source: 'false' }` was refused. `evaluateCondition`
+      // short-circuits booleans, so once the gate asks the right question the
+      // verdict needs no boolean branch of its own. See `hasDeclaredPredicate`
+      // for the shared "declared?" scope (objectui#3850) and for why the verdict
+      // still reads the RAW value (`toPredicateInput` double-wraps an
+      // already-`${…}` string into a constant true — objectui#3871 — which on
+      // THIS key would mean "always execute").
+      if (hasDeclaredPredicate(action.condition)) {
         const shouldExecute = this.evaluator.evaluateCondition(action.condition);
         if (!shouldExecute) {
           return { success: false, error: 'Action condition not met' };
@@ -730,10 +790,10 @@ export class ActionRunner {
       // `evaluateCondition`, whose answer for "no condition" is `true`, which on
       // this key means BLOCKED: `disabled: ''` / `'   '` /
       // `{ dialect: 'cel', source: '' }` all returned `Action is disabled` with
-      // the handler never invoked. See `hasDisabledCondition` above for why the
+      // the handler never invoked. See `hasDeclaredPredicate` above for why the
       // gate normalizes to decide but the verdict below still reads the RAW
       // value (`toPredicateInput` double-wraps an already-`${…}` string).
-      if (hasDisabledCondition(action.disabled)) {
+      if (hasDeclaredPredicate(action.disabled)) {
         // `disabled` may be a boolean, a CEL string, or the normalized envelope
         // `{ dialect, source }` (what `objectstack build` emits). The previous
         // code only evaluated the STRING form and treated any object as truthy,
