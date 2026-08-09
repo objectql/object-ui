@@ -8,7 +8,7 @@
 
 import React, { useContext } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
-import { SchemaRendererContext } from '@object-ui/react';
+import { ElementDataSourceGate, SchemaRendererContext } from '@object-ui/react';
 import { ObjectForm } from './ObjectForm';
 
 export { ObjectForm };
@@ -60,7 +60,28 @@ const ObjectFormRenderer: React.FC<{ schema: any }> = ({ schema }) => {
   // through SchemaRenderer (e.g. the Studio view preview) has no fields.
   const ctx = useContext(SchemaRendererContext as React.Context<any>);
   const dataSource = ctx?.dataSource ?? undefined;
-  return <ObjectForm schema={schema} dataSource={dataSource} />;
+  // The spec's `PageComponentSchema.dataSource` binding (objectstack#6953). A
+  // page that declared `dataSource: { object }` and no `objectName` rendered a
+  // field-less shell: `ObjectForm` gates its whole schema fetch on `objectName`.
+  //
+  // `object` is the ONLY key of the binding this block can honour, and the
+  // mapping says so rather than parking the rest somewhere plausible. A form
+  // edits ONE record — it has no collection query, so there is nothing for
+  // `filter` / `sort` / `limit` to narrow, and a saved LIST view's columns are
+  // not a form layout (`fields` here is an ordered layout, not a projection).
+  // A `view` name is still resolved, so naming one that does not exist reports
+  // instead of rendering; a view that DOES resolve contributes nothing on this
+  // block, which is recorded as the residual gap on objectstack#6953.
+  return (
+    <ElementDataSourceGate
+      schema={schema}
+      dataSource={dataSource}
+      testId="object-form"
+      errorTitle="This form’s data source could not be resolved"
+    >
+      {(bound) => <ObjectForm schema={bound} dataSource={dataSource} />}
+    </ElementDataSourceGate>
+  );
 };
 
 ComponentRegistry.register('object-form', ObjectFormRenderer, {

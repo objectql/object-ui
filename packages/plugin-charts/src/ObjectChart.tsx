@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useContext, useCallback, useMemo, useRef } from 'react';
-import { useDataScope, SchemaRendererContext, SchemaRenderer, useDrillNavigation, useFilterScope } from '@object-ui/react';
+import { useDataScope, SchemaRendererContext, SchemaRenderer, useDrillNavigation, useFilterScope, ElementDataSourceGate, type ElementDataSourceMapping } from '@object-ui/react';
 import { ChartRenderer } from './ChartRenderer';
 import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveFilterPlaceholders, resolveContextTokens, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, buildDimensionLabelMap, relabelDimensions, type CompareToConfig, type DrillEvent, type ChartResultField } from '@object-ui/core';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator, Button, ChartSkeleton } from '@object-ui/components';
@@ -905,8 +905,47 @@ export const ObjectChart = (props: any) => {
   );
 };
 
+/**
+ * What `ObjectChart` reads for its own query: `objectName` and `filter` (the
+ * `ds.aggregate` / `ds.find` calls above, both `$filter: schema.filter`).
+ *
+ * Neither `columns` nor `sort` nor a row cap is mapped, and the reason is the
+ * shape of the block rather than an omission: a chart projects the
+ * `aggregate` / `xAxisKey` fields it declares, the engine returns grouped rows
+ * whose order the aggregation decides, and there is no page to cap. Writing a
+ * saved view's column list or sort onto this schema would be a value accepted
+ * and then dropped — the defect objectstack#6953 exists to remove.
+ */
+const OBJECT_CHART_DATA_SOURCE: ElementDataSourceMapping = {
+  filter: true,
+};
+
+/**
+ * Registry shell for `object-chart` — maps the spec's
+ * `PageComponentSchema.dataSource` binding onto the keys {@link ObjectChart}
+ * reads (objectstack#6953).
+ *
+ * Nothing used to map `dataSource.object` onto `objectName`, and this block gates
+ * BOTH its fetch and its loading state on that key (`!schema.objectName &&
+ * !schema.dataset` returns early) — so a chart authored with the binding the
+ * spec documents rendered an empty frame with no error and no request. Lives
+ * here, beside the registration, rather than in `ChartContainerImpl` — the
+ * binding is a registry-boundary concern, not a rendering one.
+ */
+export const ObjectChartBlock = (props: any) => (
+  <ElementDataSourceGate
+    schema={props.schema}
+    mapping={OBJECT_CHART_DATA_SOURCE}
+    dataSource={props.dataSource}
+    testId="object-chart"
+    errorTitle="This chart’s data source could not be resolved"
+  >
+    {(bound) => <ObjectChart {...props} schema={bound} />}
+  </ElementDataSourceGate>
+);
+
 // Register it
-ComponentRegistry.register('object-chart', ObjectChart, {
+ComponentRegistry.register('object-chart', ObjectChartBlock, {
     namespace: 'plugin-charts',
     label: 'Object Chart',
     category: 'view',

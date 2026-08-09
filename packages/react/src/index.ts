@@ -12,6 +12,9 @@ export * from './context'; // will be empty for now
 export * from './LazyPluginLoader';
 export * from './spec-bridge';
 export * from './data-invalidation';
+// PageComponentSchema.dataSource — mapping the spec's per-element data binding
+// onto the schema keys each object-bound block reads (objectstack#6953).
+export * from './element-data-source/ElementDataSourceGate';
 
 // i18n utilities
 export { resolveI18nLabel } from './utils/i18n';

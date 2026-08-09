@@ -233,3 +233,42 @@ it never degrades into an unfiltered query for the object.
 renderers that need the same resolution, and `@object-ui/core` exposes the pure
 parts (`isElementDataSourceConfig`, `resolveSavedView`,
 `composeElementDataSource`).
+
+### Which blocks consume it, and which keys each one honours
+
+The binding is declared on every page component, but a component can only honour
+the keys it has a read site for — a calendar has no page to cap, a metric is one
+aggregated number, a form edits one record. Each block therefore maps the keys it
+reads and leaves the rest alone; a key written onto a schema slot the block
+ignores would be accepted and dropped, which is the defect this binding removes.
+
+| block | `object` | `view` | `filter` | `sort` | `limit` |
+|---|---|---|---|---|---|
+| `list-view` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `object-grid` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `element:record_picker` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `record:related_list` | ✅ | columns / sort / limit | — (see below) | ✅ | ✅ |
+| `object-calendar` | ✅ | filter / sort | ✅ | ✅ | — no row cap |
+| `object-kanban` | ✅ | filter | ✅ | — no ordering | — fixed window |
+| `object-chart` | ✅ | filter | ✅ | — engine orders | — no page |
+| `object-metric` | ✅ | filter | ✅ | — single value | — single value |
+| `object-form` | ✅ | error-checked only | — no collection query | — | — |
+
+Reading the `view` column: it lists what a named saved view actually contributes
+on that block. A view name that does not resolve is reported as a configuration
+error on **every** block in the table, including the ones that take nothing else
+from the view — so a typo never passes silently, whatever the block.
+
+Two current gaps, recorded rather than papered over:
+
+- `record:related_list` declares a flat `filter` its renderer does not read (the
+  list scopes itself by the parent relationship alone), so a view named there
+  contributes columns / sort / limit and its filter is dropped — the list can be
+  wider than the view it names.
+- `object-form` resolves `view` only to report an unresolvable name; a view that
+  does resolve contributes nothing, because a list view's columns are not a form
+  layout.
+
+Blocks not in the table (`object-gantt`, `object-timeline`, `object-map`,
+`object-pivot`, `dashboard`, the other `record:*` panels) do not consume the
+binding yet.

@@ -121,6 +121,43 @@ function MyComponent() {
 }
 ```
 
+### useElementDataSourceSchema / ElementDataSourceGate
+
+Consume `PageComponentSchema.dataSource` — the spec's per-element data binding
+(`{ object, view?, filter?, sort?, limit? }`) — in a block that has its own key
+names. `useElementDataSource` resolves the binding (fetching the object's saved
+views so `view` can be matched); these two apply the composed result to the
+block's schema and render the two non-final states.
+
+```tsx
+import { ElementDataSourceGate } from '@object-ui/react'
+
+// `mapping` names ONLY the keys this block reads. A composed value written onto
+// a key the block ignores would be accepted and silently dropped — the defect
+// the binding exists to remove.
+const OBJECT_GRID_BINDING = {
+  columns: true,          // the view's FIELD list may fill `schema.columns`
+  filter: true,           // AND-combined, never replaced ("additional criteria")
+  sort: true,
+  limit: 'pagination.pageSize' as const,
+}
+
+const ObjectGridRenderer = ({ schema, ...props }) => (
+  <ElementDataSourceGate schema={schema} mapping={OBJECT_GRID_BINDING} testId="object-grid">
+    {(bound) => <ObjectGrid schema={bound} {...props} />}
+  </ElementDataSourceGate>
+)
+```
+
+`object` lands on `objectName` by default (pass `object: 'apiName'` for another
+key, or `object: false` for a block that reads the composed binding itself).
+Precedence: binding keys beat the component's own, view-sourced values are only a
+baseline the component's own key overrides, and `filter` AND-combines all three.
+A `view` name that does not resolve renders a configuration error rather than
+falling back to the object's full scope. Use `useElementDataSourceSchema` (plus
+the exported `ElementDataSourceErrorPanel` / `ElementDataSourceLoadingPanel`) when
+a block cannot be wrapped — a renderer whose hooks must run before the panels.
+
 ### useRegistry
 
 Access the component registry:

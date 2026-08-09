@@ -8,7 +8,11 @@
 
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
-import { useSchemaContext } from '@object-ui/react';
+import {
+  ElementDataSourceGate,
+  useSchemaContext,
+  type ElementDataSourceMapping,
+} from '@object-ui/react';
 import { ObjectGrid } from './ObjectGrid';
 import { VirtualGrid } from './VirtualGrid';
 import { ImportWizard } from './ImportWizard';
@@ -46,10 +50,40 @@ export type { ColumnSummarySetting, ColumnSummaryType, ColumnSummaryResult } fro
 export type { FormulaBarProps } from './FormulaBar';
 export type { SplitPaneGridProps } from './SplitPaneGrid';
 
+/**
+ * The keys `ObjectGrid` reads for its own query — every one of them, which makes
+ * this the only block where the spec's binding maps across without a gap.
+ * `columns` is a FIELD list here (so a saved view's columns belong on it), the
+ * filter and sort go straight to `$filter` / `$orderby`, and the row cap is read
+ * as `pagination.pageSize` (`ObjectGrid.tsx`, `serverPageSize`).
+ */
+const OBJECT_GRID_DATA_SOURCE: ElementDataSourceMapping = {
+  columns: true,
+  filter: true,
+  sort: true,
+  limit: 'pagination.pageSize',
+};
+
 // Register object-grid component
 export const ObjectGridRenderer: React.FC<{ schema: any; [key: string]: any }> = ({ schema, ...props }) => {
   const { dataSource } = useSchemaContext() || {};
-  return <ObjectGrid schema={schema} dataSource={dataSource} {...props} />;
+  // The spec's `PageComponentSchema.dataSource` binding (objectstack#6953).
+  // Nothing here used to map `dataSource.object` onto the `objectName` this
+  // block requires, so a page that declared the binding the spec documents —
+  // and no separate `objectName` — rendered an empty grid: no object, no query,
+  // no error. The gate maps it and reports an unresolvable `view` instead of
+  // quietly widening the query to the object's full scope.
+  return (
+    <ElementDataSourceGate
+      schema={schema}
+      mapping={OBJECT_GRID_DATA_SOURCE}
+      dataSource={dataSource}
+      testId="object-grid"
+      errorTitle="This grid’s data source could not be resolved"
+    >
+      {(bound) => <ObjectGrid schema={bound} dataSource={dataSource} {...props} />}
+    </ElementDataSourceGate>
+  );
 };
 
 ComponentRegistry.register('object-grid', ObjectGridRenderer, {

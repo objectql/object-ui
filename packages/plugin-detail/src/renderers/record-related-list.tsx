@@ -12,7 +12,13 @@
  */
 
 import React from 'react';
-import { useRecordContext, useSafeFieldLabel, useRelatedRecordActions } from '@object-ui/react';
+import {
+  ElementDataSourceGate,
+  useRecordContext,
+  useSafeFieldLabel,
+  useRelatedRecordActions,
+  type ElementDataSourceMapping,
+} from '@object-ui/react';
 import { useFieldPermissions, usePermissions } from '@object-ui/permissions';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import { humanizeLabel } from '@object-ui/fields';
@@ -51,7 +57,7 @@ export interface RecordRelatedListRendererProps {
   [k: string]: any;
 }
 
-export const RecordRelatedListRenderer: React.FC<RecordRelatedListRendererProps> = ({
+const RecordRelatedListBody: React.FC<RecordRelatedListRendererProps> = ({
   schema = {} as any,
   className,
   ...props
@@ -237,6 +243,63 @@ export const RecordRelatedListRenderer: React.FC<RecordRelatedListRendererProps>
         }
       />
     </div>
+  );
+};
+
+/**
+ * What this block reads for its own query: `objectName`, `columns` (a FIELD
+ * list), `sort` (`defaultSort`) and `limit` (`pageSize`).
+ *
+ * `filter` is NOT mapped, and that is a finding rather than a choice: this
+ * renderer declares `filter` in its registry `inputs` ("Additional filter
+ * criteria") and never reads it — `RelatedList` builds its query from
+ * `{ [referenceField]: parentId }` alone and takes no filter prop for the list's
+ * own scope. Mapping the composed filter onto `schema.filter` would hand it to a
+ * key nothing consumes, which is the defect objectstack#6953 removes rather than
+ * spreads. The consequence is recorded honestly: while that gap is open, a saved
+ * view named here contributes its columns/sort/limit and its FILTER is dropped,
+ * so the list can be wider than the view it names. Filed as objectstack#7118;
+ * when the flat `filter` gains a read site, `filter: true` belongs in this
+ * mapping and the binding follows it for free.
+ */
+const RECORD_RELATED_LIST_DATA_SOURCE: ElementDataSourceMapping = {
+  columns: true,
+  sort: true,
+  limit: 'limit',
+};
+
+/**
+ * Stable stand-in for a missing `schema`. A fresh `{}` per render would give the
+ * body a new schema identity every time — the churn `useElementDataSourceSchema`
+ * avoids by returning the schema BY REFERENCE when there is no binding.
+ */
+const NO_SCHEMA = {} as RecordRelatedListRendererProps['schema'];
+
+/**
+ * `record:related_list` with the spec's per-element `dataSource` binding mapped
+ * onto the keys the body reads (objectstack#6953).
+ *
+ * The gate wraps the EXPORTED name rather than being added at the registration
+ * site, so a host that imports this renderer directly gets the binding too — a
+ * block bound under one entry point and unbound under another is the same
+ * "declared but not reached" shape in miniature.
+ */
+export const RecordRelatedListRenderer: React.FC<RecordRelatedListRendererProps> = (props) => {
+  // The record context's adapter, not the schema-renderer context's: this list
+  // reads its rows through `ctx.dataSource`, and resolving `view` against a
+  // different source than the rows come from could report a view as missing on
+  // a host that has it.
+  const ctx = useRecordContext();
+  return (
+    <ElementDataSourceGate
+      schema={props.schema ?? NO_SCHEMA}
+      mapping={RECORD_RELATED_LIST_DATA_SOURCE}
+      dataSource={ctx?.dataSource}
+      testId="record-related-list"
+      errorTitle="This related list’s data source could not be resolved"
+    >
+      {(bound) => <RecordRelatedListBody {...props} schema={bound as any} />}
+    </ElementDataSourceGate>
   );
 };
 

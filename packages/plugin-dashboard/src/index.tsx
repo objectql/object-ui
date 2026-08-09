@@ -6,7 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
+import { ElementDataSourceGate, type ElementDataSourceMapping } from '@object-ui/react';
 import { DashboardRenderer } from './DashboardRenderer';
 import { DashboardGridLayout } from './DashboardGridLayout';
 import { MetricWidget } from './MetricWidget';
@@ -91,10 +93,54 @@ ComponentRegistry.register(
   }
 );
 
+/**
+ * What `ObjectMetricWidget` reads for its own query: the object it aggregates
+ * and the filter it aggregates over. A metric is ONE aggregated number — there
+ * is no projection, no ordering and no page — so `columns` / `sort` / `limit`
+ * have no read site here and are left unmapped rather than written to a key the
+ * widget ignores.
+ */
+const OBJECT_METRIC_DATA_SOURCE: ElementDataSourceMapping = {
+  filter: true,
+};
+
+/**
+ * Registry shell for `object-metric` — the spec's per-element `dataSource`
+ * binding onto the props {@link ObjectMetricWidget} reads (objectstack#6953).
+ *
+ * This widget is registered directly and takes `objectName` / `filter` as PROPS
+ * (`SchemaRenderer` spreads the schema's own keys onto it), so the binding had
+ * no path in at all: a metric authored with `dataSource: { object, view }` and
+ * no flat `objectName` fell through to the widget's no-object branch and showed
+ * its static fallback value — a number that looks real and answers nothing.
+ *
+ * The props keep their standing when there is no binding: `bound` IS the schema
+ * by reference in that case, so `bound?.x ?? props.x` resolves to what the
+ * spread already provided, and a host that renders this component with explicit
+ * props and no schema at all (the dashboard grid path) is untouched.
+ */
+const ObjectMetricBlock: React.FC<{ schema?: any; [key: string]: any }> = ({ schema, ...props }) => (
+  <ElementDataSourceGate
+    schema={schema}
+    mapping={OBJECT_METRIC_DATA_SOURCE}
+    dataSource={props.dataSource}
+    testId="object-metric"
+    errorTitle="This metric’s data source could not be resolved"
+  >
+    {(bound) => (
+      <ObjectMetricWidget
+        {...(props as any)}
+        objectName={bound?.objectName ?? props.objectName}
+        filter={bound?.filter ?? props.filter}
+      />
+    )}
+  </ElementDataSourceGate>
+);
+
 // Register object-aware metric widget (async data loading with error states)
 ComponentRegistry.register(
   'object-metric',
-  ObjectMetricWidget,
+  ObjectMetricBlock,
   {
     namespace: 'plugin-dashboard',
     label: 'Object Metric',

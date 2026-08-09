@@ -9,7 +9,7 @@
  * record of an object and writes the selection into a page variable.
  *
  * Data binding follows the spec's ElementDataSource (`schema.dataSource`):
- *   { object, filter?, sort?, limit? }
+ *   { object, view?, filter?, sort?, limit? }
  * with `properties.object` accepted as a fallback. Display config is read off
  * `schema.properties`:
  *   { labelField='name', valueField='id', label?, placeholder?, emptyText? }
@@ -20,11 +20,26 @@
  * picker is uncontrolled (still usable, just inert) so it never throws outside
  * a Page. The written value drives any predicate referencing `page.<var>`
  * (e.g. another component's `visible` / `visibility`).
+ *
+ * `view` is resolved through {@link useElementDataSource} rather than read off
+ * the binding directly (objectstack#6953). This block used to take `object` /
+ * `filter` / `sort` / `limit` off `schema.dataSource` and DROP `view`, so
+ * `dataSource: { object: 'account', view: 'hot' }` — the spec's own example —
+ * built an unfiltered picker over every account instead of the rows the saved
+ * view selects. That symptom is quieter than the one objectstack#5576 fixed on
+ * `list-view`: nothing errors, the list is simply WIDER than what was authored,
+ * which is exactly the failure an AI-authored page hides best.
  */
 
 import * as React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
-import { useAdapter, usePageVariableBinding } from '@object-ui/react';
+import {
+  ElementDataSourceErrorPanel,
+  ElementDataSourceLoadingPanel,
+  useAdapter,
+  useElementDataSource,
+  usePageVariableBinding,
+} from '@object-ui/react';
 import {
   Select,
   SelectTrigger,
@@ -66,22 +81,33 @@ function ElementRecordPickerRenderer({ schema }: { schema: any }) {
     limit?: number;
   }>(schema);
 
+  const adapter = useAdapter() as any;
+
   // Per-element data binding (ElementDataSourceSchema) takes precedence over the
-  // flat `properties.object` shorthand.
-  const ds = (schema?.dataSource ?? {}) as {
-    object?: string;
-    filter?: unknown;
-    sort?: unknown;
-    limit?: number;
-  };
-  const object = ds.object ?? props.object;
-  const filter = ds.filter ?? props.filter;
-  const sort = ds.sort ?? props.sort;
-  const limit = ds.limit ?? props.limit ?? 50;
+  // flat `properties.object` shorthand. `dataBinding.composed` carries the
+  // binding's own keys already combined with the saved view its `view` names —
+  // the view supplies the baseline, an explicit binding key overrides it, and
+  // `filter` AND-combines because the spec calls the binding's filter
+  // *additional*.
+  //
+  // The picker's OWN adapter is passed rather than left to the hook's context
+  // fallback: this block reads its rows from `useAdapter()` (AppShellContext),
+  // and resolving `view` against a different source than the one the rows come
+  // from could report a view as missing on a host that has it.
+  const dataBinding = useElementDataSource(schema, adapter);
+  const composed = dataBinding.composed;
+  // While a named view is unresolved (or unresolvable) there is no object to
+  // query: reading one would fire the wide query the `view` was written to
+  // narrow. `undefined` parks the fetch effect below; the render returns a
+  // status panel instead.
+  const unresolved = dataBinding.status === 'loading' || dataBinding.status === 'missing';
+  const object = unresolved ? undefined : (composed?.object ?? props.object);
+  const filter = composed?.filter ?? props.filter;
+  const sort = composed?.sort ?? props.sort;
+  const limit = composed?.limit ?? props.limit ?? 50;
   const labelField = props.labelField ?? 'name';
   const valueField = props.valueField ?? 'id';
 
-  const adapter = useAdapter() as any;
   const binding = usePageVariableBinding(schema?.id);
 
   const [rows, setRows] = React.useState<any[]>([]);
@@ -136,6 +162,23 @@ function ElementRecordPickerRenderer({ schema }: { schema: any }) {
 
   const label = toText(props.label);
   const placeholder = props.placeholder ?? 'Select a record…';
+
+  // Placed AFTER every hook above so the hook order stays stable across
+  // resolution states. A `view` that names nothing renders a configuration
+  // error rather than an unfiltered picker: degrading to "all records" turns a
+  // typo into a silently wider answer on a page that still looks like it works.
+  if (dataBinding.status === 'missing') {
+    return (
+      <ElementDataSourceErrorPanel
+        testId="record-picker"
+        title="This record picker’s data source could not be resolved"
+        message={dataBinding.error}
+      />
+    );
+  }
+  if (dataBinding.status === 'loading') {
+    return <ElementDataSourceLoadingPanel testId="record-picker" />;
+  }
 
   return (
     <div
