@@ -23,8 +23,33 @@
  * CEL (mirrors the server's `toExpression`). Evaluation is *fail-open* for
  * visibility/required (a broken predicate must not hide a field or wrongly
  * block submit) and *fail-open* for readonly (a broken predicate leaves the
- * field editable) — matching the server, which logs and allows the change
- * through.
+ * field editable).
+ *
+ * Fail-open agrees with the server for MOST faults — but not for all, and the
+ * exception is the half worth knowing. Since objectstack#4889 a `readonlyWhen`
+ * predicate that faults because it names a scope ROOT the write never bound —
+ * `parent.status == 'paid'` with no master-detail header in hand — is
+ * fail-CLOSED on the server: `isReadonlyWhenLocked` warns and then returns
+ * TRUE, i.e. LOCKED (a declared lock is not waived merely because it could not
+ * be evaluated), and `stripReadonlyWhenFields` — plus
+ * `stripReadonlyWhenFieldsMulti` on the bulk path — DELETES that key from the
+ * UPDATE payload. This file keeps the same fault fail-OPEN. For that one class
+ * the two ends therefore point in OPPOSITE directions, deliberately: the
+ * framework's ADR-0057 D10 — server enforces, client is courtesy (framework
+ * numbering; this repo's own ADR-0057 is an unrelated document) — makes the
+ * server the authority, so the courtesy layer does not get to guess "locked"
+ * and grey out a field the server might have accepted.
+ *
+ * The caller-visible consequence, spelled out because the symptom is silent:
+ * the form renders the field EDITABLE, the user edits it, the save reports
+ * SUCCESS, and the new value never lands — the server dropped the key and kept
+ * the persisted one. Debug that toward the SERVER-side lock (its `… treating
+ * the field as LOCKED` warning, and the write response's `droppedFields`), not
+ * toward the client predicate, which did exactly what it was asked to. The
+ * other two halves carry no such carve-out: `requiredWhen` binds the same
+ * `parent` scope but deliberately kept fail-open semantics (objectstack#4977),
+ * so an unevaluable requirement is skipped on BOTH ends, and field-level
+ * `visibleWhen` is not a server concept at all.
  *
  * Fail-open is **loud**, not silent (objectstack#5149): a predicate that
  * cannot be evaluated — parse error, unbound identifier, engine fault — logs
@@ -32,8 +57,10 @@
  * reason, then still returns the caller's fallback. Without the warning a
  * broken predicate is indistinguishable from an absent one, so
  * conditional-visibility bugs survive inspection indefinitely. This is the
- * client half of the server's "log and allow" convention (`readonlyWhen for
- * 'x' failed to evaluate — change allowed through`). The *default* stays
+ * client half of the server's "log and allow" convention for the faults where
+ * the two ends DO agree (`readonlyWhen for 'x' failed to evaluate — change
+ * allowed through` — the GENERIC-fault message; the unbound-root fault above
+ * logs `treating the field as LOCKED` instead). The *default* stays
  * fail-open on purpose — flipping it is a shipped-behavior change tracked
  * separately in objectstack#5149 (appeal 1, undecided).
  */
