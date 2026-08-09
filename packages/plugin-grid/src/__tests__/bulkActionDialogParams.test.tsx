@@ -17,6 +17,9 @@
  * lookup suite pins the #3064 contract itself: no eager candidate prefetch,
  * fetch errors surfaced with a Retry affordance, and no failure caching
  * (reopening the picker refetches).
+ *
+ * objectui#3967 added the a11y suite at the bottom: the required STATE reaches
+ * the control and the visual-only `*` stays out of its accessible name.
  */
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
@@ -201,5 +204,116 @@ describe('BulkActionDialog — lookup param uses the shared record picker (#3064
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     await screen.findByText('Support queue');
     expect(ds.find).toHaveBeenCalledTimes(2);
+  });
+});
+
+/**
+ * Required params announce STATE, not the decoration (objectui#3967).
+ *
+ * `ParamField` renders one row per param through a SINGLE code path (unlike
+ * app-shell's `ActionParamDialog`, which forks a boolean branch), so both
+ * defects landed on every param type at once:
+ *
+ * 1. The visible `*` sat inside `<Label htmlFor={id}>` with no `aria-hidden`.
+ *    Accname §2D folds a referencing label's text into the control's name, so
+ *    a required bulk param announced as "Notify owner asterisk" — a decorative
+ *    glyph read aloud as if it were part of the label.
+ * 2. `aria-required` was never passed. `param.required` IS live — the dialog's
+ *    own pre-submit gate reads it to disable Next — but nothing carried the
+ *    state to the control, and no widget derives it from `field.required`
+ *    (`toDomProps` forwards `aria-*` by prefix; it invents nothing). So the
+ *    only channel that could announce "required" was empty while the only
+ *    thing present was the glyph now hidden.
+ *
+ * Both halves have to be pinned together, because either one alone is
+ * satisfiable the wrong way: hiding the `*` without `aria-required` announces
+ * NOTHING about requiredness, and `aria-required` without hiding the `*`
+ * announces it twice, once as noise. The visible-marker assertions exist for
+ * the same reason — deleting the `*` outright would also produce a clean name.
+ */
+describe('BulkActionDialog — required params announce state, not the asterisk (objectui#3967)', () => {
+  function renderParams(params: any[]) {
+    const ds = makeDataSource();
+    const def: any = { name: 'set_it', label: 'Set it', operation: 'update', params };
+    render(
+      <BulkActionDialog
+        def={def}
+        rows={[{ id: 'r1' }]}
+        resource="thing"
+        dataSource={ds}
+        open
+        onClose={() => {}}
+      />,
+    );
+    return ds;
+  }
+
+  /**
+   * Query by the host-owned id rather than by role or label text: the id is
+   * what `<Label htmlFor>` names, it is stable across widget types (switch,
+   * textbox, …), and — unlike `*ByLabelText`, which matches on the label's raw
+   * `textContent` — it does not quietly depend on the very `aria-hidden` these
+   * tests are asserting.
+   */
+  async function control(paramName: string): Promise<HTMLElement> {
+    return await waitFor(() => {
+      const el = document.getElementById(`bulk-param-${paramName}`);
+      expect(el).not.toBeNull();
+      return el as HTMLElement;
+    });
+  }
+
+  function labelFor(paramName: string): HTMLLabelElement {
+    const el = document.querySelector(`label[for="bulk-param-${paramName}"]`);
+    expect(el).not.toBeNull();
+    return el as HTMLLabelElement;
+  }
+
+  it('gives a required boolean param aria-required and an asterisk-free name', async () => {
+    renderParams([{ name: 'notify', label: 'Notify owner', type: 'boolean', required: true }]);
+
+    const el = await control('notify');
+    // The state channel of #3299/#3290 — deliberately not the native
+    // `required` attribute, which would arm a second validator (#3290).
+    expect(el).toHaveAttribute('aria-required', 'true');
+    expect(el).not.toHaveAttribute('required');
+    // The name is exactly what the author declared: no trailing glyph.
+    expect(el).toHaveAccessibleName('Notify owner');
+
+    // …and the marker is still SHOWN, just excluded from the name.
+    const label = labelFor('notify');
+    expect(label.textContent).toContain('*');
+    expect(label.querySelector('[aria-hidden="true"]')?.textContent).toBe('*');
+  });
+
+  it('leaves an optional boolean param with no aria-required attribute at all', async () => {
+    renderParams([{ name: 'notify', label: 'Notify owner', type: 'boolean' }]);
+
+    const el = await control('notify');
+    // Absent, not `aria-required="false"` — an optional control should not
+    // appear in the a11y tree as one whose requiredness was considered.
+    expect(el).not.toHaveAttribute('aria-required');
+    expect(el).toHaveAccessibleName('Notify owner');
+    expect(labelFor('notify').textContent).not.toContain('*');
+  });
+
+  it('applies the same shape to a non-boolean param — one ParamField path, not a per-type one', async () => {
+    // The unchanged-direction half: `ParamField` has no type branches, so a
+    // text param must come out with the identical treatment. A future refactor
+    // that forks a boolean-only branch (as app-shell's dialog has) and fixes
+    // only that fork fails here.
+    renderParams([
+      { name: 'note', label: 'Note', type: 'text', required: true },
+      { name: 'memo', label: 'Memo', type: 'text' },
+    ]);
+
+    const required = await control('note');
+    expect(required).toHaveAttribute('aria-required', 'true');
+    expect(required).toHaveAccessibleName('Note');
+    expect(labelFor('note').querySelector('[aria-hidden="true"]')?.textContent).toBe('*');
+
+    const optional = await control('memo');
+    expect(optional).not.toHaveAttribute('aria-required');
+    expect(optional).toHaveAccessibleName('Memo');
   });
 });
