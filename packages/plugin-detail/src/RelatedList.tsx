@@ -39,6 +39,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { DataSource, FieldMetadata } from '@object-ui/types';
+import type { ViewFilterRule } from '@objectstack/spec/ui';
 import { getCellRenderer, resolveCellRendererType, RecordPickerDialog, deriveLookupColumns } from '@object-ui/fields';
 import {
   columnIdentity,
@@ -79,9 +80,19 @@ export interface RelatedListProps {
    * case), or — when `linkField` is omitted — re-parents the picked child by
    * setting its `referenceField` to `parentId` (1:m case). Server-side rules on
    * insert (e.g. the AI-seat cap) surface as an inline error.
+   *
+   * `picker.filter` restricts which records the dialog offers, and is typed as
+   * the spec's own `ViewFilterRule[]` rather than `any` (#3831): it goes to
+   * `RecordPickerDialog`'s `baseFilter` VERBATIM, so the authored vocabulary is
+   * the one enforced — a looser type here is where a wrong shape would hide.
    */
   add?: {
-    picker: { object: string; valueField?: string; labelField?: string; filter?: any };
+    picker: {
+      object: string;
+      valueField?: string;
+      labelField?: string;
+      filter?: ViewFilterRule[];
+    };
     linkField?: string;
     label?: string;
   };
@@ -1334,6 +1345,12 @@ export const RelatedList: React.FC<RelatedListProps> = ({
           columns={pickerColumns}
           cellRenderer={getCellRenderer}
           fieldsMeta={pickerSchema?.fields}
+          // The author's candidate restriction, handed over VERBATIM (#3831).
+          // `baseFilter` — never `lookupFilters`, which renders its entries as
+          // filter-bar rows the user can edit, i.e. demotes the restriction to a
+          // suggestion. The picker lowers the rule array through the repo's
+          // single filter sink, so no conversion belongs on this side.
+          baseFilter={add.picker.filter}
           onSelect={() => {}}
           onSelectRecords={(records: any[]) => { void handleAddRecords(records); }}
         />

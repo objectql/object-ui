@@ -160,17 +160,21 @@ describe('record:related_list — registry inputs vs @objectstack/spec', () => {
     expect(description).not.toMatch(/labelField[^.]*title field/);
   });
 
-  it('names `picker.filter` as a gap instead of documenting it as a restriction', () => {
-    // The `record:activity.showSubscriptionToggle` precedent applied at member
-    // level. The spec declares `add.picker.filter` ("Restrict which records the
-    // picker offers") and nothing in this repo reads it — `RelatedList` fills
-    // `RecordPickerDialog`'s `objectName` / `displayField` / `columns` and never
-    // its `baseFilter` slot. A description that merely listed `filter` among the
-    // members would tell an author their picker is scoped when it offers every
-    // record; objectui#3831 owns the wiring, and this assertion fails the moment
-    // someone deletes the warning without doing it.
+  it('documents `picker.filter` as a real restriction, with no gap warning left over', () => {
+    // The INVERSE of the assertion this used to carry. Until #3831 the spec
+    // declared `add.picker.filter` ("Restrict which records the picker offers")
+    // and nothing in this repo read it, so the description named it as a KNOWN
+    // GAP on the `record:activity.showSubscriptionToggle` precedent. The wiring
+    // landed (`RelatedList` hands it to `RecordPickerDialog`'s `baseFilter`
+    // verbatim), so the warning had to go — and this direction now fails if
+    // anyone puts a gap warning back, or reverts the wiring and leaves the
+    // description claiming a restriction the dialog does not apply.
     expect(specPickerKeys()).toContain('filter');
-    expect(addDescription()).toMatch(/KNOWN GAP/);
-    expect(addDescription()).toMatch(/filter[\s\S]*not applied/);
+    expect(addDescription()).not.toMatch(/KNOWN GAP/);
+    expect(addDescription()).not.toMatch(/not applied/);
+    expect(addDescription()).toMatch(/`picker\.filter` restricts which records/);
+    // The restriction must be published as un-widenable, not as a suggestion:
+    // `lookupFilters` would have rendered it as an editable filter-bar row.
+    expect(addDescription()).toMatch(/hard constraint the user cannot widen/);
   });
 });

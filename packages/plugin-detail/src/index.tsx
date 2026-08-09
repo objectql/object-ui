@@ -339,14 +339,14 @@ ComponentRegistry.register('related_list', RecordRelatedListRenderer, {
     // says. Publishing the spec's wording there would have been a description
     // the platform does not honour.
     //
-    // `picker.filter` is deliberately NOT documented as working: the spec
-    // declares it, and nothing in this repo reads it — `RelatedList` passes
-    // `picker.object` / `labelField` to `RecordPickerDialog` and never fills its
-    // `baseFilter` slot. Naming it here as a gap follows the
-    // `record:activity.showSubscriptionToggle` precedent above; silently
-    // documenting it as a restriction would tell an author their picker is
-    // scoped when it offers every record.
-    { name: 'add', type: 'object', label: 'Add Existing', description: 'Adds an "Add" button that assigns EXISTING records instead of creating one — the m2m/junction case. Shape: `{ picker: { object, valueField?, labelField?, filter? }, linkField?, label? }`. `picker.object` (required) is the object whose records the dialog offers. `picker.valueField` is the field of the picked record used as the link value (default "id"); `picker.labelField` is the column shown in the picker rows (default "name", and the other columns are derived from that object\'s schema). With `linkField` set, selecting records CREATES rows in this list\'s own object as `{ [relationshipField]: parentValue, [linkField]: pickedId }` — the junction case; omit `linkField` and the picked child is RE-PARENTED instead, by setting its own `relationshipField` to this parent. `label` is the button text (default "Add", localizable inline). Setting `add` also enables generic link removal on rows when no host delete handler is wired. KNOWN GAP: `picker.filter` is accepted by the spec but not applied — the dialog offers every record of `picker.object` whatever you put there.' },
+    // `picker.filter` IS documented as working since #3831 wired it: it reaches
+    // `RecordPickerDialog`'s `baseFilter` verbatim (`RelatedList.tsx`, at the
+    // dialog mount), which is the un-editable slot — not `lookupFilters`, whose
+    // entries become filter-bar rows the user can widen back out. It carried a
+    // KNOWN GAP sentence here until then, on the
+    // `record:activity.showSubscriptionToggle` precedent; the sentence went away
+    // with the gap, not before it.
+    { name: 'add', type: 'object', label: 'Add Existing', description: 'Adds an "Add" button that assigns EXISTING records instead of creating one — the m2m/junction case. Shape: `{ picker: { object, valueField?, labelField?, filter? }, linkField?, label? }`. `picker.object` (required) is the object whose records the dialog offers. `picker.valueField` is the field of the picked record used as the link value (default "id"); `picker.labelField` is the column shown in the picker rows (default "name", and the other columns are derived from that object\'s schema). With `linkField` set, selecting records CREATES rows in this list\'s own object as `{ [relationshipField]: parentValue, [linkField]: pickedId }` — the junction case; omit `linkField` and the picked child is RE-PARENTED instead, by setting its own `relationshipField` to this parent. `label` is the button text (default "Add", localizable inline). Setting `add` also enables generic link removal on rows when no host delete handler is wired. `picker.filter` restricts which records the dialog offers — a list of `{ field, operator, value }` rules in the same vocabulary as this list\'s own `filter`, applied as a hard constraint the user cannot widen (it never appears as an editable filter row).' },
   ],
 });
 
