@@ -318,17 +318,40 @@ describe('objectui#3546 slice four — the console namespace', () => {
     // those two languages (see outbound-agent-messages.test.ts) — never anything
     // RENDERED. Whole-line comments are stripped first so prose naming the
     // identifier (there is some, right above it) can't be counted as a read.
+    //
+    // Shape as of #3896: the four outbound messages no longer inline
+    // `convZh ? '<zh literal>' : t(key)` — they go through
+    // `resolveOutboundAgentText`, which reads the `zh`/`en` packs by conversation
+    // language. So `convZh` now has exactly ONE consumer, and that consumer is
+    // the resolver bridge; anything else reading it is a label drifting back in.
     const code = src.replace(/^\s*\/\/.*$/gm, '');
-    const gated = [...code.matchAll(/const (\w+) = convZh\b/g)].map((m) => m[1]);
-    expect(gated).toEqual([
-      'planApproveMessage',
-      'planApproveDefaultsMessage',
-      'changesConfirmMessage',
-    ]);
+    const convZhLines = code.split('\n').filter((line) => /\bconvZh\b/.test(line));
     expect(
-      [...code.matchAll(/\bconvZh\b/g)],
-      'a convZh read appeared outside the outbound-message consts — if it feeds anything rendered, it follows the UI locale instead (#3837)',
-    ).toHaveLength(1 /* the useMemo that defines it */ + gated.length);
+      convZhLines,
+      'a convZh read appeared outside the outbound-text resolver — if it feeds anything rendered, it follows the UI locale instead (#3837/#3896)',
+    ).toHaveLength(3);
+    expect(convZhLines[0], 'the convZh memo itself').toMatch(/const convZh = useMemo\(/);
+    expect(convZhLines[1], 'its only consumer is the outbound-text resolver').toMatch(
+      /resolveOutboundAgentText\(\s*convZh\s*,/,
+    );
+    expect(convZhLines[2], "the bridge's dep array").toMatch(/^\s*\[convZh\],\s*$/);
+    // And the resolver is asked for outbound MESSAGES only — the same list the
+    // i18n guard owns (`outbound-agent-messages.test.ts` OUTBOUND_KEYS). A
+    // `*Label` appearing here would be #3837 all over again, one indirection out.
+    const resolved = [...code.matchAll(/outboundText\('(\w+)'/g)].map((m) => m[1]).sort();
+    expect(resolved).toEqual([
+      'changesConfirmMessage',
+      'planAnswerMessage',
+      'planApproveDefaultsMessage',
+      'planApproveMessage',
+    ]);
+    // #3896's headline defect in one line: an outbound message read through
+    // `t()` is read from the UI pack, which is how a zh console sent Chinese
+    // into an English thread. No outbound `*Message` key may go through `t()`.
+    expect(
+      code,
+      'an outbound *Message is being read from the UI pack again (#3896)',
+    ).not.toMatch(/t\('console\.ai\.\w*Message'/);
     // And zh still spells the badge the way the deleted literal did, so the fix
     // changed WHICH source answers a zh-UI reader, not what they read.
     expect(at(builtInLocales.zh, 'console.ai.planBuilding')).toBe('正在搭建…');

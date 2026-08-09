@@ -169,16 +169,110 @@ describe('#3837 — plan-card labels follow the UI locale, sent messages follow 
 
     // An English thread is read under a NON-Chinese, non-English console on
     // purpose: `outbound-agent-messages.test.ts` guarantees no pack but `en` and
-    // `zh` defines these keys, so `de` proves the English default — the wording
-    // the cloud gate matches — is what a non-Chinese thread sends. (A `zh`
-    // console is the one combination that does not hold; measured while writing
-    // this test and filed separately — it is the sent-message half of the gate,
-    // not the label half this PR narrows.)
+    // `zh` defines these keys, so `de` proves the English wording the cloud gate
+    // matches is what a non-Chinese thread sends. (When this was written a `zh`
+    // console was the one combination that did NOT hold — the non-Chinese branch
+    // read the UI pack. That was filed as #3896 and fixed there; the full
+    // matrix, including that combination, is the describe block below.)
     const enUnderDe = renderPane('de', EN_THREAD);
     expect(enUnderDe.planApproveMessage).toBe('Looks good — build it as proposed.');
     expect(enUnderDe.planApproveDefaultsMessage).toBe(
       'Build it with your best assumptions; use sensible defaults for the open questions.',
     );
     expect(enUnderDe.changesConfirmMessage).toBe('Confirm — apply the change you just proposed.');
+  });
+});
+
+/**
+ * The send half, all four sites, both directions (objectui#3896).
+ *
+ * Before this: the three gated messages fell back to `t()` — the UI PACK — for a
+ * non-Chinese conversation, and `planAnswerMessage` had no gate at all. So the
+ * two rows that discriminate are the two the UI locale and the conversation
+ * disagree on:
+ *
+ *   - `zh` UI + English thread — sent `确认，开始搭建。` into an English thread
+ *     (the zh pack defines all four keys, so `t()` HIT instead of falling
+ *     through). The cloud gate matched it, the build ran, and the agent flipped
+ *     the thread to Chinese: #2884's symptom, trigger reversed.
+ *   - non-`zh` UI + Chinese thread — `planAnswerMessage` sent `For "…", go
+ *     with: …` into a Chinese thread, which is #772's opening complaint verbatim.
+ *
+ * The matching-language rows are the invariance half: they read the same either
+ * way and are here so a future "simplification" that re-reads the UI pack cannot
+ * pass by getting the agreeing cases right.
+ */
+describe('#3896 — outbound text follows the CONVERSATION, in both directions', () => {
+  const ZH_OUTBOUND = {
+    planApproveMessage: '确认，开始搭建。',
+    planApproveDefaultsMessage: '确认搭建，未决问题按你的合理假设和默认处理。',
+    changesConfirmMessage: '确认修改，应用你刚才提议的改动。',
+  };
+  const EN_OUTBOUND = {
+    planApproveMessage: 'Looks good — build it as proposed.',
+    planApproveDefaultsMessage:
+      'Build it with your best assumptions; use sensible defaults for the open questions.',
+    changesConfirmMessage: 'Confirm — apply the change you just proposed.',
+  };
+
+  /** The three string-valued outbound props, as one comparable object. */
+  function sent(props: Record<string, unknown>) {
+    return {
+      planApproveMessage: props.planApproveMessage,
+      planApproveDefaultsMessage: props.planApproveDefaultsMessage,
+      changesConfirmMessage: props.changesConfirmMessage,
+    };
+  }
+
+  /** The fourth site is a function — the answer chip builds its text per option. */
+  function answerChip(props: Record<string, unknown>, question: string, option: string): string {
+    return (props.planAnswerMessage as (q: string, o: string) => string)(question, option);
+  }
+
+  // `de` rides along as the third locale: it defines none of the four keys, so it
+  // proves the resolver is not quietly leaning on a UI-pack lookup that happens
+  // to agree.
+  it.each(['zh', 'en', 'de'])(
+    '%s UI + English thread: all four are English, so the gate reads English',
+    (uiLocale) => {
+      const props = renderPane(uiLocale, EN_THREAD);
+      expect(sent(props)).toEqual(EN_OUTBOUND);
+      expect(answerChip(props, 'One shelf or many?', 'many')).toBe(
+        'For "One shelf or many?", go with: many.',
+      );
+      // Nothing Chinese leaves the console for an English thread — the class of
+      // defect, not just the four strings.
+      for (const value of Object.values(sent(props))) {
+        expect(CJK.test(String(value)), `outbound Chinese under ${uiLocale} UI`).toBe(false);
+      }
+    },
+  );
+
+  it.each(['en', 'zh', 'de'])(
+    '%s UI + Chinese thread: all four are Chinese, planAnswerMessage included',
+    (uiLocale) => {
+      const props = renderPane(uiLocale, ZH_THREAD);
+      expect(sent(props)).toEqual(ZH_OUTBOUND);
+      // This assertion is the whole of consequence B: the chip was ungated, so
+      // under an `en`/`de` console it sent English into a Chinese thread.
+      expect(answerChip(props, '一个货架还是多个？', '多个')).toBe(
+        '关于「一个货架还是多个？」，我选择「多个」。',
+      );
+    },
+  );
+
+  it('the answer chip does not read as blanket approval in either language', () => {
+    // `planAnswerMessage` answers a structure question; the cloud gate must NOT
+    // treat it as approval (the `APPROVAL_RE` mirror in
+    // `packages/i18n/src/__tests__/i18n.test.ts` owns that check on the pack
+    // values). Here: it stays distinct from the approval text it sits next to.
+    const zhProps = renderPane('en', ZH_THREAD);
+    expect(answerChip(zhProps, '一个货架还是多个？', '多个')).not.toBe(
+      ZH_OUTBOUND.planApproveMessage,
+    );
+    const enProps = renderPane('zh', EN_THREAD);
+    expect(answerChip(enProps, 'One shelf or many?', 'many')).not.toBe(
+      EN_OUTBOUND.planApproveMessage,
+    );
   });
 });

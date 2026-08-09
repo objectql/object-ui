@@ -44,11 +44,12 @@ import { builtInLocales } from '../locales';
 
 /**
  * Text the console SENDS to the agent rather than displays. These are absent
- * from the eight non-gate packs ON PURPOSE, so `t()` falls through to its
- * English default and the cloud confirm gate keeps recognising the message —
- * see `outbound-agent-messages.test.ts`, which owns that invariant and asserts
- * it in both directions. Excluded here so the two guards cannot contradict
- * each other.
+ * from the eight non-gate packs ON PURPOSE: the console resolves them from the
+ * `en`/`zh` packs by the CONVERSATION's language (objectui#3896), so a value in
+ * any other pack is unreachable, and the cloud confirm gate only recognises
+ * those two languages anyway — see `outbound-agent-messages.test.ts`, which owns
+ * that invariant and asserts it in both directions. Excluded here so the two
+ * guards cannot contradict each other.
  */
 const OUTBOUND_KEYS = new Set([
   'console.ai.planApproveMessage',
