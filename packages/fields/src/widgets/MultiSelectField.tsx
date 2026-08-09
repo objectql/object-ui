@@ -105,10 +105,20 @@ export function MultiSelectField({
     name: _domName,
     ...groupDomProps
   } = toDomProps(props);
+  // When the host associated its visible label with this container by IDREF
+  // (`aria-labelledby`, objectui#3961 / #3975) the container IS the labelled
+  // group, so it answers with the matching role — without one, the name sits on
+  // a generic `div` and contributes nothing: `label for` pointing here was
+  // already inert (`HTMLLabelElement.control` is null for a div), which is the
+  // whole defect. Each chip keeps its own accessible name from its text content,
+  // which the group name does not override. Absent (standalone: the inline grid
+  // editor, a bare SDUI node) nothing is emitted and the markup is unchanged.
+  const isLabelledGroup = groupDomProps['aria-labelledby'] != null;
 
   return (
     <div
       {...groupDomProps}
+      role={isLabelledGroup ? 'group' : undefined}
       className={cn('flex flex-wrap gap-1.5', className)}
       data-testid={fieldName ? `multiselect-${fieldName}` : undefined}
     >

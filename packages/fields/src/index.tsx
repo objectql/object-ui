@@ -2234,8 +2234,9 @@ const FIELD_TYPES_SKIP_FALLBACK = new Set([
  * (`ComponentMeta.labelling`, objectui#3961). Two shapes, one declaration:
  *
  *  - real composites — `address` / `geolocation` render several inputs under one
- *    container, and `checkboxes` / `radio` / `rating` a set of choice controls;
- *    the host's label names the GROUP, each sub-control keeps its own sub-label.
+ *    container, and `checkboxes` / `radio` / `rating` / `multiselect` a set of
+ *    choice controls; the host's label names the GROUP, each sub-control keeps
+ *    its own name (a sub-label, or the chip's own text content).
  *  - `file` is not composite at all: it has exactly ONE control, the dropzone,
  *    which is a `div[role="button"]` (it is the keyboard path to the hidden file
  *    input). It is here because a `div` cannot be `for`-labelled, not because it
@@ -2245,9 +2246,15 @@ const FIELD_TYPES_SKIP_FALLBACK = new Set([
  * Measured, not assumed: every entry was verified in a real form to be a widget
  * whose host label either resolved to nothing (`address` / `geolocation`, whose
  * sub-input ids overwrote the host id — objectui#3343) or resolved to an element
- * that cannot carry it (`checkboxes` / `radio` / `rating` / `file`). In both
- * shapes the visible group label was, before this declaration, the accessible
- * name of NOTHING.
+ * that cannot carry it (`checkboxes` / `radio` / `rating` / `file` /
+ * `multiselect`). In both shapes the visible group label was, before this
+ * declaration, the accessible name of NOTHING.
+ *
+ * `multiselect` arrived one issue later (objectui#3975) for a coverage reason,
+ * not a mechanism one: #3961's probe covered the six above, and re-running it
+ * over the full widget map afterwards found `multiselect` on the byte-identical
+ * failure shape as `checkboxes` — the host id kept, on the chip row's wrapper
+ * `div`, where a `for` is inert. Same declaration, same container answer.
  *
  * A widget NOT listed here takes the single-control path unchanged. That is the
  * safe default: the host keeps emitting `for`, and a composite that forgot to
@@ -2261,6 +2268,8 @@ const FIELD_TYPES_GROUP_LABELLED = new Set([
   'radio',
   'rating',
   'file',
+  // objectui#3975 — the residual after #3961's six, same shape as `checkboxes`.
+  'multiselect',
 ]);
 
 export function registerField(fieldType: string): void {

@@ -67,6 +67,7 @@ import { CheckboxesField } from '../widgets/CheckboxesField';
 import { RadioField } from '../widgets/RadioField';
 import { RatingField } from '../widgets/RatingField';
 import { FileField } from '../widgets/FileField';
+import { MultiSelectField } from '../widgets/MultiSelectField';
 import { TextField } from '../widgets/TextField';
 
 /**
@@ -81,6 +82,17 @@ import { TextField } from '../widgets/TextField';
  *    file input). It needs IDREF labelling because a `div` cannot be
  *    `for`-labelled, not because it is a group, so no `role="group"` wrapper is
  *    invented for it.
+ *  - `multiselect` is `group`, and arrived with objectui#3975 rather than #3961:
+ *    #3961's probe covered the six above, and re-running it over the whole widget
+ *    map afterwards put `multiselect` on the byte-identical `checkboxes` shape —
+ *    host id kept, on the chip row's wrapper `div`, `for` inert. Measured on the
+ *    tree that already had #3961's fix, i.e. this is its residual, not a
+ *    regression of it:
+ *
+ *    ```
+ *    checkboxes   for=(none) ownId=…-group-label  byLabelText=1(div[role=group])  ← #3961
+ *    multiselect  for=…-form-item ownId=(none)    byLabelText=0                   ← #3975
+ *    ```
  */
 const HOSTED: Array<[type: string, role: string]> = [
   ['address', 'group'],
@@ -89,6 +101,7 @@ const HOSTED: Array<[type: string, role: string]> = [
   ['radio', 'radiogroup'],
   ['rating', 'group'],
   ['file', 'button'],
+  ['multiselect', 'group'],
 ];
 
 const OPTIONS = [
@@ -103,6 +116,7 @@ const WIDGETS: Record<string, any> = {
   radio: RadioField,
   rating: RatingField,
   file: FileField,
+  multiselect: MultiSelectField,
 };
 
 beforeAll(() => {
@@ -155,7 +169,7 @@ function labelTargets(): Array<{ text: string; forId: string; resolves: boolean;
 
 function fieldConfig(type: string) {
   const config: any = { name: `f_${type}`, label: `Group Label ${type}`, type };
-  if (type === 'checkboxes' || type === 'radio') config.options = OPTIONS;
+  if (type === 'checkboxes' || type === 'radio' || type === 'multiselect') config.options = OPTIONS;
   return config;
 }
 
@@ -225,7 +239,7 @@ describe('a form-hosted composite field is NAMED by its host label (objectui#396
     expect(labelTargets().filter((l) => !l.labelable)).toEqual([]);
   });
 
-  it('all six in ONE form: every group is named, every `for` still resolves', () => {
+  it('all of them in ONE form: every group is named, every `for` still resolves', () => {
     renderForm(HOSTED.map(([type]) => fieldConfig(type)));
 
     for (const [type, role] of HOSTED) {
@@ -267,6 +281,21 @@ describe('the group name does not swallow the sub-controls\' own names (objectui
 
     expect(screen.getByLabelText('Alpha')).toHaveAttribute('role', 'checkbox');
     expect(screen.getByLabelText('Beta')).toHaveAttribute('role', 'checkbox');
+  });
+
+  it('multiselect chips keep their own names (objectui#3975)', () => {
+    // The chips name themselves from their text CONTENT, not from a sub-label,
+    // so the group's `aria-labelledby` sits one level up and must not reach them.
+    // `aria-labelledby` on a chip would REPLACE "Alpha" with the group name —
+    // the same override this file refuses for `address`'s street box.
+    renderForm([fieldConfig('multiselect')]);
+
+    const alpha = screen.getByRole('button', { name: 'Alpha' });
+    expect(alpha).toHaveAccessibleName('Alpha');
+    expect(alpha).not.toHaveAttribute('aria-labelledby');
+    expect(screen.getByRole('button', { name: 'Beta' })).toBeTruthy();
+    // The group is the CONTAINER, not one of the chips.
+    expect(screen.getByRole('group', { name: 'Group Label multiselect' })).toBe(alpha.parentElement);
   });
 });
 
@@ -346,6 +375,21 @@ describe('STANDALONE composite widgets are unchanged (objectui#3961)', () => {
 
     expect(screen.queryAllByRole('group')).toHaveLength(0);
     expect(screen.getByTestId('checkboxes-tags')).not.toHaveAttribute('role');
+  });
+
+  it('multiselect: the chip row stays a plain div (objectui#3975)', () => {
+    render(
+      <MultiSelectField
+        value={[]}
+        onChange={() => {}}
+        field={{ name: 'tags', label: 'Tags', type: 'multiselect', options: OPTIONS } as any}
+      />,
+    );
+
+    expect(screen.queryAllByRole('group')).toHaveLength(0);
+    expect(screen.getByTestId('multiselect-tags')).not.toHaveAttribute('role');
+    // The chips are still reachable by their own names with no group around them.
+    expect(screen.getByRole('button', { name: 'Alpha' })).toBeTruthy();
   });
 
   it('rating: the container stays a plain div', () => {

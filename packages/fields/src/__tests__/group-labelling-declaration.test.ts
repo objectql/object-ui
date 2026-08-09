@@ -37,8 +37,21 @@ import { registerAllFields } from '../index';
  * Every field type whose host label must be associated by IDREF. Two shapes, one
  * declaration — see `FIELD_TYPES_GROUP_LABELLED` in `../index`:
  * real composites, plus `file`, whose single control is a `div[role="button"]`.
+ *
+ * `multiselect` (objectui#3975) is the seventh, added after #3961 shipped: its
+ * chip row is the same wrapper `div` holding the host id that `checkboxes` had.
+ * It is listed here rather than left to the e2e file alone because the omission
+ * of a declaration is exactly the failure that degrades silently.
  */
-const GROUP_LABELLED = ['address', 'geolocation', 'checkboxes', 'radio', 'rating', 'file'] as const;
+const GROUP_LABELLED = [
+  'address',
+  'geolocation',
+  'checkboxes',
+  'radio',
+  'rating',
+  'file',
+  'multiselect',
+] as const;
 
 /**
  * Single-control widgets: the host's `<label for>` reaches a real labelable
