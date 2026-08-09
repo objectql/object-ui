@@ -73,6 +73,7 @@ vi.mock('../../../providers/AdapterProvider', async (importOriginal) => {
 });
 
 import { I18nProvider } from '@object-ui/i18n';
+import type { AgentDescriptor } from '@object-ui/plugin-chatbot';
 import { ChatPane } from '../AiChatPage';
 import type { HydratedUIMessage } from '../../../hooks/useChatConversation';
 
@@ -107,7 +108,7 @@ function renderPane(uiLocale: string, initialMessages: HydratedUIMessage[]) {
     <I18nProvider config={{ defaultLanguage: uiLocale, detectBrowserLanguage: false }}>
       <MemoryRouter initialEntries={['/ai/build/conv-1']}>
         <ChatPane
-          agents={[{ name: 'build', label: 'Builder' } as never]}
+          agents={[{ name: 'build', label: 'Builder' } as unknown as AgentDescriptor]}
           agentsLoading={false}
           agentsError={undefined}
           activeAgent="build"
