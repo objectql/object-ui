@@ -393,6 +393,27 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     return derived.length > 0 ? derived : undefined;
   }, [pickerSchema, pickerDisplayField]);
 
+  // Developer hint for an `add` that cannot be honoured (#3838). `picker` is
+  // REQUIRED on `add` by the spec (`RecordRelatedListProps.add`), so getting
+  // here means the page metadata is off-spec — but nothing on the render path
+  // parses it (the sdui-parser manifest gate compares top-level key names and
+  // coarse types only), so the renderer is the first place able to say so. It
+  // says WHICH key is missing, because the failure it replaces — a bare
+  // `add.picker.object` read that threw and made SchemaRenderer swap the whole
+  // list for a "failed to render" card — never mentioned `picker` at all.
+  // Console-only, matching the in-file hint for the other partial
+  // misconfiguration (`no referenceField/parentId` below): the block-level
+  // dashed placeholder precedent in `renderers/record-related-list.tsx` is for
+  // blocks that can render NOTHING (missing objectName), whereas here only the
+  // Add affordance is unconfigured and the list body is perfectly fine.
+  React.useEffect(() => {
+    if (!add || pickerObject) return;
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[RelatedList] "${api || objectName || 'related list'}" declares add without add.picker.object — the Add affordance is not rendered. add.picker is required by the spec (RecordRelatedListProps.add): set add.picker.object to the object the picker should list.`,
+    );
+  }, [add, pickerObject, api, objectName]);
+
   React.useEffect(() => {
     // Stale-response guard: page flips re-run this effect while an earlier
     // window may still be in flight — a slow page-2 response must not
@@ -1118,7 +1139,12 @@ export const RelatedList: React.FC<RelatedListProps> = ({
                 onToolbarAction={onToolbarAction}
               />
             ))}
-            {add && (
+            {/* Gated on the RESOLVED picker target, not merely on `add` being
+                truthy: an `add` without `picker` is metadata the spec rejects,
+                and offering a button that could never open a picker is worse
+                than withholding it (#3838 — the console hint above names the
+                missing key). */}
+            {add && pickerObject && (
               <Button
                 variant={isEmpty ? 'ghost' : 'outline'}
                 size="sm"
@@ -1290,13 +1316,19 @@ export const RelatedList: React.FC<RelatedListProps> = ({
           {addError}
         </div>
       )}
-      {add && dataSource && (
+      {/* Same gate as the Add button above — `pickerObject` (i.e.
+          `add?.picker?.object`, computed once near the picker-schema fetch) is
+          what the dialog needs, so requiring it here removes the last
+          render-path bare read of `add.picker` rather than optional-chaining
+          it: off-spec `add` still does nothing at all, so no second dialect
+          appears (AGENTS.md #0.1). #3838. */}
+      {add && pickerObject && dataSource && (
         <RecordPickerDialog
           open={pickerOpen}
           onOpenChange={(o) => setPickerOpen(o)}
           multiple
           dataSource={dataSource as any}
-          objectName={add.picker.object}
+          objectName={pickerObject}
           title={add.label || t('detail.add', { defaultValue: 'Add' })}
           displayField={pickerDisplayField}
           columns={pickerColumns}

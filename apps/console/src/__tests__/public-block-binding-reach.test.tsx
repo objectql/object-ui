@@ -235,8 +235,9 @@ const sampleFor = (input: any): unknown => {
   if (input.name === 'objectName') return PROBE_OBJECT;
   // `record:related_list.add` — the generic `object` sample below is `{}`, and
   // `{}` is not a valid `add`: the spec makes `picker` required. An invalid one
-  // does not merely under-configure this block, it CRASHES it
-  // (`RelatedList.tsx:1299` dereferences `add.picker.object`, objectui#3838) —
+  // did not merely under-configure this block, it CRASHED it
+  // (`RelatedList.tsx:1299` dereferenced `add.picker.object`, objectui#3838,
+  // whose fix now gates the Add affordance on the resolved picker target) —
   // and a crashed block makes no data calls, which is indistinguishable from the
   // "declines to fetch" verdict this block is ledgered for below. That is a green
   // for the wrong reason, so the sample is spec-valid at the source instead.
@@ -381,11 +382,12 @@ describe('public blocks — a declared objectName reaches the data layer (object
         //
         // Added with objectui#3808, and DEFENSIVE rather than load-bearing today:
         // that change made an invalid `add` sample crash `record:related_list`
-        // (objectui#3838), which is what it does in the sibling probe, but not
+        // (objectui#3838), which is what it did in the sibling probe, but not
         // here — `renderers/record-related-list.tsx:185` passes
         // `dataSource={ctx?.dataSource}`, this probe mounts with no RecordContext,
-        // so `RelatedList`'s `add && dataSource` guard short-circuits before the
-        // unguarded read. Checked, not assumed: reverting the sample to `{}` keeps
+        // so `RelatedList`'s picker gate (`add && pickerObject && dataSource`,
+        // truthiness-only on `add` before #3838) short-circuits before the read
+        // either way. Checked, not assumed: reverting the sample to `{}` keeps
         // all 16 green. The predicate itself is known to work — applied to both
         // branches it reports the two crashes in objectui#3840 — so this is a
         // cheap standing guard on the one branch where a crash IS the pass
