@@ -131,6 +131,28 @@ export function InspectorReorderButtons({
 
 /* ─────────────── Form atoms ─────────────── */
 
+/**
+ * Every atom below that renders a `<Label>` as a SIBLING of its control mints
+ * its own id with `React.useId()` and closes the pair (`htmlFor` ⇄ `id`).
+ * Visual adjacency is not an association: without it assistive tech reads an
+ * anonymous "edit box" and the visible label is unowned text, and clicking the
+ * label does nothing (objectui#3994).
+ *
+ * The id is minted INSIDE the atom rather than taken as a prop on purpose:
+ * these atoms are rendered in loops over array items (`page:tabs.items[i]`,
+ * `record:details.sections[i]`), where a caller-supplied id is the one thing a
+ * caller can get wrong — two items sharing a label would share an id and the
+ * second label would silently point at the first control. `useId()` is unique
+ * per instance by construction, so there is no way to author a collision.
+ * A future `aria-describedby` (e.g. the validation messages of objectui#3912)
+ * belongs to the same atom and can derive from this same private id; exposing
+ * the id would only be required if the association had to be made from
+ * OUTSIDE, which no call site needs.
+ *
+ * `InspectorCheckboxField` stays on the wrapping-`<label>` form — that is
+ * already a valid association and needs no id.
+ */
+
 export function InspectorTextField({
   label,
   value,
@@ -152,10 +174,12 @@ export function InspectorTextField({
   /** Stable hook for e2e/dogfood selectors. */
   testId?: string;
 }) {
+  const id = React.useId();
   return (
     <div className="space-y-1">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Label htmlFor={id} className="text-xs text-muted-foreground">{label}</Label>
       <Input
+        id={id}
         value={value}
         onChange={(e) => onCommit(e.target.value)}
         onBlur={(e) => onBlur?.(e.target.value)}
@@ -181,10 +205,12 @@ export function InspectorNumberField({
   placeholder?: string;
   disabled?: boolean;
 }) {
+  const id = React.useId();
   return (
     <div className="space-y-1">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Label htmlFor={id} className="text-xs text-muted-foreground">{label}</Label>
       <Input
+        id={id}
         type="number"
         value={value ?? ''}
         onChange={(e) => {
@@ -220,15 +246,22 @@ export function InspectorSelectField({
   // internal sentinel so the public contract (value="" ⇄ none) holds.
   const toInner = (v: string) => (v === '' ? SELECT_NONE_SENTINEL : v);
   const fromInner = (v: string) => (v === SELECT_NONE_SENTINEL ? '' : v);
+  // The id goes on `SelectTrigger`, never on `Select`: Radix's `Select.Root`
+  // renders no DOM element of its own, so an `id` handed to it is silently
+  // dropped and the label's `for` resolves to nothing — the exact failure
+  // objectui#3976 (PR #3992) fixed in the built-in select branch. The trigger
+  // renders the real `button[role=combobox]`, which is a labelable element, so
+  // one `for`/`id` pair names it (no second `aria-labelledby` channel needed).
+  const id = React.useId();
   return (
     <div className="space-y-1">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Label htmlFor={id} className="text-xs text-muted-foreground">{label}</Label>
       <Select
         value={toInner(value ?? '')}
         onValueChange={(v) => onCommit(fromInner(v))}
         disabled={disabled}
       >
-        <SelectTrigger className="h-8 text-sm">
+        <SelectTrigger id={id} className="h-8 text-sm">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>

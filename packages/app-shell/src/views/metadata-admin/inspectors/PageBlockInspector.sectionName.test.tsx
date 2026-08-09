@@ -89,13 +89,19 @@ function committedSections(onPatch: ReturnType<typeof vi.fn>): Array<Record<stri
 }
 
 /**
- * The section-name boxes, in section order. Located by the placeholder because
- * `InspectorTextField` renders its `<Label>` unassociated with the `<input>`
- * (no `htmlFor`/`id`), so `getByLabelText` cannot reach it — and locating by
- * placeholder doubles as proof the snake_case hint reaches the DOM, which is
- * the only convention affordance this field has.
+ * The section-name boxes, in section order. Located by their LABEL — the same
+ * `for`→id chain assistive tech walks, so the locator is now the accessible
+ * name and not a proxy for it.
+ *
+ * This used to locate by placeholder, because `InspectorTextField` rendered its
+ * `<Label>` unassociated with the `<input>` (no `htmlFor`/`id`) and
+ * `getByLabelText` could not reach it at all — the workaround was the mechanical
+ * symptom of objectui#3994, and it is gone with the association. The
+ * `snake_case` hint is still asserted below (`the placeholder keeps stating the
+ * snake_case convention`): it is the only convention affordance this field has,
+ * so it keeps its own case instead of riding along inside a locator.
  */
-const nameBoxes = () => screen.getAllByPlaceholderText(/snake_case/i) as HTMLInputElement[];
+const nameBoxes = () => screen.getAllByLabelText('Name (i18n key)') as HTMLInputElement[];
 /** The label box of section #1 — "Contact info" in these fixtures. */
 const labelBox = () => screen.getByDisplayValue('Contact info') as HTMLInputElement;
 
@@ -110,6 +116,19 @@ describe('PageBlockInspector — record:details sections expose the i18n anchor 
       ]),
     );
     expect(nameBoxes()).toHaveLength(2);
+    // Two sections repeat the SAME label, so this doubles as the consumer-side
+    // check that per-instance ids do not collide (objectui#3994): a shared id
+    // would resolve both labels to the first box and this would return one.
+    const [a, b] = nameBoxes();
+    expect(a).not.toBe(b);
+  });
+
+  it('the placeholder keeps stating the snake_case convention', () => {
+    // `BlockPropField` has no pattern/validate affordance (objectui#3912), so
+    // the placeholder is where the naming convention is stated. It used to be
+    // asserted implicitly by the locator above; assert it on its own now.
+    renderInspector(pageDraft([{ label: 'Contact info', fields: ['first_name'] }]));
+    expect(nameBoxes()[0].placeholder).toMatch(/snake_case/i);
   });
 
   it('typing a name commits it to `properties.sections[i].name`', () => {
