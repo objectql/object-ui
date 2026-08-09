@@ -61,14 +61,15 @@ The AppShell includes a responsive sidebar that:
 The header bar provides:
 - Sidebar toggle button
 - Custom navbar content area
-- Fixed height (64px / 4rem)
+- Fixed height: `h-14` (3.5rem / 56px) at every breakpoint — there is no responsive height variant
 - Border bottom separator
 - Background matching app theme
 
 ### Content Area
 
 The main content area features:
-- Responsive padding (4 on mobile, 6 on desktop)
+- Responsive padding in three steps: `p-3` on mobile, `sm:p-4` from the `sm` breakpoint, `md:p-6` from `md` up
+- A taller bottom padding on mobile only: `pb-20` (5rem), which keeps content clear of the mobile bottom bar (that bar is itself `sm:hidden`); from `sm` up the bottom edge follows `sm:pb-4` / `md:pb-6` like the other sides
 - Automatic scrolling
 - Flexible height (fills viewport)
 - Custom className support
