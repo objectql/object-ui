@@ -61,7 +61,6 @@ export const ObjectMapRenderer: React.FC<any> = ({ schema, ...props }) => {
   );
 };
 
-console.log('Registering object-map...');
 ComponentRegistry.register('object-map', ObjectMapRenderer, {
   namespace: 'plugin-map',
   label: 'Object Map',
