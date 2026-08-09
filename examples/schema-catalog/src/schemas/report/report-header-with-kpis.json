@@ -53,7 +53,7 @@
     },
     {
       "type": "grid",
-      "cols": 4,
+      "columns": 4,
       "gap": 4,
       "children": [
         {

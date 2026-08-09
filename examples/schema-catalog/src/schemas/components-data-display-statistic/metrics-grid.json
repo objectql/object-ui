@@ -1,6 +1,6 @@
 {
   "type": "grid",
-  "cols": 3,
+  "columns": 3,
   "gap": 4,
   "children": [
     {

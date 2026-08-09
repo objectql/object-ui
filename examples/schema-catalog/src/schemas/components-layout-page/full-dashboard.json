@@ -5,7 +5,7 @@
   "body": [
     {
       "type": "grid",
-      "cols": 4,
+      "columns": 4,
       "gap": 4,
       "className": "mb-6",
       "children": [

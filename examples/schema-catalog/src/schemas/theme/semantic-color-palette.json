@@ -1,6 +1,6 @@
 {
   "type": "grid",
-  "cols": 4,
+  "columns": 4,
   "gap": 3,
   "className": "p-4",
   "children": [

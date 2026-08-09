@@ -19,7 +19,7 @@
       "children": [
         {
           "type": "grid",
-          "cols": 2,
+          "columns": 2,
           "gap": 4,
           "children": [
             {
