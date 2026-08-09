@@ -160,12 +160,31 @@ export function registerLayout() {
   // This is not objectui#3832 (`ComponentInput.type` cannot spell a spec union):
   // `ManifestInputType` has `'array'`, so the declaration was simply wrong about
   // a type it could express exactly.
+  //
+  // `required: true` is the fourth face of the same agreement (objectui#3987).
+  // #3972 aligned the key's EXISTENCE and TYPE; optionality was still declared
+  // the opposite of what the component enforces. `NavigationRendererProps.items`
+  // has no `?` and the renderer supplies no default (`NavigationRenderer.tsx:1204`),
+  // so `{ "type": "navigation-renderer" }` — a node the validator passed in
+  // silence, because `validate.ts:55-64` only reports `missing-required-prop`
+  // when `input.required` is set — crashes on the first thing the render does
+  // with the prop: `collectPinnedItems(filteredItems)` at `:1242` does
+  // `for (const item of items)` (`:1410`) and throws
+  // `TypeError: items is not iterable`. (The `resolveActiveNavItem` memo above
+  // it survives, its `visit` guards `if (!nodes) return`; `filteredItems.slice()`
+  // at `:1247` would throw too but is never reached.)
+  //
+  // So this is not a stylistic "document it as required" — it is the one
+  // diagnostic that exists precisely to stop a node whose render is a
+  // guaranteed crash from shipping. `basePath` below stays optional because the
+  // renderer really does default it (`basePath = ''`); the two are declared
+  // differently because the component treats them differently.
   ComponentRegistry.register('navigation-renderer', NavigationRenderer, {
     namespace: 'layout',
     label: 'Navigation Renderer',
     category: 'Layout',
     inputs: [
-      { name: 'items', type: 'array' },
+      { name: 'items', type: 'array', required: true },
       { name: 'basePath', type: 'string' },
     ],
   });

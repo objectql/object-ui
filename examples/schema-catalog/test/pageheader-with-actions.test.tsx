@@ -10,7 +10,7 @@
  * rendering, and it held a third, already-drifted copy of the component's
  * spacing numbers (objectui#3786 fixed the second copy, in the prose).
  *
- * Four things are pinned here, and they are different facts:
+ * Five things are pinned here, and they are different facts:
  *
  *  1. SHAPE — the example's root node is a `page-header`, and it contains none
  *     of the class strings that only exist inside `PageHeader.tsx`. This is the
@@ -23,6 +23,10 @@
  *  4. VALIDATE, PROPS — the same JSON draws no `unknown-prop` either, and an
  *     array-valued `navigation-renderer.items` draws no `type-mismatch` (#3972).
  *     Same lie as (3) on the prop face instead of the containment face.
+ *  5. VALIDATE, OPTIONALITY — a `navigation-renderer` WITHOUT `items` now draws
+ *     an error-level `missing-required-prop` (#3987), and the props the renderer
+ *     defaults still draw nothing. Unlike (3) and (4) this one is a tightening,
+ *     not a false-diagnostic fix; see that describe's header.
  *
  * (2) and (3) are two halves of one contradiction that used to be live. The
  * render path never consults `isContainer` — `SchemaRenderer` strips `children`
@@ -188,15 +192,20 @@ describe('the documented demo validates clean of `not-a-container` (#3900)', () 
     // author must still hear about it. If this component ever legitimately
     // becomes a container, this assertion goes red — move the control to
     // another childless registration rather than deleting it.
-    // `items` is deliberately omitted (it is not `required`, so its absence
-    // draws nothing): this control is about containment only. It used to have a
-    // second reason — writing `items: []` ALSO drew a `type-mismatch`, because the
-    // registration declared that prop `type: 'object'` while
-    // `NavigationRendererProps.items` is `NavigationItem[]`. That defect is fixed
-    // (#3972) and pinned in the describe below; the omission here is now about
-    // keeping this control single-fact, nothing more.
+    // `items: []` is written for the same single-fact reason the two earlier
+    // versions of this comment gave, arrived at from the opposite direction each
+    // time. It used to be OMITTED because writing it drew a `type-mismatch` (the
+    // registration said `type: 'object'` while `NavigationRendererProps.items` is
+    // `NavigationItem[]` — fixed by #3972, pinned in the describe below), and
+    // because its absence drew nothing at all. Both halves have since moved: the
+    // array form now validates clean, and the absence draws
+    // `missing-required-prop` (#3987 — omitting `items` crashes the renderer, so
+    // the declaration says `required: true`). Supplying the empty array keeps the
+    // planted defect — children under a childless component — the only thing
+    // wrong with this node.
     const codes = diagnose({
       type: 'navigation-renderer',
+      items: [],
       children: [{ type: 'button', label: 'Nope' }],
     }).map((d) => d.code);
 
@@ -279,6 +288,76 @@ describe('the declaration face matches what the renderers read (#3972)', () => {
     expect(objectValued.map((d) => d.code)).toContain('type-mismatch');
     expect(objectValued.find((d) => d.code === 'type-mismatch')?.message).toContain(
       'expected an array',
+    );
+  });
+});
+
+/**
+ * The optionality face of the same key (#3987), through the same manifest.
+ *
+ * `navigation-renderer.items` is non-optional in TS and has no default, so a node
+ * that omits it throws `TypeError: items is not iterable` on the first thing the
+ * render does with it (`NavigationRenderer.tsx:1242` → `:1410`; measured in
+ * `packages/layout/src/__tests__/navigation-renderer-items-declaration.test.tsx`).
+ * The declaration used to leave `required` unset, and `validate.ts:55-64` reports
+ * `missing-required-prop` only when it is set — so the ONE node shape guaranteed
+ * to crash was also the one shape the validator had nothing to say about.
+ *
+ * This is a TIGHTENING, not a false-diagnostic fix like #3900/#3972: it adds an
+ * error-level diagnostic to schemas that validated clean yesterday. That is the
+ * point — the schemas it newly rejects are exactly the ones that cannot render —
+ * but it is also why the control below matters more than usual. "Required" has to
+ * stay a per-prop fact read off the component: if it ever becomes a blanket, this
+ * gate starts rejecting perfectly renderable schemas and authors learn to ignore
+ * `missing-required-prop` the way #3972's authors were being taught to ignore
+ * `type-mismatch`.
+ */
+describe('the validator now reports the node shape that is guaranteed to crash (#3987)', () => {
+  const REQUIRED = 'missing-required-prop';
+
+  it('reports `missing-required-prop` for a `navigation-renderer` without `items`', () => {
+    const diagnostics = diagnose({ type: 'navigation-renderer' });
+
+    // Reachability before the presence assertion: an `unknown-component` return
+    // never reaches the required-prop loop at all, so this would otherwise pass
+    // on a manifest that lost the tag.
+    expect(diagnostics.filter((d) => d.code === 'unknown-component')).toEqual([]);
+
+    const missing = diagnostics.find((d) => d.code === REQUIRED);
+    expect(missing, 'omitting `items` drew no `missing-required-prop`').toBeTruthy();
+    // Error, not warning — the render cannot recover, so neither should the gate.
+    expect(missing?.severity).toBe('error');
+    expect(missing?.message).toContain('"items"');
+  });
+
+  it('reports nothing once `items` is supplied', () => {
+    // The array form the renderer actually consumes: no `missing-required-prop`,
+    // and no `type-mismatch` either (that pair is #3972's, asserted above).
+    expect(diagnose({ type: 'navigation-renderer', items: [] }).map((d) => d.code)).toEqual([]);
+    expect(
+      diagnose({
+        type: 'navigation-renderer',
+        items: [{ id: 'home', type: 'object', label: 'Home', objectName: 'home' }],
+        basePath: '/apps/crm',
+      }).map((d) => d.code),
+    ).toEqual([]);
+  });
+
+  it('does not report the optional props the renderer defaults', () => {
+    // The control that keeps `required` a per-prop fact. `basePath` is omitted in
+    // both nodes above; the renderer defaults it (`basePath = ''`), the
+    // declaration leaves `required` unset, and the gate must stay silent about
+    // it. If this goes red, the tightening has spread from "the prop whose
+    // absence crashes" to "every declared prop", and the assertions above stop
+    // meaning what they say.
+    const codes = diagnose({ type: 'navigation-renderer', items: [] }).map((d) => d.code);
+    expect(codes).not.toContain(REQUIRED);
+
+    // …and the same for a second component in the same registration file, so the
+    // control is not one prop's accident: `page-header` renders with only a
+    // title, and every key it declares is optional.
+    expect(diagnose({ type: 'page-header', title: 'Users' }).map((d) => d.code)).not.toContain(
+      REQUIRED,
     );
   });
 });
