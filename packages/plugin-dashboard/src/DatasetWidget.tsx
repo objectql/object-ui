@@ -331,6 +331,103 @@ const CHART_TYPE_MAP: Record<string, string> = {
   sankey: 'sankey',
 };
 
+/**
+ * Lower a dashboard widget's declared `chartConfig` (spec `ChartConfigSchema` —
+ * the same shape a report block and a react `<ObjectChart>` parse) onto the
+ * chart schema this widget hands to the renderer.
+ *
+ * ## Why this is a whitelist and not a spread
+ *
+ * Until #3135 NONE of `chartConfig` reached the renderer: this widget read
+ * `options` and nothing else, so an author who wrote `showLegend: false` still
+ * got a legend and one who wrote `true` only got one because "on" is the
+ * renderer's default. #3135 lowered that single flag and left the rest declared
+ * and inert. objectstack#7016 lowers the rest of the keys that are actually
+ * DELIVERED, admitting a key only when both of these hold:
+ *
+ *  1. **The chart block draws it end to end on this path.** `{ type: 'chart' }`
+ *     resolves to `ChartRenderer` → `AdvancedChartImpl`, which draws
+ *     `title`/`subtitle` in its ChartFrame, turns `description` into the chart
+ *     container's `role="img"` + `aria-label`, applies `height` as that
+ *     container's inline height, reads `colors` as the positional palette,
+ *     prints `showDataLabels` as a Recharts `LabelList`, draws `annotations` as
+ *     ReferenceLine/ReferenceArea and honours `interaction` as the tooltip
+ *     toggle plus `Brush`. Forwarding a key the renderer ignores would only
+ *     move declared-but-not-delivered one layer down, which is the failure this
+ *     change exists to remove.
+ *  2. **It does not fight the dataset derivation.** `xAxis` / `yAxis` /
+ *     `series` are DERIVED from the dataset selection (`buildChartSeries`), so
+ *     they stay unforwarded: an authored axis or series array would shadow the
+ *     derived binding and blank the chart. `type` stays out for the same
+ *     reason — the widget's own `type` already picks the family through
+ *     `CHART_TYPE_MAP`, which is the dataset path's chart-family channel.
+ *
+ * `aria` is the one declared key with **no reader at all** on this path:
+ * `AdvancedChartImpl` has no `aria` prop, and `SchemaRenderer`'s ARIA injection
+ * reads the FLAT `ariaLabel`/`ariaDescribedBy`/`role`, never a nested `aria`
+ * object. It is therefore left unforwarded on purpose (criterion 1) and
+ * reported back to objectstack#5175's narrowing half rather than papered over
+ * with a dashboard-only flattening that would also collide with the accessible
+ * name `description` already sets.
+ *
+ * @param raw the widget's `chartConfig` as authored (anything, incl. absent)
+ * @param fieldCategoryColors per-category colours resolved from the category
+ *   dimension's own select/lookup option colours, merged UNDER an explicit
+ *   author map (see the `colors` note below)
+ * @returns only the keys that resolved, so the caller can spread it over the
+ *   derived chart schema and every undeclared key keeps the renderer's default
+ */
+export function chartConfigPresentation(
+  raw: unknown,
+  fieldCategoryColors?: Record<string, string> | null,
+): Record<string, unknown> {
+  const config: Record<string, unknown> =
+    raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const out: Record<string, unknown> = {};
+
+  const text = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
+
+  if (typeof config.showLegend === 'boolean') out.showLegend = config.showLegend;
+  if (typeof config.showDataLabels === 'boolean') out.showDataLabels = config.showDataLabels;
+  const title = text(config.title);
+  if (title) out.title = title;
+  const subtitle = text(config.subtitle);
+  if (subtitle) out.subtitle = subtitle;
+  const description = text(config.description);
+  if (description) out.description = description;
+  // A non-positive height would collapse the plot; the container default is the
+  // more honest answer than an invisible chart.
+  if (typeof config.height === 'number' && Number.isFinite(config.height) && config.height > 0) {
+    out.height = config.height;
+  }
+  if (Array.isArray(config.annotations) && config.annotations.length > 0) out.annotations = config.annotations;
+  if (config.interaction && typeof config.interaction === 'object' && !Array.isArray(config.interaction)) {
+    out.interaction = config.interaction;
+  }
+
+  // `colors` is overloaded kanban-style — and the two arms reach the renderer
+  // through two DIFFERENT props, so the split has to happen here (the react
+  // tier's ObjectChart splits it the same way): a `string[]` is the positional
+  // palette (`colors`), a `{ value: color }` record is an explicit per-category
+  // map (`categoryColors`). The author's map is merged OVER the dimension
+  // field's own option colours, which is the precedence the spec field comment
+  // states ("a value→color map — and a select/lookup dimension's option colors
+  // — take precedence over the positional palette per category").
+  const palette = Array.isArray(config.colors)
+    ? config.colors.filter((c): c is string => typeof c === 'string' && !!c)
+    : undefined;
+  if (palette?.length) out.colors = palette;
+  const authorCategoryColors =
+    config.colors && typeof config.colors === 'object' && !Array.isArray(config.colors)
+      ? (config.colors as Record<string, string>)
+      : undefined;
+  if (fieldCategoryColors || authorCategoryColors) {
+    out.categoryColors = { ...(fieldCategoryColors ?? {}), ...(authorCategoryColors ?? {}) };
+  }
+
+  return out;
+}
+
 export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource: unknown }) {
   const datasetName = String(widget?.dataset ?? '');
   const dimensions: string[] = useMemo(() => (Array.isArray(widget?.dimensions) ? widget.dimensions.filter(Boolean) : []), [widget]);
@@ -984,17 +1081,14 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   });
   const effectiveCategoryOrder = explicitOrder?.length ? explicitOrder : categoryOrder;
 
-  // `chartConfig.showLegend` (#3135). The widget's chart config never reached
-  // the renderer — this component read `options` and nothing else — so an author
-  // who wrote `showLegend: false` still got a legend, and one who wrote `true`
-  // only got one because "on" happens to be the renderer's default. Lower the
-  // one flag the renderer already honors; the rest of `chartConfig` stays
-  // unforwarded (the renderer derives axes/series from the dataset selection).
-  const chartConfig: Record<string, unknown> =
-    widget?.chartConfig && typeof widget.chartConfig === 'object' && !Array.isArray(widget.chartConfig)
-      ? (widget.chartConfig as Record<string, unknown>)
-      : {};
-  const showLegend = typeof chartConfig.showLegend === 'boolean' ? chartConfig.showLegend : undefined;
+  // The widget's declared `chartConfig`, lowered onto the chart schema —
+  // #3135 for `showLegend`, objectstack#7016 for the rest of the keys the chart
+  // block measurably delivers. See `chartConfigPresentation` for the two
+  // criteria a key has to meet and for why `xAxis`/`yAxis`/`series`/`type`/
+  // `aria` are deliberately NOT here. It also owns the `colors` split, so the
+  // per-category map it returns already carries the dimension field's own
+  // option colours underneath any explicit author map.
+  const chartPresentation = chartConfigPresentation(widget?.chartConfig, categoryColors);
 
   // Map a clicked chart segment back to its dataset row, then drill through to
   // the underlying records — same governed path the table/pivot rows use.
@@ -1021,7 +1115,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
         // measurement churn, can freeze there — bars never draw until an unrelated
         // re-render (#2756, follow-up to #2727's ineffective settle re-mount).
         // Turning the tween off makes the first paint deterministic.
-        schema={{ type: 'chart', chartType, data: chartData, xAxisKey, series: chartSeries, isAnimationActive: false, ...(showLegend != null ? { showLegend } : {}), ...(categoryColors ? { categoryColors } : {}), ...(effectiveCategoryOrder ? { categoryOrder: effectiveCategoryOrder } : {}) } as any}
+        schema={{ type: 'chart', chartType, data: chartData, xAxisKey, series: chartSeries, isAnimationActive: false, ...chartPresentation, ...(effectiveCategoryOrder ? { categoryOrder: effectiveCategoryOrder } : {}) } as any}
         onChartClick={chartDrill}
         onSegmentClick={chartDrill}
       />

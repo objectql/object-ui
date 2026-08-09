@@ -1674,6 +1674,9 @@ importers:
         specifier: ^3.6.0
         version: 3.6.0
     devDependencies:
+      '@object-ui/plugin-charts':
+        specifier: workspace:*
+        version: link:../plugin-charts
       '@objectstack/spec':
         specifier: ^17.0.0-rc.5
         version: 17.0.0-rc.5(ai@7.0.44(zod@4.4.3))
