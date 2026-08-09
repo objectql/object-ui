@@ -700,11 +700,15 @@ describe('objectui#3546 slice seven — the ratchet residue', () => {
     for (const lang of ['ko', 'fr', 'es', 'pt', 'ru', 'ar'] as const) {
       expect(at(builtInLocales[lang], 'empty.interfacePageSourceMissing'), `${lang} quotes`).toContain('"{{name}}"');
     }
-    // de is the deliberate divergence: its sibling values pair the German opening
-    // low quote with an ASCII straight quote (20 values do this, measured), which
-    // is a typo rather than a convention, so this slice writes the correctly
-    // paired „…“ and the mismatch is filed instead of copied.
-    expect(at(builtInLocales.de, 'empty.objectNotFoundDescription')).toContain('„{{name}}"');
+    // de WAS the deliberate divergence: at slice-seven time its sibling values
+    // paired the German opening low quote with an ASCII straight quote (20 keys /
+    // 22 spans, measured), which was a typo rather than a convention, so this
+    // slice wrote the correctly paired „…“ and filed the mismatch instead of
+    // copying it. objectui#3876 then fixed the 20 siblings, and this assertion is
+    // the one the card named as "the place to look back at when that lands" — so
+    // it now pins the *convergence*: both values carry the same paired „…“. The
+    // durable pack-wide invariant lives in `de-quote-pairing-3876.test.ts`.
+    expect(at(builtInLocales.de, 'empty.objectNotFoundDescription')).toContain('„{{name}}“');
     expect(at(builtInLocales.de, 'empty.interfacePageSourceMissing')).toContain('„{{name}}“');
   });
 
