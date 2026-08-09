@@ -23,7 +23,7 @@ import {
   SelectItem 
 } from '../../ui/select';
 import { renderChildren } from '../../lib/utils';
-import { toControlValue, matchOptionValue } from './option-value';
+import { toControlValue, matchOptionValue, type OptionValue } from './option-value';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../../custom/resizable';
 import { Alert, AlertDescription } from '../../ui/alert';
@@ -2198,6 +2198,101 @@ function BuiltinSelectEmptyState({
   );
 }
 
+/**
+ * The built-in (unregistered) `select` branch's control — objectui#3976.
+ *
+ * Radix's `Select.Root` renders NO DOM element of its own, so every prop it does
+ * not recognise is silently DROPPED instead of reaching an element. The branch
+ * used to spread its whole DOM pass-through onto that Root, which is where
+ * `<FormControl>`'s Slot puts the field's `id` / `aria-describedby` /
+ * `aria-invalid` and the call site puts `aria-required` — so a bare
+ * `{ type: 'select' }` rendered a visible `<FormLabel for="…-form-item">`
+ * pointing at an id NO element carried: the label was inert (clicking it did
+ * nothing) and the field had no accessible name, no error link and no required
+ * state at all.
+ *
+ * This is the exact mechanism objectui#3306 fixed on the WIDGET side
+ * (`SelectField` routes its pass-through to `SelectTrigger`); the built-in
+ * branch never followed, and the two `select` paths diverge because
+ * `BUILTIN_FIELD_TYPES` contains `'select'` — so a bare `type: 'select'` never
+ * consults the registry while an object-driven `field:select` does.
+ *
+ * A component (rather than inline JSX in the branch) is what makes the fix
+ * possible at all: the Slot injects into whatever ELEMENT the branch returns, so
+ * only a component boundary can receive those props and re-address them. Same
+ * reason `BuiltinSelectEmptyState` above is a component.
+ *
+ * The pass-through lands on `SelectTrigger` — the focusable
+ * `<button role="combobox">` the user and their screen reader actually interact
+ * with — with the same two deliberate exceptions #3306 kept on Root:
+ *
+ *  - `name`: the one key Root genuinely consumes — it forwards it to the hidden
+ *    native `<select>` that takes part in form submission. On the trigger it
+ *    would sit uselessly on a non-submitter `<button>`.
+ *  - `disabled`: Root is the single authority (it disables trigger, items and
+ *    the hidden select together), so the raw prop must not get a second author.
+ *
+ * `ref` rides the pass-through for the same reason the `aria-*` do: react-hook-form
+ * hands every field a `ref` and this branch dropped it on Root, so the built-in
+ * select was the one built-in control RHF could not focus. Forwarded here to the
+ * trigger, exactly like `input`/`textarea` hand theirs to a real element.
+ */
+type BuiltinSelectControlProps = {
+  options: SelectOption[];
+  placeholder?: string;
+  /** The AUTHORED value — stringified for Radix on the way in (#3090). */
+  value?: OptionValue | null;
+  /** Receives the AUTHORED option value, not Radix's string (#3090). */
+  onValueChange?: (next: OptionValue) => void;
+  disabled?: boolean;
+} & Omit<
+  React.ComponentPropsWithoutRef<typeof SelectTrigger>,
+  'value' | 'onValueChange' | 'disabled' | 'children'
+>;
+
+const BuiltinSelectControl = React.forwardRef<HTMLButtonElement, BuiltinSelectControlProps>(
+  function BuiltinSelectControl(
+    { options, placeholder, value, onValueChange, disabled, name, className, ...triggerDomProps },
+    ref,
+  ) {
+    return (
+      // Radix speaks strings: stringify going in, map the selection back to
+      // the AUTHORED option value coming out, so a numeric/boolean option
+      // round-trips typed instead of morphing to "2" in the payload (#3090).
+      <Select
+        name={name}
+        value={toControlValue(value)}
+        onValueChange={(v) => onValueChange?.(matchOptionValue(options, v))}
+        disabled={disabled}
+      >
+        <SelectTrigger
+          ref={ref}
+          {...triggerDomProps}
+          // `cn`-merged rather than spread-ordered: an authored `className` must
+          // be able to override the touch-target height without deleting it by
+          // accident, and this prop reached no element before the fix.
+          className={cn('min-h-[44px] sm:min-h-0', className)}
+        >
+          {/* No `|| 'Select an option'` — objectui#3272. The single call site
+              already supplies `t('common.selectOption')` for `select`, so the
+              literal was all but unreachable; the ONE stack that did reach it
+              was an authored `placeholder: ''` (the call site's `??` keeps an
+              empty string), where a second fallback overrode the author's
+              explicit blank with an untranslated English word. */}
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((opt: SelectOption) => (
+            <SelectItem key={String(opt.value)} value={String(opt.value)}>
+              {opt.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  },
+);
+
 function renderFieldComponent(type: string, props: RenderFieldProps) {
   // 1. Try to resolve specialized field widget from registry first.
   //    Form fields should always prefer the `field:<type>` namespace when
@@ -2372,33 +2467,19 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
         return <BuiltinSelectEmptyState emptyHint={emptyHint} />;
       }
 
+      // The DOM pass-through goes to the CONTROL, not to Radix's element-less
+      // Root (objectui#3976) — see `BuiltinSelectControl`. Spread first so the
+      // branch's own computations below win over anything the host forwarded,
+      // the #3222 discipline.
       return (
-        // Radix speaks strings: stringify going in, map the selection back to
-        // the AUTHORED option value coming out, so a numeric/boolean option
-        // round-trips typed instead of morphing to "2" in the payload (#3090).
-        <Select
-          value={toControlValue(selectValue)}
-          onValueChange={(v) => selectOnChange?.(matchOptionValue(options, v))}
-          disabled={selDisabled || readonly}
+        <BuiltinSelectControl
           {...selectProps}
-        >
-          <SelectTrigger className="min-h-[44px] sm:min-h-0">
-            {/* No `|| 'Select an option'` — objectui#3272. The single call site
-                already supplies `t('common.selectOption')` for `select`, so the
-                literal was all but unreachable; the ONE stack that did reach it
-                was an authored `placeholder: ''` (the call site's `??` keeps an
-                empty string), where a second fallback overrode the author's
-                explicit blank with an untranslated English word. */}
-            <SelectValue placeholder={placeholder} />
-          </SelectTrigger>
-          <SelectContent>
-            {options.map((opt: SelectOption) => (
-              <SelectItem key={String(opt.value)} value={String(opt.value)}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          options={options}
+          placeholder={placeholder}
+          value={selectValue}
+          onValueChange={selectOnChange}
+          disabled={selDisabled || readonly}
+        />
       );
     }
 
