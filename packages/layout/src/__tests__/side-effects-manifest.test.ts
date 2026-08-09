@@ -11,8 +11,8 @@
  * manifest has to say so (objectui#3899).
  *
  * `src/index.ts` ends with a bare `try { registerLayout(); } catch {}`, which is
- * the only thing that puts `page-header`, `app-shell`, `sidebar-nav`,
- * `page:card`, `responsive-grid` and `app-schema-renderer` into the
+ * the only thing that puts `page-header`, `page:card`, `app-shell`,
+ * `responsive-grid`, `navigation-renderer` and `app-schema-renderer` into the
  * `ComponentRegistry`. The manifest used to declare `"sideEffects": false` —
  * a promise to bundlers that no module here does anything on evaluation, so any
  * module whose exports go unused may be dropped whole.
