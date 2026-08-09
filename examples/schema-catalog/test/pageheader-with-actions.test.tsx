@@ -10,7 +10,7 @@
  * rendering, and it held a third, already-drifted copy of the component's
  * spacing numbers (objectui#3786 fixed the second copy, in the prose).
  *
- * Three things are pinned here, and they are different facts:
+ * Four things are pinned here, and they are different facts:
  *
  *  1. SHAPE — the example's root node is a `page-header`, and it contains none
  *     of the class strings that only exist inside `PageHeader.tsx`. This is the
@@ -20,6 +20,9 @@
  *     right-hand slot.
  *  3. VALIDATE — the same JSON, put through the manifest the app really builds
  *     from the live registry, draws no `not-a-container` diagnostic (#3900).
+ *  4. VALIDATE, PROPS — the same JSON draws no `unknown-prop` either, and an
+ *     array-valued `navigation-renderer.items` draws no `type-mismatch` (#3972).
+ *     Same lie as (3) on the prop face instead of the containment face.
  *
  * (2) and (3) are two halves of one contradiction that used to be live. The
  * render path never consults `isContainer` — `SchemaRenderer` strips `children`
@@ -170,12 +173,11 @@ describe('the documented demo validates clean of `not-a-container` (#3900)', () 
     expect(diagnostics.filter((d) => d.code === 'unknown-component')).toEqual([]);
     expect(schema.children?.length ?? 0).toBeGreaterThan(0);
 
-    // Filtered by code, not asserted against an empty diagnostic list: the demo
-    // also writes `icon`, which the registration's `inputs` still omits even
-    // though `PageHeader.tsx:224` renders it, so a live `unknown-prop` sits in
-    // this list. That is the same family as #3900 on a different key, filed
-    // separately as objectui#3972 and deliberately NOT pinned here — this test
-    // must not go red when that one is fixed.
+    // Filtered by code, not asserted against an empty diagnostic list. When this
+    // was written the demo's `icon` drew a live `unknown-prop` — the same lie as
+    // #3900 on the prop face — which #3972 has since fixed and pins in the
+    // describe below. The filter stays: this test owns the CONTAINMENT fact only,
+    // so a future diagnostic on another key belongs to that key's pin, not here.
     expect(diagnostics.filter((d) => d.code === CONTAINMENT)).toEqual([]);
   });
 
@@ -187,16 +189,96 @@ describe('the documented demo validates clean of `not-a-container` (#3900)', () 
     // becomes a container, this assertion goes red — move the control to
     // another childless registration rather than deleting it.
     // `items` is deliberately omitted (it is not `required`, so its absence
-    // draws nothing): this control is about containment only, and writing
-    // `items: []` would also draw a `type-mismatch` — the registration declares
-    // that prop `type: 'object'` while `NavigationRendererProps.items` is
-    // `NavigationItem[]`, a separate declaration-face defect filed as
-    // objectui#3972.
+    // draws nothing): this control is about containment only. It used to have a
+    // second reason — writing `items: []` ALSO drew a `type-mismatch`, because the
+    // registration declared that prop `type: 'object'` while
+    // `NavigationRendererProps.items` is `NavigationItem[]`. That defect is fixed
+    // (#3972) and pinned in the describe below; the omission here is now about
+    // keeping this control single-fact, nothing more.
     const codes = diagnose({
       type: 'navigation-renderer',
       children: [{ type: 'button', label: 'Nope' }],
     }).map((d) => d.code);
 
     expect(codes).toContain(CONTAINMENT);
+  });
+});
+
+/**
+ * The prop face of the same agreement (#3972).
+ *
+ * `registerLayout()`'s `inputs` lists are what `sdui-parser` validates a node's
+ * top-level props against, so a key the renderer reads and `inputs` omits comes
+ * back as `unknown-prop`, and a key declared with the wrong `type` comes back as
+ * `type-mismatch` — on CORRECT authoring, both times. Two keys were in that
+ * state: `page-header.icon` (rendered at `PageHeader.tsx:224-226`, declared by the
+ * spec, written by the demo below) and `navigation-renderer.items` (declared
+ * `object`, actually `NavigationItem[]`).
+ *
+ * Every assertion here comes in pairs, positive then control, because "no
+ * diagnostic" is exactly what a silenced check also looks like: if `unknown-prop`
+ * or `type-mismatch` were removed from `validate.ts`, or `inputs` were widened to
+ * accept anything, the positive halves would all still pass. The controls are
+ * chosen so they can only stay green while the check is still working.
+ */
+describe('the declaration face matches what the renderers read (#3972)', () => {
+  const codesFor = (schema: unknown): string[] => diagnose(schema).map((d) => d.code);
+
+  it('draws no `unknown-prop` on the demo the docs page ships', () => {
+    const schema = getExample(EXAMPLE_ID).schema as Record<string, unknown>;
+
+    // Reachability first: the demo must still WRITE `icon`, otherwise the absence
+    // below is satisfied by a fixture that stopped exercising the key. (The docs
+    // page documents `icon` in its Component Props block, so a demo without one
+    // is its own defect.)
+    expect(schema.icon).toBe('users');
+    expect(diagnose(schema).filter((d) => d.code === 'unknown-component')).toEqual([]);
+
+    expect(diagnose(schema).filter((d) => d.code === 'unknown-prop')).toEqual([]);
+  });
+
+  it('still draws `unknown-prop` for a key the declaration deliberately withholds', () => {
+    // The control, and it is a real key rather than a nonsense one: `description`
+    // is the legacy alias `PageHeader.tsx:143` still READS, which objectui#3226
+    // removed from `inputs` on purpose so the registry stops teaching a second
+    // dialect for `subtitle`. It must keep drawing `unknown-prop` — that warning
+    // is the narrowing doing its job. If this goes green, either the alias was
+    // re-declared or the check stopped running, and the assertion above is then
+    // measuring nothing.
+    const schema = { ...(getExample(EXAMPLE_ID).schema as Record<string, unknown>), description: 'x' };
+    expect(codesFor(schema)).toContain('unknown-prop');
+  });
+
+  it('accepts the `actions` array the docs page documents', () => {
+    // `actions` is read at `PageHeader.tsx:119` / `:192-196` and declared by the
+    // spec, so it was `unknown-prop` for the same reason `icon` was. Type matters
+    // as much as presence here: it is declared `array`, matching the canonical
+    // `page:header`, so the array form authors write validates clean…
+    expect(codesFor({ type: 'page-header', title: 'Users', actions: ['export'] })).toEqual([]);
+    // …and a non-array is now reported instead of silently accepted.
+    expect(codesFor({ type: 'page-header', title: 'Users', actions: { export: true } })).toContain(
+      'type-mismatch',
+    );
+  });
+
+  it('accepts an array-valued `navigation-renderer.items`, and reports an object', () => {
+    expect(codesFor({ type: 'navigation-renderer', items: [] })).toEqual([]);
+    expect(
+      codesFor({
+        type: 'navigation-renderer',
+        items: [{ id: 'home', type: 'object', label: 'Home', objectName: 'home' }],
+      }),
+    ).toEqual([]);
+
+    // The control, and the direction is inverted rather than absent: this exact
+    // object shape was the ONLY one that validated clean before #3972, so the pin
+    // is not "a diagnostic disappeared" but "the two shapes swapped verdicts".
+    // The message is asserted too — a `type-mismatch` still saying "expected an
+    // object" would mean the declaration never moved.
+    const objectValued = diagnose({ type: 'navigation-renderer', items: { home: {} } });
+    expect(objectValued.map((d) => d.code)).toContain('type-mismatch');
+    expect(objectValued.find((d) => d.code === 'type-mismatch')?.message).toContain(
+      'expected an array',
+    );
   });
 });
