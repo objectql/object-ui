@@ -5,6 +5,12 @@ import { SchemaRenderer } from '@object-ui/react';
 import type { SchemaNode } from '@object-ui/core';
 import dynamic from 'next/dynamic';
 import { ObjectUIProvider } from '@/app/components/ObjectUIProvider';
+// Registers `page-header` & friends — see the module header (objectui#3787).
+// The Playground renders hand-typed schemas, so it needs the same registration
+// as the three catalog hosts: without it, typing `page-header` here produced the
+// red OBJUI-001 "Unknown component type" panel for a component the rest of the
+// docs site renders fine (objectui#3904).
+import '@/app/components/registerLayoutBlocks';
 import { ChevronLeft, ChevronRight, Monitor, Smartphone, Tablet } from 'lucide-react';
 
 // Dynamically import Monaco Editor to avoid SSR issues
