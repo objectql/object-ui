@@ -351,13 +351,21 @@ describe('objectui#3920 — grid.import saved-mapping keys are translated in all
     expect(value('ja', 'savedMappingHint')).toContain('＋');
   });
 
-  it('grid.import.transform is still English in these packs — filed separately, not fixed here', () => {
+  it('grid.import.transform is still English in these packs — objectui#3938, not fixed here', () => {
     // Recorded, not repaired. `transform` sits between `manualMapping` and
     // `savedMappingHint` in every one of these files and has the same defect
     // shape, but objectui#3920 enumerated five keys and 35 values; widening the
     // count here would make this file's own census unverifiable against the
-    // card. Pinned so the number cannot drift unnoticed while that finding waits
-    // its turn — and so whoever fixes it has to come back and delete this test.
+    // card. Pinned so the number cannot drift unnoticed while objectui#3938
+    // waits its turn — and so whoever fixes it has to come back and DELETE this
+    // test rather than flip its expectation.
+    //
+    // It is the sharper half of the two, and objectui#3938 says why: this value
+    // is the third column header of `SavedMappingSummary`, rendered directly
+    // under the `savedMappingHint` this change just translated, next to two
+    // headers (`csvColumn`, `mapsTo`) that were always translated. Before this
+    // change the whole panel was English and therefore consistent; after it,
+    // the one English header stands alone.
     const english = at(builtInLocales.en, `${NS}.transform`);
     const still = PACKS.filter((lang) => at(builtInLocales[lang], `${NS}.transform`) === english);
     expect(still).toEqual(['ko', 'de', 'fr', 'es', 'pt', 'ru', 'ar']);

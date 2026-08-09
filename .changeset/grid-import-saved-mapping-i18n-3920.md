@@ -55,6 +55,7 @@ there, so `rdqKeys === []` cannot become an assertion that passes because nothin
 is produced.
 
 `en`, `zh` and `ja` are untouched, and `grid.import.transform` — the sixth key in
-the same block, English in the same seven packs — is deliberately left alone and
-pinned as still-English so the number cannot drift while that finding waits its
-turn.
+the same block, English in the same seven packs, and the third column header of
+the very table this hint sits above — is deliberately left alone, filed as
+objectui#3938 and pinned as still-English so the number cannot drift while that
+issue waits its turn.
