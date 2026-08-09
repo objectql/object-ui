@@ -356,6 +356,9 @@ importers:
       '@object-ui/fields':
         specifier: workspace:*
         version: link:../../packages/fields
+      '@object-ui/layout':
+        specifier: workspace:*
+        version: link:../../packages/layout
       '@object-ui/plugin-calendar':
         specifier: workspace:*
         version: link:../../packages/plugin-calendar
@@ -627,9 +630,15 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
     devDependencies:
+      '@object-ui/components':
+        specifier: workspace:*
+        version: link:../../packages/components
       '@object-ui/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@object-ui/layout':
+        specifier: workspace:*
+        version: link:../../packages/layout
       '@object-ui/react':
         specifier: workspace:*
         version: link:../../packages/react

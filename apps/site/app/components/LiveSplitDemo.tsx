@@ -24,6 +24,8 @@ import {
   getExample,
   type Example,
 } from '@object-ui/example-schema-catalog';
+// Registers `page-header` & friends — see the module header (objectui#3787).
+import './registerLayoutBlocks';
 
 const PRESET_IDS = [
   'auth/login-simple',

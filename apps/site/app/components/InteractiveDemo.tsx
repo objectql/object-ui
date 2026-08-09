@@ -3,6 +3,8 @@
 import React, { useMemo } from 'react';
 import { SchemaRenderer, SchemaRendererContext } from '@object-ui/react';
 import { SidebarProvider } from '@object-ui/components';
+// Registers `page-header` & friends — see the module header (objectui#3787).
+import './registerLayoutBlocks';
 import type { SchemaNode } from '@object-ui/core';
 import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
 import { CodeBlock, Pre } from 'fumadocs-ui/components/codeblock';

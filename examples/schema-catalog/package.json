@@ -29,7 +29,9 @@
     "@object-ui/types": "workspace:*"
   },
   "devDependencies": {
+    "@object-ui/components": "workspace:*",
     "@object-ui/core": "workspace:*",
+    "@object-ui/layout": "workspace:*",
     "@object-ui/react": "workspace:*",
     "typescript": "^6.0.3"
   }

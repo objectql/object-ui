@@ -19,6 +19,8 @@ import React, {
 import { SchemaRenderer, SchemaRendererContext } from '@object-ui/react';
 import { SidebarProvider } from '@object-ui/components';
 import type { SchemaNode } from '@object-ui/core';
+// Registers `page-header` & friends — see the module header (objectui#3787).
+import './registerLayoutBlocks';
 
 const defaultCtx = { dataSource: {} };
 
