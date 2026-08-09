@@ -103,6 +103,11 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
           endpoint: schema.endpoint,
           method: schema.method,
           ...paramsPayload,
+          // Static request body of a `type: 'api'` action, merged last by the
+          // runner. Separate key from `params` by the objectstack#5777 ruling —
+          // dropping it here left a declared action whose payload lives only in
+          // `bodyExtra` POSTing nothing (objectstack#6837).
+          bodyExtra: schema.bodyExtra,
           confirmText: schema.confirmText,
           successMessage: schema.successMessage,
           errorMessage: schema.errorMessage,

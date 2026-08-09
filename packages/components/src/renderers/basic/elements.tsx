@@ -240,6 +240,14 @@ function ElementButtonRenderer({ schema }: { schema: any }) {
         navigate: action.navigate,
         to: action.to,
         opensInNewTab: action.opensInNewTab,
+        // The static request body of a `type: 'api'` action. `params` is the
+        // parameter DEFINITION array and carries no payload (objectstack#5777
+        // ruling, direction A), so without this forward an inline action's
+        // payload has no way through: it validates, publishes, and is dropped
+        // exactly here, one hop before the runner (objectstack#6837). With it,
+        // this list matches spec's `InlineActionSchema` pick list field for
+        // field — that pick list is the contract this whitelist mirrors.
+        bodyExtra: action.bodyExtra,
         confirmText: action.confirmText,
         successMessage: action.successMessage,
         errorMessage: action.errorMessage,

@@ -26,7 +26,7 @@ import type { ActionInput as SpecActionInput } from '@objectstack/spec/ui';
 import { ExpressionEvaluator } from '../evaluator/ExpressionEvaluator';
 import { toPredicateInput } from '../evaluator/predicateInput';
 import { globalUndoManager, type UndoableOperation } from './UndoManager';
-import { warnOnUnknownActionKeys } from './actionKeys';
+import { warnOnDeprecatedObjectParams, warnOnUnknownActionKeys } from './actionKeys';
 
 export interface ActionResult {
   success: boolean;
@@ -761,6 +761,14 @@ export class ActionRunner {
       // does nothing" shape. Dev-only, warn-once, changes nothing (#4075 step 1).
       warnOnUnknownActionKeys(action);
 
+      // The compat window for the object-form `params` payload (#5777, maintainer
+      // ruling 2026-08-06 direction A). Checked HERE, before the param-collection
+      // block below rewrites `action.params` into a values map — after that point
+      // an action that authored a legitimate ActionParam[] DEFINITION array also
+      // carries an object under `params`, and the warning could no longer tell the
+      // two apart. Dev-only, warn-once, changes nothing.
+      warnOnDeprecatedObjectParams(action);
+
       // Resolve the action type
       const actionType = action.type || action.actionType || action.name || '';
 
@@ -1359,6 +1367,39 @@ export class ActionRunner {
   }
 
   /**
+   * Assemble the request body for the runner's OWN `executeAPI` — the path taken
+   * when no host registered an `api` handler.
+   *
+   * `bodyExtra` is merged LAST, which is the spec's documented semantics for the
+   * key ("Static request-body fields for a `type:'api'` action, merged last
+   * (overrides user params)") and what the console's `apiHandler` already does on
+   * both of its branches. Before objectstack#6837 this path read `action.params`
+   * alone and never looked at `bodyExtra` at all, so an action whose payload lives
+   * entirely in `bodyExtra` — the shape the ADR-0087 conversion produces from an
+   * old object-form `params` page — POSTed an empty body here.
+   *
+   * `params` contributes only in its DEPRECATED non-array form (the compat window
+   * #5777 opened; see `warnOnDeprecatedObjectParams`). An ARRAY `params` is a
+   * parameter DEFINITION list, not a payload: it reaches this method unconsumed
+   * only when no `paramCollectionHandler` is mounted, and POSTing the definitions
+   * as the request body was never a payload any endpoint wanted. It now falls
+   * through to the context record like an absent `params` does.
+   */
+  private buildApiRequestBody(action: ActionDef): unknown {
+    const asRecord = (value: unknown): Record<string, unknown> | undefined => (
+      value && typeof value === 'object' && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : undefined
+    );
+    const bodyExtra = asRecord(action.bodyExtra);
+    const base = asRecord(action.params) ?? this.context.data;
+    // Nothing to merge: hand back the historical value as-is, so a host passing a
+    // non-object `context.data` still serializes exactly what it used to.
+    if (!bodyExtra) return base ?? {};
+    return { ...asRecord(base), ...bodyExtra };
+  }
+
+  /**
    * Execute API action — supports both simple string endpoint and complex ApiConfig.
    */
   private async executeAPI(action: ActionDef): Promise<ActionResult> {
@@ -1380,7 +1421,7 @@ export class ActionRunner {
         // Simple string endpoint
         url = this.interpolateTarget(apiConfig, action);
         method = action.method || 'POST';
-        body = JSON.stringify(action.params || this.context.data || {});
+        body = JSON.stringify(this.buildApiRequestBody(action));
       } else {
         // Complex ApiConfig
         const config = apiConfig as ApiConfig;
@@ -1401,7 +1442,7 @@ export class ActionRunner {
             ? config.body
             : JSON.stringify(config.body);
         } else if (method !== 'GET' && method !== 'HEAD') {
-          body = JSON.stringify(action.params || this.context.data || {});
+          body = JSON.stringify(this.buildApiRequestBody(action));
         }
       }
 

@@ -165,6 +165,8 @@ const ActionMenuRenderer = forwardRef<HTMLButtonElement, { schema: ActionMenuSch
             endpoint: action.endpoint,
             method: action.method,
             params: action.params as Record<string, any> | undefined,
+            // See action-button.tsx — the `type: 'api'` payload key (objectstack#6837).
+            bodyExtra: action.bodyExtra,
             confirmText: action.confirmText,
             successMessage: action.successMessage,
             errorMessage: action.errorMessage,
