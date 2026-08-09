@@ -20,25 +20,37 @@
  *
  * ## Why the invariant is NOT `count(„) === count(“)`
  *
- * The card proposed that assertion. It is **false on the correctly fixed file**
- * (45 vs 47) and would have sent the next reader hunting a bug that isn't
- * there. Two values in this pack are still untranslated English prose and quote
- * in the *English* style — `“…”`:
+ * The card proposed that assertion. It was **false on the file objectui#3876
+ * left behind** (45 vs 47) and would have sent the next reader hunting a bug
+ * that isn't there. Two values in this pack were still untranslated English
+ * prose and quoted in the *English* style — `“…”`:
  *
  *   - `grid.import.savedMappingHint`
  *   - `grid.import.savedMappingPreviewNote`
  *
- * Their two `“` are legitimate **openers**, not German closers, which is
- * the whole 45/47 gap. The durable form that survives both this fix and a later
+ * Their two `“` were legitimate **openers**, not German closers, which was
+ * the whole 45/47 gap. The durable form that survives both that fix and a later
  * translation of those two values is
  *
  *     count(“) === count(„) + count(”)
  *
  * — every German `„` is closed by a `“`, and every *extra* `“` is
- * an English opener answered by a `”`. Germanising those two values keeps
- * it true (47 === 47 + 0); re-introducing one mismatch breaks it (46 !== 47).
- * The scan below is the primary check; the identity is the cheap arithmetic
- * backstop that also notices a `„` closed by nothing at all.
+ * an English opener answered by a `”`; re-introducing one mismatch breaks it
+ * (46 !== 47). The scan below is the primary check; the identity is the cheap
+ * arithmetic backstop that also notices a `„` closed by nothing at all.
+ *
+ * ## objectui#3920 translated those two values — the numbers moved as predicted
+ *
+ * This header used to say "Germanising those two values keeps it true
+ * (47 === 47 + 0)". objectui#3920 did exactly that (the five
+ * `grid.import` saved-mapping keys were English in seven packs, not just de),
+ * so the census is now `„` 47, `“` 47, `”` 0, `"` 6 and the identity holds in
+ * its degenerate-looking but still non-vacuous form: 47 openers, all paired,
+ * zero English closers left in the pack. The three literal counts below were
+ * updated with that change and the two keys are pinned by name in a dedicated
+ * `it` below — because `rdqKeys === []` on its own would stop naming *which*
+ * values used to be the surplus, and an assertion that passes because nothing
+ * is produced is exactly the shape this suite exists to avoid.
  *
  * ## Why the three i18n gates cannot see any of this
  *
@@ -186,7 +198,9 @@ describe('objectui#3876 — de pack closes „ with “ and not with a straight 
 
     // Anti-vacuous presence guard: a broken import, an emptied pack or a
     // renamed file would otherwise scan nothing and pass. Measured at landing:
-    // 2914 string values, 45 openers, all 45 correctly paired.
+    // 2914 string values, 45 openers, all 45 correctly paired; after
+    // objectui#3920 translated the two English `grid.import` sentences, 47
+    // openers, all 47 correctly paired.
     expect(DE.length, 'de pack looks empty — the scan would be vacuous').toBeGreaterThan(2000);
     expect(openers, 'no „ found at all — the scan would be vacuous').toBeGreaterThanOrEqual(40);
     // Offenders first: this is the assertion that names the key and shows the
@@ -218,7 +232,9 @@ describe('objectui#3876 — de pack closes „ with “ and not with a straight 
       okSpans += (value.match(ok) ?? []).length;
     }
     expect(found, `„…" mismatches:\n${found.join('\n')}`).toEqual([]);
-    expect(okSpans, 'correctly paired spans').toBe(45);
+    // 45 at objectui#3876's landing, 47 once objectui#3920 gave
+    // `grid.import.savedMappingHint` / `savedMappingPreviewNote` German quotes.
+    expect(okSpans, 'correctly paired spans').toBe(47);
   });
 
   it('keeps the count identity that replaces the card’s count(„) === count(“)', () => {
@@ -227,17 +243,48 @@ describe('objectui#3876 — de pack closes „ with “ and not with a straight 
     const close = count(whole, CLOSE);
     const rdq = count(whole, RDQ);
 
-    // Measured at landing: 45 / 47 / 2. See the header for why the naive
-    // equality is false on a correctly fixed file.
-    expect({ open, close, rdq }).toEqual({ open: 45, close: 47, rdq: 2 });
+    // 45 / 47 / 2 at objectui#3876's landing; 47 / 47 / 0 after objectui#3920
+    // translated the two English values. See the header for why the naive
+    // equality was false on the file #3876 left behind — and note that it is
+    // now true for a *different* reason (rdq went to zero), which is why the
+    // identity below is asserted as arithmetic rather than as `close === open`.
+    expect({ open, close, rdq }).toEqual({ open: 47, close: 47, rdq: 0 });
     // The durable shape: every „ closed by a “, every surplus “ an English
-    // opener answered by a ”. Survives translating the two English values.
+    // opener answered by a ”. Survived translating the two English values.
     expect(close).toBe(open + rdq);
 
-    // And the surplus is exactly those two, still English, still tracked
-    // separately — not German values with a stray closer.
+    // The surplus is gone because the two English values are gone, not because
+    // a German value lost a closer: `open` above is the proof that this pack
+    // still quotes, and the `it` below names the two keys that changed.
     const rdqKeys = DE.filter(([, v]) => v.includes(RDQ)).map(([k]) => k);
-    expect(rdqKeys).toEqual(['grid.import.savedMappingHint', 'grid.import.savedMappingPreviewNote']);
+    expect(rdqKeys).toEqual([]);
+  });
+
+  it('names the two values objectui#3920 moved out of the surplus, byte-exact on their spans', () => {
+    // These two were the entire 45/47 gap, and `rdqKeys === []` above no longer
+    // mentions them. This is where they are named: German prose, German quotes,
+    // `{{name}}` intact. Their `„…“` are also what took `okSpans` 45 → 47.
+    //
+    // Deliberately NOT added to the FIXED table above: that table is
+    // objectui#3876's census (20 keys / 22 spans, asserted as such), and folding
+    // a later fix into it would destroy the record of what #3876 actually
+    // touched. Same reason the counts above carry both numbers.
+    for (const key of ['grid.import.savedMappingHint', 'grid.import.savedMappingPreviewNote']) {
+      const value = at(builtInLocales.de, key);
+      expect(typeof value, `de ${key} missing`).toBe('string');
+      const v = value as string;
+      expect(v.includes('„{{name}}“'), `de ${key} lost the paired span`).toBe(true);
+      expect(count(v, OPEN), `de ${key} opener count`).toBe(1);
+      expect(count(v, CLOSE), `de ${key} closer count`).toBe(1);
+      expect(count(v, RDQ), `de ${key} still holds an English closing quote`).toBe(0);
+      expect(v.includes(STRAIGHT), `de ${key} holds a straight quote`).toBe(false);
+      // …and it is German, not the English sentence it used to be. `en` still
+      // says what it said, so a byte-equality check against `en` is the cheap
+      // proof that this pack is not serving the English prose any more —
+      // the objectui#3920 defect in one line.
+      expect(v, `de ${key} is still the en value`).not.toBe(at(builtInLocales.en, key));
+    }
+    expect(at(builtInLocales.de, 'grid.import.savedMapping')).toBe('Gespeicherte Zuordnung:');
   });
 
   it('leaves `en` alone — the fix must not leak across packs', () => {
