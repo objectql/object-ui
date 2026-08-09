@@ -265,28 +265,33 @@ import { LineItemsPanel } from './LineItemsPanel';
  * `record:related_list`'s `objectName` — in both blocks that key names the CHILD
  * object the panel is bound to, which is what `dataSource.object` means.
  *
- * Nothing else is mapped, and each omission has a read site behind it (or the
- * lack of one):
+ * `filter` / `sort` / `limit` map too, since objectstack#7137 gave the panel's
+ * fetch read sites for all three: the composed filter is AND-combined with the
+ * parent relationship condition (never substituted for it — a line-items panel is
+ * always scoped to the record it sits on, so an *additional* criterion can only
+ * narrow this parent's children), `sort` becomes the load order, and `limit` the
+ * row cap that used to be a fixed `$top: 500`.
+ *
+ * Two things are still NOT mapped, each for a reason rather than an oversight:
  *
  *  - `relationshipField` stays the author's: it is not part of the binding, and it
  *    must name a field ON the bound child object. Rebinding `object` without
  *    updating it is an authoring error the panel cannot paper over.
- *  - `filter` has no read site — the query is `{ [relationshipField]: parentId }`
- *    and nothing else, so the panel is scoped by the parent record alone.
- *  - `sort` and a row cap likewise: rows come back at a fixed `$top: 500` in
- *    storage order.
  *  - `columns` is NOT a field-name projection here. It is `GridColumn[]`
  *    (`{ field, type, options, computed, expr, … }`) driving an EDITABLE grid; a
  *    saved view's column list would arrive as bare names and render a grid of
  *    column definitions with no `field`. Wrong shape, not merely a wider answer.
  *
- * Consequence, stated rather than hidden: a `view` named on this block is
- * resolved (so a typo reports instead of silently widening) and then contributes
- * nothing — its filter/sort/columns are all dropped, because the panel has no
- * read site for any of them.
+ * So a `view` named on this block now contributes its filter, sort and page size
+ * to the child query (and an unresolvable name still reports instead of silently
+ * widening), while its column list stays out — the one thing whose shape does not
+ * fit this grid.
  */
 const RECORD_LINE_ITEMS_DATA_SOURCE: ElementDataSourceMapping = {
   object: 'childObject',
+  filter: true,
+  sort: true,
+  limit: 'limit',
 };
 
 const LineItemsPanelRenderer: React.FC<{ schema: any }> = ({ schema }) => (

@@ -20,6 +20,7 @@ export * from './utils/extract-records.js';
 export * from './utils/expand-fields.js';
 export * from './utils/column-identity.js';
 export * from './utils/sort-values.js';
+export * from './utils/sort-query.js';
 export * from './utils/resolve-view-id.js';
 export * from './evaluator/index.js';
 export * from './actions/index.js';

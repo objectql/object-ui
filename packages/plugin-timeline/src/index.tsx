@@ -312,28 +312,26 @@ import {
 } from '@object-ui/react';
 
 /**
- * `object-timeline` maps the binding's `object` and NOTHING ELSE, because
- * `objectName` is the only query key this block has a read site for.
+ * `object-timeline` maps `object` + `filter` + `sort` + `limit` — every key its
+ * fetch now reads (objectstack#7137).
  *
- * `ObjectTimeline.tsx`'s fetch is literally
- * `dataSource.find(schema.objectName, { options: { $top: 100 } })` — no
- * `$filter`, no `$orderby`, and a HARD-CODED window rather than an authored cap.
- * So `filter` / `sort` / `limit` are deliberately left unmapped: writing them
- * onto schema keys the timeline never reads would look like the binding was
- * honoured while changing nothing about the rows fetched, which is exactly the
- * "declared and dropped" defect objectstack#7121 removes. `columns` is unmapped
- * for the same reason a calendar's is — a timeline projects the fields its
- * `timeline` config names (title/start/end/description/color/groupBy).
+ * Until #7137 the fetch was `dataSource.find(schema.objectName, { options: { $top:
+ * 100 } })`: no `$filter`, no `$orderby`, and a cap nested under a key no adapter
+ * reads. objectstack#7121 therefore mapped `object` alone and said so, rather than
+ * writing the composed filter/sort/limit onto keys nobody read — which would have
+ * looked like the binding was honoured while changing nothing about the rows.
+ * #7137 added the read sites (`$filter` / `$orderby` / `$top: schema.limit ?? 100`),
+ * so the flags come with them and a named `view` now actually narrows the rail.
  *
- * Consequence, recorded rather than papered over: a saved `view` named here
- * contributes NOTHING to the query (its filter and sort are dropped), so the
- * timeline can be wider than the view it names. The name is still resolved, so a
- * typo reports instead of silently widening. Tracked as the residual gap in
- * `content/docs/guide/data-source.md`; when the timeline's fetch gains
- * filter/sort read sites, this mapping gains the flags and the binding follows
- * for free.
+ * `columns` stays unmapped for the same reason a calendar's does: a timeline
+ * projects the fields its `timeline` config names (title / start / end /
+ * description / color / groupBy), not a view's column list.
  */
-const OBJECT_TIMELINE_DATA_SOURCE: ElementDataSourceMapping = {};
+const OBJECT_TIMELINE_DATA_SOURCE: ElementDataSourceMapping = {
+  filter: true,
+  sort: true,
+  limit: 'limit',
+};
 
 // Register object-timeline component
 export const ObjectTimelineRenderer: React.FC<any> = ({ schema, ...props }) => {

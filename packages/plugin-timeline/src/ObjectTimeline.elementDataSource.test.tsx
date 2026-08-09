@@ -5,19 +5,24 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * `object-timeline` consumes `PageComponentSchema.dataSource` (objectstack#7121).
+ * `object-timeline` consumes `PageComponentSchema.dataSource` (objectstack#7121),
+ * and since objectstack#7137 it consumes ALL of it: `object`, `filter`, `sort`
+ * and `limit`.
  *
- * Every branch of the timeline's fetch effect is gated on `schema.objectName`,
- * and nothing mapped the spec's `dataSource.object` onto it: a timeline authored
- * with the binding the spec documents never fetched and rendered an empty rail
- * with no request and no error.
+ * Two defects met here. objectstack#7121: every branch of the timeline's fetch
+ * effect is gated on `schema.objectName` and nothing mapped the spec's
+ * `dataSource.object` onto it, so a timeline authored the way the spec documents
+ * never fetched — an empty rail, no request, no error. objectstack#7137: the fetch
+ * was `find(objectName, { options: { $top: 100 } })` — no `$filter`, no
+ * `$orderby`, and `options` is not a `QueryParams` key, so even the window was
+ * inert. A named `view` resolved (a typo reported) and then contributed NOTHING,
+ * which is the failure this binding exists to remove: the rail was wider than the
+ * view it named, and looked right.
  *
- * This block maps `object` and NOTHING else, which the last two cases pin
- * deliberately: the fetch is `find(objectName, { options: { $top: 100 } })` — no
- * `$filter`, no `$orderby`, a hard-coded window — so a `filter` / `sort` / `limit`
- * written onto the schema would be accepted and dropped, the very defect this
- * wiring removes. A named view is still resolved (a typo reports) and then
- * contributes nothing.
+ * The two cases that used to pin the gap honestly ("no filter/orderby in the
+ * query", "options is the whole query") were written to turn RED the day the read
+ * sites landed — see the note they carried. They did; they are now the positive
+ * assertions below.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -65,6 +70,11 @@ const renderBlock = (schema: Record<string, unknown>, adapter: ReturnType<typeof
     </SchemaRendererProvider>,
   );
 
+const firstQuery = async (adapter: ReturnType<typeof makeAdapter>) => {
+  await waitFor(() => expect(adapter.find).toHaveBeenCalled());
+  return adapter.find.mock.calls[0] as [string, any];
+};
+
 describe('object-timeline — dataSource: { object, view } (objectstack#7121)', () => {
   it('queries the object named by the binding', async () => {
     const adapter = makeAdapter();
@@ -73,8 +83,7 @@ describe('object-timeline — dataSource: { object, view } (objectstack#7121)', 
       adapter,
     );
 
-    await waitFor(() => expect(adapter.find).toHaveBeenCalled());
-    const [object] = adapter.find.mock.calls[0] as [string, any];
+    const [object] = await firstQuery(adapter);
     expect(object).toBe('campaign');
   });
 
@@ -91,7 +100,41 @@ describe('object-timeline — dataSource: { object, view } (objectstack#7121)', 
     expect(adapter.find).not.toHaveBeenCalled();
   });
 
-  it('does NOT pretend to honour filter/sort/limit — there is no read site for them', async () => {
+  it('leaves a timeline with NO dataSource fetching the same rows as before', async () => {
+    const adapter = makeAdapter();
+    renderBlock({ type: 'object-timeline', objectName: 'campaign', timeline: TIMELINE }, adapter);
+
+    const [object, params] = await firstQuery(adapter);
+    expect(object).toBe('campaign');
+    expect(params.$filter).toBeUndefined();
+    expect(params.$orderby).toBeUndefined();
+    // The default window is now a REAL `$top` rather than a `$top` nested under
+    // `options`, which no adapter in this repo reads (`convertQueryParams` in
+    // `@object-ui/data-objectstack` maps `params.$top`). The number is unchanged;
+    // it just reaches the wire now.
+    expect(params.$top).toBe(100);
+    expect(params.options).toBeUndefined();
+  });
+});
+
+describe('object-timeline — the view actually narrows the rail (objectstack#7137)', () => {
+  it('applies a named view’s filter, sort and page size to the query', async () => {
+    const adapter = makeAdapter();
+    renderBlock(
+      { type: 'object-timeline', timeline: TIMELINE, dataSource: { object: 'campaign', view: 'hot' } },
+      adapter,
+    );
+
+    const [object, params] = await firstQuery(adapter);
+    expect(object).toBe('campaign');
+    // One surviving filter source passes through verbatim — no pointless `and`.
+    expect(params.$filter).toEqual([['stage', '=', 'live']]);
+    expect(params.$orderby).toEqual({ name: 'desc' });
+    // The view's `pagination.pageSize` is its row cap.
+    expect(params.$top).toBe(7);
+  });
+
+  it('AND-combines the binding’s additional filter with the view’s, and lets binding sort/limit win', async () => {
     const adapter = makeAdapter();
     renderBlock(
       {
@@ -108,27 +151,55 @@ describe('object-timeline — dataSource: { object, view } (objectstack#7121)', 
       adapter,
     );
 
-    await waitFor(() => expect(adapter.find).toHaveBeenCalled());
-    const [, params] = adapter.find.mock.calls[0] as [string, any];
-    // The honest assertion: the timeline's query carries none of these, because
-    // it reads none of them. Recorded here (and in the data-source guide) rather
-    // than hidden behind a mapping that writes to keys nobody reads. When the
-    // fetch gains the read sites, this case is what has to be rewritten.
-    expect(params.$filter).toBeUndefined();
-    expect(params.$orderby).toBeUndefined();
-    expect(params.options).toEqual({ $top: 100 });
+    const [, params] = await firstQuery(adapter);
+    // Additional criteria NARROW the view — each source its own child of the
+    // `and`, never a replacement (a binding filter can't widen a saved view).
+    expect(params.$filter).toEqual(['and', [['stage', '=', 'live']], [['owner', '=', 'me']]]);
+    // `sort` / `limit` override the view's rather than combining.
+    expect(params.$orderby).toEqual({ end_date: 'asc' });
+    expect(params.$top).toBe(3);
   });
 
-  it('leaves a timeline with NO dataSource exactly as it was', async () => {
+  it('honours filter / sort / limit authored directly on the block', async () => {
     const adapter = makeAdapter();
     renderBlock(
-      { type: 'object-timeline', objectName: 'campaign', timeline: TIMELINE },
+      {
+        type: 'object-timeline',
+        objectName: 'campaign',
+        timeline: TIMELINE,
+        filter: [['stage', '=', 'live']],
+        sort: 'end_date desc',
+        limit: 12,
+      },
       adapter,
     );
 
-    await waitFor(() => expect(adapter.find).toHaveBeenCalled());
-    const [object, params] = adapter.find.mock.calls[0] as [string, any];
+    const [object, params] = await firstQuery(adapter);
     expect(object).toBe('campaign');
-    expect(params.options).toEqual({ $top: 100 });
+    expect(params.$filter).toEqual([['stage', '=', 'live']]);
+    // The legacy string clause is lowered the same way the sibling object-bound
+    // blocks lower theirs (`convertSortToQueryParams`).
+    expect(params.$orderby).toEqual({ end_date: 'desc' });
+    expect(params.$top).toBe(12);
+  });
+
+  it('AND-combines the block’s own filter with the view’s and the binding’s', async () => {
+    const adapter = makeAdapter();
+    renderBlock(
+      {
+        type: 'object-timeline',
+        timeline: TIMELINE,
+        filter: [['archived', '=', false]],
+        dataSource: { object: 'campaign', view: 'hot', filter: [['owner', '=', 'me']] },
+      },
+      adapter,
+    );
+
+    const [, params] = await firstQuery(adapter);
+    expect(params.$filter).toEqual([
+      'and',
+      [['archived', '=', false]],
+      ['and', [['stage', '=', 'live']], [['owner', '=', 'me']]],
+    ]);
   });
 });

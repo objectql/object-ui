@@ -29,7 +29,12 @@ import {
 import { LineItemsField, type GridColumn } from '@object-ui/fields';
 import { useSchemaContext, useRecordContext } from '@object-ui/react';
 import { buildMasterDetailEditBatch, sumRows } from './masterDetailTx';
-import { runBatchTransaction } from '@object-ui/core';
+import {
+  runBatchTransaction,
+  mergeFilterNodes,
+  toFilterNode,
+  convertSortToQueryParams,
+} from '@object-ui/core';
 
 export interface LineItemsPanelSchema {
   type?: 'record:line_items';
@@ -45,7 +50,38 @@ export interface LineItemsPanelSchema {
   readonly?: boolean;
   minRows?: number;
   maxRows?: number;
+  /**
+   * *Additional* criteria for the child rows, in any shape `toFilterNode`
+   * accepts (spec `ViewFilterRule[]`, ObjectQL AST nodes, or a MongoDB-style
+   * object).
+   *
+   * AND-combined with the parent relationship condition, never substituted for
+   * it (objectstack#7137, exactly as `record:related_list` does since
+   * objectstack#7118): a line-items panel is always scoped to the record it sits
+   * on, so an additional criterion can only narrow this parent's children — it
+   * can never surface another parent's rows. When a `dataSource` binding is
+   * present, `ElementDataSourceGate` has already AND-combined this key with the
+   * view's filter and the binding's own before the schema arrives here.
+   */
+  filter?: any[] | Record<string, any>;
+  /**
+   * Load order for the child rows — the legacy `"line_no desc"` clause or the
+   * spec's `SortConfig[]`. Without one the rows arrive in storage order.
+   */
+  sort?: string | Array<{ field?: string; order?: 'asc' | 'desc' }>;
+  /**
+   * Row cap for the child fetch; defaults to {@link DEFAULT_LINE_ITEMS_LIMIT}.
+   * A line-items grid has no pagination control — every loaded row is editable
+   * and saved as one batch — so this is the author's window, not a page size.
+   */
+  limit?: number;
 }
+
+/**
+ * Child rows fetched when the author declared no `limit` — the window this panel
+ * has always used, now authorable (objectstack#7137).
+ */
+export const DEFAULT_LINE_ITEMS_LIMIT = 500;
 
 export const LineItemsPanel: React.FC<{ schema: LineItemsPanelSchema }> = ({ schema }) => {
   const ctx = useSchemaContext() as any;
@@ -82,6 +118,23 @@ export const LineItemsPanel: React.FC<{ schema: LineItemsPanelSchema }> = ({ sch
     return () => { cancelled = true; };
   }, [dataSource, schema.childObject]);
 
+  // Content keys, not identities: an inline `filter` / `sort` on a schema node is
+  // a new object every render and both are inputs to `load` (which an effect
+  // below depends on) — keying on identity would refetch the children on every
+  // render. Same reason `RelatedList` keys its own scope filter on content.
+  const filterKey = JSON.stringify(schema.filter ?? null);
+  const sortKey = JSON.stringify(schema.sort ?? null);
+  const listFilterNode = useMemo(
+    () => toFilterNode(schema.filter),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on CONTENT, see above
+    [filterKey],
+  );
+  const orderBy = useMemo(
+    () => convertSortToQueryParams(schema.sort),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on CONTENT, see above
+    [sortKey],
+  );
+
   const load = useCallback(async () => {
     if (!dataSource || !parentId) {
       setLoading(false);
@@ -89,9 +142,21 @@ export const LineItemsPanel: React.FC<{ schema: LineItemsPanelSchema }> = ({ sch
     }
     setLoading(true);
     try {
+      // Parent relationship AND the panel's own criteria (objectstack#7137).
+      // The parent condition is not negotiable — an "additional" criterion may
+      // only narrow THIS parent's children — and with nothing authored the query
+      // is the untouched MongoDB-style object it has always been rather than a
+      // freshly lowered AST meaning the same thing (invisible on screen, visible
+      // to every caller pinning the wire). Composed through the repo's single
+      // filter sink, the same way `record:related_list` composes its own.
+      const parentScope = { [schema.relationshipField]: parentId } as Record<string, any>;
       const res = await dataSource.find(schema.childObject, {
-        $filter: { [schema.relationshipField]: parentId },
-        $top: 500,
+        $filter:
+          listFilterNode === undefined
+            ? parentScope
+            : mergeFilterNodes(parentScope, listFilterNode),
+        ...(orderBy ? { $orderby: orderBy } : {}),
+        $top: schema.limit ?? DEFAULT_LINE_ITEMS_LIMIT,
       });
       const data = (res?.data ?? []) as Record<string, any>[];
       setRows(data.map((r) => ({ ...r })));
@@ -102,7 +167,15 @@ export const LineItemsPanel: React.FC<{ schema: LineItemsPanelSchema }> = ({ sch
     } finally {
       setLoading(false);
     }
-  }, [dataSource, parentId, schema.childObject, schema.relationshipField]);
+  }, [
+    dataSource,
+    parentId,
+    schema.childObject,
+    schema.relationshipField,
+    schema.limit,
+    listFilterNode,
+    orderBy,
+  ]);
 
   useEffect(() => {
     void load();

@@ -5,21 +5,24 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * `record:line_items` consumes `PageComponentSchema.dataSource` (objectstack#7121).
+ * `record:line_items` consumes `PageComponentSchema.dataSource` (objectstack#7121),
+ * and since objectstack#7137 it consumes `filter` / `sort` / `limit` too.
  *
- * This is the one block in the batch whose object does NOT live under
+ * This is the one block in the #7121 batch whose object does NOT live under
  * `objectName`: the collection it lists, fetches and writes is
  * `schema.childObject`, so the binding's `object` maps THERE — the same way it
  * maps onto `record:related_list`'s `objectName`, which likewise names the CHILD
  * object the panel is bound to. Authored with the binding and no `childObject`,
  * the panel used to query the object `undefined`.
  *
- * Nothing else is mapped, and the last two cases pin that rather than trusting a
- * comment: `relationshipField` stays the author's (it must name a field on the
- * bound child object), the query is `{ [relationshipField]: parentId }` and a
- * fixed `$top: 500` — so `filter` / `sort` / `limit` have no read site — and
- * `columns` here is `GridColumn[]` driving an EDITABLE grid, not a field-name
- * projection a saved view could fill.
+ * #7137 gave the fetch the three missing read sites. The composed filter is
+ * AND-combined with the parent relationship condition, never substituted for it —
+ * pinned below, because "additional criteria" that REPLACED the parent scope would
+ * show another record's line items, the worst possible reading of the spec.
+ *
+ * `columns` is still NOT mapped, and the last case keeps pinning that: here they
+ * are `GridColumn[]` driving an EDITABLE grid, not a field-name projection a saved
+ * view could fill.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -71,6 +74,11 @@ const renderBlock = (schema: Record<string, unknown>, adapter: ReturnType<typeof
 const headerTexts = (container: HTMLElement) =>
   Array.from(container.querySelectorAll('thead th')).map((th) => th.textContent ?? '');
 
+const firstQuery = async (adapter: ReturnType<typeof makeAdapter>) => {
+  await waitFor(() => expect(adapter.find).toHaveBeenCalled());
+  return adapter.find.mock.calls[0] as [string, any];
+};
+
 describe('record:line_items — dataSource: { object } (objectstack#7121)', () => {
   it('lists the CHILD object named by the binding, scoped to the parent record', async () => {
     const adapter = makeAdapter();
@@ -85,12 +93,13 @@ describe('record:line_items — dataSource: { object } (objectstack#7121)', () =
       adapter,
     );
 
-    await waitFor(() => expect(adapter.find).toHaveBeenCalled());
-    const [object, params] = adapter.find.mock.calls[0] as [string, any];
+    const [object, params] = await firstQuery(adapter);
     expect(object).toBe('invoice_line');
     // The parent relationship is still what scopes the list — the binding named
-    // the object, not the scope.
+    // the object, not the scope. With nothing else authored the filter is the
+    // untouched MongoDB-style object it has always been.
     expect(params.$filter).toEqual({ invoice: 'inv-1' });
+    expect(params.$orderby).toBeUndefined();
     expect(params.$top).toBe(500);
   });
 
@@ -113,7 +122,29 @@ describe('record:line_items — dataSource: { object } (objectstack#7121)', () =
     expect(adapter.find).not.toHaveBeenCalled();
   });
 
-  it('a resolvable view contributes nothing: no filter, no ordering, no cap, no columns', async () => {
+  it('leaves a panel with NO dataSource exactly as it was', async () => {
+    const adapter = makeAdapter();
+    renderBlock(
+      {
+        type: 'record:line_items',
+        childObject: 'invoice_line',
+        relationshipField: 'invoice',
+        parentId: 'inv-1',
+        columns: COLUMNS,
+      },
+      adapter,
+    );
+
+    const [object, params] = await firstQuery(adapter);
+    expect(object).toBe('invoice_line');
+    expect(params.$filter).toEqual({ invoice: 'inv-1' });
+    expect(params.$orderby).toBeUndefined();
+    expect(params.$top).toBe(500);
+  });
+});
+
+describe('record:line_items — parent scope AND the authored criteria (objectstack#7137)', () => {
+  it('applies a named view’s filter, sort and page size WITHOUT dropping the parent scope', async () => {
     const adapter = makeAdapter();
     const { container } = renderBlock(
       {
@@ -131,23 +162,24 @@ describe('record:line_items — dataSource: { object } (objectstack#7121)', () =
       adapter,
     );
 
-    await waitFor(() => expect(adapter.find).toHaveBeenCalled());
-    const [object, params] = adapter.find.mock.calls[0] as [string, any];
+    const [object, params] = await firstQuery(adapter);
     expect(object).toBe('invoice_line');
-    // The query is the FK scope and the fixed window, exactly as before: none of
-    // the view's filter/sort nor the binding's sort/limit has a read site here.
-    expect(params.$filter).toEqual({ invoice: 'inv-1' });
-    expect(params.$top).toBe(500);
-    expect(params.$orderby).toBeUndefined();
+    // BOTH conditions, ANDed: the parent FK first (it is never negotiable), the
+    // view's criteria as their own child. An override here would show another
+    // invoice's lines.
+    expect(params.$filter).toEqual(['and', ['invoice', '=', 'inv-1'], [['billable', '=', true]]]);
+    // Binding `sort` / `limit` override the view's.
+    expect(params.$orderby).toEqual({ price: 'asc' });
+    expect(params.$top).toBe(3);
 
-    // And the editable grid keeps the authored GridColumn list — a view's bare
-    // field names would arrive with no `field`/`type` and render header-less,
-    // type-less cells. Wrong SHAPE, not merely a wider answer.
+    // And the editable grid still keeps the authored GridColumn list — a view's
+    // bare field names would arrive with no `field`/`type` and render
+    // header-less, type-less cells. Wrong SHAPE, not merely a wider answer.
     await waitFor(() => expect(headerTexts(container)).toContain('Qty'));
     expect(headerTexts(container).join('|')).not.toContain('price');
   });
 
-  it('leaves a panel with NO dataSource exactly as it was', async () => {
+  it('honours filter / sort / limit authored directly on the panel', async () => {
     const adapter = makeAdapter();
     renderBlock(
       {
@@ -156,14 +188,43 @@ describe('record:line_items — dataSource: { object } (objectstack#7121)', () =
         relationshipField: 'invoice',
         parentId: 'inv-1',
         columns: COLUMNS,
+        filter: [['billable', '=', true]],
+        sort: 'qty desc',
+        limit: 25,
       },
       adapter,
     );
 
-    await waitFor(() => expect(adapter.find).toHaveBeenCalled());
-    const [object, params] = adapter.find.mock.calls[0] as [string, any];
+    const [object, params] = await firstQuery(adapter);
     expect(object).toBe('invoice_line');
-    expect(params.$filter).toEqual({ invoice: 'inv-1' });
-    expect(params.$top).toBe(500);
+    expect(params.$filter).toEqual(['and', ['invoice', '=', 'inv-1'], [['billable', '=', true]]]);
+    expect(params.$orderby).toEqual({ qty: 'desc' });
+    expect(params.$top).toBe(25);
+  });
+
+  it('AND-combines the panel’s own filter with the view’s and the binding’s — the parent scope survives all three', async () => {
+    const adapter = makeAdapter();
+    renderBlock(
+      {
+        type: 'record:line_items',
+        relationshipField: 'invoice',
+        parentId: 'inv-1',
+        columns: COLUMNS,
+        filter: [['void', '=', false]],
+        dataSource: { object: 'invoice_line', view: 'hot', filter: [['qty', '>', 0]] },
+      },
+      adapter,
+    );
+
+    const [, params] = await firstQuery(adapter);
+    expect(params.$filter).toEqual([
+      'and',
+      ['invoice', '=', 'inv-1'],
+      ['and', [['void', '=', false]], ['and', [['billable', '=', true]], [['qty', '>', 0]]]],
+    ]);
+    // The view supplied the ordering and the cap; nothing on the binding overrode
+    // them.
+    expect(params.$orderby).toEqual({ qty: 'desc' });
+    expect(params.$top).toBe(7);
   });
 });

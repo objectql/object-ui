@@ -255,11 +255,11 @@ ignores would be accepted and dropped, which is the defect this binding removes.
 | `object-gantt` | ✅ | filter / sort | ✅ | ✅ | — no row cap |
 | `object-map` | ✅ | filter / sort | ✅ | ✅ | — no row cap |
 | `object-pivot` | ✅ | filter | ✅ | — grouping orders | — totals need all rows |
-| `object-timeline` | ✅ | error-checked only | — no read site | — no read site | — fixed window |
+| `object-timeline` | ✅ | filter / sort / limit | ✅ | ✅ | ✅ (`limit`) |
 | `object-form` | ✅ | error-checked only | — no collection query | — | — |
 | `embeddable-form` | ✅ | error-checked only | — no collection query | — | — |
 | `object-master-detail-form` | ✅ | error-checked only | — no collection query | — | — |
-| `record:line_items` | ✅ (`childObject`) | error-checked only | — parent-scoped only | — no read site | — fixed window |
+| `record:line_items` | ✅ (`childObject`) | filter / sort / limit | ✅ (AND parent scope) | ✅ | ✅ (`limit`) |
 
 Reading the `view` column: it lists what a named saved view actually contributes
 on that block. A view name that does not resolve is reported as a configuration
@@ -273,25 +273,36 @@ of the binding and stays the author's — it has to name a field on the bound ch
 object, so rebinding `object` without updating it is an authoring error the panel
 cannot paper over.
 
-On `record:related_list` the composed filter is AND-combined with the parent
-relationship condition, never substituted for it: a related list is always scoped
-to the record it appears on, and an *additional* criterion can only narrow that
-set further. (Until objectstack#7118 this block declared `filter` without reading
-it, so a named view contributed its columns / sort / limit while its filter was
-dropped — the list could be wider than the view it named. That gap is closed; the
-`filter` cell above is what closed it.)
+On `record:related_list` and `record:line_items` the composed filter is
+AND-combined with the parent relationship condition, never substituted for it: a
+child panel is always scoped to the record it appears on, and an *additional*
+criterion can only narrow that set further. (Until objectstack#7118
+`record:related_list` declared `filter` without reading it, so a named view
+contributed its columns / sort / limit while its filter was dropped — the list
+could be wider than the view it named. That gap is closed; the `filter` cell above
+is what closed it.)
 
-Current gaps, recorded rather than papered over:
+`object-timeline` and `record:line_items` were the two residual gaps in this table
+until objectstack#7137. Neither had a `filter` / `sort` read site at all — the
+timeline's whole fetch was `find(objectName, { options: { $top: 100 } })` and the
+line-items panel's was the parent FK plus a fixed `$top: 500` — so a `view` named
+on either resolved (a typo reported) and then contributed nothing: the rendered
+rows could be **wider than the view they named**, with no error anywhere. Both now
+read `filter`, `sort` and `limit`, so the cells above are ✅. Two notes on what
+came with that:
 
-- `object-timeline` has no `$filter` / `$orderby` read site at all: its fetch is
-  `find(objectName, { options: { $top: 100 } })`. A view named there is resolved
-  and then contributes nothing, so the rail can be wider than the view it names.
-  The keys stay unmapped rather than being written where nothing reads them.
-- `record:line_items` likewise takes only the object from the binding: its query is
-  the parent FK plus a fixed `$top: 500`, and its `columns` are editable
+- The timeline's default window is `limit ?? 100` and it is now a real `$top`.
+  The old `{ options: { $top: 100 } }` nested the cap under a key that is not a
+  `QueryParams` field and that no adapter in this repo reads, so the intended cap
+  never reached the wire; a timeline over a large object fetched whatever the
+  server chose to return. Authoring `limit` (or a view's `pagination.pageSize`)
+  now sets it.
+- `record:line_items` still does **not** take a view's `columns`: they are editable
   `GridColumn` objects (`{ field, type, … }`) rather than a field-name projection,
   so a view's column list would be the wrong *shape*, not merely a wider answer.
-  Both of these are tracked as objectstack#7137.
+
+Remaining gap, recorded rather than papered over:
+
 - `object-form` / `embeddable-form` / `object-master-detail-form` resolve `view`
   only to report an unresolvable name; a view that does resolve contributes
   nothing, because a list view's columns are not a form layout. On the
