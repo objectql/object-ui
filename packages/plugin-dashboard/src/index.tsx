@@ -192,10 +192,50 @@ ComponentRegistry.register(
   }
 );
 
+/**
+ * What `ObjectPivotTable` reads for its own query: the object it cross-tabs and
+ * the filter it cross-tabs over (`ObjectPivotTable.tsx` —
+ * `dataSource.find(schema.objectName, { $filter: resolveFilterPlaceholders(schema.filter, …) })`).
+ *
+ * `sort` / `limit` / `columns` are deliberately unmapped, none of them having a
+ * read site here: a pivot's ordering comes out of its own row/column grouping
+ * (`rowField` / `columnField`), its fetch issues no `$top` because a cross-tab
+ * over a truncated page would report wrong totals, and its "columns" are the
+ * `columnField` VALUES, not a field projection a saved view could supply.
+ */
+const OBJECT_PIVOT_DATA_SOURCE: ElementDataSourceMapping = {
+  filter: true,
+};
+
+/**
+ * Registry shell for `object-pivot` — the spec's per-element `dataSource`
+ * binding onto the schema keys {@link ObjectPivotTable} reads (objectstack#7121).
+ *
+ * Without it a pivot authored the way the spec documents (`dataSource: { object,
+ * view }`, no flat `objectName`) fell through the `if (!dataSource ||
+ * !schema.objectName) return;` guard in its fetch effect: an empty cross-tab, no
+ * request, no diagnostic. Same shape the sibling `object-metric` above had.
+ *
+ * Props pass through untouched, and `bound` IS the schema by reference when there
+ * is no binding — so the dashboard/manual paths that render this component with a
+ * plain schema behave exactly as before.
+ */
+const ObjectPivotBlock: React.FC<{ schema?: any; [key: string]: any }> = ({ schema, ...props }) => (
+  <ElementDataSourceGate
+    schema={schema}
+    mapping={OBJECT_PIVOT_DATA_SOURCE}
+    dataSource={props.dataSource}
+    testId="object-pivot"
+    errorTitle="This pivot table’s data source could not be resolved"
+  >
+    {(bound) => <ObjectPivotTable {...(props as any)} schema={bound as any} />}
+  </ElementDataSourceGate>
+);
+
 // Register object-aware pivot table (async data loading)
 ComponentRegistry.register(
   'object-pivot',
-  ObjectPivotTable,
+  ObjectPivotBlock,
   {
     namespace: 'plugin-dashboard',
     label: 'Object Pivot Table',

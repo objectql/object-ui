@@ -252,23 +252,46 @@ ignores would be accepted and dropped, which is the defect this binding removes.
 | `object-kanban` | ✅ | filter | ✅ | — no ordering | — fixed window |
 | `object-chart` | ✅ | filter | ✅ | — engine orders | — no page |
 | `object-metric` | ✅ | filter | ✅ | — single value | — single value |
+| `object-gantt` | ✅ | filter / sort | ✅ | ✅ | — no row cap |
+| `object-map` | ✅ | filter / sort | ✅ | ✅ | — no row cap |
+| `object-pivot` | ✅ | filter | ✅ | — grouping orders | — totals need all rows |
+| `object-timeline` | ✅ | error-checked only | — no read site | — no read site | — fixed window |
 | `object-form` | ✅ | error-checked only | — no collection query | — | — |
+| `embeddable-form` | ✅ | error-checked only | — no collection query | — | — |
+| `object-master-detail-form` | ✅ | error-checked only | — no collection query | — | — |
+| `record:line_items` | ✅ (`childObject`) | error-checked only | — parent-scoped only | — no read site | — fixed window |
 
 Reading the `view` column: it lists what a named saved view actually contributes
 on that block. A view name that does not resolve is reported as a configuration
 error on **every** block in the table, including the ones that take nothing else
 from the view — so a typo never passes silently, whatever the block.
 
-Two current gaps, recorded rather than papered over:
+Reading the `object` column: it lands on the block's own object key, which is
+`objectName` everywhere except `record:line_items`, where the collection the panel
+lists, fetches and writes is `childObject`. Its `relationshipField` is *not* part
+of the binding and stays the author's — it has to name a field on the bound child
+object, so rebinding `object` without updating it is an authoring error the panel
+cannot paper over.
+
+Current gaps, recorded rather than papered over:
 
 - `record:related_list` declares a flat `filter` its renderer does not read (the
   list scopes itself by the parent relationship alone), so a view named there
   contributes columns / sort / limit and its filter is dropped — the list can be
   wider than the view it names.
-- `object-form` resolves `view` only to report an unresolvable name; a view that
-  does resolve contributes nothing, because a list view's columns are not a form
-  layout.
+- `object-timeline` has no `$filter` / `$orderby` read site at all: its fetch is
+  `find(objectName, { options: { $top: 100 } })`. A view named there is resolved
+  and then contributes nothing, so the rail can be wider than the view it names.
+  The keys stay unmapped rather than being written where nothing reads them.
+- `record:line_items` likewise takes only the object from the binding: its query is
+  the parent FK plus a fixed `$top: 500`, and its `columns` are editable
+  `GridColumn` objects (`{ field, type, … }`) rather than a field-name projection,
+  so a view's column list would be the wrong *shape*, not merely a wider answer.
+- `object-form` / `embeddable-form` / `object-master-detail-form` resolve `view`
+  only to report an unresolvable name; a view that does resolve contributes
+  nothing, because a list view's columns are not a form layout. On the
+  master-detail form the bound object is the **parent**; child collections come
+  from `details[]`, by FK.
 
-Blocks not in the table (`object-gantt`, `object-timeline`, `object-map`,
-`object-pivot`, `dashboard`, the other `record:*` panels) do not consume the
-binding yet.
+Blocks not in the table (`dashboard`, the other `record:*` panels) do not consume
+the binding yet.

@@ -8,7 +8,11 @@
 
 import React, { useContext } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
-import { ElementDataSourceGate, SchemaRendererContext } from '@object-ui/react';
+import {
+  ElementDataSourceGate,
+  SchemaRendererContext,
+  type ElementDataSourceMapping,
+} from '@object-ui/react';
 import { ObjectForm } from './ObjectForm';
 
 export { ObjectForm };
@@ -148,7 +152,27 @@ const EmbeddableFormRenderer: React.FC<{ schema: any }> = ({ schema }) => {
   // objectstack#4413 shape; `public-block-binding-reach.test.tsx` is what
   // catches it now.
   const ctx = useContext(SchemaRendererContext as React.Context<any>);
-  return <EmbeddableForm config={schema} dataSource={ctx?.dataSource} />;
+  // The spec's `PageComponentSchema.dataSource` binding (objectstack#7121). Same
+  // standing, and the same single mapped key, as `object-form` above:
+  // `EmbeddableForm` reads `config.objectName` to fetch the object's fields and
+  // to `create()` the submission, so a form authored with `dataSource: { object }`
+  // and no flat `objectName` rendered a field-less shell that could not submit.
+  //
+  // `filter` / `sort` / `limit` have no read site on a form that CREATES one
+  // record — there is no collection query for them to narrow — and `fields` is an
+  // ordered layout, not a projection a list view's columns could fill, so none of
+  // them is mapped. A `view` name is still resolved (a typo reports rather than
+  // rendering), and a view that does resolve contributes nothing here.
+  return (
+    <ElementDataSourceGate
+      schema={schema}
+      dataSource={ctx?.dataSource}
+      testId="embeddable-form"
+      errorTitle="This form’s data source could not be resolved"
+    >
+      {(bound) => <EmbeddableForm config={bound} dataSource={ctx?.dataSource} />}
+    </ElementDataSourceGate>
+  );
 };
 
 ComponentRegistry.register('embeddable-form', EmbeddableFormRenderer, {
@@ -190,7 +214,30 @@ import { MasterDetailForm } from './MasterDetailForm';
 const MasterDetailFormRenderer: React.FC<{ schema: any }> = ({ schema }) => {
   const ctx = useContext(SchemaRendererContext as React.Context<any>);
   const dataSource = ctx?.dataSource ?? undefined;
-  return <MasterDetailForm schema={schema} dataSource={dataSource} />;
+  // The spec's `PageComponentSchema.dataSource` binding (objectstack#7121).
+  // `schema.objectName` is the PARENT object here, and everything downstream is
+  // gated on it — `deriveDetail` needs it to find each child's relationship field
+  // back to the parent, and the parent form/save path names it directly. A
+  // master-detail form authored with `dataSource: { object }` and no flat
+  // `objectName` therefore rendered a parent shell whose details could not even
+  // resolve their own FK.
+  //
+  // `object` is the only key mapped, and for the same reason as the two forms
+  // above: the parent is ONE record (no collection query for `filter` / `sort` /
+  // `limit` to narrow) and the child collections are fetched by FK from
+  // `schema.details`, at a fixed `$top: 500`, not from anything the binding
+  // carries. `details[].columns` is a per-child editable grid spec, not a
+  // projection a saved view could supply.
+  return (
+    <ElementDataSourceGate
+      schema={schema}
+      dataSource={dataSource}
+      testId="object-master-detail-form"
+      errorTitle="This form’s data source could not be resolved"
+    >
+      {(bound) => <MasterDetailForm schema={bound} dataSource={dataSource} />}
+    </ElementDataSourceGate>
+  );
 };
 
 ComponentRegistry.register('object-master-detail-form', MasterDetailFormRenderer, {
@@ -209,8 +256,53 @@ ComponentRegistry.register('object-master-detail-form', MasterDetailFormRenderer
 // usable on a record/detail page or slotted slot.
 import { LineItemsPanel } from './LineItemsPanel';
 
+/**
+ * `record:line_items` is the one block in this batch whose object does NOT live
+ * under `objectName`: the collection it lists, fetches and writes is
+ * `schema.childObject` (`LineItemsPanel.tsx` — `dataSource.find(schema.childObject,
+ * …)`, `getObjectSchema(schema.childObject)`, and the child leg of the save
+ * batch). So the binding's `object` maps THERE, the same way it maps onto
+ * `record:related_list`'s `objectName` — in both blocks that key names the CHILD
+ * object the panel is bound to, which is what `dataSource.object` means.
+ *
+ * Nothing else is mapped, and each omission has a read site behind it (or the
+ * lack of one):
+ *
+ *  - `relationshipField` stays the author's: it is not part of the binding, and it
+ *    must name a field ON the bound child object. Rebinding `object` without
+ *    updating it is an authoring error the panel cannot paper over.
+ *  - `filter` has no read site — the query is `{ [relationshipField]: parentId }`
+ *    and nothing else, so the panel is scoped by the parent record alone.
+ *  - `sort` and a row cap likewise: rows come back at a fixed `$top: 500` in
+ *    storage order.
+ *  - `columns` is NOT a field-name projection here. It is `GridColumn[]`
+ *    (`{ field, type, options, computed, expr, … }`) driving an EDITABLE grid; a
+ *    saved view's column list would arrive as bare names and render a grid of
+ *    column definitions with no `field`. Wrong shape, not merely a wider answer.
+ *
+ * Consequence, stated rather than hidden: a `view` named on this block is
+ * resolved (so a typo reports instead of silently widening) and then contributes
+ * nothing — its filter/sort/columns are all dropped, because the panel has no
+ * read site for any of them.
+ */
+const RECORD_LINE_ITEMS_DATA_SOURCE: ElementDataSourceMapping = {
+  object: 'childObject',
+};
+
 const LineItemsPanelRenderer: React.FC<{ schema: any }> = ({ schema }) => (
-  <LineItemsPanel schema={schema} />
+  // The spec's `PageComponentSchema.dataSource` binding (objectstack#7121). No
+  // `dataSource` is passed: the gate falls back to `SchemaRendererContext`, which
+  // is the very adapter `LineItemsPanel` loads its rows through — resolving `view`
+  // against a different source than the rows come from could report a view as
+  // missing on a host that has it.
+  <ElementDataSourceGate
+    schema={schema}
+    mapping={RECORD_LINE_ITEMS_DATA_SOURCE}
+    testId="record-line-items"
+    errorTitle="This line-items panel’s data source could not be resolved"
+  >
+    {(bound) => <LineItemsPanel schema={bound} />}
+  </ElementDataSourceGate>
 );
 
 ComponentRegistry.register('line_items', LineItemsPanelRenderer, {

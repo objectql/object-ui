@@ -305,12 +305,54 @@ export type { ObjectTimelineProps } from './ObjectTimeline';
 
 import { ComponentRegistry } from '@object-ui/core';
 import { ObjectTimeline } from './ObjectTimeline';
-import { useSchemaContext } from '@object-ui/react';
+import {
+  ElementDataSourceGate,
+  useSchemaContext,
+  type ElementDataSourceMapping,
+} from '@object-ui/react';
+
+/**
+ * `object-timeline` maps the binding's `object` and NOTHING ELSE, because
+ * `objectName` is the only query key this block has a read site for.
+ *
+ * `ObjectTimeline.tsx`'s fetch is literally
+ * `dataSource.find(schema.objectName, { options: { $top: 100 } })` — no
+ * `$filter`, no `$orderby`, and a HARD-CODED window rather than an authored cap.
+ * So `filter` / `sort` / `limit` are deliberately left unmapped: writing them
+ * onto schema keys the timeline never reads would look like the binding was
+ * honoured while changing nothing about the rows fetched, which is exactly the
+ * "declared and dropped" defect objectstack#7121 removes. `columns` is unmapped
+ * for the same reason a calendar's is — a timeline projects the fields its
+ * `timeline` config names (title/start/end/description/color/groupBy).
+ *
+ * Consequence, recorded rather than papered over: a saved `view` named here
+ * contributes NOTHING to the query (its filter and sort are dropped), so the
+ * timeline can be wider than the view it names. The name is still resolved, so a
+ * typo reports instead of silently widening. Tracked as the residual gap in
+ * `content/docs/guide/data-source.md`; when the timeline's fetch gains
+ * filter/sort read sites, this mapping gains the flags and the binding follows
+ * for free.
+ */
+const OBJECT_TIMELINE_DATA_SOURCE: ElementDataSourceMapping = {};
 
 // Register object-timeline component
 export const ObjectTimelineRenderer: React.FC<any> = ({ schema, ...props }) => {
   const { dataSource } = useSchemaContext() || {};
-  return <ObjectTimeline schema={schema} dataSource={dataSource} {...props} />;
+  // The spec's `PageComponentSchema.dataSource` binding (objectstack#7121): a
+  // timeline authored with the binding and no flat `objectName` never fetched —
+  // every branch of its effect is gated on `schema.objectName` — and rendered an
+  // empty rail with no request and no error.
+  return (
+    <ElementDataSourceGate
+      schema={schema}
+      mapping={OBJECT_TIMELINE_DATA_SOURCE}
+      dataSource={dataSource}
+      testId="object-timeline"
+      errorTitle="This timeline’s data source could not be resolved"
+    >
+      {(bound) => <ObjectTimeline schema={bound} dataSource={dataSource} {...props} />}
+    </ElementDataSourceGate>
+  );
 };
 
 ComponentRegistry.register('object-timeline', ObjectTimelineRenderer, {
