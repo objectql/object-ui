@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { PageComponentType, RecordDetailsProps } from '@objectstack/spec/ui';
 import { BLOCK_CONFIG, blockHasConfig } from '../block-config';
 import { BLOCK_TYPE_META, PALETTE_EXCLUSIONS } from '../block-types';
+import { t } from '../../i18n';
 
 describe('block-config', () => {
   it('exposes a configurable panel for every content block with authorable props', () => {
@@ -118,7 +119,14 @@ describe('record:details sections ↔ spec section-entry coverage (#3819)', () =
     // The label must say what the box is FOR. A bare "Name" next to "Label"
     // reads as a second display string, which is how an author ends up typing
     // a heading into the anchor.
-    expect(nameField!.label).toMatch(/i18n/i);
+    //
+    // Asserted on the RESOLVED label, in both locales, because `label` now
+    // holds a translation key (#3913). Matching /i18n/i against the key itself
+    // would be a claim about the key's spelling, not about the words an author
+    // reads — and it would pass or fail for reasons unrelated to the wording
+    // this case exists to protect.
+    expect(t(nameField!.label, 'en-US')).toMatch(/i18n/i);
+    expect(t(nameField!.label, 'zh-CN')).toMatch(/i18n/i);
   });
 
   it('lists `name` before `label` — the entry identity comes first', () => {

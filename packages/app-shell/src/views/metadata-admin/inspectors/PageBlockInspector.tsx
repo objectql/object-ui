@@ -378,6 +378,16 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
     (key) => !curatedNames.has(key) && !STRUCTURAL_PROP_KEYS.has(key),
   );
 
+  // Curated labels are translation KEYS, not display text (#3913). The panel's
+  // chrome went through `t()` from the start while its contents did not, so a
+  // zh-CN admin read 「属性」 over a stack of English field names. `t()` returns
+  // the key unchanged when it is missing, so an untranslated field is loud in
+  // every locale rather than silently English in one.
+  const fieldLabel = (key: string) => t(key, locale);
+  /** Option labels are keys too — translate before handing them to a picker. */
+  const optionLabels = <T extends { value: string; label: string }>(options: T[]) =>
+    options.map((o) => ({ ...o, label: t(o.label, locale) }));
+
   // Generic, recursive field renderer. `read`/`write` abstract the value source
   // (the block's `properties` at the top level, or an item object inside an
   // `array` field), so the same code drives nested array-item editors.
@@ -391,39 +401,39 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
     switch (f.kind) {
       case 'number':
         return (
-          <InspectorNumberField key={k} label={f.label}
+          <InspectorNumberField key={k} label={fieldLabel(f.label)}
             value={typeof read(f.name) === 'number' ? (read(f.name) as number) : undefined}
             placeholder={f.placeholder} onCommit={(v) => write(f.name, v)} disabled={readOnly} />
         );
       case 'boolean':
         return (
-          <InspectorCheckboxField key={k} label={f.label} value={!!read(f.name)}
+          <InspectorCheckboxField key={k} label={fieldLabel(f.label)} value={!!read(f.name)}
             onCommit={(v) => write(f.name, v)} disabled={readOnly} />
         );
       case 'color':
         return (
           <div key={k} className="space-y-1">
-            <Label className="text-xs text-muted-foreground">{f.label}</Label>
+            <Label className="text-xs text-muted-foreground">{fieldLabel(f.label)}</Label>
             <ColorVariantPicker
               value={read(f.name) != null ? String(read(f.name)) : undefined}
               onChange={(v) => write(f.name, v)}
               disabled={readOnly}
-              options={f.options}
+              options={f.options ? optionLabels(f.options) : undefined}
             />
           </div>
         );
       case 'select':
         return (
-          <InspectorSelectField key={k} label={f.label}
+          <InspectorSelectField key={k} label={fieldLabel(f.label)}
             value={read(f.name) != null ? String(read(f.name)) : undefined}
-            options={f.options} onCommit={(v) => write(f.name, v)} disabled={readOnly} />
+            options={optionLabels(f.options)} onCommit={(v) => write(f.name, v)} disabled={readOnly} />
         );
       case 'json':
         // Same editor the "Advanced" section uses, but reachable for a prop the
         // block does not have yet — Advanced enumerates existing keys only, so
         // without this a curated JSON prop could be edited and never added.
         return (
-          <InspectorJsonField key={k} label={f.label} value={read(f.name)}
+          <InspectorJsonField key={k} label={fieldLabel(f.label)} value={read(f.name)}
             placeholder={f.placeholder}
             onCommit={(v) => write(f.name, v)} disabled={readOnly} />
         );
@@ -431,7 +441,7 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
         const arr = Array.isArray(read(f.name)) ? (read(f.name) as unknown[]) : [];
         return (
           <div key={k} className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">{f.label}</Label>
+            <Label className="text-xs text-muted-foreground">{fieldLabel(f.label)}</Label>
             {arr.map((s, i) => (
               <div key={i} className="flex items-center gap-1.5">
                 <Input className="h-8 text-sm" value={String(s ?? '')} placeholder={f.placeholder} disabled={readOnly}
@@ -454,7 +464,7 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
         const arr = Array.isArray(read(f.name)) ? (read(f.name) as unknown[]) : [];
         return (
           <div key={k} className="space-y-2">
-            <Label className="text-xs text-muted-foreground">{f.label}</Label>
+            <Label className="text-xs text-muted-foreground">{fieldLabel(f.label)}</Label>
             {arr.map((item, i) => {
               const itemObj = item && typeof item === 'object' ? (item as Record<string, unknown>) : {};
               return (
@@ -479,7 +489,7 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
             })}
             {!readOnly && (
               <Button type="button" variant="outline" size="sm" onClick={() => write(f.name, [...arr, {}])}>
-                <Plus className="mr-1 h-3.5 w-3.5" /> {f.addLabel || 'Add'}
+                <Plus className="mr-1 h-3.5 w-3.5" /> {fieldLabel(f.addLabel)}
               </Button>
             )}
           </div>
@@ -487,24 +497,24 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
       }
       case 'object-picker':
         return (
-          <ObjectPickerField key={k} label={f.label}
+          <ObjectPickerField key={k} label={fieldLabel(f.label)}
             value={read(f.name) != null ? String(read(f.name)) : undefined}
             onCommit={(v) => write(f.name, v)} disabled={readOnly} />
         );
       case 'field-picker':
         return (
-          <FieldPickerField key={k} label={f.label} objectName={resolveObject(f)}
+          <FieldPickerField key={k} label={fieldLabel(f.label)} objectName={resolveObject(f)}
             value={read(f.name) != null ? String(read(f.name)) : undefined}
             onCommit={(v) => write(f.name, v)} disabled={readOnly} />
         );
       case 'field-list':
         return (
-          <FieldListField key={k} label={f.label} objectName={resolveObject(f)}
+          <FieldListField key={k} label={fieldLabel(f.label)} objectName={resolveObject(f)}
             value={read(f.name)} onChange={(v) => write(f.name, v)} disabled={readOnly} />
         );
       default:
         return (
-          <InspectorTextField key={k} label={f.label}
+          <InspectorTextField key={k} label={fieldLabel(f.label)}
             value={read(f.name) != null ? String(read(f.name)) : ''}
             placeholder={(f as any).placeholder} onCommit={(v) => write(f.name, v)} disabled={readOnly} />
         );
