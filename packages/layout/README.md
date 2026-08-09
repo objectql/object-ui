@@ -21,6 +21,24 @@ pnpm add @object-ui/layout
 - `react-dom` ^18.0.0 || ^19.0.0
 - `react-router-dom` ^6.0.0 || ^7.0.0
 
+## Registration
+
+Importing this package registers its component keys (`page-header`, `page:card`,
+`app-shell`, `responsive-grid`, `navigation-renderer`, `app-schema-renderer`) on
+the `ComponentRegistry` as a module load side effect, so the side-effect-only
+import is enough:
+
+```typescript
+import '@object-ui/layout';
+```
+
+That is a supported entry point, not an accident of the build: `package.json`
+declares the registering modules in `sideEffects`, which is what stops a bundler
+from tree-shaking a side-effect-only import away (objectui#3899 — the manifest
+used to say `"sideEffects": false`, and a bundler honouring it dropped the
+registration silently). `registerLayout()` is also exported for hosts that
+prefer to register explicitly.
+
 ## Components
 
 ### AppShell

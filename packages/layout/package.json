@@ -2,7 +2,11 @@
   "name": "@object-ui/layout",
   "version": "17.3.0",
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/index.js",
+    "./dist/index.umd.cjs",
+    "./src/index.ts"
+  ],
   "main": "dist/index.umd.cjs",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
