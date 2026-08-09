@@ -329,10 +329,10 @@ describe('objectui#3876 — de pack closes „ with “ and not with a straight 
 
     // `toEqual([])` is precisely the assertion shape that also passes when nothing
     // was produced, so the predicate must be shown to still be able to find
-    // something. `en` quotes with ASCII by design (see the `it` below), so the
-    // same filter over `en` returns a long list; a broken `flatten`, an emptied
-    // pack or a renamed export would take that to zero and fail here instead of
-    // reading green above. 40 en values at objectui#3919's landing.
+    // something. `en` quotes with ASCII by design (pinned in the `leaves en alone`
+    // `it` above), so the same filter over `en` returns a long list; a broken
+    // `flatten`, an emptied pack or a renamed export would take that to zero and
+    // fail here instead of reading green above. 40 en values at #3919's landing.
     expect(DE.length, 'de pack looks empty — the scan would be vacuous').toBeGreaterThan(2000);
     const enStraight = flatten(builtInLocales.en).filter(([, v]) => v.includes(STRAIGHT));
     expect(
