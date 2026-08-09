@@ -156,6 +156,14 @@ guarded by `paramValueShape.test.ts` (#2714): `number`→number, `boolean`→boo
 `date`/`datetime`/`time`→string, `select`→string (`string[]` when `multiple`),
 `lookup`/`user`→id string(s), `file`/`image`→fileId string(s) (via
 `serializeParamValues`, #2698/#2710), `object`/`address`→object, `grid`→object[].
+
+For `datetime` the string is an **ISO-8601 instant with an explicit zone**
+(`2026-08-10T07:00:00.000Z`) — not the `datetime-local` control's zone-less wall
+clock. That is the platform's own `datetime` value contract, enforced by the
+dispatcher before the handler runs (`validateActionParams`, ADR-0104 D2), so the
+naive shape earned a 400 on every submission until objectstack#5061.
+`DateTimeField` already converts on both sides (objectui#3127), so the dialog
+POSTs its value unchanged — no zone handling lives at the dialog boundary.
 See the full table in [ADR-0059](../../docs/adr/0059-action-params-shared-field-widgets.md#value-shapes-the-emitted-shape-contract).
 
 ## Metadata designers

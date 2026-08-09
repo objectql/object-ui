@@ -14,6 +14,8 @@ export * from './useNavigationOverlay';
 export * from './usePageVariables';
 export * from './usePageVariableActionBridge';
 export * from './useViewData';
+// PageComponentSchema.dataSource — the spec's per-element data binding.
+export * from './useElementDataSource';
 export * from './useDynamicApp';
 export * from './useDiscovery';
 export * from './useFocusTrap';

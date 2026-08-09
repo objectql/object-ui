@@ -124,7 +124,7 @@ export const PARAM_VALUE_SHAPES: Readonly<Record<string, ParamValueShapeSpec>> =
 
   // Date/time → ISO-ish string
   date: { base: 'string', cardinality: 'scalar', note: 'ISO date string (YYYY-MM-DD).' },
-  datetime: { base: 'string', cardinality: 'scalar', note: 'datetime-local string (YYYY-MM-DDTHH:mm).' },
+  datetime: { base: 'string', cardinality: 'scalar', note: 'ISO-8601 instant with an explicit zone (2026-08-10T07:00:00.000Z) — what the platform `datetime` value contract requires. The control is zone-less; DateTimeField converts (objectstack#5061).' },
   time: { base: 'string', cardinality: 'scalar', note: 'Time string (HH:mm).' },
 
   // Numeric → number

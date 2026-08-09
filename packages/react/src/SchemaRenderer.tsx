@@ -407,6 +407,18 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
     hiddenOn: _hiddenOn,
     disabled: _disabled,
     disabledOn: _disabledOn,
+    // stripped: `PageComponentSchema.dataSource` is the spec's per-element data
+    // BINDING (`{ object, view, filter, sort, limit }`) — schema metadata, like
+    // `visibleWhen` above, not a visual prop. Renderers that consume it read
+    // `schema.dataSource` (element:record_picker, list-view); it must not be
+    // spread as a React prop, because several data-bound blocks take the
+    // injected data-source ADAPTER under that very name. Spreading it shadowed
+    // the adapter with a plain `{ object, view }` object, so the first
+    // `dataSource.find(…)` threw `dataSource.find is not a function` and the
+    // block reported "Couldn't load records" — writing the binding the spec
+    // documents BROKE the component (objectstack#5576). An explicit React
+    // `dataSource` prop is unaffected: it arrives via `...props`, spread last.
+    dataSource: _dataSource,
     _hidden: __hidden,    // stripped: internal visibility flag
     _disabled: __disabled, // stripped: internal disabled flag
     responsiveStyles: _responsiveStyles, // stripped: compiled to scoped CSS, not a DOM prop

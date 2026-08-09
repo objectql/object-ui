@@ -10,7 +10,8 @@
  * Unique sub-input ids for the composite `address` widget (objectui#3343).
  *
  * The widget used to hardcode literal ids ("street", "city", "state",
- * "zipCode", "country") on its sub-inputs. Two address fields in one form —
+ * "postalCode" — spelled "zipCode" until objectstack#5143 —, "country") on its
+ * sub-inputs. Two address fields in one form —
  * e.g. billing + shipping — then produced duplicate DOM ids, and every
  * `Label htmlFor` resolved to the FIRST match in the document: each sub-label
  * of the second field clicked/announced the first field's input.

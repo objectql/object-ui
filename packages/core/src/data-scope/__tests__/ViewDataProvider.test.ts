@@ -256,6 +256,113 @@ describe('ViewDataProvider', () => {
         limit: 5,
       });
     });
+
+    // ===== `view` — objectstack#5576 =====
+    //
+    // This method used to forward `filter`/`sort`/`limit` and DROP `view`, and it
+    // had no caller outside this file. "Reference a saved view by name" was a
+    // published binding with no implementation: a page that used it got every
+    // record the object had, with no error, and the author had no way to tell.
+    describe('view (objectstack#5576)', () => {
+      const savedViews = {
+        'Contact.hot': {
+          type: 'grid',
+          columns: ['name', 'email'],
+          filter: [['rating', '=', 'hot']],
+          sort: [{ field: 'name', order: 'asc' }],
+          pagination: { pageSize: 20 },
+        },
+      };
+
+      const fetcherWithViews = (): DataFetcher => ({
+        fetchRecords: vi.fn().mockResolvedValue({ records: [{ id: '1' }], total: 1 }),
+        fetchViews: vi.fn().mockResolvedValue(savedViews),
+      });
+
+      it('applies the named view’s columns, filter, sort and page size', async () => {
+        const fetcher = fetcherWithViews();
+        provider.setFetcher(fetcher);
+
+        const result = await provider.resolveElementDataSource({
+          object: 'Contact',
+          view: 'hot',
+        });
+
+        expect(result.error).toBeUndefined();
+        expect(fetcher.fetchViews).toHaveBeenCalledWith('Contact');
+        expect(fetcher.fetchRecords).toHaveBeenCalledWith('Contact', {
+          filter: [['rating', '=', 'hot']],
+          sort: [{ field: 'name', order: 'asc' }],
+          limit: 20,
+          fields: ['name', 'email'],
+        });
+      });
+
+      it('AND-combines the binding filter onto the view’s ("additional criteria")', async () => {
+        const fetcher = fetcherWithViews();
+        provider.setFetcher(fetcher);
+
+        await provider.resolveElementDataSource({
+          object: 'Contact',
+          view: 'hot',
+          filter: { owner: 'me' },
+        });
+
+        expect((fetcher.fetchRecords as any).mock.calls[0][1].filter).toEqual([
+          'and',
+          [['rating', '=', 'hot']],
+          ['owner', '=', 'me'],
+        ]);
+      });
+
+      it('reports an unresolvable view instead of returning every record', async () => {
+        const fetcher = fetcherWithViews();
+        provider.setFetcher(fetcher);
+
+        const result = await provider.resolveElementDataSource({
+          object: 'Contact',
+          view: 'nope',
+        });
+
+        expect(result.records).toEqual([]);
+        expect(result.error).toContain('"nope"');
+        expect(result.error).toContain('Contact.hot');
+        // The load that must NOT have happened: a named view the runtime cannot
+        // apply may never degrade into an unfiltered query.
+        expect(fetcher.fetchRecords).not.toHaveBeenCalled();
+      });
+
+      it('reports a fetcher that cannot list views at all', async () => {
+        const fetcher: DataFetcher = {
+          fetchRecords: vi.fn().mockResolvedValue({ records: [], total: 0 }),
+        };
+        provider.setFetcher(fetcher);
+
+        const result = await provider.resolveElementDataSource({
+          object: 'Contact',
+          view: 'hot',
+        });
+
+        expect(result.error).toContain('fetchViews');
+        expect(fetcher.fetchRecords).not.toHaveBeenCalled();
+      });
+
+      it('surfaces a failed view lookup as an error, not as an empty view', async () => {
+        const fetcher: DataFetcher = {
+          fetchRecords: vi.fn().mockResolvedValue({ records: [], total: 0 }),
+          fetchViews: vi.fn().mockRejectedValue(new Error('meta unavailable')),
+        };
+        provider.setFetcher(fetcher);
+
+        const result = await provider.resolveElementDataSource({
+          object: 'Contact',
+          view: 'hot',
+        });
+
+        expect(result.error).toBe('meta unavailable');
+        expect(fetcher.fetchRecords).not.toHaveBeenCalled();
+      });
+    });
   });
 
   // ===== Unknown Provider =====

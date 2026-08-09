@@ -703,10 +703,23 @@ export function PercentCellRenderer({ value, field }: CellRendererProps): React.
   const formatted = isWholePercentField ? `${numValue.toFixed(precision)}%` : formatPercent(numValue, precision);
   const clampedBar = Math.max(0, Math.min(100, barValue));
   
+  // Layout contract (objectstack#5066): THE NUMBER IS THE CONTENT, THE BAR IS
+  // DECORATION. The bar used to be `w-16 shrink-0` while the value span was
+  // shrinkable, so in a narrow clipping container — a `record:highlights` chip
+  // is `basis-[9rem]`/`min-w-[7rem]` and clips with `truncate` — the 64px bar
+  // took the space and the value was silently cut mid-digit: a stored `33.33`
+  // rendered `33%` in the DOM but read as `3` on screen, with no ellipsis and
+  // nothing in the accessible name to signal the loss.
+  //
+  // So the priority is inverted: the value span is `shrink-0` (never sacrificed)
+  // and the bar keeps `w-16` only as its PREFERRED width, free to shrink away
+  // under pressure. It is deliberately NOT `flex-1` — growing is not wanted, or
+  // every wide grid cell would stretch its bar; `w-16` stays the upper bound and
+  // wide containers look exactly as before.
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-0 items-center gap-2">
       <div
-        className="h-1.5 w-16 rounded-full bg-muted ring-1 ring-inset ring-border/60 overflow-hidden shrink-0"
+        className="h-1.5 w-16 min-w-0 shrink rounded-full bg-muted ring-1 ring-inset ring-border/60 overflow-hidden"
         role="progressbar"
         aria-valuenow={clampedBar}
         aria-valuemin={0}
@@ -717,7 +730,7 @@ export function PercentCellRenderer({ value, field }: CellRendererProps): React.
           style={{ width: `${clampedBar}%` }}
         />
       </div>
-      <span className="tabular-nums whitespace-nowrap">{formatted}</span>
+      <span className="shrink-0 tabular-nums whitespace-nowrap">{formatted}</span>
     </div>
   );
 }
@@ -2536,11 +2549,14 @@ export type { DomProps } from './widgets/toDomProps';
 
 // The native date/time control value adapters (objectui#3127). `DateTimeField`
 // is ISO-canonical on BOTH sides — it takes the record's ISO instant and hands
-// an ISO instant back — so a caller whose own endpoint contract is the control's
-// zone-less local wall clock (`ActionParamDialog`'s `datetime` param, pinned by
-// #2714) needs `toDateTimeInputValue` to convert at its serialization boundary.
-// Exported rather than duplicated so the two surfaces cannot drift on what the
-// local wall clock of an instant is.
+// an ISO instant back, which is also the wire form the platform's `datetime`
+// value contract requires (`InstantValueSchema`: an ISO-8601 instant with an
+// explicit zone), so no consumer has to convert at its own serialization
+// boundary. `ActionParamDialog` used to (objectstack#5061 removed it — the
+// zone-less wall clock it produced was the one shape the validator rejects).
+// Exported for the same reason as `toDomProps` above: a widget authored outside
+// this repo needs the same pair, and a second copy of "what the local wall clock
+// of an instant is" would drift from this one.
 export {
   toDateInputValue,
   toDateTimeInputValue,

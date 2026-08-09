@@ -201,3 +201,35 @@ against backends that advertise the capability; older ones still save, but
 best-effort. See the
 [adapter README](https://github.com/objectstack-ai/objectui/blob/main/packages/data-objectstack/README.md#cross-object-atomic-batch-batchtransaction)
 for the full capability table and minimum-backend note.
+
+## Per-element data binding on a page (`dataSource`)
+
+A metadata page component carries its own data binding —
+`PageComponentSchema.dataSource`, the spec's `ElementDataSourceSchema` — so one
+page can show several objects without a page-level object context:
+
+```json
+{
+  "type": "list-view",
+  "dataSource": { "object": "account", "view": "hot", "limit": 10 }
+}
+```
+
+This is metadata, **not** the data-source adapter. The two share a name and are
+different things: the adapter is injected by the host (`SchemaRendererProvider`),
+while `dataSource` on a schema node is JSON describing *what to query*. A
+renderer therefore reads the binding off `schema.dataSource` and gets its adapter
+from context — never from a prop the schema could occupy. `SchemaRenderer` strips
+the binding from the props it spreads for exactly this reason.
+
+`view` names a **saved view** of that object; its columns, filter, sort and page
+size are applied to the render, so a page never has to keep a second copy of a
+view's configuration. `filter` is *additional* criteria — it AND-combines with the
+view's filter rather than replacing it — while `sort` and `limit` override the
+view's. A `view` name that does not resolve is reported as a configuration error;
+it never degrades into an unfiltered query for the object.
+
+`@object-ui/react` exposes `useElementDataSource(schema, dataSource?)` for
+renderers that need the same resolution, and `@object-ui/core` exposes the pure
+parts (`isElementDataSourceConfig`, `resolveSavedView`,
+`composeElementDataSource`).
