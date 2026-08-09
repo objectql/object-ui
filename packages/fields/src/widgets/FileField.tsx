@@ -240,7 +240,17 @@ export function FileField({ value, onChange, field, readonly, onUploadingChange,
             keyboard path to the hidden file input), so the DOM pass-through
             and the validation state land here (objectui#3318). `name` is
             withheld: only DOM-legal on form controls, and on this div it is
-            exactly the leak #3291 sweeps for. */}
+            exactly the leak #3291 sweeps for.
+
+            It also carries the host's label. This widget is declared
+            `labelling: 'group'` (objectui#3961) NOT because it is composite — it
+            has exactly one control — but because that one control is a
+            `div[role="button"]`, which no `<label for>` can reach. So the form
+            renderer names it by IDREF instead, and `aria-labelledby` arrives in
+            the same whitelist spread (`toDomProps` forwards the whole `aria-`
+            family). Deliberately no extra `role="group"` wrapper: there is no
+            group here, and adding one would announce a container that holds a
+            single button. */}
         <div
           {...dropzoneDomProps}
           onDragOver={handleDragOver}

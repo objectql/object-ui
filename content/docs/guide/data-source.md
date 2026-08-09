@@ -247,7 +247,7 @@ ignores would be accepted and dropped, which is the defect this binding removes.
 | `list-view` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `object-grid` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `element:record_picker` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `record:related_list` | ✅ | columns / sort / limit | — (see below) | ✅ | ✅ |
+| `record:related_list` | ✅ | columns / filter / sort / limit | ✅ | ✅ | ✅ |
 | `object-calendar` | ✅ | filter / sort | ✅ | ✅ | — no row cap |
 | `object-kanban` | ✅ | filter | ✅ | — no ordering | — fixed window |
 | `object-chart` | ✅ | filter | ✅ | — engine orders | — no page |
@@ -273,12 +273,16 @@ of the binding and stays the author's — it has to name a field on the bound ch
 object, so rebinding `object` without updating it is an authoring error the panel
 cannot paper over.
 
+On `record:related_list` the composed filter is AND-combined with the parent
+relationship condition, never substituted for it: a related list is always scoped
+to the record it appears on, and an *additional* criterion can only narrow that
+set further. (Until objectstack#7118 this block declared `filter` without reading
+it, so a named view contributed its columns / sort / limit while its filter was
+dropped — the list could be wider than the view it named. That gap is closed; the
+`filter` cell above is what closed it.)
+
 Current gaps, recorded rather than papered over:
 
-- `record:related_list` declares a flat `filter` its renderer does not read (the
-  list scopes itself by the parent relationship alone), so a view named there
-  contributes columns / sort / limit and its filter is dropped — the list can be
-  wider than the view it names.
 - `object-timeline` has no `$filter` / `$orderby` read site at all: its fetch is
   `find(objectName, { options: { $top: 100 } })`. A view named there is resolved
   and then contributes nothing, so the rail can be wider than the view it names.
@@ -287,6 +291,7 @@ Current gaps, recorded rather than papered over:
   the parent FK plus a fixed `$top: 500`, and its `columns` are editable
   `GridColumn` objects (`{ field, type, … }`) rather than a field-name projection,
   so a view's column list would be the wrong *shape*, not merely a wider answer.
+  Both of these are tracked as objectstack#7137.
 - `object-form` / `embeddable-form` / `object-master-detail-form` resolve `view`
   only to report an unresolvable name; a view that does resolve contributes
   nothing, because a list view's columns are not a form layout. On the

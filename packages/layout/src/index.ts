@@ -47,14 +47,34 @@ export function registerLayout() {
   // which lives in the framework repo. Narrowing the DECLARATION is
   // unconditional and independent of that: it breaks no consumer, and it stops
   // the registry from teaching the wrong key in the meantime.
+  //
+  // `isContainer: true` is the other half of the same principle, and it is NOT
+  // an extension of the spec's authoring surface (objectui#3900). `children` is
+  // a base property of EVERY node in objectui's JSON protocol — `BASE_PROPS` in
+  // `sdui-parser/src/validate.ts` lists it beside `type`/`id`/`className` — not
+  // a key of the spec's `PageHeaderProps`. So this flag answers the protocol
+  // question "does this node accept a child list?", and for this component the
+  // answer has always been yes: `PageHeader.tsx` deliberately re-introduces
+  // `schema.children` into the right-hand slot (that is how `record:quick_actions`
+  // nests under `page:header.children`), `content/docs/layout/page-header.mdx`
+  // publishes the slot's precedence as contract, and the docs page's only live
+  // demo is exactly that shape.
+  //
+  // Leaving the flag off did not make children illegal — nothing on the render
+  // path reads `isContainer` — it made the VALIDATOR lie: `sdui-parser`'s
+  // `not-a-container` diagnostic fired on the documented, demo-verified,
+  // correctly-rendering write-up. A warning that lies is worse than a missing
+  // one, because it trains authors (AI authors especially) to discount the true
+  // `not-a-container` reports on components that really are childless.
   ComponentRegistry.register('page-header', PageHeader, {
-      namespace: 'layout',
-      label: 'Page Header',
-      category: 'Layout',
-      inputs: [
-          { name: 'title', type: 'string', label: 'Title' },
-          { name: 'subtitle', type: 'string', label: 'Subtitle' }
-      ]
+    namespace: 'layout',
+    label: 'Page Header',
+    category: 'Layout',
+    isContainer: true,
+    inputs: [
+      { name: 'title', type: 'string', label: 'Title' },
+      { name: 'subtitle', type: 'string', label: 'Subtitle' },
+    ],
   });
 
   // Page Card — register ONLY as `layout:page:card`. `skipFallback` keeps this

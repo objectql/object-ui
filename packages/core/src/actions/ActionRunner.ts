@@ -593,13 +593,14 @@ function withIdentityAlias(context: ActionContext): ActionContext {
  * boolean, bare CEL, `${…}` template, `{ dialect, source }` envelope — keeps the
  * verdict it reaches today.
  *
- * Nor is the `visible`-filter template in `ActionEngine.getActionsForLocation`
- * copied wholesale: its non-predicate branch keeps a historical `Boolean(raw)`
- * coercion, so `0` there means "hidden" — fail-CLOSED on junk, the opposite of
- * what this module already committed to for `disabled`
- * (`catch { isDisabled = false }`). A value that is not a predicate at all must
- * not decide an action's fate, on either key, so `0` / `{}` are "no gate" here
- * and in the shared definition.
+ * The `visible`-filter template in `ActionEngine.getActionsForLocation` used to
+ * be the one place this scope was NOT shared: its non-predicate branch kept a
+ * historical `Boolean(raw)` coercion, so `0` there meant "hidden" — fail-CLOSED
+ * on junk, the opposite of what this module committed to for `disabled`
+ * (`catch { isDisabled = false }`). That filter now reads
+ * {@link hasDeclaredPredicate} too (objectui#3957), so a value that is not a
+ * predicate at all decides nothing on either key, at either entry: `0` / `{}` are
+ * "no gate" here, in the engine filter, and in the shared definition.
  */
 
 export class ActionRunner {

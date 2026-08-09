@@ -188,6 +188,13 @@ const RecordRelatedListBody: React.FC<RecordRelatedListRendererProps> = ({
             : SPEC_DEFAULT_LIMIT
         }
         defaultSort={schema.sort}
+        // The list's own scope, ANDed with the parent relationship by
+        // `RelatedList` (spec `RecordRelatedListProps.filter`,
+        // objectstack#7118). When a `dataSource` binding is present this key
+        // already carries the composed component-AND-view-AND-binding filter —
+        // `ElementDataSourceGate` wrote it here, which is only legitimate now
+        // that the value is read.
+        filter={schema.filter}
         dataSource={ctx?.dataSource as any}
         add={
           (schema as any).add
@@ -248,22 +255,20 @@ const RecordRelatedListBody: React.FC<RecordRelatedListRendererProps> = ({
 
 /**
  * What this block reads for its own query: `objectName`, `columns` (a FIELD
- * list), `sort` (`defaultSort`) and `limit` (`pageSize`).
+ * list), `filter`, `sort` (`defaultSort`) and `limit` (`pageSize`).
  *
- * `filter` is NOT mapped, and that is a finding rather than a choice: this
- * renderer declares `filter` in its registry `inputs` ("Additional filter
- * criteria") and never reads it — `RelatedList` builds its query from
- * `{ [referenceField]: parentId }` alone and takes no filter prop for the list's
- * own scope. Mapping the composed filter onto `schema.filter` would hand it to a
- * key nothing consumes, which is the defect objectstack#6953 removes rather than
- * spreads. The consequence is recorded honestly: while that gap is open, a saved
- * view named here contributes its columns/sort/limit and its FILTER is dropped,
- * so the list can be wider than the view it names. Filed as objectstack#7118;
- * when the flat `filter` gains a read site, `filter: true` belongs in this
- * mapping and the binding follows it for free.
+ * `filter` was the one key deliberately left unmapped when this wiring landed
+ * (objectstack#6953), because the block DECLARED it and no code read it: writing
+ * the composed filter onto a dead key would have reproduced the very defect that
+ * change removed, one layer deeper. objectstack#7118 gave it a read site —
+ * `RelatedList` now ANDs it with `{ [referenceField]: parentId }` — so the
+ * mapping follows, and with it the consequence recorded here as open: a saved
+ * view named on this block no longer contributes columns/sort/limit while its
+ * FILTER is dropped, i.e. the list can no longer be wider than the view it names.
  */
 const RECORD_RELATED_LIST_DATA_SOURCE: ElementDataSourceMapping = {
   columns: true,
+  filter: true,
   sort: true,
   limit: 'limit',
 };

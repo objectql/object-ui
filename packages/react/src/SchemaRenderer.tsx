@@ -306,10 +306,28 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
       if (newSchema.visibility !== undefined) {
         return !evaluator.evaluateCondition(newSchema.visibility);
       }
-      if (newSchema.hidden !== undefined) {
+      // Ask "is a `hidden` gate DECLARED?" — not "is the key present?"
+      // (objectui#3955). These two legs are the only ones in this chain whose
+      // verdict is NOT negated, so the evaluator's single default for "there is
+      // nothing to evaluate" (`true`, meaning *visible/enabled*) arrives here
+      // meaning HIDE: `hidden: ''` / `null` (`null !== undefined`) / a
+      // whitespace-only string / the `{ dialect, source: '' }` envelope
+      // `objectstack build` emits for an empty predicate each made the node
+      // VANISH, on the generic path, for a value the metadata never used to say
+      // anything. Harder to diagnose than its `disabled` twin below
+      // (objectui#3862): a greyed-out control is still on screen, a node that
+      // never rendered is indistinguishable from metadata that meant it.
+      //
+      // `hasDeclaredPredicate` is the repo's one definition of "declared"
+      // (core's `evaluator/declaredPredicate.ts`) — a local `&& !== ''` here
+      // would have been the Nth dialect of one question. The verdict still reads
+      // the RAW value; only the gate in front of it narrowed. Not an
+      // equivalence, and pinned as a behaviour change: an UNDECLARED `hidden` no
+      // longer short-circuits, so a declared `hiddenOn` is finally consulted.
+      if (hasDeclaredPredicate(newSchema.hidden)) {
         return evaluator.evaluateCondition(newSchema.hidden);
       }
-      if (newSchema.hiddenOn !== undefined) {
+      if (hasDeclaredPredicate(newSchema.hiddenOn)) {
         return evaluator.evaluateCondition(newSchema.hiddenOn);
       }
       return false;
@@ -337,9 +355,9 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
     // `!== undefined` deliberately: their `true` is NEGATED, so an empty predicate
     // already lands on "shown", which is what "no gate" means anyway, and
     // narrowing them would change ALIAS PRECEDENCE rather than fix anything. The
-    // `hidden` / `hiddenOn` legs are the exception — not negated, so they carry
-    // this same defect with the polarity that makes the node VANISH; measured and
-    // filed as objectui#3955, out of objectui#3850's ruling.
+    // `hidden` / `hiddenOn` legs were the exception — not negated, so they carried
+    // this same defect with the polarity that makes the node VANISH — and they now
+    // read this same definition (objectui#3955).
     //
     // `hasDeclaredPredicate` is the one definition of "declared" (core's
     // `evaluator/declaredPredicate.ts`, objectui#3850's ruling — read there for

@@ -129,6 +129,26 @@ describe('ActionParamDialog — shared field-widget rendering (ADR-0059)', () =>
     await waitFor(() => expect(resolve).toHaveBeenCalledWith({ force: true }));
   });
 
+  it('toggles the boolean param by clicking its visible label (objectui#3962)', async () => {
+    // The boolean branch renders `<Label htmlFor={param.name}>` beside the
+    // control and now hands the widget that same id explicitly, so the row's
+    // normal affordance — click the text — has to work off the host's own
+    // output rather than off `BooleanField`'s id fallback chain. Pinned as
+    // BEHAVIOR here; the naming half (one label, un-doubled accessible name)
+    // is pinned in ActionParamDialog.ariaRequired.test.tsx.
+    const resolve = openDialog([def({ name: 'force', label: 'Force It', type: 'boolean' })]);
+    const checkbox = await screen.findByRole('checkbox');
+    expect(checkbox).toHaveAttribute('aria-checked', 'false');
+
+    const label = document.querySelector('label[for="force"]') as HTMLLabelElement;
+    expect(label).not.toBeNull();
+    fireEvent.click(label);
+
+    await waitFor(() => expect(checkbox).toHaveAttribute('aria-checked', 'true'));
+    confirm();
+    await waitFor(() => expect(resolve).toHaveBeenCalledWith({ force: true }));
+  });
+
   it('renders a select param through the shared SelectField (combobox trigger)', async () => {
     openDialog([
       def({

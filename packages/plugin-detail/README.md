@@ -213,6 +213,26 @@ in the opt-in filter box temporarily falls back to the full-fetch client
 pipeline (the contains-filter sweeps every field, which no generic server
 filter can express).
 
+The node's `filter` (spec `RecordRelatedListProps.filter`, "additional filter
+criteria") narrows the list beyond the parent relationship: it is
+**AND-combined** with `{ [relationshipField]: parentId }`, never substituted for
+it, so a related list stays scoped to the record it appears on and an additional
+criterion can only ever narrow that set. Authors write it in the spec's own
+vocabulary (`[{ field, operator, value }]`); a `dataSource` binding's composed
+filter (component AND saved view AND binding) lands on the same key. Both are
+lowered to ObjectQL through the repo's single filter sink, so no second dialect
+appears. On the legacy raw-URL fallback path (no `dataSource` adapter, where the
+query language is `filter[<field>]=<value>` and cannot carry an operator) a
+declared filter is refused with a console explanation rather than dropped —
+answering with more rows than the metadata asked for is the failure this key's
+wiring exists to remove.
+
+The **Add** affordance renders only where every link in its chain is available:
+a spec-valid `add.picker.object` *and* a `dataSource`. The picker dialog and the
+add callback both required the adapter already, so without it the button used to
+render and do nothing at all when clicked — visible in hosts that supply no
+`RecordContext` (Studio designer previews, context-free embeds).
+
 The `record:related_list` renderer is automatically gated on the current
 user's object-level `read` permission for the child object: when the
 permission system (`@object-ui/permissions`) is loaded and denies read,

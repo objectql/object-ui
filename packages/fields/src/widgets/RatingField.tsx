@@ -50,9 +50,18 @@ export function RatingField({ value, onChange, field, readonly, className, error
     name: _domName,
     ...groupDomProps
   } = toDomProps(props);
+  // When the host named this container by IDREF (`aria-labelledby`,
+  // objectui#3961) it IS the labelled group of stars, so it answers with the
+  // matching role; a `label for` pointing at this `div` was inert. Standalone
+  // (no host label) the markup is unchanged.
+  const isLabelledGroup = groupDomProps['aria-labelledby'] != null;
 
   return (
-    <div {...groupDomProps} className={cn("flex items-center gap-1", className)}>
+    <div
+      {...groupDomProps}
+      role={isLabelledGroup ? 'group' : undefined}
+      className={cn("flex items-center gap-1", className)}
+    >
       {Array.from({ length: max }, (_, i) => (
         <button
           key={i}

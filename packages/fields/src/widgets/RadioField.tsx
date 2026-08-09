@@ -79,7 +79,15 @@ export function RadioField({
   }
 
   return (
-    // DOM pass-through onto the radiogroup (objectui#3318). Unlike Radix
+    // DOM pass-through onto the radiogroup (objectui#3318). It also carries the
+    // host's group label: when the form renderer associates its `<FormLabel>` by
+    // IDREF (`aria-labelledby`, objectui#3961) that key rides in this same
+    // whitelist spread — `toDomProps` forwards the whole `aria-` family — so this
+    // widget needs no branch of its own. `radiogroup` is already a member of the
+    // group role family, so nothing here overrides it with `role="group"`: it is
+    // the more specific role AND the correct carrier of `aria-invalid` below.
+    //
+    // Unlike Radix
     // `Select.Root` (#3306) this Root IS a real DOM element — a
     // `<div role="radiogroup">` — and `radiogroup` is exactly the role
     // WAI-ARIA designates to carry `aria-invalid` for a set of radios

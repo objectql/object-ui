@@ -105,10 +105,19 @@ export function CheckboxesField({
     name: _domName,
     ...groupDomProps
   } = toDomProps(props);
+  // When the host associated its visible label with this container by IDREF
+  // (`aria-labelledby`, objectui#3961) the container IS the labelled group, so it
+  // answers with the matching role — without one, the name sits on a generic
+  // `div` and contributes nothing: `label for` pointing here was already inert
+  // (`HTMLLabelElement.control` is null for a div), which is the whole defect.
+  // Absent (standalone: the inline grid editor, a bare SDUI node) nothing is
+  // emitted and the markup is unchanged.
+  const isLabelledGroup = groupDomProps['aria-labelledby'] != null;
 
   return (
     <div
       {...groupDomProps}
+      role={isLabelledGroup ? 'group' : undefined}
       className={className}
       data-testid={fieldName ? `checkboxes-${fieldName}` : undefined}
     >

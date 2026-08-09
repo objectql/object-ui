@@ -36,11 +36,16 @@
  *      untouched by #3367: sharing a normalizer does not by itself prove the
  *      engine and the renderer reach the same verdict, because they run the
  *      normalized predicate through different call paths.
+ *   3. The two paths agree on the DECLARED-GATE question as well as the verdict
+ *      (objectui#3957 — the suite at the bottom of this file). A face is two
+ *      questions, "is a gate declared?" then "what does it say?", and the engine
+ *      answered the first one with a range of its own until then: `visible: 0` was
+ *      hidden by the engine and shown by every renderer.
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { ActionEngine, toPredicateInput as coreToPredicateInput } from '@object-ui/core';
+import { ActionEngine, hasDeclaredPredicate, toPredicateInput as coreToPredicateInput } from '@object-ui/core';
 import { toPredicateInput, useCondition } from '../useExpression';
 
 describe('action predicate normalization — one implementation, not two (#3314 / #3367)', () => {
@@ -160,5 +165,122 @@ describe('action `visible` — engine path vs renderer path parity (#3314)', () 
     expect(fromEngine).toBe(expected);
     expect(fromRenderer).toBe(expected);
     expect(fromEngine).toBe(fromRenderer);
+  });
+});
+
+/**
+ * objectui#3957 — the DECLARED-GATE half of the same parity claim.
+ *
+ * The suite above compares VERDICTS, which is only half of what a face decides.
+ * The renderer face is two questions: `hasDeclaredVisibilityGate(schema.visible)
+ * && !isVisible` — a gate is consulted only when one is declared. The engine face
+ * used to ask the first question with a range of its own (three empty spellings
+ * folded by hand, everything else coerced with `Boolean(raw)`), so one value got
+ * two answers depending on which entry read it:
+ *
+ *   value            | engine (before) | renderer face | agree?
+ *   0                | HIDDEN          | shown         | no
+ *   NaN              | HIDDEN          | shown         | no
+ *   '   ' (blank)    | HIDDEN          | shown         | no
+ *   {} / ''          | shown           | shown         | yes
+ *   {cel, source:''} | shown           | shown         | yes
+ *
+ * That is the shape objectui#3314's invariant forbids, and the `'   '` row was
+ * created by objectui#3966 the day it landed: the ruling made a blank predicate
+ * "no gate" on the renderer face while the engine kept evaluating `'${   }'` to a
+ * falsy verdict. objectui#3957 moved the engine onto the same definition.
+ *
+ * Why `rendererVerdict` alone cannot pin this: it models only the second question.
+ * For `visible: '   '` it returns `false` (the normalizer wraps a blank string into
+ * `'${   }'`, whose verdict is falsy) even though the real renderer SHOWS the
+ * action, because the declared gate in front of it never consults that verdict.
+ * `rendererFace` below composes both questions, exactly as `action-button` /
+ * `action-menu` / `DeclaredActionsBar` do.
+ *
+ * ## Reverse verification (direction predicted before running)
+ *
+ * Restoring the engine's hand-rolled range must turn RED the `0` / `NaN` /
+ * `'   '` / `'\t\n'` / blank-`source`-without-dialect rows of the table below —
+ * `engine` becomes `false` while `rendererFace` stays `true` — and leave the rows
+ * both ranges agreed on GREEN. It cannot go red in the other direction: the change
+ * only ever stops the engine hiding an action.
+ */
+describe('action `visible` — the DECLARED gate agrees on both faces too (objectui#3957)', () => {
+  const CONTEXT = { record: { id: 'r1', status: 'open' } };
+
+  /** The engine face: what `getActionsForLocation` surfaces. */
+  function engineFace(visible: unknown): boolean {
+    const engine = new ActionEngine({ ...CONTEXT });
+    engine.registerAction(
+      { name: 'probe', type: 'api', visible } as never,
+      { locations: ['record_section'] },
+    );
+    return engine.getActionsForLocation('record_section').length === 1;
+  }
+
+  /**
+   * The renderer face, BOTH questions: `hasDeclaredVisibilityGate(visible) &&
+   * !isVisible` → hidden. This is the composition every action leaf performs.
+   */
+  function rendererFace(visible: unknown): boolean {
+    if (!hasDeclaredPredicate(visible)) return true;
+    const { result } = renderHook(() =>
+      useCondition(toPredicateInput(visible), { ...CONTEXT }, {
+        throwOnError: true,
+        label: 'action "probe" (visible)',
+      }),
+    );
+    return result.current;
+  }
+
+  const GATE_CASES: Array<{ what: string; visible: unknown; shown: boolean }> = [
+    // ── nothing declared → shown on both faces ────────────────────────────
+    { what: "'' (empty predicate)", visible: '', shown: true },
+    { what: 'null', visible: null, shown: true },
+    { what: "'   ' (blank predicate text — the row objectui#3966 created)", visible: '   ', shown: true },
+    { what: "'\\t\\n' (other blanks)", visible: '\t\n', shown: true },
+    { what: '0 (not a predicate)', visible: 0, shown: true },
+    { what: 'NaN (not a predicate)', visible: NaN, shown: true },
+    { what: '{} (no source)', visible: {}, shown: true },
+    { what: "{ dialect: 'cel', source: '' } (what `objectstack build` emits)", visible: { dialect: 'cel', source: '' }, shown: true },
+    { what: "{ dialect: 'cel', source: '   ' } (blank source — objectui#3960)", visible: { dialect: 'cel', source: '   ' }, shown: true },
+    { what: "{ source: '   ' } (blank source, no dialect)", visible: { source: '   ' }, shown: true },
+    // ── declared → the verdict decides, identically on both faces ──────────
+    { what: 'true', visible: true, shown: true },
+    { what: 'false (a verdict, not a missing gate)', visible: false, shown: false },
+    { what: 'a holding predicate', visible: 'record.status == "open"', shown: true },
+    { what: 'a failing predicate', visible: 'record.status == "closed"', shown: false },
+    { what: 'a holding CEL envelope', visible: { dialect: 'cel', source: 'record.status == "open"' }, shown: true },
+    { what: 'a failing CEL envelope', visible: { dialect: 'cel', source: 'record.status == "closed"' }, shown: false },
+    // Blankness is `trim()`, not "short" — the anti-mutation row for the two
+    // blank-source rows above.
+    { what: 'a failing CEL envelope padded with blanks', visible: { dialect: 'cel', source: ' record.status == "closed" ' }, shown: false },
+  ];
+
+  it.each(GATE_CASES)('$what → shown=$shown on the engine face AND the renderer face', ({ visible, shown }) => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const engine = engineFace(visible);
+    const renderer = rendererFace(visible);
+    expect(engine).toBe(shown);
+    expect(renderer).toBe(shown);
+    // The invariant itself, asserted as such: one value, one answer, whichever
+    // entry reads it (objectui#3314).
+    expect(engine).toBe(renderer);
+  });
+
+  it('the declared-gate question is asked with ONE definition, not two ranges', () => {
+    // What makes the table above a convergence rather than a coincidence: both
+    // faces call `hasDeclaredPredicate`, so there is no second range left to
+    // drift. Enumerating shapes cannot show that — this can.
+    for (const c of GATE_CASES) {
+      const declared = hasDeclaredPredicate(c.visible);
+      // Every "shown because nothing is declared" row must be undeclared, and
+      // every row whose verdict decides must be declared. A row that is shown for
+      // BOTH reasons (e.g. `true`) is declared, so the check is one-directional.
+      if (!declared) {
+        expect(c.shown, `${c.what}: nothing declared must mean shown`).toBe(true);
+      }
+    }
+    expect(GATE_CASES.filter(c => !hasDeclaredPredicate(c.visible)).length).toBe(10);
   });
 });

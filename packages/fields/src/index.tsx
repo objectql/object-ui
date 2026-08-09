@@ -2228,6 +2228,41 @@ const FIELD_TYPES_SKIP_FALLBACK = new Set([
   'recipient-picker',
 ]);
 
+/**
+ * Widgets whose labelled surface is NOT a labelable HTML element, so a host's
+ * `<label for>` cannot reach it and the association has to go by IDREF instead
+ * (`ComponentMeta.labelling`, objectui#3961). Two shapes, one declaration:
+ *
+ *  - real composites — `address` / `geolocation` render several inputs under one
+ *    container, and `checkboxes` / `radio` / `rating` a set of choice controls;
+ *    the host's label names the GROUP, each sub-control keeps its own sub-label.
+ *  - `file` is not composite at all: it has exactly ONE control, the dropzone,
+ *    which is a `div[role="button"]` (it is the keyboard path to the hidden file
+ *    input). It is here because a `div` cannot be `for`-labelled, not because it
+ *    is a group, and it renders NO `role="group"` — the dropzone itself takes the
+ *    `aria-labelledby`.
+ *
+ * Measured, not assumed: every entry was verified in a real form to be a widget
+ * whose host label either resolved to nothing (`address` / `geolocation`, whose
+ * sub-input ids overwrote the host id — objectui#3343) or resolved to an element
+ * that cannot carry it (`checkboxes` / `radio` / `rating` / `file`). In both
+ * shapes the visible group label was, before this declaration, the accessible
+ * name of NOTHING.
+ *
+ * A widget NOT listed here takes the single-control path unchanged. That is the
+ * safe default: the host keeps emitting `for`, and a composite that forgot to
+ * declare itself is caught by the label-association tests (objectui#3952) rather
+ * than silently emitting an `aria-labelledby` onto a container with no role.
+ */
+const FIELD_TYPES_GROUP_LABELLED = new Set([
+  'address',
+  'geolocation',
+  'checkboxes',
+  'radio',
+  'rating',
+  'file',
+]);
+
 export function registerField(fieldType: string): void {
   const loader = fieldWidgetMap[fieldType];
   if (!loader) {
@@ -2245,6 +2280,10 @@ export function registerField(fieldType: string): void {
   ComponentRegistry.register(fieldType, withFieldCarrier(LazyFieldWidget), {
     namespace: 'field',
     skipFallback: FIELD_TYPES_SKIP_FALLBACK.has(fieldType),
+    // Only the group-labelled widgets carry the key; everything else leaves it
+    // absent, which the form renderer reads as `'control'` (objectui#3961). One
+    // spelling of the default, in one place.
+    ...(FIELD_TYPES_GROUP_LABELLED.has(fieldType) ? { labelling: 'group' as const } : null),
   });
 }
 

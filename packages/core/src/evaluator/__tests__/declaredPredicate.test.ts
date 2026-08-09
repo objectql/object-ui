@@ -23,30 +23,51 @@
  * pins the scope itself, one shape per case, plus the two structural claims that
  * keep the scope from drifting again:
  *
- *   • DERIVATION: for every shape except the whitespace string,
+ *   • DERIVATION: for every shape except BLANK predicate text,
  *     `hasDeclaredPredicate(x)` is exactly `toPredicateInput(x) !== undefined`.
  *     That equality is the reason this definition is trustworthy — "declared"
  *     means "normalization still leaves something to evaluate", not a hand-rolled
  *     list of empty spellings. A re-spelled predicate that happens to agree on
  *     today's shapes would pass the row cases and fail this one.
- *   • the whitespace string is the single deliberate DIFFERENCE from the
- *     normalizer (which wraps `'   '` into `'${   }'` rather than folding it),
- *     asserted as such so the next reader sees it is chosen, not overlooked.
- *   • the one shape this scope does NOT cover — an envelope whose `source` is
- *     blank but not empty (`{ dialect: 'cel', source: '   ' }`) — is pinned as a
- *     documented residue with the issue that owns it (objectui#3960). It was
- *     found by this suite: the first draft assumed the normalizer folds it, and
- *     that assertion went red. `disabled` still greys out for that spelling, so
- *     it is recorded rather than left for the next reader to rediscover.
+ *   • blank predicate TEXT is the single deliberate DIFFERENCE from the
+ *     normalizer, in BOTH its spellings — the whitespace-only string (`'   '`,
+ *     which the normalizer wraps into `'${   }'`) and the whitespace-only
+ *     envelope `source` (`{ dialect: 'cel', source: '   ' }`, which it passes
+ *     through because it only folds a `source` of `''`). The disagreement list is
+ *     asserted by NAME, so the difference reads as chosen rather than overlooked
+ *     and cannot grow silently.
+ *
+ * ## objectui#3960 — the fourth empty spelling, and how it got here
+ *
+ * The blank-`source` envelope was found BY this suite: its first draft assumed
+ * the normalizer folds it, that assertion went red, and the shape turned out to
+ * be a fourth empty spelling outside objectui#3850's three-way enumeration. It
+ * was filed and pinned here as a documented residue — `hasDeclaredPredicate`
+ * answered "declared" while core's own CEL entry called the same value "no
+ * predicate", so `disabled` greyed out and `ActionRunner` refused to execute for
+ * a predicate that says nothing. objectui#3960 ruled it in: blankness is now
+ * decided for both spellings at once (`isBlankPredicateText`), and the residue
+ * case below has become the converged pin, one directory over from the mechanism
+ * it used to document.
  *
  * ## Reverse verification (direction predicted before running)
  *
- * Narrowing the definition back to the renderer's historic scope
- * (`value != null && value !== ''`) must turn RED exactly: the empty-envelope
- * rows (both spellings), the whitespace row, the junk rows, and the derivation
- * case. `''` / `null` / `undefined` / `true` / `false` / every non-empty
- * expression row stays GREEN — they agreed under both scopes, which is why the
- * envelope residue survived objectui#3842 in the first place.
+ * Two mutations, two predicted directions:
+ *
+ *   1. narrowing the definition back to the renderer's historic scope
+ *      (`value != null && value !== ''`) must turn RED exactly: the empty-envelope
+ *      rows (both spellings), both blank-text rows, the blank-`source` envelope
+ *      rows, the junk rows, and the derivation case. `''` / `null` / `undefined` /
+ *      `true` / `false` / every non-empty expression row stays GREEN — they agreed
+ *      under both scopes, which is why the envelope residue survived
+ *      objectui#3842 in the first place.
+ *   2. reverting objectui#3960 alone (dropping the envelope half of
+ *      `isBlankPredicateText`, i.e. `typeof value === 'string' && value.trim() ===
+ *      ''`) must turn RED exactly the three blank-`source` envelope rows, the
+ *      four-spellings case, the converged case below, and the derivation case
+ *      (whose named disagreement list shrinks by those three rows). Everything
+ *      else stays GREEN — this half of the change only ever moves a shape from
+ *      "declared" to "not declared".
  */
 
 import { describe, it, expect } from 'vitest';
@@ -64,10 +85,15 @@ const SHAPES: Array<{ label: string; value: unknown; declared: boolean }> = [
   { label: "'\\t\\n' (other blanks)", value: '\t\n', declared: false },
   { label: "{ dialect: 'cel', source: '' } (the envelope `objectstack build` emits)", value: { dialect: 'cel', source: '' }, declared: false },
   { label: "{ source: '' } (envelope, no dialect)", value: { source: '' }, declared: false },
-  // NOT here: `{ dialect: 'cel', source: '   ' }`. Measured as still DECLARED —
-  // objectui#3850's ruling enumerated three empty spellings and the blank-source
-  // envelope is a fourth. Pinned as a documented residue below (objectui#3960)
-  // rather than silently folded into this table.
+  // objectui#3960 — blank predicate text in its ENVELOPE spelling. These three
+  // rows were the documented residue of objectui#3850's three-way enumeration
+  // (the normalizer folds a `source` of `''` and does not trim), and each takes a
+  // different route: the `cel` envelope survives normalization intact, the
+  // dialect-less one is unwrapped and wrapped into `'${   }'`, and `'\n'` proves
+  // the rule is `trim()` and not a literal-space comparison.
+  { label: "{ dialect: 'cel', source: '   ' } (blank source — objectui#3960)", value: { dialect: 'cel', source: '   ' }, declared: false },
+  { label: "{ source: '   ' } (blank source, no dialect)", value: { source: '   ' }, declared: false },
+  { label: "{ dialect: 'cel', source: '\\n' } (other blanks)", value: { dialect: 'cel', source: '\n' }, declared: false },
   // ── not a predicate at all → fail open, never a reason to disable ──────
   { label: '0', value: 0, declared: false },
   { label: '{} (no source)', value: {}, declared: false },
@@ -87,53 +113,72 @@ describe('hasDeclaredPredicate — the scope objectui#3850 ruled on', () => {
     expect(hasDeclaredPredicate(value)).toBe(declared);
   });
 
-  it('the three empty spellings the ruling names are one answer, not three', () => {
-    // `''` was objectui#3842's half, the envelope objectui#3850's, the
-    // whitespace string objectui#3848's. One definition, so they cannot diverge
-    // again.
+  it('the four empty spellings are one answer, not four', () => {
+    // `''` was objectui#3842's half, the empty envelope objectui#3850's, the
+    // whitespace string objectui#3848's, the blank-`source` envelope
+    // objectui#3960's. One definition, so they cannot diverge again.
     expect([
       hasDeclaredPredicate(''),
       hasDeclaredPredicate('   '),
       hasDeclaredPredicate({ dialect: 'cel', source: '' }),
-    ]).toEqual([false, false, false]);
+      hasDeclaredPredicate({ dialect: 'cel', source: '   ' }),
+    ]).toEqual([false, false, false, false]);
   });
 });
 
 describe('hasDeclaredPredicate is DERIVED from the normalizer, not re-spelled', () => {
-  it('agrees with `toPredicateInput(x) !== undefined` on every shape but the whitespace string', () => {
+  it('agrees with `toPredicateInput(x) !== undefined` on every shape but BLANK predicate text', () => {
     const disagreements = SHAPES.filter(
       s => hasDeclaredPredicate(s.value) !== (toPredicateInput(s.value) !== undefined),
     ).map(s => s.label);
+    // Named, not counted: the deliberate delta from the normalizer is exactly the
+    // two spellings of a blank predicate, and this list is what stops a third
+    // exception from being added without a reader noticing.
     expect(disagreements).toEqual([
       "'   ' (whitespace only)",
       "'\\t\\n' (other blanks)",
+      "{ dialect: 'cel', source: '   ' } (blank source — objectui#3960)",
+      "{ source: '   ' } (blank source, no dialect)",
+      "{ dialect: 'cel', source: '\\n' } (other blanks)",
     ]);
   });
 
-  it('the whitespace string is the one shape the normalizer wraps instead of folding', () => {
-    // Which is why the definition names it explicitly. Same blank-source rule
-    // `evaluateCondition` (`if (!trimmed) return true`) and `evalRowPredicate`
-    // (`listConditional.ts`, `if (!source.trim())`) already apply.
+  it('blank predicate text is what the normalizer wraps or passes through instead of folding', () => {
+    // Which is why the definition names both spellings explicitly. The same blank
+    // rule already applies on the VALUE side — `evaluateCondition`
+    // (`if (!trimmed) return true`), `evaluateCelCondition` (`if (!source.trim())`)
+    // and `evalRowPredicate` (`listConditional.ts`).
     expect(toPredicateInput('   ')).toBe('${   }');
+    expect(toPredicateInput({ dialect: 'cel', source: '   ' })).toEqual({ dialect: 'cel', source: '   ' });
+    expect(toPredicateInput({ source: '   ' })).toBe('${   }');
     expect(toPredicateInput('')).toBeUndefined();
     expect(toPredicateInput({ dialect: 'cel', source: '' })).toBeUndefined();
   });
 
-  it('DOCUMENTED RESIDUE (objectui#3960): a BLANK envelope `source` is still declared', () => {
-    // The asymmetry, stated rather than hidden: this definition trims the STRING
-    // spelling and does not trim an envelope's `source`, because
-    // `toPredicateInput` only folds a source that is `''`:
+  it('objectui#3960 CONVERGED: a BLANK envelope `source` is not a declared gate', () => {
+    // The documented residue this suite left behind, turned around. The
+    // NORMALIZER's contract is deliberately unchanged — it still passes a blank
+    // `cel` source through, because "what shape does the evaluator accept" is not
+    // the same question as "is there a condition":
     expect(toPredicateInput({ dialect: 'cel', source: '   ' })).toEqual({ dialect: 'cel', source: '   ' });
-    expect(hasDeclaredPredicate({ dialect: 'cel', source: '   ' })).toBe(true);
-    // …while core's own CEL entry calls exactly that value "no predicate":
+    // …and core's own CEL entry still calls exactly that value "no predicate":
     const ev = new ExpressionEvaluator({ record: { id: 1 } });
     expect(ev.evaluateCondition({ dialect: 'cel', source: '   ' })).toBe(true);
-    // Declared gate + "no condition → true" is the objectui#3850 mechanism with
-    // the blank moved inside the envelope, so `disabled` still greys out for this
-    // one spelling. objectui#3850's ruling enumerated three empty spellings and
-    // this is a fourth, so it is filed (objectui#3960) instead of being widened
-    // into the ruled scope here. These expectations are what go RED when it is
-    // fixed — the signal to move the shape into the table above.
+    // What changed is the half that was inconsistent — declaredness. A blank
+    // predicate is blank in both spellings now, so "declared gate + no condition
+    // → true" can no longer grey out a control (`disabled`), vanish a node
+    // (`hidden`, objectui#3955) or refuse an execution (`ActionRunner`) for a
+    // value the metadata never used to say anything.
+    expect(hasDeclaredPredicate({ dialect: 'cel', source: '   ' })).toBe(false);
+    expect(hasDeclaredPredicate({ source: '   ' })).toBe(false);
+    expect(hasDeclaredPredicate({ dialect: 'cel', source: '\n' })).toBe(false);
+    // Anti-mutation: "no envelope is ever declared" satisfies every line above.
+    // A non-blank source still declares a gate, in either dialect…
+    expect(hasDeclaredPredicate({ dialect: 'cel', source: 'false' })).toBe(true);
+    expect(hasDeclaredPredicate({ source: 'record.done' })).toBe(true);
+    // …and blankness is `trim()`, not "short": one significant character
+    // surrounded by whitespace is a predicate.
+    expect(hasDeclaredPredicate({ dialect: 'cel', source: ' x ' })).toBe(true);
   });
 });
 
