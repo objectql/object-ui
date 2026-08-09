@@ -1,10 +1,19 @@
 {
-  "type": "summary",
-  "name": "avg_rating",
-  "label": "Average Rating",
-  "summary_object": "reviews",
-  "summary_field": "rating",
-  "summary_type": "avg",
-  "readonly": true,
-  "value": 4.52
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "defaultValues": {
+    "avg_rating": 4.52
+  },
+  "fields": [
+    {
+      "name": "avg_rating",
+      "label": "Average Rating",
+      "type": "summary",
+      "summary_object": "reviews",
+      "summary_field": "rating",
+      "summary_type": "avg",
+      "readonly": true
+    }
+  ]
 }

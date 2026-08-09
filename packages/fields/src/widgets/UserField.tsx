@@ -33,8 +33,9 @@ export function UserField(props: FieldWidgetComponentProps<any>) {
   const raw = props.field as any;
 
   // The objectSchema field metadata may live directly on `field`, or nested at
-  // `field.field` when rendered via the createFieldRenderer wrapper — mirror the
-  // unwrap LookupField itself performs.
+  // `field.field` — the form renderer's declared metadata slot (objectui#3090).
+  // Mirror the unwrap LookupField itself performs. (Formerly attributed to the
+  // docs-demo `createFieldRenderer` wrapper, removed in objectui#3910.)
   const metaIsNested = raw?.field && typeof raw.field === 'object'
     && ('reference' in raw.field || 'reference_to' in raw.field || 'type' in raw.field);
   const meta = metaIsNested ? raw.field : raw;

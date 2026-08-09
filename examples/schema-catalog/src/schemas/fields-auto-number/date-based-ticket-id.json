@@ -1,8 +1,17 @@
 {
-  "type": "auto_number",
-  "name": "ticket_id",
-  "label": "Ticket ID",
-  "format": "TKT-{YYYY}{MM}-{0000}",
-  "readonly": true,
-  "value": "TKT-202403-0567"
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "defaultValues": {
+    "ticket_id": "TKT-202403-0567"
+  },
+  "fields": [
+    {
+      "name": "ticket_id",
+      "label": "Ticket ID",
+      "type": "auto_number",
+      "format": "TKT-{YYYY}{MM}-{0000}",
+      "readonly": true
+    }
+  ]
 }

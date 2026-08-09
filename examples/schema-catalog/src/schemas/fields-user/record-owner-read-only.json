@@ -1,6 +1,13 @@
 {
-  "type": "owner",
-  "name": "record_owner",
-  "label": "Owner",
-  "readonly": true
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "fields": [
+    {
+      "name": "record_owner",
+      "label": "Owner",
+      "type": "owner",
+      "readonly": true
+    }
+  ]
 }

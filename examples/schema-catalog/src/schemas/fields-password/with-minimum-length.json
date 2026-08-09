@@ -1,8 +1,15 @@
 {
-  "type": "password",
-  "name": "new_password",
-  "label": "New Password",
-  "placeholder": "At least 8 characters",
-  "required": true,
-  "min_length": 8
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "fields": [
+    {
+      "name": "new_password",
+      "label": "New Password",
+      "type": "password",
+      "placeholder": "At least 8 characters",
+      "required": true,
+      "min_length": 8
+    }
+  ]
 }

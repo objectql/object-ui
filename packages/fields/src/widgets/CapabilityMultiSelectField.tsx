@@ -107,8 +107,11 @@ export function CapabilityMultiSelectField({
   const selected = React.useMemo(() => parseCapabilityNames(value), [value]);
 
   // Load the live capability registry (active only). Mirrors LookupField's
-  // context-dataSource access — createFieldRenderer does not forward the
-  // dataSource prop, so the SchemaRenderer context is the reliable source.
+  // context-dataSource access: no registration path forwards a `dataSource`
+  // prop to a field widget, so the SchemaRenderer context is the reliable
+  // source. (The absent forwarder named here used to be the docs-demo
+  // `createFieldRenderer`, removed in objectui#3910 — the conclusion is
+  // unchanged and now holds for the only remaining path.)
   React.useEffect(() => {
     if (!dataSource || typeof (dataSource as any).find !== 'function') return;
     let cancelled = false;

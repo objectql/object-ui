@@ -1,10 +1,19 @@
 {
-  "type": "summary",
-  "name": "order_count",
-  "label": "Total Orders",
-  "summary_object": "orders",
-  "summary_field": "id",
-  "summary_type": "count",
-  "readonly": true,
-  "value": 42
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "defaultValues": {
+    "order_count": 42
+  },
+  "fields": [
+    {
+      "name": "order_count",
+      "label": "Total Orders",
+      "type": "summary",
+      "summary_object": "orders",
+      "summary_field": "id",
+      "summary_type": "count",
+      "readonly": true
+    }
+  ]
 }

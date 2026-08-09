@@ -1,6 +1,13 @@
 {
-  "type": "text",
-  "name": "title",
-  "label": "Title",
-  "placeholder": "Enter a title for your post"
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "fields": [
+    {
+      "name": "title",
+      "label": "Title",
+      "type": "text",
+      "placeholder": "Enter a title for your post"
+    }
+  ]
 }

@@ -1,6 +1,13 @@
 {
-  "type": "file",
-  "name": "documents",
-  "label": "Documents",
-  "multiple": true
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "fields": [
+    {
+      "name": "documents",
+      "label": "Documents",
+      "type": "file",
+      "multiple": true
+    }
+  ]
 }

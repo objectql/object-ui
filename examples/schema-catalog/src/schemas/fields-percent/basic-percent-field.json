@@ -1,6 +1,13 @@
 {
-  "type": "percent",
-  "name": "completion",
-  "label": "Completion",
-  "placeholder": "0"
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "fields": [
+    {
+      "name": "completion",
+      "label": "Completion",
+      "type": "percent",
+      "placeholder": "0"
+    }
+  ]
 }

@@ -1,8 +1,15 @@
 {
-  "type": "number",
-  "name": "age",
-  "label": "Age",
-  "placeholder": "Enter age",
-  "min": 0,
-  "max": 120
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "fields": [
+    {
+      "name": "age",
+      "label": "Age",
+      "type": "number",
+      "placeholder": "Enter age",
+      "min": 0,
+      "max": 120
+    }
+  ]
 }

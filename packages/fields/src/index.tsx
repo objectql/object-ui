@@ -285,45 +285,15 @@ function useFieldTranslate(): ((key: string, params?: Record<string, unknown>) =
   return t as (key: string, params?: Record<string, unknown>) => string;
 }
 
-import { TextField } from './widgets/TextField';
-import { NumberField } from './widgets/NumberField';
-import { BooleanField } from './widgets/BooleanField';
-import { SelectField } from './widgets/SelectField';
-import { DateField } from './widgets/DateField';
-import { EmailField } from './widgets/EmailField';
-import { PhoneField } from './widgets/PhoneField';
-import { UrlField } from './widgets/UrlField';
-import { CurrencyField } from './widgets/CurrencyField';
-import { TextAreaField } from './widgets/TextAreaField';
-import { RichTextField } from './widgets/RichTextField';
-import { LookupField } from './widgets/LookupField';
-import { DateTimeField } from './widgets/DateTimeField';
-import { TimeField } from './widgets/TimeField';
-import { PercentField } from './widgets/PercentField';
-import { PasswordField } from './widgets/PasswordField';
-import { FileField } from './widgets/FileField';
-import { ImageField } from './widgets/ImageField';
+// Only the two symbols this module actually CALLS are imported eagerly. Every
+// field widget used to be imported here as well, statically, purely to hand a
+// component reference to the docs-demo `createFieldRenderer()` wrapper —
+// removed with it (objectui#3910). The live registration path resolves widgets
+// through the lazy loaders in `fieldWidgetMap` below, so nothing here needs a
+// static reference; the widgets stay publicly available via the `export * from
+// './widgets/…'` block at the end of this file.
 import { ImageLightbox } from './widgets/ImageLightbox';
 import { readFileValues } from './widgets/file-value';
-import { LocationField } from './widgets/LocationField';
-import { FormulaField } from './widgets/FormulaField';
-import { SummaryField } from './widgets/SummaryField';
-import { AutoNumberField } from './widgets/AutoNumberField';
-import { UserField } from './widgets/UserField';
-import { ObjectField } from './widgets/ObjectField';
-import { VectorField } from './widgets/VectorField';
-import { GridField } from './widgets/GridField';
-// New widgets according to @objectstack/spec
-import { ColorField } from './widgets/ColorField';
-import { SliderField } from './widgets/SliderField';
-import { RatingField } from './widgets/RatingField';
-import { CodeField } from './widgets/CodeField';
-import { AvatarField } from './widgets/AvatarField';
-import { AddressField } from './widgets/AddressField';
-import { GeolocationField } from './widgets/GeolocationField';
-import { SignatureField } from './widgets/SignatureField';
-import { QRCodeField } from './widgets/QRCodeField';
-import { MasterDetailField } from './widgets/MasterDetailField';
 
 /**
  * Cell renderer props
@@ -2072,68 +2042,16 @@ export function evaluateCondition(condition: any, formData: any): boolean {
   return true;
 }
 
-// Create wrapper renderers for field widgets to work with ComponentDemo.
-// Docs-site only — it synthesizes the label/description chrome AND the local
-// value/onChange state a bare field node has no host for. See the note on
-// `registerFields()` (its only caller) for why the live app path does NOT use
-// this and why the two are not interchangeable.
-function createFieldRenderer(FieldWidget: React.ComponentType<any>) {
-  const FieldRenderer: React.FC<any> = ({ schema, className, value: initialValue, ...props }) => {
-    const [value, setValue] = React.useState(initialValue ?? schema?.value ?? '');
-    
-    const field = {
-      name: schema?.name || 'field',
-      label: schema?.label,
-      type: schema?.type,
-      placeholder: schema?.placeholder,
-      required: schema?.required,
-      readonly: schema?.readonly || schema?.readOnly,
-      help: schema?.help,
-      description: schema?.description,
-      // `??`, not `||` — an authored default of `false` / `0` / `''` is a value,
-      // and `||` silently threw it away (same falsy-as-empty class as cloud#972).
-      defaultValue: schema?.defaultValue ?? schema?.value,
-      ...schema,
-    };
-
-    const handleChange = React.useCallback((newValue: any) => {
-      setValue(newValue);
-      if (props.onChange) {
-        props.onChange(newValue);
-      }
-    }, [props]);
-
-    const readonly = schema?.readonly || schema?.readOnly || false;
-
-    return (
-      <div 
-        className="grid w-full items-center gap-1.5"
-        data-obj-id={schema?.id}
-        data-obj-type={schema?.type}
-      >
-        {schema?.label && (
-          <label htmlFor={schema.id} className={schema.required ? "after:content-['*'] after:ml-0.5 after:text-red-500" : ""}>
-            {schema.label}
-          </label>
-        )}
-        <FieldWidget
-          value={value}
-          onChange={handleChange}
-          field={field}
-          readonly={readonly}
-          className={className}
-        />
-        {schema?.description && (
-          <p className="text-sm text-gray-500">{schema.description}</p>
-        )}
-      </div>
-    );
-  };
-  
-  FieldRenderer.displayName = `FieldRenderer(${FieldWidget.displayName || FieldWidget.name || 'Component'})`;
-  
-  return FieldRenderer;
-}
+// TOMBSTONE (objectui#3910, ruling B of objectui#3798) — `createFieldRenderer()`
+// lived here. It wrapped a field widget in synthesized label/description chrome
+// plus a local `useState` + `onChange`, which let a BARE field node render
+// standalone under `SchemaRenderer`. Only `registerFields()` (below, also
+// removed) ever called it, and only the docs site called that — so the chrome
+// existed nowhere a real application could reach, and the docs demos showed a
+// rendering no app produces. The catalog's field examples are form-hosted now
+// (`{ type: 'form', fields: [...] }`), where the real form renderer owns label
+// and value state. Do not re-add a second, demo-only registration path: one
+// registration seam is the whole point (objectui#3308).
 
 /**
  * Field widget map for lazy loading
@@ -2346,132 +2264,37 @@ export function registerAllFields(): void {
   });
 }
 
-/**
- * Register every field widget wrapped in the **docs-demo** renderer
- * ({@link createFieldRenderer}) instead of the plain registration seam.
- *
- * ⚠️ This is NOT an interchangeable alias of {@link registerAllFields}, despite
- * what its former `@deprecated Use registerAllFields() instead` note implied
- * (objectui#3308 was dispatched on that reading). The two differ in what the
- * registry entry *is*:
- *
- *  - `registerAllFields()` — the live path every app uses. Registers
- *    `withFieldCarrier(lazy(widget))`: the bare widget, which renders a control
- *    and nothing else. Label / description / value state belong to the host
- *    (the form renderer, `FieldEditWidget`, an action dialog).
- *  - `registerFields()` — registers `createFieldRenderer(widget)`, which ALSO
- *    synthesizes the `<label>`, the description, and a local `useState` +
- *    `onChange`. That chrome is what makes a **bare field node** (`{ type:
- *    'currency', label: 'Amount' }`) renderable standalone by `SchemaRenderer`,
- *    which is exactly how the docs site demos every `content/docs/fields/*.mdx`
- *    example — `InteractiveDemo` passes no `value`/`onChange` of its own.
- *
- * Hence its only caller, `apps/site` (the docs site), cannot simply switch to
- * `registerAllFields()`: `FieldWidgetComponentProps.onChange` is REQUIRED and
- * widgets call it unguarded, so the demo inputs would go inert and throw
- * `TypeError: onChange is not a function` per keystroke.
- *
- * Retiring this second path therefore needs a decision on where the demo chrome
- * goes (docs-site-owned wrapper vs. form-hosted catalog examples) — tracked on
- * objectui#3308. Until then: **apps use `registerAllFields()`**; this function
- * is the docs-demo adapter and nothing else should call it.
- */
-export function registerFields() {
-  // Basic fields - wrapped for documentation compatibility
-  // `text` collides with the display text widget in @object-ui/components.
-  // Display semantics ({ type: 'text', content: '...' }) are the dominant
-  // usage across the docs/blocks catalog, so we keep this renderer accessible
-  // only via the namespaced `field:text` key and let the display widget win
-  // the bare `text` lookup.
-  ComponentRegistry.register('text', createFieldRenderer(TextField), { namespace: 'field', skipFallback: true });
-  // `textarea`/`select` collide with the `ui:*` form-input primitives that own
-  // the bare keys; namespaced-only (forms use `field:<type>`). See the shared
-  // FIELD_TYPES_SKIP_FALLBACK note above registerField().
-  ComponentRegistry.register('textarea', createFieldRenderer(TextAreaField), { namespace: 'field', skipFallback: true });
-  ComponentRegistry.register('number', createFieldRenderer(NumberField), { namespace: 'field' });
-  ComponentRegistry.register('boolean', createFieldRenderer(BooleanField), { namespace: 'field' });
-  ComponentRegistry.register('select', createFieldRenderer(SelectField), { namespace: 'field', skipFallback: true });
-  ComponentRegistry.register('date', createFieldRenderer(DateField), { namespace: 'field' });
-  ComponentRegistry.register('datetime', createFieldRenderer(DateTimeField), { namespace: 'field' });
-  // Namespaced-only: no other renderer legitimately owns the bare 'time' key,
-  // but the fallback still triggered noisy "bare-name overwritten" warnings on
-  // every re-registration (e.g. hot reload / re-init in a shared registry).
-  ComponentRegistry.register('time', createFieldRenderer(TimeField), { namespace: 'field', skipFallback: true });
-  
-  // Contact fields - wrapped for documentation compatibility
-  // `email` collides with the `ui:email` input variant; namespaced-only so the
-  // display/input primitive keeps the bare key (forms use `field:email`).
-  ComponentRegistry.register('email', createFieldRenderer(EmailField), { namespace: 'field', skipFallback: true });
-  ComponentRegistry.register('phone', createFieldRenderer(PhoneField), { namespace: 'field' });
-  ComponentRegistry.register('url', createFieldRenderer(UrlField), { namespace: 'field' });
-  
-  // Specialized fields - wrapped for documentation compatibility
-  ComponentRegistry.register('currency', createFieldRenderer(CurrencyField), { namespace: 'field' });
-  ComponentRegistry.register('percent', createFieldRenderer(PercentField), { namespace: 'field' });
-  // `password` collides with the `ui:password` input variant; namespaced-only.
-  ComponentRegistry.register('password', createFieldRenderer(PasswordField), { namespace: 'field', skipFallback: true });
-  // `markdown` collides with the markdown DISPLAY renderer (plugin-markdown:markdown),
-  // which owns bare `{ type: 'markdown', content }`; the field renderer here is the
-  // RichText editor, reached by forms via `field:markdown`. Namespaced-only.
-  ComponentRegistry.register('markdown', createFieldRenderer(RichTextField), { namespace: 'field', skipFallback: true });
-  // `html` collides with the HTML-rendering display widget. Keep the
-  // markdown field, but expose the HTML field only via `field:html` so the
-  // display widget remains the default for { type: 'html', content }.
-  ComponentRegistry.register('html', createFieldRenderer(RichTextField), { namespace: 'field', skipFallback: true });
-  ComponentRegistry.register('lookup', createFieldRenderer(LookupField), { namespace: 'field' });
-  // TOMBSTONE (objectui#3308, ADR-0049 enforce-or-remove) — `capability-multiselect`
-  // was registered here, and ONLY here, as `field:capability-multiselect`. Since
-  // this function is called by the docs site alone, the key never existed on the
-  // live `registerAllFields()` path, so a field authored with
-  // `widget: 'capability-multiselect'` resolved to nothing in every real app
-  // while the comment here advertised it as usable from a record form. Nothing
-  // stamped that hint either: ADR-0056 P1 stamps `permission-facet-link` on all
-  // six `sys_permission_set` facets (`data-objectstack/src/index.ts`
-  // applyFieldWidgetOverrides) and P2 put the capability editor in Studio. The
-  // widget NAME is retired; do not re-add it. `CapabilityMultiSelectField`
-  // itself lives on as a plain component — Studio's `PermissionMatrixEditor`
-  // imports and renders it directly, which is ADR-0056 P2's design.
-  // master_detail = child-side FK lookup (single value, typically required). See
-  // fieldWidgetMap above for rationale.
-  ComponentRegistry.register('master_detail', createFieldRenderer(LookupField), { namespace: 'field' });
-  
-  // File fields
-  ComponentRegistry.register('file', createFieldRenderer(FileField), { namespace: 'field' });
-  // `image` collides with the display image widget; namespaced-only.
-  ComponentRegistry.register('image', createFieldRenderer(ImageField), { namespace: 'field', skipFallback: true });
-  
-  // Location field
-  ComponentRegistry.register('location', createFieldRenderer(LocationField), { namespace: 'field' });
-  
-  // Computed/Read-only fields
-  ComponentRegistry.register('formula', createFieldRenderer(FormulaField), { namespace: 'field' });
-  ComponentRegistry.register('summary', createFieldRenderer(SummaryField), { namespace: 'field' });
-  ComponentRegistry.register('auto_number', createFieldRenderer(AutoNumberField), { namespace: 'field' });
-  
-  // User fields
-  ComponentRegistry.register('user', createFieldRenderer(UserField), { namespace: 'field' });
-  ComponentRegistry.register('owner', createFieldRenderer(UserField), { namespace: 'field' });
-  
-  // Complex data types
-  ComponentRegistry.register('object', createFieldRenderer(ObjectField), { namespace: 'field' });
-  ComponentRegistry.register('vector', createFieldRenderer(VectorField), { namespace: 'field' });
-  // `grid` collides with the layout grid component; namespaced-only.
-  ComponentRegistry.register('grid', createFieldRenderer(GridField), { namespace: 'field', skipFallback: true });
-  
-  // NEW: Additional field types from @objectstack/spec
-  ComponentRegistry.register('color', createFieldRenderer(ColorField), { namespace: 'field' });
-  // `slider` collides with the `ui:slider` display control; namespaced-only.
-  ComponentRegistry.register('slider', createFieldRenderer(SliderField), { namespace: 'field', skipFallback: true });
-  ComponentRegistry.register('rating', createFieldRenderer(RatingField), { namespace: 'field' });
-  ComponentRegistry.register('code', createFieldRenderer(CodeField), { namespace: 'field' });
-  // `avatar` collides with the display avatar widget; namespaced-only.
-  ComponentRegistry.register('avatar', createFieldRenderer(AvatarField), { namespace: 'field', skipFallback: true });
-  // Namespaced-only — see the 'time' registration above for rationale.
-  ComponentRegistry.register('address', createFieldRenderer(AddressField), { namespace: 'field', skipFallback: true });
-  ComponentRegistry.register('geolocation', createFieldRenderer(GeolocationField), { namespace: 'field' });
-  ComponentRegistry.register('signature', createFieldRenderer(SignatureField), { namespace: 'field' });
-  ComponentRegistry.register('qrcode', createFieldRenderer(QRCodeField), { namespace: 'field' });
-}
+// TOMBSTONE (objectui#3910, ruling B of objectui#3798) — `registerFields()` lived
+// here. It registered every widget wrapped in `createFieldRenderer` (above) under
+// the same `field:<type>` keys `registerAllFields()` owns, so whoever called it
+// LAST won the registry. Its only caller was the docs site, which needed the
+// synthesized label + `onChange` to render a bare field node standalone.
+//
+// objectui#3308 ruled "registration gets exactly one path"; the implementation
+// (PR #3793) then disproved the assumption that this was a redundant duplicate —
+// it was a demo host adapter, and switching the docs site to `registerAllFields()`
+// alone would have left the demo inputs inert. Ruling B of objectui#3798 resolved
+// that by moving the docs catalog's field examples to form hosting
+// (`{ type: 'form', fields: [...] }`), which deletes the need for the adapter
+// instead of relocating it: the form renderer already owns label and value state,
+// so the docs now show what a real application actually renders.
+//
+// Do not re-add this or any second registration path. `registerAllFields()` (and
+// `registerField()` for one type) is the seam; a docs- or test-only wrapper that
+// re-registers `field:<type>` silently shadows the live entry for every consumer
+// sharing the registry.
+//
+// TOMBSTONE (objectui#3308, ADR-0049 enforce-or-remove) — `field:capability-multiselect`
+// was registered inside `registerFields()`, and ONLY there. Because the docs site
+// was that function's sole caller, the key never existed on the live path, so a
+// field authored with `widget: 'capability-multiselect'` resolved to nothing in
+// every real app while a comment here advertised it as usable from a record form.
+// Nothing stamped the hint either: ADR-0056 P1 stamps `permission-facet-link` on
+// all six `sys_permission_set` facets (`data-objectstack/src/index.ts`
+// applyFieldWidgetOverrides) and P2 put the capability editor in Studio. The
+// widget NAME stays retired — do not add it to `fieldWidgetMap`.
+// `CapabilityMultiSelectField` itself lives on as a plain component, imported and
+// rendered directly by Studio's `PermissionMatrixEditor` (ADR-0056 P2's design).
 
 export * from './widgets/types';
 // File field value shapes (ObjectStack ADR-0104 D3 wave 2) — the single

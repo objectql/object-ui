@@ -1,6 +1,13 @@
 {
-  "type": "number",
-  "name": "quantity",
-  "label": "Quantity",
-  "placeholder": "0"
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "fields": [
+    {
+      "name": "quantity",
+      "label": "Quantity",
+      "type": "number",
+      "placeholder": "0"
+    }
+  ]
 }

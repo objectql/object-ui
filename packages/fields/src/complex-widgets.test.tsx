@@ -480,9 +480,14 @@ describe('Complex & Relationship Widgets', () => {
             expect(onChange).toHaveBeenCalledWith('2');
         });
 
-        it('resolves reference_to from nested field.field (createFieldRenderer wrapper)', async () => {
-            // Simulates how createFieldRenderer wraps the field: the real metadata
-            // (reference_to, reference_field, etc.) is nested inside field.field.
+        it('resolves reference_to from nested field.field (form metadata slot)', async () => {
+            // Simulates the `field.field` nesting the FORM renderer hands widgets:
+            // `renderFieldComponent` passes `field: field.field || field`, where
+            // `.field` is the declared metadata slot (objectui#3090) holding the
+            // real metadata (reference_to, reference_field, …). The test used to
+            // credit this shape to the docs-demo `createFieldRenderer` wrapper,
+            // which never produced it and no longer exists (objectui#3910); the
+            // live producer is the form path, so the coverage stands.
             const onChange = vi.fn();
             mockDataSource.find.mockResolvedValue({
                 data: [

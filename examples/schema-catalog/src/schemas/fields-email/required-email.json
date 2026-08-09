@@ -1,7 +1,14 @@
 {
-  "type": "email",
-  "name": "contact_email",
-  "label": "Contact Email",
-  "placeholder": "contact@company.com",
-  "required": true
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "fields": [
+    {
+      "name": "contact_email",
+      "label": "Contact Email",
+      "type": "email",
+      "placeholder": "contact@company.com",
+      "required": true
+    }
+  ]
 }

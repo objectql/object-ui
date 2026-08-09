@@ -218,9 +218,13 @@ export function LookupField({ value, onChange, field, readonly, error: fieldErro
 
   const lookupField = field as any;
 
-  // When rendered via createFieldRenderer wrapper the actual objectSchema field
-  // metadata (reference_to, display_field, etc.) lives at lookupField.field.
-  // Unwrap it so lookup-specific properties resolve correctly.
+  // The form renderer passes `field: field.field || field` — `.field` is the
+  // declared metadata slot (objectui#3090) — so the actual objectSchema field
+  // metadata (reference_to, display_field, etc.) can arrive nested at
+  // `lookupField.field`. Unwrap it so lookup-specific properties resolve
+  // correctly. (This used to credit the docs-demo `createFieldRenderer` wrapper,
+  // which never produced the nesting and was removed in objectui#3910; the form
+  // path is the real producer.)
   // ObjectStack convention uses `reference` while the types use `reference_to`,
   // so we check for both property names.
   const innerField = lookupField?.field;

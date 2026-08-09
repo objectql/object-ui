@@ -11,7 +11,7 @@
  * enforce-or-remove).
  *
  * The key was registered on ONE path only: `registerFields()`, whose sole caller
- * is the docs site. The live path (`registerAllFields()`, run at module import)
+ * was the docs site. The live path (`registerAllFields()`, run at module import)
  * never had it, because `fieldWidgetMap` never listed it — so a field authored
  * with `widget: 'capability-multiselect'` resolved to nothing in every real app
  * while a code comment advertised it as usable from a record form. Nothing
@@ -19,33 +19,47 @@
  * `sys_permission_set` facets (including `system_permissions`), and P2 put the
  * capability editor in Studio.
  *
- * What this pins:
- *   1. the key is absent after importing the package (the live path), AND
- *   2. absent after `registerFields()` too — the retirement covers the docs
- *      path, which is where the key actually used to come from. Asserting only
- *      (1) would have passed on `origin/main` and pinned nothing.
- *   3. `registerFields()` still registers every OTHER key it used to — the
- *      retirement subtracts exactly one name, it does not thin the docs path.
+ * `registerFields()` itself is gone as of objectui#3910 (ruling B of
+ * objectui#3798): the docs catalog's field examples are form-hosted now, so the
+ * demo adapter that path existed for has no reason to exist. That REMOVES this
+ * file's second and third assertions rather than re-spelling them — a test may
+ * not call a function that no longer exists, and asserting over a deleted path
+ * would pass for the empty reason (nothing is registered because nothing runs).
+ * What each one becomes:
+ *
+ *   1. absent on the live path — UNCHANGED, and it is now the whole fact. While
+ *      a second path existed this assertion pinned nothing (it passed on
+ *      `origin/main` too, as PR #3793 recorded); with that path deleted, the
+ *      live registry is the only registry, so re-adding the name to
+ *      `fieldWidgetMap` is exactly what turns this red.
+ *   2. "absent after `registerFields()` too" — DELETED with the path.
+ *   3. "registers every other docs-path key" — RE-POINTED at the live path,
+ *      which is a superset of the 38 keys the docs path used to register. It
+ *      still pins "the retirement subtracts exactly one name", now against the
+ *      surviving seam instead of a deleted one.
  *
  * `CapabilityMultiSelectField` the component is deliberately NOT asserted gone:
  * Studio's `PermissionMatrixEditor` imports and renders it directly, which is
  * ADR-0056 P2's design. Only the widget NAME is retired.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';
 
 // Importing the entry runs `registerAllFields()` at module load — the live path.
-import { registerFields, registerAllFields, FORM_FIELD_TYPES } from '../index';
+import { registerAllFields, FORM_FIELD_TYPES } from '../index';
 
 const RETIRED = 'capability-multiselect';
 
 /**
- * Every key `registerFields()` registered before the retirement, minus the
+ * Every key the retired docs-demo path (`registerFields()`) registered, minus the
  * retired one. Spelled out rather than derived so a future edit that silently
- * drops a docs-path registration fails here instead of passing vacuously.
+ * drops one of these registrations fails here instead of passing vacuously.
+ * The live path registers these AND more (`multiselect`, `radio`, `checkboxes`,
+ * `tags`, `richtext`, and the widget-hint-only pickers) — this list is the floor
+ * the retirement promised to leave intact, not the full live surface.
  */
-const DOCS_PATH_KEYS = [
+const RETAINED_FIELD_KEYS = [
   'text', 'textarea', 'number', 'boolean', 'select', 'date', 'datetime', 'time',
   'email', 'phone', 'url',
   'currency', 'percent', 'password', 'markdown', 'html', 'lookup', 'master_detail',
@@ -68,24 +82,28 @@ describe('capability-multiselect widget retirement (objectui#3308)', () => {
     expect(FORM_FIELD_TYPES).not.toContain(RETIRED);
   });
 
-  describe('after the docs-site registerFields() path runs', () => {
-    beforeAll(() => {
-      registerFields();
-    });
+  it('registers every retained field key (retirement subtracts exactly one)', () => {
+    registerAllFields();
+    for (const key of RETAINED_FIELD_KEYS) {
+      expect(
+        ComponentRegistry.get(`field:${key}`),
+        `field:${key} must survive the retirement`,
+      ).toBeTruthy();
+    }
+    expect(RETAINED_FIELD_KEYS).toHaveLength(38);
+  });
 
-    it('still does not register the retired key', () => {
-      expect(ComponentRegistry.get(`field:${RETIRED}`)).toBeUndefined();
-      expect(ComponentRegistry.get(RETIRED)).toBeUndefined();
-    });
-
-    it('registers every other docs-path key (retirement subtracts exactly one)', () => {
-      for (const key of DOCS_PATH_KEYS) {
-        expect(
-          ComponentRegistry.get(`field:${key}`),
-          `field:${key} must survive the retirement`,
-        ).toBeTruthy();
-      }
-      expect(DOCS_PATH_KEYS).toHaveLength(38);
-    });
+  it('has no second registration path left to shadow the live one (objectui#3910)', async () => {
+    // The defect ruling B closed was structural, not cosmetic: `registerFields()`
+    // re-registered the SAME `field:<type>` keys with demo-only wrappers, so
+    // whichever ran last won the registry for every consumer sharing it. Pinning
+    // the export gone is what stops it growing back under a new name.
+    const entry = (await import('../index')) as Record<string, unknown>;
+    expect(entry.registerFields).toBeUndefined();
+    expect(entry.createFieldRenderer).toBeUndefined();
+    // The surviving seam is still exported — this test must fail loudly if the
+    // removal ever takes the live path with it.
+    expect(typeof entry.registerAllFields).toBe('function');
+    expect(typeof entry.registerField).toBe('function');
   });
 });

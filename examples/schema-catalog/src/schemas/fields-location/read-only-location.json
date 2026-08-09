@@ -1,10 +1,19 @@
 {
-  "type": "location",
-  "name": "headquarters",
-  "label": "Headquarters",
-  "value": {
-    "latitude": 40.7128,
-    "longitude": -74.006
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "defaultValues": {
+    "headquarters": {
+      "latitude": 40.7128,
+      "longitude": -74.006
+    }
   },
-  "readonly": true
+  "fields": [
+    {
+      "name": "headquarters",
+      "label": "Headquarters",
+      "type": "location",
+      "readonly": true
+    }
+  ]
 }

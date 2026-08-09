@@ -1,7 +1,14 @@
 {
-  "type": "percent",
-  "name": "discount",
-  "label": "Discount Rate",
-  "required": true,
-  "precision": 2
+  "type": "form",
+  "showSubmit": false,
+  "showCancel": false,
+  "fields": [
+    {
+      "name": "discount",
+      "label": "Discount Rate",
+      "type": "percent",
+      "required": true,
+      "precision": 2
+    }
+  ]
 }
