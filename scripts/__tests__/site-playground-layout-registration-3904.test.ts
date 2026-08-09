@@ -95,7 +95,7 @@ describe('objectui#3904 — every apps/site SchemaRenderer host registers the la
     expect(hosts).toContain('apps/site/app/playground/page.tsx');
   });
 
-  it.each(schemaRendererHosts())('%s imports the layout-block registrar', (host) => {
+  it.each(hosts)('%s imports the layout-block registrar', (host) => {
     const source = fs.readFileSync(path.join(repoRoot, host), 'utf8');
 
     // Any import form is fine — the three catalog hosts use the relative
