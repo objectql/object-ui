@@ -18,7 +18,18 @@ export {
 export {
   ViewDataProvider,
   type ViewDataConfig,
-  type ElementDataSourceConfig,
   type DataFetcher,
   type ResolvedData,
 } from './ViewDataProvider.js';
+
+export {
+  collectSavedViews,
+  composeElementDataSource,
+  elementDataSourceViewNotFoundMessage,
+  isElementDataSourceConfig,
+  resolveSavedView,
+  type ComposedElementDataSource,
+  type ElementDataSourceConfig,
+  type ElementDataSourceSort,
+  type ElementSavedView,
+} from './element-data-source.js';

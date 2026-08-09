@@ -7,34 +7,11 @@
  */
 
 /**
- * Resolve a URL-requested view name against the object's actual view ids.
- *
- * Canonical view ids are fully qualified (`<object>.<viewKind>`, see
- * MetadataProvider), but nav items emit their `viewName` verbatim — usually
- * the short form — and legacy embedded listViews carry bare keys (including
- * the `'all'` fallback view). Accept both directions (#2217):
- *
- * 1. exact id match;
- * 2. short name (no `.`) → retry as `<objectName>.<name>`;
- * 3. qualified name → retry with the `<objectName>.` prefix stripped.
- *
- * Returns the matching view id, or `undefined` when nothing matches — the
- * caller decides how to fall back (and should warn rather than swallow it).
+ * Re-export only. The matcher moved to `@object-ui/core`
+ * (`utils/resolve-view-id.ts`) when a second layer needed it: a page
+ * component's `dataSource.view` names a saved view exactly the way a nav item
+ * names one, and `@object-ui/plugin-list` cannot import from app-shell
+ * (objectstack#5576). Kept as a re-export so this module path — and its
+ * dedicated test — stay valid.
  */
-export function resolveViewId(
-    requested: string | undefined | null,
-    viewIds: readonly string[],
-    objectName: string,
-): string | undefined {
-    if (!requested) return undefined;
-    const has = (id: string) => viewIds.includes(id);
-    if (has(requested)) return requested;
-    const prefix = `${objectName}.`;
-    if (!requested.includes('.') && has(prefix + requested)) {
-        return prefix + requested;
-    }
-    if (requested.startsWith(prefix) && has(requested.slice(prefix.length))) {
-        return requested.slice(prefix.length);
-    }
-    return undefined;
-}
+export { resolveViewId } from '@object-ui/core';

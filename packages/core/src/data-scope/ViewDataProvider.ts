@@ -20,6 +20,15 @@
  * @packageDocumentation
  */
 
+import {
+  collectSavedViews,
+  composeElementDataSource,
+  elementDataSourceViewNotFoundMessage,
+  resolveSavedView,
+  type ElementDataSourceConfig,
+  type ElementSavedView,
+} from './element-data-source.js';
+
 /** ViewData union — matches @objectstack/spec ViewDataSchema */
 export type ViewDataConfig =
   | { provider: 'object'; object: string }
@@ -30,14 +39,12 @@ export type ViewDataConfig =
     }
   | { provider: 'value'; items: any[] };
 
-/** Element-level data source — matches @objectstack/spec ElementDataSourceSchema */
-export interface ElementDataSourceConfig {
-  object: string;
-  view?: string;
-  filter?: Record<string, any>;
-  sort?: Array<{ field: string; order: 'asc' | 'desc' }>;
-  limit?: number;
-}
+/**
+ * Re-exported from `./element-data-source.js`, where the binding's type now
+ * lives alongside the logic that consumes it. Kept on this module path because
+ * that is where it was declared before objectstack#5576.
+ */
+export type { ElementDataSourceConfig };
 
 /** Fetcher interface — consumers provide the actual fetch implementation */
 export interface DataFetcher {
@@ -74,6 +81,22 @@ export interface DataFetcher {
       body?: any;
     },
   ): Promise<any>;
+
+  /**
+   * Fetch the object's saved views, so an `ElementDataSource.view` name can be
+   * resolved to real columns / filter / sort (objectstack#5576).
+   *
+   * Optional because most fetchers only read records. A fetcher WITHOUT it
+   * cannot honour a named view, and {@link ViewDataProvider.resolveElementDataSource}
+   * says so in `error` rather than dropping the key — the whole point of #5576
+   * is that a `view` the runtime cannot apply must never look applied.
+   *
+   * Either shape stored views come in is accepted: a map keyed by view id, or
+   * the array of overlay rows an adapter's `listViews()` returns.
+   */
+  fetchViews?(
+    object: string,
+  ): Promise<Record<string, ElementSavedView> | ElementSavedView[]>;
 }
 
 /** Resolved data result */
@@ -265,16 +288,87 @@ export class ViewDataProvider {
     }
   }
 
-  /** Resolve element-level data source */
+  /**
+   * Resolve an element-level data source (`PageComponentSchema.dataSource`).
+   *
+   * `view` is HONOURED here, not dropped. Until objectstack#5576 this method
+   * forwarded `filter`/`sort`/`limit` and silently discarded `view`, so a page
+   * component that named a saved view got every record the object had — the
+   * declared binding was inert while looking applied.
+   *
+   * Three outcomes, all explicit:
+   *  - no `view` → unchanged behaviour, the binding's own keys are forwarded;
+   *  - `view` resolved → its columns become the `fields` projection and its
+   *    filter/sort/limit the baseline the binding's keys compose with (see
+   *    {@link composeElementDataSource} for the per-key rule);
+   *  - `view` unresolvable, or the fetcher cannot list views at all → an
+   *    `error` naming the view and what the object does have. NOT an empty
+   *    result, and NOT a silent fall back to the unfiltered object.
+   */
   async resolveElementDataSource(
     config: ElementDataSourceConfig,
   ): Promise<ResolvedData> {
+    let view: ElementSavedView | undefined;
+
+    if (config.view) {
+      if (!this.fetcher?.fetchViews) {
+        return {
+          records: [],
+          total: 0,
+          provider: 'object',
+          loading: false,
+          error:
+            `dataSource.view "${config.view}" cannot be resolved: this data ` +
+            `fetcher does not implement fetchViews().`,
+        };
+      }
+      let views: Record<string, ElementSavedView>;
+      try {
+        views = collectSavedViews(await this.fetcher.fetchViews(config.object));
+      } catch (error) {
+        return {
+          records: [],
+          total: 0,
+          provider: 'object',
+          loading: false,
+          error: (error as Error).message,
+        };
+      }
+      view = resolveSavedView(views, config.view, config.object);
+      if (!view) {
+        return {
+          records: [],
+          total: 0,
+          provider: 'object',
+          loading: false,
+          error: elementDataSourceViewNotFoundMessage(
+            config.object,
+            config.view,
+            Object.keys(views),
+          ),
+        };
+      }
+    }
+
+    const composed = composeElementDataSource(config, view);
+    const fields = Array.isArray(composed.columns)
+      ? composed.columns.filter((c): c is string => typeof c === 'string' && !!c)
+      : undefined;
+
     return this.resolve(
-      { provider: 'object', object: config.object },
+      { provider: 'object', object: composed.object },
       {
-        filter: config.filter,
-        sort: config.sort,
-        limit: config.limit,
+        // `DataFetcher.fetchRecords`'s `filter` is declared
+        // `Record<string, any>`, which predates the three filter shapes that
+        // legitimately circulate here: a MongoDB-style condition object, an
+        // ObjectQL AST node array, and a spec `ViewFilterRule[]`. The last two
+        // are arrays, so a saved view's filter does not fit the declared option
+        // — the cast is that gap, not a coercion. Widening the declared option
+        // is a separate change with its own consumers.
+        filter: composed.filter as Record<string, any> | undefined,
+        sort: composed.sort as Array<{ field: string; order: 'asc' | 'desc' }> | undefined,
+        limit: composed.limit,
+        ...(fields && fields.length > 0 ? { fields } : {}),
       },
     );
   }
