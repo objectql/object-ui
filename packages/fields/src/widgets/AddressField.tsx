@@ -4,19 +4,44 @@ import { FieldWidgetComponentProps } from './types';
 import { toDomProps } from './toDomProps';
 
 /**
- * Address data structure
+ * Address data structure — the part names of `@objectstack/spec`'s
+ * `AddressSchema`, which is what the platform stores and what
+ * `/api/v1/data/**` serves back.
+ *
+ * The postal code is spelled `postalCode` (objectstack#5143). This widget used
+ * to read and write `zipCode`, a key that appears nowhere in the spec, so the
+ * stored postal code never reached the input and the next save wrote an address
+ * without it — a silent data loss on every edit of an existing record, however
+ * unrelated the edited part. One name, on both sides: the contract's.
  */
 export interface AddressValue {
   street?: string;
   city?: string;
   state?: string;
-  zipCode?: string;
+  postalCode?: string;
   country?: string;
 }
 
 /**
+ * The shape written by builds up to and including 17.0.0-rc.1, whose postal
+ * code landed under `zipCode` (objectstack#5143). Read-time compatibility ONLY,
+ * and deliberately not part of {@link AddressValue}: authoring code must not be
+ * able to spell `zipCode`, and nothing here ever writes it back — the first
+ * edit of any part normalizes the record onto `postalCode` (see
+ * `handleFieldChange`). This is not a producer alias to be honoured forever;
+ * it exists to carry data THIS widget mis-wrote, and can go once no such data
+ * remains.
+ */
+type LegacyAddressValue = AddressValue & { zipCode?: string };
+
+/** Postal code of a stored address, preferring the canonical key. */
+function readPostalCode(addr: AddressValue): string | undefined {
+  return addr.postalCode ?? (addr as LegacyAddressValue).zipCode;
+}
+
+/**
  * Address field widget - provides a structured address input
- * Supports street, city, state, zip code, and country
+ * Supports street, city, state, postal code, and country
  */
 export function AddressField({ value, onChange, field, readonly, error, ...props }: FieldWidgetComponentProps<AddressValue>) {
   const address = value || {};
@@ -33,9 +58,20 @@ export function AddressField({ value, onChange, field, readonly, error, ...props
   const groupId = useId();
   const subId = (name: keyof AddressValue) => `${groupId}-${name}`;
 
+  // Read through the legacy key, write only the canonical one (objectstack#5143).
+  const postalCode = readPostalCode(address);
+
   const handleFieldChange = (fieldName: keyof AddressValue, fieldValue: string) => {
+    // Normalize while we are here: the object we write back never carries
+    // `zipCode`, and a legacy postal code is carried forward under
+    // `postalCode`. Without the carry, editing an unrelated part of a
+    // legacy-shaped address would write the postal code straight back out of
+    // the record — the very data loss this fixes, one build later.
+    const canonical: LegacyAddressValue = { ...address };
+    delete canonical.zipCode;
     onChange({
-      ...address,
+      ...canonical,
+      ...(postalCode ? { postalCode } : null),
       [fieldName]: fieldValue,
     });
   };
@@ -44,7 +80,7 @@ export function AddressField({ value, onChange, field, readonly, error, ...props
     const parts = [
       addr.street,
       addr.city,
-      [addr.state, addr.zipCode].filter(Boolean).join(' '),
+      [addr.state, readPostalCode(addr)].filter(Boolean).join(' '),
       addr.country,
     ].filter(Boolean);
     return parts.join(', ');
@@ -102,12 +138,12 @@ export function AddressField({ value, onChange, field, readonly, error, ...props
       
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label htmlFor={subId('zipCode')} className="text-xs">ZIP / Postal Code</Label>
+          <Label htmlFor={subId('postalCode')} className="text-xs">ZIP / Postal Code</Label>
           <Input
-            id={subId('zipCode')}
+            id={subId('postalCode')}
             type="text"
-            value={address.zipCode || ''}
-            onChange={(e) => handleFieldChange('zipCode', e.target.value)}
+            value={postalCode || ''}
+            onChange={(e) => handleFieldChange('postalCode', e.target.value)}
             placeholder="94102"
             disabled={readonly || props.disabled}
             aria-invalid={!!error}
