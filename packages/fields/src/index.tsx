@@ -703,10 +703,23 @@ export function PercentCellRenderer({ value, field }: CellRendererProps): React.
   const formatted = isWholePercentField ? `${numValue.toFixed(precision)}%` : formatPercent(numValue, precision);
   const clampedBar = Math.max(0, Math.min(100, barValue));
   
+  // Layout contract (objectstack#5066): THE NUMBER IS THE CONTENT, THE BAR IS
+  // DECORATION. The bar used to be `w-16 shrink-0` while the value span was
+  // shrinkable, so in a narrow clipping container — a `record:highlights` chip
+  // is `basis-[9rem]`/`min-w-[7rem]` and clips with `truncate` — the 64px bar
+  // took the space and the value was silently cut mid-digit: a stored `33.33`
+  // rendered `33%` in the DOM but read as `3` on screen, with no ellipsis and
+  // nothing in the accessible name to signal the loss.
+  //
+  // So the priority is inverted: the value span is `shrink-0` (never sacrificed)
+  // and the bar keeps `w-16` only as its PREFERRED width, free to shrink away
+  // under pressure. It is deliberately NOT `flex-1` — growing is not wanted, or
+  // every wide grid cell would stretch its bar; `w-16` stays the upper bound and
+  // wide containers look exactly as before.
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-0 items-center gap-2">
       <div
-        className="h-1.5 w-16 rounded-full bg-muted ring-1 ring-inset ring-border/60 overflow-hidden shrink-0"
+        className="h-1.5 w-16 min-w-0 shrink rounded-full bg-muted ring-1 ring-inset ring-border/60 overflow-hidden"
         role="progressbar"
         aria-valuenow={clampedBar}
         aria-valuemin={0}
@@ -717,7 +730,7 @@ export function PercentCellRenderer({ value, field }: CellRendererProps): React.
           style={{ width: `${clampedBar}%` }}
         />
       </div>
-      <span className="tabular-nums whitespace-nowrap">{formatted}</span>
+      <span className="shrink-0 tabular-nums whitespace-nowrap">{formatted}</span>
     </div>
   );
 }
