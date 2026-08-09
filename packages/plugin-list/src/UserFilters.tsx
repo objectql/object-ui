@@ -509,6 +509,13 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, 
       <Popover key={f.field}>
         <PopoverTrigger asChild>
           <button
+            // Inside a <form> a bare <button> defaults to type="submit", so an
+            // untyped trigger would submit the enclosing form on every click
+            // (objectui#3344). Radix's PopoverTrigger happens to supply
+            // type="button" via its Slot today, but that is an upstream
+            // implementation detail — declare the contract locally, exactly as
+            // the Combobox trigger does.
+            type="button"
             data-testid={`filter-badge-${f.field}`}
             className={cn(
               'inline-flex items-center gap-1 h-7 px-2 text-xs transition-colors shrink-0 rounded-md',
@@ -670,6 +677,10 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, 
             <Popover>
               <PopoverTrigger asChild>
                 <button
+                  // Same as the chip trigger above: Radix supplies type="button"
+                  // via its Slot today, but the contract is declared locally
+                  // (objectui#3344).
+                  type="button"
                   data-testid="user-filters-more"
                   className="inline-flex items-center gap-1 h-7 px-2 text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0 rounded-md"
                 >
@@ -854,6 +865,12 @@ function TabFilters({ tabs, showAllRecords, allowAddTab, onFilterChange, classNa
         return (
           <button
             key={tabId}
+            // A plain button, NOT a Radix trigger — nothing supplied a type, so
+            // this one really did render as type="submit" and clicking a preset
+            // tab inside a <form> submitted it (objectui#3344 family;
+            // objectstack#6952 measured it: the two triggers above already read
+            // `button`, this one read `null`).
+            type="button"
             data-testid={`filter-tab-${tabId}`}
             onClick={() => handleTabChange(tabId)}
             className={cn(
@@ -911,8 +928,10 @@ function TabFilters({ tabs, showAllRecords, allowAddTab, onFilterChange, classNa
         >
           <PopoverTrigger asChild>
             <button
-              // Explicit type: a Radix trigger keeps the HTML default of
-              // `submit`, which submits an enclosing form on click (#3344).
+              // Same as the chip trigger: Radix supplies type="button" via its
+              // Slot today, but the contract is declared locally (objectui#3344).
+              // (Corrected from "a Radix trigger keeps the HTML default of
+              // submit" — objectstack#6952 measured that it does not.)
               type="button"
               className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
               data-testid="filter-tab-add"
