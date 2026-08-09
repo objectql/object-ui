@@ -21,6 +21,51 @@ interface DevOptions {
   open?: boolean;
 }
 
+/**
+ * The PostCSS plugins the workspace-local temp app is served with.
+ *
+ * Inside a workspace the generated app installs nothing (it resolves everything
+ * by hoisting) and its own `postcss.config.js` is removed, so this is the only
+ * thing that compiles its stylesheet. Two things about it are deliberate:
+ *
+ * 1. **`@tailwindcss/postcss`, not `tailwindcss`.** Tailwind 4 moved the PostCSS
+ *    plugin into its own package; calling `tailwindcss()` as a plugin — which
+ *    this did until objectui#3852, passing it the generated
+ *    `tailwind.config.js` — hits a shim whose only job is to throw ("It looks
+ *    like you're trying to use `tailwindcss` directly as a PostCSS plugin"). The
+ *    config-file argument goes away with it: v4 is CSS-first and the generated
+ *    `src/index.css` carries its own `@source`/`@theme` (see `app-generator.ts`).
+ * 2. **Resolved from this CLI, and loud when it cannot be.** Both plugins are
+ *    declared by `@object-ui/cli` itself, so a bare `import` finds them wherever
+ *    the CLI is installed — rather than depending on what the invoking project
+ *    happens to hoist (this repo's root declares `tailwindcss` but NOT
+ *    `@tailwindcss/postcss`, so resolving from the cwd cannot work here at all).
+ *    A failure throws with the reason attached: the previous `catch` warned one
+ *    yellow line and served the app with no stylesheet, which is exactly how a
+ *    dead CSS pipeline stayed unnoticed long enough to be filed as
+ *    objectui#3852.
+ */
+async function loadTempAppPostcssPlugins(): Promise<unknown[]> {
+  try {
+    const [tailwindPostcss, autoprefixer] = await Promise.all([
+      import('@tailwindcss/postcss'),
+      import('autoprefixer')
+    ]);
+    return [tailwindPostcss.default(), autoprefixer.default()];
+  } catch (error) {
+    // The caught error's message is inlined below. We can't pass it as the
+    // `Error` `cause` option because this package targets ES2020, whose lib
+    // types the 1-arg `Error` constructor only; hence the scoped disable.
+    // eslint-disable-next-line preserve-caught-error
+    throw new Error(
+      `Failed to load the Tailwind CSS PostCSS pipeline: ${error instanceof Error ? error.message : error}\n` +
+        `  Both '@tailwindcss/postcss' and 'autoprefixer' are dependencies of @object-ui/cli — a\n` +
+        `  broken install of the CLI is the likeliest cause; reinstall it and try again.\n` +
+        `  (Refusing to start unstyled: that failure is silent in the browser.)`
+    );
+  }
+}
+
 export async function dev(schemaPath: string, options: DevOptions) {
   const cwd = process.cwd();
   
@@ -168,7 +213,12 @@ export async function dev(schemaPath: string, options: DevOptions) {
   if (isMonorepo) {
     console.log(chalk.blue('📦 Detected monorepo - configuring workspace aliases'));
     
-    // Remove postcss.config.js to prevent interference with programmatic config
+    // Remove postcss.config.js: the programmatic `css.postcss` below takes over
+    // (an inline config makes Vite skip config-file discovery entirely), and the
+    // generated file names `@tailwindcss/postcss` — a package the temp app never
+    // installs inside a workspace, and one this repo's root does not declare
+    // either, so leaving the file for a later Vite pass to find would only
+    // reintroduce an unresolvable plugin.
     const postcssPath = join(tmpDir, 'postcss.config.js');
     if (existsSync(postcssPath)) {
       unlinkSync(postcssPath);
@@ -205,22 +255,8 @@ export async function dev(schemaPath: string, options: DevOptions) {
     // Debug aliases
     // console.log('Aliases:', viteConfig.resolve.alias);
 
-    // Configure PostCSS programmatically reusing root dependencies
-    try {
-      const tailwindcss = require('tailwindcss');
-      const autoprefixer = require('autoprefixer');
-      
-      viteConfig.css = {
-        postcss: {
-          plugins: [
-            tailwindcss(join(tmpDir, 'tailwind.config.js')),
-            autoprefixer(),
-          ],
-        },
-      };
-    } catch (_e) {
-      console.warn(chalk.yellow('⚠️ Failed to load PostCSS plugins from root node_modules. Styles might not work correctly.'));
-    }
+    // Configure PostCSS programmatically — see `loadTempAppPostcssPlugins`.
+    viteConfig.css = { postcss: { plugins: await loadTempAppPostcssPlugins() } };
   }
 
   // Create Vite server

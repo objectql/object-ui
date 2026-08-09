@@ -262,18 +262,24 @@ function buildRoutedAppDependencies(): Record<string, string> {
  * `devDependencies` shared by both generated apps (identical in both today).
  *
  * Every range is anchored to an in-repo manifest, and
- * `app-generator.test.ts`'s `DEV_DEPENDENCY_ANCHORS` names the anchor for each
- * one and fails on an unanchored addition. The three Tailwind-side entries are
- * deliberately NOT anchored to the repo's Tailwind 4 — see
- * `TAILWIND_V3_DEFERRED` in that test file, and objectui#3852.
+ * `app-generator.test.ts`'s `DEPENDENCY_ANCHORS` names the anchor for each one
+ * and fails on an unanchored addition. The Tailwind-side entries were held at
+ * v3 as an explicit `TAILWIND_V3_DEFERRED` ledger by objectui#3827, because
+ * bumping the range without rewriting the CSS pipeline beside it would produce
+ * an app that installs and renders unstyled. objectui#3852 rewrote that
+ * pipeline, so they are anchored to this repo's Tailwind 4 like everything
+ * else — `tailwindcss` to the root, `@tailwindcss/postcss` (v4's PostCSS
+ * plugin, a separate package) to the in-repo range every `postcss.config.*`
+ * here already names.
  */
 const APP_DEV_DEPENDENCIES: Record<string, string> = {
+  '@tailwindcss/postcss': '^4.3.3',
   '@types/react': '19.2.18',
   '@types/react-dom': '19.2.4',
   '@vitejs/plugin-react': '^6.0.5',
   autoprefixer: '^10.5.4',
   postcss: '^8.5.26',
-  tailwindcss: '^3.4.19',
+  tailwindcss: '^4.3.3',
   typescript: '^6.0.3',
   vite: '^8.2.0'
 };
@@ -300,10 +306,18 @@ const APP_TSCONFIG = {
   include: ['src']
 };
 
-/** The generated `postcss.config.js`, identical for both generators. */
+/**
+ * The generated `postcss.config.js`, identical for both generators.
+ *
+ * Tailwind 4 moved the PostCSS plugin out of `tailwindcss` into
+ * `@tailwindcss/postcss`; naming the old `tailwindcss` key resolves to a shim
+ * whose only job is to throw ("It looks like you're trying to use `tailwindcss`
+ * directly as a PostCSS plugin"). Spelled exactly like
+ * `packages/components/postcss.config.js` — objectui#3852.
+ */
 const APP_POSTCSS_CONFIG = `export default {
   plugins: {
-    tailwindcss: {},
+    '@tailwindcss/postcss': {},
     autoprefixer: {},
   },
 };`;
@@ -365,75 +379,227 @@ export function buildRoutedAppPackageJson(): Record<string, unknown> {
   };
 }
 
-/** The generated `tailwind.config.js`; content globs widen inside a monorepo. */
-function buildTailwindConfig(context: AppGeneratorContext): string {
-  // Define Tailwind Content Paths
-  // Include JSON files specifically
-  const contentPaths = ["'./index.html'", "'./src/**/*.{js,ts,jsx,tsx,json}'"];
+/**
+ * The `@source` directives the generated `src/index.css` registers.
+ *
+ * Tailwind 4's replacement for v3's `content` globs, and a 1:1 translation of
+ * the ones the generated `tailwind.config.js` carried until objectui#3852:
+ * the app's own `index.html` and `src/**`, widened inside a workspace to the
+ * component library and every `plugin-*` package (the two absolute globs the v3
+ * config built from `cwd`, semantics unchanged).
+ *
+ * Two things are load-bearing and were measured rather than assumed:
+ *
+ * 1. Relative `@source` paths resolve against the directory of the CSS file
+ *    that declares them, NOT the app root — this file is written to
+ *    `src/index.css`, so the app's own sources are `../src/**`, spelled exactly
+ *    as `packages/components/src/index.css` spells its own.
+ * 2. Outside a workspace the platform packages are installed rather than
+ *    aliased, and their classes live in built JS. v4 does not auto-scan
+ *    `node_modules` (it is gitignored), so an explicit `@source` over the
+ *    installed `dist` is the only thing that compiles the library's utilities —
+ *    the gap the v3 `content` list also had, in the form v4 gives us to close
+ *    it.
+ */
+function buildAppSourceDirectives(context: AppGeneratorContext): string[] {
+  const sources = [`@source '../index.html';`, `@source '../src/**/*.{js,ts,jsx,tsx,json}';`];
   if (context.isMonorepo) {
-    const componentsPath = join(context.cwd, 'packages/components/src/**/*.{ts,tsx}');
-    const pluginsPath = join(context.cwd, 'packages/plugin-*/src/**/*.{ts,tsx}');
-    contentPaths.push(`'${componentsPath}'`);
-    contentPaths.push(`'${pluginsPath}'`);
+    sources.push(`@source '${join(context.cwd, 'packages/components/src/**/*.{ts,tsx}')}';`);
+    sources.push(`@source '${join(context.cwd, 'packages/plugin-*/src/**/*.{ts,tsx}')}';`);
+  } else {
+    sources.push(`@source '../node_modules/@object-ui/*/dist/**/*.js';`);
   }
+  return sources;
+}
 
-  return `/** @type {import('tailwindcss').Config} */
-export default {
-  darkMode: ['class'],
-  content: [${contentPaths.join(', ')}],
-  theme: {
-    extend: {
-      borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
-      },
-      colors: {
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
-        card: {
-          DEFAULT: 'hsl(var(--card))',
-          foreground: 'hsl(var(--card-foreground))',
-        },
-        popover: {
-          DEFAULT: 'hsl(var(--popover))',
-          foreground: 'hsl(var(--popover-foreground))',
-        },
-        primary: {
-          DEFAULT: 'hsl(var(--primary))',
-          foreground: 'hsl(var(--primary-foreground))',
-        },
-        secondary: {
-          DEFAULT: 'hsl(var(--secondary))',
-          foreground: 'hsl(var(--secondary-foreground))',
-        },
-        muted: {
-          DEFAULT: 'hsl(var(--muted))',
-          foreground: 'hsl(var(--muted-foreground))',
-        },
-        accent: {
-          DEFAULT: 'hsl(var(--accent))',
-          foreground: 'hsl(var(--accent-foreground))',
-        },
-        destructive: {
-          DEFAULT: 'hsl(var(--destructive))',
-          foreground: 'hsl(var(--destructive-foreground))',
-        },
-        border: 'hsl(var(--border))',
-        input: 'hsl(var(--input))',
-        ring: 'hsl(var(--ring))',
-        chart: {
-          1: 'hsl(var(--chart-1))',
-          2: 'hsl(var(--chart-2))',
-          3: 'hsl(var(--chart-3))',
-          4: 'hsl(var(--chart-4))',
-          5: 'hsl(var(--chart-5))',
-        },
-      },
-    },
-  },
-  plugins: [],
-};`;
+/**
+ * The generated `@theme` block: v4's replacement for v3's `theme.extend`.
+ *
+ * Token-for-token the set `packages/components/src/index.css` declares, because
+ * the generated app owns the single Tailwind entrypoint for everything it
+ * renders — the component library deliberately does NOT inject its own sheet
+ * (see the note at the top of `packages/components/src/index.ts`), so a token
+ * the library's classes need and this block omits simply does not compile. The
+ * v3 config's `theme.extend.colors` omitted the eight `sidebar-*` tokens that
+ * the generated `src/Layout.tsx` itself uses (`bg-sidebar-primary`,
+ * `data-[state=open]:bg-sidebar-accent`, …); `app-generator.test.ts` pins the
+ * two sets equal so the omission cannot come back.
+ */
+const APP_THEME_TOKENS = `@theme {
+  /* Border radius tokens */
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  /* Color tokens mapped to the CSS variables declared below */
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  /* Chart colors */
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+}`;
+
+/**
+ * The light/dark custom properties every token above resolves through.
+ *
+ * Plain CSS at the top level rather than inside `@layer base`, matching
+ * `packages/components/src/index.css`: `@theme` already emits into `:root`, and
+ * `.dark` only has to override the values. Every `var(--x)` named by
+ * `APP_THEME_TOKENS` is declared here — pinned by a test, since a token that
+ * resolves to nothing is a class that silently renders unstyled.
+ */
+const APP_THEME_VARIABLES = `:root {
+  color-scheme: light;
+
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 222.2 84% 4.9%;
+  --radius: 0.5rem;
+  --chart-1: 12 76% 61%;
+  --chart-2: 173 58% 39%;
+  --chart-3: 197 37% 24%;
+  --chart-4: 43 74% 66%;
+  --chart-5: 27 87% 67%;
+
+  /* Sidebar colors */
+  --sidebar: 0 0% 98%;
+  --sidebar-foreground: 240 5.3% 26.1%;
+  --sidebar-primary: 240 5.9% 10%;
+  --sidebar-primary-foreground: 0 0% 98%;
+  --sidebar-accent: 240 4.8% 95.9%;
+  --sidebar-accent-foreground: 240 5.9% 10%;
+  --sidebar-border: 220 13% 91%;
+  --sidebar-ring: 217.2 91.2% 59.8%;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+  --card: 222.2 84% 4.9%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222.2 84% 4.9%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 210 40% 98%;
+  --primary-foreground: 222.2 47.4% 11.2%;
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 212.7 26.8% 83.9%;
+  --chart-1: 220 70% 50%;
+  --chart-2: 160 60% 45%;
+  --chart-3: 30 80% 55%;
+  --chart-4: 280 65% 60%;
+  --chart-5: 340 75% 55%;
+
+  /* Sidebar colors for dark mode */
+  --sidebar: 240 5.9% 10%;
+  --sidebar-foreground: 240 4.8% 95.9%;
+  --sidebar-primary: 224.3 76.3% 48%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 240 3.7% 15.9%;
+  --sidebar-accent-foreground: 240 4.8% 95.9%;
+  --sidebar-border: 240 3.7% 15.9%;
+  --sidebar-ring: 217.2 91.2% 59.8%;
+}`;
+
+/**
+ * The generated `src/index.css` — one Tailwind 4 entrypoint, both generators.
+ *
+ * Replaces the v3 trio (`@tailwind base/components/utilities` directives, a
+ * `tailwind.config.js`, and a `tailwindcss`-keyed PostCSS config) with the
+ * CSS-first form this repo uses everywhere: `@import 'tailwindcss'`,
+ * `@custom-variant dark`, `@source`, `@theme`. No `tailwind.config.js` is
+ * written at all — in v4 a config file is inert unless a stylesheet points
+ * `@config` at it, and every source of truth it used to hold now lives here
+ * (objectui#3852; the repo itself has carried zero `tailwind.config.*` files
+ * since its own v4 migration).
+ *
+ * The two generators emitted byte-identical CSS apart from three utilities on
+ * `body`, so they now share this one builder; the `body` rules below are the
+ * routed variant's (`font-sans antialiased min-h-screen`), written as the plain
+ * CSS that `packages/components/src/index.css` uses instead of `@apply`.
+ */
+function buildAppIndexCss(context: AppGeneratorContext): string {
+  return `@import 'tailwindcss';
+
+/* Class-based dark variant: follow \`.dark\` on <html> — the routed app's
+   \`src/theme-provider.tsx\` toggles exactly that class — instead of the OS
+   \`prefers-color-scheme\`. Same spelling as packages/components/src/index.css. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Sources to scan for utility classes (v4's replacement for v3 \`content\`) */
+${buildAppSourceDirectives(context).join('\n')}
+
+${APP_THEME_TOKENS}
+
+${APP_THEME_VARIABLES}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+}`;
 }
 
 /** Writes a generated file map onto `tmpDir`, creating nested directories. */
@@ -503,83 +669,11 @@ function App() {
 
 export default App;`;
 
-  // Create index.css
-  const indexCss = `@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-  }
-}
-
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-}`;
-
   return {
     'index.html': html,
     'src/main.tsx': mainTsx,
     'src/App.tsx': appTsx,
-    'src/index.css': indexCss,
-    'tailwind.config.js': buildTailwindConfig(context),
+    'src/index.css': buildAppIndexCss(context),
     'postcss.config.js': APP_POSTCSS_CONFIG,
     'package.json': JSON.stringify(buildAppPackageJson(context), null, 2),
     'tsconfig.json': JSON.stringify(APP_TSCONFIG, null, 2)
@@ -961,80 +1055,7 @@ export default App;`;
 
   files['src/App.tsx'] = appTsx;
 
-  // Create index.css with Tailwind
-  const indexCss = `@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-  }
-}
-
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground font-sans antialiased min-h-screen;
-  }
-}`;
-
-  files['src/index.css'] = indexCss;
-
-  files['tailwind.config.js'] = buildTailwindConfig(context);
+  files['src/index.css'] = buildAppIndexCss(context);
   files['postcss.config.js'] = APP_POSTCSS_CONFIG;
   files['package.json'] = JSON.stringify(buildRoutedAppPackageJson(), null, 2);
   files['tsconfig.json'] = JSON.stringify(APP_TSCONFIG, null, 2);

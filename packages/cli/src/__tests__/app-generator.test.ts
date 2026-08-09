@@ -282,12 +282,14 @@ function inRepoRangesOf(name: string): Record<string, string[]> {
  * - `in-repo` — the root does not, but sibling manifests do, unanimously.
  * - `cli-version` — derived from this CLI's own version at generation time, not
  *   a literal at all (see `platformPackageRange` in `app-generator.ts`).
- * - `deferred-tailwind-v4` — see `TAILWIND_V3_DEFERRED` below.
+ *
+ * There is no longer a fourth kind: `deferred-tailwind-v4` existed only to hold
+ * `tailwindcss` at `^3.4.19` while the generated CSS pipeline was still v3, and
+ * objectui#3852 migrated that pipeline — so Tailwind anchors to this repo like
+ * everything else. See `keeps the generated Tailwind pipeline v4 end to end`
+ * below for what replaced the ledger.
  */
-const DEPENDENCY_ANCHORS: Record<
-  string,
-  'root' | 'in-repo' | 'cli-version' | 'deferred-tailwind-v4'
-> = {
+const DEPENDENCY_ANCHORS: Record<string, 'root' | 'in-repo' | 'cli-version'> = {
   '@object-ui/components': 'cli-version',
   '@object-ui/plugin-charts': 'cli-version',
   '@object-ui/plugin-editor': 'cli-version',
@@ -297,6 +299,7 @@ const DEPENDENCY_ANCHORS: Record<
   '@object-ui/plugin-markdown': 'cli-version',
   '@object-ui/plugin-view': 'cli-version',
   '@object-ui/react': 'cli-version',
+  '@tailwindcss/postcss': 'in-repo',
   '@types/react': 'root',
   '@types/react-dom': 'root',
   '@vitejs/plugin-react': 'in-repo',
@@ -306,29 +309,40 @@ const DEPENDENCY_ANCHORS: Record<
   react: 'root',
   'react-dom': 'root',
   'react-router-dom': 'root',
-  tailwindcss: 'deferred-tailwind-v4',
+  tailwindcss: 'root',
   typescript: 'root',
   vite: 'root'
 };
 
+/** `--color-*` / `--radius-*` token names declared by a `@theme` block. */
+function themeTokensOf(css: string): string[] {
+  const block = /@theme\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? '';
+  return [...block.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)].map((match) => match[1]).sort();
+}
+
+/** Custom properties a stylesheet declares outside its `@theme` block. */
+function declaredCustomProperties(css: string): Set<string> {
+  const outsideTheme = css.replace(/@theme\s*\{[\s\S]*?\n\}/g, '');
+  return new Set([...outsideTheme.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)].map((match) => match[1]));
+}
+
+/** Custom properties a `@theme` block resolves THROUGH, e.g. `hsl(var(--card))`. */
+function customPropertiesReferencedByTheme(css: string): string[] {
+  const block = /@theme\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? '';
+  return [...new Set([...block.matchAll(/var\((--[a-z0-9-]+)\)/g)].map((match) => match[1]))].sort();
+}
+
 /**
- * The Tailwind entries this PR deliberately does NOT re-anchor, and why.
+ * A `^x.y.z` range's floor, for comparing a generated range against a peer's.
  *
- * This repo is on Tailwind 4 (`^4.3.3` at the root, `@tailwindcss/postcss` in
- * every in-repo `postcss.config.js`) and `@object-ui/components` declares
- * `tailwindcss: ^4.2.1` as a PEER — so `^3.4.19` here is not merely drift, it
- * conflicts with a peer of a package the generated app depends on.
- *
- * Anchoring it is still not a version edit: the generated `src/index.css` uses
- * v3 directives (`@tailwind base;`), the generated `postcss.config.js` names
- * the `tailwindcss` plugin key that v4 moved to `@tailwindcss/postcss`, and the
- * generated `tailwind.config.js` is a v3 config whose `content` globs became
- * `@source` in v4. Bumping the range without rewriting those three files
- * produces an app that installs and renders unstyled — a worse failure than the
- * honest v3 trio, because it looks fixed. Filed as objectui#3852 with the
- * measurements; kept internally consistent at v3 until then.
+ * Enough semver for the one question asked below — whether the Tailwind the
+ * generated app installs can satisfy `@object-ui/components`' peer — without
+ * importing a `semver` this package does not declare.
  */
-const TAILWIND_V3_DEFERRED = ['tailwindcss'];
+function caretFloor(range: string): [number, number, number] {
+  const [major, minor, patch] = range.replace(/^\^/, '').split('.').map(Number);
+  return [major, minor, patch];
+}
 
 function dependenciesOf(manifest: Record<string, unknown>): Record<string, string> {
   return (manifest.dependencies ?? {}) as Record<string, string>;
@@ -452,11 +466,6 @@ describe('generated app manifests', () => {
       const generated = routed[name] ?? plain[name];
       expect(generated, `${name} must be declared by at least one generator`).toBeTruthy();
 
-      if (anchor === 'deferred-tailwind-v4') {
-        expect(TAILWIND_V3_DEFERRED).toContain(name);
-        continue;
-      }
-
       if (anchor === 'cli-version') {
         expect(generated, `${name} must track this CLI's own version`).toBe(`^${cliVersion}`);
         continue;
@@ -485,7 +494,7 @@ describe('generated app manifests', () => {
     // declared both places must already agree, so reading one instead of the
     // other cannot hide a drift.
     for (const [name, anchor] of Object.entries(DEPENDENCY_ANCHORS)) {
-      if (anchor === 'cli-version' || anchor === 'deferred-tailwind-v4') continue;
+      if (anchor === 'cli-version') continue;
       const rootRange = rootRangeOf(name);
       if (rootRange === undefined) continue;
       for (const [range, manifests] of Object.entries(inRepoRangesOf(name))) {
@@ -525,21 +534,28 @@ describe('generated app manifests', () => {
     }
   });
 
-  it('declares the tailwind trio at v3 deliberately, not by drift', () => {
-    // The deferral is an explicit, reviewed act: the generated CSS pipeline is
-    // v3 end to end, so the range matches the files beside it. Re-anchoring it
-    // means migrating those files (objectui#3852). Adding a second deferred
-    // entry has to edit this list.
-    expect(TAILWIND_V3_DEFERRED).toEqual(['tailwindcss']);
-    expect(allRangesOf(buildRoutedAppPackageJson()).tailwindcss).toBe('^3.4.19');
-    expect(routedFiles()['src/index.css']).toContain('@tailwind base;');
-    expect(routedFiles()['postcss.config.js']).toContain('tailwindcss: {}');
-    // And the conflict this leaves standing, named rather than hidden: the
-    // components package the generated app depends on peers Tailwind 4.
+  it('installs a Tailwind that satisfies the components peer it depends on', () => {
+    // Evidence 1 of objectui#3852, now a gate. The generated app depends on
+    // `@object-ui/components`, which peers `tailwindcss ^4.2.1`; the generated
+    // devDependency was `^3.4.19`, so once objectui#3827 made the `@object-ui/*`
+    // ranges resolvable, a clean install outside this repo hit ERESOLVE. Judged
+    // by comparison, not by two literals, so bumping either side alone is red.
     const components = JSON.parse(
       readFileSync(resolve(REPO_ROOT, 'packages/components/package.json'), 'utf-8')
     ) as { peerDependencies?: Record<string, string> };
-    expect(components.peerDependencies?.tailwindcss).toBe('^4.2.1');
+    const peer = components.peerDependencies?.tailwindcss as string;
+    const generated = allRangesOf(buildRoutedAppPackageJson()).tailwindcss;
+    expect(peer, 'components must peer a Tailwind version at all').toBeTruthy();
+
+    const [peerMajor, peerMinor, peerPatch] = caretFloor(peer);
+    const [genMajor, genMinor, genPatch] = caretFloor(generated);
+    expect(genMajor, `generated ${generated} must share a major with the peer ${peer}`).toBe(
+      peerMajor
+    );
+    expect(
+      genMinor * 1_000_000 + genPatch,
+      `generated ${generated} is below the peer floor ${peer}`
+    ).toBeGreaterThanOrEqual(peerMinor * 1_000_000 + peerPatch);
   });
 
   it('writes both maps empty inside a workspace, as before', () => {
@@ -600,6 +616,146 @@ describe('generated app file maps', () => {
         expect(path.split('/')).not.toContain('..');
         expect(path.startsWith('/')).toBe(false);
       }
+    }
+  });
+});
+
+/**
+ * The generated CSS pipeline (objectui#3852).
+ *
+ * What objectui#3827 recorded as `TAILWIND_V3_DEFERRED` and this describe block
+ * replaces: the generated app shipped a complete Tailwind 3 trio — `@tailwind
+ * base/components/utilities` directives, a `tailwindcss`-keyed PostCSS config,
+ * and a `tailwind.config.js` — into a repo that has been on Tailwind 4 (and
+ * carried zero `tailwind.config.*` files) since its own migration, while
+ * depending on a `@object-ui/components` that peers `tailwindcss ^4.2.1`.
+ *
+ * These gates judge the pipeline's SHAPE, which is all a unit test can reach: an
+ * `@import 'tailwindcss'` is resolved by `@tailwindcss/postcss` relative to the
+ * stylesheet's own directory, so compiling a generated `index.css` for real
+ * needs a `node_modules` beside the fixture ("Can't resolve 'tailwindcss' in
+ * …/app/src" when there is none). That end of it was verified in a browser
+ * against a running `objectui dev` instead — readings in the PR.
+ */
+describe('generated Tailwind 4 pipeline', () => {
+  const V3_FOSSILS = ['@tailwind base;', '@tailwind components;', '@tailwind utilities;', '@apply '];
+
+  const everyShape = () => ({
+    plain: plainFiles(),
+    routed: routedFiles(),
+    plainInWorkspace: buildAppFiles(SCHEMA, IN_WORKSPACE),
+    routedInWorkspace: buildRoutedAppFiles(ROUTES, APP_CONFIG, IN_WORKSPACE)
+  });
+
+  it('writes a v4 CSS-first entrypoint, with no v3 directive left anywhere', () => {
+    for (const [shape, files] of Object.entries(everyShape())) {
+      const css = files['src/index.css'];
+      expect(css, `${shape}: must import Tailwind the v4 way`).toContain(`@import 'tailwindcss';`);
+      expect(css, `${shape}: dark variant must follow the .dark class`).toContain(
+        '@custom-variant dark (&:where(.dark, .dark *));'
+      );
+      for (const fossil of V3_FOSSILS) {
+        expect(css.includes(fossil), `${shape}: v3 leftover ${fossil}`).toBe(false);
+      }
+    }
+  });
+
+  it('names v4 PostCSS plugin package, not the key that throws', () => {
+    for (const [shape, files] of Object.entries(everyShape())) {
+      const config = files['postcss.config.js'];
+      expect(config, `${shape}: must name the v4 plugin package`).toContain(
+        `'@tailwindcss/postcss': {}`);
+      // The v3 key resolves to a shim that throws; matched on the bare
+      // `tailwindcss:` form so the quoted v4 spelling above does not satisfy it.
+      expect(/(^|[^'"])tailwindcss:/.test(config), `${shape}: v3 plugin key`).toBe(false);
+    }
+  });
+
+  it('writes no tailwind.config.js, because v4 would never read it', () => {
+    // A config file is inert in v4 unless a stylesheet points `@config` at it,
+    // and none does. Writing one anyway is how the v3 `content` globs stayed the
+    // apparent source of truth while nothing consumed them. `commands/dev.ts`
+    // used to pass this path to `tailwindcss()`; it no longer exists either.
+    for (const [shape, files] of Object.entries(everyShape())) {
+      expect(Object.keys(files), `${shape}`).not.toContain('tailwind.config.js');
+      expect(files['src/index.css'].includes('@config'), `${shape}`).toBe(false);
+    }
+  });
+
+  it('translates the v3 content globs into @source, workspace globs included', () => {
+    // The v3 `content` list was `['./index.html', './src/**/*.{js,ts,jsx,tsx,json}']`,
+    // widened inside a workspace with two absolute globs built from `cwd`. All
+    // four survive as `@source`, with the app-relative pair rewritten against
+    // `src/index.css`'s own directory (that is what a relative `@source`
+    // resolves against — measured, not assumed).
+    const inWorkspace = buildRoutedAppFiles(ROUTES, APP_CONFIG, IN_WORKSPACE)['src/index.css'];
+    expect(inWorkspace).toContain(`@source '../index.html';`);
+    expect(inWorkspace).toContain(`@source '../src/**/*.{js,ts,jsx,tsx,json}';`);
+    expect(inWorkspace).toContain(
+      `@source '${join(REPO_ROOT, 'packages/components/src/**/*.{ts,tsx}')}';`
+    );
+    expect(inWorkspace).toContain(
+      `@source '${join(REPO_ROOT, 'packages/plugin-*/src/**/*.{ts,tsx}')}';`
+    );
+
+    // Outside a workspace those two packages are installed rather than aliased,
+    // so the equivalent scan face is their built output under `node_modules` —
+    // which v4 does not auto-detect, being gitignored.
+    const standalone = routedFiles()['src/index.css'];
+    expect(standalone).toContain(`@source '../node_modules/@object-ui/*/dist/**/*.js';`);
+    expect(standalone).not.toContain(STANDALONE.cwd);
+  });
+
+  it('declares every theme token the component library declares', () => {
+    // The generated app owns the single Tailwind entrypoint for everything it
+    // renders — `@object-ui/components` deliberately does not inject its own
+    // sheet — so a `--color-*` token the library's classes resolve through and
+    // this stylesheet omits is a class that compiles to nothing. Comparing the
+    // two sets rather than listing literals means adding a token to the library
+    // fails here instead of silently degrading a generated app.
+    const libraryTokens = themeTokensOf(
+      readFileSync(resolve(REPO_ROOT, 'packages/components/src/index.css'), 'utf-8')
+    );
+    expect(libraryTokens.length, 'the library must declare tokens to compare against').
+      toBeGreaterThan(20);
+    // Non-vacuous in the direction that failed: the v3 config's `theme.extend`
+    // omitted the sidebar tokens the generated `src/Layout.tsx` itself uses.
+    expect(libraryTokens).toContain('--color-sidebar-primary');
+    expect(libraryTokens).toContain('--color-sidebar-accent-foreground');
+
+    for (const [shape, files] of Object.entries(everyShape())) {
+      expect(themeTokensOf(files['src/index.css']), `${shape}`).toEqual(libraryTokens);
+    }
+  });
+
+  it('resolves every theme token through a variable it declares itself', () => {
+    // Self-consistency, and the other half of the gate above: `--color-sidebar:
+    // hsl(var(--sidebar))` is worth nothing if `--sidebar` is undeclared. Both
+    // light and dark have to carry it, or the token evaluates to nothing under
+    // `.dark` only — the hardest version of this bug to notice.
+    for (const [shape, files] of Object.entries(everyShape())) {
+      const css = files['src/index.css'];
+      const declared = declaredCustomProperties(css);
+      const referenced = customPropertiesReferencedByTheme(css);
+      // Non-vacuity first, and not decoration: run against the pre-fix v3
+      // stylesheet this gate passes, because a CSS file with no `@theme` at all
+      // references nothing and an empty set has no undeclared member. Every
+      // other gate here went red on that input; this one was green for the
+      // "produces nothing" reason objectui#3826 warns about.
+      expect(referenced.length, `${shape}: no @theme tokens to check`).toBeGreaterThan(20);
+
+      const missing = referenced.filter((property) => !declared.has(property));
+      expect(missing, `${shape}: @theme resolves through undeclared variables`).toEqual([]);
+
+      const dark = /\.dark\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? '';
+      const darkDeclared = new Set(
+        [...dark.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)].map((match) => match[1])
+      );
+      const colourVariables = referenced.filter((property) => property !== '--radius');
+      expect(
+        colourVariables.filter((property) => !darkDeclared.has(property)),
+        `${shape}: .dark leaves colour variables at their light values`
+      ).toEqual([]);
     }
   });
 });
