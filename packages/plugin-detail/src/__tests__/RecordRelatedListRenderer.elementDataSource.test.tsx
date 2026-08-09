@@ -13,20 +13,20 @@
  * requires, so a related list authored with the binding hit the
  * "missing objectName" placeholder instead of listing anything.
  *
- * ## The one key that is NOT mapped, and why it is a finding
+ * ## The key that used to be unmapped, and what closed it
  *
- * `filter` stays unmapped: this renderer DECLARES `filter` in its registry
- * `inputs` ("Additional filter criteria") and never reads it — `RelatedList`
- * builds its query from `{ [referenceField]: parentId }` alone and takes no
- * filter prop for the list's own scope. Mapping the composed filter onto
- * `schema.filter` would hand it to a key nothing consumes, which is the defect
- * objectstack#6953 removes rather than spreads.
+ * `filter` was deliberately left out of the mapping when this suite was written:
+ * the renderer DECLARED `filter` and nothing read it — `RelatedList` built its
+ * query from `{ [referenceField]: parentId }` alone and had no prop for the
+ * list's own scope — so writing the composed filter onto `schema.filter` would
+ * have handed it to a dead key, which is the defect objectstack#6953 removes
+ * rather than spreads. The last test pinned that consequence honestly: a saved
+ * view named here contributed its columns / sort / limit while its FILTER was
+ * dropped, so the list could be wider than the view it names.
  *
- * The consequence is pinned rather than left implicit (last test): while that
- * gap is open, a saved view named here contributes its columns / sort / limit and
- * its FILTER is dropped, so the list can be wider than the view it names. When
- * the flat `filter` gains a read site (objectstack#7118), `filter: true` belongs
- * in the mapping and that test is the one that must change.
+ * objectstack#7118 gave the key a read site, so that test is now the POSITIVE
+ * assertion its own comment predicted: the composed filter reaches `RelatedList`
+ * and the list can no longer be wider than the view it names.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -117,16 +117,45 @@ describe('record:related_list — dataSource: { object, view } (objectstack#6953
     expect(h.captured.pageSize).toBe(7);
   });
 
-  it('does NOT hand a composed filter to a key this block cannot read (open gap)', async () => {
-    // Honest pin on the residual gap, not a claim that filtering works: the
-    // renderer declares `filter` and never reads it, and `RelatedList` has no
-    // prop for the list's own filter. Writing the view's filter onto
-    // `schema.filter` would look like wiring and change nothing, so the mapping
-    // does not — and this asserts that no filter reaches `RelatedList` under any
-    // spelling. Filed as objectstack#7118; when a read site lands, this flips.
+  it('hands the composed view-AND-binding filter to the list (objectstack#7118)', async () => {
+    // The flipped half of this suite. Before objectstack#7118 the assertion here
+    // was `h.captured.filter` is `undefined` — an honest pin on a dead declared
+    // key, with the note that a read site would invert it. It did, so this now
+    // asserts the composition arrives: the view's own filter and the binding's,
+    // ANDed, on the prop `RelatedList` reads for the list's own scope.
     renderRelated({ dataSource: { object: 'contact', view: 'recent', filter: [['x', '=', 1]] } });
     await waitFor(() => expect(h.captured).toBeTruthy());
-    expect(h.captured.filter).toBeUndefined();
+    expect(h.captured.filter).toEqual(['and', [['is_active', '=', true]], [['x', '=', 1]]]);
+    // Still not `baseFilter` — that prop is the ADD PICKER's candidate
+    // restriction (`add.picker.filter`, #3831). Routing the list's scope there
+    // would filter the dialog and leave the list wide.
     expect(h.captured.baseFilter).toBeUndefined();
+  });
+
+  it('narrows, never widens: an authored filter survives alongside the view’s', async () => {
+    // The binding's contract in one case — "additional filter criteria" means
+    // the component's own key and the view's both stay in force. A mapping that
+    // let one replace the other would be able to widen a named view, which is
+    // the failure class the binding exists to remove.
+    renderRelated({
+      filter: [{ field: 'stage', operator: 'equals', value: 'won' }],
+      dataSource: { object: 'contact', view: 'recent' },
+    });
+    await waitFor(() => expect(h.captured).toBeTruthy());
+    expect(h.captured.filter).toEqual([
+      'and',
+      [['stage', 'equals', 'won']],
+      [['is_active', '=', true]],
+    ]);
+  });
+
+  it('leaves an unbound list’s authored filter exactly as authored', async () => {
+    // No binding: the schema key passes through by reference, in the spec's own
+    // vocabulary. `RelatedList` owns the lowering (its own suite pins it), so
+    // nothing converts it twice on the way down.
+    const authored = [{ field: 'stage', operator: 'equals', value: 'won' }];
+    renderRelated({ objectName: 'contact', filter: authored });
+    await waitFor(() => expect(h.captured).toBeTruthy());
+    expect(h.captured.filter).toBe(authored);
   });
 });

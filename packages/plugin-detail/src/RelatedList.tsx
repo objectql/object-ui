@@ -47,7 +47,10 @@ import {
   getRecordDisplayName,
   getSortValue,
   isExpandableFieldType,
+  mergeFilterNodes,
+  toFilterNode,
   userActionPredicates,
+  type FilterNode,
 } from '@object-ui/core';
 import { useSafeFieldLabel } from '@object-ui/react';
 import { usePermissions } from '@object-ui/permissions';
@@ -136,6 +139,29 @@ export interface RelatedListProps {
    * @default false
    */
   sortable?: boolean;
+  /**
+   * The list's OWN scope filter — spec `RecordRelatedListProps.filter`
+   * ("Additional filter criteria for related records"), which had no read site
+   * on this component at all until objectstack#7118: the query was built from
+   * `{ [referenceField]: parentId }` alone, so an authored `filter` (and the
+   * FILTER half of a `dataSource` binding's saved view) was accepted by every
+   * gate and silently dropped — the list answered wider than the metadata asked.
+   *
+   * ANDed with the parent-relationship condition, never substituted for it:
+   * "additional" means it may only narrow this parent's children. That is also
+   * why it is not routed through `data-table`'s `lookupFilters` — those render
+   * as filter-bar rows the user can edit, which demotes the author's constraint
+   * to a suggestion (#3831 argued this for `add.picker.filter`; it holds harder
+   * for the list's own scope).
+   *
+   * Two shapes arrive, both produced by our own layers: the spec vocabulary
+   * (`ViewFilterRule[]`) as authored, and an ObjectQL AST node as composed by
+   * `ElementDataSourceGate` (which ANDs component/view/binding filters through
+   * `mergeFilterNodes` before this component ever sees them). Both are lowered
+   * here through that same single sink — the repo's one filter→wire exit — so no
+   * second conversion dialect appears.
+   */
+  filter?: ViewFilterRule[] | FilterNode;
   /** Enable text filtering */
   filterable?: boolean;
   /** Whether the card is collapsible */
@@ -290,6 +316,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   pageSize,
   defaultSort,
   sortable = false,
+  filter,
   filterable = false,
   collapsible = false,
   defaultCollapsed = false,
@@ -359,6 +386,18 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     () => normalizeSortSpec(defaultSort),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [defaultSortKey],
+  );
+  // The list's own scope filter, lowered to an ObjectQL node once. Keyed on
+  // CONTENT for the reason `defaultSortSpec` is: an inline `filter` array on a
+  // schema node is a new identity every render, and this value is a dependency
+  // of the fetch effect — keying on identity would refetch the collection on
+  // every render. `undefined` means "nothing authored", so the query below stays
+  // byte-identical to what it sent before this key had a read site.
+  const filterKey = JSON.stringify(filter ?? null);
+  const listFilterNode = React.useMemo(
+    () => toFilterNode(filter),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filterKey],
   );
 
   // Sync internal state when data prop changes (e.g., parent fetches async data)
@@ -454,9 +493,19 @@ export const RelatedList: React.FC<RelatedListProps> = ({
         return;
       }
       setLoading(true);
-      const filter = { [referenceField!]: parentId } as Record<string, any>;
+      const parentScope = { [referenceField!]: parentId } as Record<string, any>;
+      // Parent relationship AND the list's own scope (objectstack#7118). The
+      // parent condition is never negotiable — an "additional" criterion may only
+      // narrow this parent's children — and with nothing authored the query is
+      // the untouched MongoDB-style object it has always been, rather than a
+      // freshly lowered AST that means the same thing (the difference is
+      // invisible on screen and visible to every caller pinning the wire).
+      const queryFilter =
+        listFilterNode === undefined
+          ? parentScope
+          : mergeFilterNodes(parentScope, listFilterNode);
       if (dataSource && typeof dataSource.find === 'function') {
-        const params: Record<string, any> = { $filter: filter };
+        const params: Record<string, any> = { $filter: queryFilter };
         if (windowed) {
           params.$top = effectivePageSize;
           params.$skip = fetchPage * effectivePageSize;
@@ -497,6 +546,22 @@ export const RelatedList: React.FC<RelatedListProps> = ({
           console.error('Failed to fetch related data:', err);
           if (!cancelled) setLoading(false);
         });
+      } else if (listFilterNode !== undefined) {
+        // No adapter — the legacy raw-URL path, whose query language is
+        // `filter[<field>]=<value>` and cannot carry an operator, let alone a
+        // rule array. Dropping the authored filter here would answer with MORE
+        // rows than the metadata asked for, silently: the exact class this key's
+        // wiring exists to remove (objectstack#7118), so it refuses and says so
+        // instead. Empty-and-loud beats wider-and-quiet; the guard above refuses
+        // an unscoped fetch on the same reasoning.
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[RelatedList] "${api}" declares a filter but has no dataSource adapter — the raw-URL fallback cannot express it, so no rows are fetched. Pass a dataSource (RecordContext) to use a filtered related list.`,
+        );
+        setRelatedData([]);
+        setTotal(null);
+        setHasMore(false);
+        setLoading(false);
       } else {
         const qs = new URLSearchParams({
           [`filter[${referenceField}]`]: String(parentId),
@@ -519,7 +584,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [api, dataProvided, dataSource, referenceField, parentId, refreshNonce, windowed, effectivePageSize, fetchPage, fetchSortField, fetchSortDirection, defaultSortSpec]);
+  }, [api, dataProvided, dataSource, referenceField, parentId, refreshNonce, windowed, effectivePageSize, fetchPage, fetchSortField, fetchSortDirection, defaultSortSpec, listFilterNode]);
 
   // Windowed mode: a page beyond the (shrunken) collection — e.g. the last
   // row of the last page was just deleted — comes back empty. Step back one
@@ -531,11 +596,14 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     }
   }, [windowed, loading, relatedData, currentPage]);
 
-  // A different parent (or relationship) is a different collection — restart
-  // from the first page.
+  // A different parent (or relationship, or list scope) is a different
+  // collection — restart from the first page. `filterKey` belongs here for the
+  // same reason the other three do: page 3 of the unfiltered children is not
+  // page 3 of the filtered ones.
   React.useEffect(() => {
     setCurrentPage(0);
-  }, [api, referenceField, parentId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api, referenceField, parentId, filterKey]);
 
   // Refetch when a mutation elsewhere signals this related object changed —
   // e.g. a child row action executed through the host retargets `api` and
@@ -1154,8 +1222,21 @@ export const RelatedList: React.FC<RelatedListProps> = ({
                 truthy: an `add` without `picker` is metadata the spec rejects,
                 and offering a button that could never open a picker is worse
                 than withholding it (#3838 — the console hint above names the
-                missing key). */}
-            {add && pickerObject && (
+                missing key).
+
+                `dataSource` is part of the SAME gate, because the dialog this
+                button opens (below, `add && pickerObject && dataSource`) and the
+                callback it ends in (`handleAddRecords`: `if (!add ||
+                !dataSource || …) return`) both require it. Without it the button
+                rendered, `setPickerOpen(true)` ran, and no dialog existed to
+                observe the flag: a click with NO visible reaction and no
+                message. Hosts where that is real are the ones passing
+                `dataSource={ctx?.dataSource}` with no `RecordContext` bound —
+                the Studio designer preview and context-free embeds
+                (`renderers/record-related-list.tsx`). Same principle as #3838
+                one condition further: an affordance is offered only where the
+                capability behind it exists (objectui#3895). */}
+            {add && pickerObject && dataSource && (
               <Button
                 variant={isEmpty ? 'ghost' : 'outline'}
                 size="sm"

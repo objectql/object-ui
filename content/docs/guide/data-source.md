@@ -247,7 +247,7 @@ ignores would be accepted and dropped, which is the defect this binding removes.
 | `list-view` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `object-grid` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `element:record_picker` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `record:related_list` | ✅ | columns / sort / limit | — (see below) | ✅ | ✅ |
+| `record:related_list` | ✅ | columns / filter / sort / limit | ✅ | ✅ | ✅ |
 | `object-calendar` | ✅ | filter / sort | ✅ | ✅ | — no row cap |
 | `object-kanban` | ✅ | filter | ✅ | — no ordering | — fixed window |
 | `object-chart` | ✅ | filter | ✅ | — engine orders | — no page |
@@ -259,12 +259,16 @@ on that block. A view name that does not resolve is reported as a configuration
 error on **every** block in the table, including the ones that take nothing else
 from the view — so a typo never passes silently, whatever the block.
 
-Two current gaps, recorded rather than papered over:
+On `record:related_list` the composed filter is AND-combined with the parent
+relationship condition, never substituted for it: a related list is always scoped
+to the record it appears on, and an *additional* criterion can only narrow that
+set further. (Until objectstack#7118 this block declared `filter` without reading
+it, so a named view contributed its columns / sort / limit while its filter was
+dropped — the list could be wider than the view it named. That gap is closed; the
+`filter` cell above is what closed it.)
 
-- `record:related_list` declares a flat `filter` its renderer does not read (the
-  list scopes itself by the parent relationship alone), so a view named there
-  contributes columns / sort / limit and its filter is dropped — the list can be
-  wider than the view it names.
+One current gap, recorded rather than papered over:
+
 - `object-form` resolves `view` only to report an unresolvable name; a view that
   does resolve contributes nothing, because a list view's columns are not a form
   layout.

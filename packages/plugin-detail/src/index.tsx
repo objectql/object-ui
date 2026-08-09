@@ -320,7 +320,15 @@ ComponentRegistry.register('related_list', RecordRelatedListRenderer, {
     { name: 'columns', type: 'array', label: 'Columns', required: true, description: 'Fields to display in the related list' },
     { name: 'sort', type: 'array', label: 'Sort' },
     { name: 'limit', type: 'number', label: 'Limit', defaultValue: 5, description: 'Records to display initially' },
-    { name: 'filter', type: 'array', label: 'Filter', description: 'Additional filter criteria' },
+    // `type: 'array'` matches the spec (`RecordRelatedListProps.filter` is
+    // `z.array(ViewFilterRuleSchema)`), and the description now names the MEMBER
+    // shape for the reason `add`'s does: `ComponentInput` is flat, so an array
+    // input can document its element vocabulary nowhere else — and this key is
+    // one an AI author reaches for often. It also states the combining rule,
+    // which is the part a wrong guess makes dangerous rather than merely broken:
+    // an author who reads "filter" as "the list's whole filter" would expect it
+    // to be able to widen past the parent record, and it cannot (objectstack#7118).
+    { name: 'filter', type: 'array', label: 'Filter', description: 'Additional filter criteria, as spec `ViewFilterRule` entries (`[{ field, operator, value }]`). AND-combined with the parent relationship condition, never a replacement for it: it can only narrow this record\'s children. Also the key a per-element `dataSource` binding\'s composed filter lands on.' },
     { name: 'title', type: 'string', label: 'Title' },
     { name: 'showViewAll', type: 'boolean', label: 'Show "View All"', defaultValue: true },
     { name: 'actions', type: 'array', label: 'Actions', description: 'Action IDs available for related records' },
