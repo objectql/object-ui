@@ -9,6 +9,7 @@
 import React from 'react';
 import { cn } from '@object-ui/components';
 import { useFieldTranslation } from './useFieldTranslation';
+import type { HostGroupProps } from './toHostGroupProps';
 
 /**
  * The "this option list cannot be filled" state shared by every fixed-option
@@ -52,6 +53,19 @@ export interface OptionsEmptyStateProps {
   testId?: string;
   /** Widget-specific sizing (the dropdown is a fixed `h-9`, lists grow). */
   className?: string;
+  /**
+   * The host label's IDREF plumbing, when this box is the whole rendered surface
+   * of a group-labelled field (objectui#3990) — a `checkboxes` / `radio` /
+   * `multiselect` whose option list came back empty renders NOTHING but this
+   * box, so the visible label named zero elements until it landed here.
+   *
+   * A closed three-key type rather than an open props tail: only `id`,
+   * `aria-labelledby` and the `role` that makes them meaningful may reach this
+   * element, and reopening a spread is what objectui#3291 exists to prevent.
+   * Absent for the single `SelectField` — it is not group-labelled, its label
+   * still uses a plain `for`, and it must keep emitting no such attributes.
+   */
+  hostGroupProps?: HostGroupProps;
 }
 
 export function OptionsEmptyState({
@@ -60,6 +74,7 @@ export function OptionsEmptyState({
   dependsOnFields,
   testId,
   className,
+  hostGroupProps,
 }: OptionsEmptyStateProps) {
   const { t } = useFieldTranslation();
   // The host's hint when it computed one; otherwise this widget's own copy,
@@ -71,6 +86,7 @@ export function OptionsEmptyState({
       : t('fields.options.empty'));
   return (
     <div
+      {...hostGroupProps}
       data-testid={testId}
       className={cn(
         'flex w-full items-center rounded-md border border-input bg-muted/30 px-3 py-2 text-sm text-muted-foreground',

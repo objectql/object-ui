@@ -2,6 +2,7 @@ import React, { useId } from 'react';
 import { Input, Label, EmptyValue } from '@object-ui/components';
 import { FieldWidgetComponentProps } from './types';
 import { toDomProps } from './toDomProps';
+import { toHostGroupProps } from './toHostGroupProps';
 
 /**
  * Address data structure — the part names of `@objectstack/spec`'s
@@ -72,10 +73,15 @@ export function AddressField({ value, onChange, field, readonly, error, ...props
   // stays on the first sub-input: a description or error must be announced when
   // focus lands on something focusable, and a container is not.
   const {
-    id: hostId,
-    'aria-labelledby': hostLabelledBy,
+    id: _hostId,
+    'aria-labelledby': _hostLabelledBy,
     ...domProps
   } = toDomProps(props);
+  // The pair held back above, in the one spelling every group-labelled widget
+  // uses for it — and computed HERE, before the readonly early return below,
+  // because that return used to drop both keys on the floor: a published label
+  // id with no consumer in the document (objectui#3990). See `toHostGroupProps`.
+  const hostGroupProps = toHostGroupProps(props);
   // Sub-input ids (objectui#3343): `useId()` prefix + sub-field name — the
   // `groupId` paradigm of RadioField / CheckboxesField. Hardcoded literals
   // ("street", "city", …) collide as soon as a form renders two address
@@ -112,21 +118,28 @@ export function AddressField({ value, onChange, field, readonly, error, ...props
   };
 
   if (readonly) {
+    // Readonly the composite collapses to ONE formatted line — no sub-inputs and
+    // no sub-labels — so that line is the surface the host label names, and
+    // `EmptyValue` is the same surface with nothing in it (objectui#3990). The
+    // placeholder's own `aria-label` ("No value") is outranked by
+    // `aria-labelledby` per accname, and on its `generic` role an author name was
+    // never exposed anyway.
     const formatted = formatAddress(address);
-    return formatted ? <span className="text-sm">{formatted}</span> : <EmptyValue />;
+    return formatted ? (
+      <span {...hostGroupProps} className="text-sm">{formatted}</span>
+    ) : (
+      <EmptyValue {...hostGroupProps} />
+    );
   }
 
   return (
     // `role="group"` only when a host actually named this container
     // (objectui#3961): an unnamed group adds nothing for assistive tech, and
     // standalone rendering — the inline grid editor, a bare SDUI node — must stay
-    // byte-identical to what it was before.
-    <div
-      className="space-y-3"
-      id={hostId}
-      role={hostLabelledBy ? 'group' : undefined}
-      aria-labelledby={hostLabelledBy}
-    >
+    // byte-identical to what it was before. That condition now lives in
+    // `toHostGroupProps` so this container and the readonly line above cannot
+    // answer differently (objectui#3990).
+    <div className="space-y-3" {...hostGroupProps}>
       <div>
         <Label htmlFor={subId('street')} className="text-xs">Street Address</Label>
         <Input

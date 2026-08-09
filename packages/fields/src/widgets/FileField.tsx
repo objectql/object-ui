@@ -5,6 +5,7 @@ import { useObjectTranslation } from '@object-ui/i18n';
 import { Upload, X, File as FileIcon, ImageIcon, Camera, Loader2 } from 'lucide-react';
 import { FieldWidgetComponentProps } from './types';
 import { toDomProps } from './toDomProps';
+import { toHostGroupProps } from './toHostGroupProps';
 import { useUploadingSignal } from './useUploadingSignal';
 import {
   fileValueForSubmit,
@@ -184,10 +185,18 @@ export function FileField({ value, onChange, field, readonly, onUploadingChange,
   }, [accept, processFiles]);
 
   if (readonly) {
-    if (!value) return <EmptyValue />;
+    // Readonly there is no dropzone: the field's whole rendered surface is the
+    // list of file names, so THAT is what the host's group label names
+    // (objectui#3990). The role is therefore `group` here and `button` (the
+    // dropzone) while editable — the same widget, two different surfaces. See
+    // `toHostGroupProps`; `EmptyValue`'s own `aria-label` ("No value") is
+    // outranked by `aria-labelledby` per accname, and on the `generic` role that
+    // placeholder span carries it was never exposed as a name anyway.
+    const hostGroupProps = toHostGroupProps(props);
+    if (!value) return <EmptyValue {...hostGroupProps} />;
 
     return (
-      <div className="flex flex-wrap gap-2">
+      <div {...hostGroupProps} className="flex flex-wrap gap-2">
         {views.map((file, idx) => (
           <span key={idx} className="text-sm truncate max-w-xs">
             {file.name}
