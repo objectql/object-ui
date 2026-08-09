@@ -1,0 +1,43 @@
+{
+  // Type-checks this package's TESTS, which `tsconfig.json` does not read.
+  // See `packages/types/tsconfig.test.json` for why that is a hole: the build
+  // config correctly keeps tests out of `dist`, but nothing else compiled them,
+  // so a test could assert a contract the compiler never checked.
+  //
+  // This package is the one that made `scripts/check-type-check-coverage.mjs`
+  // blind (objectui#3968): its tests live in `test/` rather than `src/`, and
+  // `tsconfig.json` keeps them out by naming the DIRECTORY in `exclude` instead
+  // of a `*.test.` glob. Both of those were invisible to the gate, so the four
+  // files here were read by no `tsc` invocation while the gate reported green.
+  //
+  // Not folded into `tsconfig.json`: that file is the package BUILD (`tsc` ->
+  // `dist`, `rootDir: ./src`, `declaration`), so a test compiled by it would
+  // emit into the published output and `test/` would break `rootDir`.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // The package build emits `dist` from `src`; this project emits nothing, so
+    // it must not inherit the emit options — and `rootDir` has to widen to the
+    // package root because the tests sit beside `src`, not inside it.
+    "rootDir": ".",
+    "declaration": false,
+    "declarationMap": false,
+    "composite": false,
+    // The tests are `.tsx` (they render catalog examples through the real
+    // `SchemaRenderer`); the build config has no `jsx` because `src/` is JSON
+    // plus plain `.ts`.
+    "jsx": "react-jsx"
+  },
+  // `test/`, not `src/`: that is where this package keeps its tests, and it is
+  // the layout the gate could not see.
+  "include": ["test/**/*.test.ts", "test/**/*.test.tsx"],
+  // Load-bearing, and the first draft of this file got it wrong: `exclude` is
+  // INHERITED from `tsconfig.json`, which excludes the whole `test` DIRECTORY.
+  // Leaving it inherited made this project compile zero files — `tsc` said
+  // TS18003 ("No inputs were found"), which is loud, but a project that covered
+  // only SOME of the tests would have been silent. That is why section 5b of
+  // `scripts/check-type-check-coverage.mjs` now checks that this project really
+  // reads every test file the build config misses, rather than only that a
+  // `*.test.` glob appears somewhere in it.
+  "exclude": ["node_modules", "dist"]
+}

@@ -22,7 +22,7 @@
     "clean": "rm -rf dist",
     "regenerate": "python3 ../../scripts/regenerate-catalog-index.py",
     "test": "vitest run",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsc --noEmit && tsc -p tsconfig.test.json",
     "lint": "eslint ."
   },
   "dependencies": {
@@ -31,6 +31,7 @@
   "devDependencies": {
     "@object-ui/components": "workspace:*",
     "@object-ui/core": "workspace:*",
+    "@object-ui/fields": "workspace:*",
     "@object-ui/layout": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/sdui-parser": "workspace:*",
