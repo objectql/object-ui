@@ -344,12 +344,13 @@ describe('the validator now reports the node shape that is guaranteed to crash (
   });
 
   it('does not report the optional props the renderer defaults', () => {
-    // The control that keeps `required` a per-prop fact. `basePath` is omitted in
-    // both nodes above; the renderer defaults it (`basePath = ''`), the
-    // declaration leaves `required` unset, and the gate must stay silent about
-    // it. If this goes red, the tightening has spread from "the prop whose
-    // absence crashes" to "every declared prop", and the assertions above stop
-    // meaning what they say.
+    // The control that keeps `required` a per-prop fact. `basePath` is omitted
+    // here (as it is in the first node of the test above, while the second one
+    // supplies it — both validate clean): the renderer defaults it
+    // (`basePath = ''`), the declaration leaves `required` unset, and the gate
+    // must stay silent about it. If this goes red, the tightening has spread
+    // from "the prop whose absence crashes" to "every declared prop", and the
+    // assertions above stop meaning what they say.
     const codes = diagnose({ type: 'navigation-renderer', items: [] }).map((d) => d.code);
     expect(codes).not.toContain(REQUIRED);
 
