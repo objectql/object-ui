@@ -197,9 +197,14 @@ Studio as browse-only.
 ### Studio package scope
 
 Studio treats the selected package as the authoring scope. The package selector
-is mandatory, and Studio repairs missing `?package=` query parameters from the
-last selected package or the first project package so scoped pages do not drift
-out of sync with the sidebar. The Studio home overview, quick-create links,
+is mandatory, and Studio repairs a missing `?package=` query parameter from the
+first project package so scoped pages do not drift out of sync with the sidebar.
+It is *not* repaired from the last selected package any more: Studio declares
+`persist: 'query'`, and each `persist` value now names exactly one medium — the
+URL for `'query'`, `sessionStorage` for `'session'`, neither for `'none'`
+(objectstack#5994). An app that wants its scope remembered beyond the URL
+declares `persist: 'session'`, which keeps it out of the address bar in
+exchange. The Studio home overview, quick-create links,
 metadata counts, and diagnostics all follow that active package. The dedicated
 package-management page remains the global place to create, import, publish,
 enable, or disable packages; direct `/metadata/package` links redirect there.
