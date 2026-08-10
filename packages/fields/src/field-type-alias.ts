@@ -7,14 +7,62 @@
  */
 
 /**
+ * The slice of a field definition the widget decision reads beyond `type`.
+ *
+ * Structural (not the spec `Field`) for the same reason the spec's own
+ * `ValueShapeFieldDef` is: every caller — object-schema metadata, a spec
+ * `FormFieldSchema` override, an action param def — can pass its own trimmed
+ * shape verbatim. `multiple` is the only key read; nothing else here is
+ * consulted, so a caller that has the whole metadata object may hand it over
+ * as-is.
+ */
+export interface FieldTypeMappingConfig {
+  /** `FieldSchema.multiple` — the field holds zero-or-more values. */
+  multiple?: boolean | null;
+}
+
+/**
+ * Field types whose `multiple: true` form is a DIFFERENT registered widget,
+ * rather than the same widget in another mode (objectui#3986).
+ *
+ * `select` is the only member, and the narrowness is measured, not assumed. The
+ * spec's `MULTI_CAPABLE_TYPES` is larger — select / lookup / file / image, with
+ * `radio` on the select branch and `user` storing like `lookup` — but every
+ * other member renders both arities INSIDE one widget: `LookupField`,
+ * `FileField` and `ImageField` each branch on `multiple` themselves, so their
+ * registry id, and with it their `labelling` declaration, is the same either
+ * way. A `select` declared `multiple: true` renders `MultiSelectField` instead:
+ * a different component, whose labelled surface is a chip row's container that
+ * a `<label for>` cannot address (it must be named by IDREF, which is what
+ * `field:multiselect`'s `labelling: 'group'` declares — objectui#3975/#3961).
+ *
+ * So the widget id has to carry the arity. When it did not, the host label was
+ * associated by the declaration registered under `select` — a single-value
+ * combobox that was NOT rendering — and the visible label of a normal
+ * `{ type: 'select', multiple: true }` picklist named nothing at all. One place
+ * decides which widget renders, so the declaration and the render cannot
+ * disagree again.
+ */
+const MULTI_VALUE_FORM_TYPES: Record<string, string> = {
+  select: 'field:multiselect',
+};
+
+/**
  * Map field type to form component type
- * 
+ *
  * @param fieldType - The ObjectQL field type identifier to convert
  * (for example: `"text"`, `"number"`, `"date"`, `"lookup"`).
+ * @param config - The rest of the field definition, for the types whose widget
+ * identity depends on more than the type string. Only `multiple` is read; see
+ * {@link MULTI_VALUE_FORM_TYPES}. Omitting it maps the single-value form, which
+ * is what every non-multi-capable type resolves to anyway.
  * @returns The normalized form field type string used in the form schema
  * (for example: `"input"`, `"textarea"`, `"date-picker"`, `"select"`).
  */
-export function mapFieldTypeToFormType(fieldType: string): string {
+export function mapFieldTypeToFormType(
+  fieldType: string,
+  config?: FieldTypeMappingConfig,
+): string {
   const typeMap: Record<string, string> = {
     // Text-based fields
     text: 'field:text',
@@ -95,6 +143,14 @@ export function mapFieldTypeToFormType(fieldType: string): string {
     autonumber: 'field:auto_number',
     auto_number: 'field:auto_number',
   };
+
+  // The arity override comes FIRST and is table-driven: only a type listed in
+  // `MULTI_VALUE_FORM_TYPES` has a second widget to move to, so `multiple` on
+  // any other type (a multi `lookup`, a multi `file`) resolves exactly as
+  // before and keeps reaching the widget that handles both arities itself.
+  if (config?.multiple && MULTI_VALUE_FORM_TYPES[fieldType]) {
+    return MULTI_VALUE_FORM_TYPES[fieldType];
+  }
 
   return typeMap[fieldType] || 'field:text';
 }

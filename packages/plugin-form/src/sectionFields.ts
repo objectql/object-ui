@@ -98,7 +98,11 @@ function fromObjectSchema(fieldName: string, ctx: SectionFieldsContext): FormFie
   return {
     name: fieldName,
     label: ctx.fieldLabel(ctx.objectName, fieldName, field.label || fieldName),
-    type: mapFieldTypeToFormType(field.type),
+    // The widget id is a function of the (type, multiple) PAIR, not of the type
+    // alone: a `select` declared `multiple: true` renders the multi-value chip
+    // picker, and the label-association declaration is keyed on the widget that
+    // actually renders (objectui#3986).
+    type: mapFieldTypeToFormType(field.type, { multiple: field.multiple }),
     required: field.required || false,
     disabled: ctx.readOnly || ctx.mode === 'view' || field.readonly,
     placeholder: field.placeholder,
@@ -145,7 +149,6 @@ export function normalizeSectionField(
   const fieldName = fd.field;
   const base = fromObjectSchema(fieldName, ctx) as any;
 
-  if (fd.type != null) base.type = mapFieldTypeToFormType(fd.type);
   if (fd.widget != null) base.widget = fd.widget;
   if (fd.label != null) base.label = fd.label;
   if (fd.placeholder != null) base.placeholder = fd.placeholder;
@@ -158,6 +161,19 @@ export function normalizeSectionField(
   if (fd.span != null) base.span = fd.span;
   if (fd.options != null) base.options = fd.options;
   if (fd.multiple != null) base.multiple = fd.multiple;
+  // The widget id is decided ONCE, here, from the EFFECTIVE (type, multiple)
+  // pair — because both halves are overridable at the view level and either one
+  // alone moves the widget (objectui#3986). A view restating only `multiple:
+  // true` over an object-schema `select` must land on the multi-value picker
+  // just as a view restating `type: 'select'` alongside it does; resolving from
+  // `fd.type` before `multiple` had been merged could see only one half.
+  //
+  // `rawType` is the PRE-alias spelling, kept because `base.type` is already the
+  // mapped id (`field:…`) and re-deciding from it would need an inverse mapping.
+  // Absent on both sides (a spec field naming nothing in the object schema and
+  // declaring no type) it stays untouched — `fromObjectSchema`'s `input`.
+  const rawType = fd.type ?? ctx.objectSchema?.fields?.[fieldName]?.type;
+  if (rawType != null) base.type = mapFieldTypeToFormType(rawType, { multiple: base.multiple });
   // Spec canon for the lookup target is `reference_to` (views.zod.ts); accept
   // both spellings and stamp both keys so dual-key readers see the override.
   const refOverride = fd.reference ?? fd.reference_to;

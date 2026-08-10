@@ -322,7 +322,8 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
       generated.push({
         name,
         label: fieldLabel(schema.objectName, name, field.label || name),
-        type: mapFieldTypeToFormType(field.type),
+        // (type, multiple) decides the widget (objectui#3986) — see `sectionFields`.
+        type: mapFieldTypeToFormType(field.type, { multiple: field.multiple }),
         required: field.required || false,
         disabled: schema.readOnly || schema.mode === 'view' || field.readonly,
         placeholder: field.placeholder,

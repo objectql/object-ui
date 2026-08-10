@@ -31,7 +31,7 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';
-import { registerAllFields } from '../index';
+import { registerAllFields, mapFieldTypeToFormType } from '../index';
 
 /**
  * Every field type whose host label must be associated by IDREF. Two shapes, one
@@ -109,5 +109,40 @@ describe('field widgets declare how their label must be associated (objectui#396
       .sort();
 
     expect(declared).toEqual([...GROUP_LABELLED].sort());
+  });
+});
+
+/**
+ * The join between the two halves (objectui#3986). The declaration above is
+ * per-WIDGET; a form asks for a widget by the id its producer emitted. So the
+ * declaration only reaches the right widget if the producer names the widget that
+ * will actually render — and for `select` that depends on `multiple`, not on the
+ * type string alone.
+ *
+ * Asserting the pair here, rather than in either half alone, is what makes the
+ * failure visible: `mapFieldTypeToFormType`'s own test cannot know what
+ * `labelling` the id it returns carries, and the declaration test cannot know
+ * which id a `multiple: true` select resolves to. The gap between those two blind
+ * spots is exactly where this bug lived.
+ */
+describe('the widget id the object form emits carries the right declaration (objectui#3986)', () => {
+  const labellingOf = (formType: string) =>
+    ComponentRegistry.getMeta(formType.replace(/^field:/, ''), 'field')?.labelling;
+
+  it('select + multiple resolves to a widget declared `group`', () => {
+    // Before the producer fix this resolved to `field:select`, whose declaration
+    // is (correctly) absent — so the host kept emitting a `for` at the chip row's
+    // wrapper `div`, and the visible label named nothing.
+    const formType = mapFieldTypeToFormType('select', { multiple: true });
+    expect(formType).toBe('field:multiselect');
+    expect(labellingOf(formType)).toBe('group');
+  });
+
+  it('a single-value select still resolves to an UNDECLARED widget', () => {
+    // The guard direction. `select`'s trigger is a labelable
+    // `button[role=combobox]`; declaring it `group` would strip a working `for`.
+    const formType = mapFieldTypeToFormType('select');
+    expect(formType).toBe('field:select');
+    expect(labellingOf(formType)).toBeUndefined();
   });
 });

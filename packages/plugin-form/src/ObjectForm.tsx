@@ -564,7 +564,11 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
         const formField: FormField = {
           name: name,
           label: fieldLabel(schema.objectName, name, field.label || fieldName),
-          type: mapFieldTypeToFormType(field.type),
+          // (type, multiple) decides the widget, not the type alone: a `select`
+          // declared `multiple: true` renders the multi-value chip picker, whose
+          // label must be associated by IDREF — a fact declared per WIDGET, so
+          // the widget id has to carry the arity (objectui#3986).
+          type: mapFieldTypeToFormType(field.type, { multiple: field.multiple }),
           required: field.required || false,
           disabled: schema.readOnly || schema.mode === 'view' || field.readonly || managedBlanketLock,
           placeholder: field.placeholder,
