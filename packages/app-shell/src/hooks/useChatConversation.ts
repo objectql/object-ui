@@ -682,6 +682,9 @@ export function useChatConversation(
     setIsLoading(true);
 
     (async () => {
+      // Which conversation this resolve is FOR, as far as it gets. The catch
+      // below needs it to tell "the one we already hold" from "some other id".
+      let targetId: string | undefined = activeId;
       try {
         if (activeId) {
           const existing = await fetchConversation(apiBase, activeId);
@@ -712,6 +715,7 @@ export function useChatConversation(
           writeConversationMessagesCache(activeId, []);
         } else if (!forceNew) {
           const cached = readCache(key);
+          targetId = cached;
           // A1.b migration read: nothing cached under THIS scope yet — the
           // thread may predate the scope (e.g. a build conversation keyed
           // product-only before bind-on-create shipped). Offer the legacy
@@ -788,10 +792,31 @@ export function useChatConversation(
         resolvedForUserRef.current = userId;
         resolvedScopeRef.current = scope;
       } catch {
-        if (!cancelled) {
-          setConversationId(undefined);
-          setInitialMessages([]);
-        }
+        if (cancelled) return;
+        // objectui#2627 — the OTHER half of the same-conversation guard above.
+        // That one stops an EMPTY re-read from wiping hydrated messages; this
+        // one stops a FAILED re-read from dropping the conversation itself.
+        //
+        // The A1.b re-key fires a refetch of the id we already hold at the
+        // worst possible moment: the instant a long build turn ends (the bind
+        // effect waits for `isLoading` to fall, then re-keys and navigates
+        // `?package=`), when the server is still busy finishing that turn. A
+        // 5xx/network blip on that one GET landed here, and clearing the id is
+        // destructive rather than conservative: the host keys its chat pane on
+        // `conversationId ?? 'pending'` (AiChatPage), so `undefined` REMOUNTS
+        // the pane, and the live thread — which lives in the chat hook's own
+        // instance, not in this state — is discarded. That is the reported
+        // "the whole conversation went blank right after the build finished,
+        // and only came back after switching threads and back".
+        //
+        // The id is still valid and the messages we hold are still the truth,
+        // so keep both: the surface stays exactly as it was and the next
+        // resolve recovers. Only a resolve aimed at a DIFFERENT conversation
+        // (a sidebar switch, a forced-new intent) still clears — there the old
+        // thread genuinely no longer matches what the URL asks for.
+        if (targetId && targetId === conversationId) return;
+        setConversationId(undefined);
+        setInitialMessages([]);
       } finally {
         if (!cancelled) setIsLoading(false);
       }
