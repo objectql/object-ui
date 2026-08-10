@@ -12,7 +12,52 @@
  */
 
 export interface CloudDeploymentConfig {
-  /** Target environment */
+  /**
+   * Deploy target requested by {@link CloudOperations.deploy}.
+   *
+   * **A deliberate third vocabulary — not drift** (objectui#3720). It is
+   * neither of the two environment enums `@objectstack/spec` declares, and the
+   * pin test next door (`cloud-environment-vocabulary.pin.test.ts`) keeps every
+   * claim below executable rather than merely written down:
+   *
+   * | vocabulary | members | models |
+   * |:--|:--|:--|
+   * | `EnvironmentType` (`@objectstack/spec/cloud`) | `production` `sandbox` `development` `test` `staging` `preview` `trial` | the categorical tag of a provisioned `sys_environment` row |
+   * | `DiscoveryEnvironment` (`@objectstack/spec/api`) | `production` `sandbox` `development` | the coarse posture a `/discovery` response advertises — "am I talking to production?" |
+   * | this list | `development` `staging` `production` | the target a deploy REQUEST asks for |
+   *
+   * ## Why nothing is imported from either
+   *
+   * Neither models a deploy target. The producer that would own that vocabulary
+   * is the cloud deploy API itself — and as of `@objectstack/client@17.0.0-rc.5`
+   * that API does not exist: the client exports no `cloud` namespace at all, so
+   * `deploy()` below optional-chains into `undefined` and returns its synthetic
+   * pending result. There is no producer-side type to derive from, and no
+   * accepted vocabulary to measure this list against.
+   *
+   * Restating it as a subset of `EnvironmentType` (an `Extract` of those three
+   * members) was considered and rejected twice over. It would assert a subset
+   * relationship no producer confirms; and `Extract` degrades SILENTLY — the day
+   * spec drops or renames a member, this union quietly loses it with no error
+   * anywhere, which is the drift this note exists to prevent.
+   *
+   * ## The `staging` trap
+   *
+   * `staging` is NOT a `DiscoveryEnvironment` member. Spec's own
+   * `NODE_ENV_TO_DISCOVERY_ENVIRONMENT` (`src/api/discovery.zod.ts`) folds a raw
+   * `staging` onto `sandbox`, because `sandbox` is that enum's pre-production
+   * member. So a value of this field must never be copied onto a discovery
+   * response — and no mapping between the two is invented here, because they
+   * answer different questions.
+   *
+   * ## When to revisit
+   *
+   * When a real deploy API lands — a `cloud` surface on `@objectstack/client`,
+   * or a deploy-target enum in spec — converge onto ITS type and delete this
+   * note. That is also the moment objectui#3720 named as the breakpoint: if
+   * deploy targets and discovery postures ever have to interconvert, the
+   * conversion belongs at the producer, not in a consumer-side guess.
+   */
   environment: 'development' | 'staging' | 'production';
   /** Cloud region */
   region?: string;
