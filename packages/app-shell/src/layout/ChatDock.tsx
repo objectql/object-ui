@@ -64,8 +64,9 @@ export interface ChatDockOptions {
   /**
    * sessionStorage key the expanded/collapsed state round-trips through (see
    * {@link DOCK_EXPANDED_STORAGE_KEY}). Omitted → in-memory only, so each mount
-   * starts from `defaultExpanded` (the Studio dock's parity with today's
-   * non-persisted copilot collapse).
+   * starts from `defaultExpanded`. Both shipped docks DO pass a key, and they
+   * pass DIFFERENT ones on purpose — console and Studio must never share one
+   * collapse (#2477 item 2).
    */
   persistExpandedKey?: string;
   /**

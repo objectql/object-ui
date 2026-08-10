@@ -76,4 +76,24 @@ describe('stored-expanded round trip (issue #2477 item 2 — Studio remembers a 
     writeStoredDockExpanded(DOCK_EXPANDED_STORAGE_KEY, false);
     expect(readStoredDockExpanded(DOCK_EXPANDED_STORAGE_KEY, false)).toBe(false);
   });
+
+  it('the two docks never fight: a collapse on either leaves the other alone', () => {
+    // The hazard the card names by name — one shared flag would make collapsing
+    // the Studio copilot also collapse the console rail (and vice versa).
+    expect(DOCK_STUDIO_EXPANDED_STORAGE_KEY).not.toBe(DOCK_EXPANDED_STORAGE_KEY);
+
+    // Studio → console: collapsing Studio must not touch the console's flag,
+    // which stays unset and so keeps falling back to the console's own default.
+    writeStoredDockExpanded(KEY, false);
+    expect(window.sessionStorage.getItem(DOCK_EXPANDED_STORAGE_KEY)).toBeNull();
+    expect(readStoredDockExpanded(DOCK_EXPANDED_STORAGE_KEY, false)).toBe(false);
+    expect(readStoredDockExpanded(DOCK_EXPANDED_STORAGE_KEY, true)).toBe(true);
+
+    // console → Studio: the console rail expanding (e.g. armChatDockExpanded
+    // before navigating back) must not re-expand a Studio dock the user
+    // deliberately collapsed.
+    armChatDockExpanded();
+    expect(readStoredDockExpanded(DOCK_EXPANDED_STORAGE_KEY, false)).toBe(true);
+    expect(readStoredDockExpanded(KEY, true)).toBe(false);
+  });
 });
