@@ -9,7 +9,7 @@ A one-page cheat-sheet for working in the `objectui` monorepo.
 ```bash
 pnpm install              # Install all workspace dependencies
 pnpm build                # Build every package (turbo, parallel & cached)
-pnpm typecheck            # Run tsc --noEmit across the workspace
+pnpm type-check           # Run tsc --noEmit across the workspace (turbo)
 pnpm lint                 # Run eslint across the workspace
 ```
 
@@ -29,7 +29,7 @@ pnpm test                                              # Run every vitest projec
 pnpm exec vitest run packages/core/                    # Run a single package's tests
 pnpm exec vitest run packages/core/src/<file>.test.ts  # Run a single test file
 pnpm exec vitest run apps/console/                     # Run just the console tests
-pnpm playwright test                                   # End-to-end tests
+pnpm test:e2e                                          # End-to-end tests (playwright)
 ```
 
 Not `pnpm --filter <pkg> test`, not `turbo run test`, not `cd packages/x && pnpm exec
@@ -53,10 +53,14 @@ Details in [AGENTS.md](./AGENTS.md) (“怎么跑测试”) and `scripts/vitest-
 ### Run Examples
 
 ```bash
-pnpm --filter @object-ui/example-crm dev          # CRM demo
-pnpm --filter @object-ui/example-todo dev         # Todo demo
-pnpm --filter @object-ui/example-kitchen-sink dev # Kitchen-sink showcase
+pnpm --filter @object-ui/example-console-starter dev     # Fork-ready ObjectStack console
+pnpm --filter @object-ui/example-byo-backend-console dev # ObjectUI on your own backend
 ```
+
+Those are the only two dev servers under `examples/`: `hello-world` is a snippet to paste
+into your own app and `schema-catalog` is a data package, so neither declares a `dev`
+script. [`examples/README.md`](./examples/README.md) is the index — which one to pick,
+what to build first, and the port each one serves on.
 
 ### Release (via changesets)
 
@@ -70,11 +74,10 @@ pnpm changeset publish         # Publish to npm (CI only)
 
 | Path | Purpose |
 | --- | --- |
-| `packages/*` | 39 published packages (`@object-ui/*`) |
+| `packages/*` | 38 published packages (`@object-ui/*`), plus the private `vscode-extension` |
 | `apps/console` | Full ObjectUI console app (Vite + React) |
 | `apps/site` | Public docs site at <https://www.objectui.org> (fumadocs) |
-| `apps/server` | Vercel backend for `demo.objectstack.ai` |
-| `examples/*` | Runnable integration examples (CRM, todo, byo-backend-console, console-starter, …) |
+| `examples/*` | Runnable examples and the schema catalog — see [`examples/README.md`](./examples/README.md) |
 | `content/docs/` | MDX source for the docs site |
 | `e2e/` | Playwright end-to-end tests |
 | `.changeset/` | Pending release notes |
@@ -91,7 +94,7 @@ pnpm changeset publish         # Publish to npm (CI only)
 | Plugins | `packages/plugin-*` | Heavy view widgets (grid, kanban, charts, …) |
 | Runtime | `packages/react`, `packages/runner` | React bindings & bootstrap |
 | Adapters | `packages/data-objectstack`, `packages/providers` | Data source integration |
-| Platform | `packages/auth`, `packages/permissions`, `packages/tenant`, `packages/i18n`, `packages/mobile`, `packages/collaboration` | Cross-cutting concerns |
+| Platform | `packages/auth`, `packages/permissions`, `packages/i18n`, `packages/mobile`, `packages/collaboration` | Cross-cutting concerns |
 | Tooling | `packages/cli`, `packages/create-plugin`, `packages/vscode-extension` | Developer experience |
 
 ## Key Documents
