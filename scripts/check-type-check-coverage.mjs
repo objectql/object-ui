@@ -110,11 +110,12 @@ export const CHECKED_BY_OWN_BUILD = {
 //     extends (see scripts/check-spec-symbol-derivation.mjs), don't widen the
 //     type to silence it.
 export const TEST_DEBT = {
+  // `@object-ui/core` and `@object-ui/app-shell` are partially covered already:
+  // a `tsconfig.typetests.json` compiles the test files whose whole value is
+  // compile-time type assertions (objectui#3181), listed one by one so the rest
+  // of the debt tree stays out. Both entries stay because that REST is still
+  // unchecked — each number below is that remainder, not the whole package.
   "@object-ui/core": { errors: 72, issue: 4118, note: "TS2741x32, TS2322x17 — mostly the input-vs-output fixture confusion" },
-  // Partially covered already: `tsconfig.typetests.json` compiles the test files
-  // whose whole value is compile-time type assertions (objectui#3181). The entry
-  // stays because the REST of the test tree is still unchecked — the number below
-  // is that remainder, not the whole package.
   "@object-ui/app-shell": { errors: 53, issue: 4118, note: "TS2339x24 — implementation wider than the type" },
   "@object-ui/components": { errors: 31, issue: 4118, note: "TS7006x12, TS7031x12 — untyped test callback params" },
   "@object-ui/react": { errors: 27, issue: 4118, note: "TS2769x9 — overload mismatch on render helpers" },
