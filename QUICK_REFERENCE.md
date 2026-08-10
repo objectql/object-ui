@@ -104,13 +104,22 @@ pnpm changeset publish         # Publish to npm (CI only)
 
 ## Current Release
 
-- **Version:** v3.3.2 (latest published patch; v3.3.0 was the first official release of the 39-package set)
-- **Spec:** `@objectstack/spec` ^4.0.4 (upgraded from 3.3.x — UI sub-export remains backward compatible)
-- **Client:** `@objectstack/client` ^4.0.4
-- **Node.js:** ≥ 20 (see root `engines.node`)
-- **pnpm:** ≥ 9 (the workspace pins `pnpm@10.31.0` via `packageManager`)
-- **React:** 18.x or 19.x
-- **TypeScript:** ≥ 5.0 (strict mode)
+Every value below is pinned to the manifest that owns it by
+`scripts/__tests__/quick-reference-current-release-4143.test.ts` — edit the anchor and
+that test tells you to edit this block. The one exception is called out on its row.
 
-> Pending unreleased work is queued in `.changeset/` (currently: `mobile-ux-round2.md`
-> patches `plugin-kanban`, `plugin-calendar`, `plugin-timeline`).
+- **Version:** 17.4.0 (the version every `@object-ui/*` manifest carries — they are one
+  `fixed` group in `.changeset/config.json`, so a release moves all of them together)
+- **Spec:** `@objectstack/spec` ^17.0.0-rc.5 (declared by the root `package.json` and by
+  `apps/console/package.json`)
+- **Client:** `@objectstack/client` ^17.0.0-rc.5 (declared by `apps/console/package.json`
+  and `packages/data-objectstack/package.json`)
+- **Node.js:** ≥ 22 (see root `engines.node`)
+- **pnpm:** ≥ 9 (the workspace pins `pnpm@10.31.0` via `packageManager`)
+- **React:** 18.x or 19.x (the `peerDependencies.react` range the packages declare)
+- **TypeScript:** ≥ 5.0 (strict mode) — the stack floor stated in AGENTS.md §2, not a
+  manifest fact: nothing in this tree declares a `typescript` range to check it against,
+  so this is the one row above that no test can hold to account.
+
+> Pending unreleased work is queued in `.changeset/` — list that directory to see what is
+> staged for the next release.
