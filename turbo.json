@@ -26,6 +26,12 @@
         "tsconfig*.json",
         "package.json",
         "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/vitest.config.mts",
+        "$TURBO_ROOT$/vitest.setup.*",
+        "$TURBO_ROOT$/scripts/vitest-invocation-guard.mjs",
+        "$TURBO_ROOT$/scripts/vite-*.ts",
+        "$TURBO_ROOT$/apps/console/vitest.config.ts",
+        "$TURBO_ROOT$/apps/console/vite.config.ts",
         "!**/*.md",
         "!**/CHANGELOG.md"
       ]

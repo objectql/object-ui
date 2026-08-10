@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
+import {
+  globToRegExp,
+  packagesWithScript,
+  rel,
+  repoFilesOnDisk,
+  rootAnchoredInputs,
+} from './helpers/turbo-inputs';
 
 /**
  * objectui#3514 — turbo's `type-check` `inputs` list is hand-maintained, and it
@@ -60,10 +66,16 @@ import ts from 'typescript';
  *    out-of-package file rather than waved through on the assumption that
  *    turbo's `dependsOn: ["^build"]` covers it — `^build` covers declared
  *    DEPENDENCIES, and a tsconfig reference is not required to be one.
+ *
+ * The turbo-side plumbing this file used to carry inline — workspace discovery,
+ * reading `$TURBO_ROOT$` entries out of `turbo.json`, and matching an input
+ * glob — now lives in `./helpers/turbo-inputs.ts`, shared with the sibling
+ * guard `turbo-test-inputs.test.ts` (objectui#4178, the same defect on the
+ * `test` task). Only the DERIVATION differs between the two, and it differs in
+ * kind: tsc programs here, Vitest configuration programs there. Two copies of a
+ * glob matcher whose whole doctrine is "never approximate toward a match" is
+ * exactly the drift neither guard would survive.
  */
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const turboConfigPath = path.join(repoRoot, 'turbo.json');
-const workspaceConfigPath = path.join(repoRoot, 'pnpm-workspace.yaml');
 
 /** The turbo task this guard is about. */
 const TASK = 'type-check';
@@ -78,67 +90,6 @@ const TASK = 'type-check';
  * include objectui#3476 found in `apps/console/tsconfig.node.json`.
  */
 const INPUTS_NOT_DERIVABLE: ReadonlyMap<string, string> = new Map();
-
-/** POSIX-separated, repo-relative. The one path spelling this file compares in. */
-function rel(absolute: string): string {
-  return path.relative(repoRoot, absolute).split(path.sep).join('/');
-}
-
-// ── Workspace discovery ──────────────────────────────────────────────────────
-
-/**
- * Package directories, derived from `pnpm-workspace.yaml` rather than a
- * hardcoded group list.
- *
- * Only the two entry shapes the file actually uses are understood (`dir/*` and
- * a bare `dir`); anything else throws. A workspace layout this guard silently
- * failed to walk would quietly shrink its own coverage back to nothing, which
- * is the failure mode it exists to prevent.
- */
-function workspacePackageDirs(): string[] {
-  const yaml = fs.readFileSync(workspaceConfigPath, 'utf8');
-  const patterns: string[] = [];
-  let inPackages = false;
-  for (const line of yaml.split('\n')) {
-    if (/^packages:\s*$/.test(line)) {
-      inPackages = true;
-      continue;
-    }
-    if (inPackages) {
-      const item = line.match(/^\s+-\s*['"]?([^'"#]+?)['"]?\s*$/);
-      if (item) {
-        patterns.push(item[1]);
-        continue;
-      }
-      if (line.trim() !== '') break;
-    }
-  }
-  expect(patterns.length, 'pnpm-workspace.yaml must declare at least one package pattern').
-    toBeGreaterThan(0);
-
-  const dirs: string[] = [];
-  for (const pattern of patterns) {
-    if (pattern.endsWith('/*')) {
-      const group = path.join(repoRoot, pattern.slice(0, -2));
-      if (!fs.existsSync(group)) continue;
-      for (const entry of fs.readdirSync(group, { withFileTypes: true })) {
-        const dir = path.join(group, entry.name);
-        if (entry.isDirectory() && fs.existsSync(path.join(dir, 'package.json'))) dirs.push(dir);
-      }
-      continue;
-    }
-    if (!pattern.includes('*')) {
-      const dir = path.join(repoRoot, pattern);
-      if (fs.existsSync(path.join(dir, 'package.json'))) dirs.push(dir);
-      continue;
-    }
-    throw new Error(
-      `pnpm-workspace.yaml pattern ${JSON.stringify(pattern)} is a glob shape this guard does ` +
-        `not understand. Teach workspacePackageDirs() about it — do not let the sweep skip it.`,
-    );
-  }
-  return dirs.sort();
-}
 
 // ── The type-check program, as the scripts actually drive it ─────────────────
 
@@ -242,91 +193,13 @@ function outOfPackageFiles(pkgDir: string, script: string): string[] {
   return [...found].sort();
 }
 
-/** Every workspace package that turbo's `type-check` task actually runs for. */
-function packagesWithTypeCheck(): { name: string; dir: string; script: string }[] {
-  const out: { name: string; dir: string; script: string }[] = [];
-  for (const dir of workspacePackageDirs()) {
-    const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')) as {
-      name?: string;
-      scripts?: Record<string, string>;
-    };
-    const script = manifest.scripts?.[TASK];
-    if (script) out.push({ name: manifest.name ?? rel(dir), dir, script });
-  }
-  return out;
-}
-
 // ── turbo.json inputs ────────────────────────────────────────────────────────
-
-/**
- * The `$TURBO_ROOT$`-anchored `inputs` of the task, as repo-relative globs.
- *
- * Everything else in the list is package-relative and therefore cannot reach
- * outside the package directory — turbo has no `..` escape, which is why
- * `$TURBO_ROOT$` exists at all.
- */
-function rootAnchoredInputs(): string[] {
-  const turbo = JSON.parse(fs.readFileSync(turboConfigPath, 'utf8')) as {
-    tasks?: Record<string, { inputs?: string[] }>;
-  };
-  const task = turbo.tasks?.[TASK];
-  expect(task, `turbo.json must define a \`${TASK}\` task`).toBeTruthy();
-  const inputs = task?.inputs ?? [];
-  expect(inputs, `turbo.json \`${TASK}\` must declare \`inputs\``).not.toHaveLength(0);
-
-  return inputs
-    .filter((entry) => entry.startsWith('$TURBO_ROOT$/'))
-    .map((entry) => entry.slice('$TURBO_ROOT$/'.length));
-}
-
-/**
- * A turbo input glob as a regular expression.
- *
- * Deliberately narrow — `**`, `*` and `?` only. Any richer syntax (brace
- * alternation, character classes, `!` negation) throws instead of being
- * approximated, because an approximated match that comes out TRUE is a file
- * this guard would wave through while turbo does not hash it. Wrong-and-red is
- * recoverable; wrong-and-green is the bug.
- */
-function globToRegExp(glob: string): RegExp {
-  if (/[!{}[\]()+@]/.test(glob)) {
-    throw new Error(
-      `turbo input ${JSON.stringify(glob)} uses glob syntax this guard does not implement. ` +
-        `Teach globToRegExp() about it rather than letting it guess.`,
-    );
-  }
-  let pattern = '';
-  for (let i = 0; i < glob.length; i += 1) {
-    const char = glob[i];
-    if (char === '*') {
-      if (glob[i + 1] === '*') {
-        // `**/` spans zero or more directories; a trailing `**` spans the rest.
-        if (glob[i + 2] === '/') {
-          pattern += '(?:[^/]+/)*';
-          i += 2;
-        } else {
-          pattern += '.*';
-          i += 1;
-        }
-      } else {
-        pattern += '[^/]*';
-      }
-      continue;
-    }
-    if (char === '?') {
-      pattern += '[^/]';
-      continue;
-    }
-    pattern += char.replace(/[.^$|\\]/g, '\\$&');
-  }
-  return new RegExp(`^${pattern}$`);
-}
 
 // ── The derivation, computed once ────────────────────────────────────────────
 
-const PACKAGES = packagesWithTypeCheck();
+const PACKAGES = packagesWithScript(TASK);
 const DERIVED = PACKAGES.map((pkg) => ({ ...pkg, outside: outOfPackageFiles(pkg.dir, pkg.script) }));
-const ROOT_INPUTS = rootAnchoredInputs();
+const ROOT_INPUTS = rootAnchoredInputs(TASK);
 const MATCHERS = ROOT_INPUTS.map((glob) => ({ glob, re: globToRegExp(glob) }));
 
 describe('turbo `type-check` inputs cover every out-of-package file (objectui#3514)', () => {
@@ -367,16 +240,7 @@ describe('turbo `type-check` inputs cover every out-of-package file (objectui#35
    * the file it was written for the moment that file is renamed.
    */
   it('every $TURBO_ROOT$ input matches at least one file on disk', () => {
-    const onDisk = new Set<string>();
-    const walk = (dir: string): void => {
-      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-        if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
-        const abs = path.join(dir, entry.name);
-        if (entry.isDirectory()) walk(abs);
-        else onDisk.add(rel(abs));
-      }
-    };
-    walk(repoRoot);
+    const onDisk = repoFilesOnDisk();
 
     for (const { glob, re } of MATCHERS) {
       expect(
