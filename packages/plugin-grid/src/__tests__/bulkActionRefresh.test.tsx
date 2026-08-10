@@ -458,12 +458,15 @@ describe('ObjectGrid — bulk bar Clear resets both selection sources (#4140)', 
     // Escalate to the cross-page selection, then Clear it.
     //
     // The banner's two branches are told apart *structurally*, by whether the
-    // escalation button is still offered — not by its copy. The test-env `t()`
-    // returns `defaultValue` without interpolating, so every count-bearing
-    // string arrives as the literal "All {{count}} matching records are
-    // selected."; asserting on the rendered count would pin i18n plumbing, and
-    // its negation would pass for the wrong reason (the interpolated text is
-    // never present, before or after the fix).
+    // escalation button is still offered — not by its copy. These grid tests
+    // wrap in `ActionProvider` only, with no `I18nProvider`, so `{{count}}`
+    // interpolation never runs and count-bearing strings reach the DOM as the
+    // raw template ("All {{count}} matching records are selected."). See
+    // BulkActionBar.test.tsx, which asserts on that copy and therefore *does*
+    // wrap in an English `I18nProvider`. Asserting the rendered count here
+    // would pin i18n plumbing rather than the reset, and its negation would
+    // pass for the wrong reason — the interpolated text is absent either side
+    // of the fix. Structure is the right probe for a selection-state question.
     fireEvent.click(await screen.findByTestId('bulk-select-all-matching'));
     await waitFor(() =>
       expect(screen.queryByTestId('bulk-select-all-matching')).not.toBeInTheDocument(),
