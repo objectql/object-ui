@@ -15,10 +15,11 @@
  *
  *  1. **Synthesized record page** — RecordDetailView threads its LIVE
  *     `useRecordApprovals` result through the node (`schema.approvals`).
- *     The same read drives the header's Approve/Reject buttons, so the tab
- *     content and the header can never disagree, and a decision made in the
- *     header re-renders the tab through the host's refresh — no second
- *     fetch, no drift.
+ *     The same read drives the record page's declared decision actions
+ *     (objectui#3055 — the pending row IS the record those actions run
+ *     against), so the tab content and the decision bar can never disagree,
+ *     and a decision re-renders the tab through the host's refresh — no
+ *     second fetch, no drift.
  *  2. **Authored page without the payload** — the renderer self-fetches via
  *     the RecordContext identity, so `record:approvals` stays usable as a
  *     plain schema node. The self-fetch hook is passed `undefined` names
@@ -64,7 +65,7 @@ export const RecordApprovalsRenderer: React.FC<RecordApprovalsRendererProps> = (
   const selfRecordId = hostApprovals
     ? undefined
     : ctx?.recordId != null ? String(ctx.recordId) : undefined;
-  const selfFetched = useRecordApprovals(selfObjectName, selfRecordId, user?.id);
+  const selfFetched = useRecordApprovals(selfObjectName, selfRecordId);
 
   const approvals = hostApprovals ?? selfFetched;
   const currentUserId = schema?.currentUserId ?? user?.id;

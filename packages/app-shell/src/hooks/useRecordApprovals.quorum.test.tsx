@@ -94,7 +94,7 @@ function stubApi(detail: unknown, opts: { detailStatus?: number } = {}) {
 }
 
 const mount = () =>
-  renderHook(() => useRecordApprovals('showcase_expense_report', 'AyG40_bAHSP_gi8T', 'u_manager'));
+  renderHook(() => useRecordApprovals('showcase_expense_report', 'AyG40_bAHSP_gi8T'));
 
 describe('useRecordApprovals — quorum progress (objectstack#4478)', () => {
   beforeEach(() => stubApi(DETAIL_ROW));
@@ -144,8 +144,9 @@ describe('useRecordApprovals — quorum progress (objectstack#4478)', () => {
     const { result } = mount();
     await waitFor(() => expect(result.current.pendingRequest).toBeTruthy());
     expect(result.current.pendingRequest?.decision_progress).toBeUndefined();
-    // …and the decision surface the list read does support is still live.
-    expect(result.current.canDecide).toBe(true);
+    // …and everything the LIST read already carried is still live — the row the
+    // decision actions run against, and the lock the header reads.
+    expect(result.current.pendingRequest?.id).toBe('req_committee_1');
     expect(result.current.pendingRequest?.lock_record).toBe(true);
   });
 

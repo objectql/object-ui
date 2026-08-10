@@ -83,11 +83,14 @@ vi.mock('../utils/consoleServerAction', () => ({
 }));
 
 // Capture BOTH the handler set and the context each <ActionProvider> receives
-// while KEEPING the real provider. The record page's own set is the only one
-// carrying `approval`; the context capture lets the mount wait until the
-// handlers were built AGAINST THE LOADED RECORD (apiHandler closes over
-// `pageRecord`, so grabbing an earlier capture would test the null-record
-// closure instead).
+// while KEEPING the real provider. The record page's own provider is the only
+// one whose CONTEXT carries this page's record — the discriminator used to be
+// "the only handler set carrying `approval`", which objectui#3055 retired when
+// the record page stopped registering a bespoke approval handler (decisions are
+// ordinary declared `type:'api'` actions now). The context capture also lets
+// the mount wait until the handlers were built AGAINST THE LOADED RECORD
+// (apiHandler closes over `pageRecord`, so grabbing an earlier capture would
+// test the null-record closure instead).
 const captured: Array<{ handlers: Record<string, (action: any) => Promise<any>>; context: any }> = [];
 vi.mock('@object-ui/react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@object-ui/react')>();
@@ -161,7 +164,7 @@ function renderDetail() {
 function recordPageCapture() {
   return [...captured]
     .reverse()
-    .find((c) => c.handlers && 'approval' in c.handlers && c.context?.record?.id === RECORD_ID);
+    .find((c) => c.handlers && c.context?.record?.id === RECORD_ID);
 }
 
 /** Render the view and hand back its ActionProvider handlers, spies cleared. */

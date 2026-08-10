@@ -43,7 +43,16 @@ import { useObjectLabel, useObjectTranslation } from '@object-ui/i18n';
 import { Loader2 } from 'lucide-react';
 import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime';
 import { useAdapter } from '../providers/AdapterProvider';
-import { useMetadataItem } from '../providers/MetadataProvider';
+// Straight from `@object-ui/react`, NOT through `../providers/MetadataProvider`
+// (which merely re-exports it). The provider module pulls in the console
+// metadata client factory, and that module builds its shared authenticated
+// fetch AT IMPORT TIME — so importing the hook by the convenient path drags an
+// eager side effect into the module graph of every host that renders this bar.
+// It surfaced when the record page started mounting the bar (objectui#3055):
+// two RecordDetailView suites died at import with `Cannot access
+// 'authFetchSpy' before initialization`, the side effect running inside the
+// hoisted `@object-ui/auth` mock factory before the spy existed.
+import { useMetadataItem } from '@object-ui/react';
 import { decisionOutputDefs, decisionOutputParams } from '../utils/decisionOutputParams';
 import { getIcon } from '../utils/getIcon';
 
@@ -113,10 +122,38 @@ const DeclaredActionButton: React.FC<{
   const { t } = useObjectTranslation();
 
   const recordData = record != null && typeof record === 'object' ? (record as Record<string, any>) : {};
+  /**
+   * The predicate scope, with the record bound the THREE ways the platform's
+   * row surfaces bind it (objectui#3055).
+   *
+   * The bar used to hand the row in as the bare context bag, so only the
+   * shorthand spelling — `status == "pending"` — resolved. The CANONICAL
+   * spelling is the `record.` root: it is what `ExpressionEvaluator`'s CEL path
+   * binds (`bag.record` as the record namespace), what `evalRowPredicate` binds
+   * on the record header and on list rows, and what the server itself
+   * enforces with. Under a root-only bag `record.viewer.can_act` does not read
+   * as false — it throws `record is not defined`, and `throwOnError` turns that
+   * into "hidden".
+   *
+   * Which is not hypothetical: EVERY declared action on `sys_approval_request`
+   * gates on `record.viewer.*` (framework#3310 / #3424), so the whole
+   * server-declared decision set was invisible on every surface this bar
+   * renders. The record page's two hand-written buttons were, in practice, the
+   * only decision UI that could still be reached — the fork objectui#3055 is
+   * about, kept alive by the "full" path being unable to evaluate its own gate.
+   *
+   * `record` / `data` are written AFTER the spread, so a row that happens to
+   * carry a field of either name cannot shadow the namespace a predicate means.
+   */
+  const predicateRecord = useMemo(
+    () => ({ ...recordData, record: recordData, data: recordData }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [record],
+  );
   // `visible` fails CLOSED on a throwing predicate — mirrors action:button and
   // ActionEngine.getActionsForLocation: a guard that can't be evaluated hides
   // the action rather than exposing one whose precondition is broken.
-  const isVisible = useCondition(toPredicateInput((action as any).visible), recordData, {
+  const isVisible = useCondition(toPredicateInput((action as any).visible), predicateRecord, {
     throwOnError: true,
     label: `declared action "${action.name ?? action.label ?? 'action'}" (visible)`,
   });
@@ -125,7 +162,7 @@ const DeclaredActionButton: React.FC<{
   // this bar ignored it, so a spec-authored `disabled` guard on a declared
   // action did nothing here. (No legacy `enabled` fallback: server-declared
   // actions are spec-shaped and never carried the non-spec key.)
-  const isDisabledPred = useCondition(toPredicateInput((action as any).disabled), recordData);
+  const isDisabledPred = useCondition(toPredicateInput((action as any).disabled), predicateRecord);
 
   const handleClick = useCallback(async () => {
     if (loading) return;

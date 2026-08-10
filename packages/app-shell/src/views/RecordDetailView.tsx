@@ -33,7 +33,6 @@ import { RelatedRecordActionsBridge } from './RelatedRecordActionsBridge';
 import { withPageTabsUrlSync } from '../utils/pageTabsUrlSync';
 import { RECORD_DETAIL_TAB_PARAM, RECORD_TRAIL_PARAM, decodeRecordTrail, buildRecordTrailHref } from '../urlParams';
 import { resolveActionParams } from '../utils/resolveActionParams';
-import { decisionOutputDefs, decisionOutputParams, foldDecisionOutputs } from '../utils/decisionOutputParams';
 import { createConsoleServerActionHandler } from '../utils/consoleServerAction';
 import { interpretFlowResponse } from '../utils/flowResponse';
 import { useRecordBreadcrumbTitle } from '../context/NavigationContext';
@@ -46,6 +45,12 @@ import type { ActionDef, ActionParamDef } from '@object-ui/core';
 import { useRecordApprovals, recordLockedByApproval } from '../hooks/useRecordApprovals';
 import { RecordAttachmentsPanel } from './RecordAttachmentsPanel';
 import { RecordApprovalsPanel } from './RecordApprovalsPanel';
+import { DeclaredActionsBar } from './DeclaredActionsBar';
+import {
+  SYS_APPROVAL_REQUEST_OBJECT,
+  RECORD_APPROVAL_ACTION_LOCATION,
+  RECORD_APPROVAL_EXCLUDED_ACTIONS,
+} from './recordApprovalActions';
 // Side-effect registration of `record:approvals` — synthesized record pages
 // reference the node whenever the record has approval requests (#3461), so
 // the type must resolve wherever this view renders, not only under hosts
@@ -192,91 +197,6 @@ export function resolveRecordHeaderActionGates(
 ): { edit: boolean; delete: boolean } {
   const affordances = resolveEffectiveCrudAffordances(objectDef as any, effectiveApiOperations);
   return { edit: affordances.edit, delete: affordances.delete };
-}
-
-/**
- * The record header's Approve / Reject actions for the pending request.
- *
- * Pure and exported so the param contract is testable without the detail
- * render tree — that contract is where objectui#2955 bit:
- *
- *  • the collected inputs must ride **`actionParams`**, the key `ActionRunner`
- *    reads (the header dispatches the action object verbatim). They shipped as
- *    `collectParams`, which nothing in the codebase consumes, so no dialog ever
- *    opened: the comment was silently dropped on every record-page decision,
- *    and the node's declared decision outputs with it;
- *  • a node that declares `decisionOutputs` contributes one `outputs.<key>`
- *    param each, through the same helper the Approval Center uses — so the
- *    approver gets the same typed picker on both surfaces instead of the
- *    record page quietly deciding without them.
- *
- * `t` is the object-translation function; params are localized here because
- * synthesized `outputs.<key>` names can never match an `_actions.*` bundle key.
- */
-export function buildApprovalDecisionActions(
-  pendingRequest: unknown,
-  t: (key: string, opts?: any) => string,
-): ActionDef[] {
-  const commentParam = {
-    name: 'comment',
-    label: t('approvals.comment', { defaultValue: 'Comment (optional)' }),
-    // `textarea`, not `text` + `multiline`: the param resolver rebuilds inline
-    // params from a fixed key list and drops `multiline`, so the long-form
-    // intent has to ride the type.
-    type: 'textarea',
-  };
-  // `required` outputs are enforced on approve only — the server rejects a
-  // blank one there and never on reject, so the two dialogs differ in exactly
-  // that flag and nothing else.
-  const defs = decisionOutputDefs(pendingRequest);
-  const decisionParams = (decision: 'approve' | 'reject') => [
-    commentParam,
-    ...decisionOutputParams(defs, (key: string) => t(key), { decision }),
-  ];
-  // A pending approval is THE decision the approver came to make, so the
-  // decision buttons must outrank app `record_header` actions rather than being
-  // appended after them (and buried in overflow). A strongly negative `order`
-  // floats them into the primary slot; the action:bar stable-sorts by `order`,
-  // so app actions keep their relative order just after the decision. Approve
-  // gets the highlighted `primary` variant; Reject stays `destructive`.
-  // (#2670 / objectui#2339)
-  return [
-    {
-      name: 'approve_request',
-      type: 'approval',
-      target: 'approve_request',
-      label: t('approvals.approve', { defaultValue: 'Approve' }),
-      icon: 'check',
-      variant: 'primary',
-      order: -100,
-      locations: ['record_header'],
-      refreshAfter: true,
-      actionParams: decisionParams('approve'),
-      successMessage: t('approvals.approveSuccess', { defaultValue: 'Approved' }),
-    },
-    {
-      name: 'reject_request',
-      type: 'approval',
-      target: 'reject_request',
-      label: t('approvals.reject', { defaultValue: 'Reject' }),
-      icon: 'x',
-      variant: 'destructive',
-      order: -99,
-      locations: ['record_header'],
-      refreshAfter: true,
-      // NO `confirmText` here (objectui#3126). The runner chains confirm THEN
-      // param collection, so carrying both queued two dialogs: the approver
-      // answered "Reject this approval request? → Continue" and the request
-      // still didn't fire — it waited on a second, unexpected comment dialog
-      // (opened since #2961 made `actionParams` live on this surface), which
-      // reads as a silent no-op. The param dialog IS the confirmation: it is
-      // titled by this label, carries the confirm question as its description,
-      // and nothing is sent until its own Confirm.
-      description: t('approvals.rejectConfirm', { defaultValue: 'Reject this approval request?' }),
-      actionParams: decisionParams('reject'),
-      successMessage: t('approvals.rejectSuccess', { defaultValue: 'Rejected' }),
-    },
-  ] as unknown as ActionDef[];
 }
 
 export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverride, recordIdOverride, embedded }: RecordDetailViewProps) {
@@ -913,10 +833,11 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
 
   // ─── Approvals ─────────────────────────────────────────────────────
   // Since ADR-0019 an approval is a flow node: the flow opens the request,
-  // there is no manual submit/recall from the record header. When the current
-  // user is a pending approver, surface "Approve" / "Reject" on the header and
-  // a status badge whenever a request exists.
-  const approvals = useRecordApprovals(objectName, pureRecordId, user?.id);
+  // there is no manual submit/recall from the record header. This read backs
+  // three things: the status badge / edit lock, the approvals panel (#3461),
+  // and — since objectui#3055 — the pending `sys_approval_request` row that the
+  // object's own SERVER-DECLARED decision actions run against.
+  const approvals = useRecordApprovals(objectName, pureRecordId);
   // Hold latest approvals snapshot in a ref so the action handler
   // (memoized once inside ActionRunner) always sees fresh state instead of
   // the stale closure captured at the first render.
@@ -972,29 +893,17 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // nodes carry none and the band then shows nothing extra.
   const approvalProgress = approvals.pendingRequest?.decision_progress;
 
-  const approvalHandler = useCallback(async (action: ActionDef) => {
-    const target = action.target || action.name;
-    const params = (action.params && !Array.isArray(action.params))
-      ? (action.params as Record<string, any>)
-      : {};
-    // The node's declared decision outputs arrive as `outputs.<key>` params
-    // (objectui#2955) — fold them back into the nested object the decide route
-    // expects, exactly like the Approval Center's api handler does.
-    const { outputs } = foldDecisionOutputs(params);
-    try {
-      if (target === 'approve_request') {
-        await approvalsRef.current.approve({ comment: params.comment, outputs });
-      } else if (target === 'reject_request') {
-        await approvalsRef.current.reject({ comment: params.comment, outputs });
-      } else {
-        return { success: false, error: `Unknown approval target: ${target}` };
-      }
-      notifyRecordChanged();
-      return { success: true, reload: true };
-    } catch (err: any) {
-      return { success: false, error: err?.message || String(err) };
-    }
-  }, []);
+  // A decision landed through the declared-action bar (objectui#3055). The
+  // action itself already POSTed and the runtime already toasted; what the HOST
+  // owes is a re-read of both halves it renders — the approval state (status,
+  // pending row, `viewer` block, tally) and the record itself, whose
+  // engine-written mirrors (`approval_status`, stage fields) change with the
+  // decision. `refreshAfter: true` on every declared decision action is what
+  // calls this.
+  const handleApprovalActionDone = useCallback(() => {
+    void approvalsRef.current.refresh();
+    notifyRecordChanged();
+  }, [notifyRecordChanged]);
 
   // Discover reverse references: other objects with lookup/master_detail fields
   // pointing to the current object (e.g., order_item.order → order).
@@ -1809,14 +1718,20 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         }),
       }));
 
-      // Inject approval actions — only when the current user is a pending
-      // approver for this record (ADR-0019: approvals are opened by a flow
-      // node, so there is no manual submit/recall; an approver records a
-      // decision that resumes the flow down its approve/reject edge).
-      if (approvals.available && approvals.canDecide) {
-        base.push(...buildApprovalDecisionActions(approvals.pendingRequest, t));
-      }
-
+      // ⛔ No approval actions are injected here any more (objectui#3055).
+      // They used to be two hand-written buttons (approve/reject only, no
+      // attachments, own copy, own CLIENT-side approver test) spliced into this
+      // header list. They now render from `sys_approval_request`'s OWN declared
+      // actions through `<DeclaredActionsBar>` below — the same metadata the
+      // approvals list runs, gated by the same server-computed `viewer` block.
+      //
+      // The header list is the wrong carrier for them and cannot be fixed into
+      // one: `action:bar` evaluates a `visible` predicate against THIS page's
+      // record (a business record has no `viewer` block) and stamps that same
+      // record into `params._rowRecord`, so a declared action targeting
+      // `/api/v1/approvals/requests/{id}/…` would resolve `{id}` to the
+      // business record's id. The request row has to be the dispatch record,
+      // which is exactly what the bar does.
       return base;
     })();
 
@@ -1902,12 +1817,12 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       }),
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  // `approvals.pendingRequest` is in the deps for its `decision_output_defs`:
-  // the header's decision params are synthesized from the pending node's
-  // declaration, so they must be rebuilt when the request (and therefore the
-  // node) changes (objectui#2955). `approvals.requests` rides along for the
-  // Approvals tab payload (#3461).
-  }, [objectDef?.name, childRelations, t, objectLabel, objects, historyEnabled, historyEntries, historyLoading, approvals.available, approvals.canDecide, approvals.pendingRequest, approvals.requests, user?.id]);
+  // `approvals.requests` / `approvals.pendingRequest` are in the deps for the
+  // Approvals tab payload (#3461) — the tab's node carries the live rows, and
+  // the panel's headline is the pending one. (The decision actions no longer
+  // ride this list at all — objectui#3055 moved them to the declared-action
+  // bar, which reads the pending row directly.)
+  }, [objectDef?.name, childRelations, t, objectLabel, objects, historyEnabled, historyEntries, historyLoading, approvals.available, approvals.pendingRequest, approvals.requests, user?.id]);
 
   if (isLoading) {
     return <SkeletonDetail />;
@@ -2168,6 +2083,10 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           onToggleReaction={handleToggleReaction as any}
           mentionSuggestions={mentionSuggestions}
         >
+        {/* No `approval` handler in the set below (objectui#3055): the record
+            page has no bespoke approval action TYPE any more. A decision is an
+            ordinary `type:'api'` action declared on `sys_approval_request` and
+            run by the shared runtime the decision bar mounts. */}
         <ActionProvider
           context={{ record: pageRecord || {}, objectName, user: currentUser }}
           onConfirm={confirmHandler}
@@ -2176,7 +2095,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           onParamCollection={paramCollectionHandler}
           onResultDialog={resultDialogHandler}
           onModal={modalHandler}
-          handlers={{ api: apiHandler, flow: flowHandler, script: serverActionHandler, modal: modalActionHandler, approval: approvalHandler }}
+          handlers={{ api: apiHandler, flow: flowHandler, script: serverActionHandler, modal: modalActionHandler }}
         >
           <div className="flex-1 overflow-hidden flex flex-row">
             <div className="flex-1 overflow-auto p-3 sm:p-4 lg:p-6 scroll-pb-48">
@@ -2188,6 +2107,39 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
                   <ChevronLeft className="h-4 w-4" />
                   <span>{originFrom.label}</span>
                 </Link>
+              )}
+              {/* The pending approval's DECISION ACTIONS (objectui#3055).
+                  `sys_approval_request` declares them as object metadata —
+                  approve / reject (with decision attachments) / reassign /
+                  send back / request info, plus the submitter's recall and
+                  resubmit — and this is the same bar, the same runtime and the
+                  same server-computed `visible` gate the approvals list runs
+                  them through. The record page adds no per-action code, so a
+                  ninth decision action ships as metadata alone.
+
+                  The dispatch record is the REQUEST row, not the business
+                  record: that is what makes `{id}` resolve to the request and
+                  what gives each action's `visible` the server's `viewer`
+                  block (`can_act` / `is_submitter` / `can_override`) to read.
+                  Placed above the page body rather than in the header for that
+                  reason — see the header-actions comment above — and above the
+                  fold, because a pending decision is why the approver opened
+                  the record.
+
+                  `approval_remind` is excluded: the approvals panel already
+                  renders a richer remind (throttle-aware copy, timeline
+                  refresh), and `exclude` is how a host keeps one of an
+                  object's declared actions in its own UI without the bar
+                  double-rendering it. */}
+              {approvals.available && approvals.pendingRequest && (
+                <DeclaredActionsBar
+                  className="mb-4"
+                  objectName={SYS_APPROVAL_REQUEST_OBJECT}
+                  record={approvals.pendingRequest}
+                  location={RECORD_APPROVAL_ACTION_LOCATION}
+                  exclude={[...RECORD_APPROVAL_EXCLUDED_ACTIONS]}
+                  onDone={handleApprovalActionDone}
+                />
               )}
               <RelatedRecordActionsBridge
                 appName={appName}
