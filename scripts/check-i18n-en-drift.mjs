@@ -224,9 +224,10 @@ function packLiteral(source, label) {
  * how a long sentence is wrapped across source lines: `en`'s
  * `objectActions.resetPackageSetConfirm` is written that way today, and the
  * folded text is what i18next serves, so it is what must be compared. (The
- * value extractor's counterpart in `check-i18n-call-site-keys.mjs` treats such
- * a node as an opaque leaf and is right to — it only needs the KEY. This gate
- * needs the text, so it has to fold.)
+ * counterpart in `check-i18n-call-site-keys.mjs` folds it the same way and for
+ * the same reason, since objectui#3810 gave that gate a value rule too: a leaf
+ * neither can read as a string stays a key-only leaf there, judged for
+ * existence and not for text.)
  */
 function stringValueOf(node) {
   const value = unwrap(node);

@@ -188,7 +188,7 @@ export function HomeContinue({ items, onOpen, t }: { items: RecentItem[]; onOpen
 export function HomeActivity({ items, onViewAll, t }: { items: ActivityItem[]; onViewAll: () => void; t: TFn }) {
   const { language } = useObjectTranslation();
   return (
-    <Card icon={Activity} title={t('sidebar.activityFeed', { defaultValue: 'Activity' })}>
+    <Card icon={Activity} title={t('sidebar.activityFeed', { defaultValue: 'Activity feed' })}>
       {items.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           {t('layout.activityFeed.empty', { defaultValue: 'No recent activity' })}

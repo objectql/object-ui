@@ -140,11 +140,11 @@ export function ReportConfigPanel({
       className="hidden sm:flex w-[440px] shrink-0 flex-col border-l bg-background h-full"
       data-testid="report-config-panel"
       role="complementary"
-      aria-label={t('report.editor.title', { defaultValue: 'Edit report' })}
+      aria-label={t('report.editor.title', { defaultValue: 'Title' })}
     >
       <div className="flex items-center justify-between gap-2 border-b px-4 py-2.5 shrink-0">
         <div className="text-sm font-medium truncate">
-          {t('report.editor.title', { defaultValue: 'Edit report' })}
+          {t('report.editor.title', { defaultValue: 'Title' })}
         </div>
         <Button
           variant="ghost"

@@ -36,6 +36,14 @@ import {
  *      calls reach i18next, 1074 reach a module-local `engine.*` table, 41 are
  *      not translators at all. The synthetic-repo tests pin each classification
  *      independently of what today's `main` happens to contain.
+ *
+ *   3. objectui#3810 added a third: the gate now reads `en` VALUES, and a call
+ *      site's own inline `defaultValue` must repeat the value byte for byte
+ *      whenever the key exists. Both halves are pinned — the extractor against
+ *      the evaluated module (values, not only keys), and the rule's verdicts
+ *      against synthetic repos, including the cases it deliberately declines to
+ *      judge. That last group is the one worth reading before widening the rule:
+ *      each abstention is a decision, not an oversight.
  */
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -78,6 +86,15 @@ function leafPaths(node: unknown, prefix = ''): string[] {
     : [prefix];
 }
 
+/** The same walk, carrying each leaf's STRING — what the drift rule compares. */
+function leafEntries(node: unknown, prefix = ''): Array<[string, string]> {
+  return node !== null && typeof node === 'object'
+    ? Object.entries(node as Record<string, unknown>).flatMap(([k, v]) =>
+        leafEntries(v, prefix ? `${prefix}.${k}` : k),
+      )
+    : [[prefix, String(node)]];
+}
+
 /** Materialises `{ 'packages/x/src/a.tsx': '…' }` into a throwaway repo root. */
 function repoWith(files: Record<string, string>): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'check-i18n-keys-'));
@@ -92,9 +109,10 @@ function repoWith(files: Record<string, string>): string {
 
 /** A minimal `en` pack for the synthetic repos below. */
 const EN_FIXTURE = `const en = {
-  common: { save: 'Save', cancel: 'Cancel' },
+  common: { save: 'Save', cancel: 'Cancel', loading: 'Loading...' },
   detail: { showEmptyRelated_one: '+ {{count}} empty', showEmptyRelated_other: '+ {{count}} empty' },
   grid: { column: { label: 'Label', width: 'Width' } },
+  confirm: { purge: 'Deleting resets it to the shipped baseline. ' + 'Continue?' },
 } as const;
 export default en;
 `;
@@ -385,6 +403,139 @@ export function describe(t: TranslateFn): string { return t('legacy.helper'); }
 `,
     });
     expect(findingsOf(root, 'missing-key')).toEqual(['legacy.helper@packages/x/src/helpers.ts:2']);
+  });
+});
+
+describe('an inline defaultValue on a key that EXISTS must match the en value (objectui#3810)', () => {
+  /** Findings of `reason`, rendered as `key: expected -> actual`. */
+  function driftOf(root: string): string[] {
+    return analyze(root)
+      .findings.filter((f: { reason: string }) => f.reason === 'default-value-drift')
+      .map((f: { detail: string; expected: string; actual: string }) => `${f.detail}: ${f.expected} -> ${f.actual}`)
+      .sort();
+  }
+
+  it('is silent when the call site copies the pack value byte for byte', () => {
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_FIXTURE,
+      'packages/x/src/A.tsx': `import { useObjectTranslation } from '${I18N_PKG}';
+export const A = () => { const { t } = useObjectTranslation(); return t('common.save', { defaultValue: 'Save' }); };
+`,
+    });
+    const { findings, counters } = analyze(root);
+    expect(findings).toEqual([]);
+    expect(counters.matchingDefaultValues).toBe(1);
+  });
+
+  it('reports the dead string that says something else, with both texts', () => {
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_FIXTURE,
+      'packages/x/src/A.tsx': `import { useObjectTranslation } from '${I18N_PKG}';
+export const A = () => { const { t } = useObjectTranslation(); return t('common.save', { defaultValue: 'Save changes' }); };
+`,
+    });
+    expect(driftOf(root)).toEqual(['common.save: Save -> Save changes']);
+  });
+
+  it('catches a difference of one character — the ellipsis families are the whole reason', () => {
+    // `Loading...` (three periods) against `Loading` + U+2026 renders the same to
+    // a reader skimming a diff, which is how six of the 43 sites survived. Both
+    // sides are written as escapes here for the same reason.
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_FIXTURE,
+      'packages/x/src/A.tsx': `import { useObjectTranslation } from '${I18N_PKG}';
+export const A = () => { const { t } = useObjectTranslation(); return t('common.loading', { defaultValue: 'Loading\\u2026' }); };
+`,
+    });
+    expect(driftOf(root)).toEqual(['common.loading: Loading... -> Loading\u2026']);
+  });
+
+  it('folds a concatenated en value before comparing, so a wrapped sentence is judged', () => {
+    const both = 'Deleting resets it to the shipped baseline. Continue?';
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_FIXTURE,
+      'packages/x/src/A.tsx': `import { useObjectTranslation } from '${I18N_PKG}';
+export const A = () => {
+  const { t } = useObjectTranslation();
+  return [t('confirm.purge', { defaultValue: '${both}' }), t('confirm.purge', { defaultValue: 'Continue?' })];
+};
+`,
+    });
+    // The matching one is silent; only the half-sentence is reported.
+    expect(driftOf(root)).toEqual([`confirm.purge: ${both} -> Continue?`]);
+  });
+
+  it('leaves a key en does not define to the missing-key rule, and reports it ONCE', () => {
+    // The two classes must stay disjoint: a missing key with an inline default is
+    // objectui#3517's shape, and saying "and it drifts" about a key with no value
+    // would be both noise and false.
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_FIXTURE,
+      'packages/x/src/A.tsx': `import { useObjectTranslation } from '${I18N_PKG}';
+export const A = () => { const { t } = useObjectTranslation(); return t('common.reset', { defaultValue: 'Reset' }); };
+`,
+    });
+    expect(analyze(root).findings.map((f: { reason: string }) => f.reason)).toEqual(['missing-key']);
+  });
+
+  it('counts rather than judges a computed default — there is no text to compare', () => {
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_FIXTURE,
+      'packages/x/src/A.tsx': `import { useObjectTranslation } from '${I18N_PKG}';
+export const A = (label: string) => {
+  const { t } = useObjectTranslation();
+  return [t('common.save', { defaultValue: label }), t('common.cancel', { defaultValue: \`Go \${label}\` })];
+};
+`,
+    });
+    const { findings, counters } = analyze(root);
+    expect(findings).toEqual([]);
+    expect(counters.computedDefaultValues).toBe(2);
+    expect(counters.literalDefaultValues).toBe(0);
+  });
+
+  it('counts rather than judges a plural family and a several-literal key', () => {
+    // `detail.showEmptyRelated` resolves through `_one`/`_other`: there is no one
+    // form to compare against, and picking one would be an invention.
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_FIXTURE,
+      'packages/x/src/A.tsx': `import { useObjectTranslation } from '${I18N_PKG}';
+export const A = (flag: boolean) => {
+  const { t } = useObjectTranslation();
+  return [
+    t('detail.showEmptyRelated', { count: 2, defaultValue: 'anything' }),
+    t(flag ? 'common.save' : 'common.cancel', { defaultValue: 'anything' }),
+    t('grid.column', { returnObjects: true, defaultValue: 'anything' }),
+  ];
+};
+`,
+    });
+    const { findings, counters } = analyze(root);
+    expect(findings).toEqual([]);
+    expect(counters.unjudgedDefaultValues).toBe(3);
+  });
+
+  it('reads the same values the module loader evaluates, not just the same keys', () => {
+    // The key half of this pin has existed since objectui#3530; the value half
+    // is what the drift rule rests on. A parser that folded a concatenation
+    // wrongly, or dropped an escape, would accuse correct call sites.
+    const parsed = collectEnKeys(repoRoot);
+    const runtime = new Map(leafEntries(realEn));
+    const disagreeing = [...runtime]
+      .filter(([key, value]) => parsed.values.has(key) && parsed.values.get(key) !== value)
+      .map(([key]) => key);
+    const unread = [...runtime.keys()].filter((key) => !parsed.values.has(key));
+    expect(disagreeing, `${disagreeing.length} key(s) parsed to a different string`).toEqual([]);
+    expect(unread, 'every leaf in en today is a static string, so none should be unreadable').toEqual([]);
+    expect(parsed.values.size).toBeGreaterThan(2000);
+  });
+
+  it('main carries no drift, which is why this rule has no baseline', () => {
+    // objectui#3810 measured 43 sites in 19 files and aligned all of them in the
+    // same PR. A finding here is a NEW divergence: fix the call site, not the
+    // pack. If this ever has to be waived, that decision needs a baseline
+    // section and an issue — not an edit to `en.ts` to make the red go away.
+    expect(driftOf(repoRoot)).toEqual([]);
   });
 });
 

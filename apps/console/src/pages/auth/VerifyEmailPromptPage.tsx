@@ -79,7 +79,7 @@ export function VerifyEmailPromptPage() {
       setResendError(description);
       toast.error(
         t('auth.verifyEmail.resendFailed', {
-          defaultValue: 'Failed to resend verification email',
+          defaultValue: 'Cannot resend verification email',
         }),
         { description },
       );
@@ -126,7 +126,7 @@ export function VerifyEmailPromptPage() {
               >
                 <p className="font-medium">
                   {t('auth.verifyEmail.resendFailed', {
-                    defaultValue: 'Failed to resend verification email',
+                    defaultValue: 'Cannot resend verification email',
                   })}
                 </p>
                 <p className="mt-1 text-destructive/90">{resendError}</p>

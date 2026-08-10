@@ -366,7 +366,7 @@ function LoginFormCard({
       linkComponent={RouterLink}
       errorMessages={{
         INVALID_EMAIL_OR_PASSWORD: t('auth.login.errors.invalidCredentials', {
-          defaultValue: 'Invalid email or password',
+          defaultValue: 'Invalid email or password. Please try again.',
         }),
         EMAIL_NOT_VERIFIED: t('auth.login.errors.emailNotVerified', {
           defaultValue: 'Please verify your email address before signing in.',
@@ -383,7 +383,7 @@ function LoginFormCard({
         passwordPlaceholder: t('auth.login.passwordPlaceholder', { defaultValue: 'Enter your password' }),
         forgotPasswordText: t('auth.login.forgotPasswordText', { defaultValue: 'Forgot password?' }),
         submitButton: t('auth.login.submitButton', { defaultValue: 'Sign In' }),
-        submittingButton: t('auth.login.submittingButton', { defaultValue: 'Signing in…' }),
+        submittingButton: t('auth.login.submittingButton', { defaultValue: 'Signing in...' }),
         noAccountText: t('auth.login.noAccountText', { defaultValue: "Don't have an account?" }),
         signUpText: t('auth.login.signUpText', { defaultValue: 'Sign up' }),
         phoneLabel: t('auth.login.phoneLabel', { defaultValue: 'Phone number' }),

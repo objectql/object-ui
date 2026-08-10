@@ -213,7 +213,7 @@ export function ViewSettingsPopover(props: ViewSettingsPopoverProps) {
 
         {showColor && setRowColorConfig && (
           <Section
-            title={t('list.color', { defaultValue: 'Row color' })}
+            title={t('list.color', { defaultValue: 'Color' })}
             onClear={rowColorConfig ? () => setRowColorConfig(undefined) : undefined}
             clearLabel={t('list.clear', { defaultValue: 'Clear' })}
             defaultOpen={!!rowColorConfig}
@@ -299,7 +299,7 @@ export function ViewSettingsPopover(props: ViewSettingsPopoverProps) {
 
         {showHideFields && hiddenFields && updateHiddenFields && (
           <Section
-            title={t('list.hideFieldsTitle', { defaultValue: 'Hide fields' })}
+            title={t('list.hideFieldsTitle', { defaultValue: 'Hide Fields' })}
             badge={hiddenFields.size}
             onClear={hiddenFields.size > 0 ? () => updateHiddenFields(new Set()) : undefined}
             clearLabel={t('list.showAll', { defaultValue: 'Show all' })}

@@ -291,9 +291,9 @@ export const RecordReferenceRailRenderer: React.FC<RecordReferenceRailRendererPr
                   <Link
                     to={`/apps/${appName}/${entry.objectName}?filter%5B${entry.relationshipField}%5D=${encodeURIComponent(String(parentId))}`}
                     className="text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
-                    title={t('detail.viewAll', { defaultValue: 'View all' })}
+                    title={t('detail.viewAll', { defaultValue: 'View All' })}
                   >
-                    {t('detail.viewAll', { defaultValue: 'View all' })}
+                    {t('detail.viewAll', { defaultValue: 'View All' })}
                   </Link>
                 )}
               </div>

@@ -312,7 +312,7 @@ export function InboxPopover({
             </TabsTrigger>
             <TabsTrigger value="activity" className="text-xs gap-1.5 data-[state=active]:bg-transparent">
               <ActivityIcon className="h-3.5 w-3.5" />
-              {t('sidebar.activityFeed', { defaultValue: 'Activity' })}
+              {t('sidebar.activityFeed', { defaultValue: 'Activity feed' })}
             </TabsTrigger>
           </TabsList>
 

@@ -31,20 +31,20 @@ export function ForgotPasswordPage() {
         linkComponent={RouterLink}
         title={t('auth.forgotPassword.title', { defaultValue: 'Reset your password' })}
         description={t('auth.forgotPassword.description', {
-          defaultValue: "Enter your email and we'll send you a reset link.",
+          defaultValue: "Enter your email address and we'll send you a link to reset your password",
         })}
         labels={{
           emailLabel: t('auth.forgotPassword.emailLabel', { defaultValue: 'Email' }),
           emailPlaceholder: t('auth.forgotPassword.emailPlaceholder', { defaultValue: 'name@example.com' }),
-          submitButton: t('auth.forgotPassword.submitButton', { defaultValue: 'Send reset link' }),
+          submitButton: t('auth.forgotPassword.submitButton', { defaultValue: 'Send Reset Link' }),
           submittingButton: t('auth.forgotPassword.submittingButton', {
-            defaultValue: 'Sending…',
+            defaultValue: 'Sending...',
           }),
           successTitle: t('auth.forgotPassword.successTitle', {
             defaultValue: 'Check your email',
           }),
           successDescription: t('auth.forgotPassword.successDescription', {
-            defaultValue: 'If an account exists, a reset link has been sent.',
+            defaultValue: "We've sent a password reset link to {{email}}. Please check your inbox.",
           }),
           backToSignInText: t('auth.forgotPassword.backToSignInText', {
             defaultValue: 'Back to sign in',

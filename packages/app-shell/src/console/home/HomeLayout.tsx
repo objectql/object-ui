@@ -62,7 +62,7 @@ export function HomeLayout({ children }: HomeLayoutProps) {
           chat (the dock maximized; Home has no shell to dock a rail into). */}
       {showChatbot && (
         <ConsoleChatbotFab
-          appLabel={t('workspace.default', { defaultValue: 'Workspace' })}
+          appLabel={t('workspace.default', { defaultValue: 'My Workspace' })}
           onOpenDock={openAssistant}
         />
       )}

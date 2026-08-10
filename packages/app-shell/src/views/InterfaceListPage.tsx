@@ -433,7 +433,7 @@ export function InterfaceListPage({ page, className, onConfigChange, reserveEdit
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
             <Database className="h-6 w-6 text-muted-foreground" />
           </div>
-          <EmptyTitle>{t('empty.objectNotFound', { defaultValue: 'Source object not found' })}</EmptyTitle>
+          <EmptyTitle>{t('empty.objectNotFound', { defaultValue: 'Object Not Found' })}</EmptyTitle>
           <EmptyDescription>
             {t('empty.interfacePageSourceMissing', {
               defaultValue: 'This interface page references "{{name}}", which is not available.',

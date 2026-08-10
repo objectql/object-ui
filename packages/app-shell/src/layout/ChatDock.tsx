@@ -560,7 +560,7 @@ export function ChatDockLauncher({ onExpand, className }: ChatDockLauncherProps)
       onClick={onExpand}
       data-testid="chat-dock-launcher"
       aria-label={t('console.ai.dock.open', { defaultValue: 'Open assistant' })}
-      title={t('console.ai.dock.open', { defaultValue: 'Open assistant (⌘⇧I)' })}
+      title={t('console.ai.dock.open', { defaultValue: 'Open assistant' })}
       className={cn(
         'fixed right-0 top-1/2 z-40 hidden h-16 w-7 -translate-y-1/2 rounded-l-md rounded-r-none border-r-0 bg-background shadow-md md:inline-flex',
         className,

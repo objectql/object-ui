@@ -151,9 +151,9 @@ export function RegisterPage() {
     <AuthLayout formWidth="md">
       <Card className="border-border/60 px-4 py-8 shadow-sm shadow-primary/5 backdrop-blur supports-[backdrop-filter]:bg-card/95">
       <RegisterForm
-        title={t('auth.register.title', { defaultValue: 'Create your account' })}
+        title={t('auth.register.title', { defaultValue: 'Create an account' })}
         description={t('auth.register.description', {
-          defaultValue: 'Sign up to get started',
+          defaultValue: 'Create your account to start building.',
         })}
         loginUrl={loginUrl}
         linkComponent={RouterLink}
@@ -181,7 +181,7 @@ export function RegisterPage() {
             defaultValue: 'Create a password (min. 8 characters)',
           }),
           confirmPasswordLabel: t('auth.register.confirmPasswordLabel', {
-            defaultValue: 'Confirm password',
+            defaultValue: 'Confirm Password',
           }),
           confirmPasswordPlaceholder: t('auth.register.confirmPasswordPlaceholder', {
             defaultValue: 'Confirm your password',
@@ -192,8 +192,8 @@ export function RegisterPage() {
           passwordTooShortError: t('auth.register.passwordTooShortError', {
             defaultValue: 'Password must be at least 8 characters',
           }),
-          submitButton: t('auth.register.submitButton', { defaultValue: 'Create account' }),
-          submittingButton: t('auth.register.submittingButton', { defaultValue: 'Creating account…' }),
+          submitButton: t('auth.register.submitButton', { defaultValue: 'Create Account' }),
+          submittingButton: t('auth.register.submittingButton', { defaultValue: 'Creating account...' }),
           hasAccountText: t('auth.register.hasAccountText', { defaultValue: 'Already have an account?' }),
           signInText: t('auth.register.signInText', { defaultValue: 'Sign in' }),
         }}

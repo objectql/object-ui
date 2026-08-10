@@ -305,7 +305,7 @@ export function HomePage() {
   if (loading) {
     return (
       <div className="flex flex-1 items-center justify-center py-20">
-        <div className="text-muted-foreground">{t('home.loading', { defaultValue: 'Loading workspace…' })}</div>
+        <div className="text-muted-foreground">{t('home.loading', { defaultValue: 'Loading workspace...' })}</div>
       </div>
     );
   }
@@ -327,12 +327,12 @@ export function HomePage() {
         */}
         {isAdmin ? (
           <Empty>
-            <EmptyTitle>{t('home.welcome', { product: getRuntimeConfig().branding.productName, defaultValue: 'Welcome to {{product}}' })}</EmptyTitle>
+            <EmptyTitle>{t('home.welcome', { product: getRuntimeConfig().branding.productName, defaultValue: 'Build your business system with AI' })}</EmptyTitle>
             <EmptyDescription>
               {buildAvailable
                 ? t('home.welcomeAdminDescription', {
                     defaultValue:
-                      'Describe your business in one sentence — AI generates the objects, screens, APIs and agent tools. Or set things up yourself from the Administration menu on the left.',
+                      'Describe your business in one sentence — AI generates the objects, screens, APIs and agent tools. Or set things up yourself from the menu on the left.',
                   })
                 : askAvailable
                   ? t('home.welcomeAdminDescriptionNoBuild', {
@@ -358,7 +358,7 @@ export function HomePage() {
             <EmptyDescription>
               {t('home.noAppsDescription', {
                 defaultValue:
-                  'There are no applications available to you yet. Please contact your workspace administrator.',
+                  'Your workspace is being set up — apps your admin shares with you will show up here.',
               })}
             </EmptyDescription>
           </Empty>

@@ -749,7 +749,7 @@ export function AppHeader({
           <>
             <PathSep />
             <span className="text-sm font-medium text-foreground/80 px-1.5">
-              {t('organizations.title', { defaultValue: 'Organizations' })}
+              {t('organizations.title', { defaultValue: 'Workspaces' })}
             </span>
           </>
         )}

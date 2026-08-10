@@ -644,7 +644,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
            <SidebarGroup data-testid="system-fallback-nav">
              <SidebarGroupLabel className="flex items-center gap-1.5">
                <Settings className="h-3.5 w-3.5" />
-               {t('layout.appSwitcher.systemConsole', { defaultValue: 'System' })}
+               {t('layout.appSwitcher.systemConsole', { defaultValue: 'System Console' })}
              </SidebarGroupLabel>
              <SidebarGroupContent>
                <SidebarMenu>

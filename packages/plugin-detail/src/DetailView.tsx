@@ -954,7 +954,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
                       </TooltipTrigger>
                       <TooltipContent>
                         {idCopied
-                          ? t('detail.copied', { defaultValue: 'Copied' })
+                          ? t('detail.copied', { defaultValue: 'Copied!' })
                           : t('detail.copyRecordId', { defaultValue: 'Copy record ID' })}
                       </TooltipContent>
                     </Tooltip>

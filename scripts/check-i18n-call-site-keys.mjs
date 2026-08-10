@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 /**
- * Every key a component asks `t()` for must EXIST in the `en` locale pack.
+ * Every key a component asks `t()` for must EXIST in the `en` locale pack — and
+ * where the call site also writes an inline `defaultValue`, that dead string
+ * must say the same thing the pack does (objectui#3810).
  *
  * Run:  node scripts/check-i18n-call-site-keys.mjs   (also `pnpm check:i18n-keys`)
- * Exit: 0 = every in-scope call-site key resolves (or is baselined), 1 = it does not
+ * Exit: 0 = every in-scope call-site key resolves (or is baselined) and no
+ *           inline default contradicts its `en` value, 1 = otherwise
  *
  * ## The gap this closes (objectui#3530)
  *
@@ -27,15 +30,23 @@
  *
  * All three read the same ten packs, and each is blind to what the next owns:
  *
- *   - THIS gate: call site -> `en`. Does the key a component asks for exist?
+ *   - THIS gate: call site -> `en`. Does the key a component asks for exist, and
+ *     does the call site's own inline `defaultValue` agree with the `en` value?
+ *     Both directions of one question — what this call site will render.
  *   - `packages/i18n/src/__tests__/all-locales-key-parity.test.ts`: pack vs pack
- *     KEY SETS, plus placeholder shape.
- *   - `scripts/check-i18n-en-drift.mjs` (objectui#3650): the only one that reads
- *     VALUES, and only as an event — when an `en` string CHANGES, the nine
- *     translations must change in the same PR (or be waived). Neither key gate
- *     can see a value go stale: objectui#3582 and objectui#3625 were eight packs
- *     serving a retired sentence at full key parity, the second one in idiomatic
- *     native script that every value-shaped heuristic also reads as healthy.
+ *     KEY SETS, plus placeholder shape. Never reads a value.
+ *   - `scripts/check-i18n-en-drift.mjs` (objectui#3650): `en` vs the other nine
+ *     packs, as an event — when an `en` string CHANGES, the nine translations
+ *     must change in the same PR (or be waived). Neither pack gate can see a
+ *     value go stale: objectui#3582 and objectui#3625 were eight packs serving a
+ *     retired sentence at full key parity, the second one in idiomatic native
+ *     script that every value-shaped heuristic also reads as healthy.
+ *
+ * The `default-value-drift` class below is the fourth blind spot in that
+ * partition, and it was blind to all three by construction (objectui#3810):
+ * this gate asked only whether the key existed, parity reads no values at all,
+ * and en-drift fires on CHANGE — and in every one of the 43 sites the `en` value
+ * had not moved for months. The call site was the thing that disagreed.
  *
  * ## What is IN scope, and why the answer is not "every `t(`"
  *
@@ -78,7 +89,7 @@
  * every one of them a component that was handed the metadata-admin table's `t`
  * by its parent, and not one of them a real finding.
  *
- * ## Two failure classes
+ * ## Three failure classes
  *
  * 1. `missing-key` — a literal key with no leaf in `en`. i18next plural suffixes
  *    (`_one`, `_other`, …) count as defining the base key, and a key passed with
@@ -87,6 +98,33 @@
  *    whose static head matches NO `en` key at all. Then every possible expansion
  *    is missing, whatever the substitution evaluates to. This is the only claim
  *    about a dynamic key that is true without knowing the value.
+ * 3. `default-value-drift` (objectui#3810) — the key EXISTS and the call site
+ *    still carries a literal `t(key, { defaultValue: 'other English' })` whose
+ *    text differs from the `en` value. i18next uses `defaultValue` only on a
+ *    miss, so with the key present the pack always wins and that string is
+ *    structurally dead code — dead code that states, at the call site, a
+ *    different sentence from the one users read. Two costs, both measured on
+ *    `main`: the reader (and the AI writing the next edit) is misled —
+ *    `ForgotPasswordPage` claimed `If an account exists, a reset link has been
+ *    sent.` while the pack asserts `We've sent a password reset link to
+ *    {{email}}.`, a materially different privacy claim — and on the day the key
+ *    is renamed or dropped, rendering silently falls back to that other
+ *    sentence, in a diff where nobody expected copy to change.
+ *
+ *    Classes 1 and 3 are disjoint by construction: drift is judged only when the
+ *    key resolves to an `en` leaf this file could read as a string, so a call
+ *    site is never reported twice, and each report reads on its own. Deliberately
+ *    NOT judged (counted instead): a computed default (`defaultValue: label`), a
+ *    call whose key is dynamic or denotes several literals, a `returnObjects`
+ *    subtree, and the plural families — `t('detail.showEmptyRelated')` resolves
+ *    through `_one`/`_other`, and there is no single form to compare against.
+ *
+ *    The rule is HARD from day one — no baseline section, unlike classes 1-2.
+ *    That is a measurement, not an aspiration: the first full run found 43 sites
+ *    in 19 files, all of them aligned in the same PR (objectui#3810), so there
+ *    is no debt for a ratchet to hold. A `defaultValue` written on a key that is
+ *    NOT yet in `en` stays legal — that transition period runs for months
+ *    (objectui#3546) and is class 1's business, not this one's.
  *
  * ## Dynamic keys: the explicit policy
  *
@@ -111,7 +149,8 @@
  * ## The baseline
  *
  * `scripts/i18n-call-site-key-baseline.json` lists the keys already missing on
- * `main` when this gate landed, each with the issue tracking its fix. It is a
+ * `main` when this gate landed, each with the issue tracking its fix — classes 1
+ * and 2 only; class 3 has no baseline and never needed one. It is a
  * ratchet, not an allowlist: a key that is NOT in it fails, and an entry that no
  * longer fires (key added to `en`, or its last call site deleted) ALSO fails, so
  * the file can only shrink. Fixing the debt means adding the key to
@@ -173,13 +212,40 @@ const PLURAL_SUFFIXES = ['_zero', '_one', '_two', '_few', '_many', '_other'];
 // ── the `en` pack ────────────────────────────────────────────────────────────
 
 /**
- * Dotted leaf paths of `packages/i18n/src/locales/en.ts`, read from its AST.
+ * Read a node as a static string, or return `null` if it is not one.
+ *
+ * `'a' + 'b'` counts: `en.ts` wraps one long sentence that way
+ * (`objectActions.resetPackageSetConfirm`), and a leaf this returns `null` for
+ * is a leaf the `default-value-drift` rule cannot judge — so folding the
+ * concatenation here is what keeps that one key inside the checked surface
+ * instead of silently outside it.
+ */
+function staticString(node, source) {
+  const inner = unwrapExpression(node);
+  if (!inner) return null;
+  if (ts.isStringLiteral(inner) || ts.isNoSubstitutionTemplateLiteral(inner)) return inner.text;
+  if (ts.isBinaryExpression(inner) && inner.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    const left = staticString(inner.left, source);
+    const right = staticString(inner.right, source);
+    return left === null || right === null ? null : left + right;
+  }
+  return null;
+}
+
+/**
+ * Dotted leaf paths of `packages/i18n/src/locales/en.ts`, read from its AST,
+ * plus the leaf VALUES — the strings the app actually renders.
  *
  * Parsed rather than imported so the gate needs no build step and no TS loader.
  * `scripts/__tests__/check-i18n-call-site-keys.test.ts` pins this extraction
- * against the real module evaluated by vitest, so the two cannot drift.
+ * against the real module evaluated by vitest, keys AND values, so the two
+ * cannot drift.
  *
- * @returns {{ leaves: Set<string>, branches: Set<string> }}
+ * `values` holds only leaves that read as a static string. Every leaf is in
+ * `leaves` either way: the key rules judge existence and need no value, and the
+ * value rule declines to judge what it could not read rather than guessing.
+ *
+ * @returns {{ leaves: Set<string>, branches: Set<string>, values: Map<string, string> }}
  */
 export function collectEnKeys(root) {
   const file = join(root, 'packages/i18n/src/locales/en.ts');
@@ -209,6 +275,7 @@ export function collectEnKeys(root) {
 
   const leaves = new Set();
   const branches = new Set();
+  const values = new Map();
   const walk = (object, prefix) => {
     for (const prop of object.properties) {
       if (!ts.isPropertyAssignment(prop)) {
@@ -228,11 +295,13 @@ export function collectEnKeys(root) {
         walk(value, path);
       } else {
         leaves.add(path);
+        const text = staticString(value, source);
+        if (text !== null) values.set(path, text);
       }
     }
   };
   walk(literal, '');
-  return { leaves, branches };
+  return { leaves, branches, values };
 }
 
 // ── source walk ──────────────────────────────────────────────────────────────
@@ -448,6 +517,30 @@ function literalKeysOf(argument, source) {
   return { keys, dynamic };
 }
 
+/**
+ * The inline `defaultValue` an options argument carries (objectui#3810).
+ *
+ * `{ present: false }`            — no `defaultValue` property at all.
+ * `{ present: true, text }`       — a static string this rule can compare.
+ * `{ present: true, text: null }` — written, but computed (a template with a
+ *                                   substitution, a variable, a ternary). Not
+ *                                   comparable, so it is counted, never failed.
+ */
+function inlineDefaultValue(node, source) {
+  for (const argument of node.arguments.slice(1)) {
+    const inner = unwrapExpression(argument);
+    if (!inner || !ts.isObjectLiteralExpression(inner)) continue;
+    for (const property of inner.properties) {
+      if (!ts.isPropertyAssignment(property)) continue;
+      const name =
+        ts.isIdentifier(property.name) || ts.isStringLiteral(property.name) ? property.name.text : null;
+      if (name !== 'defaultValue') continue;
+      return { present: true, text: staticString(property.initializer, source) };
+    }
+  }
+  return { present: false, text: null };
+}
+
 /** The literal head of a template key, i.e. everything before the first `${`. */
 function staticHead(argument) {
   const inner = unwrapExpression(argument);
@@ -464,7 +557,7 @@ function staticHead(argument) {
  * @returns {{ findings: Array, counters: Record<string, number>, enKeyCount: number }}
  */
 export function analyze(root) {
-  const { leaves, branches } = collectEnKeys(root);
+  const { leaves, branches, values } = collectEnKeys(root);
   const resolvesLeaf = (key) => leaves.has(key) || PLURAL_SUFFIXES.some((suffix) => leaves.has(key + suffix));
   // Materialised once, not inside the predicate: spreading a 2.6k-entry Set per
   // candidate head is the shape that made `all-locales-key-parity` quadratic
@@ -487,6 +580,10 @@ export function analyze(root) {
     skippedLocalTable: 0,
     skippedNotATranslator: 0,
     skippedMethodCall: 0,
+    literalDefaultValues: 0,
+    matchingDefaultValues: 0,
+    computedDefaultValues: 0,
+    unjudgedDefaultValues: 0,
   };
 
   for (const file of collectSourceFiles(root)) {
@@ -601,6 +698,32 @@ export function analyze(root) {
             if (resolvesLeaf(key) || (returnsObjects && branches.has(key))) counters.resolvedKeys += 1;
             else findings.push({ reason: 'missing-key', ...at, detail: key });
           }
+
+          // objectui#3810 — the inline default is dead code the moment the key
+          // exists, so it must not say something else. Deliberately narrow: one
+          // literal key, whose `en` leaf is a plain string. A key `en` does not
+          // define is `missing-key`'s territory and is NOT reported here too;
+          // keeping the two classifications disjoint is what lets either output
+          // be read on its own.
+          const inlineDefault = inlineDefaultValue(node, source);
+          if (inlineDefault.present && inlineDefault.text === null) {
+            counters.computedDefaultValues += 1;
+          } else if (inlineDefault.present) {
+            counters.literalDefaultValues += 1;
+            const key = !dynamic && keys.length === 1 ? keys[0] : null;
+            const enValue = key !== null && !returnsObjects ? values.get(key) : undefined;
+            if (enValue === undefined) {
+              // No single static key, or a key whose `en` leaf this parser could
+              // not read as a string — including the plural families, where
+              // there is no one form to compare against. Counted, never failed.
+              counters.unjudgedDefaultValues += 1;
+            } else if (enValue === inlineDefault.text) {
+              counters.matchingDefaultValues += 1;
+            } else {
+              findings.push({ reason: 'default-value-drift', ...at, detail: key, expected: enValue, actual: inlineDefault.text });
+            }
+          }
+
           if (dynamic) {
             counters.dynamicKeySites += 1;
             const head = staticHead(argument);
@@ -681,7 +804,22 @@ const HINTS = {
     '`createSafeTranslation(...)` bound to a name outside the `use*Translation` /' +
     ' `use*Translate` / `use*T` convention. Every call through it would leave this' +
     ' gate\'s checked surface silently — rename it to the convention.',
+  'default-value-drift':
+    'The key EXISTS in `en`, so i18next serves the pack value and this inline' +
+    ' `defaultValue` never renders — but it says something else, which misleads every' +
+    ' later reader of this component and becomes the visible copy the day the key is' +
+    ' renamed (objectui#3810). Fix it at the CALL SITE: copy the `en` value in' +
+    ' byte-for-byte, ellipsis and capitalisation included. Do NOT edit' +
+    ' `packages/i18n/src/locales/en.ts` to match the call site — the pack value is what' +
+    ' users read today, and changing it makes `scripts/check-i18n-en-drift.mjs` demand' +
+    ' the same change in the other nine packs. If the pack value is genuinely the wrong' +
+    ' copy for this spot, that is a copy change in its own PR, or the call site is asking' +
+    ' for the wrong key.',
 };
+
+/** JSON-quoted, with every non-ASCII byte escaped — `...` vs `…` must be visible. */
+const quote = (text) =>
+  JSON.stringify(text).replace(/[^\x20-\x7e]/g, (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`);
 
 const invokedDirectly = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
 
@@ -710,24 +848,53 @@ if (invokedDirectly) {
       `${counters.skippedLocalTable} module-local table, ${counters.skippedNotATranslator} not a translator, ` +
       `${counters.skippedMethodCall} method call.`,
   );
+  console.log(
+    `Inline defaults: ${counters.literalDefaultValues} literal ` +
+      `(${counters.matchingDefaultValues} match their en value, ${counters.unjudgedDefaultValues} not comparable), ` +
+      `${counters.computedDefaultValues} computed (report-only).`,
+  );
+
+  // Split by class before printing: the two key classes say "en does not define
+  // this", the drift class says "en defines it differently", and one paragraph
+  // cannot honestly introduce both.
+  const drift = unexpected.filter((finding) => finding.reason === 'default-value-drift');
+  const keyFindings = unexpected.filter((finding) => finding.reason !== 'default-value-drift');
 
   if (unexpected.length === 0 && stale.length === 0) {
-    console.log(`Every in-scope call-site key resolves against the en pack (${enKeyCount} keys).`);
+    console.log(
+      `Every in-scope call-site key resolves against the en pack (${enKeyCount} keys), and every` +
+        ' literal inline defaultValue matches the value the pack serves.',
+    );
     process.exit(0);
   }
 
-  if (unexpected.length > 0) {
-    const distinct = new Set(unexpected.map((f) => `${f.reason} :: ${f.detail}`));
+  if (keyFindings.length > 0) {
+    const distinct = new Set(keyFindings.map((f) => `${f.reason} :: ${f.detail}`));
     console.error(
-      `\n${unexpected.length} call site${unexpected.length === 1 ? '' : 's'} reference${unexpected.length === 1 ? 's' : ''} ` +
+      `\n${keyFindings.length} call site${keyFindings.length === 1 ? '' : 's'} reference${keyFindings.length === 1 ? 's' : ''} ` +
         `a key the en pack does not define (${distinct.size} distinct):`,
     );
-    for (const finding of unexpected) {
+    for (const finding of keyFindings) {
       console.error(`  ${finding.file}:${finding.line}:${finding.column}  [${finding.reason}]  ${finding.detail}`);
     }
-    for (const reason of Object.keys(HINTS)) {
-      if (unexpected.some((finding) => finding.reason === reason)) console.error(`\n${reason}: ${HINTS[reason]}`);
+  }
+
+  if (drift.length > 0) {
+    const distinct = new Set(drift.map((finding) => finding.detail));
+    console.error(
+      `\n${drift.length} inline defaultValue${drift.length === 1 ? '' : 's'} contradict${drift.length === 1 ? 's' : ''} ` +
+        `the en value of a key that EXISTS (${distinct.size} distinct key${distinct.size === 1 ? '' : 's'}) — ` +
+        'the pack value is what renders, so the call site is stating a sentence nobody sees:',
+    );
+    for (const finding of drift) {
+      console.error(`  ${finding.file}:${finding.line}:${finding.column}  [${finding.reason}]  ${finding.detail}`);
+      console.error(`      en renders: ${quote(finding.expected)}`);
+      console.error(`      call site:  ${quote(finding.actual)}`);
     }
+  }
+
+  for (const reason of Object.keys(HINTS)) {
+    if (unexpected.some((finding) => finding.reason === reason)) console.error(`\n${reason}: ${HINTS[reason]}`);
   }
 
   if (stale.length > 0) {

@@ -1793,7 +1793,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         history: {
           entries: historyEntries ?? [],
           loading: historyLoading && historyEntries === null,
-          unknownUserText: t('detail.unknownUser', { defaultValue: 'Unknown user' }),
+          unknownUserText: t('detail.unknownUser', { defaultValue: 'Unknown' }),
         },
       }),
       // Approvals tab (#3461) — only when the record actually has requests,
@@ -1958,7 +1958,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         // because the page is not focused or running over http://).
         try {
           await navigator.clipboard.writeText(window.location.href);
-          toast.success(t('detail.linkCopied', { defaultValue: 'Link copied' }));
+          toast.success(t('detail.linkCopied', { defaultValue: 'Link copied to clipboard' }));
         } catch (err: any) {
           toast.error(
             t('detail.linkCopyFailed', { defaultValue: 'Failed to copy link' }) +

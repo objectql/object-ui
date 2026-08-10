@@ -175,11 +175,11 @@ export function OrganizationsPage() {
     <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 py-8 sm:py-12">
       <div className="mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-          {t('organizations.heading', { defaultValue: 'Your Organizations' })}
+          {t('organizations.heading', { defaultValue: 'Your Workspaces' })}
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
           {t('organizations.subtitle', {
-            defaultValue: 'Select an organization to continue, or create a new one.',
+            defaultValue: 'Select a workspace to continue, or create a new one.',
           })}
         </p>
       </div>
@@ -191,7 +191,7 @@ export function OrganizationsPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t('organizations.searchPlaceholder', {
-              defaultValue: 'Search for an organization',
+              defaultValue: 'Search for a workspace',
             })}
             className="pl-9"
             data-testid="organizations-search"
@@ -200,7 +200,7 @@ export function OrganizationsPage() {
         {canCreateOrg && (
           <Button onClick={() => setIsCreateOpen(true)} data-testid="organizations-new">
             <Plus className="mr-2 h-4 w-4" />
-            {t('organizations.new', { defaultValue: 'New organization' })}
+            {t('organizations.new', { defaultValue: 'New workspace' })}
           </Button>
         )}
       </div>
@@ -208,24 +208,24 @@ export function OrganizationsPage() {
       {orgList.length === 0 ? (
         <Empty>
           <EmptyTitle>
-            {t('organizations.emptyTitle', { defaultValue: 'No organizations yet' })}
+            {t('organizations.emptyTitle', { defaultValue: 'No workspaces yet' })}
           </EmptyTitle>
           <EmptyDescription>
             {t('organizations.emptyDescription', {
-              defaultValue: 'Create your first organization to get started.',
+              defaultValue: 'Create your first workspace to get started.',
             })}
           </EmptyDescription>
           {canCreateOrg && (
             <Button className="mt-6" onClick={() => setIsCreateOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
-              {t('organizations.new', { defaultValue: 'New organization' })}
+              {t('organizations.new', { defaultValue: 'New workspace' })}
             </Button>
           )}
         </Empty>
       ) : filtered.length === 0 ? (
         <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
           {t('organizations.noMatches', {
-            defaultValue: 'No organizations match your search.',
+            defaultValue: 'No workspaces match your search.',
           })}
         </div>
       ) : (
@@ -251,7 +251,7 @@ export function OrganizationsPage() {
                   <div className="truncate font-medium">{org.name}</div>
                   <div className="truncate text-xs text-muted-foreground">
                     {isActive
-                      ? t('organizations.current', { defaultValue: 'Current organization' })
+                      ? t('organizations.current', { defaultValue: 'Current workspace' })
                       : org.slug}
                   </div>
                 </div>
