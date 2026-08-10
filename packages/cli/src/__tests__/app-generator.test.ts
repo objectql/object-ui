@@ -51,8 +51,18 @@
  *    `create-plugin` where both passed over empty sets. The self-tests are kept
  *    anyway — a non-empty input proves the rule ran, not that it has teeth.
  */
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
-import { isBuiltin } from 'node:module';
+import { spawnSync } from 'node:child_process';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync
+} from 'node:fs';
+import { createRequire, isBuiltin } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -128,6 +138,12 @@ function readManifest(path: string): Manifest {
  * plugins enter, and folds a subpath back onto its package so
  * `react-dom/client` is checked against `react-dom`. Builtins are dropped.
  */
+/** Folds a specifier back onto its package: `react-dom/client` -> `react-dom`. */
+function packageOfSpecifier(specifier: string): string {
+  const segments = specifier.split('/');
+  return specifier.startsWith('@') ? segments.slice(0, 2).join('/') : segments[0];
+}
+
 function importedPackagesOf(source: string): string[] {
   const packages = new Set<string>();
   for (const match of source.matchAll(
@@ -136,8 +152,7 @@ function importedPackagesOf(source: string): string[] {
     const specifier = match[1];
     if (specifier.startsWith('.') || specifier.startsWith('/')) continue;
     if (isBuiltin(specifier)) continue;
-    const segments = specifier.split('/');
-    packages.add(specifier.startsWith('@') ? segments.slice(0, 2).join('/') : segments[0]);
+    packages.add(packageOfSpecifier(specifier));
   }
   return [...packages].sort();
 }
@@ -186,6 +201,23 @@ function unusedVersionedDependencies(
 }
 
 /**
+ * Ambient declaration files, which the module graph is the wrong measure for.
+ *
+ * The single exemption to the rule below. `src/vite-env.d.ts` is pulled into the
+ * program by the generated tsconfig's `include: ['src']` and by nothing else —
+ * being reachable that way rather than by an import is what an ambient
+ * declaration IS — so reachability-from-`main.tsx` would report the one
+ * generated file whose whole job is to be reached differently (objectui#3853).
+ *
+ * The exemption is exactly as wide as the fact that justifies it (`.d.ts`, not
+ * "files the generator says are fine"), and it opens no hole: an ambient file
+ * that stopped carrying its weight would be caught by the `tsc` gate at the
+ * bottom of this file, which goes red the moment `src/index.css` has no
+ * declaration behind it.
+ */
+const isAmbientDeclaration = (path: string) => path.endsWith('.d.ts');
+
+/**
  * Generated `src/**` files not reachable from `src/main.tsx`.
  *
  * objectui#3759's criterion, retargeted: `index.html` loads exactly one module
@@ -224,7 +256,7 @@ function unreachableGeneratedFiles(files: Record<string, string>): string[] {
   }
 
   return Object.keys(files)
-    .filter((path) => path.startsWith('src/') && !reached.has(path))
+    .filter((path) => path.startsWith('src/') && !isAmbientDeclaration(path) && !reached.has(path))
     .sort();
 }
 
@@ -861,6 +893,21 @@ describe('generated app file maps', () => {
     ).toEqual(['src/schemas/page9.json']);
   });
 
+  it('exempts the ambient declaration, and nothing else, from reachability', () => {
+    // The width of the objectui#3853 exemption, pinned in both directions: the
+    // `.d.ts` both generators now write is exempt, and a `.ts` orphan sitting
+    // beside it under the same name still gets reported. An exemption that read
+    // "files matching vite-env*" or "files the generator knows about" would pass
+    // the first assertion and fail to be a rule at all.
+    for (const files of [plainFiles(), routedFiles()]) {
+      expect(files['src/vite-env.d.ts']).toBe(`/// <reference types="vite/client" />\n`);
+      expect(unreachableGeneratedFiles(files)).toEqual([]);
+      expect(unreachableGeneratedFiles({ ...files, 'src/vite-env.ts': '' })).toEqual([
+        'src/vite-env.ts'
+      ]);
+    }
+  });
+
   it('keeps every generated path inside the temp app directory', () => {
     // The generator joins these onto a tmpdir, so a `..` segment would escape.
     for (const files of [plainFiles(), routedFiles()]) {
@@ -1088,5 +1135,244 @@ describe('generation onto disk', () => {
         Object.keys(inRepoRangesOf('lucide-react')).sort()[0]
       );
     });
+  });
+});
+
+/**
+ * A real `tsc -p` over a generated app, using the app's own tsconfig
+ * (objectui#3853).
+ *
+ * Both generators write a `tsconfig.json` carrying `strict`, `noUnusedLocals`
+ * and `noUnusedParameters`, and until this gate landed nothing had ever run it:
+ * `dev`/`serve`/`build` all go through Vite, which transpiles without checking,
+ * and the config itself says `noEmit`. So the strictness was declared and never
+ * enforced — the objectui#3742 shape — and the generated sources had drifted 17
+ * errors past it (the issue's table is 12 of them; measuring turned up two more
+ * `TS7006` callbacks, two `TS2741` call sites where `DynamicIcon` was invoked
+ * without the `className` its inferred type made required, and a `TS2882` for
+ * `import './index.css'` in BOTH generators' entry).
+ *
+ * The gate is the same orientation as the structural ones above — judge the
+ * artifact, not this repo's source text — except that the judge here is the real
+ * compiler rather than a regex.
+ *
+ * WHAT IT DELIBERATELY DOES NOT JUDGE, and why that is not a hole:
+ *
+ * Nothing installs the temp app's dependencies (`generation onto disk` says why:
+ * inside this workspace an install proves nothing about the manifest). So
+ * `@object-ui/*` and `lucide-react` do not resolve here, and tsc says so. Those
+ * diagnostics are exempt — but only when the specifier is BARE, and only after
+ * being checked against the manifest the generator itself writes. A relative
+ * specifier is never exempt, which is what keeps `./index.css`,
+ * `./theme-provider` and `./Layout` under the gate, and an unresolved bare
+ * specifier the manifest does not declare fails here as loudly as anywhere else.
+ * That partition is the issue's own: its error table is the errors "unrelated to
+ * whether `@object-ui/*` is installed".
+ *
+ * The temp app is generated under the repo root rather than `os.tmpdir()`, which
+ * is not an arbitrary choice: it is what `commands/dev.ts` does ("always in cwd
+ * to keep node_modules access"), and it is what makes `react`, `react-dom`,
+ * `react-router-dom`, `@types/react` and `vite/client` resolve from the root
+ * `node_modules` the way they do for the real command. Under `os.tmpdir()`
+ * nothing resolves at all and `React.ReactNode` in `src/theme-provider.tsx`
+ * degrades to `Cannot find namespace 'React'` — a diagnostic about the test's
+ * own setup, wearing the costume of a defect in the generated source.
+ *
+ * Cost: ~1s per invocation, three invocations. Measured, because a gate nobody
+ * can afford to run is not a gate.
+ */
+describe('generated app type-checks under its own tsconfig', () => {
+  /** The workspace's TypeScript, resolved from this package — never a global. */
+  const TSC = createRequire(import.meta.url).resolve('typescript/bin/tsc');
+
+  type Diagnostic = { file: string; code: number; message: string };
+
+  /** `tsc`'s non-pretty output, one diagnostic per line, both of its shapes. */
+  function parseDiagnostics(output: string): Diagnostic[] {
+    const diagnostics: Diagnostic[] = [];
+    for (const line of output.split('\n')) {
+      const located = /^(.+?)\(\d+,\d+\): error TS(\d+): (.*)$/.exec(line);
+      if (located) {
+        diagnostics.push({ file: located[1], code: Number(located[2]), message: located[3] });
+        continue;
+      }
+      // Fileless diagnostics: a broken `include` reports `TS18003: No inputs
+      // were found`, which is exactly how this gate would go vacuous. Parsed so
+      // it lands in the non-exempt bucket and fails.
+      const fileless = /^error TS(\d+): (.*)$/.exec(line);
+      if (fileless) {
+        diagnostics.push({ file: '', code: Number(fileless[1]), message: fileless[2] });
+      }
+    }
+    return diagnostics;
+  }
+
+  /** `Cannot find module`/`type definition file` — the three resolution codes. */
+  const RESOLUTION_CODES = new Set([2307, 2688, 2882]);
+
+  /** The specifier a resolution diagnostic names, or `undefined` if it is not one. */
+  function unresolvedSpecifier(diagnostic: Diagnostic): string | undefined {
+    if (!RESOLUTION_CODES.has(diagnostic.code)) return undefined;
+    return /'([^']+)'/.exec(diagnostic.message)?.[1];
+  }
+
+  const isBareSpecifier = (specifier: string) =>
+    !specifier.startsWith('.') && !specifier.startsWith('/');
+
+  /**
+   * Runs `tsc -p` over a generated app and splits the result.
+   *
+   * `--pretty false` because the ANSI/multi-line form is not parseable, and tsc
+   * chooses it by TTY — which vitest's reporter can change underneath us.
+   */
+  function typeCheck(appDir: string): { beyondResolution: Diagnostic[]; unresolved: string[] } {
+    const result = spawnSync(
+      process.execPath,
+      [TSC, '-p', join(appDir, 'tsconfig.json'), '--pretty', 'false'],
+      { encoding: 'utf-8' }
+    );
+    // Not the same failure as "the code has type errors": tsc exits 1/2 for
+    // those. A signal or a missing binary must not read as a clean run.
+    expect(result.error, `tsc failed to start: ${result.error?.message}`).toBeUndefined();
+    const diagnostics = parseDiagnostics(`${result.stdout}${result.stderr}`);
+    const unresolved = new Set<string>();
+    const beyondResolution: Diagnostic[] = [];
+    for (const diagnostic of diagnostics) {
+      const specifier = unresolvedSpecifier(diagnostic);
+      if (specifier !== undefined && isBareSpecifier(specifier)) unresolved.add(specifier);
+      else beyondResolution.push(diagnostic);
+    }
+    return { beyondResolution, unresolved: [...unresolved].sort() };
+  }
+
+  /**
+   * Generates into `<repo>/.objectui-tmp/…` — the directory `commands/dev.ts`
+   * itself uses, and already `.gitignore`d, so a crashed run cannot leave
+   * anything in `git status`.
+   */
+  function withGeneratedApp(write: (dir: string) => void, run: (dir: string) => void): void {
+    const parent = join(REPO_ROOT, '.objectui-tmp');
+    mkdirSync(parent, { recursive: true });
+    const dir = mkdtempSync(join(parent, 'tsc-gate-3853-'));
+    try {
+      write(dir);
+      run(dir);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  /** Package names the generator's own manifest declares, both maps. */
+  function declaredPackages(manifest: Record<string, unknown>): Set<string> {
+    return new Set(Object.keys(allRangesOf(manifest)));
+  }
+
+  function expectCleanTypeCheck(
+    dir: string,
+    manifest: Record<string, unknown>,
+    shape: string
+  ): void {
+    const { beyondResolution, unresolved } = typeCheck(dir);
+    expect(
+      beyondResolution.map((d) => `${d.file}: TS${d.code}: ${d.message}`),
+      `${shape}: generated sources fail the tsconfig the generator wrote beside them`
+    ).toEqual([]);
+    // The exemption, bounded. Every package tsc could not resolve has to be one
+    // the generated manifest asks for — so the "it just is not installed here"
+    // excuse can never cover a typo or an import nobody declared. Which packages
+    // land here depends on what this workspace happens to hoist, so the SET is
+    // not pinned; its membership rule is.
+    const declared = declaredPackages(manifest);
+    expect(
+      unresolved.filter((specifier) => !declared.has(packageOfSpecifier(specifier))),
+      `${shape}: unresolved import that the generated manifest never declares`
+    ).toEqual([]);
+  }
+
+  it('type-checks the routed app the CLI really writes', () => {
+    withGeneratedApp(
+      (dir) => createTempAppWithRouting(dir, ROUTES, APP_CONFIG),
+      // Judged against the STANDALONE manifest for the reason given at the top
+      // of this file: inside a workspace `createTempApp` writes both maps empty,
+      // so the on-disk manifest would make the membership rule above vacuous.
+      (dir) => expectCleanTypeCheck(dir, buildRoutedAppPackageJson(), 'routed')
+    );
+  });
+
+  it('type-checks the plain app the CLI really writes', () => {
+    withGeneratedApp(
+      (dir) => createTempApp(dir, SCHEMA),
+      (dir) => expectCleanTypeCheck(dir, buildAppPackageJson(STANDALONE), 'plain')
+    );
+  });
+
+  it('goes red on the pre-fix templates, with the defects the issue measured', () => {
+    // Reverse verification, and the answer to "is a green tsc run green because
+    // it checked something?". Each plant restores one of the four defect classes
+    // objectui#3853 reports, spelled as the pre-fix template spelled it. The
+    // direction was predicted before running: unused import -> TS6133; untyped
+    // destructured props -> TS7031, and TS2741 downstream at the two call sites
+    // that omit `className` once it is inferred required; untyped map callbacks
+    // -> TS7006 (five, not the three the issue lists); no ambient declaration ->
+    // TS2882 for `./index.css`. The two type-only declarations the plants strand
+    // were predicted too — the plants are a revert, not a scalpel — but as
+    // TS6133 + TS6196, and measuring said TS6196 twice: `import type { ReactNode }`
+    // binds a TYPE, and an unused type is "declared but never used" (TS6196),
+    // never "its value is never read" (TS6133, which is what an unused VALUE
+    // import like `Link` gets). Pinned as measured rather than as predicted.
+    const plants: Array<[file: string, from: string, to: string]> = [
+      [
+        'src/App.tsx',
+        `import { BrowserRouter, Routes, Route } from 'react-router-dom';`,
+        `import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';`
+      ],
+      [
+        'src/Layout.tsx',
+        `const DynamicIcon = ({ name, className }: { name: string; className?: string }) => {`,
+        `const DynamicIcon = ({ name, className }) => {`
+      ],
+      [
+        'src/Layout.tsx',
+        `const AppLayout = ({ app, children }: { app: AppConfig; children: ReactNode }) => {`,
+        `const AppLayout = ({ app, children }) => {`
+      ]
+    ];
+
+    withGeneratedApp(
+      (dir) => {
+        createTempAppWithRouting(dir, ROUTES, APP_CONFIG);
+        for (const [file, from, to] of plants) {
+          const path = join(dir, file);
+          const before = readFileSync(path, 'utf-8');
+          // A plant that no longer matches would silently check nothing, which
+          // is the failure mode this whole test exists to rule out.
+          expect(before, `${file}: nothing to revert — the template moved`).toContain(from);
+          writeFileSync(path, before.replace(from, to));
+        }
+        rmSync(join(dir, 'src/vite-env.d.ts'));
+      },
+      (dir) => {
+        const { beyondResolution } = typeCheck(dir);
+        const byCode: Record<string, number> = {};
+        for (const diagnostic of beyondResolution) {
+          byCode[`TS${diagnostic.code}`] = (byCode[`TS${diagnostic.code}`] ?? 0) + 1;
+        }
+        expect(byCode).toEqual({
+          TS6133: 1, // 'Link' — an unused VALUE import
+          TS6196: 2, // 'ReactNode' and 'AppConfig' — unused TYPES the plants strand
+          TS7031: 4, // name, className, app, children
+          TS7006: 5, // item, idx, child, child, cIdx
+          TS2741: 2, // <DynamicIcon name={…} /> with no className, twice
+          TS2882: 1 // import './index.css' with no ambient declaration
+        });
+        // The identifiers, not just the counts: a gate that reported the right
+        // number of the wrong errors would pass the assertion above.
+        const named = beyondResolution.map((d) => d.message).join('\n');
+        for (const identifier of ['Link', 'name', 'className', 'app', 'children', 'item', 'idx']) {
+          expect(named, `no diagnostic names ${identifier}`).toContain(`'${identifier}'`);
+        }
+        expect(named).toContain(`'./index.css'`);
+      }
+    );
   });
 });

@@ -190,6 +190,25 @@ function buildRoutedAppDependencies(): Record<string, string> {
 }
 
 
+/**
+ * The generated `src/vite-env.d.ts`, identical for both generators.
+ *
+ * Both entries do `import './index.css'`, and TypeScript has no idea what a
+ * `.css` module is: without this the entry file fails its own `tsconfig.json`
+ * with "Cannot find module or type declarations for side-effect import of
+ * './index.css'". `vite/client` is where the `declare module '*.css'` ambient
+ * declarations live, `vite` is already in the generated `devDependencies`, and
+ * this is the file `create-vite`'s own React+TS template writes for the same
+ * reason — so the fix is the ecosystem's spelling of it rather than a local
+ * invention (objectui#3853).
+ *
+ * It is the one generated `src/**` file that is deliberately unreachable from
+ * `src/main.tsx`: an ambient declaration is pulled in by the tsconfig's
+ * `include`, never by the module graph. `app-generator.test.ts`'s reachability
+ * gate exempts `.d.ts` for exactly that reason and pins the exemption's width.
+ */
+const APP_VITE_ENV_D_TS = `/// <reference types="vite/client" />\n`;
+
 /** The generated `tsconfig.json`, identical for both generators. */
 const APP_TSCONFIG = {
   compilerOptions: {
@@ -579,6 +598,7 @@ export default App;`;
     'index.html': html,
     'src/main.tsx': mainTsx,
     'src/App.tsx': appTsx,
+    'src/vite-env.d.ts': APP_VITE_ENV_D_TS,
     'src/index.css': buildAppIndexCss(context),
     'postcss.config.js': APP_POSTCSS_CONFIG,
     'package.json': JSON.stringify(buildAppPackageJson(context), null, 2),
@@ -745,13 +765,12 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       // Since we don't have a Layout component in @object-ui/components yet, we generate a simple one.
 
       const layoutCode = `
+import type { ComponentType, ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import * as LucideIcons from 'lucide-react';
 import { Moon, Sun } from "lucide-react"
 import { useTheme } from "./theme-provider"
-import { 
-  cn,
-  Button,
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -763,8 +782,6 @@ import {
   SidebarHeader,
   SidebarRail,
   SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
@@ -777,11 +794,36 @@ import {
   Collapsible,
   CollapsibleTrigger,
   CollapsibleContent
-} from '@object-ui/components'; 
+} from '@object-ui/components';
 
-const DynamicIcon = ({ name, className }) => {
-  // @ts-expect-error - Dynamic icon lookup from Lucide icons
-  const Icon = LucideIcons[name];
+/** One entry of \`app.json\`'s \`menu\`, as this layout reads it. */
+type MenuItem = {
+  label?: string;
+  path?: string;
+  icon?: string;
+  children?: MenuItem[];
+};
+
+/** The \`app.json\` fields this layout renders. */
+type AppConfig = {
+  title?: string;
+  logo?: string;
+  menu?: MenuItem[];
+};
+
+// Lucide publishes every icon as a named export, and a menu entry names one as
+// a string — so the lookup is a runtime index into the namespace object, which
+// has no index signature. Narrowing it to the component-by-name shape this file
+// actually uses keeps that honest without an \`any\` or a \`@ts-expect-error\`; the
+// \`undefined\` arm is real, since the namespace also exports helpers that are not
+// components and a schema may name an icon that does not exist.
+const lucideIcons = LucideIcons as unknown as Record<
+  string,
+  ComponentType<{ className?: string }> | undefined
+>;
+
+const DynamicIcon = ({ name, className }: { name: string; className?: string }) => {
+  const Icon = lucideIcons[name];
   if (!Icon) return null;
   return <Icon className={className} />;
 };
@@ -822,7 +864,7 @@ export function ModeToggle() {
   )
 }
 
-const AppLayout = ({ app, children }) => {
+const AppLayout = ({ app, children }: { app: AppConfig; children: ReactNode }) => {
   const location = useLocation();
   const menu = app.menu || [];
   
@@ -932,7 +974,12 @@ export default AppLayout;
   }
 
   // Create App.tsx with routing
-  const appTsx = `import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
+  //
+  // `Link` is deliberately absent from this import: the only `<Link>` in the
+  // generated app is in `src/Layout.tsx`, which imports it itself. Naming it
+  // here bought nothing and cost a TS6133 under the `noUnusedLocals` this
+  // generator's own `tsconfig.json` declares (objectui#3853).
+  const appTsx = `import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { SchemaRenderer } from '@object-ui/react';
 import '@object-ui/components';
 import '@object-ui/plugin-charts';
@@ -961,6 +1008,7 @@ export default App;`;
 
   files['src/App.tsx'] = appTsx;
 
+  files['src/vite-env.d.ts'] = APP_VITE_ENV_D_TS;
   files['src/index.css'] = buildAppIndexCss(context);
   files['postcss.config.js'] = APP_POSTCSS_CONFIG;
   files['package.json'] = JSON.stringify(buildRoutedAppPackageJson(), null, 2);
