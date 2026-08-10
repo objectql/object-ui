@@ -59,7 +59,8 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { SchemaRenderer } from '@object-ui/react';
+import { SchemaRenderer, useCapabilityGate } from '@object-ui/react';
+import { actionRendersAt } from '@object-ui/types';
 import { Button, Skeleton } from '@object-ui/components';
 import { Plus } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
@@ -79,6 +80,17 @@ const CREATE_ACTION = 'create_environment';
  * user doesn't land on the list and have to find the create button again.
  * The param is consumed exactly once (stripped from the URL on consumption)
  * so refresh / back don't re-open the dialog.
+ *
+ * ## Arming is destructive — only arm when there is something to trigger (#4123)
+ *
+ * Consumption is modelled as "strip the param", so arming SPENDS a one-shot
+ * user intent. Arm it when nothing can act on it and the intent is not merely
+ * lost, it is unrecoverable: the URL no longer carries it, so a reload cannot
+ * retry. That is why the caller passes a non-null `ctaKind` only once the
+ * create action is actually on the bar — see `hasCreateAction` below. When it
+ * is not, the honest degradation is to leave the URL alone: the next mount
+ * that CAN act on the deep link still does (a reload, or the action arriving
+ * with fresh metadata).
  */
 function useAutoRunCreate(ctaKind: string | null): boolean {
   // Deliberately router-free (window.location + history.replaceState): the
@@ -141,9 +153,28 @@ interface Props {
 
 export function EnvironmentListToolbar({ actions, entitlements, onUpgrade }: Props) {
   const { t } = useObjectTranslation();
-  const toolbarActions = (actions || []).filter((a: any) => a?.locations?.includes('list_toolbar'));
+  // [ADR-0066 D4] The same capability gate `action:bar` applies to the actions
+  // it RENDERS. This toolbar is one more surface that filters its own action
+  // list instead of routing through `ActionEngine.getActionsForLocation`, which
+  // is precisely the case `useCapabilityGate` exists to keep from drifting.
+  const mayInvoke = useCapabilityGate();
+  // ONE list, built from both predicates the bar applies downstream
+  // (`actionRendersAt` + the capability gate), so what this component decides
+  // and what the bar renders cannot disagree by construction (#4123). The bar
+  // re-applies both to the list it receives — idempotent on an already-filtered
+  // list. Before this, placement was filtered here and capability only there,
+  // so a create action the caller may not invoke was counted here and dropped
+  // there.
+  const toolbarActions = (actions || []).filter(
+    (a: any) => actionRendersAt(a, 'list_toolbar') && mayInvoke(a?.requiredPermissions),
+  );
+  const hasCreateAction = toolbarActions.some((a: any) => a?.name === CREATE_ACTION);
   const ctaKind = entitlements?.ready ? decideEnvironmentCta(entitlements) : null;
-  const autoRunCreate = useAutoRunCreate(toolbarActions.length > 0 ? ctaKind : null);
+  // Arm the deep link on the CREATE ACTION's presence — never on "the toolbar
+  // has actions" (#4123). The old predicate armed on `toolbarActions.length > 0`,
+  // so a toolbar carrying any other action consumed `?runAction=create_environment`
+  // and triggered nothing (measured: `urlParam=null execute=0`), unrecoverably.
+  const autoRunCreate = useAutoRunCreate(hasCreateAction ? ctaKind : null);
 
   // Deep-linked "create" while in the upgrade state opens the SAME upgrade
   // prompt — the honest answer to "create" here. In an effect, not render:
@@ -164,11 +195,10 @@ export function EnvironmentListToolbar({ actions, entitlements, onUpgrade }: Pro
   // no create action at all, nothing can jump and no skeleton is rendered.
   if (entitlements === null) {
     const others = otherActions(toolbarActions);
-    const hasCreate = others.length !== toolbarActions.length;
     return (
       <>
         <OtherActionsBar actions={others} />
-        {hasCreate && (
+        {hasCreateAction && (
           // Sized like the `size="sm"` bar button it stands in for (h-9,
           // rounded-md), mirroring CloudOnboardingNext's loading placeholder.
           // The width is an approximation of the resolved labels — the point is
@@ -186,15 +216,24 @@ export function EnvironmentListToolbar({ actions, entitlements, onUpgrade }: Pro
     return (
       <>
         <OtherActionsBar actions={otherActions(toolbarActions)} />
-        <Button
-          size="sm"
-          onClick={() => onUpgrade(upgradeDialogSpec(entitlements!, t))}
-          className="shadow-none gap-1.5 sm:gap-2 h-8 sm:h-9"
-          data-testid="environment-add-upgrade"
-        >
-          <Plus className="h-4 w-4" />
-          <span>{t('environment.addEnvironment')}</span>
-        </Button>
+        {/*
+          This button IS the create affordance for a plan-locked org — it stands
+          in for the create action so the click opens the upgrade prompt instead
+          of POSTing into a 403. With no create action on the bar there is
+          nothing to stand in for, so it must not appear either (#4123): same
+          one-list rule as the arming predicate above.
+        */}
+        {hasCreateAction && (
+          <Button
+            size="sm"
+            onClick={() => onUpgrade(upgradeDialogSpec(entitlements!, t))}
+            className="shadow-none gap-1.5 sm:gap-2 h-8 sm:h-9"
+            data-testid="environment-add-upgrade"
+          >
+            <Plus className="h-4 w-4" />
+            <span>{t('environment.addEnvironment')}</span>
+          </Button>
+        )}
       </>
     );
   }
