@@ -22,7 +22,7 @@ import { createSafeTranslation } from '@object-ui/i18n';
 import { FormSectionContainer } from './FormSection';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
-import { seedCreateValues } from './schemaDefaults';
+import { seedCreateValues, omitServerResolvedDefaults } from './schemaDefaults';
 import { applyAutoColSpan, containerGridColsFor } from './autoLayout';
 import { resolveSuccessNavigate, isSameOriginUrl, type SubmitBehavior } from './successBehavior';
 import { useOccSave } from './occSave';
@@ -319,9 +319,14 @@ export const WizardForm: React.FC<WizardFormProps> = ({
         objectName: schema.objectName,
         readOnly: schema.readOnly,
         mode: schema.mode,
+        // Feeds the "no persisted record" test that decides whether a runtime
+        // `defaultValue` excuses a field from `required` (#4069). The wizard's
+        // own final-submit gate (`missingRequiredByStep`) reads the `required`
+        // this produces, so it agrees with the renderer for free.
+        recordId: schema.recordId,
         fieldLabel,
       }),
-    [objectSchema, schema.readOnly, schema.mode, schema.objectName, fieldLabel],
+    [objectSchema, schema.readOnly, schema.mode, schema.recordId, schema.objectName, fieldLabel],
   );
 
   // Current section fields
@@ -436,7 +441,13 @@ export const WizardForm: React.FC<WizardFormProps> = ({
         
         let result;
         if (schema.mode === 'create') {
-          result = await dataSource.create(schema.objectName, mergedData);
+          // Omit the fields the producer owns (#4069) — see
+          // `omitServerResolvedDefaults` for why an empty key is not the same
+          // as no key at insert time.
+          result = await dataSource.create(
+            schema.objectName,
+            omitServerResolvedDefaults(mergedData, objectSchema),
+          );
         } else if (schema.mode === 'edit' && schema.recordId) {
           // OCC-guarded: sends `ifMatch` from the record we read; a 409 asks
           // the user to keep editing (skip the success path) or overwrite.

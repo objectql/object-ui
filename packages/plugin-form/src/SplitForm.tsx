@@ -28,7 +28,7 @@ import type { FormField, DataSource } from '@object-ui/types';
 import { cn } from '@object-ui/components';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
-import { seedCreateValues } from './schemaDefaults';
+import { seedCreateValues, omitServerResolvedDefaults } from './schemaDefaults';
 import { applyAutoColSpan, containerGridColsFor } from './autoLayout';
 import { useOccSave } from './occSave';
 
@@ -205,9 +205,12 @@ export const SplitForm: React.FC<SplitFormProps> = ({
         objectName: schema.objectName,
         readOnly: schema.readOnly,
         mode: schema.mode,
+        // Feeds the "no persisted record" test that decides whether a runtime
+        // `defaultValue` excuses a field from `required` (#4069).
+        recordId: schema.recordId,
         fieldLabel,
       }),
-    [objectSchema, schema.readOnly, schema.mode, schema.objectName, fieldLabel],
+    [objectSchema, schema.readOnly, schema.mode, schema.recordId, schema.objectName, fieldLabel],
   );
 
   // Handle form submission
@@ -222,7 +225,13 @@ export const SplitForm: React.FC<SplitFormProps> = ({
     try {
       let result;
       if (schema.mode === 'create') {
-        result = await dataSource.create(schema.objectName, data);
+        // Omit the fields the producer owns (#4069) — see
+        // `omitServerResolvedDefaults` for why an empty key is not the same as
+        // no key at insert time.
+        result = await dataSource.create(
+          schema.objectName,
+          omitServerResolvedDefaults(data, objectSchema),
+        );
       } else if (schema.mode === 'edit' && schema.recordId) {
         // OCC-guarded: sends `ifMatch` from the record we read; a 409 asks the
         // user to keep editing (skip the success path) or overwrite.

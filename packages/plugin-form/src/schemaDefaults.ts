@@ -7,7 +7,15 @@
  */
 
 /**
- * Create-mode seeding of an object's declared field defaults (#4047).
+ * What an object's declared field `defaultValue`s mean to a CREATE form —
+ * which ones it seeds (#4047) and which ones excuse it from the client-side
+ * `required` rule (#4069).
+ *
+ * Both halves hang off ONE classifier, {@link isRuntimeDefault}: a default the
+ * server resolves per insert is neither seedable nor missing. Keeping the two
+ * consumers on one predicate is the point of this module — a second copy would
+ * be free to disagree about, say, a CEL envelope, and then a form would seed a
+ * field it also refuses to submit.
  *
  * ## What this is for
  *
@@ -58,6 +66,7 @@
  */
 
 import { isRuntimeDefaultToken } from '@objectstack/spec/data';
+import { isMissingForRequired } from '@object-ui/core';
 
 /** An object schema as the data source serves it (`{ fields: { [name]: def } }`). */
 interface ObjectSchemaLike {
@@ -81,6 +90,27 @@ function isExpressionEnvelope(v: unknown): boolean {
 }
 
 /**
+ * Is this declared `defaultValue` a RUNTIME INSTRUCTION the server resolves per
+ * insert, rather than a literal value?
+ *
+ * True for the `DEFAULT_VALUE_TOKENS` family (`'NOW()'` / `'current_user'`) and
+ * for CEL/template Expression envelopes. This is THE classifier for "the
+ * producer owns this field's create value" — both consumers in this package
+ * read it, and neither may grow a second copy:
+ *
+ *   1. seeding (#4047 / #4068) — such a default is not seeded, because putting
+ *      the literal text `NOW()` into a datetime input and submitting it
+ *      suppresses the very resolution the declaration asked for;
+ *   2. the create-mode `required` rule (#4069) — see {@link isRequiredInForm}.
+ *
+ * The two are the same fact seen twice: a field whose value the server supplies
+ * is neither seedable nor missing.
+ */
+export function isRuntimeDefault(v: unknown): boolean {
+  return isRuntimeDefaultToken(v) || isExpressionEnvelope(v);
+}
+
+/**
  * Can this declared `defaultValue` be used as a form's initial value as-is?
  *
  * True for static literals only — see the module docblock for why runtime
@@ -88,8 +118,70 @@ function isExpressionEnvelope(v: unknown): boolean {
  */
 export function isSeedableDefault(v: unknown): boolean {
   if (v === undefined || v === null) return false;
-  if (isRuntimeDefaultToken(v)) return false;
-  if (isExpressionEnvelope(v)) return false;
+  return !isRuntimeDefault(v);
+}
+
+/**
+ * Does this form have no persisted record behind it — i.e. is it a CREATE form?
+ *
+ * The one "no persisted record" test, shared by everything that must agree
+ * about it: the containers' data-fetch branch, the default seeding (#4047) and
+ * the create-mode `required` suppression (#4069). Two spellings of this test
+ * WOULD drift — a form seeded as create but validated as edit is exactly the
+ * bug #4069 fixes, in mirror image.
+ */
+export function isCreateFormMode(
+  form: { mode?: string | null; recordId?: unknown } | null | undefined,
+): boolean {
+  return form?.mode === 'create' || !form?.recordId;
+}
+
+/**
+ * The `required` a form should ENFORCE on this field, given the mode (#4069).
+ *
+ * A field may declare `required: true` alongside a runtime `defaultValue`:
+ *
+ * ```ts
+ * remind_at: Field.datetime({ required: true, defaultValue: 'NOW()' }),
+ * ```
+ *
+ * That is coherent authoring, not an error — storage-level required, with the
+ * value guaranteed by the producer (`ObjectQL.applyFieldDefaults` resolves the
+ * token for every field that arrives absent or null). But a CREATE form cannot
+ * seed it (see {@link isRuntimeDefault}), so the control opens empty; enforcing
+ * `required` there refuses the submit with *nothing sensible for the user to
+ * type* — the declaration already said what the value is, and omitting the
+ * field is precisely what makes the server supply it. The field is not
+ * "missing"; it is server-owned.
+ *
+ * So in CREATE mode a runtime default suppresses the rule. Three boundaries,
+ * each pinned in `createDefaults.test.tsx`:
+ *
+ *   - **Create only.** An EDIT form shows a persisted row, where the token was
+ *     already resolved at insert; blanking a required column there is a real
+ *     removal of a value and stays refused.
+ *   - **Runtime defaults only.** A STATIC literal default IS seeded into the
+ *     control (#4068), so if the user clears it they have removed a value that
+ *     was there — `required` still fires.
+ *   - **The rule, not the field.** Suppression only removes the "must not be
+ *     empty" check. A value the user DOES type is still submitted normally and
+ *     wins over the declared default.
+ *
+ * Note this drops the required MARKER (and `aria-required`) too, since both are
+ * driven by this one boolean — which is the honest reading: in create mode the
+ * user really is not required to provide the value. Surfacing what the server
+ * WILL supply is issue #4069's option B, a separate follow-up card.
+ *
+ * Deliberately NOT extended to `requiredWhen` (the conditional-required CEL
+ * rule): that is resolved downstream in the form renderer against the live
+ * record, outside this package.
+ */
+export function isRequiredInForm(
+  field: { required?: unknown; defaultValue?: unknown } | null | undefined,
+  isCreateForm: boolean,
+): boolean {
+  if (!field?.required) return false;
+  if (isCreateForm && isRuntimeDefault(field.defaultValue)) return false;
   return true;
 }
 
@@ -124,4 +216,46 @@ export function seedCreateValues(
   initial?: Record<string, unknown> | null,
 ): Record<string, unknown> {
   return { ...schemaDefaultValues(objectSchema), ...(initial ?? {}) };
+}
+
+/**
+ * Drop the fields a CREATE payload must leave to the producer (#4069).
+ *
+ * The other half of {@link isRequiredInForm}: excusing a server-owned field
+ * from `required` is only half an answer if the form then submits the key
+ * anyway. A rendered control registers with the form whether or not anything
+ * seeded it, so an untouched runtime-default field reaches the payload as
+ * `undefined` — or as `''` once anything has focused it — and `undefined` is
+ * invisible to a `JSON.stringify` check while still being a KEY that a data
+ * source is free to translate into an explicit column write.
+ *
+ * `ObjectQL.applyFieldDefaults` resolves a declared default for a field that
+ * arrives absent or null. A blank string is neither, so submitting one stores
+ * `''` and silently defeats the declaration — the exact suppression #4068
+ * avoided by not seeding the token in the first place. Omitting the key is what
+ * makes the server the single authority for the value.
+ *
+ * Only EMPTY values are dropped, and emptiness is `isMissingForRequired` — the
+ * very predicate the required rule uses, so "left empty" cannot come to mean
+ * two different things in the two halves of this fix. A value the user actually
+ * typed is submitted normally: the suppression is of the rule, not of the
+ * field.
+ *
+ * CREATE only. On an edit form the token was resolved at insert; a cleared
+ * column there is a deliberate removal, and dropping the key would silently
+ * discard the user's edit.
+ */
+export function omitServerResolvedDefaults(
+  data: Record<string, unknown>,
+  objectSchema: ObjectSchemaLike | null | undefined,
+): Record<string, unknown> {
+  if (!data || typeof data !== 'object') return data;
+  const fields = objectSchema?.fields;
+  if (!fields || typeof fields !== 'object') return data;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (isRuntimeDefault(fields[key]?.defaultValue) && isMissingForRequired(value)) continue;
+    out[key] = value;
+  }
+  return out;
 }

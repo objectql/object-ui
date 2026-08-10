@@ -27,6 +27,7 @@
 
 import type { FormField } from '@object-ui/types';
 import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields';
+import { isCreateFormMode, isRequiredInForm } from './schemaDefaults';
 
 export interface SectionFieldsContext {
   /** Resolved object schema (`{ fields: { [name]: fieldDef } }`) or null. */
@@ -37,6 +38,15 @@ export interface SectionFieldsContext {
   readOnly?: boolean;
   /** Form mode — `view` forces every field disabled. */
   mode?: 'create' | 'edit' | 'view';
+  /**
+   * The record this form is editing, if any. Together with `mode` it answers
+   * "is there a persisted record behind this form", which decides whether a
+   * runtime `defaultValue` excuses the field from `required` (#4069) — see
+   * `isCreateFormMode`. Passed rather than derived from `mode` alone because
+   * the containers' own create branch is `mode === 'create' || !recordId`, and
+   * a form that omits `mode` entirely is still a create form to them.
+   */
+  recordId?: unknown;
   /**
    * Translation-aware label resolver (from `useSafeFieldLabel`).
    *
@@ -103,7 +113,11 @@ function fromObjectSchema(fieldName: string, ctx: SectionFieldsContext): FormFie
     // picker, and the label-association declaration is keyed on the widget that
     // actually renders (objectui#3986).
     type: mapFieldTypeToFormType(field.type, { multiple: field.multiple }),
-    required: field.required || false,
+    // Mode-aware: a CREATE form does not enforce `required` on a field whose
+    // `defaultValue` is a runtime instruction the server resolves at insert
+    // (#4069) — the control is deliberately left empty for exactly that
+    // resolution, so refusing the submit would leave nothing to type.
+    required: isRequiredInForm(field, isCreateFormMode(ctx)),
     disabled: ctx.readOnly || ctx.mode === 'view' || field.readonly,
     placeholder: field.placeholder,
     description: field.help || field.description,
@@ -153,7 +167,17 @@ export function normalizeSectionField(
   if (fd.label != null) base.label = fd.label;
   if (fd.placeholder != null) base.placeholder = fd.placeholder;
   if (fd.helpText != null) base.description = fd.helpText;
-  if (fd.required != null) base.required = fd.required;
+  // A view may restate `required` over the object field. Re-run the create-mode
+  // test on the EFFECTIVE value (#4069): what excuses the field is the runtime
+  // `defaultValue` on the object field, not which layer asserted `required` —
+  // a form view saying `required: true` over `defaultValue: 'NOW()'` makes the
+  // same claim the object schema does, and hits the same wall.
+  if (fd.required != null) {
+    base.required = isRequiredInForm(
+      { required: fd.required, defaultValue: ctx.objectSchema?.fields?.[fieldName]?.defaultValue },
+      isCreateFormMode(ctx),
+    );
+  }
   if (fd.readonly != null) base.disabled = fd.readonly || base.disabled;
   if (fd.immutable != null) base.immutable = fd.immutable;
   if (fd.hidden != null) base.hidden = fd.hidden;

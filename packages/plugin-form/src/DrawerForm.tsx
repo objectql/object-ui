@@ -41,7 +41,12 @@ import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields'
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
 import { applyAutoLayout } from './autoLayout';
 import { sanitizeFormData } from './sanitize';
-import { seedCreateValues } from './schemaDefaults';
+import {
+  seedCreateValues,
+  isCreateFormMode,
+  isRequiredInForm,
+  omitServerResolvedDefaults,
+} from './schemaDefaults';
 import { useOccSave } from './occSave';
 
 /**
@@ -291,9 +296,12 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
         objectName: schema.objectName,
         readOnly: schema.readOnly,
         mode: schema.mode,
+        // Feeds the "no persisted record" test that decides whether a runtime
+        // `defaultValue` excuses a field from `required` (#4069).
+        recordId: schema.recordId,
         fieldLabel,
       }),
-    [objectSchema, schema.readOnly, schema.mode, schema.objectName, fieldLabel],
+    [objectSchema, schema.readOnly, schema.mode, schema.recordId, schema.objectName, fieldLabel],
   );
 
   // Build fields from flat field list (when no sections provided)
@@ -328,7 +336,10 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
         label: fieldLabel(schema.objectName, name, field.label || name),
         // (type, multiple) decides the widget (objectui#3986) — see `sectionFields`.
         type: mapFieldTypeToFormType(field.type, { multiple: field.multiple }),
-        required: field.required || false,
+        // Mode-aware, same rule as the sectioned path (#4069) — a runtime
+        // `defaultValue` is the server's to resolve, so a CREATE form does not
+        // refuse the submit over the empty control it deliberately left.
+        required: isRequiredInForm(field, isCreateFormMode(schema)),
         disabled: schema.readOnly || schema.mode === 'view' || field.readonly,
         placeholder: field.placeholder,
         description: field.help || field.description,
@@ -359,7 +370,13 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
       let result;
       const payload = sanitizeFormData(data, objectSchema);
       if (schema.mode === 'create') {
-        result = await dataSource.create(schema.objectName, payload);
+        // Omit the fields the producer owns (#4069) — see
+        // `omitServerResolvedDefaults` for why an empty key is not the same as
+        // no key at insert time.
+        result = await dataSource.create(
+          schema.objectName,
+          omitServerResolvedDefaults(payload, objectSchema),
+        );
       } else if (schema.mode === 'edit' && schema.recordId) {
         // OCC-guarded: sends `ifMatch` from the record we read; a 409 asks the
         // user to keep editing (drawer stays open, draft intact) or overwrite.

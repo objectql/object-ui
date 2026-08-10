@@ -41,7 +41,9 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { DEFAULT_VALUE_TOKENS } from '@objectstack/spec/data';
 import { registerAllFields } from '@object-ui/fields';
+import { isRuntimeDefault, isRequiredInForm, isSeedableDefault } from './schemaDefaults';
 import { ObjectForm } from './ObjectForm';
 import { ModalForm } from './ModalForm';
 import { DrawerForm } from './DrawerForm';
@@ -273,5 +275,350 @@ describe('ObjectForm — create-mode default seeding stays put (#4047)', () => {
       if (el?.value !== 'Acme') throw new Error('record not loaded yet');
     });
     expect(triggerText('status')).not.toContain('Draft');
+  });
+});
+
+/**
+ * A REQUIRED field whose `defaultValue` is a RUNTIME instruction is
+ * submittable from a create form (#4069).
+ *
+ * The half above leaves such a field empty on purpose — the token is an
+ * instruction the server resolves per insert, and `applyFieldDefaults` only
+ * fills fields that arrive absent or null, so seeding the literal text `NOW()`
+ * would suppress the very resolution the declaration asked for. Correct for an
+ * optional field. Combined with `required: true` it deadlocked the form:
+ *
+ * ```ts
+ * remind_at: Field.datetime({ required: true, defaultValue: 'NOW()' }),
+ * ```
+ *
+ * the control opened empty, the client-side required rule refused the submit,
+ * and there was nothing sensible for the user to type — the declaration had
+ * already said what the value is. Measured on `origin/main` before this change:
+ * `dataSource.create` was never called, on both the flat and the sectioned
+ * path.
+ *
+ * Ruled by the maintainer on 2026-08-10 (issue #4069, option A): in CREATE mode
+ * a runtime `defaultValue` SUPPRESSES the client-side required rule, and the
+ * field is omitted from the payload for the producer to resolve. Rejected in
+ * the same ruling: resolving these client-side (two implementations of one
+ * contract), serving resolved defaults from the server, and refusing the
+ * `required` + runtime-default combination at publish time — it is coherent
+ * authoring, storage-level required with a producer-guaranteed value.
+ *
+ * Four directions are pinned, because the suppression is wrong in three of them:
+ *
+ *   1. create + runtime default, left empty → submit SUCCEEDS and the field is
+ *      ABSENT from the payload (present-but-empty would defeat the point:
+ *      `applyFieldDefaults` skips a field that arrives with a value)
+ *   2. create + the user TYPES a value       → that value is submitted. The
+ *      suppression removes the "must not be empty" rule, not the field
+ *   3. create + a STATIC literal default     → still enforced. That control was
+ *      seeded (above), so clearing it removes a value that was really there
+ *   4. EDIT mode                             → unchanged in every case. The
+ *      token was resolved at insert; blanking the column now is a real removal
+ *
+ * The runtime shapes are taken from `@objectstack/spec`'s own
+ * `DEFAULT_VALUE_TOKENS` rather than spelled out here, so a token added to the
+ * family tomorrow is pinned by this suite without an edit — and so the fixture
+ * cannot drift from the classifier the way a hand-copied list would.
+ */
+
+/** A CEL Expression envelope — the non-token half of "the server resolves it". */
+const CEL_DEFAULT = { dialect: 'cel', source: 'today()' };
+
+/**
+ * One required field per runtime-default SHAPE the spec defines. Every shape is
+ * rendered in the same form, so one submit covers the whole family.
+ */
+const RUNTIME_FIELDS: Array<{ name: string; what: string; defaultValue: unknown }> = [
+  ...DEFAULT_VALUE_TOKENS.map((token, i) => ({
+    name: `rt_token_${i}`,
+    what: `token ${String(token)}`,
+    defaultValue: token as unknown,
+  })),
+  { name: 'rt_cel', what: 'CEL Expression envelope', defaultValue: CEL_DEFAULT },
+];
+
+/**
+ * `title` is required with NO default — the control the user genuinely must
+ * fill, and the contrast that proves the suppression is targeted rather than a
+ * blanket "create forms do not validate".
+ */
+const RUNTIME_OBJECT_SCHEMA = {
+  name: 'reminder',
+  fields: {
+    title: { type: 'text', label: 'Title', required: true },
+    ...Object.fromEntries(
+      RUNTIME_FIELDS.map((f) => [
+        f.name,
+        { type: 'text', label: f.what, required: true, defaultValue: f.defaultValue },
+      ]),
+    ),
+  },
+};
+
+const RUNTIME_SECTIONS = [
+  { name: 'basics', label: 'Basics', fields: ['title', ...RUNTIME_FIELDS.map((f) => f.name)] },
+];
+
+/** A required field carrying a STATIC literal default — the control seeding case. */
+const STATIC_OBJECT_SCHEMA = {
+  name: 'reminder',
+  fields: {
+    title: { type: 'text', label: 'Title', required: true, defaultValue: 'Untitled' },
+  },
+};
+const STATIC_SECTIONS = [{ name: 'basics', label: 'Basics', fields: ['title'] }];
+
+const fieldInput = (field: string) =>
+  document.body.querySelector<HTMLInputElement>(`[data-field="${field}"] input`);
+
+/** Does this field show the required marker / announce `aria-required`? */
+const marksRequired = (field: string) =>
+  document.body.querySelectorAll(`[data-field="${field}"] [data-required-marker]`).length > 0 ||
+  fieldInput(field)?.getAttribute('aria-required') === 'true';
+
+const awaitField = (field: string) =>
+  waitFor(() => {
+    const el = fieldInput(field);
+    if (!el) throw new Error(`${field} input not rendered`);
+    return el;
+  });
+
+describe.each(CONTAINERS)('%s — required + runtime `defaultValue` on create (#4069)', (_name, Container, formType) => {
+  const renderRuntimeCreate = (ds: any) =>
+    render(
+      <Container
+        schema={{
+          type: 'object-form',
+          formType,
+          objectName: 'reminder',
+          mode: 'create',
+          open: true,
+          sections: RUNTIME_SECTIONS,
+        } as any}
+        dataSource={ds}
+      />,
+    );
+
+  it('submits with the runtime-default fields left empty, and OMITS them from the payload', async () => {
+    const ds = makeDS(RUNTIME_OBJECT_SCHEMA);
+    renderRuntimeCreate(ds);
+
+    const title = await awaitField('title');
+    fireEvent.change(title, { target: { value: 'Ping me' } });
+    submit();
+
+    // Before this change the submit was refused here and `create` was never
+    // called — with no value the user could supply to unblock it.
+    await waitFor(() => expect(ds.create).toHaveBeenCalled());
+    const payload = ds.create.mock.calls[0][1];
+    expect(payload).toMatchObject({ title: 'Ping me' });
+    // ABSENT, not empty: `applyFieldDefaults` resolves the token only for a
+    // field that arrives absent or null, so an empty string in the payload
+    // would store "" and silently defeat the declaration.
+    for (const f of RUNTIME_FIELDS) expect(payload).not.toHaveProperty(f.name);
+  });
+
+  it('still enforces required on a field that declares NO default', async () => {
+    const ds = makeDS(RUNTIME_OBJECT_SCHEMA);
+    renderRuntimeCreate(ds);
+
+    await awaitField('title'); // left empty on purpose
+    submit();
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(ds.create).not.toHaveBeenCalled();
+    expect(marksRequired('title')).toBe(true);
+    // The suppression is targeted: only the server-owned fields lose the rule.
+    for (const f of RUNTIME_FIELDS) expect(marksRequired(f.name)).toBe(false);
+  });
+
+  it('submits a value the user DOES type into a runtime-default field', async () => {
+    const ds = makeDS(RUNTIME_OBJECT_SCHEMA);
+    renderRuntimeCreate(ds);
+
+    const title = await awaitField('title');
+    fireEvent.change(title, { target: { value: 'Ping me' } });
+    const typed = await awaitField(RUNTIME_FIELDS[0].name);
+    fireEvent.change(typed, { target: { value: 'typed by hand' } });
+    submit();
+
+    await waitFor(() => expect(ds.create).toHaveBeenCalled());
+    // What is suppressed is the "must not be empty" rule, never the field: a
+    // typed value outranks the declared default, exactly as it does today for
+    // a static one.
+    expect(ds.create.mock.calls[0][1]).toMatchObject({
+      title: 'Ping me',
+      [RUNTIME_FIELDS[0].name]: 'typed by hand',
+    });
+  });
+
+  it('does NOT suppress required for a STATIC literal default the user clears', async () => {
+    const ds = makeDS(STATIC_OBJECT_SCHEMA);
+    render(
+      <Container
+        schema={{
+          type: 'object-form',
+          formType,
+          objectName: 'reminder',
+          mode: 'create',
+          open: true,
+          sections: STATIC_SECTIONS,
+        } as any}
+        dataSource={ds}
+      />,
+    );
+
+    // The control WAS seeded (#4047), so an empty one means the user emptied
+    // it — a removed value, not a value the producer will supply.
+    const title = await waitFor(() => {
+      const el = fieldInput('title');
+      if (el?.value !== 'Untitled') throw new Error('static default not seeded yet');
+      return el;
+    });
+    expect(marksRequired('title')).toBe(true);
+
+    fireEvent.change(title, { target: { value: '' } });
+    submit();
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(ds.create).not.toHaveBeenCalled();
+  });
+
+  it('leaves EDIT mode alone — blanking a runtime-default required field is still refused', async () => {
+    const stored = { id: 'r1', title: 'Acme' };
+    for (const f of RUNTIME_FIELDS) (stored as any)[f.name] = 'resolved at insert';
+    const ds = makeDS(RUNTIME_OBJECT_SCHEMA, stored);
+    render(
+      <Container
+        schema={{
+          type: 'object-form',
+          formType,
+          objectName: 'reminder',
+          mode: 'edit',
+          recordId: 'r1',
+          open: true,
+          sections: RUNTIME_SECTIONS,
+        } as any}
+        dataSource={ds}
+      />,
+    );
+
+    const target = RUNTIME_FIELDS[0].name;
+    const el = await waitFor(() => {
+      const input = fieldInput(target);
+      if (input?.value !== 'resolved at insert') throw new Error('record not loaded yet');
+      return input;
+    });
+    // On a persisted row the token was resolved at insert; emptying the column
+    // now is a real removal, and the marker stays to say so.
+    expect(marksRequired(target)).toBe(true);
+
+    fireEvent.change(el, { target: { value: '' } });
+    submit();
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(ds.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('ObjectForm — required + runtime `defaultValue` on create (#4069)', () => {
+  // The flat container builds its fields on its own path (no sections), so the
+  // rule is pinned here too rather than assumed from the sectioned table.
+  it('submits with the runtime-default fields left empty, and OMITS them', async () => {
+    const ds = makeDS(RUNTIME_OBJECT_SCHEMA);
+    render(
+      <ObjectForm
+        schema={{ type: 'object-form', objectName: 'reminder', mode: 'create' } as any}
+        dataSource={ds}
+      />,
+    );
+
+    const title = await awaitField('title');
+    fireEvent.change(title, { target: { value: 'Ping me' } });
+    submit();
+
+    await waitFor(() => expect(ds.create).toHaveBeenCalled());
+    const payload = ds.create.mock.calls[0][1];
+    expect(payload).toMatchObject({ title: 'Ping me' });
+    for (const f of RUNTIME_FIELDS) expect(payload).not.toHaveProperty(f.name);
+  });
+
+  it('still refuses a required field that declares no default', async () => {
+    const ds = makeDS(RUNTIME_OBJECT_SCHEMA);
+    render(
+      <ObjectForm
+        schema={{ type: 'object-form', objectName: 'reminder', mode: 'create' } as any}
+        dataSource={ds}
+      />,
+    );
+
+    await awaitField('title');
+    submit();
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(ds.create).not.toHaveBeenCalled();
+    expect(marksRequired('title')).toBe(true);
+  });
+
+  it('leaves EDIT mode alone', async () => {
+    const stored: Record<string, unknown> = { id: 'r1', title: 'Acme' };
+    for (const f of RUNTIME_FIELDS) stored[f.name] = 'resolved at insert';
+    const ds = makeDS(RUNTIME_OBJECT_SCHEMA, stored);
+    render(
+      <ObjectForm
+        schema={{ type: 'object-form', objectName: 'reminder', mode: 'edit', recordId: 'r1' } as any}
+        dataSource={ds}
+      />,
+    );
+
+    const target = RUNTIME_FIELDS[0].name;
+    const el = await waitFor(() => {
+      const input = fieldInput(target);
+      if (input?.value !== 'resolved at insert') throw new Error('record not loaded yet');
+      return input;
+    });
+    expect(marksRequired(target)).toBe(true);
+
+    fireEvent.change(el, { target: { value: '' } });
+    submit();
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(ds.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('one classifier, two consumers (#4069)', () => {
+  // Seeding (#4047/#4068) and the create-mode required rule (#4069) are the
+  // same fact seen twice — a field whose value the producer supplies is
+  // neither seedable nor missing. They read ONE predicate; a second copy would
+  // be free to disagree about, say, a CEL envelope, and then a form would seed
+  // a field it also refuses to submit.
+  it.each([...DEFAULT_VALUE_TOKENS.map((t) => [String(t), t as unknown] as const), ['CEL envelope', CEL_DEFAULT as unknown] as const])(
+    '%s is a runtime default: not seedable, and not required on create',
+    (_what, value) => {
+      expect(isRuntimeDefault(value)).toBe(true);
+      expect(isSeedableDefault(value)).toBe(false);
+      expect(isRequiredInForm({ required: true, defaultValue: value }, true)).toBe(false);
+      // EDIT mode is untouched.
+      expect(isRequiredInForm({ required: true, defaultValue: value }, false)).toBe(true);
+    },
+  );
+
+  it.each([['a static literal', 'draft'], ['a number', 0], ['a boolean', false], ['no default', undefined]])(
+    '%s does not suppress required in either mode',
+    (_what, value) => {
+      expect(isRuntimeDefault(value)).toBe(false);
+      expect(isRequiredInForm({ required: true, defaultValue: value }, true)).toBe(true);
+      expect(isRequiredInForm({ required: true, defaultValue: value }, false)).toBe(true);
+    },
+  );
+
+  it('an optional field is never required, whatever it declares', () => {
+    expect(isRequiredInForm({ defaultValue: 'NOW()' }, true)).toBe(false);
+    expect(isRequiredInForm({ required: false, defaultValue: 'draft' }, false)).toBe(false);
+    expect(isRequiredInForm(undefined, true)).toBe(false);
   });
 });

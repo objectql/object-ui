@@ -37,7 +37,12 @@ import {
 } from './autoLayout';
 import { deriveFieldGroupSections } from './fieldGroups';
 import { sanitizeFormData } from './sanitize';
-import { schemaDefaultValues } from './schemaDefaults';
+import {
+  schemaDefaultValues,
+  isCreateFormMode,
+  isRequiredInForm,
+  omitServerResolvedDefaults,
+} from './schemaDefaults';
 import { useOccSave } from './occSave';
 
 export interface ObjectFormProps {
@@ -570,7 +575,12 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
           // label must be associated by IDREF — a fact declared per WIDGET, so
           // the widget id has to carry the arity (objectui#3986).
           type: mapFieldTypeToFormType(field.type, { multiple: field.multiple }),
-          required: field.required || false,
+          // Mode-aware: a CREATE form does not enforce `required` on a field
+          // whose `defaultValue` is a runtime instruction the server resolves
+          // at insert (#4069). The control is left empty on purpose so the
+          // server resolves it — refusing the submit would leave the user with
+          // nothing sensible to type.
+          required: isRequiredInForm(field, isCreateFormMode(schema)),
           disabled: schema.readOnly || schema.mode === 'view' || field.readonly || managedBlanketLock,
           placeholder: field.placeholder,
           description: field.help || field.description,
@@ -720,6 +730,14 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
     // forms `objectSchema` is a field-less stub, so pass null to strip only the
     // server-managed keys rather than dropping every (schema-less) value.
     let payload = sanitizeFormData(formData, hasInlineFields ? null : objectSchema);
+    // A CREATE payload omits the fields the producer owns (#4069): a rendered
+    // control registers even when nothing seeded it, so an untouched
+    // runtime-default field would ride along as `undefined`/`''` and defeat
+    // `applyFieldDefaults`, which only resolves a field that arrives absent or
+    // null. Create only — on an edit form a cleared column is a real removal.
+    if (isCreateFormMode(schema)) {
+      payload = omitServerResolvedDefaults(payload, hasInlineFields ? null : objectSchema);
+    }
     // FLS defence-in-depth: never trust the client to include a field the user
     // lacked edit access to — drop any that fail the write check.
     if (perms?.isLoaded && payload && typeof payload === 'object') {
@@ -830,7 +848,10 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
   // envelopes) — which put the literal text `NOW()` into a datetime input and
   // then submitted it, suppressing the resolution the declaration asked for.
   // `schemaDefaultValues` seeds static literals only; see that module.
-  const isCreateForm = !schema.recordId || schema.mode === 'create';
+  // Same shared "no persisted record" test the field builder above uses for
+  // the create-mode `required` suppression (#4069), so seeding and validation
+  // cannot disagree about which mode this form is in.
+  const isCreateForm = isCreateFormMode(schema);
   const schemaDefaults = React.useMemo(
     () => (isCreateForm ? schemaDefaultValues(objectSchema) : {}),
     [objectSchema, isCreateForm],
