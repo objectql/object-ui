@@ -189,6 +189,20 @@ jobs:
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm check:spec-symbols
 
+      # Each action renderer hands the runner an explicit key WHITELIST, so a new
+      # spec action key is silently dropped until five separate lists are edited —
+      # and nothing fails while they are not: the key parses, publishes and reads
+      # as honoured. Six instances were found by hand, one at a time
+      # (objectstack#6837 `bodyExtra`, #6938 `bodyShape`, objectui#3646
+      # `resultDialog`, objectui#4192 `label`/`description`), which is why
+      # objectui#4050's ruling asks for a gate rather than a seventh review. Same
+      # placement rationale as the step above: it reads `@objectstack/spec`'s own
+      # zod shapes and parses the renderers with `typescript`, so it needs the
+      # install but nothing built.
+      - name: Verify action renderers forward every key the runtime reads
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm check:action-forward-parity
+
       # A key a component asks `t()` for must exist in the `en` pack.
       # `all-locales-key-parity.test.ts` compares packs to EACH OTHER, so ten
       # packs identically missing a key is full parity and full parity is green

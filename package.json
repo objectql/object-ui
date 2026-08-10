@@ -36,6 +36,7 @@
     "type-check:scripts": "tsc -p tsconfig.scripts.json",
     "type-check:vitest-setup": "tsc -p tsconfig.vitest-setup.json",
     "check:spec-symbols": "node scripts/check-spec-symbol-derivation.mjs",
+    "check:action-forward-parity": "node scripts/check-action-forward-parity.mjs",
     "check:control-bytes": "node scripts/check-control-bytes.mjs",
     "check:i18n-keys": "node scripts/check-i18n-call-site-keys.mjs",
     "check:i18n-drift": "node scripts/check-i18n-en-drift.mjs",
