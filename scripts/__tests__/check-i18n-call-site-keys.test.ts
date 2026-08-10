@@ -54,6 +54,17 @@ import {
  *      argument is dropped in silence, an unfilled hole renders its own braces
  *      to the user — and a rule that only judged one of them would be green on
  *      half the class it names.
+ *
+ *   5. objectui#4117 added a fifth, and it is the first that reads the call's
+ *      POSITION rather than its arguments: a literal fallback written beside the
+ *      call (`t(key) || 'English'`) is dead once the key exists, and the verdict
+ *      is deletion rather than alignment. Two of its cases carry more weight
+ *      than the reds. The mirror shape `someValue || t(key)` is HEALTHY and
+ *      outnumbers the class 94 to 24 on `main`, so a rule that read "appears in
+ *      a `||`" would condemn four times more than it fixed. And an OPTIONAL call
+ *      `t?.(key) ?? 'English'` really can reach its fallback, which is why the
+ *      two `ContextSelectors.tsx` sites the filing card counted among the 24 are
+ *      pinned here as abstentions instead.
  */
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -131,6 +142,9 @@ const EN_FIXTURE = `const en = {
     enlarge: 'Enlarge {{name}}',
     imageAlt: 'Image {{index}}',
   },
+  // The one shape that makes a non-optional \`t()\` falsy, so \`||\` really can
+  // reach its right operand. \`en\` has no such leaf today (objectui#4117).
+  edge: { blank: '' },
   // The real key registered in EXTERNALLY_INTERPOLATED_HOLES, so the registry's
   // effect can be exercised against a synthetic repo rather than only observed
   // on \`main\`. The registry is keyed by NAME, so a fixture is enough.
@@ -788,6 +802,197 @@ export const A = (rest: Record<string, unknown>, key: string, opts: Record<strin
       'utf8',
     );
     expect(marketplace).toContain("t('marketplace.install.updateTo', { defaultValue: 'Update \\u2192 v{{version}}', version: latestVersion })");
+  });
+});
+
+describe('a literal fallback beside the call is dead on every path (objectui#4117)', () => {
+  /** Sibling findings as `key@line: <op> <dead operand>` — position and text both visible. */
+  function siblingsOf(root: string): string[] {
+    return analyze(root)
+      .findings.filter((f: { reason: string }) => f.reason === 'dead-sibling-fallback')
+      .map((f: { detail: string; line: number; operator: string; actual: string }) =>
+        `${f.detail}@${f.line}: ${f.operator} ${f.actual}`,
+      )
+      .sort();
+  }
+
+  /** One synthetic component whose body is `return <expr>;` inside a hook-bound `t`. */
+  function callSite(body: string): Record<string, string> {
+    return {
+      'packages/i18n/src/locales/en.ts': EN_FIXTURE,
+      'packages/x/src/A.tsx': `import { useObjectTranslation } from '${I18N_PKG}';
+export const A = (name: string, label: string, n: number) => {
+  const { t } = useObjectTranslation();
+  return ${body};
+};
+`,
+    };
+  }
+
+  it('RED even when the dead string says exactly what the pack says', () => {
+    // The load-bearing difference from `default-value-drift`. That rule aligns;
+    // this one deletes, because the ruling on objectui#4117 keeps ONE blessed
+    // fallback spelling rather than two. So byte-equality is not a defence — 21
+    // of the 24 sites on `main` were byte-equal and every one of them went.
+    expect(siblingsOf(repoWith(callSite("t('common.save') || 'Save'")))).toEqual([
+      "common.save@4: || Save",
+    ]);
+  });
+
+  it('RED, and it never reports WHAT the fallback should have said', () => {
+    // A finding carries the dead text only to quote it. There is no "expected"
+    // wording to move toward: the fix is deletion in both cases, and a hint that
+    // said "make it match" would be teaching the spelling this class removes.
+    expect(siblingsOf(repoWith(callSite("t('common.save') || 'Store'")))).toEqual([
+      'common.save@4: || Store',
+    ]);
+  });
+
+  it('RED for `??` as well as `||`, which is the same dead operand', () => {
+    // `t()` returns a string on every path — the pack value, or the key itself
+    // when i18next is not ready — so it is never nullish and `??` is as dead as
+    // `||`. Reading only `||` would have missed both ContextSelectors sites.
+    expect(siblingsOf(repoWith(callSite("t('common.cancel') ?? 'Cancel'")))).toEqual([
+      'common.cancel@4: ?? Cancel',
+    ]);
+  });
+
+  it('RED for a template-literal fallback — the divergent rows are all this shape', () => {
+    // The five rows the card called out (`Removed ${n} sample record(s).` and
+    // friends) are templates, not plain strings. A rule that only read plain
+    // strings would have left exactly the sites whose text differs most.
+    expect(siblingsOf(repoWith(callSite('t(\'interp.counted\', { count: n }) || `Deleted ${n} rows`')))).toEqual([
+      'interp.counted@4: || `Deleted ${n} rows`',
+    ]);
+  });
+
+  it('RED through the parentheses and casts a call site wraps itself in', () => {
+    // `(t(k) || 'x')` inside a ternary arm is how 8 of the 22 were actually
+    // written; walking up from `node.parent` without unwrapping would see a
+    // ParenthesizedExpression and stop.
+    expect(siblingsOf(repoWith(callSite("[(t('common.save')) || 'Save', (t('common.cancel') as string) || 'Cancel']")))).toEqual([
+      'common.cancel@4: || Cancel',
+      'common.save@4: || Save',
+    ]);
+  });
+
+  it('GREEN for the mirror shape — a runtime value falling back to a translation', () => {
+    // The direction that matters most for false positives: `main` carries 94 of
+    // these against the 24 this class is about. Here the translation is the
+    // fallback, which is the healthy arrangement and nothing to report.
+    const root = repoWith(callSite("[label || t('common.save'), name ?? t('common.cancel')]"));
+    expect(siblingsOf(root)).toEqual([]);
+    expect(analyze(root).counters.siblingFallbacks).toBe(0);
+  });
+
+  it('counts rather than judges a non-literal fallback — there is no copy to delete', () => {
+    // `t(k) || label` renders a runtime value, so removing the operator would
+    // change behaviour rather than delete dead code. Same abstention shape as a
+    // computed `defaultValue` in objectui#3810.
+    const root = repoWith(callSite("t('common.save') || label"));
+    expect(siblingsOf(root)).toEqual([]);
+    expect(analyze(root).counters.computedSiblingFallbacks).toBe(1);
+  });
+
+  it('counts rather than judges an OPTIONAL call, where the fallback is live', () => {
+    // Not a parser limitation but a reachable path, and the one case where this
+    // class's premise is simply false: with `t` an optional prop, `t?.(k)` is
+    // `undefined` whenever the prop is absent and the fallback is what renders.
+    // Both sites left on `main` are this shape.
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_FIXTURE,
+      'packages/x/src/B.tsx': `export const B = ({ t, label }: { t?: (key: string, options?: any) => string; label: string }) => {
+  return t?.('common.save') ?? 'Save';
+};
+`,
+    });
+    expect(siblingsOf(root)).toEqual([]);
+    const { counters } = analyze(root);
+    expect(counters.optionalCallFallbacks).toBe(1);
+    // And the file was SCANNED at all: its only spelling is `t?.(`, which the
+    // pre-filter used to drop — silently, out of all five classes at once.
+    expect(counters.packCallSites).toBe(1);
+  });
+
+  it('counts rather than judges an en value that is itself falsy', () => {
+    // The only way a non-optional `t()` can let `||` through. `en` has no empty
+    // leaf today; the abstention is what stops the first one being a wrong red.
+    const root = repoWith(callSite("t('edge.blank') || 'Something'"));
+    expect(siblingsOf(root)).toEqual([]);
+    expect(analyze(root).counters.unjudgedSiblingFallbacks).toBe(1);
+  });
+
+  it('counts rather than judges a plural family and a dynamic key', () => {
+    // Same preconditions as classes 3 and 4: a plural family has no single value
+    // to read, and a dynamic key denotes no one key at all.
+    const root = repoWith(callSite("[t('detail.showEmptyRelated', { count: n }) || 'more', t(`grid.column.${name}`) || 'Label']"));
+    expect(siblingsOf(root)).toEqual([]);
+    const { counters } = analyze(root);
+    expect(counters.siblingFallbacks).toBe(2);
+    expect(counters.unjudgedSiblingFallbacks).toBe(2);
+  });
+
+  it('leaves a key en does not define to the missing-key rule, and reports it ONCE', () => {
+    // A key with no leaf has no value, so "the fallback cannot render" is not a
+    // claim this rule can make about it — and objectui#3546 spent months in
+    // exactly that transition, where the fallback is the only English there is.
+    const root = repoWith(callSite("t('nowhere.key') || 'English'"));
+    expect(analyze(root).findings.map((f: { reason: string }) => f.reason)).toEqual(['missing-key']);
+  });
+
+  it('main carries no literal fallback beside a call, which is why this rule has no baseline', () => {
+    // 24 sites measured on the tip this landed on: 22 judged and deleted in the
+    // same PR, 2 abstained on as optional calls. A finding here is a NEW one.
+    expect(siblingsOf(repoRoot)).toEqual([]);
+  });
+
+  it('the 22 deleted fallbacks are really gone, and the 2 live ones are untouched', () => {
+    // The stock, pinned by name rather than by a count — a rule with no baseline
+    // has nothing else recording what it was worth on the day it landed.
+    const gone: Array<[file: string, absent: string, present: string]> = [
+      [
+        'packages/app-shell/src/console/marketplace/MarketplacePackagePage.tsx',
+        "|| 'More options'",
+        "aria-label={t('marketplace.detail.moreOptions')}",
+      ],
+      [
+        'packages/app-shell/src/console/marketplace/MarketplacePackagePage.tsx',
+        '|| `Removed ${removed} sample record(s).`',
+        "t('marketplace.detail.purgeSuccess', { count: removed })",
+      ],
+      [
+        'packages/app-shell/src/console/marketplace/MarketplacePackagePage.tsx',
+        '|| `Sample data re-seeded (inserted=${inserted}, updated=${updated}).`',
+        "t('marketplace.detail.reseedLocalSuccess', { inserted, updated })",
+      ],
+      [
+        'packages/app-shell/src/views/ObjectView.tsx',
+        // Tight on purpose: the file still holds a legitimate *computed*
+        // `defaultValue` ending in the same sentence (line ~1657), and a marker
+        // loose enough to catch that one would fail for the wrong reason.
+        'delete the view "${viewLabel}"',
+        "t('console.objectView.deleteViewConfirm', { name: viewLabel })",
+      ],
+      [
+        'packages/app-shell/src/views/ActionResultDialog.tsx',
+        "|| 'Copy all'",
+        "label={t('actions.resultDialog.copyAll')}",
+      ],
+    ];
+    for (const [file, absent, present] of gone) {
+      const src = fs.readFileSync(path.join(repoRoot, file), 'utf8');
+      expect(src, `${file} still carries the dead fallback`).not.toContain(absent);
+      expect(src, `${file} lost the call site itself`).toContain(present);
+    }
+    // The two the rule abstains on are STILL THERE. Deleting them would have
+    // replaced a rendered placeholder with `undefined` on every host that does
+    // not pass the optional `t` — including this file's own persist test.
+    const selectors = fs.readFileSync(
+      path.join(repoRoot, 'packages/app-shell/src/layout/ContextSelectors.tsx'),
+      'utf8',
+    );
+    expect(selectors).toContain("t?.('common.package', { defaultValue: rawLabel }) ?? rawLabel");
+    expect(selectors).toContain('}) ?? `Select ${label}…`');
   });
 });
 

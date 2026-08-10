@@ -936,12 +936,11 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         const targetView = views.find((v: any) => v.id === vid);
         const viewLabel = targetView?.label || vid;
         const confirmed = await confirmHandler(
-            t('console.objectView.deleteViewConfirm', { name: viewLabel }) ||
-                `Are you sure you want to delete the view "${viewLabel}"? This cannot be undone.`,
+            t('console.objectView.deleteViewConfirm', { name: viewLabel }),
             {
-                title: t('console.objectView.deleteViewTitle') || 'Delete view',
-                confirmText: t('console.objectView.delete') || 'Delete',
-                cancelText: t('console.objectView.cancel') || 'Cancel',
+                title: t('console.objectView.deleteViewTitle'),
+                confirmText: t('console.objectView.delete'),
+                cancelText: t('console.objectView.cancel'),
             },
         );
         if (!confirmed) return;
@@ -1941,8 +1940,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                    visibility: saved?.visibility ?? view.visibility,
                    readonly: isSystem,
                    readonlyReason: isSystem
-                     ? (t('console.objectView.systemViewReadonly')
-                       || 'System view defined in code — read-only.')
+                     ? t('console.objectView.systemViewReadonly')
                      : undefined,
                  } as ViewTabItem;
                });

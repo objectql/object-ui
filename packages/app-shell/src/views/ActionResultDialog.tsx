@@ -236,7 +236,7 @@ function CodeListBlock({ value }: { value: string[] }) {
         </ul>
       </div>
       <div className="flex justify-end">
-        <CopyButton value={joined} label={t('actions.resultDialog.copyAll') || 'Copy all'} />
+        <CopyButton value={joined} label={t('actions.resultDialog.copyAll')} />
       </div>
     </div>
   );
