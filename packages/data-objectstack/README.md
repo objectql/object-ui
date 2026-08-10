@@ -11,8 +11,10 @@ This enables strictly typed, metadata-driven UI components to communicate seamle
 ## Installation
 
 ```bash
-npm install @object-ui/data-objectstack @objectstack/client
+npm install @object-ui/data-objectstack
 ```
+
+**Note:** `@objectstack/client` is a regular dependency of this package — it is installed and resolved along with it, so there is nothing to install separately.
 
 ## Usage
 
