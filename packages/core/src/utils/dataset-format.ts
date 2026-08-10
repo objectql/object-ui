@@ -17,22 +17,35 @@
  * by both `@object-ui/plugin-dashboard` and `@object-ui/plugin-report`.
  */
 
+import type { AnalyticsResult } from '@objectstack/spec/contracts';
 import type { PercentScale } from '@objectstack/spec/data';
 
 /**
- * Column metadata the analytics server returns alongside the rows: a display
- * `label` for both dimensions and measures, plus a measure's numeral `format`
- * and declared `currency`. A superset of {@link ChartResultField} (which only
- * needs name/label/format).
+ * Column metadata the analytics server returns alongside the rows — the spec's
+ * `AnalyticsResult.fields[]` element BY REFERENCE, never a local restatement of
+ * it (objectui#3815). Read `@objectstack/spec` for what a column carries; this
+ * comment deliberately does not re-list the keys, because the enumeration it
+ * replaced was the latent bug: a hand-written interface stops at the contract
+ * of the day it was written and cannot grow with the spec, and here it would
+ * not even fail to compile — three surfaces (`plugin-dashboard`'s
+ * `DatasetWidget`, `plugin-report`'s `DatasetReportRenderer`, app-shell's
+ * `DatasetPreview`) consume this name AS the real thing, so a spec column key
+ * they never learn about is one they can never render. The same derive-don't-
+ * restate fix as the parameter side (#3613/#3753) and the adapter return side
+ * (#3752); this was the last surviving restatement of the family.
+ *
+ * `type` is REQUIRED, as the contract has it. The restatement had relaxed it to
+ * optional, which was a promise the server never asked for: nothing in this repo
+ * constructs a result column (every value originates in
+ * `ObjectStackAdapter.queryDataset`, which already declares the spec element),
+ * and nothing reads `.type` — so the widening bought no caller anything and only
+ * offered future readers a `string | undefined` the wire never produces.
+ *
+ * Still a superset of {@link ChartResultField} (which needs only
+ * name/label/format) — pinned, not merely asserted, in
+ * `__tests__/dataset-result-field-spec-parity.test.ts`.
  */
-export interface DatasetResultField {
-  name: string;
-  type?: string;
-  label?: string;
-  format?: string;
-  currency?: string;
-  percentScale?: PercentScale;
-}
+export type DatasetResultField = AnalyticsResult['fields'][number];
 
 /**
  * How a percentage column's stored number relates to its displayed percentage —

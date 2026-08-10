@@ -252,6 +252,11 @@ export const ObjectChart = (props: any) => {
   const onSegmentClick: ((ev: { category?: string; series?: string; value?: number }) => void) | undefined = props.onSegmentClick;
   const context = useContext(SchemaRendererContext);
   const dataSource = props.dataSource || context?.dataSource;
+  // Host-authenticated fetch for the metadata probes below (#4114). Read from
+  // the context directly rather than `useSchemaContext()`, which throws with no
+  // provider mounted: a standalone chart embed has no host fetch and must keep
+  // degrading to the global one instead of crashing the render.
+  const apiFetch = context?.apiFetch;
   const boundData = useDataScope(schema.bind);
   const { fieldOptionLabel } = useSafeFieldLabel();
   // Keep a stable ref to fieldOptionLabel — the i18n hook returns a fresh
@@ -326,10 +331,20 @@ export const ObjectChart = (props: any) => {
 
   // Resolve the category dimension's option colors (P3). Best-effort: any
   // failure leaves categoryColors null and the chart keeps the theme palette.
+  //
+  // Both metadata reads ride the host's AUTHENTICATED fetch (#4114) — the same
+  // channel `provider: 'api'` view sources use — falling back to the global one
+  // only when no host supplies it. A bearer-token session carries its
+  // credential in the `Authorization` header, not a cookie, so
+  // `credentials: 'include'` alone left these two reads unauthenticated in a
+  // hosted console; the effect swallows every failure, so the symptom was not
+  // an error but semantic option colors and dataset dimension labels silently
+  // never applying.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
+        const doFetch = apiFetch ?? fetch;
         const reqOpts = { headers: { accept: 'application/json' }, credentials: 'include' as const };
         let objectName: string | undefined = schema.objectName;
         let fieldName: string | undefined;
@@ -341,7 +356,7 @@ export const ObjectChart = (props: any) => {
         } else if (schema.dataset) {
           // dataset path: dataset.object + first dimension's underlying field
           const dim0 = Array.isArray(schema.dimensions) && schema.dimensions.length ? schema.dimensions[0] : undefined;
-          const defRes = await fetch(`/api/v1/meta/dataset/${encodeURIComponent(schema.dataset)}`, reqOpts);
+          const defRes = await doFetch(`/api/v1/meta/dataset/${encodeURIComponent(schema.dataset)}`, reqOpts);
           const defJson = await defRes.json().catch(() => null);
           datasetDef = defJson?.item ?? defJson?.data ?? defJson;
           objectName = datasetDef?.object;
@@ -349,7 +364,7 @@ export const ObjectChart = (props: any) => {
           fieldName = dim?.field ?? dim0;
         }
         if (!objectName || !fieldName) { if (!cancelled) { setFieldOptionColors(null); setDimensionLabels(null); } return; }
-        const schemaRes = await fetch(`/api/v1/meta/object/${encodeURIComponent(objectName)}`, reqOpts);
+        const schemaRes = await doFetch(`/api/v1/meta/object/${encodeURIComponent(objectName)}`, reqOpts);
         const sj = await schemaRes.json().catch(() => null);
         const objSchema = sj?.item ?? sj?.data ?? sj;
         const map = buildOptionColorMap(objSchema?.fields?.[fieldName]?.options);
@@ -371,7 +386,7 @@ export const ObjectChart = (props: any) => {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schema.objectName, schema.dataset, datasetKey, aggregateKey, schema.xAxisKey]);
+  }, [schema.objectName, schema.dataset, datasetKey, aggregateKey, schema.xAxisKey, apiFetch]);
 
   // Run a single aggregate query (used for both the current and comparison
   // windows). Extracted so the two queries share identical logic.

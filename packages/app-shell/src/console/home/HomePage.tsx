@@ -33,7 +33,6 @@ import { Sparkles, ShieldAlert, X, UploadCloud, MessageSquareText, Hammer, Layou
 import { useMetadataClient } from '../../views/metadata-admin/useMetadata';
 import { usePublishAllDrafts } from '../../preview/usePublishAllDrafts';
 import { resolveAiApiBase } from '../../hooks/useAiSurface';
-import { getRuntimeConfig } from '../../runtime-config';
 
 /**
  * Which AI home CTAs to surface, driven by the live agent catalog (the single
@@ -327,7 +326,15 @@ export function HomePage() {
         */}
         {isAdmin ? (
           <Empty>
-            <EmptyTitle>{t('home.welcome', { product: getRuntimeConfig().branding.productName, defaultValue: 'Build your business system with AI' })}</EmptyTitle>
+            {/*
+              No `product` argument: `home.welcome` reads `Build your business
+              system with AI` in en, with no `{{product}}` hole, so i18next
+              dropped the branded name in silence (objectui#3845). The argument
+              is a leftover from an earlier `Welcome to {{product}}` value; if
+              white-label deployments should see their own name in the hero, that
+              is a copy change to the ten packs, not an argument at this call site.
+            */}
+            <EmptyTitle>{t('home.welcome', { defaultValue: 'Build your business system with AI' })}</EmptyTitle>
             <EmptyDescription>
               {buildAvailable
                 ? t('home.welcomeAdminDescription', {

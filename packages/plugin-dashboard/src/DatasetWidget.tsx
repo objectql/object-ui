@@ -26,8 +26,8 @@
  * objectui bumps its `@objectstack/spec` dependency (cross-repo spec skew).
  */
 
-import { useEffect, useMemo, useState } from 'react';
-import { SchemaRenderer } from '@object-ui/react';
+import { useContext, useEffect, useMemo, useState } from 'react';
+import { SchemaRenderer, SchemaRendererContext } from '@object-ui/react';
 import {
   buildChartSeries,
   buildOptionColorMap,
@@ -494,6 +494,15 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // a user-scoped widget sent `{current_user_id}` to SQL as a literal, matched
   // no row, and rendered 0 with no error anywhere (framework #3574).
   const filterScope = useFilterScope();
+  // Host-authenticated fetch for the object-schema probe further down
+  // (objectui#4121). This widget takes its `dataSource` as a PROP and reads no
+  // other context, so the channel has to be read here — the same context the
+  // rest of the family reads (`ObjectChart`, `ObjectGantt`, `useViewData`,
+  // `useRecordEditable`), consulted DIRECTLY rather than via
+  // `useSchemaContext()`, which throws when no provider is mounted: a widget
+  // rendered outside a host (every existing suite in this package) must keep
+  // degrading to the global fetch instead of crashing the render.
+  const apiFetch = useContext(SchemaRendererContext)?.apiFetch;
   const rawFilter = widget?.filter;
   const runtimeFilter = useMemo(
     () => (rawFilter && typeof rawFilter === 'object' && Object.keys(rawFilter).length > 0
@@ -578,6 +587,14 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // dimension's per-category colors, and a {value → label} map per dimension so
   // the axis/series display labels even when the server returned raw values.
   // Best-effort: any failure leaves both null (positional palette + raw values).
+  //
+  // The read rides the host's AUTHENTICATED fetch (objectui#4121) — the same
+  // channel `provider: 'api'` view sources use — falling back to the global one
+  // only when no host supplies it. A bearer-token session carries its credential
+  // in the `Authorization` header, not a cookie, so `credentials: 'include'`
+  // alone left this read unauthenticated in a hosted console; combined with the
+  // best-effort shape above the symptom was not an error but semantic option
+  // colors and dimension labels silently never applying.
   useEffect(() => {
     if (isMetric || isTable) { setCategoryColors(null); setDimensionLabels(null); setCategoryOrder(null); return; }
     const object = state.object;
@@ -586,7 +603,8 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/v1/meta/object/${encodeURIComponent(object)}`, { headers: { accept: 'application/json' }, credentials: 'include' });
+        const doFetch = apiFetch ?? fetch;
+        const res = await doFetch(`/api/v1/meta/object/${encodeURIComponent(object)}`, { headers: { accept: 'application/json' }, credentials: 'include' });
         const j = await res.json().catch(() => null);
         const objSchema = j?.item ?? j?.data ?? j;
         const firstDimOptions = objSchema?.fields?.[fieldOf(dimensions[0])]?.options;
@@ -604,7 +622,15 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
       } catch { if (!cancelled) { setCategoryColors(null); setDimensionLabels(null); setCategoryOrder(null); } }
     })();
     return () => { cancelled = true; };
-  }, [state.object, state.dimensionFields, dimensions, isMetric, isTable]);
+    // `apiFetch` joins the deps (objectui#4121) exactly as it does in
+    // `useRecordEditable`'s. It does not re-open this file's documented refetch
+    // concern — that one is on the query effect above and is about a
+    // render-time `now` inside the RESOLVED filter, i.e. a value this component
+    // recomputes every render. `apiFetch` is not: it comes from the provider's
+    // memoized context value, and this widget's own `setState` cannot re-render
+    // the provider, so the identity is stable across the effect's own updates.
+    // The in-repo host holds it at module scope (`ConsoleShell.tsx:187` → `:245`).
+  }, [state.object, state.dimensionFields, dimensions, isMetric, isTable, apiFetch]);
 
   if (values.length === 0) {
     return <div className="flex h-full w-full items-center justify-center rounded border border-dashed bg-muted/20 p-4 text-xs text-muted-foreground">{tt('dashboard.pickMeasures', 'Pick measures (values) for this dataset widget.')}</div>;
