@@ -41,6 +41,7 @@ import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields'
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
 import { applyAutoLayout } from './autoLayout';
 import { sanitizeFormData } from './sanitize';
+import { seedCreateValues } from './schemaDefaults';
 import { useOccSave } from './occSave';
 
 /**
@@ -239,7 +240,10 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
     let cancelled = false;
     const fetchData = async () => {
       if (schema.mode === 'create' || !schema.recordId) {
-        setFormData(schema.initialData || schema.initialValues || {});
+        // Declared static defaults are this form's opening values (#4047) —
+        // see `schemaDefaults` for the create-only boundary and for why
+        // runtime defaults are left to the server.
+        setFormData(seedCreateValues(objectSchema, schema.initialData || schema.initialValues));
         setLoading(false);
         return;
       }

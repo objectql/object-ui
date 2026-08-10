@@ -37,6 +37,7 @@ import {
 } from './autoLayout';
 import { deriveFieldGroupSections } from './fieldGroups';
 import { sanitizeFormData } from './sanitize';
+import { schemaDefaultValues } from './schemaDefaults';
 import { useOccSave } from './occSave';
 
 export interface ObjectFormProps {
@@ -816,21 +817,27 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
     }
   }, [schema]);
 
-  // Calculate default values from schema fields
-  const schemaDefaultValues = React.useMemo(() => {
-    if (!objectSchema?.fields) return {};
-    const defaults: Record<string, any> = {};
-    Object.keys(objectSchema.fields).forEach(key => {
-        const field = objectSchema.fields[key];
-        if (field.defaultValue !== undefined) {
-            defaults[key] = field.defaultValue;
-        }
-    });
-    return defaults;
-  }, [objectSchema]);
+  // The object's declared field defaults, as this form's opening values.
+  //
+  // CREATE ONLY (#4047). This pass used to run in every mode — on an edit form
+  // it folded a default under a persisted row, so a column the record leaves
+  // unset showed the default and the next save wrote a value the user never
+  // chose. `!recordId || mode === 'create'` is the same "no persisted record"
+  // test the data-fetch effect above uses, so the two cannot drift.
+  //
+  // It also used to seed `defaultValue` VERBATIM, including the runtime
+  // instructions the server resolves per insert (`NOW()`, `current_user`, CEL
+  // envelopes) — which put the literal text `NOW()` into a datetime input and
+  // then submitted it, suppressing the resolution the declaration asked for.
+  // `schemaDefaultValues` seeds static literals only; see that module.
+  const isCreateForm = !schema.recordId || schema.mode === 'create';
+  const schemaDefaults = React.useMemo(
+    () => (isCreateForm ? schemaDefaultValues(objectSchema) : {}),
+    [objectSchema, isCreateForm],
+  );
 
   const finalDefaultValues = {
-     ...schemaDefaultValues,
+     ...schemaDefaults,
      ...initialData
   };
 
