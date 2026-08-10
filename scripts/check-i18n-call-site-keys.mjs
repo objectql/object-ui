@@ -2,11 +2,14 @@
 /**
  * Every key a component asks `t()` for must EXIST in the `en` locale pack — and
  * where the call site also writes an inline `defaultValue`, that dead string
- * must say the same thing the pack does (objectui#3810).
+ * must say the same thing the pack does (objectui#3810) — and the interpolation
+ * arguments the call site passes must be exactly the holes the `en` value has
+ * to receive them (objectui#3845).
  *
  * Run:  node scripts/check-i18n-call-site-keys.mjs   (also `pnpm check:i18n-keys`)
- * Exit: 0 = every in-scope call-site key resolves (or is baselined) and no
- *           inline default contradicts its `en` value, 1 = otherwise
+ * Exit: 0 = every in-scope call-site key resolves (or is baselined), no inline
+ *           default contradicts its `en` value, and no call site's option names
+ *           disagree with its `en` value's holes, 1 = otherwise
  *
  * ## The gap this closes (objectui#3530)
  *
@@ -47,6 +50,17 @@
  * this gate asked only whether the key existed, parity reads no values at all,
  * and en-drift fires on CHANGE — and in every one of the 43 sites the `en` value
  * had not moved for months. The call site was the thing that disagreed.
+ *
+ * `interpolation-parity` is the fifth, and it is blind to all four
+ * (objectui#3845). Parity DOES compare placeholder shape — but pack against
+ * pack: the nine translations must hold the same `{{holes}}` as `en`. Ten packs
+ * agreeing on `Update` while the call site passes `version` is full placeholder
+ * parity, because no pack gate ever reads the argument list. And a `defaultValue`
+ * that agrees byte for byte with `en` says nothing about the arguments either:
+ * `home.welcome` passed `product` to `Welcome to {{product}}`, the `en` value was
+ * later rewritten to `Build your business system with AI`, and #3810's rule is
+ * satisfied the moment the call site copies that new sentence — with the now
+ * inert `product` still sitting beside it.
  *
  * ## What is IN scope, and why the answer is not "every `t(`"
  *
@@ -89,7 +103,7 @@
  * every one of them a component that was handed the metadata-admin table's `t`
  * by its parent, and not one of them a real finding.
  *
- * ## Three failure classes
+ * ## Four failure classes
  *
  * 1. `missing-key` — a literal key with no leaf in `en`. i18next plural suffixes
  *    (`_one`, `_other`, …) count as defining the base key, and a key passed with
@@ -126,6 +140,56 @@
  *    NOT yet in `en` stays legal — that transition period runs for months
  *    (objectui#3546) and is class 1's business, not this one's.
  *
+ * 4. `interpolation-parity` (objectui#3845) — the key EXISTS, and the set of
+ *    interpolation option names the call site passes is not the set of `{{hole}}`
+ *    names the `en` value has. Both directions fail, because the declaration and
+ *    the thing that consumes it are the same statement read from two ends:
+ *
+ *      - **inert** — an argument passed with no hole to receive it. i18next
+ *        drops it silently, so the author's intent evaporates with no runtime
+ *        signal at all: `marketplace.action.updateTo` passed `version` to a value
+ *        reading `Update`, while its sister key three hundred lines down renders
+ *        `Update → v{{version}}` from the same variable. Nothing is broken today,
+ *        which is exactly why nothing ever noticed.
+ *      - **unfilled** — a hole with no argument to fill it. i18next leaves the
+ *        braces in the output, so the user reads a literal `{{name}}`. This
+ *        direction measured 0 on `main` when the rule landed; keeping it judged
+ *        is the difference between "0 by luck" and "0 by guarantee".
+ *
+ *    Deliberately NOT judged (counted instead), and each abstention is a
+ *    decision:
+ *
+ *      - The same key preconditions as class 3 — a dynamic or several-literal
+ *        key, a `returnObjects` subtree, an `en` leaf that is not a readable
+ *        static string. Plural families fall out here too: `t(k, { count })`
+ *        resolves through `_one`/`_other` and there is no single value whose
+ *        holes could be the answer, so the families are never judged.
+ *      - An options object whose NAME SET cannot be read: a spread, a computed
+ *        name, a getter — or a `replace:` redirect, which is where i18next takes
+ *        the interpolation data from when it is present, making the top-level
+ *        names not interpolation at all. Today the repo has none of these; the
+ *        abstention is what stops the first one becoming a false red.
+ *      - RESERVED names are removed from BOTH sides before comparing, not just
+ *        from the call site's. `count` is the reason: it is an i18next control
+ *        option AND the value of a `{{count}}` hole, so subtracting it from one
+ *        side only would report every counted string as unfilled.
+ *
+ *    Nested `t()` inside the options object is not a special case here and must
+ *    not become one: the arguments of an inner call are not properties of the
+ *    outer object literal, so an AST reading the outer literal's own properties
+ *    never sees them. It is called out because the census that found this class
+ *    was done with a regex first, and the regex read the inner `index:` of
+ *    `packages/fields/src/widgets/ImageField.tsx` as an argument of the outer
+ *    `fields.image.enlarge` call — one false positive out of two hits. The
+ *    self-test pins the AST's behaviour on exactly that shape.
+ *
+ *    Also HARD from day one, and for the same reason: the first full run found
+ *    2 inert sites and 0 unfilled ones, both fixed in objectui#3845's PR by
+ *    DELETING the dead argument. Adding the hole to the `en` value instead is a
+ *    product decision about what the string should say — it changes what users
+ *    read and obliges the nine other packs through objectui#3650 — so the gate
+ *    accepts either resolution and neither is its to make.
+ *
  * ## Dynamic keys: the explicit policy
  *
  * A key that is not a string literal cannot be resolved statically. Those call
@@ -150,7 +214,7 @@
  *
  * `scripts/i18n-call-site-key-baseline.json` lists the keys already missing on
  * `main` when this gate landed, each with the issue tracking its fix — classes 1
- * and 2 only; class 3 has no baseline and never needed one. It is a
+ * and 2 only; classes 3 and 4 have no baseline and never needed one. It is a
  * ratchet, not an allowlist: a key that is NOT in it fails, and an entry that no
  * longer fires (key added to `en`, or its last call site deleted) ALSO fails, so
  * the file can only shrink. Fixing the debt means adding the key to
@@ -179,6 +243,114 @@ export const TRANSLATOR_TYPE =
 
 /** The option flag `useObjectLabel` sets on its deliberate convention-key misses. */
 export const PROBE_FLAG_NAMES = /I18N_PROBE_FLAG|__ouiLabelProbe/;
+
+/**
+ * i18next option names that CONTROL the lookup rather than fill a hole
+ * (objectui#3845). Subtracted from both sides of the interpolation comparison —
+ * see the header for why `count` in particular must leave the hole set too.
+ *
+ * `replace` is absent on purpose: it does not merely fail to be interpolation
+ * data, it REDIRECTS where the data comes from, so a call site carrying one is
+ * abstained on rather than having one name dropped.
+ */
+export const RESERVED_OPTION_NAMES = new Set([
+  // plural / context selection — and `count` is also its own `{{count}}` hole
+  'count',
+  'ordinal',
+  'context',
+  // the default a miss falls back to, in all its plural spellings
+  'defaultValue',
+  'defaultValue_zero',
+  'defaultValue_one',
+  'defaultValue_two',
+  'defaultValue_few',
+  'defaultValue_many',
+  'defaultValue_other',
+  // namespace / language selection
+  'ns',
+  'lng',
+  'lngs',
+  'fallbackLng',
+  // return shape and post-processing
+  'returnObjects',
+  'returnDetails',
+  'returnedObjectHandler',
+  'joinArrays',
+  'postProcess',
+  'postProcessorOptions',
+  // interpolation and key parsing control
+  'interpolation',
+  'skipInterpolation',
+  'keySeparator',
+  'nsSeparator',
+  'escapeValue',
+  // missing-key handling
+  'parseMissingKeyHandler',
+  'missingKeyNoValueFallbackToKey',
+  'appendNamespaceToMissingKey',
+]);
+
+/**
+ * Keys whose `{{hole}}` is filled by the CONSUMER of the translated string
+ * rather than by i18next (objectui#3845). Every entry is a decision with a
+ * reason, the way `EXCLUDED_TRANSLATORS` is — and the self-test verifies each
+ * one's premise against both the `en` pack and the named source file, so an
+ * entry cannot outlive the substitution it describes.
+ *
+ * i18next leaves an unmatched `{{name}}` in the output verbatim, which is what
+ * makes a second substitution stage possible at all: the string travels through
+ * `t()` with its hole intact and the component fills it afterwards. That is a
+ * deliberate design here, not an oversight — the sister label three lines away
+ * in `apps/console/src/pages/auth/ForgotPasswordPage.tsx` spells the same
+ * pattern with SINGLE braces (`Resend in {seconds}s`) precisely to stay out of
+ * i18next's way, and the inconsistency between the two spellings is filed as
+ * objectui#4135.
+ *
+ * The listed hole names are removed from the hole set, so the `unfilled`
+ * direction stays silent — and the `inert` direction keeps judging them, which
+ * is the direction that matters here: passing `email` to `t()` would let
+ * i18next consume the hole, `ForgotPasswordForm`'s `includes('{{email}}')`
+ * guard would then miss, and its fallback branch would append the address a
+ * SECOND time. So for these keys the argument must not be passed, and the gate
+ * still says so.
+ */
+export const EXTERNALLY_INTERPOLATED_HOLES = [
+  {
+    key: 'auth.forgotPassword.successDescription',
+    holes: ['email'],
+    filledBy: 'packages/auth/src/ForgotPasswordForm.tsx',
+    marker: "successDescription.replace('{{email}}', email)",
+    reason:
+      'the label is a PROP of `ForgotPasswordForm`, which substitutes the address itself ' +
+      'once the form knows it — the call site cannot, because it renders before the user ' +
+      'has typed anything. All ten packs carry the hole, so this is the shape in every ' +
+      'language, not an en-only quirk.',
+  },
+];
+
+/**
+ * The interpolation names an `en` value has holes for (objectui#3845).
+ *
+ * i18next's default interpolation is `{{name}}`; `{{name, format}}` names a
+ * formatter, `{{- name}}` asks for the unescaped value, and `{{a.b}}` reads a
+ * keypath off the option called `a`. Today's pack uses none of the three — all
+ * 84 distinct holes in `en` are bare names — but reading through them costs four
+ * lines and stops the first one that appears from being read as a different
+ * hole (or, for the keypath, as a missing option nobody passes).
+ */
+export function holesOf(value) {
+  const names = new Set();
+  for (const match of value.matchAll(/\{\{([^{}]+)\}\}/g)) {
+    const name = match[1]
+      .split(',')[0] // `{{n, number}}` — the formatter is not part of the name
+      .trim()
+      .replace(/^-\s*/, '') // `{{- html}}` — the unescape marker is not either
+      .split('.')[0] // `{{user.name}}` is filled by the option called `user`
+      .trim();
+    if (name) names.add(name);
+  }
+  return names;
+}
 
 /**
  * `t` bindings that do NOT resolve against the locale packs. Every entry is a
@@ -541,6 +713,66 @@ function inlineDefaultValue(node, source) {
   return { present: false, text: null };
 }
 
+/**
+ * The interpolation option names a call site passes (objectui#3845).
+ *
+ * `{ readable: true, names }`  — the full name set, reserved names already
+ *                                removed. An empty set is a real answer: it says
+ *                                this call passes nothing to interpolate.
+ * `{ readable: false }`        — the name set is not statically knowable, so the
+ *                                rule abstains rather than guessing at it.
+ *
+ * Only the properties of the options OBJECT LITERAL itself are read. An inner
+ * `t('fields.image.imageAlt', { index })` written as one of those property
+ * VALUES contributes nothing, because its arguments are its own — which is the
+ * whole difference between this and the regex that first measured the class.
+ */
+function interpolationOptions(node, source) {
+  let object = null;
+  for (const argument of node.arguments.slice(1)) {
+    const inner = unwrapExpression(argument);
+    if (!inner) return { readable: false };
+    if (ts.isObjectLiteralExpression(inner)) {
+      // `t(key, 'Default', { name })` is legal i18next; the first object wins,
+      // the way `inlineDefaultValue` reads it.
+      if (object === null) object = inner;
+      continue;
+    }
+    // A positional default (`tt(key, 'Save')`) carries no options.
+    if (ts.isStringLiteral(inner) || ts.isNoSubstitutionTemplateLiteral(inner) || ts.isTemplateExpression(inner)) continue;
+    // `t(key, options)` — an options bag this parser cannot open.
+    return { readable: false };
+  }
+
+  const names = new Set();
+  if (object === null) return { readable: true, names };
+
+  for (const property of object.properties) {
+    if (ts.isShorthandPropertyAssignment(property)) {
+      if (!RESERVED_OPTION_NAMES.has(property.name.text)) names.add(property.name.text);
+      continue;
+    }
+    // A spread, a method, an accessor: the name set is open, so do not judge it.
+    if (!ts.isPropertyAssignment(property)) return { readable: false };
+    if (ts.isComputedPropertyName(property.name)) {
+      // The probe flag is the one computed name with a known meaning, and those
+      // call sites returned before reaching here. Anything else is unreadable.
+      return { readable: false };
+    }
+    const name =
+      ts.isIdentifier(property.name) || ts.isStringLiteral(property.name) || ts.isNumericLiteral(property.name)
+        ? property.name.text
+        : null;
+    if (name === null) return { readable: false };
+    // i18next reads interpolation data OUT of `replace` when it is present, so
+    // the top-level names stop being the answer to this question entirely.
+    if (name === 'replace') return { readable: false };
+    if (RESERVED_OPTION_NAMES.has(name)) continue;
+    names.add(name);
+  }
+  return { readable: true, names };
+}
+
 /** The literal head of a template key, i.e. everything before the first `${`. */
 function staticHead(argument) {
   const inner = unwrapExpression(argument);
@@ -567,6 +799,9 @@ export function analyze(root) {
 
   const registeredModules = new Set(EXCLUDED_TRANSLATORS.map((entry) => entry.module));
   const localScopes = EXCLUDED_TRANSLATORS.flatMap((entry) => entry.forwardedScope ?? []);
+  const externallyFilled = new Map(
+    EXTERNALLY_INTERPOLATED_HOLES.map((entry) => [entry.key, new Set(entry.holes)]),
+  );
 
   const findings = [];
   const counters = {
@@ -584,6 +819,9 @@ export function analyze(root) {
     matchingDefaultValues: 0,
     computedDefaultValues: 0,
     unjudgedDefaultValues: 0,
+    judgedInterpolation: 0,
+    unjudgedInterpolation: 0,
+    opaqueOptions: 0,
   };
 
   for (const file of collectSourceFiles(root)) {
@@ -705,13 +943,18 @@ export function analyze(root) {
           // define is `missing-key`'s territory and is NOT reported here too;
           // keeping the two classifications disjoint is what lets either output
           // be read on its own.
+          // The single `en` value this call site renders, or `undefined` when
+          // there is not exactly one that this parser could read as a string.
+          // Shared by classes 3 and 4: both judge a call site against the
+          // sentence the pack actually serves it, and both decline together.
+          const key = !dynamic && keys.length === 1 ? keys[0] : null;
+          const enValue = key !== null && !returnsObjects ? values.get(key) : undefined;
+
           const inlineDefault = inlineDefaultValue(node, source);
           if (inlineDefault.present && inlineDefault.text === null) {
             counters.computedDefaultValues += 1;
           } else if (inlineDefault.present) {
             counters.literalDefaultValues += 1;
-            const key = !dynamic && keys.length === 1 ? keys[0] : null;
-            const enValue = key !== null && !returnsObjects ? values.get(key) : undefined;
             if (enValue === undefined) {
               // No single static key, or a key whose `en` leaf this parser could
               // not read as a string — including the plural families, where
@@ -721,6 +964,29 @@ export function analyze(root) {
               counters.matchingDefaultValues += 1;
             } else {
               findings.push({ reason: 'default-value-drift', ...at, detail: key, expected: enValue, actual: inlineDefault.text });
+            }
+          }
+
+          // objectui#3845 — what this call site passes must be what the `en`
+          // value has holes for, in both directions. Judged on the same
+          // preconditions as class 3, plus a readable option-name set.
+          if (enValue === undefined) {
+            counters.unjudgedInterpolation += 1;
+          } else {
+            const options = interpolationOptions(node, source);
+            if (!options.readable) {
+              counters.opaqueOptions += 1;
+            } else {
+              const downstream = externallyFilled.get(key) ?? new Set();
+              const holes = new Set(
+                [...holesOf(enValue)].filter((hole) => !RESERVED_OPTION_NAMES.has(hole) && !downstream.has(hole)),
+              );
+              const inert = [...options.names].filter((option) => !holes.has(option)).sort();
+              const unfilled = [...holes].filter((hole) => !options.names.has(hole)).sort();
+              counters.judgedInterpolation += 1;
+              if (inert.length > 0 || unfilled.length > 0) {
+                findings.push({ reason: 'interpolation-parity', ...at, detail: key, expected: enValue, inert, unfilled });
+              }
             }
           }
 
@@ -815,6 +1081,20 @@ const HINTS = {
     ' the same change in the other nine packs. If the pack value is genuinely the wrong' +
     ' copy for this spot, that is a copy change in its own PR, or the call site is asking' +
     ' for the wrong key.',
+  'interpolation-parity':
+    'The arguments this call site passes are not the holes the `en` value has (objectui#3845).' +
+    ' An INERT argument is one i18next drops on the floor — no hole to receive it, no warning,' +
+    ' and the intent behind it disappears. An UNFILLED hole is worse: i18next leaves the braces' +
+    ' in place and the user reads a literal `{{name}}`. Fix it at the CALL SITE by default —' +
+    ' delete the argument nothing consumes, or pass the one the sentence asks for. Editing' +
+    ' `packages/i18n/src/locales/en.ts` to add or drop a hole is a COPY change: it changes what' +
+    ' users read and obliges the other nine packs through `scripts/check-i18n-en-drift.mjs`, so' +
+    ' it needs to be a deliberate decision in its own right rather than a way to silence this.' +
+    ' If the hole is filled by whatever CONSUMES the translated string rather than by i18next' +
+    ' (a label handed to a component that substitutes it later), register the key in' +
+    ' EXTERNALLY_INTERPOLATED_HOLES with the file that does the substitution — and note that' +
+    ' those keys must still NOT be passed the argument, or i18next consumes the hole before the' +
+    ' consumer gets to see it.',
 };
 
 /** JSON-quoted, with every non-ASCII byte escaped — `...` vs `…` must be visible. */
@@ -853,17 +1133,27 @@ if (invokedDirectly) {
       `(${counters.matchingDefaultValues} match their en value, ${counters.unjudgedDefaultValues} not comparable), ` +
       `${counters.computedDefaultValues} computed (report-only).`,
   );
+  console.log(
+    `Interpolation parity: ${counters.judgedInterpolation} call sites compared against their en value's holes, ` +
+      `${counters.unjudgedInterpolation} with no single comparable en value, ${counters.opaqueOptions} with an ` +
+      `unreadable option set, ${EXTERNALLY_INTERPOLATED_HOLES.length} key(s) whose holes are filled downstream.`,
+  );
 
   // Split by class before printing: the two key classes say "en does not define
-  // this", the drift class says "en defines it differently", and one paragraph
-  // cannot honestly introduce both.
+  // this", the drift class says "en defines it differently", the parity class
+  // says "en defines it with different holes", and one paragraph cannot honestly
+  // introduce all three.
   const drift = unexpected.filter((finding) => finding.reason === 'default-value-drift');
-  const keyFindings = unexpected.filter((finding) => finding.reason !== 'default-value-drift');
+  const parity = unexpected.filter((finding) => finding.reason === 'interpolation-parity');
+  const keyFindings = unexpected.filter(
+    (finding) => finding.reason !== 'default-value-drift' && finding.reason !== 'interpolation-parity',
+  );
 
   if (unexpected.length === 0 && stale.length === 0) {
     console.log(
-      `Every in-scope call-site key resolves against the en pack (${enKeyCount} keys), and every` +
-        ' literal inline defaultValue matches the value the pack serves.',
+      `Every in-scope call-site key resolves against the en pack (${enKeyCount} keys), every` +
+        ' literal inline defaultValue matches the value the pack serves, and every call site passes' +
+        ' exactly the arguments that value has holes for.',
     );
     process.exit(0);
   }
@@ -890,6 +1180,22 @@ if (invokedDirectly) {
       console.error(`  ${finding.file}:${finding.line}:${finding.column}  [${finding.reason}]  ${finding.detail}`);
       console.error(`      en renders: ${quote(finding.expected)}`);
       console.error(`      call site:  ${quote(finding.actual)}`);
+    }
+  }
+
+  if (parity.length > 0) {
+    const distinct = new Set(parity.map((finding) => finding.detail));
+    console.error(
+      `\n${parity.length} call site${parity.length === 1 ? '' : 's'} pass${parity.length === 1 ? 'es' : ''} ` +
+        `arguments that do not match the holes in the en value (${distinct.size} distinct ` +
+        `key${distinct.size === 1 ? '' : 's'}) — an inert argument is dropped in silence, an ` +
+        'unfilled hole renders its own braces to the user:',
+    );
+    for (const finding of parity) {
+      console.error(`  ${finding.file}:${finding.line}:${finding.column}  [${finding.reason}]  ${finding.detail}`);
+      console.error(`      en renders: ${quote(finding.expected)}`);
+      if (finding.inert.length > 0) console.error(`      inert (passed, no hole):     ${finding.inert.join(', ')}`);
+      if (finding.unfilled.length > 0) console.error(`      unfilled (hole, no argument): ${finding.unfilled.join(', ')}`);
     }
   }
 

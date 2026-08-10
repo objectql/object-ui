@@ -552,7 +552,12 @@ export function MarketplacePackagePage() {
         ? t('marketplace.action.installing')
         : cloudInstalledVersion
           ? (cloudUpdateAvailable
-              ? t('marketplace.action.updateTo', { defaultValue: 'Update', version: latestVersion })
+              // No `version` argument: `marketplace.action.updateTo` reads a bare
+              // `Update` in all ten packs, so i18next had nothing to interpolate
+              // and silently dropped it (objectui#3845). Its sister
+              // `marketplace.install.updateTo` below DOES render the version —
+              // whether this button should too is a copy decision, not a fix.
+              ? t('marketplace.action.updateTo', { defaultValue: 'Update' })
               : t('marketplace.action.installed', { defaultValue: 'Installed' }))
           : t('marketplace.action.installToCloud'),
       onClick: openInstall,

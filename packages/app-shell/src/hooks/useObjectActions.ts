@@ -157,8 +157,11 @@ export function useObjectActions({
         onRefresh?.();
         toast.success(
           packagedSetReset
+            // No `label` argument, unlike the `deleteSuccess` branch below: this
+            // sentence names the permission set by kind rather than by label, so
+            // none of the ten packs has a `{{label}}` hole and i18next dropped
+            // the argument in silence (objectui#3845).
             ? t('objectActions.resetPackageSetSuccess', {
-                label: objectLabel || objectName,
                 defaultValue: 'Permission set reset to its shipped baseline',
               })
             : t('objectActions.deleteSuccess', { label: objectLabel || objectName }),

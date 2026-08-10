@@ -387,24 +387,38 @@ describe('objectui#3546 slice five — the marketplace and preview namespaces', 
     expect(at(builtInLocales.en, 'marketplace.org.installed')).toBe('Installed {{name}}');
   });
 
-  it("marketplace.action.updateTo's `version` option is inert, and en does not pretend otherwise", () => {
-    // `MarketplacePackagePage.tsx:555` passes `version` next to a `defaultValue`
-    // that has no hole for it, so nothing has ever been interpolated there and
-    // the primary button reads a bare "Update". Its sibling
-    // `marketplace.install.updateTo` (the environment dropdown, same file) DOES
-    // render the version — the two were plainly meant to match.
+  it("marketplace.action.updateTo takes no `version` option, because no pack has a hole for one", () => {
+    // THE DECISION THIS ASSERTION USED TO FORCE HAS BEEN MADE (objectui#3845).
     //
-    // Deliberately NOT repaired by giving `en` a `{{version}}` hole: that would
-    // change a string the user sees today, on a call site whose intent is
-    // ambiguous, in a slice whose contract is that `en` equals the inline
-    // `defaultValue` byte for byte. Filed as a finding; this assertion is what
-    // makes the next reader see the choice instead of "fixing" it silently.
+    // Slice five landed with `MarketplacePackagePage.tsx` passing `version` next
+    // to a `defaultValue` of `Update`, which has no hole for it: i18next dropped
+    // the argument in silence and the primary button has only ever read a bare
+    // "Update". Its sibling `marketplace.install.updateTo` (the environment
+    // dropdown, same file) DOES render the version, which is what made the
+    // asymmetry legible. The assertion here pinned the inert argument in place
+    // so the next reader would have to decide rather than "fix" it silently.
+    //
+    // The decision was **delete the argument**, not give `en` a `{{version}}`
+    // hole: the second would change a string users see today and oblige nine
+    // more packs through `scripts/check-i18n-en-drift.mjs`, which is a copy
+    // decision about the three-state button (Update / Installed / Installing…)
+    // and its width — not something a dead-argument cleanup gets to smuggle in.
+    // If that copy decision is ever taken, this assertion is the one to revisit,
+    // and `interpolation-parity` in `scripts/check-i18n-call-site-keys.mjs`
+    // accepts either resolution as long as the two ends agree.
+    //
+    // So this now pins the CHOSEN state, both halves of it: the argument is gone
+    // from the call site, and no pack pretends there was ever a hole.
     const src = sourceOf(PACKAGE_PAGE);
-    expect(src).toContain("t('marketplace.action.updateTo', { defaultValue: 'Update', version: latestVersion })");
+    expect(src).toContain("t('marketplace.action.updateTo', { defaultValue: 'Update' })");
+    expect(src).not.toContain("t('marketplace.action.updateTo', { defaultValue: 'Update', version");
     for (const lang of LANGS) {
       expect(at(builtInLocales[lang], 'marketplace.action.updateTo')).not.toContain('{{');
     }
+    // The sister key is untouched, so the asymmetry that made this legible is
+    // still visible to whoever takes the copy decision later.
     expect(at(builtInLocales.en, 'marketplace.install.updateTo')).toContain('{{version}}');
+    expect(src).toContain("t('marketplace.install.updateTo', { defaultValue: 'Update \\u2192 v{{version}}', version: latestVersion })");
   });
 
   it('the two revert labels collapse only in the packs with no letter case', () => {

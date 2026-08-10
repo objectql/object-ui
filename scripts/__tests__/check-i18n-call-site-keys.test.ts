@@ -10,7 +10,10 @@ import {
   collectEnKeys,
   collectSourceFiles,
   EXCLUDED_TRANSLATORS,
+  EXTERNALLY_INTERPOLATED_HOLES,
+  holesOf,
   PACK_HOOK,
+  RESERVED_OPTION_NAMES,
 } from '../check-i18n-call-site-keys.mjs';
 
 /**
@@ -44,6 +47,13 @@ import {
  *      against synthetic repos, including the cases it deliberately declines to
  *      judge. That last group is the one worth reading before widening the rule:
  *      each abstention is a decision, not an oversight.
+ *
+ *   4. objectui#3845 added a fourth: the arguments a call site passes must be
+ *      exactly the `{{holes}}` the `en` value has to receive them. BOTH
+ *      directions are pinned red below, because they fail differently — an inert
+ *      argument is dropped in silence, an unfilled hole renders its own braces
+ *      to the user — and a rule that only judged one of them would be green on
+ *      half the class it names.
  */
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -113,6 +123,18 @@ const EN_FIXTURE = `const en = {
   detail: { showEmptyRelated_one: '+ {{count}} empty', showEmptyRelated_other: '+ {{count}} empty' },
   grid: { column: { label: 'Label', width: 'Width' } },
   confirm: { purge: 'Deleting resets it to the shipped baseline. ' + 'Continue?' },
+  interp: {
+    greet: 'Hello {{name}}',
+    both: 'Hello {{name}}, you have {{n}} messages',
+    bare: 'Update',
+    counted: 'Deleted {{count}} rows',
+    enlarge: 'Enlarge {{name}}',
+    imageAlt: 'Image {{index}}',
+  },
+  // The real key registered in EXTERNALLY_INTERPOLATED_HOLES, so the registry's
+  // effect can be exercised against a synthetic repo rather than only observed
+  // on \`main\`. The registry is keyed by NAME, so a fixture is enough.
+  auth: { forgotPassword: { successDescription: 'Sent a reset link to {{email}}.' } },
 } as const;
 export default en;
 `;
@@ -536,6 +558,236 @@ export const A = (flag: boolean) => {
     // pack. If this ever has to be waived, that decision needs a baseline
     // section and an issue — not an edit to `en.ts` to make the red go away.
     expect(driftOf(repoRoot)).toEqual([]);
+  });
+});
+
+describe('what a call site passes must be what the en value has holes for (objectui#3845)', () => {
+  /** Parity findings as `key: inert=[…] unfilled=[…]` — both directions visible. */
+  function parityOf(root: string): string[] {
+    return analyze(root)
+      .findings.filter((f: { reason: string }) => f.reason === 'interpolation-parity')
+      .map(
+        (f: { detail: string; inert: string[]; unfilled: string[] }) =>
+          `${f.detail}: inert=[${f.inert.join(',')}] unfilled=[${f.unfilled.join(',')}]`,
+      )
+      .sort();
+  }
+
+  /** One synthetic component whose body is `return <expr>;` inside a hook-bound `t`. */
+  function callSite(body: string): Record<string, string> {
+    return {
+      'packages/i18n/src/locales/en.ts': EN_FIXTURE,
+      'packages/x/src/A.tsx': `import { useObjectTranslation } from '${I18N_PKG}';
+export const A = (name: string, n: number, idx: number) => {
+  const { t } = useObjectTranslation();
+  return ${body};
+};
+`,
+    };
+  }
+
+  it('is silent when the argument set is exactly the hole set', () => {
+    const root = repoWith(callSite("[t('interp.greet', { name }), t('interp.both', { name, n }), t('interp.bare')]"));
+    const { findings, counters } = analyze(root);
+    expect(findings).toEqual([]);
+    // Shorthand properties (`{ name }`) are names too — the AST form differs from
+    // `{ name: name }` and reading only one of them would make the rule blind to
+    // whichever spelling the next author picks.
+    expect(counters.judgedInterpolation).toBe(3);
+  });
+
+  it('RED, direction one: an argument with no hole to receive it is inert', () => {
+    // objectui#3845's own instance, in miniature: i18next drops it in silence, so
+    // nothing anywhere else in the stack will ever say a word about it.
+    const root = repoWith(callSite("t('interp.bare', { version: name })"));
+    expect(parityOf(root)).toEqual(['interp.bare: inert=[version] unfilled=[]']);
+  });
+
+  it('RED, direction two: a hole with no argument renders its own braces', () => {
+    // The reverse the card measured at 0 on the day the rule landed. Judged
+    // anyway — "0 by luck" and "0 by guarantee" are different states, and this is
+    // the test that tells them apart.
+    const root = repoWith(callSite("t('interp.greet')"));
+    expect(parityOf(root)).toEqual(['interp.greet: inert=[] unfilled=[name]']);
+  });
+
+  it('reports both directions on one call site, because they are one disagreement', () => {
+    const root = repoWith(callSite("t('interp.both', { name, wrong: n })"));
+    expect(parityOf(root)).toEqual(['interp.both: inert=[wrong] unfilled=[n]']);
+  });
+
+  it('an options object is not needed to be judged — a bare t() can still leave a hole open', () => {
+    const root = repoWith(callSite("[t('interp.greet'), t('interp.bare')]"));
+    // Only the one with a hole is reported; a call with neither holes nor
+    // arguments is the ordinary case and must stay silent.
+    expect(parityOf(root)).toEqual(['interp.greet: inert=[] unfilled=[name]']);
+  });
+
+  it('reads only the outer options object, not a nested t() inside one of its values', () => {
+    // THE documented false positive of this class (objectui#3845): the census
+    // that found it was done with a regex first, and the regex read the inner
+    // call's `index:` as an argument of the outer `fields.image.enlarge`, scoring
+    // 2 hits where there was 1. This is that exact shape, and both calls are
+    // correct — so the whole thing must be silent.
+    const root = repoWith(callSite("t('interp.enlarge', { name: name || t('interp.imageAlt', { index: idx + 1 }) })"));
+    const { findings, counters } = analyze(root);
+    expect(findings).toEqual([]);
+    expect(counters.judgedInterpolation).toBe(2);
+  });
+
+  it('a nested t() that IS wrong is still caught, on its own call site', () => {
+    // The mirror of the test above: excluding the inner call's arguments from the
+    // OUTER name set must not exclude the inner call from being judged at all.
+    const root = repoWith(callSite("t('interp.enlarge', { name: t('interp.imageAlt', { wrong: idx }) })"));
+    expect(parityOf(root)).toEqual(['interp.imageAlt: inert=[wrong] unfilled=[index]']);
+  });
+
+  it('subtracts reserved names from BOTH sides, which is the only way `count` works', () => {
+    // `count` is an i18next control option AND the value of a `{{count}}` hole.
+    // Dropping it from the call site's names only would report every counted
+    // string in the repo as unfilled; dropping it from the holes only would
+    // report every `count` passed to a plural key as inert.
+    const root = repoWith(
+      callSite(
+        "[t('interp.counted', { count: n }), t('interp.counted'), t('interp.bare', { ns: 'x', lng: 'en', defaultValue: 'Update' })]",
+      ),
+    );
+    expect(parityOf(root)).toEqual([]);
+    expect(RESERVED_OPTION_NAMES.has('count')).toBe(true);
+    expect(RESERVED_OPTION_NAMES.has('version')).toBe(false);
+  });
+
+  it('never judges a plural family, where there is no single value to read holes off', () => {
+    const root = repoWith(callSite("t('detail.showEmptyRelated', { count: n, thing: name })"));
+    const { findings, counters } = analyze(root);
+    // `detail.showEmptyRelated` resolves through `_one`/`_other`; picking one
+    // form's holes as the answer would be an invention, so `thing` goes
+    // unreported rather than being called inert on a guess.
+    expect(findings).toEqual([]);
+    expect(counters.unjudgedInterpolation).toBeGreaterThanOrEqual(1);
+  });
+
+  it('abstains, loudly counted, when the option NAME SET cannot be read', () => {
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_FIXTURE,
+      'packages/x/src/A.tsx': `import { useObjectTranslation } from '${I18N_PKG}';
+export const A = (rest: Record<string, unknown>, key: string, opts: Record<string, unknown>) => {
+  const { t } = useObjectTranslation();
+  return [
+    t('interp.greet', { ...rest }),
+    t('interp.greet', { [key]: 1 }),
+    t('interp.greet', opts),
+    t('interp.greet', { replace: { name: 'x' } }),
+  ];
+};
+`,
+    });
+    const { findings, counters } = analyze(root);
+    // A spread, a computed name and an opaque bag genuinely hide the set. The
+    // fourth is different in kind and the same in verdict: `replace` REDIRECTS
+    // where i18next takes interpolation data from, so the top-level names stop
+    // being the answer to this question at all.
+    expect(findings).toEqual([]);
+    expect(counters.opaqueOptions).toBe(4);
+    expect(counters.judgedInterpolation).toBe(0);
+  });
+
+  it('the two key classes still own their own territory — no double report', () => {
+    // A key `en` does not define has no value, so it has no holes either. Saying
+    // "and its arguments do not match" about it would be noise on top of the one
+    // fact that matters, and false besides.
+    const root = repoWith(callSite("t('nowhere.key', { name })"));
+    expect(analyze(root).findings.map((f: { reason: string }) => f.reason)).toEqual(['missing-key']);
+  });
+
+  it('reads a formatter, an unescape marker and a keypath as the option they name', () => {
+    // None of these three shapes is in `en` today — all 84 distinct holes are
+    // bare names. They cost four lines to read through and would otherwise each
+    // become a phantom hole nobody passes.
+    expect([...holesOf('{{name}}')].sort()).toEqual(['name']);
+    expect([...holesOf('{{n, number}} of {{total, number}}')].sort()).toEqual(['n', 'total']);
+    expect([...holesOf('{{- html}}')].sort()).toEqual(['html']);
+    expect([...holesOf('{{user.name}} <{{user.email}}>')].sort()).toEqual(['user']);
+    expect([...holesOf('no holes at all')].sort()).toEqual([]);
+    // A single brace is not i18next interpolation — `auth.forgotPassword.
+    // resendOtpCountdownText` uses `{seconds}` for exactly that reason.
+    expect([...holesOf('Resend in {seconds}s')].sort()).toEqual([]);
+  });
+
+  describe('holes filled by the CONSUMER of the string, not by i18next', () => {
+    it('does not demand an argument for a registered hole', () => {
+      const root = repoWith(callSite("t('auth.forgotPassword.successDescription')"));
+      expect(parityOf(root)).toEqual([]);
+    });
+
+    it('still reports the argument if someone passes it — that is the real defect here', () => {
+      // Passing it lets i18next consume the hole, `ForgotPasswordForm`'s
+      // `includes('{{email}}')` guard then misses, and its fallback branch appends
+      // the address a SECOND time. So the registry silences one direction only.
+      const root = repoWith(callSite("t('auth.forgotPassword.successDescription', { email: name })"));
+      expect(parityOf(root)).toEqual(['auth.forgotPassword.successDescription: inert=[email] unfilled=[]']);
+    });
+
+    it('every registered entry still describes something real, in en AND in the source', () => {
+      // An exemption that outlives the substitution it describes is an allowlist.
+      // Both halves of each entry's premise are checked against `main`: the pack
+      // really has the hole, and the named file really fills it.
+      const parsed = collectEnKeys(repoRoot);
+      expect(EXTERNALLY_INTERPOLATED_HOLES.length).toBeGreaterThan(0);
+      for (const entry of EXTERNALLY_INTERPOLATED_HOLES) {
+        const value = parsed.values.get(entry.key);
+        expect(value, `en does not define ${entry.key} as a string`).toBeTypeOf('string');
+        for (const hole of entry.holes) {
+          expect([...holesOf(value!)], `en value of ${entry.key} has no {{${hole}}}`).toContain(hole);
+        }
+        const filler = fs.readFileSync(path.join(repoRoot, entry.filledBy), 'utf8');
+        expect(filler, `${entry.filledBy} no longer substitutes ${entry.key}`).toContain(entry.marker);
+        expect(entry.reason.length).toBeGreaterThan(40);
+      }
+    });
+  });
+
+  it('main passes exactly the arguments its en values have holes for', () => {
+    // objectui#3845 measured 3 inert sites and 0 unfilled ones on `main`, and
+    // deleted all three arguments in the same PR — which is why this rule needs
+    // no baseline. A finding here is a NEW disagreement: fix the call site.
+    // Adding or removing a hole in `en.ts` to make it green is a copy change
+    // that obliges nine more packs, and is never the way to silence this.
+    expect(parityOf(repoRoot)).toEqual([]);
+  });
+
+  it('the three arguments this rule deleted are really gone, and their sisters are not', () => {
+    // The stock, pinned by name rather than by a count: a rule with no baseline
+    // has nothing else recording what it was worth on the day it landed.
+    const gone: Array<[file: string, absent: string, present: string]> = [
+      [
+        'packages/app-shell/src/console/marketplace/MarketplacePackagePage.tsx',
+        "t('marketplace.action.updateTo', { defaultValue: 'Update', version",
+        "t('marketplace.action.updateTo', { defaultValue: 'Update' })",
+      ],
+      [
+        'packages/app-shell/src/console/home/HomePage.tsx',
+        "t('home.welcome', { product:",
+        "t('home.welcome', { defaultValue: 'Build your business system with AI' })",
+      ],
+      [
+        'packages/app-shell/src/hooks/useObjectActions.ts',
+        "t('objectActions.resetPackageSetSuccess', {\n                label:",
+        "t('objectActions.resetPackageSetSuccess', {",
+      ],
+    ];
+    for (const [file, absent, present] of gone) {
+      const src = fs.readFileSync(path.join(repoRoot, file), 'utf8');
+      expect(src, `${file} still passes the inert argument`).not.toContain(absent);
+      expect(src, `${file} lost the call site itself`).toContain(present);
+    }
+    // The sister call that DOES interpolate is untouched — deleting an argument
+    // because it is inert must not read as "this file does not interpolate".
+    const marketplace = fs.readFileSync(
+      path.join(repoRoot, 'packages/app-shell/src/console/marketplace/MarketplacePackagePage.tsx'),
+      'utf8',
+    );
+    expect(marketplace).toContain("t('marketplace.install.updateTo', { defaultValue: 'Update \\u2192 v{{version}}', version: latestVersion })");
   });
 });
 
