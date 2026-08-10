@@ -226,6 +226,7 @@ export function InboxPopover({
           {totalBadge > 0 && (
             <span
               key={totalBadge}
+              data-testid="inbox-bell-badge"
               className="absolute -top-0.5 -right-0.5 h-4 min-w-[16px] rounded-full bg-red-500 text-[10px] leading-4 text-white text-center px-1 motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:fade-in-0 motion-safe:duration-200"
             >
               {totalBadge > 9 ? '9+' : totalBadge}
@@ -248,6 +249,41 @@ export function InboxPopover({
             </button>
           )}
         </div>
+        {/* Badge breakdown (#7233). The bell badge is `unreadTopics +
+            pendingApprovalsCount` and clamps at "9+", so the number on its own
+            is unexplainable — and the two tab pills clamp at "9+" too, which
+            means a loaded inbox can show three "9+"s that reconcile to nothing.
+            Spell the addends out here, unclamped, so a user seeing "9+" can
+            read exactly which N notifications and which M pending approvals it
+            is made of (the M is the same count Home's approvals card and the
+            Approvals Inbox tab show — one source, `pendingApprovalsCount`). */}
+        {totalBadge > 0 && (
+          <div
+            data-testid="inbox-badge-breakdown"
+            className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 pb-2 text-xs text-muted-foreground"
+          >
+            <span data-testid="inbox-badge-breakdown-total" className="font-medium text-foreground">
+              {t('notifications.badgeTotal', {
+                defaultValue: '{{total}} total',
+                total: totalBadge,
+              })}
+            </span>
+            <span aria-hidden>·</span>
+            <span data-testid="inbox-badge-breakdown-notifications">
+              {t('notifications.badgeNotifications', {
+                defaultValue: '{{unread}} notifications',
+                unread: unreadTopics,
+              })}
+            </span>
+            <span aria-hidden>+</span>
+            <span data-testid="inbox-badge-breakdown-approvals">
+              {t('notifications.badgeApprovals', {
+                defaultValue: '{{approvals}} pending approvals',
+                approvals: pendingApprovalsCount,
+              })}
+            </span>
+          </div>
+        )}
         <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="w-full">
           <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-1 h-9">
             <TabsTrigger value="notifications" className="text-xs gap-1.5 data-[state=active]:bg-transparent">

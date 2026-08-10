@@ -2966,6 +2966,12 @@ const en = {
     viewApprovals: 'View approvals',
     noPendingApprovals: 'No pending approvals',
     openApprovalsInbox: 'Open Approvals Inbox',
+    // Bell-badge breakdown (#7233): the badge sums unread notification topics
+    // and pending approvals, then clamps at "9+". These three spell the sum
+    // out inside the popover so the number is explainable.
+    badgeTotal: '{{total}} total',
+    badgeNotifications: '{{unread}} notifications',
+    badgeApprovals: '{{approvals}} pending approvals',
   },
   publicForm: {
     submit: 'Submit',

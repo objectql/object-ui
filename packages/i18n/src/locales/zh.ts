@@ -2870,6 +2870,9 @@ const zh = {
     viewApprovals: '查看审批',
     noPendingApprovals: '暂无待审批事项',
     openApprovalsInbox: '打开审批中心',
+    badgeTotal: '共 {{total}} 项',
+    badgeNotifications: '{{unread}} 条通知',
+    badgeApprovals: '{{approvals}} 条待审批',
   },
   publicForm: {
     submit: '提交',
