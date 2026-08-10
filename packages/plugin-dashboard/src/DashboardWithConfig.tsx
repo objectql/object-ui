@@ -111,7 +111,12 @@ export function DashboardWithConfig({
       dimensions: Array.isArray(w.dimensions) ? w.dimensions : [],
       values: Array.isArray(w.values) ? w.values : [],
       colorVariant: widget.colorVariant ?? 'default',
-      actionUrl: widget.actionUrl ?? '',
+      // No `actionUrl` / `actionType` / `actionIcon`: retired at the widget
+      // level in @objectstack/spec 17.0.0-rc.3 (objectstack#5010, ADR-0049 D2)
+      // and now `retiredKey` tombstones the spec refuses. Seeding
+      // `actionUrl: widget.actionUrl ?? ''` here meant EVERY save from the
+      // widget panel emitted `actionUrl: ''` — a parse error — even when the
+      // author never opened the Behavior group (objectstack#7129).
       layoutW: widget.layout?.w ?? 1,
       layoutH: widget.layout?.h ?? 1,
     };
