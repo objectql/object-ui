@@ -671,6 +671,14 @@ const pt = {
       start: "Início",
       end: "Fim",
     },
+    link: {
+      rejected: {
+        self: "Uma tarefa não pode depender de si mesma.",
+        locked: "Esta linha está bloqueada e não pode receber uma nova dependência.",
+        group: "Uma linha de resumo não pode receber dependências: vincule uma das suas tarefas.",
+        cycle: "Esse vínculo criaria uma dependência circular.",
+      },
+    },
     conflict: {
       title: "Conflito de agendamento",
       body: "Esta movimentação conflita com as restrições de dependência. Reagendar automaticamente {{count}} tarefa(s) afetada(s)?",

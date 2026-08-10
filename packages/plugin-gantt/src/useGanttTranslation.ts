@@ -69,6 +69,14 @@ export const GANTT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'gantt.linkType.sf': 'Start → Finish',
   'gantt.linkEnd.start': 'start',
   'gantt.linkEnd.end': 'end',
+  // Why the built-in drop-target policy refused a dependency link
+  // (objectui#4158). One message per branch of `classifyLinkTarget`, and the
+  // leaf name IS the branch name — a new branch that forgets its copy shows
+  // up as a missing key here rather than as a plausible-but-wrong sentence.
+  'gantt.link.rejected.self': 'A task cannot depend on itself.',
+  'gantt.link.rejected.locked': 'This row is locked and cannot take a new dependency.',
+  'gantt.link.rejected.group': 'A summary row cannot take a dependency — link one of its tasks instead.',
+  'gantt.link.rejected.cycle': 'That link would create a circular dependency.',
   'gantt.conflict.title': 'Schedule conflict',
   'gantt.conflict.body': 'This move conflicts with dependency constraints. Auto-reschedule {{count}} affected task(s)?',
   'gantt.conflict.confirm': 'Auto-reschedule',

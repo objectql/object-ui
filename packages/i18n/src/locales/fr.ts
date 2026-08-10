@@ -672,6 +672,14 @@ const fr = {
       start: "Début",
       end: "Fin",
     },
+    link: {
+      rejected: {
+        self: "Une tâche ne peut pas dépendre d’elle-même.",
+        locked: "Cette ligne est verrouillée et ne peut pas recevoir de nouvelle dépendance.",
+        group: "Une ligne récapitulative ne peut pas recevoir de dépendance — reliez plutôt l’une de ses tâches.",
+        cycle: "Ce lien créerait une dépendance circulaire.",
+      },
+    },
     conflict: {
       title: "Conflit de planning",
       body: "Ce déplacement entre en conflit avec les contraintes de dépendance. Replanifier automatiquement {{count}} tâche(s) concernée(s) ?",

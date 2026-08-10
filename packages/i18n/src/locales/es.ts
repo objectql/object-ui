@@ -676,6 +676,14 @@ const es = {
       start: "Inicio",
       end: "Fin",
     },
+    link: {
+      rejected: {
+        self: "Una tarea no puede depender de sí misma.",
+        locked: "Esta fila está bloqueada y no puede recibir una nueva dependencia.",
+        group: "Una fila de resumen no puede recibir dependencias: vincule una de sus tareas.",
+        cycle: "Ese vínculo crearía una dependencia circular.",
+      },
+    },
     conflict: {
       title: "Conflicto de programación",
       body: "Este movimiento entra en conflicto con las restricciones de dependencia. ¿Reprogramar automáticamente {{count}} tarea(s) afectada(s)?",

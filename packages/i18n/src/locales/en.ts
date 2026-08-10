@@ -749,6 +749,14 @@ const en = {
       start: 'start',
       end: 'end',
     },
+    link: {
+      rejected: {
+        self: 'A task cannot depend on itself.',
+        locked: 'This row is locked and cannot take a new dependency.',
+        group: 'A summary row cannot take a dependency — link one of its tasks instead.',
+        cycle: 'That link would create a circular dependency.',
+      },
+    },
     conflict: {
       title: 'Schedule conflict',
       body: 'This move conflicts with dependency constraints. Auto-reschedule {{count}} affected task(s)?',

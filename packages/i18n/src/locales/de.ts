@@ -672,6 +672,14 @@ const de = {
       start: "Anfang",
       end: "Ende",
     },
+    link: {
+      rejected: {
+        self: "Ein Vorgang kann nicht von sich selbst abhängen.",
+        locked: "Diese Zeile ist gesperrt und kann keine neue Abhängigkeit aufnehmen.",
+        group: "Eine Sammelzeile kann keine Abhängigkeit aufnehmen — verknüpfen Sie stattdessen einen ihrer Vorgänge.",
+        cycle: "Diese Verknüpfung würde eine zirkuläre Abhängigkeit erzeugen.",
+      },
+    },
     conflict: {
       title: "Terminkonflikt",
       body: "Diese Verschiebung verstößt gegen Abhängigkeitsbedingungen. {{count}} betroffene Vorgänge automatisch neu planen?",

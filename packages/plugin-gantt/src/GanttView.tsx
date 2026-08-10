@@ -37,6 +37,7 @@ import {
   Separator,
   useResizeObserver,
 } from "@object-ui/components"
+import { toast } from "sonner"
 import { computeCriticalPath, computeProjectRescheduleDetailed, wouldCreateDependencyCycle, type WorkingCalendar, type RescheduleChange, type RescheduleOptions } from "./scheduling"
 import { shiftDayStart, type NormShiftSegments } from "./shifts"
 import { useGanttTranslation } from "./useGanttTranslation"
@@ -109,6 +110,16 @@ function rowHeightForContainer(width: number) {
  * - `ss` start-to-start, `ff` finish-to-finish, `sf` start-to-finish
  */
 export type GanttLinkType = 'fs' | 'ss' | 'ff' | 'sf';
+
+/**
+ * Why the gantt's built-in drop-target policy refuses a dependency link
+ * (objectui#4158). These names are the leaves of `gantt.link.rejected.*`, so
+ * the message a user reads is selected by the same branch that did the
+ * refusing. Not a host-facing rejection channel — a host's own veto via
+ * `onBeforeDependencyCreate` carries a reason only the host knows, and
+ * surfacing that is a separate contract.
+ */
+export type GanttLinkRejection = 'self' | 'locked' | 'group' | 'cycle';
 
 export interface GanttDependencyObject {
   id: string | number
@@ -1355,13 +1366,24 @@ export function GanttView({
   // the hover target (no candidate highlight) and again on release (pointer
   // ordering isn't trusted): locked rows (仅查看) and group headers can't
   // receive a dependency, and a link that would close a cycle is rejected.
-  const canReceiveLink = React.useCallback(
-    (sourceId: string | number, target: GanttTask) =>
-      String(target.id) !== String(sourceId) &&
-      !target.locked &&
-      target.type !== 'group' &&
-      !wouldCreateDependencyCycle(dependencyEdges, sourceId, target.id),
+  // ONE classifier, two consumers. The hover affordance and the drop toast
+  // both read this verdict, so the reason a user is shown cannot drift from
+  // the reason the link was actually refused (objectui#4158) — the branch
+  // names ARE the `gantt.link.rejected.*` key leaves, so a new branch without
+  // a message shows up as a missing key rather than a wrong sentence.
+  const classifyLinkTarget = React.useCallback(
+    (sourceId: string | number, target: GanttTask): GanttLinkRejection | null => {
+      if (String(target.id) === String(sourceId)) return 'self';
+      if (target.locked) return 'locked';
+      if (target.type === 'group') return 'group';
+      if (wouldCreateDependencyCycle(dependencyEdges, sourceId, target.id)) return 'cycle';
+      return null;
+    },
     [dependencyEdges],
+  );
+  const canReceiveLink = React.useCallback(
+    (sourceId: string | number, target: GanttTask) => classifyLinkTarget(sourceId, target) === null,
+    [classifyLinkTarget],
   );
   const contentRef = React.useRef<HTMLDivElement>(null);
   const [linkDrag, setLinkDrag] = React.useState<{
@@ -1371,6 +1393,13 @@ export function GanttView({
     y: number;
     targetId: string | number | null;
     targetEnd: 'start' | 'end' | null;
+    // The bar under the pointer that the policy REFUSED. Tracked separately
+    // from `targetId` because a refused bar must never become a drop target,
+    // yet the release handler still has to know which row was refused and
+    // why — before objectui#4158 that information was simply dropped, which
+    // is what made the rejection silent.
+    rejectedId: string | number | null;
+    rejectedReason: GanttLinkRejection | null;
   } | null>(null);
   const linkDragRef = React.useRef<typeof linkDrag>(null);
   React.useEffect(() => { linkDragRef.current = linkDrag; }, [linkDrag]);
@@ -1406,6 +1435,13 @@ export function GanttView({
         ) {
           onDependencyCreate(source, target, type);
         }
+      } else if (cur && cur.rejectedReason && onDependencyCreate) {
+        // The drop landed on a bar the policy refused. Before objectui#4158
+        // this branch did not exist and the release was a no-op, so the user
+        // got no dialog, no toast and no console warning. The message is
+        // selected by the classifier's own verdict — not re-derived here,
+        // which would be a second classifier free to disagree with the guard.
+        toast.error(t(`gantt.link.rejected.${cur.rejectedReason}`));
       }
       suppressNextClickRef.current = true;
       window.setTimeout(() => { suppressNextClickRef.current = false; }, 0);
@@ -1419,7 +1455,7 @@ export function GanttView({
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
     };
-  }, [linkDrag, tasks, onDependencyCreate, onBeforeDependencyCreate, canReceiveLink, dependencyTypes]);
+  }, [linkDrag, tasks, onDependencyCreate, onBeforeDependencyCreate, canReceiveLink, dependencyTypes, t]);
 
   // --- Context menu ---------------------------------------------------------
   const [ctxMenu, setCtxMenu] = React.useState<{ x: number; y: number; taskId: string | number } | null>(null);
@@ -3842,6 +3878,23 @@ export function GanttView({
                      linkDrag.targetId != null &&
                      String(linkDrag.targetId) === String(task.id) &&
                      String(linkDrag.sourceId) !== String(task.id);
+                   // The negative half of the same affordance (objectui#4158):
+                   // this bar is under the pointer and the policy refused it.
+                   // Unlike `isLinkTarget` the source bar is NOT excluded — a
+                   // self-drop is one of the four refusals, and it is the one
+                   // case where the bar under the pointer IS the source.
+                   const isLinkRejected =
+                     linkDrag != null &&
+                     linkDrag.rejectedId != null &&
+                     String(linkDrag.rejectedId) === String(task.id);
+                   // Inline, not a utility class, for the same reason the
+                   // read-only cursor below is inline: `cursor-not-allowed`
+                   // and the ring alpha utilities are not emitted in the
+                   // prebuilt components CSS, so a class here would look right
+                   // in a DOM test and render nothing in a browser.
+                   const linkRejectStyle = isLinkRejected
+                     ? { cursor: 'not-allowed', boxShadow: '0 0 0 2px hsl(var(--destructive))' }
+                     : undefined;
                    // While a connector drag is live, bars report themselves as
                    // the drop target on pointermove; the row clears it when the
                    // pointer is over empty row space (target === currentTarget).
@@ -3853,15 +3906,23 @@ export function GanttView({
                      const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
                      const half: 'start' | 'end' =
                        r.width > 0 && e.clientX - r.left > r.width / 2 ? 'end' : 'start';
-                     setLinkDrag((prev) =>
-                       prev && canReceiveLink(prev.sourceId, task)
-                         ? { ...prev, targetId: task.id, targetEnd: half }
-                         : prev
-                     );
+                     setLinkDrag((prev) => {
+                       if (!prev) return prev;
+                       // One classification, used for both halves of the
+                       // feedback: a refused bar records WHY here so the
+                       // release handler can name it, and still never becomes
+                       // a drop target (objectui#4158).
+                       const rejection = classifyLinkTarget(prev.sourceId, task);
+                       return rejection === null
+                         ? { ...prev, targetId: task.id, targetEnd: half, rejectedId: null, rejectedReason: null }
+                         : { ...prev, targetId: null, targetEnd: null, rejectedId: task.id, rejectedReason: rejection };
+                     });
                    } : undefined;
                    const clearLinkTarget = linkDrag ? (e: React.PointerEvent) => {
                      if (e.target === e.currentTarget) {
-                       setLinkDrag((prev) => (prev ? { ...prev, targetId: null, targetEnd: null } : prev));
+                       setLinkDrag((prev) =>
+                         prev ? { ...prev, targetId: null, targetEnd: null, rejectedId: null, rejectedReason: null } : prev,
+                       );
                      }
                    } : undefined;
                    const durationDays = Math.max(1, Math.round(
@@ -3989,6 +4050,9 @@ export function GanttView({
                             backgroundColor: summaryColor,
                             borderColor: isCrit ? CRIT_COLOR : task.borderColor || 'hsl(var(--primary-foreground) / 0.2)',
                             boxShadow: isCrit ? `0 0 0 2px ${CRIT_COLOR}` : task.borderColor ? `0 0 0 2px ${task.borderColor}` : undefined,
+                            // Last: the rejection affordance overrides both the cursor and the
+                            // outline while a refused link drag hovers this bar.
+                            ...linkRejectStyle,
                           }}
                           data-critical={isCrit ? 'true' : undefined}
                           data-testid={`gantt-summary-bar-${task.id}`}
@@ -4097,6 +4161,8 @@ export function GanttView({
                                     y: rect ? e.clientY - rect.top : 0,
                                     targetId: null,
                                     targetEnd: null,
+                                    rejectedId: null,
+                                    rejectedReason: null,
                                   });
                                 }}
                                 onClick={(e) => e.stopPropagation()}
@@ -4161,6 +4227,9 @@ export function GanttView({
                             backgroundColor: isCrit ? CRIT_COLOR : task.color || '#3b82f6',
                             borderColor: isCrit ? CRIT_COLOR : task.borderColor || 'hsl(var(--primary-foreground) / 0.2)',
                             boxShadow: isCrit ? `0 0 0 2px ${CRIT_COLOR}` : task.borderColor ? `0 0 0 2px ${task.borderColor}` : undefined,
+                            // Last: the rejection affordance overrides both the cursor and the
+                            // outline while a refused link drag hovers this bar.
+                            ...linkRejectStyle,
                           }}
                           data-critical={isCrit ? 'true' : undefined}
                           data-testid={`gantt-milestone-${task.id}`}
@@ -4238,6 +4307,9 @@ export function GanttView({
                           backgroundColor: task.color || '#3b82f6',
                           borderColor: isCrit ? CRIT_COLOR : task.borderColor || 'hsl(var(--primary-foreground) / 0.2)',
                           boxShadow: isCrit ? `0 0 0 2px ${CRIT_COLOR}` : task.borderColor ? `0 0 0 2px ${task.borderColor}` : undefined,
+                          // Last: the rejection affordance overrides both the cursor and the
+                          // outline while a refused link drag hovers this bar.
+                          ...linkRejectStyle,
                         }}
                         data-critical={isCrit ? 'true' : undefined}
                         data-testid={`gantt-task-bar-${task.id}`}
@@ -4400,6 +4472,8 @@ export function GanttView({
                                   y: rect ? e.clientY - rect.top : 0,
                                   targetId: null,
                                   targetEnd: null,
+                                  rejectedId: null,
+                                  rejectedReason: null,
                                 });
                               }}
                               onClick={(e) => e.stopPropagation()}
