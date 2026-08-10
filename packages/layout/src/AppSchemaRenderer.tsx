@@ -38,6 +38,10 @@ import {
 } from '@object-ui/components';
 import type { AppComponentSchema, NavigationItem, NavigationArea } from '@object-ui/types';
 import { menuItemToNavigationItem } from '@object-ui/types';
+// Aliased on import, following PR #4169's convention: this repo has its OWN
+// `resolveI18nLabel` over a DIFFERENT vocabulary, and neither accepts the
+// other's shape. See `resolveAreaLabel` below for which is which.
+import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui';
 import { AppShell, type AppShellBranding } from './AppShell';
 import {
   NavigationRenderer,
@@ -141,6 +145,52 @@ export interface AppSchemaRendererProps {
  * strict schema to reject. An area with no items at all derives the same way
  * (no visible item → hidden).
  */
+/**
+ * Resolve a `NavigationArea.label` — the spec's `I18nLabel` — to display text.
+ *
+ * ## Why the spec's resolver and not this package's `resolveLabel`
+ *
+ * There are two label vocabularies in play and they are NOT interchangeable
+ * (objectui#4167 renamed objectui's own resolver to keep them apart):
+ *
+ *  - `NavigationItem.label` is objectui's KEYED ref — a translation key plus a
+ *    default (`{ key, defaultValue, params }`) — resolved by {@link resolveLabel}
+ *    against an injected `t`;
+ *  - `NavigationArea.label` is `@objectstack/spec`'s `I18nLabel`, which
+ *    17.0.0-rc.6 widened from `string` to `string | Record<string, string>` —
+ *    the INLINE per-locale map the author writes directly in the metadata.
+ *
+ * Feeding a map to the keyed resolver returns `undefined` (no `key`, no
+ * `defaultValue`); feeding it to `String()` renders `[object Object]`. So this
+ * uses the producer's own shared resolver, `resolveI18nLabel` from
+ * `@objectstack/spec/ui`, which is the single rule for that vocabulary on both
+ * ends of the platform (objectstack#6761).
+ *
+ * ## Why no locale is threaded — a deliberate choice, not an omission
+ *
+ * `@object-ui/layout` carries **no i18n dependency by design**: this package's
+ * whole i18n story is injection (`NavigationRenderer` takes `t` and the label
+ * resolvers as arguments — "enables convention-based i18n auto-resolution
+ * without coupling the layout package to i18n"), and `AppSchemaRendererProps`
+ * exposes no locale, no `t`, and no context that carries one. Reaching for
+ * `@object-ui/i18n` here to read the live UI language would add exactly the
+ * coupling that design forbids, so the resolver is called with `undefined`,
+ * which it documents as "no locale known" and resolves as `en` — the platform's
+ * source language.
+ *
+ * The observable consequence, stated rather than hidden: an area whose label is
+ * an inline map renders its `en` entry (then `default`, then any entry) instead
+ * of the viewer's language. That is strictly better than `[object Object]`, and
+ * it is a floor, not a ceiling — the day a consumer needs per-viewer area
+ * labels, the fix is to thread a locale down as a prop from the host that
+ * already knows it, and this call is the one place it lands. Deliberately not
+ * done pre-emptively: no consumer of `AppSchemaRenderer` in this repo has a
+ * locale to give it today.
+ */
+function resolveAreaLabel(label: NavigationArea['label']): string {
+  return resolveInlineI18nLabel(label, undefined) ?? '';
+}
+
 function AreaSwitcher({
   areas,
   activeAreaId,
@@ -162,15 +212,19 @@ function AreaSwitcher({
         <SidebarMenu>
           {areas.map((area) => {
             const AreaIcon = resolveIcon(area.icon);
+            // `NavigationArea.label` is the spec's `I18nLabel`, which since
+            // `@objectstack/spec` 17.0.0-rc.6 is `string | Record<string, string>` —
+            // an author may inline `{ en: 'Sales', 'zh-CN': '销售' }` here.
+            const areaLabel = resolveAreaLabel(area.label);
             return (
               <SidebarMenuItem key={area.id}>
                 <SidebarMenuButton
                   isActive={area.id === activeAreaId}
-                  tooltip={resolveLabel(area.label)}
+                  tooltip={areaLabel}
                   onClick={() => onAreaChange(area.id)}
                 >
                   <AreaIcon className="h-4 w-4" />
-                  <span>{resolveLabel(area.label)}</span>
+                  <span>{areaLabel}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             );

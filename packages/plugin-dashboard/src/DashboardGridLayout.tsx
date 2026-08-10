@@ -4,6 +4,7 @@ import 'react-grid-layout/css/styles.css';
 import { cn, Card, CardHeader, CardTitle, CardContent, Button } from '@object-ui/components';
 import { Edit, GripVertical, Save, X, RefreshCw } from 'lucide-react';
 import { SchemaRenderer, useHasDndProvider, useDnd } from '@object-ui/react';
+import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { DashboardComponentSchema, DashboardWidgetSchema } from '@object-ui/types';
 import { isObjectProvider } from './utils';
 import { classifyWidgetType } from './widgetDispatch';
@@ -97,6 +98,10 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
   const [editMode, setEditMode] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
   const hasDndProvider = useHasDndProvider();
+  // Active UI language, for resolving inline per-locale widget titles below.
+  // `useObjectTranslation` is provider-safe (react-i18next falls back to its
+  // global instance and never throws), so a standalone grid still renders.
+  const { language } = useObjectTranslation();
   const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
 
   const handleRefresh = React.useCallback(() => {
@@ -375,6 +380,13 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
             const widgetId = widget.id || `widget-${index}`;
             const componentSchema = getComponentSchema(widget);
             const isSelfContained = widget.type === 'metric';
+            // `DashboardWidget.title` is the spec's `I18nLabel`: since
+            // 17.0.0-rc.6 an author may inline a per-locale map
+            // (`{ en: 'Pipeline', 'zh-CN': '销售漏斗' }`) instead of a string.
+            // Resolve it for the active UI language before it reaches the
+            // `title` attribute (a `string` slot) and the card heading (a text
+            // node) — both of which stringify a map to `[object Object]`.
+            const widgetTitle = pickLocalized(widget.title, language);
 
             return (
               <div key={widgetId} className="h-full">
@@ -393,10 +405,10 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
                     "bg-card/50 backdrop-blur-sm",
                     editMode && "ring-2 ring-primary/20"
                   )}>
-                    {widget.title && (
+                    {widgetTitle && (
                       <CardHeader className="pb-2 border-b border-border/40 bg-muted/20 flex flex-row items-center justify-between">
-                        <CardTitle className="text-base font-medium tracking-tight truncate" title={widget.title}>
-                          {widget.title}
+                        <CardTitle className="text-base font-medium tracking-tight truncate" title={widgetTitle}>
+                          {widgetTitle}
                         </CardTitle>
                         {editMode && (
                           <div className="drag-handle cursor-move p-1 hover:bg-muted/40 rounded">

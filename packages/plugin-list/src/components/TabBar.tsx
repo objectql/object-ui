@@ -16,6 +16,7 @@ import {
   DropdownMenuItem,
 } from '@object-ui/components';
 import { icons, ChevronDown, type LucideIcon } from 'lucide-react';
+import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { ViewTabSchema } from '@objectstack/spec/ui';
 
 /**
@@ -79,6 +80,41 @@ function getVisibleTabs(tabs: ViewTab[]): ViewTab[] {
 }
 
 /**
+ * Resolve a tab's display text for the active UI language.
+ *
+ * `ViewTab.label` is the spec's `I18nLabel`, which `@objectstack/spec`
+ * 17.0.0-rc.6 widened from `string` to `string | Record<string, string>`: an
+ * author may now write `label: { en: 'All Active', 'zh-CN': '全部活跃' }` on a
+ * view tab. Rendered straight into a text node the map form reaches React as an
+ * object — `[object Object]` — so every read goes through `pickLocalized`,
+ * objectui's render-side resolver for that vocabulary, paired with the live UI
+ * language exactly as `@object-ui/components` and `@object-ui/plugin-detail`
+ * pair them. (`@objectstack/spec`'s own `resolveI18nLabel` implements the same
+ * six-limb rule; `pickLocalized` is the spelling for components that sit inside
+ * objectui's i18n tree and can read the language, and it answers `''` rather
+ * than `undefined` on a miss, which is what a text node wants. That the two
+ * agree limb for limb is not assumed — it is pinned by
+ * `src/__tests__/i18nLabel-resolver-parity.test.ts`, which is what keeps this
+ * package's choice from drifting away from the sites that call the spec's
+ * resolver directly.)
+ *
+ * A label-less tab still resolves to `''` — `pickLocalized`'s miss spelling —
+ * which renders exactly what `{tab.label}` rendered for `undefined` before.
+ * Deliberately NOT given a `|| tab.name` fallback here: that would be a
+ * behaviour change this card did not ask for.
+ */
+function useTabLabel(): (tab: ViewTab | undefined) => string {
+  // Provider-safe: react-i18next falls back to its global instance and never
+  // throws, so a standalone TabBar (tests, embeds) degrades to the runtime
+  // default language rather than crashing.
+  const { language } = useObjectTranslation();
+  return React.useCallback(
+    (tab: ViewTab | undefined) => (tab ? pickLocalized(tab.label, language) : ''),
+    [language],
+  );
+}
+
+/**
  * TabBar renders a row of view tabs above the ListView toolbar.
  * Supports icons (resolved via Lucide), pinned tabs, isDefault selection,
  * and emits tab changes with filter/sort configuration.
@@ -90,6 +126,7 @@ export const TabBar: React.FC<TabBarProps> = ({
   className,
 }) => {
   const visibleTabs = React.useMemo(() => getVisibleTabs(tabs), [tabs]);
+  const tabLabel = useTabLabel();
 
   // Determine the default tab: first isDefault tab, or first tab
   const defaultTab = React.useMemo(() => {
@@ -137,7 +174,7 @@ export const TabBar: React.FC<TabBarProps> = ({
             onClick={() => handleTabClick(tab)}
           >
             {TabIcon && <TabIcon className="h-3 w-3 mr-1.5" />}
-            {tab.label}
+            {tabLabel(tab)}
           </Button>
         );
       })}
@@ -159,6 +196,7 @@ export const TabBarSelect: React.FC<TabBarProps> = ({
   className,
 }) => {
   const visibleTabs = React.useMemo(() => getVisibleTabs(tabs), [tabs]);
+  const tabLabel = useTabLabel();
 
   const defaultTab = React.useMemo(() => {
     const def = visibleTabs.find(t => t.isDefault);
@@ -197,7 +235,7 @@ export const TabBarSelect: React.FC<TabBarProps> = ({
           >
             {/* eslint-disable-next-line react-hooks/static-components -- resolveIcon returns a stable lucide icon component from a static registry, not a component created during render */}
             {ActiveIcon && <ActiveIcon className="h-3.5 w-3.5 shrink-0" />}
-            <span className="truncate">{activeTab?.label ?? ''}</span>
+            <span className="truncate">{tabLabel(activeTab)}</span>
             <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           </Button>
         </DropdownMenuTrigger>
@@ -213,7 +251,7 @@ export const TabBarSelect: React.FC<TabBarProps> = ({
                 data-testid={`view-tab-select-${tab.name}`}
               >
                 {TabIcon && <TabIcon className="h-3.5 w-3.5 mr-2 shrink-0" />}
-                <span className="truncate">{tab.label}</span>
+                <span className="truncate">{tabLabel(tab)}</span>
               </DropdownMenuItem>
             );
           })}

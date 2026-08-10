@@ -47,6 +47,7 @@ import type {
   ListView as SpecListView,
   UserFilters as SpecUserFilters,
   ViewTab as SpecViewTab,
+  ViewTabParsed as SpecViewTabParsed,
   ViewTabSchema as SpecViewTabSchema,
 } from '@objectstack/spec/ui';
 
@@ -154,20 +155,32 @@ describe('ViewTab derives from the spec schema, on the authoring side', () => {
     type _IsTheSpecInput = Assert<Equal<ViewTab, SpecViewTabInput>>;
 
     // Input, not output, and here is the evidence: the PARSED type requires the
-    // three defaulted keys, so re-exporting `SpecViewTab` would have made a
+    // three defaulted keys, so re-exporting the parsed shape would have made a
     // stored `{ name: 'open', label: 'Open' }` unrepresentable — the
     // `_input`/`_output` trap the guard's header warns about, and the one that
     // already bit `ObjectFieldGroup` (objectui#3169) and `OfflineConfig`
     // (objectui#3199).
-    type _ParsedRequiresPinned = Assert<Equal<IsOptional<SpecViewTab, 'pinned'>, false>>;
-    type _ParsedRequiresVisible = Assert<Equal<IsOptional<SpecViewTab, 'visible'>, false>>;
+    //
+    // Re-pointed BY SIDE at `@objectstack/spec` 17.0.0-rc.6, not by name: the
+    // `…Input`-alias retirement moved the bare `ViewTab` onto the INPUT side
+    // (`ViewTab = z.input`, `ViewTabParsed = z.infer`), so `SpecViewTab` is no
+    // longer the parsed shape these four lines are about. Following the NAME
+    // would have left each of them comparing the authoring side against itself
+    // — passing on nothing — which is the swap objectui#4189 avoided for
+    // `ThemeInput`/`Theme` in the same release. Same fix, different package;
+    // this one was invisible until objectui#4163 cleared the `I18nLabel`
+    // errors in `TabBar.tsx`, because `type-check` is
+    // `tsc --noEmit && tsc -p tsconfig.typetests.json` and the `&&` never
+    // reached this project.
+    type _ParsedRequiresPinned = Assert<Equal<IsOptional<SpecViewTabParsed, 'pinned'>, false>>;
+    type _ParsedRequiresVisible = Assert<Equal<IsOptional<SpecViewTabParsed, 'visible'>, false>>;
     type _AuthoredMayOmitPinned = Assert<IsOptional<ViewTab, 'pinned'>>;
     type _AuthoredMayOmitVisible = Assert<IsOptional<ViewTab, 'visible'>>;
 
     // Same key set as the parsed type — only optionality differs. A key the
     // spec adds appears here; a key it retires disappears.
-    type _NoLocalKeys = Assert<Equal<Exclude<keyof ViewTab, keyof SpecViewTab>, never>>;
-    type _NoMissingKeys = Assert<Equal<Exclude<keyof SpecViewTab, keyof ViewTab>, never>>;
+    type _NoLocalKeys = Assert<Equal<Exclude<keyof ViewTab, keyof SpecViewTabParsed>, never>>;
+    type _NoMissingKeys = Assert<Equal<Exclude<keyof SpecViewTabParsed, keyof ViewTab>, never>>;
 
     // The three drifts the hand copy carried, pinned as fixed:
     //  1. `label` was REQUIRED locally; the spec makes it optional (`name` is
