@@ -535,12 +535,28 @@ jobs:
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm test:e2e --project=chromium
 
+      # `playwright.config.ts` selects the `github` reporter when CI is set, and
+      # that reporter writes annotations only — it produces NO
+      # `playwright-report/` directory, so this step uploaded nothing and said
+      # so in a warning rather than a failure: `No files were found with the
+      # provided path: playwright-report/` (objectui#4086). Every failure's
+      # actual evidence — screenshot, trace and `error-context.md` — is written
+      # by the `use.screenshot` / `use.trace` settings into `test-results/`
+      # instead, which is why a red E2E job left nothing behind to diagnose and
+      # #4086 had to be reproduced from scratch locally.
+      #
+      # Both paths are listed: `test-results/` is the one that exists today, and
+      # `playwright-report/` keeps working if the HTML reporter is ever enabled
+      # on CI. upload-artifact only warns when NO path matches, so the absent
+      # one costs nothing.
       - name: Upload Playwright report
         uses: actions/upload-artifact@v7
         if: ${{ steps.relevant.outputs.should_run == 'true' && !cancelled() && failure() }}
         with:
           name: playwright-report
-          path: playwright-report/
+          path: |
+            playwright-report/
+            test-results/
           retention-days: 14
 
   docs:

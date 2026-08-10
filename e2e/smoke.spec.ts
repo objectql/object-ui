@@ -75,16 +75,48 @@ test.describe('Console App – Smoke', () => {
     await expect(page).toHaveTitle(/.+/);
   });
 
-  test('should show the app shell or loading screen', async ({ page }) => {
+  /**
+   * The app must settle into one of its RECOGNISED boot destinations. Which one
+   * it reaches depends on the session, and in this suite — a production bundle
+   * served by `vite preview` with no backend behind it — that is always the
+   * signed-out sign-in screen: `/api/v1/auth/get-session` cannot resolve to a
+   * session, so the shell is never entitled to render a `nav` and the router
+   * lands on `/login`.
+   *
+   * Until objectui#4086 this test listed only the first two destinations, and
+   * the boot splash it named is on screen for roughly 35 ms — measured against
+   * this same production bundle at 30 ms polling granularity: blank until
+   * ~70 ms, the "Initializing application…" splash from ~70 ms, replaced by the
+   * sign-in screen from ~105 ms and never returning. So the assertion could
+   * only ever pass by catching that window. On a runner where Playwright's
+   * first poll landed after it, the expectation was ALREADY unsatisfiable and
+   * burned the full 30 s timeout — identically on all three retries, because
+   * each retry re-runs the same race. That is the whole of the `Build & E2E`
+   * red on `main` at 9154d9e90, which no code change could explain and which
+   * cleared on its own at 8497579db with the suspected commit still in place.
+   *
+   * The set below stays CLOSED on purpose: a blank page, a crashed render or an
+   * error boundary matches none of these three and still fails the test. What
+   * changes is that every state the app is legitimately allowed to be in is now
+   * terminal-stable, so passing no longer depends on winning a race.
+   */
+  test('should settle into a recognised boot state (app shell, loading screen or sign-in)', async ({
+    page,
+  }) => {
     await page.goto(`${CONSOLE_BASE}/`);
 
-    // Either the app shell (nav / sidebar) or the loading screen should appear
-    // within a reasonable time. Both are acceptable initial states.
     const appShell = page.locator('nav').first();
     const loadingScreen = page.getByText(/Initializing|Loading|Connecting/i).first();
+    // The signed-out sign-in screen, matched structurally rather than by its
+    // copy so a locale change cannot silently stop matching it: the auth-config
+    // spinner it opens with, then the identifier field of whichever sign-in
+    // mode the server reports (`LoginForm.tsx`).
+    const signInScreen = page
+      .locator('[data-testid="login-config-loading"], #login-email, #login-phone')
+      .first();
 
     await expect(
-      appShell.or(loadingScreen),
+      appShell.or(loadingScreen).or(signInScreen),
     ).toBeVisible({ timeout: 30_000 });
   });
 });
