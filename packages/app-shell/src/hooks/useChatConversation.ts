@@ -710,7 +710,12 @@ export function useChatConversation(
             resolvedScopeRef.current = scope;
             return;
           }
-          // Requested id is gone — fall through to create a fresh one.
+          // Requested id is gone — fall through to create a fresh one. The
+          // server was DEFINITIVE (404/403), so from here on we are no longer
+          // re-reading a conversation worth preserving: drop the catch guard's
+          // claim on it, or a failing create below would keep an id we have
+          // just been told is dead (and whose caches we just cleared).
+          targetId = undefined;
           writeCache(key, undefined);
           writeConversationMessagesCache(activeId, []);
         } else if (!forceNew) {
@@ -778,7 +783,11 @@ export function useChatConversation(
               // 'fresh' + a used conversation: fall through to create a fresh
               // one; the used thread stays in history (writeCache below repoints
               // the cache to the new conversation).
+              targetId = undefined;
             } else {
+              // Definitive miss — same as the activeId 404 above: stop claiming
+              // this id, so a failing create cannot preserve a dead one.
+              targetId = undefined;
               writeCache(key, undefined);
               writeConversationMessagesCache(cached, []);
             }

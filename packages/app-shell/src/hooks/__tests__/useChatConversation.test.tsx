@@ -961,6 +961,31 @@ describe('useChatConversation — a FAILED same-conversation re-read keeps the c
     expect(result.current.conversationId).toBeUndefined();
     expect(result.current.initialMessages).toHaveLength(0);
   });
+
+  it('still clears when the held conversation is GONE (404) and the replacing create fails', async () => {
+    // The guard covers a transport failure re-reading a LIVE conversation. A
+    // 404 is the server being definitive: the id is dead and its caches have
+    // already been cleared, so a failing create must not resurrect it on screen.
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ id: 'conv-a', messages: [{ id: 'm1', role: 'user', content: 'a' }] }),
+    );
+    const { result, rerender } = renderHook(
+      ({ scope }: { scope: string }) =>
+        useChatConversation({ userId: 'u1', apiBase: API_BASE, scope, activeId: 'conv-a' }),
+      { initialProps: { scope: 'build' } },
+    );
+    await waitFor(() => expect(result.current.conversationId).toBe('conv-a'));
+
+    fetchMock
+      .mockResolvedValueOnce(new Response('gone', { status: 404 })) // GET conv-a
+      .mockResolvedValueOnce(new Response('nope', { status: 500 })); // POST create
+    act(() => result.current.rekeyScope('app:crm:build'));
+    rerender({ scope: 'app:crm:build' });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.conversationId).toBeUndefined();
+    expect(result.current.initialMessages).toHaveLength(0);
+  });
 });
 
 // Security — plaintext AI-chat cache (conversation-id pointers + message
