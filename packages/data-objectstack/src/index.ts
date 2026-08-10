@@ -642,17 +642,78 @@ export function normaliseClientError(error: unknown): unknown {
 }
 
 /**
- * Build a Logger compatible with @objectstack/client that demotes expected
- * 404 noise to console.debug. The client logs every non-2xx response with
- * `logger.error("HTTP request failed", undefined, { status, error })`, but
- * 404s on optional collections (sys_presence, sys_activity, …) are part of
+ * Fold an @objectstack/client HTTP-failure `meta` bag into the log MESSAGE.
+ *
+ * The client already hands us everything worth knowing —
+ * `logger.error("HTTP request failed", undefined, { method, url, status, error })`
+ * — but it hands it as the THIRD argument. Everything that flattens a console
+ * record to text (a headless/CDP console capture, a log shipper, a copied
+ * DevTools line) keeps only the message and renders the rest as `[object
+ * Object]` / `Object`, so a wall of failures carried no method, no URL and no
+ * status: the reporter of objectui#4042 had to diff the network panel by hand
+ * to find out that 30 red lines were all one benign pre-login burst.
+ *
+ * So the identifying fields go into the string itself, and the structured bag
+ * is STILL passed alongside for DevTools to expand — text for the flatteners,
+ * object for the inspectors, neither at the other's expense.
+ *
+ * Exported for tests. Returns `null` when `meta` carries none of the three
+ * fields, so callers keep the original message rather than printing a husk.
+ */
+export function formatHttpFailureMessage(
+  message: string,
+  meta?: Record<string, any>,
+): string | null {
+  if (!meta || typeof meta !== 'object') return null;
+  const method = typeof meta.method === 'string' && meta.method ? meta.method : undefined;
+  const url = typeof meta.url === 'string' && meta.url ? meta.url : undefined;
+  const status =
+    typeof meta.status === 'number'
+      ? meta.status
+      : typeof meta.statusCode === 'number'
+        ? meta.statusCode
+        : undefined;
+  if (!method && !url && status === undefined) return null;
+
+  // `code` is the ADR-0112 semantic error code. The client puts the parsed
+  // body under `meta.error`; some call sites hoist the code to the top level.
+  const errBody = meta.error && typeof meta.error === 'object' ? meta.error : undefined;
+  const rawCode =
+    (typeof meta.code === 'string' && meta.code) ||
+    (errBody && typeof (errBody as Record<string, unknown>).code === 'string'
+      ? ((errBody as Record<string, string>).code)
+      : undefined);
+
+  const parts = [method ?? 'GET', url ?? '<unknown url>'];
+  parts.push(`-> ${status ?? 'no status'}`);
+  if (rawCode) parts.push(`[${rawCode}]`);
+  return `${message}: ${parts.join(' ')}`;
+}
+
+/**
+ * Build a Logger compatible with @objectstack/client that (a) spells every
+ * request failure out in the message — see {@link formatHttpFailureMessage} —
+ * and (b) demotes expected 404 noise to console.debug. The client logs every
+ * non-2xx response with
+ * `logger.error("HTTP request failed", undefined, { method, url, status, error })`,
+ * but 404s on optional collections (sys_presence, sys_activity, …) are part of
  * normal degraded operation when those plugins aren't installed on the
  * server — they should not surface as errors in the browser DevTools.
  *
+ * NOTE the asymmetry, and keep it: 404-on-an-optional-collection is demoted
+ * because it is an EXPECTED outcome of a request we still mean to make. No
+ * other status is demoted — a 401 that survives the console's session gate
+ * (objectui#4042: a mid-session expiry, say) is a real event and must stay a
+ * visible, fully-identified error. The cure for doomed requests is not issuing
+ * them, never hiding them once issued.
+ *
  * Returned object is loosely typed because the spec's Logger interface lives
  * in a transitive package; using `any` keeps us decoupled.
+ *
+ * Exported so the console's log contract is testable, and so an app wiring its
+ * own `ObjectStackClient` gets the same identified failures.
  */
-function createQuietHttpLogger(): any {
+export function createQuietHttpLogger(): any {
   const isExpected404 = (meta?: Record<string, any>): boolean => {
     if (!meta || typeof meta !== 'object') return false;
     if (meta.status === 404 || meta.statusCode === 404) return true;
@@ -672,13 +733,16 @@ function createQuietHttpLogger(): any {
       console.warn(message, meta ?? ''),
     error: (message: string, error?: Error, meta?: Record<string, any>) => {
       if (isExpected404(meta)) {
-        console.debug(`[ObjectStack] ${message} (suppressed expected 404)`, meta);
+        console.debug(
+          `[ObjectStack] ${formatHttpFailureMessage(message, meta) ?? message} (suppressed expected 404)`,
+          meta,
+        );
         return;
       }
-      console.error(message, error ?? '', meta ?? '');
+      console.error(formatHttpFailureMessage(message, meta) ?? message, error ?? '', meta ?? '');
     },
     fatal: (message: string, error?: Error, meta?: Record<string, any>) =>
-      console.error(message, error ?? '', meta ?? ''),
+      console.error(formatHttpFailureMessage(message, meta) ?? message, error ?? '', meta ?? ''),
     log: (message: string, ...args: any[]) => console.log(message, ...args),
     child: () => logger,
     withTrace: () => logger,

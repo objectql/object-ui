@@ -189,6 +189,28 @@ const apiProviderFetch = withSettleSignal(createAuthenticatedFetch({ sameOriginO
 function ConnectedShellInner({ children }: { children: ReactNode }) {
   const adapter = useAdapter();
   const { language } = useObjectTranslation();
+  // ── Session gate (objectui#4042) ──
+  //
+  // Everything below this line reads `/api/v1/meta/*`, which requires a
+  // session. Mounting the metadata tree while `GET /auth/get-session` is still
+  // in flight fires `meta/object` + `meta/view` + `meta/app` blind: on an
+  // unauthenticated visitor they all come back 401, and the console's landing
+  // route (`<Route path="/">`) mounts this shell with no AuthGuard above it, so
+  // simply opening `/_console/` produced a screenful of red `HTTP request
+  // failed` before the login form was even drawn.
+  //
+  // Waiting for auth to RESOLVE is the whole gate. We deliberately do not gate
+  // on `isAuthenticated`: a consumer that mounts ConnectedShell outside an
+  // AuthGuard still renders through once the session answer is known (unchanged
+  // behaviour, including a legitimate 401 that must stay visible), and the
+  // console's own login bounce is the route guard's job. `useAuth()` outside an
+  // AuthProvider reports `isLoading: false`, so a provider-less embed is
+  // untouched.
+  //
+  // Post-login flow is unchanged — AuthGuard already withholds every protected
+  // route until auth resolves, so on those routes this gate is already open by
+  // the time the shell mounts and the same queries fire, once each.
+  const { isLoading: isAuthLoading } = useAuth();
 
   // ── Language switch → relabel without a page refresh (issue #1319) ──
   //
@@ -216,7 +238,7 @@ function ConnectedShellInner({ children }: { children: ReactNode }) {
   }
   if (adapter) lastLanguage.current = language;
 
-  if (!adapter) return <LoadingFallback />;
+  if (!adapter || isAuthLoading) return <LoadingFallback />;
   // Expose the adapter via SchemaRendererContext so descendant hooks like
   // useDiscovery() (used to gate the global AI chatbot) can resolve it.
   return (

@@ -17,7 +17,6 @@ import { AuthProvider, useAuth } from '@object-ui/auth';
 import { Toaster } from 'sonner';
 import {
   ConsoleShell,
-  ConnectedShell,
   AuthenticatedRoute,
   RootRedirect,
   SystemRedirect,
@@ -69,7 +68,15 @@ export function App() {
                 <DefaultAppContent />
               </AuthenticatedRoute>
             } />
-            <Route path="/" element={<ConnectedShell><RootRedirect /></ConnectedShell>} />
+            {/* `RootRedirect` resolves the landing from metadata, so it needs a
+              * session. Guarded (not a bare `ConnectedShell`) so an
+              * unauthenticated visitor goes to /login instead of firing a round
+              * of doomed 401 `/meta/*` reads first — objectui#4042. */}
+            <Route path="/" element={
+              <AuthenticatedRoute requireOrganization={false}>
+                <RootRedirect />
+              </AuthenticatedRoute>
+            } />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ConsoleShell>

@@ -350,7 +350,23 @@ export function App() {
                 <AppContent />
               </ProtectedRoute>
             } />
-            <Route path="/" element={<ConnectedShell><RootLandingRedirect /></ConnectedShell>} />
+            {/*
+              * The landing resolver reads App METADATA, so it needs the data
+              * layer — which needs a session. It used to mount `ConnectedShell`
+              * bare, with no AuthGuard above it, so an unauthenticated visitor
+              * opening `/_console/` mounted the whole metadata tree and fired
+              * `meta/object` + `meta/view` + `meta/app` straight into 401
+              * before the login form was drawn (objectui#4042). Guarding it
+              * sends those visitors to /login without a single doomed request;
+              * a signed-in visitor still lands exactly where `isDefault`
+              * resolves. `requireOrganization={false}` because `/` only
+              * redirects — the org gate belongs to the destination route.
+              */}
+            <Route path="/" element={
+              <ProtectedRoute requireOrganization={false}>
+                <RootLandingRedirect />
+              </ProtectedRoute>
+            } />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ConsoleShell>

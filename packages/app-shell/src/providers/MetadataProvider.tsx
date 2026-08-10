@@ -49,6 +49,25 @@ interface MetadataProviderProps {
 const DEFAULT_TTL_MS = 5 * 60 * 1000;
 const EAGER_TYPES = ['app', 'view'] as const;
 
+/**
+ * How long a FAILED type stays un-retried (objectui#4042).
+ *
+ * `entry.promise` already collapses callers that arrive while a request is in
+ * flight — but callers that arrive just AFTER a failure found `status: 'error'`
+ * with `promise: null` and each started a fresh attempt. That is a real
+ * sequence, not a hypothetical: the mount effect walks EAGER_TYPES serially, so
+ * by the time it reaches `view` the render-phase read of `view` has already
+ * failed, and it re-requested it. Signed out, that was a second doomed 401 per
+ * type; signed in, a second doomed request on any transient failure.
+ *
+ * Deliberately ~1s and NOT `ttlMs`: this exists to collapse the burst of
+ * callers that start together during one mount, not to cache failures. A later
+ * caller (route change, remount) still retries on its own, and `refresh()` /
+ * `invalidate()` — which zero `fetchedAt` / reset the status — retry
+ * immediately and unconditionally, so no explicit recovery path is affected.
+ */
+const ERROR_RETRY_COOLDOWN_MS = 1000;
+
 const TYPE_BY_STATE_KEY: Record<keyof Omit<MetadataState, 'loading' | 'error'>, string> = {
   apps: 'app',
   objects: 'object',
@@ -387,7 +406,24 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
   // Entering/leaving preview swaps the entire metadata source — the published
   // and draft-overlaid worlds must never mix in one cache. Drop everything and
   // let consumers refetch through the new source.
+  //
+  // ⚠️ Deliberately skipped on MOUNT (objectui#4042). Consumers read metadata
+  // during the FIRST render — `useActionModal` reads `objects`, which kicks
+  // `ensureType('object')` and `ensureType('view')` from a render-phase getter,
+  // before any effect has run. Clearing unconditionally in this mount effect
+  // threw those two entries away while their requests were still in flight, so
+  // the very next render found them `idle` again and refetched BOTH. That is
+  // the "same round, `meta/object` / `meta/view` each fired twice" the card
+  // reported — and it is not an unauthenticated-only artefact: it doubled the
+  // two requests on every mount, signed in as well. There is nothing to drop on
+  // mount anyway (the cache is per-provider-instance and starts empty), so the
+  // clear only ever had meaning on a LATER `previewDrafts` change.
+  const previewModeMounted = useRef(false);
   useEffect(() => {
+    if (!previewModeMounted.current) {
+      previewModeMounted.current = true;
+      return;
+    }
     cacheRef.current.clear();
     itemPromisesRef.current.clear();
     bump();
@@ -410,6 +446,14 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
 
       if (entry.status === 'ready' && Date.now() - entry.fetchedAt < ttlMs) {
         debug(`cache hit (fresh) type=${type} items=${entry.items.length}`);
+        return Promise.resolve(entry.items);
+      }
+
+      // Just failed — see ERROR_RETRY_COOLDOWN_MS. `refresh()`/`invalidate()`
+      // zero `fetchedAt` / reset the status, so explicit retries fall straight
+      // through this.
+      if (entry.status === 'error' && Date.now() - entry.fetchedAt < ERROR_RETRY_COOLDOWN_MS) {
+        debug(`cache hit (recent failure) type=${type}`);
         return Promise.resolve(entry.items);
       }
 
@@ -455,6 +499,10 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
           entry.status = 'error';
           entry.error = error;
           entry.promise = null;
+          // Stamped on failure too, so ERROR_RETRY_COOLDOWN_MS has a clock to
+          // measure from. `refresh()` zeroes it, which is what makes an
+          // explicit retry immediate.
+          entry.fetchedAt = Date.now();
           debug(`fetch failed type=${type}`, error);
           bump();
           return [] as any[];
