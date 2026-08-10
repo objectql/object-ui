@@ -12,9 +12,9 @@
  * with extra `<Route>` children.
  */
 
-import { type ReactNode, useEffect } from 'react';
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
-import { AuthProvider, AuthGuard, useAuth } from '@object-ui/auth';
+import { AuthProvider, useAuth } from '@object-ui/auth';
 import { DevMasterDetail } from './dev/DevMasterDetail';
 import { DevLists } from './dev/DevLists';
 import { DevModal } from './dev/DevModal';
@@ -22,11 +22,8 @@ import { DevLookup } from './dev/DevLookup';
 import { DevRowActions } from './dev/DevRowActions';
 import {
   ConsoleShell,
-  ConnectedShell,
-  RequireOrganization,
   RequireAiSurface,
   SystemRedirect,
-  LoadingFallback,
   ConsoleToaster,
   DefaultHomeLayout,
   DefaultHomePage,
@@ -46,6 +43,8 @@ import {
 
 import { AppContent } from './AppContent';
 import { RootLandingRedirect } from './components/RootLandingRedirect';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { SetupRoute } from './components/SetupRoute';
 import { FormPage } from './components/FormPage';
 import { MetadataHmrReloader } from './components/MetadataHmrReloader';
 import SharedRecordPage from './pages/SharedRecordPage';
@@ -60,7 +59,6 @@ import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 import { SetPasswordPage } from './pages/auth/SetPasswordPage';
 import { VerifyEmailPage } from './pages/auth/VerifyEmailPage';
 import { VerifyEmailPromptPage } from './pages/auth/VerifyEmailPromptPage';
-import { SetupPage } from './pages/auth/SetupPage';
 import { OAuthConsentPage } from './pages/auth/OAuthConsentPage';
 import { DeviceAuthPage } from './pages/auth/DeviceAuthPage';
 
@@ -95,35 +93,6 @@ function resolveBasename(): string {
 }
 
 const BASENAME = resolveBasename();
-
-/**
- * ProtectedRoute — replaces app-shell's AuthenticatedRoute. Same composition
- * (AuthGuard + ConnectedShell + optional RequireOrganization) but redirects
- * unauthenticated visitors to the Console-hosted /login (preserving the
- * original Console path as `?redirect=…`).
- */
-function LoginRedirect() {
-  const location = useLocation();
-  const redirect = location.pathname + location.search;
-  const search = redirect && redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : '';
-  return <Navigate to={`/login${search}`} replace />;
-}
-
-function ProtectedRoute({
-  children,
-  requireOrganization = true,
-}: {
-  children: ReactNode;
-  requireOrganization?: boolean;
-}) {
-  return (
-    <AuthGuard fallback={<LoginRedirect />} loadingFallback={<LoadingFallback />}>
-      <ConnectedShell>
-        {requireOrganization ? <RequireOrganization>{children}</RequireOrganization> : children}
-      </ConnectedShell>
-    </AuthGuard>
-  );
-}
 
 /** Wraps `DefaultHomeLayout` so the FAB gets the signed-in user id. */
 function HomeRoute() {
@@ -180,7 +149,10 @@ export function App() {
             <Route path="/set-password" element={<SetPasswordPage />} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
             <Route path="/verify-email-prompt" element={<VerifyEmailPromptPage />} />
-            <Route path="/setup" element={<SetupPage />} />
+            {/* Public ONLY while the deployment is un-bootstrapped — see
+              * SetupRoute. Once an owner exists this is the platform-settings
+              * deep link and carries this host's normal auth guard. */}
+            <Route path="/setup" element={<SetupRoute />} />
             <Route path="/oauth/consent" element={<OAuthConsentPage />} />
             <Route path="/auth/device" element={<DeviceAuthPage />} />
             {/*
