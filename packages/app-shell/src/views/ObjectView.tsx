@@ -131,6 +131,36 @@ function substituteFilterTokens(filter: any, scope: FilterTokenScope): any {
  * persisted into saved view metadata (a saved view must not fossilize a
  * posture-dependent column set).
  */
+/**
+ * The `options.timeline` config this page hands to `ListView`.
+ *
+ * Deliberately does NOT resolve the date axis. `ListView.resolveTimelineDateBinding`
+ * is the single read-site that decides which field a timeline buckets by, and it
+ * reads the calendar binding when the view carries no timeline one. This face used
+ * to fabricate `startDateField: 'due_date'` for every object view — a field name
+ * the view never declared and most objects do not have — which both looked like a
+ * real binding downstream and, because it is always present, shadowed the calendar
+ * fallback entirely. The result on a calendar-bound view was a Timeline the
+ * switcher offered and the renderer bucketed wholly into "No date" (objectui#3129).
+ *
+ * What stays here is the one thing this layer knows and `ListView` does not: the
+ * object's declared `titleField`.
+ *
+ * Exported for the regression suite.
+ */
+export function timelineViewOptions(viewDef: any, objectDef: any): Record<string, unknown> {
+    const declaredStart = viewDef?.timeline?.startDateField || viewDef?.timeline?.dateField;
+    return {
+        // Spread the full view-defined timeline config first so the spec fields
+        // (startDateField/endDateField/groupByField/colorField/scale) survive.
+        ...(viewDef?.timeline || {}),
+        // Only ever restate a binding the view actually declared.
+        ...(declaredStart ? { startDateField: declaredStart } : {}),
+        titleField: viewDef?.timeline?.titleField || objectDef?.titleField || 'name',
+        descriptionField: viewDef?.timeline?.descriptionField,
+    };
+}
+
 export function defaultListColumnsFromObject(
     objectDef: any,
     limit = 5,
@@ -1544,17 +1574,10 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     allDayField: viewDef.calendar?.allDayField,
                     defaultView: viewDef.calendar?.defaultView,
                 },
-                timeline: {
-                    // Spread the full view-defined timeline config first so the spec
-                    // fields (startDateField/endDateField/groupByField/colorField/scale)
-                    // survive; then layer the defaults. (Mirrors the gallery and gantt
-                    // branches — a bare whitelist here was dropping every spec key and
-                    // pinning the axis to the legacy `dateField` fallback.)
-                    ...(viewDef.timeline || {}),
-                    startDateField: viewDef.timeline?.startDateField || viewDef.timeline?.dateField || 'due_date',
-                    titleField: viewDef.timeline?.titleField || objectDef.titleField || 'name',
-                    descriptionField: viewDef.timeline?.descriptionField,
-                },
+                // The date axis is resolved once, in ListView — this face only
+                // forwards what the view declared plus the object's title field
+                // (objectui#3129). See `timelineViewOptions`.
+                timeline: timelineViewOptions(viewDef, objectDef),
                 map: {
                     locationField: viewDef.map?.locationField,
                     titleField: viewDef.map?.titleField || objectDef.titleField || 'name',
