@@ -22,10 +22,11 @@
  *   - a non-matching change does nothing.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import * as React from 'react';
 import { DetailView } from '../DetailView';
+import { __clearRecordEditableCache } from '../useRecordEditable';
 import { notifyDataChanged } from '@object-ui/react';
 import type { DetailViewSchema } from '@object-ui/types';
 
@@ -61,8 +62,35 @@ function MountMarker() {
   return null;
 }
 
+/**
+ * objectui#3339 — this file's schema carries `objectName` + `resourceId`, so
+ * every render mounts `useRecordEditable` twice (update + delete). With no
+ * `SchemaRendererProvider` in the tree the hook falls back to the GLOBAL fetch
+ * (by design, for standalone embeds), which under happy-dom is a REAL request
+ * to the default origin — 8 live `POST /api/v1/security/explain` calls per run,
+ * failing fire-and-forget into `connect ECONNREFUSED 127.0.0.1:3000` on stderr
+ * while the suite stayed green.
+ *
+ * Answer the probe from a double rather than the network. `visible: true`
+ * reproduces the old observable behaviour exactly (the hook fails open on a
+ * failed request), so the refetch-in-place contract below is unchanged — the
+ * shape of the probe itself is asserted in `DetailView.test.tsx`.
+ */
+function installExplainDouble() {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({ ok: true, json: async () => ({ record: { visible: true } }) })),
+  );
+}
+
 describe('DetailView — refetch in place on data invalidation (objectui#2269)', () => {
-  beforeEach(() => { markerMounts = 0; });
+  beforeEach(() => {
+    markerMounts = 0;
+    __clearRecordEditableCache();
+    installExplainDouble();
+  });
+
+  afterEach(() => { vi.unstubAllGlobals(); });
 
   it('re-runs findOne and renders fresh data when its record is invalidated, without remounting', async () => {
     const ds = makeDataSource(['Ada', 'Ada Lovelace']);

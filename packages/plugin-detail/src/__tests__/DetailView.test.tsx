@@ -6,12 +6,61 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { DetailView } from '../DetailView';
+import { __clearRecordEditableCache } from '../useRecordEditable';
 import type { DetailViewSchema } from '@object-ui/types';
 
+/**
+ * objectui#3339 — a stand-in for the record-level explain probe.
+ *
+ * Every schema in this file that carries `objectName` + `resourceId` makes
+ * DetailView mount `useRecordEditable` twice (update + delete). With no
+ * `SchemaRendererProvider` in the tree the hook has no host `apiFetch` and
+ * falls back to the GLOBAL fetch — by design, for standalone embeds. Under
+ * happy-dom that global fetch is a REAL request to the default origin, so the
+ * suite fired 28 live `POST http://localhost:3000/api/v1/security/explain`
+ * calls per run. They failed fire-and-forget: the hook swallows the rejection
+ * in order to fail open, so the tests stayed green while stderr filled with
+ * `connect ECONNREFUSED 127.0.0.1:3000`.
+ *
+ * Serving the probe from a double is the "inject the data dependency as a test
+ * double" half of the issue's guidance. It is deliberately NOT a global error
+ * sink: it records every URL it is handed, so an escape to some OTHER endpoint
+ * becomes a recorded call that `probes the record-level explain endpoint …`
+ * below fails on, instead of vanishing into a swallowed rejection.
+ *
+ * `visible: true` keeps the observable behaviour identical to what the failing
+ * network produced — the hook fails open, so the Edit/Delete CTAs stayed
+ * enabled either way. No assertion in this file changes meaning.
+ */
+function installExplainDouble() {
+  const calls: { url: string; body: Record<string, unknown> | undefined }[] = [];
+  const fetchMock = vi.fn(async (url: unknown, init?: { body?: unknown }) => {
+    calls.push({
+      url: String(url),
+      body: init?.body ? JSON.parse(String(init.body)) : undefined,
+    });
+    return { ok: true, json: async () => ({ record: { visible: true } }) };
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  return calls;
+}
+
 describe('DetailView', () => {
+  let explainCalls: ReturnType<typeof installExplainDouble>;
+
+  beforeEach(() => {
+    // The hook memoises verdicts in module scope; clear it so each test starts
+    // from the same place regardless of order.
+    __clearRecordEditableCache();
+    explainCalls = installExplainDouble();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
   it('should be exported', () => {
     expect(DetailView).toBeDefined();
   });
@@ -670,6 +719,47 @@ describe('DetailView', () => {
     // These use the default English translations from useDetailTranslation fallback
     expect(await findByText('Record not found')).toBeInTheDocument();
     expect(await findByText('Go back')).toBeInTheDocument();
+  });
+
+  /**
+   * objectui#3339 — the request the double above now absorbs used to be pure
+   * fire-and-forget: nothing asserted on it, so its shape (and the fact that it
+   * left the process at all) was invisible. Pin it here.
+   *
+   * This is DetailView's own wiring, which `useRecordEditable.test.tsx` cannot
+   * see: that the recordId comes from `resourceId`, and that BOTH the update
+   * and the delete CTA are gated — one probe each.
+   */
+  it('probes the record-level explain endpoint for update and delete, and nothing else', async () => {
+    const mockDataSource = {
+      findOne: vi.fn().mockResolvedValue({ name: 'Alice' }),
+    } as any;
+
+    const schema: DetailViewSchema = {
+      type: 'detail-view',
+      title: 'Contact Details',
+      objectName: 'contact',
+      resourceId: 'c1',
+      fields: [{ name: 'name', label: 'Name' }],
+    };
+
+    render(<DetailView schema={schema} dataSource={mockDataSource} />);
+
+    await waitFor(() => expect(explainCalls).toHaveLength(2));
+
+    // No test in this file may reach the network: the double is the only fetch
+    // in the tree, and it must only ever be asked for the explain endpoint.
+    expect(explainCalls.map((c) => c.url)).toEqual([
+      '/api/v1/security/explain',
+      '/api/v1/security/explain',
+    ]);
+
+    expect(explainCalls.map((c) => c.body)).toEqual(
+      expect.arrayContaining([
+        { object: 'contact', operation: 'update', recordId: 'c1' },
+        { object: 'contact', operation: 'delete', recordId: 'c1' },
+      ]),
+    );
   });
 
   it('should use i18n fallback for related section heading', () => {
