@@ -1284,6 +1284,19 @@ ComponentRegistry.register('form',
     const fieldTabsPosition = schema.fieldTabsPosition || 'top';
     const isVerticalFieldTabs = fieldTabsPosition === 'left' || fieldTabsPosition === 'right';
 
+    // The LIVE required verdict, per field name: present ⇒ required right now,
+    // and the value is the message to show; absent ⇒ not required. Republished
+    // by `renderFormField` below on every render, from the very same
+    // `resolveFieldRuleState` result that draws the asterisk — so the
+    // submit-time check and the star can never disagree (objectui#4161). A ref
+    // rather than state: nothing renders off it, it must be readable from
+    // inside a validator react-hook-form may have captured at mount, and
+    // writing it must not itself schedule a render. Lazily initialised rather
+    // than `useRef(new Map())`, whose argument is re-evaluated (and discarded)
+    // on every render — the same React footgun documented at the call site.
+    const requiredMessagesRef = React.useRef<Map<string, string> | undefined>(undefined);
+    const requiredMessages = (requiredMessagesRef.current ??= new Map<string, string>());
+
     // --- Field rendering ---------------------------------------------------
     // Renders ONE field row (or a virtual section divider). Hoisted out of the
     // field loop so a tabbed layout can place the very same row inside a tab
@@ -1403,21 +1416,54 @@ ComponentRegistry.register('form',
       // object-form validate failure under its key, so the error still
       // surfaces as `type: 'required'` for the conditional-required cleanup
       // above.
+      //
+      // The entry is registered UNCONDITIONALLY and decides required-ness when
+      // it RUNS, instead of being added only while the field is required
+      // (objectui#4161). react-hook-form merges a Controller's `rules` INTO the
+      // field descriptor it already holds — `_f: { ...previous._f, ...options }`
+      // — so a rule key that simply stops being spelled is never removed: the
+      // validator installed the first time `requiredWhen` evaluated TRUE
+      // outlived every later FALSE. The two layers then disagreed: the display
+      // layer re-evaluated (asterisk and `aria-required` both disappeared)
+      // while submit stayed refused with "<field> is required" and no write was
+      // ever issued. Always spelling the key gives that merge something to
+      // overwrite, and reading the verdict out of `requiredMessages` at call
+      // time keeps the answer correct even for the closure RHF captured at
+      // mount — the fix must not rest on RHF re-registering per render, which
+      // it does today only as a side effect of `useRef(control.register(…))`
+      // re-evaluating its (discarded) initializer argument.
+      //
+      // Deliberately NOT re-evaluating the predicate inside the validator: that
+      // would be a second evaluation site with its own copy of the record
+      // assembly (the `null` seeding, the `previousRecord` overlay), i.e. the
+      // exact drift this issue is about. The verdict published here IS the one
+      // the asterisk was drawn from.
       delete rules.required;
       if (required) {
-        const requiredMessage = typeof validation.required === 'string'
-          ? validation.required
-          : t('validation.required', { field: label || name });
-        const authoredValidate = rules.validate;
-        rules.validate = {
-          // A field-authored `validate` keeps running, and keeps its own
-          // `type: 'validate'` error key.
-          ...(typeof authoredValidate === 'function'
-            ? { validate: authoredValidate }
-            : (authoredValidate ?? {})),
-          required: (value: unknown) => !isMissingForRequired(value) || requiredMessage,
-        };
+        requiredMessages.set(
+          name,
+          typeof validation.required === 'string'
+            ? validation.required
+            : t('validation.required', { field: label || name }),
+        );
+      } else {
+        requiredMessages.delete(name);
       }
+      const authoredValidate = rules.validate;
+      rules.validate = {
+        // A field-authored `validate` keeps running, and keeps its own
+        // `type: 'validate'` error key.
+        ...(typeof authoredValidate === 'function'
+          ? { validate: authoredValidate }
+          : (authoredValidate ?? {})),
+        required: (value: unknown) => {
+          const requiredMessage = requiredMessages.get(name);
+          // Absent ⇒ not required as of NOW, whatever it was when this
+          // validator was registered.
+          if (requiredMessage === undefined) return true;
+          return !isMissingForRequired(value) || requiredMessage;
+        },
+      };
 
       // Localize the standard validation messages emitted by
       // buildValidationRules. Each such rule carries a `messageKey`
