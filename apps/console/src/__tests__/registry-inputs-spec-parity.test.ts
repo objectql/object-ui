@@ -265,24 +265,24 @@ const EXPECTED_WITHOUT_INPUTS = [
   'nav:menu',
 ];
 
-/**
- * Covered blocks whose spec props schema legitimately resolves to ZERO keys on
- * the pinned `@objectstack/spec`, so the non-empty probe guard below must not
- * judge them (objectui#4027).
+/*
+ * `SPEC_SHAPE_EMPTY_ON_THE_PIN` — DELETED on the @objectstack/spec 17.0.0-rc.6
+ * bump (objectstack#7100), exactly as it was designed to be.
  *
- * The guard exists to catch a BROKEN reader — a `specTopLevelKeys` that stopped
- * resolving `.shape` and returned `[]` for everything. These three return `[]`
- * for a real reason instead: rc.5 still maps them to `EmptyProps`, while
- * objectstack#5775 / PR objectstack#6281 replaced that with the shared
- * `PageContainerProps` upstream. Without this carve-out the guard would report
- * "spec shape did not resolve" for a shape that resolved perfectly well and is
- * simply empty — a false accusation against the probe.
+ * It carved `page:footer` / `page:section` / `page:sidebar` out of the
+ * non-empty probe guard because rc.5 still mapped all three to `EmptyProps`,
+ * so their shapes resolved to `{}` for a real reason rather than a broken
+ * reader (objectui#4027). objectstack#5775 / PR objectstack#6281 replaced that
+ * with the shared `PageContainerProps` upstream, and rc.6 is where this repo
+ * resolves it: `children` now appears in each of the three shapes.
  *
- * Self-clearing, and pinned as such by `the empty-shape carve-out still
- * describes an empty shape` below: once the pin moves, `children` appears in
- * each shape and that assertion fails until this list is deleted.
+ * The list was self-clearing by construction, and its companion test — `the
+ * empty-shape carve-out still describes an empty shape` — is what fired,
+ * carrying its own instruction ("delete it from SPEC_SHAPE_EMPTY_ON_THE_PIN").
+ * Both the list and that test are gone; the plain non-empty guard now covers
+ * all three again, which is the state the carve-out was always temporary
+ * against.
  */
-const SPEC_SHAPE_EMPTY_ON_THE_PIN = ['page:footer', 'page:section', 'page:sidebar'];
 
 /**
  * Off-spec top-level inputs ACCEPTED for now, each with the reason.
@@ -561,24 +561,20 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
     // would return `[]`, every input would read as off-spec, and the failure
     // would look like a repo-wide regression instead of a broken probe. An
     // empty result here means "fix the reader", not "fix the inputs".
-    for (const type of covered.filter((t) => !SPEC_SHAPE_EMPTY_ON_THE_PIN.includes(t))) {
+    for (const type of covered) {
       expect(specTopLevelKeys(type).length, `${type} spec shape did not resolve`).toBeGreaterThan(0);
     }
   });
 
-  it('the empty-shape carve-out still describes an empty shape', () => {
-    // The carve-out above cannot be allowed to outlive its cause: these three
-    // resolve to `{}` because the PINNED rc.5 still maps them to `EmptyProps`,
-    // not because the probe is broken. The moment the pin carries
-    // `PageContainerProps`, `children` appears in the shape and this assertion
-    // fails — which is the instruction to delete the list and let the plain
-    // non-empty guard cover all three again.
-    for (const type of SPEC_SHAPE_EMPTY_ON_THE_PIN) {
-      expect(covered, `${type} no longer declares inputs — the carve-out is dead`).toContain(type);
-      expect(
-        specTopLevelKeys(type),
-        `${type}'s spec shape is no longer empty — delete it from SPEC_SHAPE_EMPTY_ON_THE_PIN`,
-      ).toEqual([]);
+  it('the three former carve-out blocks now resolve a real shape', () => {
+    // The tombstone of `SPEC_SHAPE_EMPTY_ON_THE_PIN` (see above). Keeping one
+    // assertion on the three names is what stops the deletion being silently
+    // undone by a future pin that regresses them to `EmptyProps` — the guard
+    // above would then read as "the probe is broken" for all three at once,
+    // which is the misdiagnosis objectui#4027 was filed about.
+    for (const type of ['page:footer', 'page:section', 'page:sidebar']) {
+      expect(covered, `${type} no longer declares inputs`).toContain(type);
+      expect(specTopLevelKeys(type), `${type} regressed to an empty spec shape`).toContain('children');
     }
   });
 

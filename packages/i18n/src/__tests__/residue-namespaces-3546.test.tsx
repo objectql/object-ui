@@ -770,7 +770,18 @@ describe('objectui#3546 slice seven — the ratchet residue', () => {
         CREATE_WORKSPACE,
       ]) {
         expect(sourceOf(rel), `${rel} no longer binds the pack hook`).toContain('useObjectTranslation');
-        expect(sourceOf(rel), `${rel} stopped destructuring t`).toContain('const { t } = useObjectTranslation();');
+        // `t` must come out of the hook's destructuring — but it need not be the
+        // ONLY thing destructured. The literal `const { t } = …` this used to
+        // match broke the moment a file legitimately also took `language`, which
+        // both sidebars now do to resolve the spec's inline per-locale
+        // `I18nLabel` (widened in @objectstack/spec 17.0.0-rc.6). What this
+        // suite actually depends on is that `t` is i18next's, bound from this
+        // hook, so the pattern asserts exactly that and stays blind to which
+        // siblings ride along.
+        expect(
+          /const \{[^}]*\bt\b[^}]*\} = useObjectTranslation\(/.test(sourceOf(rel)),
+          `${rel} stopped destructuring t from useObjectTranslation()`,
+        ).toBe(true);
       }
       // RecordDetailView takes it from @object-ui/react's re-export, with language.
       expect(sourceOf(RECORD_DETAIL)).toContain('const { t, language } = useObjectTranslation();');

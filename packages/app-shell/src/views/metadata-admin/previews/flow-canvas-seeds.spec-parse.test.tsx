@@ -75,6 +75,35 @@ function unwrapped(schema: ZodLike | undefined): ZodLike | undefined {
 }
 
 /**
+ * The object shape behind a schema that may be wrapped in a pipe/effect.
+ *
+ * `unwrapped()` walks `.optional()`/`.default()` only, and cannot get past a
+ * `ZodPipe` or refinement wrapper — which exposes neither `.shape` nor
+ * `.unwrap`. `FlowNodeSchema` became one in @objectstack/spec 17.0.0-rc.6, so
+ * the `FlowNodeSchema.shape?.[block]` reads below silently became `undefined`
+ * and `liveKeys` failed on its own "expected a Zod object schema" guard. The
+ * blocks are unchanged upstream, so this restores the access path rather than
+ * the expectation. Same repair, same reason, as
+ * `inspectors/flow-node-config.spec-reconciliation.test.ts`.
+ */
+function objectShape(schema: unknown, depth = 0): Record<string, ZodLike | undefined> | null {
+  const s = schema as Record<string, unknown> | undefined;
+  if (!s || depth > 8) return null;
+  if (s.shape) return s.shape as Record<string, ZodLike | undefined>;
+  const def = (s._def ?? s.def) as Record<string, unknown> | undefined;
+  if (!def) return null;
+  if (def.shape) return def.shape as Record<string, ZodLike | undefined>;
+  for (const key of ['in', 'out', 'innerType', 'schema', 'left', 'right']) {
+    const found = def[key] ? objectShape(def[key], depth + 1) : null;
+    if (found) return found;
+  }
+  return null;
+}
+
+/** `FlowNodeSchema`'s block shape, resolved through any wrapper (see above). */
+const flowNodeShape = objectShape(FlowNodeSchema);
+
+/**
  * Keys a Zod object schema declares as LIVE authoring surface. `retiredKey()`
  * tombstones stay in the shape so their rejection can carry the upgrade
  * prescription (spec `shared/retired-key.ts` marks them `[REMOVED]`), but they
@@ -144,8 +173,8 @@ describe('designer node seeds ↔ spec FlowNodeSchema (#3316)', () => {
       for (const block of BLOCKS) {
         const seeded = extras[block];
         if (!seeded || typeof seeded !== 'object') continue;
-        const retired = retiredKeys(FlowNodeSchema.shape?.[block] as ZodLike | undefined);
-        const live = liveKeys(FlowNodeSchema.shape?.[block] as ZodLike | undefined);
+        const retired = retiredKeys(flowNodeShape?.[block]);
+        const live = liveKeys(flowNodeShape?.[block]);
         for (const key of Object.keys(seeded as Record<string, unknown>)) {
           if (retired.includes(key)) offenders.push(`${type}.${block}.${key} (retired in spec)`);
           else if (!live.includes(key)) offenders.push(`${type}.${block}.${key} (not declared by spec)`);

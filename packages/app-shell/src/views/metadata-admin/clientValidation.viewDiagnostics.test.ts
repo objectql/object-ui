@@ -198,11 +198,44 @@ describe('view edit path — union diagnostics are expanded to the selected memb
   });
 
   it('leaves non-union failures exactly as they were', async () => {
-    // `page` has a plain object schema — no union, so the mapping is untouched.
-    const res = await validateMetadataDraft('page', { name: 'p', type: 42 });
+    // `page` has a plain object schema — no ROOT union, so the mapping is
+    // untouched. The draft carries a valid `label`: see the pin below for why
+    // that is now load-bearing rather than incidental.
+    const res = await validateMetadataDraft('page', { name: 'page_x', label: 'Page X', type: 42 });
     expect(res.ok).toBe(false);
     expect(res.issues.length).toBeGreaterThan(0);
     expect(res.issues.every((i) => i.message !== 'Invalid input')).toBe(true);
+    // The specific message is what "exactly as they were" means here.
+    expect(res.issues.some((i) => /Invalid option/.test(i.message))).toBe(true);
+  });
+
+  /**
+   * A LEAF union still reports `Invalid input`, and rc.6 created leaf unions
+   * where there were none — recorded here rather than fixed (objectui#4163).
+   *
+   * objectui#3606's expansion is about a ROOT union: it picks the member the
+   * draft was aiming at so the author reads that member's diagnostics instead of
+   * zod's aggregate `Invalid input`. It does not, and was never asked to, reach
+   * a union nested at a FIELD.
+   *
+   * That distinction cost nothing until now because the fields in question were
+   * scalars. @objectstack/spec 17.0.0-rc.6 widened `I18nLabel` from `string` to
+   * `string | Record< string, string >`, so every `label` in the vocabulary
+   * became a leaf union — and an author who simply OMITS a required label now
+   * reads `Invalid input` where they used to read a typed message naming the
+   * field. It is a small regression, it is upstream in origin, and repairing it
+   * means teaching the mapper about leaf unions, which is a diagnostics design
+   * change rather than a bump repair.
+   *
+   * Pinned so the gap is measured rather than remembered: when the mapper learns
+   * leaf unions, this test goes red and should be deleted along with the note.
+   */
+  it('a leaf union (rc.6 `I18nLabel`) still yields the bare `Invalid input` — objectui#4163', async () => {
+    const res = await validateMetadataDraft('page', { name: 'page_x', type: 'record' });
+    expect(res.ok).toBe(false);
+    const labelIssue = res.issues.find((i) => /(^|\.)label$/.test(String(i.path ?? '')));
+    expect(labelIssue, 'expected a diagnostic on `label`').toBeTruthy();
+    expect(labelIssue!.message).toBe('Invalid input');
   });
 });
 

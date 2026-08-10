@@ -85,6 +85,33 @@ function unwrapped(schema: unknown): unknown {
   return cur;
 }
 
+/**
+ * The object shape behind a schema that may be wrapped in a pipe/effect.
+ *
+ * `unwrap()` above only walks `.optional()`/`.default()`; it cannot get past a
+ * `ZodPipe` or a refinement wrapper, which expose neither `.shape` nor
+ * `.unwrap`. `FlowNodeSchema` became one of those in @objectstack/spec
+ * 17.0.0-rc.6, so the direct `FlowNodeSchema.shape` this file used to read went
+ * `undefined` and every assertion below died on `Cannot read properties of
+ * undefined`. The BLOCKS themselves are untouched — `connectorConfig`,
+ * `waitEventConfig` and `boundaryConfig` are all still declared, verified by
+ * walking the wrapper — so this is an access-path repair, not a changed
+ * expectation.
+ */
+function objectShape(schema: unknown, depth = 0): Record<string, unknown> | null {
+  const s = schema as Record<string, unknown> | undefined;
+  if (!s || depth > 8) return null;
+  if (s.shape) return s.shape as Record<string, unknown>;
+  const def = (s._def ?? s.def) as Record<string, unknown> | undefined;
+  if (!def) return null;
+  if (def.shape) return def.shape as Record<string, unknown>;
+  for (const key of ['in', 'out', 'innerType', 'schema', 'left', 'right']) {
+    const found = def[key] ? objectShape(def[key], depth + 1) : null;
+    if (found) return found;
+  }
+  return null;
+}
+
 /** A field render-gated behind the never-matching `__legacy__` controller. */
 function isLegacyGated(f: FlowConfigField): boolean {
   return f.showWhen?.field === '__legacy__';
@@ -217,7 +244,16 @@ describe('sibling-block forms ↔ FlowNodeSchema blocks (framework#4278 ratchet)
   // no feature detection: the hand-written groups for wait / connector_action
   // / boundary_event must edit exactly the keys the spec block declares —
   // #4161 / #4210 verified them by hand once; this keeps them verified.
-  const FlowNodeSchema = spec.FlowNodeSchema as { shape: Record<string, unknown> };
+  const flowNodeShape = objectShape(spec.FlowNodeSchema);
+
+  it('the spec still exposes the FlowNode block shape this suite reads', () => {
+    // Guards the assertions below from passing vacuously if the walk stops
+    // resolving — the failure mode rc.6 produced, seen one level up.
+    expect(flowNodeShape, 'could not resolve FlowNodeSchema’s object shape').toBeTruthy();
+    expect(Object.keys(flowNodeShape ?? {})).toEqual(
+      expect.arrayContaining(['waitEventConfig', 'connectorConfig', 'boundaryConfig']),
+    );
+  });
 
   const BLOCKS: ReadonlyArray<{ type: string; block: string }> = [
     { type: 'wait', block: 'waitEventConfig' },
@@ -231,7 +267,7 @@ describe('sibling-block forms ↔ FlowNodeSchema blocks (framework#4278 ratchet)
         .filter((f) => f.path[0] === block)
         .map((f) => f.path[1]!),
     )].sort();
-    const blockKeys = zodKeys(unwrapped(FlowNodeSchema.shape[block]));
+    const blockKeys = zodKeys(unwrapped(flowNodeShape?.[block]));
 
     expect(
       blockKeys.filter((k) => !formKeys.includes(k)),

@@ -328,18 +328,45 @@ export const DashboardWidgetSchema = specFieldsExcept(SpecDashboardWidgetSchema.
  *
  * Drift guard: `__tests__/report-chart-query-spec-parity.test.ts`.
  *
- * `.safeExtend`, not `.extend`, since @objectstack/spec 17.0.0-rc.6: the spec's
- * `GlobalFilterSchema` now carries a refinement, and zod 4 refuses `.extend()`
- * on a refined object outright — *"Cannot overwrite keys on object schemas
- * containing refinements. Use `.safeExtend()` instead."* — which threw at
- * MODULE LOAD and took six `@object-ui/types` suites down with it before this
- * file ran a single test. `.safeExtend` is zod's own prescribed replacement and
- * KEEPS the refinement (measured: one check before, one check after), so the
- * spec's cross-field rule still runs on objectui's dialect. That is the
- * behaviour we want — the three divergences below widen individual FIELDS, and
- * were never meant to switch off a whole-object rule.
+ * ## Spread, not `.extend` — and NOT `.safeExtend` either (objectui#4165)
+ *
+ * @objectstack/spec 17.0.0-rc.6 put a refinement on `GlobalFilterSchema`, and
+ * that closed BOTH extension doors on a schema whose whole purpose here is to
+ * override three keys:
+ *
+ *  - `.extend()` — what this used to be — now throws outright: *"Cannot
+ *    overwrite keys on object schemas containing refinements. Use
+ *    `.safeExtend()` instead."* At MODULE LOAD, taking six `@object-ui/types`
+ *    suites down before any of them ran a test.
+ *  - `.safeExtend()` — zod's own suggested replacement — runs, but is "safe"
+ *    precisely in the sense that it will not let you REPLACE an existing key's
+ *    type. It types every incompatible override as `never`, so `options`,
+ *    `optionsFrom` and `defaultValue` — exactly the three divergences above —
+ *    stop compiling (TS2322, `is not assignable to type 'never'`).
+ *
+ * So the spread below is not a style choice: it is the only spelling that keeps
+ * this schema the shape it has been since objectstack#4115. It composes the
+ * spec's fields BY REFERENCE (`.shape`, so a spec field change still lands
+ * here) and replaces the three, which is byte-for-byte what `.extend()`
+ * produced before rc.6.
+ *
+ * What it does NOT do is carry the spec's new refinement across, and that is
+ * deliberate and TEMPORARY. The refinement rejects `defaultValue:
+ * { preset: 'last_7_days' }` on a `type: 'date'` filter — the exact object form
+ * `@object-ui/core`'s `normalizeDateDefault` PRODUCES and stored dashboards
+ * carry (framework#4475), and the stated reason for the third divergence. That
+ * is a producer/consumer conflict, not a mechanical repair: adopting the rule
+ * means changing what objectui writes and migrating stored dashboards, and
+ * declining it permanently means objectui accepts metadata the platform
+ * refuses. Neither is a call to make in passing, so this preserves the status
+ * quo EXACTLY — nothing about this schema's behaviour changes on the rc.6 bump —
+ * and the ruling is tracked in objectui#4165. `__tests__/report-chart-query-
+ * spec-parity.test.ts` pins the gap explicitly so it cannot fade into folklore.
+ *
+ * Drift guard: `__tests__/report-chart-query-spec-parity.test.ts`.
  */
-export const GlobalFilterSchema = SpecGlobalFilterSchema.safeExtend({
+export const GlobalFilterSchema = z.object({
+  ...SpecGlobalFilterSchema.shape,
   options: z.array(z.union([
     z.string(),
     z.object({

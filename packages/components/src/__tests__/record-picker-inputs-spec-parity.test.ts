@@ -54,8 +54,20 @@ const inputNames = () => inputs().map((i) => i.name);
 const input = (name: string) => inputs().find((i) => i.name === name);
 const filterDescription = () => input('filter')?.description ?? '';
 
-/** A minimal spec-valid props object, so a `filter` probe fails only on `filter`. */
-const withFilter = (filter: unknown) => ({ object: 'account', displayField: 'name', filter });
+/**
+ * A minimal spec-valid props object, so a `filter` probe fails only on `filter`.
+ *
+ * `displayField: 'name'` used to be the second key here, and it is deliberately
+ * NOT re-spelled to a survivor: @objectstack/spec 17.0.0 retired
+ * `element:record_picker`'s `displayField` as an ADR-0087 D2 tombstone (#5775),
+ * and rc.6 is where this repo first resolves that. A tombstone is refused BY
+ * NAME, so the old fixture stopped being "minimal and valid" and started being
+ * "valid except for one retired key" — which made all three `filter` assertions
+ * below fail on `displayField` instead. `object` alone is a complete valid
+ * shape, and keeping the fixture at the true minimum is what stops it drifting
+ * into the same trap again.
+ */
+const withFilter = (filter: unknown) => ({ object: 'account', filter });
 
 describe('element:record_picker — registry inputs vs @objectstack/spec', () => {
   it('is registered with a non-empty `inputs` surface', () => {
@@ -84,7 +96,6 @@ describe('element:record_picker — registry inputs vs @objectstack/spec', () =>
     // consumer before it was declared here.
     const undeclared = ElementRecordPickerPropsSchema.safeParse({
       object: 'account',
-      displayField: 'name',
       notASpecKey: 1,
     } as never);
     expect(undeclared.success).toBe(true);
@@ -158,7 +169,7 @@ describe('element:record_picker — registry inputs vs @objectstack/spec', () =>
     expect(input('filter')).toBeDefined();
     expect(input('filter')?.defaultValue).toBeUndefined();
     expect(
-      ElementRecordPickerPropsSchema.safeParse({ object: 'account', displayField: 'name' }).data,
+      ElementRecordPickerPropsSchema.safeParse({ object: 'account' }).data,
     ).not.toHaveProperty('filter');
   });
 
