@@ -4921,12 +4921,12 @@ export function GanttView({
               {t('gantt.autoScheduleDlg.title')}
             </div>
             <div className="text-sm text-muted-foreground mb-3">
-              {t('gantt.autoScheduleDlg.body').replace('{count}', String(pendingAutoSchedule.changes.length))}
+              {t('gantt.autoScheduleDlg.body', { count: pendingAutoSchedule.changes.length })}
               {pendingAutoSchedule.skipped > 0 && (
                 <>
                   {' '}
                   <span data-testid="gantt-autoschedule-skipped">
-                    {t('gantt.autoScheduleDlg.skipped').replace('{count}', String(pendingAutoSchedule.skipped))}
+                    {t('gantt.autoScheduleDlg.skipped', { count: pendingAutoSchedule.skipped })}
                   </span>
                 </>
               )}
@@ -4981,7 +4981,7 @@ export function GanttView({
               {t('gantt.conflict.title')}
             </div>
             <div className="text-sm text-muted-foreground mb-3">
-              {t('gantt.conflict.body').replace('{count}', String(pendingConflict.length))}
+              {t('gantt.conflict.body', { count: pendingConflict.length })}
             </div>
             <div className="flex justify-end gap-2">
               <button

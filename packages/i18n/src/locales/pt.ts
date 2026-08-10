@@ -679,8 +679,8 @@ const pt = {
     },
     autoScheduleDlg: {
       title: "Agendamento automático",
-      body: "Adiar {count} tarefa(s) para atender aos vínculos de dependência?",
-      skipped: "{count} tarefa(s) bloqueada(s) também violam os vínculos e foram ignoradas.",
+      body: "Adiar {{count}} tarefa(s) para atender aos vínculos de dependência?",
+      skipped: "{{count}} tarefa(s) bloqueada(s) também violam os vínculos e foram ignoradas.",
       confirm: "Aplicar",
       cancel: "Cancelar",
       none: "Todas as dependências foram atendidas — nada a reagendar.",

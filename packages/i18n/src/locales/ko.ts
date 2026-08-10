@@ -680,8 +680,8 @@ const ko = {
     },
     autoScheduleDlg: {
       title: "자동 일정 조정",
-      body: "종속성 연결을 충족하도록 작업 {count}건을 뒤로 미룰까요?",
-      skipped: "잠긴 작업 {count}건도 연결을 위반하지만 건너뛰었습니다.",
+      body: "종속성 연결을 충족하도록 작업 {{count}}건을 뒤로 미룰까요?",
+      skipped: "잠긴 작업 {{count}}건도 연결을 위반하지만 건너뛰었습니다.",
       confirm: "적용",
       cancel: "취소",
       none: "모든 종속성이 충족되었습니다 — 조정할 일정이 없습니다.",

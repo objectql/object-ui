@@ -757,8 +757,8 @@ const en = {
     },
     autoScheduleDlg: {
       title: 'Auto-schedule',
-      body: 'Shift {count} task(s) later to satisfy dependency links?',
-      skipped: '{count} locked task(s) also violate links and were skipped.',
+      body: 'Shift {{count}} task(s) later to satisfy dependency links?',
+      skipped: '{{count}} locked task(s) also violate links and were skipped.',
       confirm: 'Apply',
       cancel: 'Cancel',
       none: 'All dependencies satisfied — nothing to reschedule.',
@@ -774,8 +774,11 @@ const en = {
       clear: 'Clear filters',
       empty: 'No options',
       // SINGLE braces on purpose: the ObjectGantt call site resolves these
-      // with a literal `.replace('{shown}', …)`, not i18next interpolation
-      // (same convention as `autoScheduleDlg.body` above).
+      // with a literal `.replace('{shown}', …)`, not i18next interpolation.
+      // The last key in the gantt namespace on that idiom — `conflict.body`
+      // and the two `autoScheduleDlg` counts moved to `{{count}}` + i18next
+      // interpolation in objectui#4157, where the single-brace call site met
+      // a `{{count}}` pack and rendered a literal `{2}`.
       resultSummary: 'Showing {shown} / {total} tasks',
     },
     readOnly: 'Read-only',

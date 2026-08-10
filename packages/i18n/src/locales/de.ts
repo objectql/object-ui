@@ -680,8 +680,8 @@ const de = {
     },
     autoScheduleDlg: {
       title: "Automatisch planen",
-      body: "{count} Vorgänge nach hinten verschieben, um die Abhängigkeiten einzuhalten?",
-      skipped: "{count} gesperrte Vorgänge verletzen die Verknüpfungen ebenfalls und wurden übersprungen.",
+      body: "{{count}} Vorgänge nach hinten verschieben, um die Abhängigkeiten einzuhalten?",
+      skipped: "{{count}} gesperrte Vorgänge verletzen die Verknüpfungen ebenfalls und wurden übersprungen.",
       confirm: "Anwenden",
       cancel: "Abbrechen",
       none: "Alle Abhängigkeiten sind erfüllt — nichts neu zu planen.",

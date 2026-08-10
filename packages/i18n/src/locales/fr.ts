@@ -680,8 +680,8 @@ const fr = {
     },
     autoScheduleDlg: {
       title: "Planification automatique",
-      body: "Décaler {count} tâche(s) plus tard pour respecter les liens de dépendance ?",
-      skipped: "{count} tâche(s) verrouillée(s) violent aussi les liens et ont été ignorées.",
+      body: "Décaler {{count}} tâche(s) plus tard pour respecter les liens de dépendance ?",
+      skipped: "{{count}} tâche(s) verrouillée(s) violent aussi les liens et ont été ignorées.",
       confirm: "Appliquer",
       cancel: "Annuler",
       none: "Toutes les dépendances sont respectées — rien à replanifier.",

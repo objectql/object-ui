@@ -684,8 +684,8 @@ const es = {
     },
     autoScheduleDlg: {
       title: "Programación automática",
-      body: "¿Retrasar {count} tarea(s) para respetar los vínculos de dependencia?",
-      skipped: "{count} tarea(s) bloqueada(s) también incumplen los vínculos y se han omitido.",
+      body: "¿Retrasar {{count}} tarea(s) para respetar los vínculos de dependencia?",
+      skipped: "{{count}} tarea(s) bloqueada(s) también incumplen los vínculos y se han omitido.",
       confirm: "Aplicar",
       cancel: "Cancelar",
       none: "Todas las dependencias se cumplen: no hay nada que reprogramar.",

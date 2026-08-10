@@ -729,8 +729,8 @@ const zh = {
     },
     autoScheduleDlg: {
       title: '自动排程',
-      body: '将顺延 {count} 个任务以满足依赖约束，是否执行？',
-      skipped: '另有 {count} 项因锁定/无权限跳过。',
+      body: '将顺延 {{count}} 个任务以满足依赖约束，是否执行？',
+      skipped: '另有 {{count}} 项因锁定/无权限跳过。',
       confirm: '执行',
       cancel: '取消',
       none: '依赖均满足，无需排程',
