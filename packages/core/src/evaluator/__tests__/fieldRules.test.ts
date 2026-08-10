@@ -205,6 +205,56 @@ describe('failure diagnostics — loud fail-open (objectstack#5149, appeal 2)', 
     expect(warn).not.toHaveBeenCalled();
   });
 
+  // objectui#3792 — the passback that makes `warn: false` cost only the
+  // WARNING, not the information. A fault-probing caller silences the built-in
+  // line so it can print one labelled line of its own; before this hook that
+  // also threw away the engine's description of the failure, which is the part
+  // that actually locates the author's typo.
+  it('`onFault` hands the engine reason to a caller that silenced the warning', () => {
+    const pred = "passback_3792 == 'x'";
+    const reasons: string[] = [];
+    expect(
+      evalFieldPredicate(pred, {}, true, undefined, undefined, {
+        warn: false,
+        onFault: (r) => reasons.push(r),
+      }),
+    ).toBe(true);
+    expect(warn).not.toHaveBeenCalled();
+    // The engine's text verbatim — kind tag, message, and the source excerpt it
+    // appends — not a rephrasing built by this layer.
+    expect(reasons).toHaveLength(1);
+    expect(reasons[0]).toContain('[type] Unknown variable: passback_3792');
+  });
+
+  it('`onFault` fires per fault — it is not subject to the once-per-predicate dedupe', () => {
+    // The built-in warning is deduped module-wide so a re-rendering predicate
+    // logs once; the passback must NOT inherit that, or the second caller of a
+    // predicate someone else already broke would silently get nothing back.
+    const pred = "passback_dedupe_3792 == 'x'";
+    const reasons: string[] = [];
+    const onFault = (r: string) => reasons.push(r);
+    evalFieldPredicate(pred, {}, true, undefined, undefined, { warn: false, onFault });
+    evalFieldPredicate(pred, {}, false, undefined, undefined, { warn: false, onFault });
+    evalFieldPredicate(pred, {}, true, undefined, undefined, { onFault });
+    expect(reasons).toHaveLength(3);
+    // …while the warning itself still fires at most once for that text.
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toContain(`Reason: ${reasons[2]}`);
+  });
+
+  it('`onFault` is not called for a healthy or genuinely false predicate', () => {
+    const seen: string[] = [];
+    const onFault = (r: string) => seen.push(r);
+    expect(
+      evalFieldPredicate("record.ok3_3792 == 'y'", { ok3_3792: 'y' }, false, undefined, undefined, { onFault }),
+    ).toBe(true);
+    expect(
+      evalFieldPredicate("record.ok3_3792 == 'y'", { ok3_3792: 'n' }, true, undefined, undefined, { onFault }),
+    ).toBe(false);
+    expect(evalFieldPredicate(undefined, {}, true, undefined, undefined, { onFault })).toBe(true);
+    expect(seen).toEqual([]);
+  });
+
   it('includes the caller-provided context locator', () => {
     const pred = "ctx_unbound_5149 == 'x'";
     evalFieldPredicate(pred, {}, true, undefined, undefined, {

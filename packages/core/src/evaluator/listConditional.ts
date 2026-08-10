@@ -59,7 +59,7 @@ function warnLegacyDialect(source: string): void {
   if (warnedLegacy.has(source)) return;
   warnedLegacy.add(source);
   console.warn(
-    '[object-ui] A list conditional predicate uses the legacy expression dialect ' +
+    '[object-ui] A conditional predicate uses the legacy expression dialect ' +
       'and is not portable to the server CEL engine: ' +
       JSON.stringify(source) +
       '. Rewrite it as CEL (use "==" not "===", "x in [..]" for membership, ' +
@@ -68,20 +68,40 @@ function warnLegacyDialect(source: string): void {
 }
 
 const warnedError = new Set<string>();
-function warnEvalError(source: string, label?: string): void {
+/**
+ * One-time fail-closed report for a predicate that could not be evaluated.
+ *
+ * `reason` is the engine's own description of the failure (`"[runtime] No such
+ * key: owner_id"`) — the single most useful line for the author, and precisely
+ * what this path used to discard: the fault-probing CEL route silences the
+ * canonical helper's warning to avoid double-reporting, so before objectui#3792
+ * the more safety-critical the surface, the LESS it said. It is optional
+ * because a caller may genuinely have no reason to pass (nothing fabricates
+ * one).
+ *
+ * The wording is deliberately surface-neutral: this function is not
+ * list-specific and has not been for a long time — row kebabs, the bulk
+ * selection bar, kanban conditional formatting and (since objectui#3521)
+ * `page:header` all report through it, and telling a page-header author that
+ * "a list conditional predicate" failed sends them to the wrong screen.
+ */
+function warnEvalError(source: string, label?: string, reason?: string): void {
   // One-time-warning identity for the (label, source) pair. JSON-encoded rather
   // than joined on a character the two halves "cannot contain" — that separator
   // was a raw U+0000, which made this whole file binary to grep (objectstack#5450).
   // JSON needs no impossible character, so the boundary is unambiguous for any
   // label and any predicate source, and the literal is plain ASCII.
+  // `reason` is deliberately NOT part of the key: one predicate text has one
+  // reason, so keying on it could only ever weaken the warn-once contract.
   const key = JSON.stringify([label ?? '', source]);
   if (warnedError.has(key)) return;
   warnedError.add(key);
   console.warn(
-    '[object-ui] A list conditional predicate failed to evaluate' +
+    '[object-ui] A conditional predicate failed to evaluate' +
       (label ? ` (${label})` : '') +
       ' and was treated as its safe default: ' +
       JSON.stringify(source) +
+      (reason ? `. Reason: ${reason}` : '') +
       '. Check the field names and CEL syntax.',
   );
 }
@@ -91,6 +111,8 @@ function warnEvalError(source: string, label?: string): void {
 interface CelVerdict {
   ok: boolean;
   value: boolean;
+  /** The engine's failure reason when `ok` is false — see {@link warnEvalError}. */
+  reason?: string;
 }
 
 /**
@@ -111,10 +133,17 @@ function evalCel(
   // verbatim — no second engine — so CEL semantics never drift from B2.
   // `warn: false`: this caller reports the fault itself (the labelled
   // `warnEvalError` in `evalRowPredicate`) — one warning per broken predicate,
-  // not two (#5149).
-  const asTrue = evalFieldPredicate(pred, record, true, undefined, scope, { warn: false });
-  const asFalse = evalFieldPredicate(pred, record, false, undefined, scope, { warn: false });
-  if (asTrue !== asFalse) return { ok: false, value: false };
+  // not two (#5149). `onFault` carries the engine's reason across that silence
+  // so the labelled report can still name it (objectui#3792); both probes fault
+  // identically, so the first reason is the reason.
+  let reason: string | undefined;
+  const onFault = (r: string): void => {
+    reason ??= r;
+  };
+  const diagnostic = { warn: false, onFault };
+  const asTrue = evalFieldPredicate(pred, record, true, undefined, scope, diagnostic);
+  const asFalse = evalFieldPredicate(pred, record, false, undefined, scope, diagnostic);
+  if (asTrue !== asFalse) return { ok: false, value: false, reason };
   return { ok: true, value: asTrue };
 }
 
@@ -125,7 +154,8 @@ export interface RowPredicateOptions {
    * row-action `visible`/`disabled`; `false` (no style) for formatting. */
   fallback?: boolean;
   /** Extra top-level scope merged alongside the row — e.g. the global predicate
-   * scope (`features` / `user` / `app`) a host shell provides. */
+   * scope (`features` / `user` / `app`) a host shell provides. The row wins on
+   * collision: a `record` or `data` key here never shadows the row. */
   scope?: Record<string, unknown>;
   /** When true, log a one-time warning if a *present* predicate faults. */
   warnOnError?: boolean;
@@ -147,7 +177,9 @@ export interface RowPredicateOptions {
  * fields are bound three ways so every authoring convention resolves:
  * `record.status` (spec/canonical), bare `status` (row-action shorthand), and
  * `data.status` (legacy). The optional `scope` (host predicate scope) is bound
- * alongside so `features.*` / `user.*` predicates keep working.
+ * alongside so `features.*` / `user.*` predicates keep working — but the row is
+ * the subject: `record` and `data` always name THIS row, on both dialect paths,
+ * even when the host scope carries keys of those names (objectui#3796).
  */
 export function evalRowPredicate(
   pred: FieldRulePredicate | undefined | null,
@@ -163,19 +195,33 @@ export function evalRowPredicate(
   // means one thing whether or not this surface expanded the column
   // (objectui#3501). Returned by reference when there is nothing to collapse.
   const rowObj = toPredicateRecord(row && typeof row === 'object' ? row : {}, opts.fields);
-  // Bare fields + `data.*` + the host scope, all top-level; `record` is bound
-  // by the engine call itself (evalCel / the legacy evaluator below).
-  const scope = { ...(opts.scope ?? {}), ...rowObj, data: rowObj };
+  // Bare fields + `data.*` + `record.*` + the host scope, all top-level.
+  //
+  // `data` AND `record` are pinned AFTER the spread, so a host scope that
+  // happens to carry either key is background and the ROW stays the subject of
+  // this function — on BOTH dialect paths. `data` always had that protection;
+  // `record` did not, and relied instead on each engine's own binding, which
+  // disagreed: the legacy evaluator re-pinned `record` (row won) while the CEL
+  // engine takes `extra` over its `record` binding (host scope won). Same
+  // function, same predicate text, opposite subjects — decided by whether the
+  // string happens to contain `===`/`${…}`, which no author is choosing
+  // deliberately (objectui#3796). Pinning here fixes both paths at the merge,
+  // independently of either engine's precedence.
+  const scope = { ...(opts.scope ?? {}), ...rowObj, data: rowObj, record: rowObj };
 
   // Legacy-dialect *strings* route to the legacy engine (back-compat). The
   // `{ dialect: 'cel', source }` envelope is never routed here — it is CEL.
   if (source !== undefined && isLegacyDialectSource(source)) {
     warnLegacyDialect(source);
     try {
-      const evaluator = new ExpressionEvaluator({ ...scope, record: rowObj });
+      const evaluator = new ExpressionEvaluator(scope);
       return evaluator.evaluateCondition(source, { throwOnError: true });
-    } catch {
-      if (opts.warnOnError) warnEvalError(source, opts.label);
+    } catch (err) {
+      // The legacy engine reports by throwing, so its message IS the reason —
+      // the fail-closed report carries it for the same reason the CEL path does.
+      if (opts.warnOnError) {
+        warnEvalError(source, opts.label, `[legacy] ${err instanceof Error ? err.message : String(err)}`);
+      }
       return fallback;
     }
   }
@@ -191,7 +237,7 @@ export function evalRowPredicate(
   }
   const verdict = evalCel(pred, rowObj, scope);
   if (!verdict.ok) {
-    warnEvalError(source ?? '(expression)', opts.label);
+    warnEvalError(source ?? '(expression)', opts.label, verdict.reason);
     return fallback;
   }
   return verdict.value;

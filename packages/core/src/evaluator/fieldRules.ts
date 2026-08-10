@@ -90,6 +90,22 @@ export interface FieldPredicateDiagnostic {
    * warnings for one broken predicate. Defaults to `true`.
    */
   warn?: boolean;
+  /**
+   * Called with the engine's failure reason (`"[kind] message"`, the exact text
+   * the built-in warning prints after `Reason:`) when the predicate cannot be
+   * evaluated. This is the passback for callers that set `warn: false` and
+   * report the fault themselves — without it, silencing the built-in warning
+   * also discards the only description of *why* the predicate failed, which is
+   * how the fail-closed row-predicate path ended up the least debuggable one
+   * (objectui#3792).
+   *
+   * Independent of `warn` and of the one-time-warning dedupe: it fires on every
+   * fault, so a caller doing its own warn-once bookkeeping keeps control of it.
+   * The returned verdict is unaffected. Must not throw — it is invoked outside
+   * the engine guard, so an exception here propagates to the caller rather than
+   * being reported as an engine fault.
+   */
+  onFault?: (reason: string) => void;
 }
 
 const warnedPredicates = new Set<string>();
@@ -149,39 +165,35 @@ export function evalFieldPredicate(
 ): boolean {
   if (pred == null || (typeof pred === 'string' && !pred.trim())) return fallback;
   const expr = toExpression(pred);
+  // The two fault sources — a not-ok verdict and a throw that slipped past the
+  // engine's "never throws" contract — converge on one reason string and one
+  // reporting site below, so the built-in warning and the `onFault` passback
+  // can never describe the failure differently.
+  let reason: string | undefined;
+  let value = fallback;
   try {
     const res = ExpressionEngine.evaluate<boolean>(expr, {
       record,
       previous,
       ...(scope ? { extra: scope } : {}),
     });
-    if (!res.ok) {
-      // Parse error, type error, unbound identifier, engine fault … — every
-      // not-ok verdict resolves to the fallback, but never silently (#5149).
-      if (diagnostic?.warn !== false) {
-        warnPredicateFailure(
-          expr,
-          fallback,
-          `[${res.error.kind}] ${res.error.message}`,
-          diagnostic?.context,
-        );
-      }
-      return fallback;
-    }
-    return res.value === true;
+    // Parse error, type error, unbound identifier, engine fault … — every
+    // not-ok verdict resolves to the fallback, but never silently (#5149).
+    if (!res.ok) reason = `[${res.error.kind}] ${res.error.message}`;
+    else value = res.value === true;
   } catch (err) {
-    // The engine contract is "never throws"; this guard is for anything that
-    // slips past it. Same loud fail-open as the not-ok branch.
+    reason = `[throw] ${err instanceof Error ? err.message : String(err)}`;
+  }
+  if (reason !== undefined) {
     if (diagnostic?.warn !== false) {
-      warnPredicateFailure(
-        expr,
-        fallback,
-        `[throw] ${err instanceof Error ? err.message : String(err)}`,
-        diagnostic?.context,
-      );
+      warnPredicateFailure(expr, fallback, reason, diagnostic?.context);
     }
+    // Outside the try on purpose: a throwing callback is a caller bug and must
+    // surface as one, not be swallowed and re-reported as an engine fault.
+    diagnostic?.onFault?.(reason);
     return fallback;
   }
+  return value;
 }
 
 /**

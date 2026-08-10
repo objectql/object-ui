@@ -138,6 +138,69 @@ describe('evalRowPredicate', () => {
       expect(warn).toHaveBeenCalledTimes(1);
     });
 
+    // objectui#3792. The fail-closed route runs the canonical helper twice with
+    // `warn: false` (to tell a fault from a genuine `false`), which used to
+    // discard the engine's own description of the failure — so the surfaces
+    // that hide a button outright were the ones that said least about why.
+    it("carries the ENGINE's failure reason into the fail-closed warning", () => {
+      const r = evalRowPredicate('record.absent.deep == 1', { status: 'x' }, {
+        fallback: false,
+        warnOnError: true,
+        label: 'resume',
+      });
+      expect(r).toBe(false);
+      expect(warn).toHaveBeenCalledTimes(1);
+      const msg = String(warn.mock.calls[0][0]);
+      expect(msg).toContain('(resume)');
+      // The reason is the engine's verbatim text, not a rephrasing of it: kind
+      // tag and message both, exactly as the single-eval fast path prints them.
+      expect(msg).toContain('Reason: [runtime] No such key: absent');
+    });
+
+    it('carries an unbound-root reason too (the typo class this exists for)', () => {
+      evalRowPredicate('nosuchroot.x == 1', { status: 'x' }, {
+        fallback: false,
+        warnOnError: true,
+        label: 'unbound',
+      });
+      expect(String(warn.mock.calls[0][0])).toContain('Reason: [type] Unknown variable: nosuchroot');
+    });
+
+    it('reports the legacy path fault with the legacy engine reason', () => {
+      // `===` routes to the legacy engine, which reports by throwing; the
+      // fail-closed report carries that message for the same reason.
+      evalRowPredicate('record.a === $$$', { a: 1 }, {
+        fallback: false,
+        warnOnError: true,
+        label: 'legacy-fault',
+      });
+      const failure = warn.mock.calls
+        .map((c) => String(c[0]))
+        .find((m) => m.includes('failed to evaluate'));
+      expect(failure).toBeDefined();
+      expect(failure).toContain('(legacy-fault)');
+      expect(failure).toContain('Reason: [legacy]');
+    });
+
+    // The other half of objectui#3792: this function stopped being list-only
+    // long ago — kanban formatting, the bulk selection bar and (since #3521)
+    // `page:header` all report through it. Naming every surface "list" sends a
+    // page-header author to the list view to look for a button that was never
+    // there.
+    it('names the surface neutrally — never "list conditional predicate"', () => {
+      evalRowPredicate('record.absent.wording == 1', { a: 1 }, {
+        warnOnError: true,
+        label: 'page:header/publish',
+      });
+      evalRowPredicate('${data.wording === "x"}', { a: 1 });
+      const messages = warn.mock.calls.map((c) => String(c[0]));
+      expect(messages.length).toBeGreaterThanOrEqual(2);
+      for (const msg of messages) {
+        expect(msg).not.toContain('list conditional predicate');
+        expect(msg).toContain('[object-ui] A conditional predicate');
+      }
+    });
+
     it('keeps the label/source boundary unambiguous', () => {
       // The obvious repair for an "impossible character" separator is to pick a
       // printable one, which merely relocates the collision. These two pairs
@@ -150,6 +213,80 @@ describe('evalRowPredicate', () => {
       expect(String(warn.mock.calls[0][0])).toContain('(alpha)');
       expect(String(warn.mock.calls[1][0])).toContain('(alpha beta)');
     });
+  });
+});
+
+/**
+ * objectui#3796 — the row is this function's SUBJECT, on both dialect paths.
+ *
+ * `data` was already pinned after the host-scope spread; `record` was not, and
+ * leaned on each engine's own binding instead — which disagreed. The legacy
+ * evaluator re-pinned `record` (row won); the CEL engine takes its `extra` bag
+ * over its `record` binding (host scope won). So one predicate text meant two
+ * different things depending on whether it happened to contain `===`/`${…}`,
+ * the marker that routes dialects — something no author selects deliberately.
+ *
+ * No host injects a `record` key today (`ExpressionProvider` binds
+ * `current_user`/`user`/`ctx`/`os`/`app`/`data`/`features`), so this is a pin
+ * against a plausible future addition — `ctx.record` already exists — not a
+ * live bug repro. It is one test on purpose: the two paths' precedence is a
+ * single contract, and pinning them apart is what let them drift.
+ */
+describe('evalRowPredicate — row wins over host scope (both dialect paths)', () => {
+  const ROW = { tag: 'ROW' };
+  // A host scope carrying a decoy `record` (and `data`, already protected).
+  const DECOY = { record: { tag: 'SCOPE' }, data: { tag: 'SCOPE' }, features: { on: true } };
+
+  it('binds `record` to the row on the CEL path AND the legacy path', () => {
+    // CEL (canonical): no legacy marker in the source.
+    expect(evalRowPredicate("record.tag == 'ROW'", ROW, { scope: DECOY })).toBe(true);
+    expect(evalRowPredicate("record.tag == 'SCOPE'", ROW, { scope: DECOY })).toBe(false);
+
+    // Legacy: `===` routes to the other engine — same subject, same verdicts.
+    expect(evalRowPredicate("record.tag === 'ROW'", ROW, { scope: DECOY })).toBe(true);
+    expect(evalRowPredicate("record.tag === 'SCOPE'", ROW, { scope: DECOY })).toBe(false);
+  });
+
+  it('binds `data` and the bare name to the row on both paths too', () => {
+    expect(evalRowPredicate("data.tag == 'ROW'", ROW, { scope: DECOY })).toBe(true);
+    expect(evalRowPredicate("data.tag === 'ROW'", ROW, { scope: DECOY })).toBe(true);
+    expect(evalRowPredicate("tag == 'ROW'", ROW, { scope: DECOY })).toBe(true);
+    expect(evalRowPredicate("tag === 'ROW'", ROW, { scope: DECOY })).toBe(true);
+  });
+
+  it('still resolves host-scope keys the row does not shadow', () => {
+    // The row winning is not the scope being dropped: background stays bound.
+    expect(evalRowPredicate('features.on == true', ROW, { scope: DECOY })).toBe(true);
+    expect(evalRowPredicate('features.on === true', ROW, { scope: DECOY })).toBe(true);
+  });
+
+  it('holds on the fail-closed route as well as the fast route', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(
+        evalRowPredicate("record.tag == 'ROW'", ROW, { scope: DECOY, warnOnError: true, fallback: false }),
+      ).toBe(true);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('a row FIELD named `record` does not become the subject either', () => {
+    // The pin sits after the bare-field spread, so a column literally called
+    // `record` is addressable as `data.record`, never as the row root.
+    const row = { record: { tag: 'FIELD' }, tag: 'ROW' };
+    expect(evalRowPredicate("record.tag == 'ROW'", row, { scope: DECOY })).toBe(true);
+    expect(evalRowPredicate("data.record.tag == 'FIELD'", row, { scope: DECOY })).toBe(true);
+  });
+
+  it('applies through conditional formatting, which shares the entry point', () => {
+    expect(
+      resolveConditionalFormatting(ROW, [{ condition: "record.tag == 'ROW'", backgroundColor: 'row' }], DECOY),
+    ).toEqual({ backgroundColor: 'row' });
+    expect(
+      resolveConditionalFormatting(ROW, [{ condition: "record.tag == 'SCOPE'", backgroundColor: 'scope' }], DECOY),
+    ).toEqual({});
   });
 });
 
