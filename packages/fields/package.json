@@ -24,7 +24,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && node scripts/build-css.mjs",
     "clean": "rm -rf dist",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
@@ -50,9 +50,12 @@
     "react-dom": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
     "@vitejs/plugin-react": "^6.0.5",
+    "postcss": "^8.5.26",
+    "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "vite": "^8.2.0",
     "vite-plugin-dts": "^5.0.3"

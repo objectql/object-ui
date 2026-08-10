@@ -44,19 +44,24 @@ npx objectui doctor
 
 **Symptom:** Tailwind utility classes are not applied. Components render without styling.
 
-**Cause:** You are not importing the stylesheet the ObjectUI packages publish. Their utilities — including every themed one, such as `bg-primary` and `border-input` — are compiled at build time into the package's `style.css`, and nothing in your own build can reproduce the themed ones.
+**Cause:** You are not importing the stylesheets the ObjectUI packages publish. Their utilities — including every themed one, such as `bg-primary` and `border-input` — are compiled at build time into each package's `style.css`, and nothing in your own build can reproduce the themed ones.
 
-**Fix:** Import them in your main CSS file, after your own Tailwind entry:
+**Fix:** Import them in your main CSS file, after your own Tailwind entry, in this order:
 
 ```css
 /* src/index.css */
 @import 'tailwindcss';
 @import '@object-ui/components/style.css';
+@import '@object-ui/fields/style.css';
 ```
 
-`@object-ui/components` is the package that publishes a working `style.css`. (`@object-ui/fields` declares the same subpath, but its published package contains no stylesheet — see [#4059](https://github.com/objectstack-ai/objectui/issues/4059) — so importing it fails to resolve. Do not add it.) Then check that the Tailwind 4 build plugin is actually installed and wired up — `@tailwindcss/postcss` in `postcss.config.mjs`, or `@tailwindcss/vite` in `vite.config.ts`. Without it, `@import 'tailwindcss'` is passed through as a plain CSS import and no utilities are generated at all.
+Two packages publish a `style.css`: `@object-ui/components` (the base sheet — theme tokens, base layer, its own utilities) and `@object-ui/fields` (a supplement carrying only what the field widgets add). The fields sheet is built by subtracting everything the components sheet already ships, so it must come **after** it; on its own it styles almost nothing.
 
-> **Do not** try to fix this by adding `node_modules` paths to a `content` array or an `@source` line. ObjectUI is Tailwind 4 and has no `tailwind.config.js`; Tailwind 4 does not load one unless you opt in with `@config`, so on most projects those paths do nothing whatsoever. Even when they are read, scanning the published files only regenerates the shape-only utilities (`inline-flex`, `rounded-md`, `h-9`) that `style.css` already contains — it can never produce the themed ones, because the `@theme` block declaring their tokens lives in the package's unpublished source. Missing theme colours are always the missing `style.css` import, never a missing path.
+If field widgets specifically look wrong — tag and badge colours flat, the rating stars not reacting to hover, the signature pad showing the wrong cursor — the fields import is the one that is missing. Note that it genuinely did not exist before: every release up to and including 17.3.0 declared the `@object-ui/fields/style.css` subpath while shipping no stylesheet at all ([#4059](https://github.com/objectstack-ai/objectui/issues/4059)), so on those versions the import fails to resolve and breaks the build. Upgrade rather than adding scanning paths.
+
+Then check that the Tailwind 4 build plugin is actually installed and wired up — `@tailwindcss/postcss` in `postcss.config.mjs`, or `@tailwindcss/vite` in `vite.config.ts`. Without it, `@import 'tailwindcss'` is passed through as a plain CSS import and no utilities are generated at all.
+
+> **Do not** try to fix this by adding `node_modules` paths to a `content` array or an `@source` line. ObjectUI is Tailwind 4 and has no `tailwind.config.js`; Tailwind 4 does not load one unless you opt in with `@config`, so on most projects those paths do nothing whatsoever. Even when they are read, scanning the published files only regenerates the shape-only utilities (`inline-flex`, `rounded-md`, `h-9`) the two sheets already contain — it can never produce the themed ones, because the `@theme` block declaring their tokens lives in unpublished package source. Missing theme colours are always a missing `style.css` import, never a missing path.
 
 ## 3. Missing Peer Dependencies
 

@@ -64,17 +64,22 @@ Components reference these tokens through Tailwind:
 
 There is no `tailwind.config.js` step. ObjectUI is Tailwind 4, which is configured in CSS: the packages have no such file of their own, and consuming them does not need one on your side either.
 
-Import the published stylesheet after your own Tailwind entry:
+Import the published stylesheets after your own Tailwind entry:
 
 ```css
 /* src/index.css */
 @import "tailwindcss";
 @import "@object-ui/components/style.css";
+@import "@object-ui/fields/style.css";
 ```
 
-`style.css` is the stylesheet `@object-ui/components` compiles at build time from its own sources — the subpath is a real export, mapped to that package's `dist/index.css`. It already carries every utility its components use **and** the `@theme` block those utilities are built on, so the whole Shadcn palette (`bg-background`, `bg-primary`, `border-input`, `ring-ring`) arrives with the import. You do not restate those tokens in a config of your own.
+Each `style.css` is a real export, mapped to that package's `dist/index.css` and compiled at build time from the package's own sources.
 
-Do **not** point Tailwind at the packages inside `node_modules` — neither with a v4 `@source` line nor a v3 `content` entry. Scanning the published files regenerates the shape-only utilities (`inline-flex`, `rounded-md`, `h-9`) that `style.css` already contains, and it cannot produce the themed ones at all: the `@theme` block they come from lives in the package's own source, which is not published. Your Tailwind entry goes on generating the classes *your* source uses, exactly as before.
+`@object-ui/components/style.css` is the base of the pair. It carries every utility its components use **and** the `@theme` block those utilities are built on, so the whole Shadcn palette (`bg-background`, `bg-primary`, `border-input`, `ring-ring`) arrives with that one import. You do not restate those tokens in a config of your own.
+
+`@object-ui/fields/style.css` is a supplement, and the order matters: it is compiled against the components theme and then has every rule that sheet already ships subtracted from it, so it contains only the utilities the field widgets add — the tag colour map, the signature canvas cursor, the rating hover states, and 17 themed utilities such as `hover:bg-accent/30` and `ring-destructive/50` that no consumer-side configuration can generate, because the tokens they resolve live in unpublished package source. Import it before the components sheet, or alone, and those rules resolve against tokens that are not there yet.
+
+Do **not** point Tailwind at the packages inside `node_modules` — neither with a v4 `@source` line nor a v3 `content` entry. Scanning the published files regenerates the shape-only utilities (`inline-flex`, `rounded-md`, `h-9`) the two sheets already contain, and it cannot produce the themed ones at all: the `@theme` block they come from lives in package source, which is not published. Your Tailwind entry goes on generating the classes *your* source uses, exactly as before.
 
 To recolour ObjectUI, override the token values rather than the utilities — either the `:root` custom properties shown above, or a `Theme` object handed to `ThemeProvider` (see below). Both re-theme every component without any scanning.
 
