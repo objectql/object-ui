@@ -26,7 +26,8 @@ import { useAgents, isAskAgent, agentHasCapability } from '@object-ui/plugin-cha
 import { HomeAppsStrip } from './HomeAppsStrip';
 import { HomeActionCenter, HomeContinue, HomeActivity } from './HomeRail';
 import { useHomeInbox } from '../../hooks/useHomeInbox';
-import { appRouteSegment } from '../../utils';
+import { useNavigationContext } from '../../context/NavigationContext';
+import { appRouteSegment, matchAppBySegment } from '../../utils';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
 import { Sparkles, ShieldAlert, X, UploadCloud, MessageSquareText, Hammer, LayoutTemplate } from 'lucide-react';
 import { useMetadataClient } from '../../views/metadata-admin/useMetadata';
@@ -254,12 +255,45 @@ export function HomePage() {
   const { user } = useAuth();
   const isAdmin = useIsWorkspaceAdmin();
   const { pendingApprovalsCount, notifications, activities } = useHomeInbox();
+  // Home renders OUTSIDE the `/apps/:appName/*` router, so there is no
+  // `params.appName` to read — `currentAppName` (published by ConsoleLayout on
+  // every app mount) is the only "which app is the user in" signal available
+  // here, and it is undefined on a cold landing straight at `/home`.
+  const { currentAppName } = useNavigationContext();
   // AI CTA gating, per agent: "Build with AI" only when a build agent is
   // deployed (cloud / AI Studio); "Ask AI" only when a data agent is; neither
   // when AI isn't enabled. Community builds typically land in the ask-only state.
   const { askAvailable, buildAvailable } = useHomeAiAvailability();
 
   const activeApps = apps.filter((a: any) => a.active !== false && a.hidden !== true);
+
+  /**
+   * Which app hosts the Approvals Inbox we link to (objectstack#7231).
+   *
+   * `system/approvals` is mounted in the host's route fragment as BOTH
+   * `extraRoutes` and `extraRoutesNoApp`, so `/apps/{ANY_APP}/system/approvals`
+   * resolves — the page was never bound to `setup`. The hardcoded
+   * `/apps/setup/...` this replaces was therefore not "where the page lives",
+   * it was a dead end for every business user without access to the setup app.
+   *
+   * Resolution order, each step falling through only when the previous one
+   * cannot name an app the user can actually open:
+   *   1. the app they last had open, if it is still one of their active apps
+   *      (`matchAppBySegment` re-checks it against the live list, so an app
+   *      that was deactivated or hidden since is not resurrected as a link);
+   *   2. their first active app — arbitrary but reachable, and on a business
+   *      user's workspace that is a business app rather than `setup`;
+   *   3. `setup`. NOT the zero-app case: `activeApps.length === 0` returns the
+   *      welcome empty state below, which renders no action center, so this
+   *      producer never runs there. What is left for step 3 is the degenerate
+   *      app carrying neither `_packageId` nor `name` — nothing addressable to
+   *      build a URL from, so the historical target is the least-surprising
+   *      last resort rather than a broken link.
+   */
+  const approvalsAppSegment =
+    appRouteSegment(matchAppBySegment(activeApps as any[], currentAppName)) ??
+    appRouteSegment(activeApps[0]) ??
+    'setup';
 
   const recentApps = recentItems
     .filter(item => item.type === 'object' || item.type === 'dashboard' || item.type === 'page' || item.type === 'record')
@@ -426,7 +460,7 @@ export function HomePage() {
             <HomeActionCenter
               pendingApprovalsCount={pendingApprovalsCount}
               notifications={notifications}
-              onOpenApprovals={() => navigate('/apps/setup/system/approvals')}
+              onOpenApprovals={() => navigate(`/apps/${approvalsAppSegment}/system/approvals`)}
               onOpenNotification={(n) => navigate(n.actionUrl || '/apps/setup/sys_inbox_message?view=mine')}
               t={t}
             />
