@@ -10,10 +10,10 @@ The `@object-ui/data-objectstack` package provides a data adapter that connects 
 ## Installation
 
 ```bash
-npm install @object-ui/data-objectstack @objectstack/client
+npm install @object-ui/data-objectstack
 ```
 
-**Note:** The `@objectstack/client` package is a peer dependency and must be installed separately.
+**Note:** `@objectstack/client` is a regular dependency of this package — it is installed and resolved along with it, so there is nothing to install separately.
 
 ## Overview
 
@@ -453,9 +453,12 @@ function DataComponent() {
 
 ## Dependencies
 
-- **@objectstack/client** (peer dependency) - ObjectStack API client
+This package declares no peer dependencies. Everything below is a regular dependency that is installed and resolved with the package:
+
+- **@objectstack/client** - ObjectStack API client
+- **@objectstack/spec** - ObjectStack metadata spec and shared contracts
+- **@object-ui/core** - Schema engine and query helpers
 - **@object-ui/types** - TypeScript types
-- **react** (peer dependency) - React library
 
 ## Integration with Plugins
 
