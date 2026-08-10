@@ -577,6 +577,30 @@ export default function App() {
 }
 `;
 
+  // The ambient declaration that makes `src/main.tsx`'s `import './index.css'`
+  // compile under the `tsconfig` written below.
+  //
+  // TypeScript has no built-in notion of a `.css` module, so without this the
+  // entry fails that config with "Cannot find module or type declarations for
+  // side-effect import of './index.css'" (TS2882) — and unlike the two temp-app
+  // generators objectui#3853 fixed, the error is LIVE here: the `package.json`
+  // this scaffold writes declares `build: "tsc && vite build"`, so `objectui
+  // init` followed by the `npm run build` the generated README names fails on a
+  // file the tool itself produced, before Vite is ever reached (objectui#4111).
+  //
+  // `vite/client` is where the `declare module '*.css'` declarations live,
+  // `vite` is already in `SCAFFOLD_DEV_DEPENDENCIES`, and this is the file
+  // `create-vite`'s own React+TS template writes for the same reason — the
+  // ecosystem's spelling of the fix rather than a local invention.
+  //
+  // Byte-identical to `APP_VITE_ENV_D_TS` in `utils/app-generator.ts`;
+  // `app-generator.test.ts` pins all three generators to the one string rather
+  // than trusting them not to drift. It is also the one generated `src/**` file
+  // deliberately unreachable from `src/main.tsx`: an ambient declaration enters
+  // the program through the tsconfig's `include`, never through the module
+  // graph, which is why that suite's reachability gate exempts `.d.ts`.
+  const viteEnvDts = `/// <reference types="vite/client" />\n`;
+
   const tsconfig = {
     compilerOptions: {
       target: 'ES2020',
@@ -611,6 +635,7 @@ export default function App() {
     'src/index.css': indexCss,
     'src/main.tsx': mainTsx,
     'src/App.tsx': appTsx,
+    'src/vite-env.d.ts': viteEnvDts,
     'tsconfig.json': JSON.stringify(tsconfig, null, 2),
   };
 }

@@ -895,11 +895,16 @@ describe('generated app file maps', () => {
 
   it('exempts the ambient declaration, and nothing else, from reachability', () => {
     // The width of the objectui#3853 exemption, pinned in both directions: the
-    // `.d.ts` both generators now write is exempt, and a `.ts` orphan sitting
-    // beside it under the same name still gets reported. An exemption that read
-    // "files matching vite-env*" or "files the generator knows about" would pass
-    // the first assertion and fail to be a rule at all.
-    for (const files of [plainFiles(), routedFiles()]) {
+    // `.d.ts` all three generators now write is exempt, and a `.ts` orphan
+    // sitting beside it under the same name still gets reported. An exemption
+    // that read "files matching vite-env*" or "files the generator knows about"
+    // would pass the first assertion and fail to be a rule at all.
+    //
+    // The init scaffold joined this loop in objectui#4111. Its copy of the file
+    // is written by a third generator in a different module, so asserting the
+    // exact bytes here is also what keeps the three from drifting apart — the
+    // reason each one exists is identical, and so is the string.
+    for (const files of [plainFiles(), routedFiles(), initFiles()]) {
       expect(files['src/vite-env.d.ts']).toBe(`/// <reference types="vite/client" />\n`);
       expect(unreachableGeneratedFiles(files)).toEqual([]);
       expect(unreachableGeneratedFiles({ ...files, 'src/vite-env.ts': '' })).toEqual([
@@ -1178,7 +1183,16 @@ describe('generation onto disk', () => {
  * degrades to `Cannot find namespace 'React'` — a diagnostic about the test's
  * own setup, wearing the costume of a defect in the generated source.
  *
- * Cost: ~1s per invocation, three invocations. Measured, because a gate nobody
+ * THE THIRD GENERATOR (objectui#4111). `commands/init.ts` writes its own
+ * `tsconfig` object, carrying the same `strict` / `noUnusedLocals` /
+ * `noUnusedParameters`, and it is the one place where this gate guards a failure
+ * users actually hit: that scaffold's generated `package.json` declares
+ * `build: "tsc && vite build"`, so `tsc` runs on the way to a production build
+ * rather than never. It had the same missing `src/vite-env.d.ts`, and measuring
+ * it found that one error and no other class — the two temp apps' other sixteen
+ * live in `src/Layout.tsx`, which this scaffold does not have.
+ *
+ * Cost: ~1s per invocation, four invocations. Measured, because a gate nobody
  * can afford to run is not a gate.
  */
 describe('generated app type-checks under its own tsconfig', () => {
@@ -1262,6 +1276,24 @@ describe('generated app type-checks under its own tsconfig', () => {
     }
   }
 
+  /**
+   * Writes a generator's file map to disk, the way its command does.
+   *
+   * `createTempApp*` are writers and can be called directly; `objectui init` is
+   * not — `init()` derives its target from `process.cwd()` and a project name,
+   * and logs each write. The byte-for-byte equivalence between what it writes
+   * and `buildInitFiles` is pinned through the REAL bin in `cli-bin.test.ts`
+   * ("writes exactly the file map buildInitFiles returns, byte for byte"), so
+   * type-checking the map here is type-checking the artifact.
+   */
+  function writeFileMap(dir: string, files: Record<string, string>): void {
+    for (const [relativePath, contents] of Object.entries(files)) {
+      const target = join(dir, relativePath);
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, contents);
+    }
+  }
+
   /** Package names the generator's own manifest declares, both maps. */
   function declaredPackages(manifest: Record<string, unknown>): Set<string> {
     return new Set(Object.keys(allRangesOf(manifest)));
@@ -1303,6 +1335,100 @@ describe('generated app type-checks under its own tsconfig', () => {
     withGeneratedApp(
       (dir) => createTempApp(dir, SCHEMA),
       (dir) => expectCleanTypeCheck(dir, buildAppPackageJson(STANDALONE), 'plain')
+    );
+  });
+
+  it('type-checks the init scaffold, whose own build script really runs tsc', () => {
+    // objectui#4111. The third generator, and the only one where this gate
+    // guards a LIVE failure rather than a latent one: `objectui dev`/`serve`/
+    // `build` reach the two temp apps through Vite alone, but the scaffold ships
+    // its `tsconfig.json` with a `build` script that runs `tsc` FIRST — so an
+    // external user who runs `objectui init` and then the `npm run build` the
+    // generated README names met TS2882 on a file the tool had just written for
+    // them, before Vite was ever reached.
+    withGeneratedApp(
+      (dir) => writeFileMap(dir, initFiles()),
+      (dir) => expectCleanTypeCheck(dir, buildInitPackageJson('sample-app'), 'init')
+    );
+  });
+
+  it('pins that the init scaffold is the generator whose build really runs tsc', () => {
+    // The premise the test above rests on, and the whole reason objectui#4111
+    // outranked objectui#3853 in severity. If this script ever stops running
+    // `tsc`, the gate is still correct but no longer guards a live failure —
+    // which is a fact a reader of that test needs, not a silent change.
+    const scripts = buildInitPackageJson('sample-app').scripts as Record<string, string>;
+    expect(scripts.build, 'the init scaffold no longer type-checks in its own build').toMatch(
+      /^tsc(\s|$)/
+    );
+  });
+
+  it('writes one src tree for all three templates, so one tsc run judges them all', () => {
+    // Why the gate above runs on `simple` alone rather than three times over
+    // (~1s each). The templates differ in `app.json` and in nothing else, so a
+    // second and third run would compile identical sources — and this assertion
+    // is what makes that claim checkable rather than assumed.
+    //
+    // `app.json` itself IS in the program (`src/App.tsx` does
+    // `import schema from '../app.json'` under `resolveJsonModule`), but its
+    // only consumer is `<SchemaRenderer schema={schema} />`, whose prop type
+    // does not resolve here (`@object-ui/react` is not installed — see the
+    // exemption above). Measured out of band rather than assumed: mapping
+    // `@object-ui/react` and `@object-ui/components` onto their in-repo SOURCE
+    // via tsconfig `paths`, so the real prop types apply, all three templates
+    // type-check clean and the only diagnostic in the scaffold's own files is
+    // the `./index.css` TS2882 this card fixes.
+    const base = initFiles('simple');
+    for (const template of INIT_TEMPLATES) {
+      const files = initFiles(template);
+      expect(Object.keys(files).sort(), `${template}: writes a different file set`).toEqual(
+        Object.keys(base).sort()
+      );
+      for (const path of Object.keys(files)) {
+        if (path === 'app.json') continue;
+        expect(files[path], `${template}: ${path} is not the simple template's`).toBe(base[path]);
+      }
+    }
+    // Not vacuous: the three really are three, and `app.json` really is the one
+    // file that varies.
+    expect(new Set(INIT_TEMPLATES.map((template) => initFiles(template)['app.json'])).size).toBe(
+      INIT_TEMPLATES.length
+    );
+  });
+
+  it('goes red on the pre-fix init scaffold, with the defect the issue measured', () => {
+    // Reverse verification for objectui#4111, direction predicted first: the
+    // scaffold's `src/index.css` has no ambient declaration behind it once
+    // `src/vite-env.d.ts` is gone, so `src/main.tsx`'s side-effect import
+    // reports TS2882 and nothing else does. Predicted as exactly one diagnostic
+    // rather than a class of them, because measuring the pre-fix scaffold on
+    // `origin/main` @ `9b9fa4961` found none of objectui#3853's other four
+    // classes here — no unused import, no implicit any, no required-prop call
+    // site. This scaffold is 4 lines of `src/App.tsx` and 9 of `src/main.tsx`;
+    // it had drifted one error past its tsconfig, not seventeen.
+    //
+    // Deleting the file is the whole revert: it is the only thing this card
+    // added to the generator.
+    withGeneratedApp(
+      (dir) => {
+        writeFileMap(dir, initFiles());
+        const ambient = join(dir, 'src/vite-env.d.ts');
+        expect(existsSync(ambient), 'nothing to revert — the generator moved').toBe(true);
+        rmSync(ambient);
+      },
+      (dir) => {
+        const { beyondResolution } = typeCheck(dir);
+        const byCode: Record<string, number> = {};
+        for (const diagnostic of beyondResolution) {
+          byCode[`TS${diagnostic.code}`] = (byCode[`TS${diagnostic.code}`] ?? 0) + 1;
+        }
+        expect(byCode).toEqual({ TS2882: 1 });
+        // The specifier, not just the count: `@object-ui/components` is a
+        // TS2882 too, and it is exempt for being bare and declared. A gate that
+        // counted codes alone could not tell the two apart.
+        expect(beyondResolution[0].message).toContain(`'./index.css'`);
+        expect(beyondResolution[0].file).toContain('src/main.tsx');
+      }
     );
   });
 
