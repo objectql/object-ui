@@ -10,6 +10,12 @@ import { existsSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import chalk from 'chalk';
 
+import {
+  platformPackageRange,
+  REACT_RANGE,
+  SCAFFOLD_DEV_DEPENDENCIES
+} from '../utils/scaffold-dependencies.js';
+
 interface InitOptions {
   template: string;
 }
@@ -357,6 +363,42 @@ const templates = {
   },
 };
 
+/**
+ * The `package.json` `objectui init` writes into a new user project.
+ *
+ * Split out of `init()` so it can be judged without running the command:
+ * `app-generator.test.ts`'s `DEPENDENCY_ANCHORS` now covers this manifest
+ * alongside the two temp-app generators, which is the gate it had none of
+ * before (objectui#3892 — the literals live in `.ts` source, so objectui#3711's
+ * version-claims scan never saw them either).
+ *
+ * Not one range is written here. Every value comes from
+ * `utils/scaffold-dependencies.ts`, which is also what the app generators read;
+ * see that module for why the `@object-ui/*` range is derived from the CLI's
+ * own version rather than declared.
+ */
+export function buildInitPackageJson(name: string): Record<string, unknown> {
+  const platformRange = platformPackageRange();
+  return {
+    name,
+    version: '0.1.0',
+    private: true,
+    type: 'module',
+    scripts: {
+      dev: 'vite',
+      build: 'tsc && vite build',
+      preview: 'vite preview',
+    },
+    dependencies: {
+      '@object-ui/components': platformRange,
+      '@object-ui/react': platformRange,
+      react: REACT_RANGE,
+      'react-dom': REACT_RANGE,
+    },
+    devDependencies: { ...SCAFFOLD_DEV_DEPENDENCIES },
+  };
+}
+
 export async function init(name: string, options: InitOptions) {
   const cwd = process.cwd();
   const projectDir = join(cwd, name);
@@ -450,36 +492,7 @@ dist
   console.log(chalk.green('✓ Created .gitignore'));
 
   // Create package.json
-  const packageJson = {
-    name,
-    version: '0.1.0',
-    private: true,
-    type: 'module',
-    scripts: {
-      dev: 'vite',
-      build: 'tsc && vite build',
-      preview: 'vite preview',
-    },
-    dependencies: {
-      '@object-ui/components': '^2.0.0',
-      '@object-ui/react': '^2.0.0',
-      react: '^19.2.0',
-      'react-dom': '^19.2.0',
-    },
-    devDependencies: {
-      '@tailwindcss/postcss': '^4.1.18',
-      '@types/react': '^19.2.13',
-      '@types/react-dom': '^19.2.6',
-      '@vitejs/plugin-react': '^5.1.3',
-      autoprefixer: '^10.4.23',
-      postcss: '^8.5.6',
-      tailwindcss: '^4.1.18',
-      typescript: '^5.9.3',
-      vite: '^7.3.1',
-    },
-  };
-
-  writeFileSync(join(targetDir, 'package.json'), JSON.stringify(packageJson, null, 2));
+  writeFileSync(join(targetDir, 'package.json'), JSON.stringify(buildInitPackageJson(name), null, 2));
   console.log(chalk.green('✓ Created package.json'));
 
   // Create vite.config.ts
@@ -497,15 +510,14 @@ export default defineConfig({
   writeFileSync(join(targetDir, 'vite.config.ts'), viteConfig);
   console.log(chalk.green('✓ Created vite.config.ts'));
 
-  // Create tailwind.config.js
-  const tailwindConfig = `/** @type {import('tailwindcss').Config} */
-export default {
-  content: ['./index.html', './src/**/*.{ts,tsx}'],
-};
-`;
-
-  writeFileSync(join(targetDir, 'tailwind.config.js'), tailwindConfig);
-  console.log(chalk.green('✓ Created tailwind.config.js'));
+  // No tailwind.config.js is written: this scaffold's CSS pipeline is Tailwind 4
+  // (`postcss.config.js` names `@tailwindcss/postcss`, `src/index.css` does
+  // `@import 'tailwindcss'`), and v4 reads a JS config only when a stylesheet
+  // points `@config` at one — none does. The file this used to write was
+  // therefore inert: an authoritative-looking `content` list that nothing
+  // consumed, while v4's own source detection already covers `index.html` and
+  // `src/**` from the project root. objectui#3852 removed the same dead file
+  // from the temp-app generators; objectui#3892 removes it here.
 
   // Create postcss.config.js
   const postcssConfig = `export default {

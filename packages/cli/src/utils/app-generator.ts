@@ -8,9 +8,14 @@
 
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
 import chalk from 'chalk';
 import * as yaml from 'js-yaml';
+
+import {
+  platformPackageRange,
+  REACT_RANGE,
+  SCAFFOLD_DEV_DEPENDENCIES
+} from './scaffold-dependencies.js';
 
 export interface RouteInfo {
   path: string;
@@ -111,9 +116,6 @@ export function scanPagesDirectory(pagesDir: string): RouteInfo[] {
   return routes;
 }
 
-/** This package's own name, used to locate its manifest for the platform range. */
-const CLI_PACKAGE_NAME = '@object-ui/cli';
-
 /**
  * `@object-ui/*` packages the generated apps IMPORT, and therefore must declare.
  *
@@ -142,76 +144,6 @@ const PLATFORM_RUNTIME_PACKAGES = [
   '@object-ui/plugin-grid',
   '@object-ui/plugin-view'
 ] as const;
-
-/** Memoised so the manifest walk happens at most once per process. */
-let cachedCliVersion: string | undefined;
-
-/**
- * This CLI's own version, read from its own `package.json`.
- *
- * Walks up from this module rather than joining a fixed `../package.json`,
- * because the same source sits at `src/utils/` in the repo and is bundled into
- * `dist/` when published — a relative depth that is correct in one is wrong in
- * the other.
- */
-function cliVersion(): string {
-  if (cachedCliVersion !== undefined) return cachedCliVersion;
-
-  let dir = dirname(fileURLToPath(import.meta.url));
-  for (;;) {
-    const candidate = join(dir, 'package.json');
-    if (existsSync(candidate)) {
-      const manifest = JSON.parse(readFileSync(candidate, 'utf-8')) as {
-        name?: string;
-        version?: string;
-      };
-      if (manifest.name === CLI_PACKAGE_NAME && typeof manifest.version === 'string') {
-        cachedCliVersion = manifest.version;
-        return cachedCliVersion;
-      }
-    }
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-
-  throw new Error(
-    `Could not locate the ${CLI_PACKAGE_NAME} manifest to version the generated app's ` +
-      `platform dependencies against. Refusing to write a package.json with a guessed range.`
-  );
-}
-
-/**
- * The range the generated apps declare for every `@object-ui/*` dependency.
- *
- * Derived from this CLI's own version instead of being written out as a
- * literal, because `.changeset/config.json` puts `@object-ui/cli` in the SAME
- * `fixed` group as every package in `PLATFORM_RUNTIME_PACKAGES`: they are
- * released together and always carry the identical version. So `^<own
- * version>` is both current and guaranteed to exist on the registry — whatever
- * CLI version a user is running was published alongside its siblings.
- *
- * The literal it replaces was `^0.1.0` for packages published at 17.x, which
- * never resolved to any published version at all (objectui#3827; the registry
- * has no 0.1.0 for `@object-ui/react`). A literal here is not merely a fossil
- * risk, it is a fossil generator: the fixed group re-versions on every release,
- * so any hard-coded range is stale the next day. Deriving it removes the class.
- */
-function platformPackageRange(): string {
-  return `^${cliVersion()}`;
-}
-
-/**
- * React's range in both generated manifests.
- *
- * Quotes the repo root verbatim (an exact pin there) rather than the wider
- * `^18.0.0 || ^19.0.0` the platform packages accept as a peer. The peer range
- * says what CAN work; this says what is actually exercised — inside this
- * workspace the temp app resolves React by hoisting to the root, so the root's
- * version is the only one the generated code has ever run against. Declaring
- * `^18.3.1`, as it did until objectui#3827, named a major nothing here tests.
- */
-const REACT_RANGE = '19.2.8';
 
 /**
  * `dependencies` for an app generated WITHOUT routing (`createTempApp`).
@@ -257,32 +189,6 @@ function buildRoutedAppDependencies(): Record<string, string> {
   };
 }
 
-
-/**
- * `devDependencies` shared by both generated apps (identical in both today).
- *
- * Every range is anchored to an in-repo manifest, and
- * `app-generator.test.ts`'s `DEPENDENCY_ANCHORS` names the anchor for each one
- * and fails on an unanchored addition. The Tailwind-side entries were held at
- * v3 as an explicit `TAILWIND_V3_DEFERRED` ledger by objectui#3827, because
- * bumping the range without rewriting the CSS pipeline beside it would produce
- * an app that installs and renders unstyled. objectui#3852 rewrote that
- * pipeline, so they are anchored to this repo's Tailwind 4 like everything
- * else — `tailwindcss` to the root, `@tailwindcss/postcss` (v4's PostCSS
- * plugin, a separate package) to the in-repo range every `postcss.config.*`
- * here already names.
- */
-const APP_DEV_DEPENDENCIES: Record<string, string> = {
-  '@tailwindcss/postcss': '^4.3.3',
-  '@types/react': '19.2.18',
-  '@types/react-dom': '19.2.4',
-  '@vitejs/plugin-react': '^6.0.5',
-  autoprefixer: '^10.5.4',
-  postcss: '^8.5.26',
-  tailwindcss: '^4.3.3',
-  typescript: '^6.0.3',
-  vite: '^8.2.0'
-};
 
 /** The generated `tsconfig.json`, identical for both generators. */
 const APP_TSCONFIG = {
@@ -358,7 +264,7 @@ export function buildAppPackageJson(context: Pick<AppGeneratorContext, 'isMonore
     type: 'module',
     // In monorepo, we use root node_modules, so we don't need dependencies here
     dependencies: context.isMonorepo ? {} : buildAppDependencies(),
-    devDependencies: context.isMonorepo ? {} : { ...APP_DEV_DEPENDENCIES }
+    devDependencies: context.isMonorepo ? {} : { ...SCAFFOLD_DEV_DEPENDENCIES }
   };
 }
 
@@ -375,7 +281,7 @@ export function buildRoutedAppPackageJson(): Record<string, unknown> {
     private: true,
     type: 'module',
     dependencies: buildRoutedAppDependencies(),
-    devDependencies: { ...APP_DEV_DEPENDENCIES }
+    devDependencies: { ...SCAFFOLD_DEV_DEPENDENCIES }
   };
 }
 

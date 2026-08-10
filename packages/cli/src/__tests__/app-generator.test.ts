@@ -59,6 +59,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { buildInitPackageJson } from '../commands/init.js';
 import {
   buildAppFiles,
   buildAppPackageJson,
@@ -270,13 +271,24 @@ function inRepoRangesOf(name: string): Record<string, string[]> {
 }
 
 /**
- * Where each range in the two generated manifests must come from.
+ * Where each range in the THREE generated manifests must come from.
  *
  * The anchoring discipline objectui#3742/objectui#3754 established: one range
  * per dependency in this repo, quoted rather than invented, so bumping an
  * in-repo manifest and leaving a generator behind fails a test instead of
  * shipping. These literals live in `.ts` source, outside the objectui#3711
  * version-claims gate's scan face, so this map is the only gate they have.
+ *
+ * The third manifest is `commands/init.ts`'s (`buildInitPackageJson`), folded
+ * in by objectui#3892. It is the one an EXTERNAL user gets — `objectui init` is
+ * the first command they run — and it sat outside this table until then, which
+ * is how it came to ask for `@object-ui/*` at `^2.0.0` against packages
+ * publishing at 17.x while its toolchain ranges drifted a major behind the repo
+ * (vite `^7.3.1`, typescript `^5.9.3`). Its key set is a strict subset of this
+ * table's: it declares neither the seven plugins nor `lucide-react` /
+ * `react-router-dom`, because its generated sources import none of them — so
+ * the completeness check below unions the three and the per-range check finds
+ * each name in whichever manifest declares it.
  *
  * - `root` — the repo root declares it; the generated range must match.
  * - `in-repo` — the root does not, but sibling manifests do, unanimously.
@@ -447,12 +459,15 @@ describe('generated app manifests', () => {
     expect(unusedVersionedDependencies(withUnused, plainFiles())).toEqual(['lucide-react']);
   });
 
-  it('keeps both generated dependency maps under one anchor table', () => {
-    // Completeness: a range added to either generator without naming its anchor
-    // fails here, which is what kept the eight fossils invisible before.
+  it('keeps all three generated dependency maps under one anchor table', () => {
+    // Completeness: a range added to any generator without naming its anchor
+    // fails here, which is what kept the eight fossils invisible before — and,
+    // until the init manifest joined the union (objectui#3892), what let a whole
+    // third generator fossilise without ever failing anything.
     const declared = new Set([
       ...Object.keys(allRangesOf(buildAppPackageJson(STANDALONE))),
-      ...Object.keys(allRangesOf(buildRoutedAppPackageJson()))
+      ...Object.keys(allRangesOf(buildRoutedAppPackageJson())),
+      ...Object.keys(allRangesOf(buildInitPackageJson('sample-app')))
     ]);
     expect([...declared].sort()).toEqual(Object.keys(DEPENDENCY_ANCHORS).sort());
   });
@@ -460,33 +475,91 @@ describe('generated app manifests', () => {
   it('sources every range from this repo instead of inventing one', () => {
     const routed = allRangesOf(buildRoutedAppPackageJson());
     const plain = allRangesOf(buildAppPackageJson(STANDALONE));
+    const init = allRangesOf(buildInitPackageJson('sample-app'));
     const cliVersion = readManifest(CLI_MANIFEST_PATH).version as string;
 
     for (const [name, anchor] of Object.entries(DEPENDENCY_ANCHORS)) {
-      const generated = routed[name] ?? plain[name];
-      expect(generated, `${name} must be declared by at least one generator`).toBeTruthy();
-
-      if (anchor === 'cli-version') {
-        expect(generated, `${name} must track this CLI's own version`).toBe(`^${cliVersion}`);
-        continue;
-      }
-
-      if (anchor === 'root') {
-        const rootRange = rootRangeOf(name);
-        expect(rootRange, `${name} must exist in the root manifest`).toBeTruthy();
-        expect(generated, `${name} must match the repo root`).toBe(rootRange);
-        continue;
-      }
-
-      const byRange = inRepoRangesOf(name);
-      const ranges = Object.keys(byRange);
-      expect(ranges.length, `${name} must be declared in-repo to anchor to`).toBeGreaterThan(0);
+      // Every manifest that declares the name is judged, not just the first —
+      // one generator anchored and another fossilised is exactly the state
+      // objectui#3892 found, and reading `routed ?? plain ?? init` would have
+      // reported it green.
+      const declaredBy = { routed: routed[name], plain: plain[name], init: init[name] };
       expect(
-        ranges.sort(),
-        `in-repo manifests disagree on ${name}: ${JSON.stringify(byRange)} — settle on one range first`
-      ).toHaveLength(1);
-      expect(generated, `${name} must match its in-repo range`).toBe(ranges[0]);
+        Object.values(declaredBy).some((range) => range !== undefined),
+        `${name} must be declared by at least one generator`
+      ).toBe(true);
+
+      for (const [generator, generated] of Object.entries(declaredBy)) {
+        if (generated === undefined) continue;
+        const where = `${generator} manifest's ${name}`;
+
+        if (anchor === 'cli-version') {
+          expect(generated, `${where} must track this CLI's own version`).toBe(`^${cliVersion}`);
+          continue;
+        }
+
+        if (anchor === 'root') {
+          const rootRange = rootRangeOf(name);
+          expect(rootRange, `${name} must exist in the root manifest`).toBeTruthy();
+          expect(generated, `${where} must match the repo root`).toBe(rootRange);
+          continue;
+        }
+
+        const byRange = inRepoRangesOf(name);
+        const ranges = Object.keys(byRange);
+        expect(ranges.length, `${name} must be declared in-repo to anchor to`).toBeGreaterThan(0);
+        expect(
+          ranges.sort(),
+          `in-repo manifests disagree on ${name}: ${JSON.stringify(byRange)} — settle on one range first`
+        ).toHaveLength(1);
+        expect(generated, `${where} must match its in-repo range`).toBe(ranges[0]);
+      }
     }
+  });
+
+  it('names every range the pre-fix init manifest had drifted on', () => {
+    // The reverse verification for objectui#3892, direction predicted before
+    // running: feed the anchor rule the literal map `commands/init.ts` shipped
+    // and every one of its 13 ranges must be judged WRONG — the two
+    // `@object-ui/*` at `^2.0.0` against a CLI at 17.x (the reported defect),
+    // and the eleven toolchain fossils the measurement turned up beside it.
+    // Thirteen, not two, is the size of the drift.
+    //
+    // The direction is plain red rather than the inverted shape objectui#5009
+    // hit, because this rule compares a generated string against a repo fact:
+    // there is no schema underneath it to re-judge the same input differently.
+    const preFix: Record<string, string> = {
+      '@object-ui/components': '^2.0.0',
+      '@object-ui/react': '^2.0.0',
+      react: '^19.2.0',
+      'react-dom': '^19.2.0',
+      '@tailwindcss/postcss': '^4.1.18',
+      '@types/react': '^19.2.13',
+      '@types/react-dom': '^19.2.6',
+      '@vitejs/plugin-react': '^5.1.3',
+      autoprefixer: '^10.4.23',
+      postcss: '^8.5.6',
+      tailwindcss: '^4.1.18',
+      typescript: '^5.9.3',
+      vite: '^7.3.1'
+    };
+    const cliVersion = readManifest(CLI_MANIFEST_PATH).version as string;
+
+    const drifted = Object.entries(preFix)
+      .filter(([name, range]) => {
+        const anchor = DEPENDENCY_ANCHORS[name];
+        if (anchor === 'cli-version') return range !== `^${cliVersion}`;
+        if (anchor === 'root') return range !== rootRangeOf(name);
+        return range !== Object.keys(inRepoRangesOf(name))[0];
+      })
+      .map(([name]) => name)
+      .sort();
+
+    expect(drifted).toEqual(Object.keys(preFix).sort());
+    // And the manifest shipping today is the exact complement: nothing drifted.
+    expect(Object.keys(allRangesOf(buildInitPackageJson('sample-app'))).sort()).toEqual(
+      Object.keys(preFix).sort()
+    );
   });
 
   it('keeps the root and in-repo anchors consistent wherever both declare one', () => {
