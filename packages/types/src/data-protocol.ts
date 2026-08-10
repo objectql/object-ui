@@ -550,13 +550,40 @@ export type AdvancedFilterOperator =
 export interface DateRangeFilter {
   start?: Date | string;
   end?: Date | string;
-  preset?: DateRangePreset;
+  preset?: FilterBuilderDateRangePreset;
 }
 
 /**
- * Date range presets
+ * Date range presets accepted by the FILTER BUILDER vocabulary in this file.
+ *
+ * Renamed from `DateRangePreset` in objectui#4167, because `@objectstack/spec`
+ * started exporting that name in 17.0.0-rc.6 for a DIFFERENT, narrower set and
+ * a different surface (objectstack#4115). Keeping both under one name is the
+ * planted-premise failure that guard exists to stop — and here the two sets
+ * are not even nested by accident:
+ *
+ *  - the spec's `DateRangePreset` is `(typeof DATE_RANGE_PRESETS)[number]`,
+ *    thirteen HISTORICAL windows, and it is the dashboard filter-bar
+ *    vocabulary (`dashboard.dateRange.defaultRange`, `globalFilters` of
+ *    `type: 'date'`). Its `superRefine` on `GlobalFilterSchema` rejects
+ *    anything outside those thirteen by name;
+ *  - this one adds eight FUTURE windows (`tomorrow`, `next_week`,
+ *    `next_month`, `next_quarter`, `next_year`, `next_7_days`, `next_30_days`,
+ *    `next_90_days`) for the `FilterBuilderConfig` surface below, where a
+ *    forward-looking range ("due next week") is the point.
+ *
+ * So an author or agent who read the spec's thirteen off this name would have
+ * been told eight windows exist that the dashboard schema rejects, and one who
+ * read this file's twenty-one off the spec's name would have been told eight
+ * that work here do not. The prefix says which vocabulary is being spelled;
+ * `FilterBuilderCondition` (objectui#3159, batch 5) named its sibling the same
+ * way for the same reason.
+ *
+ * Nothing in this repo consumed the old name outside {@link DateRangeFilter}
+ * directly above, so the rename is a public-surface change with no internal
+ * call-site churn — see the changeset for the importer-facing note.
  */
-export type DateRangePreset =
+export type FilterBuilderDateRangePreset =
   | 'today'
   | 'yesterday'
   | 'tomorrow'

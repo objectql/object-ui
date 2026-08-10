@@ -1,12 +1,13 @@
 import React, { useId } from 'react';
 import { Input, Label, EmptyValue } from '@object-ui/components';
+import type { AddressValue } from '@objectstack/spec/data';
 import { FieldWidgetComponentProps } from './types';
 import { toDomProps } from './toDomProps';
 import { toHostGroupProps } from './toHostGroupProps';
 
 /**
- * Address data structure — the part names of `@objectstack/spec`'s
- * `AddressSchema`, which is what the platform stores and what
+ * Address data structure — `z.input` of `@objectstack/spec`'s
+ * `AddressValueSchema`, which is what the platform stores and what
  * `/api/v1/data/**` serves back.
  *
  * The postal code is spelled `postalCode` (objectstack#5143). This widget used
@@ -18,14 +19,24 @@ import { toHostGroupProps } from './toHostGroupProps';
  * touched did survive an unrelated edit, because the write spread the whole
  * stored object through; the issue's account of that half is corrected in
  * `AddressField.postalCode.test.tsx`.) One name, on both sides: the contract's.
+ *
+ * IMPORTED rather than declared since objectui#4167. rc.6 publishes
+ * `AddressValue` under this exact name, and the local copy — whose own comment
+ * already claimed to be "the part names of `AddressSchema`" — declared five of
+ * the seven parts. `countryCode` and `formatted` were missing, which is
+ * objectstack#4115's failure class precisely: a canonical CLAIM over a narrower
+ * shape, believed by the next reader. The claim is now the code.
+ *
+ * The widget still renders five inputs, and that is a deliberate split rather
+ * than an omission: `formatted` is a derived one-line rendering of the parts
+ * (see {@link formatAddress}, which composes it) and `countryCode` is the ISO
+ * pair for `country`, neither of which a human types into a part box. Binding
+ * the type does not publish them as inputs — it stops the type from asserting
+ * the platform cannot store them, and it means a write from this widget no
+ * longer looks type-clean while dropping a key the contract carries: the
+ * `{ ...address }` spread in `handleFieldChange` preserves both, and now says so.
  */
-export interface AddressValue {
-  street?: string;
-  city?: string;
-  state?: string;
-  postalCode?: string;
-  country?: string;
-}
+export type { AddressValue };
 
 /**
  * The shape written by builds up to and including 17.0.0-rc.1, whose postal

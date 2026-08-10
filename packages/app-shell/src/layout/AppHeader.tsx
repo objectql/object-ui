@@ -66,7 +66,7 @@ import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import type { BreadcrumbItem as BreadcrumbItemType } from '@object-ui/types';
 import { useAuth, getUserInitials, useIsWorkspaceAdmin } from '@object-ui/auth';
 import { useMetadata } from '../providers/MetadataProvider';
-import { resolveI18nLabel, preferLocal, matchAppBySegment, appRouteSegment, appStudioRoutePath } from '../utils';
+import { resolveKeyedI18nLabel, preferLocal, matchAppBySegment, appRouteSegment, appStudioRoutePath } from '../utils';
 import { getIcon } from '../utils/getIcon';
 import { bearerAuthHeaders } from '../utils/authToken';
 import { useMobileViewSwitcher } from './MobileViewSwitcherContext';
@@ -1115,7 +1115,7 @@ export function AppHeader({
                 .filter((a: any) => a.active !== false && a.hidden === true && a.name !== 'account')
                 .map((app: any) => {
                   const AppIcon = getIcon(app.icon);
-                  const label = appLabel({ name: app.name, label: resolveI18nLabel(app.label, t) });
+                  const label = appLabel({ name: app.name, label: resolveKeyedI18nLabel(app.label, t) });
                   return (
                     <DropdownMenuItem
                       key={`hidden_app_${app.name}`}

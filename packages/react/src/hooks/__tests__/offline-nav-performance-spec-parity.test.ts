@@ -48,9 +48,9 @@ import type {
   OfflineConfig,
   OfflineSyncConfig,
 } from '../useOffline';
-import type { NavigationConfig } from '../useNavigationOverlay';
+import type { NavigationConfig, NavigationMode } from '../useNavigationOverlay';
 import type { SpecAuthoredInput } from '../../spec-input';
-import type { NavigationConfigSchema } from '@objectstack/spec/ui';
+import type { NavigationConfigSchema, NavigationMode as SpecNavigationMode } from '@objectstack/spec/ui';
 import type { ConflictResolutionStrategy as SpecMergeConflictStrategy } from '@objectstack/spec/api';
 
 /** Every name `@objectstack/spec` exports from any subpath — types AND values. */
@@ -272,6 +272,41 @@ describe('NavigationConfig derives from the spec, requiring only `mode`', () => 
       'none',
     ];
     expect(all).toHaveLength(7);
+  });
+
+  it('the exported NavigationMode is the spec union AND still this config\'s `mode`', () => {
+    // objectui#4167. `NavigationMode` used to be spelled `NavigationConfig['mode']`
+    // — one member access away from the spec, which reads as a hand-written
+    // union to `check:spec-symbols` and to a person. It is now bound to the
+    // spec's `NavigationMode` directly, and this is the pin the declaration
+    // promises: the two spellings must stay the SAME type.
+    //
+    // They can come apart in a way nothing else would catch. The equality holds
+    // today only because `NavigationConfig` above strips the `undefined` that
+    // `NavigationConfigSchema`'s `.default('page')` puts on `mode`'s authoring
+    // side. If the spec ever stops defaulting `mode`, or defaults it on a
+    // narrower union, `NavigationConfig['mode']` moves and the exported alias
+    // does not — and every call site keeps compiling, because the hook's
+    // `navigation?.mode ?? 'page'` would still be assignable either way.
+    //
+    // Both directions, deliberately: a one-way `extends` is satisfied by a
+    // narrowing as well as by equality, and a narrowing is exactly the drift
+    // that would delete a mode the hook switches on.
+    type _ModeIsSpecMode = Assert<Equal<NavigationMode, SpecNavigationMode>>;
+    type _ModeIsConfigMode = Assert<Equal<NavigationMode, NavigationConfig['mode']>>;
+
+    // Runtime half — the type assertions above are erased, so this is what
+    // fails visibly if the union ever loses a member.
+    const everyMode: NavigationMode[] = [
+      'page',
+      'drawer',
+      'modal',
+      'split',
+      'popover',
+      'new_window',
+      'none',
+    ];
+    expect(new Set(everyMode).size).toBe(7);
   });
 });
 

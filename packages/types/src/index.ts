@@ -487,7 +487,9 @@ export type {
   AdvancedFilterCondition,
   AdvancedFilterOperator,
   DateRangeFilter,
-  DateRangePreset,
+  // Renamed from `DateRangePreset` in objectui#4167 — the spec owns that name
+  // for the narrower dashboard filter-bar vocabulary (objectstack#4115).
+  FilterBuilderDateRangePreset,
   FilterBuilderConfig,
   FilterFieldConfig,
   // Validation Schema (Phase 3.5)

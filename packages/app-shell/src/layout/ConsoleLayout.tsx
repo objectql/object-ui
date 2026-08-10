@@ -33,7 +33,7 @@ import { useResponsiveSidebar } from '../hooks/useResponsiveSidebar';
 import { useAiSurfaceEnabled } from '../hooks/useAiSurface';
 import { useNavigationContext } from '../context/NavigationContext';
 import { CommandPaletteProvider } from '../context/CommandPaletteProvider';
-import { resolveI18nLabel } from '../utils';
+import { resolveKeyedI18nLabel } from '../utils';
 import { getProductName } from '../runtime-config';
 import type { ConnectionState } from '@object-ui/data-objectstack';
 
@@ -72,7 +72,7 @@ export function ConsoleLayout({
   connectionState,
   userId,
 }: ConsoleLayoutProps) {
-  const appLabel = resolveI18nLabel(activeApp?.label) || activeAppName;
+  const appLabel = resolveKeyedI18nLabel(activeApp?.label) || activeAppName;
   // Runtime, server-pushed AI gating (shared with the `/ai` route guard and the
   // top-bar AI link): show the chatbot only when the server actually serves AI,
   // or when an explicit `VITE_AI_BASE_URL` opt-in points at an external server.
@@ -173,7 +173,7 @@ export function ConsoleLayout({
               favicon: activeApp.branding.favicon,
               logo: activeApp.branding.logo,
               title: activeApp.label
-                ? `${resolveI18nLabel(activeApp.label)} — ${getProductName()}`
+                ? `${resolveKeyedI18nLabel(activeApp.label)} — ${getProductName()}`
                 : undefined,
             }
           : undefined
