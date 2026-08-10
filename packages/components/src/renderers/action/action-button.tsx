@@ -21,7 +21,7 @@ import React, { forwardRef, useCallback, useEffect, useRef, useState } from 'rea
 import { ComponentRegistry } from '@object-ui/core';
 import type { ActionSchema } from '@object-ui/types';
 import { useAction } from '@object-ui/react';
-import { useCondition, toPredicateInput } from '@object-ui/react';
+import { useCondition, toPredicateInput, usePredicateRecordContext } from '@object-ui/react';
 import { Button } from '../../ui';
 import { cn } from '../../lib/utils';
 import { Loader2 } from 'lucide-react';
@@ -49,8 +49,12 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
     const { execute } = useAction();
     const [loading, setLoading] = useState(false);
 
-    // Record data may be passed from SchemaRenderer (e.g. DetailView passes record data)
-    const recordData = data != null && typeof data === 'object' ? data as Record<string, any> : {};
+    // Record data may be passed from SchemaRenderer (e.g. DetailView passes
+    // record data), bound the three canonical ways — `record.status`, bare
+    // `status`, `data.status` (objectui#4075). This used to be the row spread
+    // flat, so the CANONICAL `record.` root threw `record is not defined` and
+    // the fail-closed `visible` below turned that into "hidden".
+    const recordData = usePredicateRecordContext(data);
 
     // Evaluate visibility and disabled conditions with record data context.
     // `visible` fails CLOSED on a throwing predicate (mirrors ActionEngine's

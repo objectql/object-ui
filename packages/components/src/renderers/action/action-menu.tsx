@@ -17,7 +17,7 @@ import React, { forwardRef, useCallback, useMemo, useState } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import type { ActionSchema } from '@object-ui/types';
 import { useAction } from '@object-ui/react';
-import { useCondition, toPredicateInput } from '@object-ui/react';
+import { useCondition, toPredicateInput, usePredicateRecordContext } from '@object-ui/react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Button } from '../../ui';
 import {
@@ -68,18 +68,31 @@ export interface ActionMenuSchema {
 export const ActionMenuItem: React.FC<{
   action: ActionSchema;
   onExecute: (action: ActionSchema) => Promise<void>;
-}> = ({ action, onExecute }) => {
+  /**
+   * The row this menu is mounted over, forwarded by the host. Optional: an
+   * object-level menu genuinely has no row, and a predicate over an empty
+   * record is still evaluable (objectui#4075 — the failure being fixed is a
+   * predicate that FAULTS on an unbound root, not one that reads a missing
+   * field).
+   */
+  record?: unknown;
+}> = ({ action, onExecute, record }) => {
+  // The row bound the three canonical ways — `record.status`, bare `status`,
+  // `data.status`. This item used to pass `undefined`, i.e. no record at all,
+  // so every row-scoped predicate an author wrote here faulted on its root
+  // (objectui#4075). See `usePredicateRecordContext`.
+  const recordData = usePredicateRecordContext(record);
   // Fails CLOSED on a throwing predicate — mirrors ActionEngine's
   // getActionsForLocation contract (see action-button.tsx for rationale).
-  const isVisible = useCondition(toPredicateInput(action.visible), undefined, {
+  const isVisible = useCondition(toPredicateInput(action.visible), recordData, {
     throwOnError: true,
     label: `action "${action.name ?? action.label ?? 'action:menu item'}" (visible)`,
   });
   // Spec `disabled` (boolean | CEL — disabled when TRUE) primary, legacy
   // non-spec `enabled` fallback (#1885 follow-through — only action-button
   // was wired; this renderer ignored a spec-authored `disabled`).
-  const isDisabledPred = useCondition(toPredicateInput((action as any).disabled));
-  const isEnabled = useCondition(toPredicateInput(action.enabled));
+  const isDisabledPred = useCondition(toPredicateInput((action as any).disabled), recordData);
+  const isEnabled = useCondition(toPredicateInput(action.enabled), recordData);
 
   const iconElement = useMemo(() => {
     const Icon = resolveIcon(action.icon);
@@ -130,6 +143,11 @@ const ActionMenuRenderer = forwardRef<HTMLButtonElement, { schema: ActionMenuSch
       'data-obj-id': dataObjId,
       'data-obj-type': dataObjType,
       style,
+      // The row the host mounted this menu over — the predicate context for
+      // this menu's own `visible` AND for every item in it (objectui#4075).
+      // Also keeps `data` out of `...rest`, which is spread onto the DOM
+      // trigger button.
+      data,
       ...rest
     } = props;
 
@@ -137,9 +155,12 @@ const ActionMenuRenderer = forwardRef<HTMLButtonElement, { schema: ActionMenuSch
     const [loading, setLoading] = useState(false);
     const moreActionsLabel = useMoreActionsLabel();
 
+    // The row bound the three canonical ways — see `usePredicateRecordContext`.
+    const recordData = usePredicateRecordContext(data);
+
     // Fails CLOSED on a throwing predicate — mirrors ActionEngine's
     // getActionsForLocation contract (see action-button.tsx for rationale).
-    const isVisible = useCondition(toPredicateInput(schema.visible), undefined, {
+    const isVisible = useCondition(toPredicateInput(schema.visible), recordData, {
       throwOnError: true,
       label: `action:menu "${schema.label ?? schema.icon ?? 'menu'}" (visible)`,
     });
@@ -229,7 +250,7 @@ const ActionMenuRenderer = forwardRef<HTMLButtonElement, { schema: ActionMenuSch
             return (
               <React.Fragment key={action.name || index}>
                 {showSeparator && <DropdownMenuSeparator />}
-                <ActionMenuItem action={action} onExecute={handleExecute} />
+                <ActionMenuItem action={action} onExecute={handleExecute} record={data} />
               </React.Fragment>
             );
           })}
