@@ -112,7 +112,7 @@ import { getMetadataInspector } from './inspector-registry';
 import { getMetadataDefaultInspector } from './default-inspector-registry';
 import { useMetadataLocale, t, tFormat, translateValidationMessage } from './i18n';
 import { JsonSourceEditor } from './JsonSourceEditor';
-import { validateMetadataDraft, hasClientValidator } from './clientValidation';
+import { validateMetadataDraft, hasClientValidator, type DraftMode } from './clientValidation';
 import { describeIssuePath } from './issuePath';
 import { buildCreateModeBody } from './createBody';
 import { errorCodeIs, errorCodeIsAnyOf } from '@object-ui/types';
@@ -272,6 +272,12 @@ function MetadataResourceEditPageImpl({
       : (entry?.schema as Record<string, unknown> | undefined)) ??
     (config.defaultSchema as Record<string, unknown> | undefined);
   const locale = useMetadataLocale();
+  // Which DOOR this page is (objectstack#5316): a create draft is authored here
+  // and judged by the strict authoring schema; an edit draft is a body that came
+  // back out of storage. Hoisted to one name because it now also decides whether
+  // a client validator exists at all — some schemas are author-shape-only and
+  // gate `create` only (objectui#3561, `AUTHOR_SHAPE_ONLY_TYPES`).
+  const draftMode: DraftMode = createMode ? 'create' : 'edit';
 
   const [layered, setLayered] = React.useState<MetadataLayered<any> | null>(null);
   const identityField = config.identityField ?? 'name';
@@ -414,7 +420,7 @@ function MetadataResourceEditPageImpl({
   // so behavior matches the post-save diagnostics but appears live.
   // Types without a client schema keep the existing server-only flow.
   React.useEffect(() => {
-    if (!hasClientValidator(type)) return;
+    if (!hasClientValidator(type, draftMode)) return;
     let cancelled = false;
     const handle = window.setTimeout(() => {
       // Pass the live server schema so the client never flags fields the
@@ -430,7 +436,7 @@ function MetadataResourceEditPageImpl({
         type,
         draft,
         entry?.schema as { required?: unknown } | undefined,
-        { mode: createMode ? 'create' : 'edit' },
+        { mode: draftMode },
       ).then((res) => {
         if (cancelled) return;
         setIssues(res.issues);
@@ -440,7 +446,7 @@ function MetadataResourceEditPageImpl({
       cancelled = true;
       window.clearTimeout(handle);
     };
-  }, [type, draft, entry?.schema, createMode]);
+  }, [type, draft, entry?.schema, draftMode]);
   // Issues to DISPLAY (banner + inline). Suppressed on a pristine create form
   // so a blank new item doesn't open covered in required-field errors.
   const displayIssues = React.useMemo(
@@ -458,7 +464,7 @@ function MetadataResourceEditPageImpl({
     const diag = (layered as any)?._diagnostics as
       | { errors?: Array<{ path: string; message: string }>; warnings?: Array<{ path: string; message: string }> }
       | undefined;
-    const errs = hasClientValidator(type)
+    const errs = hasClientValidator(type, draftMode)
       ? displayIssues.map((i) => ({ path: i.path, message: translateValidationMessage(i.message, locale) }))
       : (diag?.errors ?? []).map((i) => ({ path: i.path, message: translateValidationMessage(i.message, locale) }));
     const warns = (diag?.warnings ?? []).map((i) => ({
@@ -469,7 +475,7 @@ function MetadataResourceEditPageImpl({
       ...errs.map((e) => ({ path: e.path || undefined, message: e.message, severity: 'error' as const })),
       ...warns.map((w) => ({ path: w.path || undefined, message: w.message, severity: 'warning' as const })),
     ];
-  }, [layered, displayIssues, type, locale]);
+  }, [layered, displayIssues, type, locale, draftMode]);
   // Per-item draft pending publish (mode=draft saves land here).
   // When non-null, the editor is "viewing the draft" and we surface
   // Publish / Discard-draft actions.
@@ -1977,7 +1983,7 @@ function MetadataResourceEditPageImpl({
               // live `issues` state instead of the stale load-time
               // diagnostics, so it stays in sync with every keystroke.
               // Warnings remain server-sourced (Zod doesn't model them).
-              const liveErrors = hasClientValidator(type)
+              const liveErrors = hasClientValidator(type, draftMode)
                 ? issues.map((i) => ({
                     path: i.path,
                     message: translateValidationMessage(i.message, locale),
@@ -1986,7 +1992,7 @@ function MetadataResourceEditPageImpl({
                     ...i,
                     message: translateValidationMessage(i.message, locale),
                   }));
-              const liveValid = hasClientValidator(type)
+              const liveValid = hasClientValidator(type, draftMode)
                 ? liveErrors.length === 0
                 : diag?.valid !== false;
               // Gate the whole diagnostics block on a successful load with
@@ -2001,7 +2007,7 @@ function MetadataResourceEditPageImpl({
                 !shouldRenderDiagnostics({
                   loadFailed,
                   hasDiag: !!diag,
-                  hasClientValidator: hasClientValidator(type),
+                  hasClientValidator: hasClientValidator(type, draftMode),
                 })
               ) {
                 return null;

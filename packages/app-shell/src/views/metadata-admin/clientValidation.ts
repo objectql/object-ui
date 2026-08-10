@@ -479,6 +479,40 @@ function expandViewIssues(
   });
 }
 
+/**
+ * ── Author-shape-only types (objectui#3561) ──
+ *
+ * A spec schema is usable as an EDIT gate only if it declares the ADR-0010
+ * protection envelope — `_lock` / `_lockReason` / `_lockSource` / `_provenance`
+ * / `_packageId` / `_packageVersion` / `_lockDocsUrl`. A stored body carries
+ * those keys: the metadata read path stamps `_packageId` onto any item served
+ * out of a package-owned overlay row, and it does so WITHOUT looking at the
+ * type. Judging such a body with a `.strict()` schema that does not declare the
+ * envelope makes this client stricter than the server — the objectstack#5316
+ * inversion the `view` gates above exist to avoid.
+ *
+ * Measured on the resolved `@objectstack/spec` 17.0.0-rc.5: every type already
+ * wired below declares all 7 envelope keys. `SharingRuleSchema` declares NONE
+ * of them and is `.strict()`, so it is the one shape that must not judge a
+ * stored body — `safeParse({…validRule, _packageId: 'pkg'})` fails with
+ * `unrecognized_keys`. Framework `origin/main` reaches the same conclusion in
+ * its own words at `kernel/metadata-type-schemas.ts`, where the schema is bound
+ * for the write door only: *"This shape is `.strict()` with no stored/stamped
+ * envelope, so it is an AUTHOR-shape check and is applied only where author
+ * shapes are submitted: the write door. It is not a filter on rows already in
+ * `sys_sharing_rule`."*
+ *
+ * So the type is wired on `create` — the AUTHORING door, which is exactly where
+ * a permissive match-all sharing condition gets written — and deliberately not
+ * on `edit`. This is NOT a tolerant fallback: nothing is coerced and no draft is
+ * waved through; one door has a client gate and the other keeps the server's.
+ * The contract-first repair is spec-side (the envelope belongs on
+ * `SharingRuleSchema`, which framework #6931 notes went undeclared because this
+ * shape sits outside the gate that enforces envelope declaration); until that
+ * lands, reconstructing the envelope here would be a second de-facto contract.
+ */
+const AUTHOR_SHAPE_ONLY_TYPES = new Set<string>(['sharing_rule']);
+
 // Map metadata-type name → loader for that type's root Zod schema.
 // Each loader pulls only one spec subpath so we don't drag the whole
 // 2MB schema bundle into the studio bundle.
@@ -494,11 +528,10 @@ function expandViewIssues(
 //     `policy` metadata file, so it must not be substituted.
 //   - `trigger`: no standalone TriggerSchema export at runtime (only
 //     ConnectorTriggerSchema / WebhookEventSchema variants).
-//   - `sharing_rule`: SharingRuleSchema is declared but has empty shape — server-only.
-//   - `translation`: TranslationBundleSchema is z.object({}) — accepts anything; server-only.
-//   - `connector`: ConnectorSchema requires an `id` field that's not in the on-disk
-//     metadata shape — the spec models the runtime connector instance, not the file.
-//     Wiring it would flag every valid connector definition.
+//
+// `sharing_rule` / `translation` / `connector` used to be on that list too. All
+// three reasons were re-verified against the resolved spec and none held —
+// objectui#3561; each is now wired below with the measurement that replaced it.
 const LOADERS: Record<string, SchemaLoader> = {
   // data
   object: async () => (await import('@objectstack/spec/data')).ObjectSchema as unknown as ZodLikeSchema,
@@ -583,6 +616,27 @@ const LOADERS: Record<string, SchemaLoader> = {
   // and `bodyHtml` / `bodyText`, not `id` and `body` + `bodyType`.
   email_template: async () => (await import('@objectstack/spec/system')).EmailTemplateDefinitionSchema as unknown as ZodLikeSchema,
   job: async () => (await import('@objectstack/spec/system')).JobSchema as unknown as ZodLikeSchema,
+  // NOTE: `TranslationItemSchema`, NOT `TranslationBundleSchema` — the same
+  // wrong-schema class this file already paid for once on `email_template`
+  // above (objectui#3561).
+  //
+  // The old note said "TranslationBundleSchema is z.object({}) — accepts
+  // anything". On the resolved spec 17.0.0-rc.5 that schema is
+  // `z.record(LocaleSchema, TranslationDataSchema)` — the BUNDLE shape, a map
+  // keyed by locale — and it is not lenient at all: it REJECTS a valid
+  // translation item, reporting `expected object, received string` on `name`,
+  // `locale` and `label`. So the stale reason was wrong twice over, and had the
+  // schema been wired on that reasoning it would have flagged every valid
+  // draft.
+  //
+  // `translation` is a registered metadata KIND, so the resolved spec can be
+  // asked directly which schema it binds: `getMetadataTypeSchema('translation')`
+  // (`@objectstack/spec/kernel`) answers a strict object whose shape is exactly
+  // `TranslationItemSchema`'s 19 keys — the translation-data shape plus
+  // `locale` / `name` / `label` and all 7 ADR-0010 envelope keys. That parity is
+  // asserted in `clientValidation.optOuts.test.ts` so the binding cannot drift
+  // out from under this line unnoticed.
+  translation: async () => (await import('@objectstack/spec/system')).TranslationItemSchema as unknown as ZodLikeSchema,
 
   // security
   // NOTE: use PermissionSetSchema from /security, NOT PluginPermissionSchema from /kernel —
@@ -590,6 +644,16 @@ const LOADERS: Record<string, SchemaLoader> = {
   // metadata permission set ({name,objects,fields}). See
   // packages/spec/src/kernel/metadata-type-schemas.ts for the canonical mapping.
   permission: async () => (await import('@objectstack/spec/security')).PermissionSetSchema as unknown as ZodLikeSchema,
+  // The old note said `SharingRuleSchema` "is declared but has empty shape".
+  // On the resolved spec 17.0.0-rc.5 it is `CriteriaSharingRuleSchema` — a
+  // `.strict()` object declaring nine keys (`name`, `label`, `description`,
+  // `object`, `active`, `accessLevel`, `sharedWith`, `type`, `condition`) with
+  // a curated unknown-key error map. Not empty, and the same shape
+  // `ObjectStackSchema.sharingRules` binds element-wise.
+  //
+  // CREATE ONLY — see `AUTHOR_SHAPE_ONLY_TYPES` above for why this shape may
+  // not judge a stored body.
+  sharing_rule: async () => (await import('@objectstack/spec/security')).SharingRuleSchema as unknown as ZodLikeSchema,
   // `policy` intentionally omitted — spec 11.2.0 dropped `PolicySchema` and the metadata-type
   // registry has no `policy` schema; drafts fall through to server-side validation (see top).
   // `profile` intentionally omitted — ADR-0090 D2 removed the profile concept (spec 13);
@@ -600,6 +664,39 @@ const LOADERS: Record<string, SchemaLoader> = {
 
   // api
   api: async () => (await import('@objectstack/spec/api')).ApiEndpointSchema as unknown as ZodLikeSchema,
+
+  // integration
+  //
+  // NOTE: `DeclarativeConnectorEntrySchema`, NOT the bare `ConnectorSchema`.
+  //
+  // The old note claimed `ConnectorSchema` "requires an `id` field that's not
+  // in the on-disk metadata shape" and that wiring it "would flag every valid
+  // connector definition". On the resolved spec 17.0.0-rc.5 there is no `id`
+  // key in that schema at all: its required keys are `name`, `label`, `type`,
+  // and a minimal `{ name, label, type: 'saas' }` entry parses clean.
+  //
+  // But `ConnectorSchema` is still the wrong target, for the reason the spec
+  // states itself: the base "stays a plain object so connector subtypes
+  // (github / database / …) can still `.extend()` it", while
+  // `DeclarativeConnectorEntrySchema` is that base plus the ADR-0097 rules that
+  // apply to a connector AUTHORED in a stack — which is what this admin writes.
+  // `ObjectStackSchema.connectors` binds the entry schema element-wise.
+  //
+  // Measured difference on rc.5 — each of these is ACCEPTED by `ConnectorSchema`
+  // and REJECTED by the entry schema, so naming the base would have been a
+  // vacuous pass on exactly the authoring mistakes ADR-0097 exists to catch:
+  //   - `providerConfig` without a `provider` (§meaningless on a descriptor);
+  //   - `auth` without a `provider`;
+  //   - a provider-bound instance inlining credentials via `authentication`
+  //     rather than referencing them (§3);
+  //   - a provider-bound instance authoring `actions` the provider derives (§5).
+  // The rules fire only for provider-bound instances, so a catalog descriptor
+  // is unaffected. Unlike the two above this schema is NOT strict — unknown keys
+  // are stripped, not rejected — so it judges a stored body safely and is wired
+  // on both gates.
+  connector: async () =>
+    (await import('@objectstack/spec/integration'))
+      .DeclarativeConnectorEntrySchema as unknown as ZodLikeSchema,
 };
 
 // Flow node `type` values the running server accepts but the published
@@ -699,7 +796,10 @@ async function getSchemaForType(type: string, mode: DraftMode): Promise<ZodLikeS
   const key = `${mode}:${type}`;
   if (SCHEMA_CACHE.has(key)) return SCHEMA_CACHE.get(key) ?? null;
   const loader = LOADERS[type];
-  if (!loader) {
+  // `AUTHOR_SHAPE_ONLY_TYPES` is consulted HERE rather than inside the loader so
+  // the fact lives in exactly one place: `hasClientValidator` reads the same set
+  // synchronously, and the two can never disagree about which door has a gate.
+  if (!loader || (mode === 'edit' && AUTHOR_SHAPE_ONLY_TYPES.has(type))) {
     SCHEMA_CACHE.set(key, null);
     return null;
   }
@@ -715,11 +815,23 @@ async function getSchemaForType(type: string, mode: DraftMode): Promise<ZodLikeS
 }
 
 /**
- * Returns true if a client-side schema exists for the given metadata
- * type. Useful for deciding whether to skip the debounce in caller.
+ * Returns true if a client-side schema exists for the given metadata type ON
+ * THE GIVEN DOOR. Useful for deciding whether to skip the debounce in caller.
+ *
+ * The `mode` argument is load-bearing, not cosmetic (objectui#3561). Callers do
+ * not merely skip work when this is `false` — `ResourceEditPage` also uses it to
+ * decide WHERE the diagnostics banner reads its errors from: `true` means "the
+ * live client issues are the error source", which suppresses the server's
+ * load-time `_diagnostics`. A type wired on `create` only would therefore have
+ * silently blanked the server's errors on the edit path had this stayed
+ * mode-blind — reporting a stored item as clean because no client gate ran.
+ *
+ * Defaults to `'create'` to match `validateMetadataDraft`, whose default is the
+ * strict authoring door.
  */
-export function hasClientValidator(type: string): boolean {
-  return type in LOADERS;
+export function hasClientValidator(type: string, mode: DraftMode = 'create'): boolean {
+  if (!(type in LOADERS)) return false;
+  return !(mode === 'edit' && AUTHOR_SHAPE_ONLY_TYPES.has(type));
 }
 
 export interface ValidateResult {
