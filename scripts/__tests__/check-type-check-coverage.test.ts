@@ -429,13 +429,35 @@ describe('examples/schema-catalog is wired up, in this repository', () => {
     expect(testsCovered(pkg)).toBe(true);
   });
 
-  it('is the only package in the repository whose tests live outside src/', () => {
-    // The premise the fix was scoped on (#3968). If a second package adopts this
-    // layout, that is fine — but it must arrive wired up, and this list is where
-    // the next reader finds out.
+  it('lists every package whose tests live outside src/, and holds each one to arriving wired up', () => {
+    // The premise the fix was scoped on (#3968). A second package adopting this
+    // layout is fine — but it must arrive wired up, and this list is where the
+    // next reader finds out.
+    //
+    // `@object-ui/example-console-starter` is that second package
+    // (objectui#3528). Its vite-alias closure test lives in `test/` for the same
+    // structural reason schema-catalog's do: that example's `tsconfig.json` IS
+    // the app build (`tsc && vite build`, `include: ["src"]`), and a fork-ready
+    // template should not hand the customer a test file inside the `src/` they
+    // are meant to edit.
     const outsideSrc = packages
       .filter((p) => p.testFilePaths.some((rel: string) => !rel.startsWith('src/')))
-      .map((p) => p.name);
-    expect(outsideSrc).toEqual(['@object-ui/example-schema-catalog']);
+      .map((p) => p.name)
+      .sort();
+    expect(outsideSrc).toEqual([
+      '@object-ui/example-console-starter',
+      '@object-ui/example-schema-catalog',
+    ]);
+
+    // "It must arrive wired up" is now enforced here rather than left to the
+    // reader: appending a name above is not enough on its own, because a package
+    // in this layout whose tests no `tsc` program reads is the exact hole #3968
+    // was about.
+    for (const name of outsideSrc) {
+      const adopter = packages.find((p) => p.name === name)!;
+      expect(adopter.hasTestConfig, `${name} has no tsconfig.test.json`).toBe(true);
+      expect(adopter.chainsTestConfig, `${name} does not chain it off "type-check"`).toBe(true);
+      expect(adopter.testConfigSkips, `${name}'s test project misses test files`).toEqual([]);
+    }
   });
 });
