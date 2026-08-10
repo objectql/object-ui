@@ -19,7 +19,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';
 import { render, waitFor, screen, fireEvent } from '@testing-library/react';
-import { ListView } from '../ListView';
+import { ListView, resolveTimelineDateBinding } from '../ListView';
 import { SchemaRendererProvider } from '@object-ui/react';
 
 const rows = [
@@ -120,6 +120,70 @@ describe('ListView — timeline date binding reaches the renderer (objectui#3129
     findCalls = [];
     const viaAlias = await timelineProps({ ...BASE, options: { timeline: { dateField: 'start_date' } } });
     expect(viaAlias.schema.startDateField).toBe('start_date');
+  });
+
+  it('binds to the CALENDAR date axis when the view declares no timeline one', async () => {
+    // The gap the report isolated: "the same start_date / end_date fields render
+    // correctly in the Calendar and Gantt views". A view whose date axis lives
+    // under `calendar` is OFFERED the Timeline visualization — the capability
+    // gate has always accepted `options.calendar.startDateField` as a
+    // timeline-resolvable axis — but the render branch never read calendar
+    // config, so it bucketed every record under "No date" while the calendar
+    // rendered the very same field.
+    const props = await timelineProps({
+      ...BASE,
+      options: { calendar: { startDateField: 'start_date', endDateField: 'end_date' } },
+    });
+    expect(props.schema.startDateField).toBe('start_date');
+    expect(props.schema.endDateField).toBe('end_date');
+    // Also on the NESTED config: ObjectTimeline prefers it over the flat prop.
+    expect(props.schema.timeline?.startDateField).toBe('start_date');
+    expect(findCalls[0].$select).toContain('start_date');
+  });
+
+  it('binds to the spec-canonical `calendar` nesting too', async () => {
+    const props = await timelineProps({ ...BASE, calendar: { startDateField: 'start_date' } });
+    expect(props.schema.startDateField).toBe('start_date');
+    expect(props.schema.timeline?.startDateField).toBe('start_date');
+  });
+
+  it('a timeline config with no date key does not shadow the calendar binding', async () => {
+    // app-shell emits an `options.timeline` object for every object view (it
+    // carries the object's titleField), so "the config object exists" must not
+    // be read as "the axis is bound".
+    const props = await timelineProps({
+      ...BASE,
+      options: { timeline: { titleField: 'name' }, calendar: { startDateField: 'start_date' } },
+    });
+    expect(props.schema.startDateField).toBe('start_date');
+    expect(props.schema.timeline.startDateField).toBe('start_date');
+  });
+
+  it('the declared timeline axis still WINS over a calendar one', async () => {
+    const props = await timelineProps({
+      ...BASE,
+      timeline: { startDateField: 'end_date' },
+      calendar: { startDateField: 'start_date' },
+    });
+    expect(props.schema.startDateField).toBe('end_date');
+  });
+
+  it('keeps the historical fallback when the view declares no date axis at all', async () => {
+    // The other direction, pinned honestly: nothing is invented from the object,
+    // and the pre-existing `created_at` last resort is unchanged.
+    const props = await timelineProps({ ...BASE, timeline: { titleField: 'name' } });
+    expect(props.schema.startDateField).toBe('created_at');
+    expect(props.schema.timeline.startDateField).toBeUndefined();
+  });
+
+  it('the capability gate and the render branch read ONE resolution', () => {
+    // The gate used to be the wider of the two: it accepted a calendar binding
+    // the renderer could not use. Same function now answers both questions.
+    expect(resolveTimelineDateBinding({ options: { calendar: { startDateField: 'start_date' } } }))
+      .toEqual({ startDateField: 'start_date', endDateField: undefined, titleField: undefined });
+    expect(resolveTimelineDateBinding({ timeline: { dateField: 'a' }, calendar: { startDateField: 'b' } }).startDateField)
+      .toBe('a');
+    expect(resolveTimelineDateBinding({}).startDateField).toBeUndefined();
   });
 
   it('offers the Timeline visualization for a config using only the alias', async () => {

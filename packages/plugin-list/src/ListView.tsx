@@ -208,6 +208,58 @@ export function resolveAddRecordPlacement(position: unknown): { top: boolean; bo
 }
 
 /**
+ * The date axis a timeline view renders on.
+ *
+ * ONE resolution, consumed by both read-sites that decide the timeline's fate:
+ * the capability gate (may this view offer the Timeline visualization?) and the
+ * timeline render branch (which field does it bucket by?). Those two used to
+ * carry separate, unequal source lists, and the gate was the wider of the pair —
+ * it accepted `options.calendar.startDateField` as a timeline-resolvable axis
+ * while the render branch never read calendar config at all. A view that binds
+ * its dates under `calendar` therefore got the Timeline option offered and then
+ * bucketed every record into "No date" (objectui#3129), which is exactly the
+ * shape the report isolated: the same fields render fine in Calendar and Gantt.
+ *
+ * A calendar binding IS a legitimate timeline axis in this product, not a
+ * lenient fallback bolted on here: the capability gate has always said so, and
+ * `InterfaceListPage` derives a timeline's default binding from the very same
+ * `defaultCalendarFromObject` helper it uses for calendars. What was missing is
+ * that one of the two read-sites never honoured the promise the other made.
+ *
+ * Both nestings are read at each level, spec-canonical key first: the
+ * spec-authored `schema.timeline` / `schema.calendar` and the legacy
+ * `schema.options.*` twin that app-shell's object pages still emit. `dateField`
+ * is the pre-#2231 alias for `startDateField`.
+ *
+ * Exported for the regression suite, which pins each authoring shape.
+ */
+export function resolveTimelineDateBinding(schema: any): {
+  startDateField?: string;
+  endDateField?: string;
+  titleField?: string;
+} {
+  const sources = [
+    schema?.timeline,
+    schema?.options?.timeline,
+    schema?.calendar,
+    schema?.options?.calendar,
+  ];
+  const pick = (read: (src: any) => unknown): string | undefined => {
+    for (const src of sources) {
+      if (!src) continue;
+      const value = read(src);
+      if (typeof value === 'string' && value) return value;
+    }
+    return undefined;
+  };
+  return {
+    startDateField: pick((s) => s.startDateField ?? s.dateField),
+    endDateField: pick((s) => s.endDateField),
+    titleField: pick((s) => s.titleField),
+  };
+}
+
+/**
  * Normalize an array of filter conditions, expanding `in`/`not in` operators
  * and ensuring consistent AST structure.
  */
@@ -1362,8 +1414,10 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       resolvable.push('calendar');
     }
 
-    // Check for Timeline capabilities (spec config takes precedence)
-    if (schema.timeline?.startDateField || (schema.timeline as any)?.dateField || schema.options?.timeline?.startDateField || schema.options?.timeline?.dateField || schema.options?.calendar?.startDateField) {
+    // Check for Timeline capabilities — the SAME resolution the render branch
+    // buckets by, so the switcher can never offer a Timeline the renderer then
+    // fails to bind (objectui#3129).
+    if (resolveTimelineDateBinding(schema).startDateField) {
       resolvable.push('timeline');
     }
 
@@ -1637,19 +1691,28 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           ...(schema.options?.timeline || {}),
           ...(schema.timeline || {}),
         };
+        // The one resolution the capability gate above also uses (objectui#3129).
+        const dateBinding = resolveTimelineDateBinding(schema);
+        // The resolved axis has to appear on the NESTED config too, not just on
+        // the flat prop: `ObjectTimeline` prefers `timeline.startDateField` over
+        // `schema.startDateField`, so a timeline config object that exists but
+        // carries no date key (app-shell emits one for every object view) would
+        // otherwise mask a binding resolved from elsewhere.
+        const resolvedTimeline = {
+          ...mergedTimeline,
+          ...(dateBinding.startDateField ? { startDateField: dateBinding.startDateField } : {}),
+          ...(dateBinding.endDateField ? { endDateField: dateBinding.endDateField } : {}),
+        };
         return {
           type: 'object-timeline',
           ...baseProps,
           // Nested timeline config (spec-compliant, used by ObjectTimeline)
-          timeline: Object.keys(mergedTimeline).length > 0 ? mergedTimeline : undefined,
-          // Deprecated top-level props for backward compat
-          // `dateField` is the deprecated alias for `startDateField`. It was read
-          // from `options.timeline` but not from the spec-canonical
-          // `schema.timeline`, so the spec nesting + legacy key silently fell
-          // through to `created_at` (objectui#3129).
-          startDateField: schema.timeline?.startDateField || (schema.timeline as any)?.dateField || schema.options?.timeline?.startDateField || schema.options?.timeline?.dateField || 'created_at',
-          titleField: schema.timeline?.titleField || schema.options?.timeline?.titleField || 'name',
-          ...(schema.timeline?.endDateField ? { endDateField: schema.timeline.endDateField } : {}),
+          timeline: Object.keys(resolvedTimeline).length > 0 ? resolvedTimeline : undefined,
+          // Deprecated top-level props for backward compat. `created_at` stays
+          // the last resort for a view that declares no date axis anywhere.
+          startDateField: dateBinding.startDateField || 'created_at',
+          titleField: dateBinding.titleField || 'name',
+          ...(dateBinding.endDateField ? { endDateField: dateBinding.endDateField } : {}),
           ...(schema.timeline?.groupByField ? { groupByField: schema.timeline.groupByField } : {}),
           ...(schema.timeline?.colorField ? { colorField: schema.timeline.colorField } : {}),
           ...(schema.timeline?.scale ? { scale: schema.timeline.scale } : {}),
