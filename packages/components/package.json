@@ -98,7 +98,7 @@
     "@vitejs/plugin-react": "^6.0.5",
     "autoprefixer": "^10.5.4",
     "postcss": "^8.5.26",
-    "shadcn": "^4.16.0",
+    "shadcn": "^4.16.2",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "vite": "^8.2.1",
