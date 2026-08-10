@@ -102,10 +102,27 @@ Nothing in this repo reads it. There is no mock mode.)
 
 ### Without a backend
 
-Measured with nothing listening on `:3000`: `/login` renders in full but cannot
-sign in, and `/` stops at the branded "Initializing application… / Connecting to
-data source" screen — the adapter never connects, so no route below it mounts.
-The browser console shows `ERR_CONNECTION_REFUSED`.
+Measured with nothing listening on `:3000`, `pnpm dev` on a free port, headless
+Chromium on `/`:
+
+**`/` redirects to `/login`.** The root route is wrapped in `AuthenticatedRoute`
+(objectui#4042), so the guard resolves the session before `RootRedirect` — and the
+`/meta/*` reads behind it — ever mount. The branded "Initializing application... /
+Connecting to data source" screen still appears, but only as a *transient* frame
+while `GET /api/v1/auth/get-session` is in flight; the redirect lands within a few
+hundred milliseconds of that request being refused. `/login` then renders in full
+but cannot sign in. The browser console shows `ERR_CONNECTION_REFUSED` for
+`/api/v1/auth/get-session`, `/api/v1/auth/config` and
+`/api/v1/i18n/translations/en`.
+
+**A stored credential does not change this.** `isAuthenticated` is
+`user !== null && session !== null`, and both come only from the server's
+`get-session` answer — `localStorage` holds a bearer *token*, never a session — so
+seeding `auth-session-token` and reloading `/` still lands on `/login`. With the
+backend down no cold load reaches an authenticated state, so nothing below the
+guard renders. (Not measured: a session signed in against a live backend that is
+then killed under it; until the next reload that one still holds its in-memory
+session.)
 
 ## Which example do I want?
 
